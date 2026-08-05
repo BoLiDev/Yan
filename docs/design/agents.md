@@ -41,7 +41,7 @@ cwd 是 `$YAN_HOME`（要跑 `bin/`、读 `mem/`），`--add-dir` 只放这个 t
 
 跨 task 的事谁管？答案都是「脚本，不是 agent」：
 
-- 两个 task 改了同一个 scope 会不会撞？  不需要任何机制。worktree 隔离了文件系统冲突；git 冲突和语义冲突是正常的开发现实，由 rebase + CI + review 处理，GitLab 会在合的时候告诉你。文件重叠不是串行化的理由。
+- 两个 task 改了同一个 scope 会不会撞？  不需要任何机制。worktree 隔离了文件系统冲突；git 冲突和语义冲突是正常的开发现实，由 rebase + CI + review 处理，GitLab 会在合的时候报出来。文件重叠不是串行化的理由。
 - 想看全局有哪些 task 在跑？  `yan ls` 扫目录，user 自己敲。它带一列 scope 是有用的信息（user 自己判断要不要在意），但 yan 主动扫描并告警是噪音—重叠很常见、会反复报警然后被忽略。
 - 多个 yan 同时写 `mem/`?  `user.md` 只在明确要求时写，而 user 一次只跟一个 yan 说话。真要保险加 flock。
 

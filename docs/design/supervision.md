@@ -21,7 +21,7 @@ hook 的作用只是让它不依赖模型记得去做，启动就注入一条指
 ## 完整流程
 
 ```
-你说话 → yan 处理完 → 准备结束 turn
+user 说话 → yan 处理完 → 准备结束 turn
    ↓  两个 Stop hook 被同一事件触发，并发
 
    guard（同步阻塞）                 autoarm（asyncRewake, 长 timeout）
@@ -74,13 +74,13 @@ autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firs
 
 预算设 3，留在 Claude 自身那个 8 次硬上限以下（`fm-turnend-guard.sh` 注释：*below Claude's 8-block override*）—由我们自己决定何时放弃并打印有意义的警告，而不是被 harness 静默强行放行。
 
-**三、用完预算必须 fail open。** 含义不是「算了不管了」，而是「进入盲跑，并且大声告诉你」：shift 还在干活一切照旧，事件还在往 `run/status` 里写一条不丢，只是没人在盯—干完了不会有人叫你。所以那次放行必须打印一句明确的话：自动监督坏了，从现在起得你自己看。那时的选择是自己 `yan ls` 看看，或者重启 yan（SessionStart 会 reconcile，往往顺手就恢复了）。
+**三、用完预算必须 fail open。** 含义不是「算了不管了」，而是「进入盲跑，并且大声告诉 user」：shift 还在干活一切照旧，事件还在往 `run/status` 里写一条不丢，只是没人在盯—干完了不会有人叫 user。所以那次放行必须打印一句明确的话：自动监督坏了，从现在起得 user 自己看。那时的选择是自己 `yan ls` 看看，或者重启 yan（SessionStart 会 reconcile，往往顺手就恢复了）。
 
-为什么不能一直拦：一直拦 = 整个 session 废掉，你连话都说不上，而且每一轮循环都是一次完整的模型推理在烧 token。盲跑的后果是「晚点才知道」，卡死的后果是「完全不可用」。前者可以接受。
+为什么不能一直拦：一直拦 = 整个 session 废掉，user 连话都说不上，而且每一轮循环都是一次完整的模型推理在烧 token。盲跑的后果是「晚点才知道」，卡死的后果是「完全不可用」。前者可以接受。
 
 ## yan wait 看三个 source
 
-只看 signal 不够，因为 agent 会死、会卡、会忘记报告—一个卡死的 shift 会让你干等到超时。这三条直接移植 firstmate 的教训：
+只看 signal 不够，因为 agent 会死、会卡、会忘记报告—一个卡死的 shift 会让 user 一直干等到超时。这三条直接移植 firstmate 的教训：
 
 | source | 抓什么 | 成本 |
 | --- | --- | --- |
@@ -98,13 +98,13 @@ hook 用 exit 2 唤醒模型时，user 可能正在跟 yan 聊别的，shift 的
 
 否则会出现「shift 报了 blocked，但 yan 当时在讨论方案，就忘了」这种失败。
 
-顺带一个 per-task 设计的收益：因为一个 yan 只管一个 task，user「聊别的」通常也在这个 task 范围内，所以 wake 插进来天然不跑题。firstmate 那种全局主 agent 会在你聊 t051 时插进 t042 的 blocked，那才叫割裂。
+顺带一个 per-task 设计的收益：因为一个 yan 只管一个 task，user「聊别的」通常也在这个 task 范围内，所以 wake 插进来天然不跑题。firstmate 那种全局主 agent 会在 user 聊 t051 时插进 t042 的 blocked，那才叫割裂。
 
 ## 成本、缺口、以及砍掉了什么
 
 多小时任务的成本接近零。 `yan wait` 单次寿命有界（30 分钟起），一个 3 小时的 shift 会有 6 次无事退出；wait 无事退出 → hook 跟着 exit 0（不是 exit 2），模型根本不被唤醒。「进程寿命有界、覆盖无界」靠的是 hook 每次 Stop 都重新触发；但如果模型一直没有新 turn，hook 也不会重新触发—这就是为什么单次寿命要设够长，以及为什么 guard 要检查 beacon 新鲜度（它是「autoarm 静默失效」的唯一探测手段）。
 
-一个明确接受的缺口：所有 shift 下工之后、对外 MR 的 CI 在跑时，没有任何 agent 在工作，三个 source 都没东西可等。0→1 的答案是 yan 结束 turn，不等 CI，结论在 user 下次开 yan 时由 reconcile 查 GitLab 得到。代价是 CI 红了不会主动通知你。想要主动通知就加第四个 source（轮询 GitLab）—机制现成，排到 1→2。
+一个明确接受的缺口：所有 shift 下工之后、对外 MR 的 CI 在跑时，没有任何 agent 在工作，三个 source 都没东西可等。0→1 的答案是 yan 结束 turn，不等 CI，结论在 user 下次开 yan 时由 reconcile 查 GitLab 得到。代价是 CI 红了不会主动通知 user。想要主动通知就加第四个 source（轮询 GitLab）—机制现成，排到 1→2。
 
 砍掉的部分：firstmate 那 20 个文件不是花在管道上（管道就是上面这三个 hook），而是花在一层独立的 triage 上—吸收无害唤醒、「可证明在工作」判据、wedge 计时器、连续升级计数、demand-deep-inspection 标记、busy-turn 上界。yan 的 triage 就是那三个 source，长在 `yan wait` 里，不是单独一层。它能这么瘦，是因为它膨胀的原因我们都没有：多 backend 的忙碌判据、no-mistakes 的 run-step 归属校验、多 home 冲突、procevent、X-mode。
 
