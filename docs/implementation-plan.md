@@ -68,7 +68,7 @@ graph LR
 
 ---
 
-## 2. Task 清单
+## 2. `task` 清单
 
 每个 `task` 一个 `unit`，粒度按 [design §6.7](design/branching.md#67-unit-粒度的判据) 的判据定：**一个对外 MR 的粒度 = 一次 review 能吃下的量。**
 

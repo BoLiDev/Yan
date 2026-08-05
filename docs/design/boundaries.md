@@ -26,7 +26,7 @@
 | 合对外 MR（→ `target`） | `yan` | 必须 `user` 明说 |
 | 删已合并的子分支 | `yan` | 自主。必须排在还树之后（[§7](worktree.md#7-worktree)） |
 | 删未合并的任何分支 | — | 禁止 |
-| `yan unit set`（改 branch / `target` / `mode` / `scope`） | `yan` | 必须 `user` 明说—改的全是决策 |
+| `yan unit set`（改 `branch` / `target` / `mode` / `scope`） | `yan` | 必须 `user` 明说—改的全是决策 |
 | MR 上留评论、@人 | — | 必须 `user` 明说，会打扰同事 |
 
 > 在自己的分支和本机范围内 = 自主；一旦影响 `target` 或者同事会看见 = `user` 明说。

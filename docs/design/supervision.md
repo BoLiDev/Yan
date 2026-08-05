@@ -78,7 +78,7 @@ autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firs
 
 为什么不能一直拦：一直拦 = 整个 session 废掉，`user` 连话都说不上，而且每一轮循环都是一次完整的模型推理在烧 token。盲跑的后果是「晚点才知道」，卡死的后果是「完全不可用」。前者可以接受。
 
-## `yan` wait 看三个 source
+## `yan wait` 看三个 source
 
 只看 signal 不够，因为 agent 会死、会卡、会忘记报告—一个卡死的 `shift` 会让 `user` 一直干等到超时。这三条直接移植 firstmate 的教训：
 

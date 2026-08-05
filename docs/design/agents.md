@@ -97,7 +97,7 @@ cwd 是 `$YAN_HOME`（要跑 `bin/`、读 `mem/`），`--add-dir` 只放这个 `
 
 ## 5.6 harness 要求
 
-**`yan` 锁 Claude Code。Codex 及其他 harness 明确 out of `scope`。**
+**`yan` 锁 Claude Code。Codex 及其他 harness 明确 out of scope。**
 
 这是权衡后的决定。走 harness 无关的路要么付 send-keys 注入的代价（聊天记录里出现假装 `user` 打的字、composer 竞态、pane 静止判据），要么付有界前台 checkpoint 的代价（插话要按 Esc、每小时几千 token 的往返）。firstmate 那套 hook 方案比两者都干净，值得为它锁定一个 harness。
 

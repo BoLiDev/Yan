@@ -68,7 +68,7 @@ target (master / release/x / 任意分支)
   ] }
 ```
 
-当前状态是四个可变标量（branch / `target` / `mode` / mr），因为 `yan` 唯一的操作性需求就是「派新 `shift` 时从哪个分支切」—那只需要一个字符串。`mr` 是当前轮开出的对外 MR，`yan mr` 开的时候写上。
+当前状态是四个可变标量（`branch` / `target` / `mode` / `mr`），因为 `yan` 唯一的操作性需求就是「派新 `shift` 时从哪个分支切」—那只需要一个字符串。`mr` 是当前轮开出的对外 MR，`yan mr` 开的时候写上。
 
 `history[]` 是 append-only 的历史，写进去就再也不动。跟当前分开而不是「当前就是数组最后一项」，因为当前要频繁读，而且 append-only 的语义更干脆。
 
