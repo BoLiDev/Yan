@@ -18,7 +18,7 @@
 三个刻意的排序决定：
 
 1. **池排在第二个，不是最后。** 它是最大的一块 primitive，而且它自己就能用——
-   `yan tree get` 手敲就有价值，不需要任何 agent。早做等于早拿到一个真实用户（你）。
+   `yan tree get` 手敲就有价值，不需要任何 agent。早做等于早拿到一个真实用户，也就是造它的人自己。
 2. **监督排在第四，不排最后。** 它是风险最高、最不能增量验证的一块。
    排最后意味着在整个系统都压在它身上之后才发现 hook 不工作，那是致命的。
    排第四是因为到那时刚好有东西可以被监督。
@@ -29,13 +29,13 @@
 
 ## 1. 阶段总览
 
-| 阶段 | 交付的能力 | task 数 | 阶段结束时你能做什么 |
+| 阶段 | 交付的能力 | task 数 | 阶段结束时成立的事 |
 | --- | --- | --- | --- |
 | **P0 地基** | 骨架 + 测试台 | 2 | 跑 `yan`，跑测试，CI 是绿的 |
 | **P1 池** | worktree 池 | 1 | **手动租树还树，热复用真的省掉冷装** |
 | **P2 记账与终端** | 存储 + 终端 | 3 | 建 task、看队列、在 tmux 里起进程 |
-| **P3 派工** | 派出第一个 shift | 2 | **第一个 sub-agent 真的在树里干活**（你自己盯 pane） |
-| **P4 监督** | hook + watcher | 2 | shift 干完自己会叫你 |
+| **P3 派工** | 派出第一个 shift | 2 | **第一个 sub-agent 真的在树里干活**（此时还要人工盯 pane） |
+| **P4 监督** | hook + watcher | 2 | shift 干完会自己发出通知 |
 | **P5 交付** | forge + 合并链路 | 5 | 子分支 MR、对外 MR、下工还树 |
 | **P6 AGENTS.md 与验收** | 判断 + 自举 | 2 | **[design §11](design/scope.md#11-01-范围) 的验收链在 Yan 自己身上跑通** |
 
@@ -122,7 +122,7 @@ graph LR
 | `yan-unit` | `yan unit add`（`target` 必须显式给）+ `lib-hook.sh`（`branch-name` 接缝） | hook 非零退出 → **停下报错，绝不 fallback 到内置默认**；hook 缺失 → 用内置默认 `yan/<task>-<unit>-r<n>`，且 `n` = `history` 长度 + 1；hook 返回的分支已存在 → checkout 而不是重建 |
 | `yan-shift-new` | `yan shift new` + `yan send` + `yan report` + `yan scope-check` + brief 模板 | **cwd 断言：指向主 clone 时真的拒绝启动**（[design §7](design/worktree.md#7-worktree) 的硬不变量）；brief 里所有占位符都被替换（残留 `{...}` 直接失败）；`yan report` 只接受那五个 state，第六个词被拒；`report` 同时写了 status 和 signal；`scope-check` 越界时**只报告不拦** |
 
-**阶段里程碑：第一个 sub-agent 真的在树里干活了。** 这时还没有监督，你自己看 pane。
+**阶段里程碑：第一个 sub-agent 真的在树里干活了。** 这时还没有监督，pane 要靠人工盯。
 这是刻意的——先证明派工路径本身是对的，再上 hook 的复杂度。
 
 ### P4 · 监督
@@ -185,7 +185,7 @@ CI（GitHub Actions）跑的是 `shellcheck` 加 `tests/run.sh`，而真实 forg
 | | 挡住什么 | 现在能做什么 |
 | --- | --- | --- |
 | **task id 格式没定** | `yan-registry`（P2） | 选一个就行，选项和倾向见 [design §12](design/scope.md#12-待定) |
-| **`glab` 没装，也没有可测的 GitLab 目标** | `yan-forge-gitlab`（P5） | **不挡主线。** GitHub 那份就够跑通 [design §11](design/scope.md#11-01-范围) 的验收（Yan 自己在 GitHub 上）。GitLab 那份等你有靶子了单独做，接口已经被 GitHub 那份定死了 |
+| **`glab` 没装，也没有可测的 GitLab 目标** | `yan-forge-gitlab`（P5） | **不挡主线。** GitHub 那份就够跑通 [design §11](design/scope.md#11-01-范围) 的验收（Yan 自己在 GitHub 上）。GitLab 那份等有了靶子再单独做，接口已经被 GitHub 那份定死了 |
 | **Yan 仓库自己的交付姿态没定** | 怎么造 yan | 三选一，见下 |
 
 最后一条要在三个里挑一个：`no-mistakes`（每次改动过完整的自动化流水线：review / 测试 /
@@ -210,4 +210,4 @@ CI（GitHub Actions）跑的是 `shellcheck` 加 `tests/run.sh`，而真实 forg
 
 **建议第一个阶段（P0+P1）自己手写。** 不是因为 sub-agent 干不了，
 而是这段代码定下了后面所有 task 的形状：测试台长什么样、子命令怎么 source lib、
-错误怎么报。这些约定由你亲手定一次，比写在 brief 里让别人猜要准得多。
+错误怎么报。这些约定由造 yan 的人亲手定一次，比写在 brief 里让别人猜要准得多。
