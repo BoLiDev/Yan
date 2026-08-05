@@ -1,7 +1,7 @@
 # 实现计划：七个阶段，17 个 task
 
 > 状态：草案，2026-08-05。
-> 依据：[`yan-design.md`](yan-design.md) 的决策，[`architecture.md`](architecture.md) 的分层。
+> 依据：[`design/INDEX.md`](design/INDEX.md) 的决策，[`design/architecture.md`](design/architecture.md) 的分层。
 > 定位：这份说「按什么顺序做、每块怎么测」。
 > 本文里裸写的 `§x` 指本文；指别的文档时一律写成 `design §x` / `architecture §x`。
 
@@ -37,7 +37,7 @@
 | **P3 派工** | 派出第一个 shift | 2 | **第一个 sub-agent 真的在树里干活**（你自己盯 pane） |
 | **P4 监督** | hook + watcher | 2 | shift 干完自己会叫你 |
 | **P5 交付** | forge + 合并链路 | 5 | 子分支 MR、对外 MR、下工还树 |
-| **P6 AGENTS.md 与验收** | 判断 + 自举 | 2 | **design §11 的验收链在 Yan 自己身上跑通** |
+| **P6 AGENTS.md 与验收** | 判断 + 自举 | 2 | **[design §11](design/scope.md#11-01-范围) 的验收链在 Yan 自己身上跑通** |
 
 依赖图（同一列内可并行）：
 
@@ -71,10 +71,10 @@ graph LR
 
 ## 2. Task 清单
 
-每个 task 一个 unit，粒度按 design §6.7 的判据定：**一个对外 MR 的粒度 = 一次 review 能吃下的量。**
+每个 task 一个 unit，粒度按 [design §6.7](design/branching.md#67-unit-粒度的判据) 的判据定：**一个对外 MR 的粒度 = 一次 review 能吃下的量。**
 
 「测试」一列写的是**这个 task 必须自带的用例**，不是泛泛的「要写测试」。
-测试台的形状（`tests/` 布局、`YAN_LIB` 替身机制）见 architecture §7，由 P0 定死，后面沿用。
+测试台的形状（`tests/` 布局、`YAN_LIB` 替身机制）见 [architecture §7](design/architecture.md#7-可测性)，由 P0 定死，后面沿用。
 
 ### P0 · 地基
 
@@ -112,7 +112,7 @@ graph LR
 | `yan-term-tmux` | `lib-term.sh` 的 tmux 实现，七个函数 | **对真实 tmux 测**：起一个 `sleep 300` → `alive` 为真 → `send` 的文字真的到了 → `read` 读得到 → `close` 只关掉记录的那个 pane、**session 还在** → `list` 少一个。另测：`term_agent_alive` 在「pane 在但进程死了」时的返回值是明确的 |
 | `yan-registry` | `yan repo-add` / `task new` / `ls` / `open` | `repo-add` 是 `repos.json` 的唯一写入口；`ls` 扫目录得到的队列 = 目录真实内容（删掉一个 task 目录，`ls` 立刻少一个，**不需要任何同步**） |
 
-`term_agent_alive` 在 tmux 下只能靠猜进程名，这是已知的近似（design §5.7）。**在代码里注明**，
+`term_agent_alive` 在 tmux 下只能靠猜进程名，这是已知的近似（[design §5.7](design/agents.md#57-终端拓扑)）。**在代码里注明**，
 等 Herdr 那份实现（2→10）才变成「问」而不是「猜」。
 
 ### P3 · 派工
@@ -120,7 +120,7 @@ graph LR
 | id | 交付 | 测试 |
 | --- | --- | --- |
 | `yan-unit` | `yan unit add`（`target` 必须显式给）+ `lib-hook.sh`（`branch-name` 接缝） | hook 非零退出 → **停下报错，绝不 fallback 到内置默认**；hook 缺失 → 用内置默认 `yan/<task>-<unit>-r<n>`，且 `n` = `history` 长度 + 1；hook 返回的分支已存在 → checkout 而不是重建 |
-| `yan-shift-new` | `yan shift new` + `yan send` + `yan report` + `yan scope-check` + brief 模板 | **cwd 断言：指向主 clone 时真的拒绝启动**（design §7 的硬不变量）；brief 里所有占位符都被替换（残留 `{...}` 直接失败）；`yan report` 只接受那五个 state，第六个词被拒；`report` 同时写了 status 和 signal；`scope-check` 越界时**只报告不拦** |
+| `yan-shift-new` | `yan shift new` + `yan send` + `yan report` + `yan scope-check` + brief 模板 | **cwd 断言：指向主 clone 时真的拒绝启动**（[design §7](design/worktree.md#7-worktree) 的硬不变量）；brief 里所有占位符都被替换（残留 `{...}` 直接失败）；`yan report` 只接受那五个 state，第六个词被拒；`report` 同时写了 status 和 signal；`scope-check` 越界时**只报告不拦** |
 
 **阶段里程碑：第一个 sub-agent 真的在树里干活了。** 这时还没有监督，你自己看 pane。
 这是刻意的——先证明派工路径本身是对的，再上 hook 的复杂度。
@@ -134,7 +134,7 @@ graph LR
 
 **这一阶段的集成测试没法做成单元测试**，需要一次手动彩排：
 用一个假 shift（就是 `sleep 60 && yan report done "fake"`）跑完整条链路，
-确认「turn 结束 → watcher 起来 → 假 shift 报告 → 模型被唤醒」。跑一次，记录下来。
+确认「turn 结束 → watcher 起来 → 假 shift 报告 → 模型被唤醒」这条链走得通。跑一次就够，然后把结果记录下来。
 
 ### P5 · 交付
 
@@ -151,7 +151,7 @@ graph LR
 | id | 交付 | 测试 |
 | --- | --- | --- |
 | `yan-agents-md` | `AGENTS.md`：模型读的那一份判断 | 通读一遍：每条指令都指向一个真实存在的 `yan` 子命令；**没有任何一条要求模型 source 一个 lib** |
-| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 design §11 的验收链 | design §11 的验收链整条走通，一步不落 |
+| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 [design §11](design/scope.md#11-01-范围) 的验收链 | [design §11](design/scope.md#11-01-范围) 的验收链整条走通，一步不落 |
 
 ---
 
@@ -176,7 +176,7 @@ graph LR
 3. `yan shift new` 的 cwd 断言真的拒绝（失效 → sub-agent 在主 clone 里乱改）
 4. `yan sync` 冲突时真的退出（失效 → 留下半个 rebase，下一个 shift 从烂摊子上切分支）
 
-CI（GitHub Actions）：`shellcheck` + `tests/run.sh`。真实 forge 那层默认跳过。
+CI（GitHub Actions）跑的是 `shellcheck` 加 `tests/run.sh`，而真实 forge 那一层默认跳过。
 
 ---
 
@@ -184,15 +184,15 @@ CI（GitHub Actions）：`shellcheck` + `tests/run.sh`。真实 forge 那层默�
 
 | | 挡住什么 | 现在能做什么 |
 | --- | --- | --- |
-| **task id 格式没定** | `yan-registry`（P2） | 选一个就行，选项和倾向见 design §12 |
-| **`glab` 没装，也没有可测的 GitLab 目标** | `yan-forge-gitlab`（P5） | **不挡主线。** GitHub 那份就够跑通 design §11 的验收（Yan 自己在 GitHub 上）。GitLab 那份等你有靶子了单独做，接口已经被 GitHub 那份定死了 |
+| **task id 格式没定** | `yan-registry`（P2） | 选一个就行，选项和倾向见 [design §12](design/scope.md#12-待定) |
+| **`glab` 没装，也没有可测的 GitLab 目标** | `yan-forge-gitlab`（P5） | **不挡主线。** GitHub 那份就够跑通 [design §11](design/scope.md#11-01-范围) 的验收（Yan 自己在 GitHub 上）。GitLab 那份等你有靶子了单独做，接口已经被 GitHub 那份定死了 |
 | **Yan 仓库自己的交付姿态没定** | 怎么造 yan | 三选一，见下 |
 
 最后一条要在三个里挑一个：`no-mistakes`（每次改动过完整的自动化流水线：review / 测试 /
 文档 / CI，再开 PR）、`direct-PR`（直接推分支开 PR，质量把关靠 user + CI）、
 `local-only`（不开 PR，本地分支）。**暂按 `no-mistakes` 注册（默认值），随时可改。**
 
-有点意思的是：**yan 自己的设计明确不引入 no-mistakes**（design §11），
+有点意思的是：**yan 自己的设计明确不引入 no-mistakes**（[design §11](design/scope.md#11-01-范围)），
 理由是「质量把关落回 user + CI + 同事 review，这本来就是正常团队的做法」。
 在 yan 这个仓库上用不用它，是另一件事，但值得一起想。
 

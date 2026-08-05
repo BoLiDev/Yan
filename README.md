@@ -5,19 +5,27 @@
 
 状态：**设计阶段**，尚未开始实现。
 
-## 四份文档，四个问题
+## 从哪儿开始读
+
+先读 [docs/design/INDEX.md](docs/design/INDEX.md)。它是设计的主干：
+先交代设计原则、词汇表和三条判据，然后一环一环地讲整个系统怎么走，
+每一环只说它负责什么、主线怎么过去，展开的细节链到 `docs/design/` 里旁边的文件。
+只读这一页，你就能把 yan 的运作方式讲给别人听，只是讲不出细节。
+
+想知道别的事情，就按下面这张表挑：
 
 | 想知道 | 看 |
 | --- | --- |
-| 为什么这么设计 | [docs/yan-design.md](docs/yan-design.md) |
-| 代码放在哪、谁能调谁、怎么测 | [docs/architecture.md](docs/architecture.md) |
-| 按什么顺序做、每块必须自带哪些用例 | [docs/implementation-plan.md](docs/implementation-plan.md) |
-| 某个决定是什么时候定的、当时手上有什么 | [docs/decisions.md](docs/decisions.md) |
-
-`yan-design.md` 是主文档，其余三份都指向它。它开头有目录，
-不用从头读——`design §2 三条判据` 和 `design §6 分支模型` 是理解其他所有节的前提。
+| 为什么这么设计，以及每个环节负责什么 | [docs/design/INDEX.md](docs/design/INDEX.md) |
+| 某一环的完整论证（记忆、agent、监督、分支、worktree、交付、边界、范围） | `docs/design/` 里对应的那一份，INDEX 每一节末尾都给了链接 |
+| 代码放在哪、谁能调谁、怎么测 | [docs/design/architecture.md](docs/design/architecture.md) |
+| 按什么顺序做，每块必须自带哪些用例 | [docs/implementation-plan.md](docs/implementation-plan.md) |
+| 某个决定是什么时候定的，当时手上有什么 | [docs/decisions.md](docs/decisions.md) |
 
 ## 约定
 
-- 文档之间引用小节时写全：`design §7`、`architecture §5`。裸写的 `§x` 指本文档。
-- `docs/` 也是设计讨论的工作区，讨论产生的 artifact（MD / HTML）都放这里。
+- 章节编号在拆分前后完全一样，变的只是它们分散在 `docs/design/` 的哪个文件里；
+  正文里引用某一节的时候，都会带上一个可以点的链接。
+- 跨文档引用要写清楚是哪份文档的哪一节（写成 design 或 architecture 再加节号），
+  而裸写的节号指的是当前这份文档。
+- `docs/` 同时也是设计讨论的工作区，讨论产生的 artifact（MD / HTML）都放在这里。
