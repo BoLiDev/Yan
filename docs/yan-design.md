@@ -1,7 +1,11 @@
 # yan 设计
 
-> 状态：草案，待 user review。
+> 状态：草案。2026-08-05 按三个 P0 决定修订，见 [`p0-open-issues.md`](p0-open-issues.md)。
 > 定位：这份文档是设计决策的记录，不是实现规格。每条决策尽量带上「为什么」—半年后回来改的时候，理由比结论值钱。
+>
+> **2026-08-05 改动**：§7 worktree 池改为 yan 内置（不再依赖 wtpool，也不包 treehouse）；
+> 新增 §8.4 forge 层，GitLab 和 GitHub 都支持；§12 待定 5「子分支上远端」定为**推**，
+> 两级 MR 保留。连带 §3 / §5.3 / §9.2 / §11 / 附录 C 同步更新。
 
 ---
 
@@ -13,7 +17,7 @@ firstmate 是灵感来源，不是蓝本。yan 有意在几处走了不同的路
 
 ### 设计原则
 
-1. 状态能推导就不要存。 目录结构、git、GitLab 是权威；本地不镜像它们。这是 wtpool 已经验证过的路子。
+1. 状态能推导就不要存。 目录结构、git、GitLab 是权威；本地不镜像它们。这是 wtpool（user 自己的 worktree 池）已经验证过的路子。
 2. 一处一个 owner。 每条信息有唯一的写入者和唯一的读取时机。同一个状态记在两个地方，一定会不一致。
 3. 判断归 prose，机制归脚本。 一旦发现在 shell 里写业务语义的 if，就是层放错了。
 4. user 和 agent 共用同一个入口。 所有能力都是 CLI，user 能自己敲，看到的和 agent 看到的是同一份现实。
@@ -111,11 +115,11 @@ $YAN_HOME/
   repos/                       clone；yan 只读（唯一例外是 git fetch）
 ```
 
-持久 / 易失的界线用目录划，不用文件清单：`tasks/<id>/` 长命，`.../run/` 易失。shift 下工 = `rm -rf .../run/` + `wtpool return`。一个 `rm -rf` 就干净—「哪些文件该删」的清单一定会漏。
+持久 / 易失的界线用目录划，不用文件清单：`tasks/<id>/` 长命，`.../run/` 易失。shift 下工 = `rm -rf .../run/` + `yan tree return`。一个 `rm -rf` 就干净—「哪些文件该删」的清单一定会漏。
 
 没有 backlog 文件。 队列是扫出来的视图：`yan ls` 扫 `tasks/*/task.json`，消掉了整个系统最容易出的那类 bug。
 
-worktree 不在这棵树里。 `wtpool` 的池在 `~/.wtpool/<repo>-<hash>/N/<repo>`，所以 `repos/` 对整个系统就是个纯粹的 git 源加代码参考，shift 干活根本不碰它。
+worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/N/<repo>`，所以 `repos/` 对整个系统就是个纯粹的 git 源加代码参考，shift 干活根本不碰它。池的运行时记录（lease）也在池根目录里，不在 `$YAN_HOME`—它跟着池走，不跟着 task 走。
 
 ---
 
@@ -149,7 +153,7 @@ append-only 所以永不冲突；一行一条所以成本几乎为零；user 和
 
 由此一条硬约束：artifact 必须写在 worktree 之外。
 
-因为 worktree 要被 `wtpool return` 清空。shift 如果把 prototype 写在树里，两种结局都糟：被清掉，或者被 commit 进公司仓库。所以 spawn 时注入 `YAN_TASK_DIR=$YAN_HOME/tasks/<id>`，brief 明确要求产物写 `$YAN_TASK_DIR/artifacts/`。这条同时挡掉「agent 顺手把设计文档提交进公司仓库」这类事故—对多人仓库来说这个防护比省上下文更值钱。
+因为 worktree 要被 `yan tree return` 清空。shift 如果把 prototype 写在树里，两种结局都糟：被清掉，或者被 commit 进公司仓库。所以 spawn 时注入 `YAN_TASK_DIR=$YAN_HOME/tasks/<id>`，brief 明确要求产物写 `$YAN_TASK_DIR/artifacts/`。这条同时挡掉「agent 顺手把设计文档提交进公司仓库」这类事故—对多人仓库来说这个防护比省上下文更值钱。
 
 它的寿命跟 task 目录一样长，不随 shift 下工删除—价值恰恰在任务结束之后。主要读者是 user，所以需要 `yan open <id>` 直接打开目录或在浏览器里看 html。索引 0→1 不做，靠目录和文件名，多到找不着再说。
 
@@ -171,7 +175,7 @@ append-only 所以永不冲突；一行一条所以成本几乎为零；user 和
 | 中 | yan | 没有自己的状态文件 |
 | 短 | shift / sub-agent | 易失文件，下工即删 |
 
-中间那条是关键：yan 不该有任何持久运行状态。 每次启动就是一次全量 reconcile—扫 `tasks/`、查终端、查 wtpool，现实是什么就是什么。这样「关掉重开一个」永远是非事件，不需要交接、不需要 resume。
+中间那条是关键：yan 不该有任何持久运行状态。 每次启动就是一次全量 reconcile—扫 `tasks/`、查终端、查树池，现实是什么就是什么。这样「关掉重开一个」永远是非事件，不需要交接、不需要 resume。
 
 这也让 task 的状态大部分不用存：「从没派过 shift」看 `shifts/` 是否为空、「有 shift 活着」扫 `run/` 加查终端、「没 shift 活着但没完成」是两者的补集—全部可推导。只有「已宣布完成」必须存，因为那是 user 的决定，不是事实。所以 `task.json` 里只需要一个完成标记，零状态漂移。
 
@@ -212,11 +216,13 @@ cwd 是 `$YAN_HOME`（要跑 `bin/`、读 `mem/`），`--add-dir` 只放这个 t
 
 ### 5.3 shift 的生命周期
 
-- 出生：yan 写 `shifts/<sid>/brief.md` → `wtpool get` 租树（holder = `<task>/<unit>/<sid>`）→ 从集成分支切子分支 → 起终端 → 注入 `YAN_TASK_DIR`
+- 出生：yan 写 `shifts/<sid>/brief.md` → `yan tree get --base <集成分支> --branch <子分支>` 租树（holder = `<task>/<unit>/<sid>`）→ 起终端 → 注入 `YAN_TASK_DIR`
 - 干活：只在自己的树里；稀疏地往 run/status 追加需要 yan 动作的事件
-- 下工：子分支的 MR 已合回集成分支 → 写 `outcome.md` → `rm -rf run/` + `wtpool return`
+- 下工：子分支的 MR 已合回集成分支 → 写 `outcome.md` → `rm -rf run/` → `yan tree return` → 删远端子分支
 
 下工条件为什么是「MR 合回集成分支」：  合了就意味着改动已经在集成分支上（远端有副本），树里的东西没有独占价值，还树绝对安全。这比「活干完了」更强、更可验证，而且完全客观。
+
+**判断「合没合」查 MR 状态，不查 git 祖先关系。** 内部 MR 若是 squash 合的，集成分支不含子分支的 HEAD，祖先关系会说谎—但活确实已经落了。删分支同理。这和 §6.6「不解析分支名、归属查权威源」是同一条原则的延伸。**还树必须排在删远端子分支之前**，理由见 §7。
 
 不等对外 MR 的 CI。  这是有意的：只要 shift 挂在那儿等，就必须持续判断「它是在等还是卡了」—而那正是 firstmate `fm-crew-state.sh` 那五步推导（run-step 归属校验、head 祖先关系判断、status log 陈旧性反证、ci 步骤下「还在等检查」vs「检查绿了在等合并」的歧义消解）存在的唯一原因。为省一次重启把这整块复杂度请回来不划算。CI 红了由 yan 查 GitLab 发现，再派新 shift 修—轮询一个权威数据源比监督一个挂着的 agent 便宜一个数量级。
 
@@ -584,20 +590,37 @@ target (master / release/x / 任意分支)
 
 ## 7. worktree
 
-用 user 自己的 [wtpool](...)，不用 treehouse。wtpool 的零状态文件设计正好能被完整复用。
+**池是 yan 自带的：`yan tree get | return | status`。** 不是独立二进制，不依赖任何外部工具。
 
-- 绑定方式：`WTPOOL_HOLDER=<task>/<unit>/<sid>`。`wtpool status` 直接显示归属，池本身就是运行时注册表
+原稿写的是 user 自己的 wtpool。它是另一台机器上未发布的 CLI，所以整节改成内置。
+也不包 treehouse——理由不是「零状态文件」那种设计取向，而是**分支模型对不上**：
+treehouse 恒定 detached HEAD，把「不碰分支名」当卖点，判定一棵树能不能还的条件是
+「HEAD 已并入 **default branch**」。而 yan 的子分支合回的是**集成分支**，永远不是
+default branch——于是每一次正常下工的还树都会被它拒绝，得长期带 `--force`，
+而 §9.2 明确把 `--force` 列成禁止动作。**把最后一道防线变成日常动作是最糟的妥协。**
+
+内置之后，接口直接按 yan 的模型定，不需要在租到的树里补做分支这一层：
+
+- **分支感知**：`yan tree get --base <集成分支> --branch <子分支>` 一步到位
+- **绑定方式**：holder = `<task>/<unit>/<sid>`。`yan tree status` 直接显示归属，池本身就是运行时注册表
+- **租约身份**：每次 acquire 生成一个随机 `lease_id`（抄 treehouse）
+- **条件还树**：`return --if-lease-id` / `--if-lease-holder`，**持锁比对，不匹配就在任何破坏性动作之前非零退出**——不杀进程、不重置、不清状态。这对自动重试是安全的
+- **`--json` 输出**：`get` 回 `{path, lease_id, holder}`，`status` 回数组
 - 隔离粒度：一个 shift 一棵树。集成分支不常驻任何树，`yan sync` 临时租、用完就还
 - 池占用 = 当前活着的 shift 数，跟 task 数无关
-- 背压：池满时 `wtpool get` 自己失败，这是准确的信号，不需要提前预测
+- 背压：池满时 `get` 自己失败，这是准确的信号，不需要提前预测
+
+`lease_id` 和条件还树不是可选项。它们解决的正是 §5.5 里 guard 做「身份匹配」的同一类
+问题：只认 holder 标签的话，一个重试的、或者上一轮遗留的调用，可能还掉别人刚租到的树。
+监督层已经认真处理过一次陈旧身份的坑，池层不该还是裸的。
 
 还树的安全判据—还树 = `reset --hard` + `clean -fd`，会销毁树里的东西，所以只需回答一个问题：毁掉这棵树会不会丢东西？
 
 | 情况 | 树外有副本? |
 | --- | --- |
 | 改了没 commit | ✗ 还树就永久没了 |
-| commit 了没 push | ✗ wtpool 的孤立 commit 守卫就是拦这个 |
-| 已 push（MR 都还没开） | ✓ 副本在 GitLab 上，够了 |
+| commit 了没 push | ✗ 孤立 commit 守卫就是拦这个 |
+| 已 push（MR 都还没开） | ✓ 副本在远端上，够了 |
 | 子分支已合回集成分支 | ✓ 这是 shift 的下工条件 |
 
 「有副本」和「已落地」是两个不同强度的判据：前者管「树能不能还」，后者管「task 能不能宣布完成」。firstmate 把它们揉进同一个 `work_is_landed()`（因为它的 crewmate 活到落地为止），yan 拆开了，所以还树只需要那个更弱的判据，两行就能查完：
@@ -609,9 +632,19 @@ git -C "$tree" branch -r --contains HEAD  # 空   → 没有远端分支包含 H
 
 不用处理 firstmate 那些「squash merge 后分支被删、要去 `refs/pull/<n>/head` 捞」的情形—那是落地判断才需要的复杂度。
 
-`wtpool return --force` 是禁止的，除非 user 明说这些改动可以丢。wtpool 的孤立 commit 守卫是最后一道防线：它拒绝还树的时候，正是「工作只在树里」的时候。拒绝是停下来查，不是加 `--force` 绕过。
+**但下工的动作顺序必须钉死，否则 squash 会把上面那个判据搞坏：**
 
-一个真实成本：monorepo 开 3 棵树 = 3 份依赖安装。wtpool 的 `clean -fd` 不带 `-x`，gitignore 的依赖和构建缓存跨任务保留，所以复用已有树时不用重装，但首次撑开 3 棵新树要装 3 次。不是阻塞，知道就行。
+> **MR 合了 → 写 `outcome.md` → `rm -rf run/` → 还树 → 删远端子分支 → shift 结束**
+
+如果内部 MR 是 squash 合的，集成分支里没有子分支那个 HEAD。这时候先删远端子分支，
+`branch -r --contains HEAD` 就变成空—判据说「没副本」，树还不回去了，而活其实早就落了。
+**还树在前、删分支在后**，还树时远端子分支必然还在，副本判据必然成立；删在最后，
+那时活已经在集成分支里。这样 yan 完全不用管团队把内部 MR 设成了 merge 还是 squash——
+那个设置在公司仓库里可能根本不由我们决定。
+
+`yan tree return --force` 是禁止的，除非 user 明说这些改动可以丢。孤立 commit 守卫是最后一道防线：它拒绝还树的时候，正是「工作只在树里」的时候。拒绝是停下来查，不是加 `--force` 绕过。
+
+一个真实成本：monorepo 开 3 棵树 = 3 份依赖安装。还树时 `clean -fd` 不带 `-x`，gitignore 的依赖和构建缓存跨任务保留，所以复用已有树时不用重装，但首次撑开 3 棵新树要装 3 次。不是阻塞，知道就行。
 
 硬不变量：spawn 必须断言 sub-agent 的 cwd 不等于主 clone 路径，否则拒绝启动。
 
@@ -661,6 +694,42 @@ firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限�
 
 `sparse-checkout` 归档：它需要先解决「编辑范围 ≠ 构建闭包」（monorepo 里 `apps/auth` 编译通常需要 sibling 包在场），成本高，等上下文真的疼再做。
 
+### 8.4 forge 层：`lib-forge.sh`
+
+**GitLab 和 GitHub 都支持**，因为两个都是真实需求：工作用 GitLab，日常用 GitHub。
+附带一个不小的收益—支持 GitHub 之后，**0→1 的验收标准可以在 yan 自己身上跑通**。
+
+判据用 Ousterhout 的 deep module：**接口窄、实现厚**。这层符合——对外四个动词，
+底下藏着两个 CLI 的参数形状、术语（MR / PR）、JSON 形状、鉴权、CI 模型五处差异。
+
+```
+forge_mr_create      开 MR / PR，回 URL
+forge_mr_state       merged | closed | open | unknown
+forge_mr_merge       合
+forge_ci_state       green | red | pending | none
+```
+
+**要防的是它退化成 shallow module**：每个函数都是 `glab` / `gh` 的一行透传，
+返回值原封不动漏出去，调用方还是得知道自己在跟谁说话——那就是 pass-through method，
+是 deep 的反面。避免它只有一条：**接口用 yan 自己的词汇定义，不是两个 forge 的并集。**
+
+三条具体约束：
+
+1. **返回值是 yan 的封闭集合。** `forge_mr_state` 的四个值不是随便挑的—
+   它们正是 §6.4 判定 `end` 需要的那四种情况，一一对应。不要漏第五种。
+2. **CI 只回答绿红。** GitLab 是一条 pipeline 一个状态，GitHub 是 N 个独立 check run
+   加 legacy status，「**哪个 job 挂了**」两边不对称，硬要统一就会漏。而 §5.3 需要的
+   只是「CI 红了 → 派新 shift 修」。要看细节是 shift 的事——**shift 可以知道自己在
+   哪个 forge 上，因为它是在读，不是在做决定。**
+3. **归属放 `repos.json` 的 per-repo 字段，不是全局开关。** 一个 task 完全可能同时
+   动公司 GitLab 的 monorepo 和 GitHub 上的个人仓库，所以按仓库分派，不按 session。
+
+鉴权不统一。 `gh` 和 `glab` 各自管自己的登录，这一层不试图抹平—bootstrap 检查两个
+CLI 是否都已认证，缺哪个就明确报哪个。自建 GitLab 实例还需要 `glab auth login --hostname`。
+
+这不是 §11「明确不做」里禁的 backend 抽象层。那条禁的是插件框架，而这里和 §5.7 的
+`lib-term.sh` 是同一个形状：**内聚成一个文件里的几个函数，不是框架。**
+
 ---
 
 ## 9. yan 的可写范围
@@ -677,8 +746,8 @@ yan 不写的有四类：`repos/` 主 clone（唯一允许的写是 `git fetch`�
 
 | 动作 | 谁做 | 授权 |
 | --- | --- | --- |
-| `wtpool get / return`（不带 force） | yan、shift | 自主 |
-| `wtpool return --force` | — | 禁止，除非 user 明说可丢 |
+| `yan tree get / return`（不带 force） | yan、shift | 自主 |
+| `yan tree return --force` | — | 禁止，除非 user 明说可丢 |
 | 起 / 关终端 | yan | 自主 |
 | push 子分支 | shift | 自主 |
 | push 集成分支（`yan sync` 后） | yan | 自主 |
@@ -687,7 +756,7 @@ yan 不写的有四类：`repos/` 主 clone（唯一允许的写是 `git fetch`�
 | 合子分支 MR（→ 集成分支） | yan | 自主（内部验收，user own 这个分支） |
 | 开对外 MR（集成分支 → target） | yan | 自主（开 MR 可逆） |
 | 合对外 MR（→ target） | yan | 必须 user 明说 |
-| 删已合并的子分支 | yan | 自主 |
+| 删已合并的子分支 | yan | 自主。必须排在还树之后（§7） |
 | 删未合并的任何分支 | — | 禁止 |
 | `yan unit set`（改 branch / target / mode / scope） | yan | 必须 user 明说—改的全是决策 |
 | MR 上留评论、@人 | — | 必须 user 明说，会打扰同事 |
@@ -754,10 +823,15 @@ name=$(hook branch-name <<< "$ctx") || die "分支命名被拒绝"
 
 | 组 | 文件 | 行 |
 | --- | --- | --- |
-| 入口 + 19 个子命令 | 20 | ~1500 |
+| 入口 + 20 个子命令（加 `yan tree`） | 21 | ~1750 |
 | hook 脚本（autoarm 100 / guard 60） | 2 | ~160 |
-| lib（term 200 / git 120 / gitlab 120 / task 100 / json 60 / hook 50 / log 40） | 7 | ~690 |
-| 合计 | ~29 | ~2350 |
+| lib（term 200 / forge 230 / git 120 / task 100 / json 60 / hook 50 / log 40） | 7 | ~800 |
+| 合计 | ~30 | ~2710 |
+
+比原稿的 ~2350 多出约 360 行，来自两个决定：内置 worktree 池（§7，约 +250，
+其中分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的是复用池加 lease）
+和 forge 层支持两个远端（§8.4，`lib-gitlab` 120 → `lib-forge` 230）。
+换回的是零外部依赖，以及 0→1 能在 yan 自己身上验收。
 
 加 `AGENTS.md` 约 300 行。
 
@@ -819,21 +893,21 @@ Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 t
 
 1. `$YAN_HOME` 要不要 git 版本化？ `mem/user.md` 和 `learnings/` 有提交历史挺有价值（能看到偏好怎么演化）。如果版本化，`tasks/` 要不要一起进去（会很吵）。
 2. `tasks/` 的裁剪策略：倾向不自动删任何东西，靠 `yan prune` 半手工裁，且 `artifacts/` 即使裁剪也单独保留。
-3. wtpool 的一个小 bug：`wtpool get --help` 会把 `--help` 当 holder 标签租走一棵树（`wtpool status` 里能看到 `held by --help`）。yan 要依赖 holder 标签做归属，这个值得先修。
-4. `yan` 的 task id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。
-5. 子分支要不要 `push` 到远端？ 这是「`shift` 是 `yan` 内部概念、团队工具不认识它」推到底的必然问题。
+3. `yan` 的 task id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。注意它会进分支名（§6.5 `yan/<task>-<unit>-<sid>`），所以短的有实际好处。
 
-|  | 上远端（当前文档写法） | 不上远端 |
-| --- | --- | --- |
-| CI | 在子分支上跑 | 在集成分支上跑，每个 shift 合完 push 一次—覆盖等价 |
-| GitLab 上看到 | 一堆 `yan/*` 分支 + 一堆内部 MR | 只有集成分支和对外 MR |
-| 谁合 | GitLab | yan 租树本地合，然后 push 集成分支 |
-| 「有副本」判据 | 子分支已 push | 集成分支已 push（更强—集成分支要么交付、要么被新分支基于，活不丢） |
-| shift 下工信号 | 子分支 MR 已合 | 集成分支已含子分支 HEAD 且已 push |
+### 已定：子分支推到远端（原待定 5）
 
-倾向不上远端：CI 覆盖等价但服务器干净得多，而且 yan 可以直接 `git fetch <shift 的树路径> <子分支>` 把工作取过来，子分支一次都不碰服务器、代价是 yan 要做本地合并—但那套机器 `yan sync` 本来就有。
+**定了：推。** 两级 MR 都保留，§5.3 / §6.1 / §9.2 维持当前写法。
 
-若采纳，§5.3 的 shift 下工条件、§6.1 的图、§9.2 的授权表都要跟着改。
+理由不是上面那张对照表里的任何一项，而是一件表里没有的事：**每个 shift 一个独立 MR，
+就是 user review 的主要方式**—一个 shift 一个 shift 地看它相对集成分支的 diff，
+本地基本不用看代码。这把 §6.2 的两级 review 从「结构自带的副产品」
+变成了「要这个系统的原因之一」。
+
+被明确接受的代价：服务器上会有一堆 `yan/*` 分支和一堆内部 MR。清理办法见 §5.3 和 §7
+的下工顺序—合了就删，删排在还树之后。CI 的重复触发成本经 user 判断可以忽略，不做处理。
+
+原待定 4（wtpool 的 `--help` 标签 bug）随 §7 内置池一起消失。
 
 ---
 
@@ -898,14 +972,15 @@ Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 t
 | `yan unit set` | 改 branch / target / mode / scope。换 branch 时判定 `end` 并归档进 `history[]`（§6.4） |
 | `yan start` | 建 task 的终端容器，在里面起 yan |
 | `yan session-start` | 全量 reconcile，由 SessionStart hook 触发 |
-| `yan shift new` | sync 集成分支 → 租树 → 切子分支 → 写 brief → 起终端 → 注入环境变量 |
+| `yan tree` | 内置 worktree 池：`get` / `return` / `status`（§7） |
+| `yan shift new` | sync 集成分支 → 租树（含切子分支） → 写 brief → 起终端 → 注入环境变量 |
 | `yan send` | 单行消息发给 shift |
 | `yan report` | shift 调用：append status + touch signal |
 | `yan wait` | watcher 本体，由 autoarm 前台启动，盯三个 source |
 | `yan drain` | 模型被唤醒后读 wake 文件 |
 | `yan state` | 从 meta + 终端 + git + GitLab 现场推导当前状态 |
 | `yan scope-check` | diff 越界校验 |
-| `yan shift done` | 校验子分支已合 → 写 log → `rm -rf run/` → 还树 |
+| `yan shift done` | 校验子分支 MR 已合 → 写 log → `rm -rf run/` → 还树 → 删远端子分支（顺序见 §7） |
 | `yan sync` | 集成分支跟上 target |
 | `yan mr` | 开对外 MR |
 | `yan land` | 合（需授权） |
@@ -914,3 +989,4 @@ Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 t
 | `hook-autoarm.sh` | asyncRewake Stop hook（§5.5） |
 | `hook-turnend-guard.sh` | 阻塞式 Stop hook（§5.5） |
 | `bin/lib-term.sh` | 终端操作内聚层（§5.7） |
+| `bin/lib-forge.sh` | GitLab / GitHub 内聚层（§8.4） |
