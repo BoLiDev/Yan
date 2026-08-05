@@ -107,7 +107,7 @@ tests/
 4. 有未提交改动 → `return` 拒绝
 5. 有已 commit 未 push 的 commit → `return` 拒绝（孤立 commit 守卫）
 6. **池满 → `get` 失败，且不创建第 N+1 棵树**（这条守的是「池保持 N 棵热树」）。
-   N 取自 `repos.json` 的 per-repo 配置，默认 3
+   N 取自 `repos.json` 的 per-repo 配置，默认 8
 7. 两个并发 `get` → 永远不会拿到同一棵树
 8. 池满时 `yan sync` 的错误信息说的是**「池满，开不了新 shift」**，不是「sync 失败」
 
