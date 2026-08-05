@@ -113,7 +113,7 @@ $YAN_HOME/
 | --- | --- | --- | --- |
 | `lib-term.sh` | tmux（0→1）/ Herdr（2→10）的差异 | 七个函数：`term_container_create` `term_agent_start` `term_send` `term_read` `term_agent_alive` `term_agent_close` `term_list` | 中。加 Herdr = 写第二份实现 + 一个 `conf/backend` 开关，**不是插件框架** |
 | `lib-forge.sh` | GitLab / GitHub 的参数形状、术语、JSON 形状、鉴权、CI 模型五处差异 | 四个动词：`forge_mr_create` `forge_mr_state` `forge_mr_merge` `forge_ci_state` | **厚**。这是最典型的 deep module |
-| `lib-pool.sh` | worktree 池：租约、复用、清理、孤立 commit 守卫 | `pool_get` `pool_return` `pool_status` | 厚。见 `yan-design.md` §7 |
+| `lib-pool.sh` | worktree 池：租约、**热复用**、清理、孤立 commit 守卫 | `pool_get` `pool_return` `pool_status` | 厚。见 `yan-design.md` §7。契约：还树用 `clean -fd`，**永不带 `-x`**——保住 `node_modules` 是池存在的唯一理由 |
 | `lib-hook.sh` | `conf/hooks/` 的调用协议：stdin 喂 JSON、stdout 收一行、非零退出即失败 | `hook_call <name> <json>` | 薄。但它是**唯一**允许执行 `conf/` 下面东西的地方 |
 
 三条接缝层的硬规则：
@@ -209,11 +209,15 @@ tests/
 子命令统一用 `. "${YAN_LIB:-$YAN_HOME/bin}/lib-forge.sh"` 这种形式 source，
 测试把 `YAN_LIB` 指到 `tests/stub/` 就完成替换——不需要任何注入框架。
 
-值得优先钉住的三条，都是顺序类的：
+值得优先钉住的四条：
 
 1. `yan shift done` 在 squash 场景下**先还树后删分支**
 2. `yan shift new` 的 cwd 断言真的会拒绝启动
 3. `yan sync` 遇到冲突真的退出，而不是留下半个 rebase
+4. **`pool_return` 之后，一个 gitignored 的目录（`node_modules` 替身）仍然在。**
+   这条是防回归的：某天有人为了「清干净一点」给 `clean` 加上 `-x`，
+   池就静默退化成「每次冷装」，而且没有任何报错——只是突然变慢。
+   一个 flag 的事故，值得一个用例守着
 
 ---
 
