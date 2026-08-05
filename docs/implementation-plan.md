@@ -2,7 +2,7 @@
 
 > 依据：[`design/INDEX.md`](design/INDEX.md) 的决策，[`design/architecture.md`](design/architecture.md) 的分层。
 > 定位：这份说「按什么顺序做、每块怎么测」。
-> 本文里裸写的 `§x` 指本文；指别的文档时一律写成 `design §x` / `architecture §x`。
+> 本文里裸写的 `§x` 指本文；指进设计时写成 `design §x`，指别的文档时写文档名再加节号。
 
 ---
 
@@ -73,7 +73,7 @@ graph LR
 每个 `task` 一个 `unit`，粒度按 [design §6.7](design/branching.md#67-unit-粒度的判据) 的判据定：**一个对外 MR 的粒度 = 一次 review 能吃下的量。**
 
 「测试」一列写的是**这个 `task` 必须自带的用例**，不是泛泛的「要写测试」。
-测试台的形状（`tests/` 布局、`YAN_LIB` 替身机制）见 [architecture §7](design/architecture.md#7-可测性)，由 P0 定死，后面沿用。
+测试台的形状（`tests/` 布局、`YAN_LIB` 替身机制）见 [`architecture.md` §7](design/architecture.md#7-可测性)，由 P0 定死，后面沿用。
 
 ### P0 · 地基
 
