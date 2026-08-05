@@ -151,7 +151,7 @@ graph LR
 | id | 交付 | 测试 |
 | --- | --- | --- |
 | `yan-agents-md` | `AGENTS.md`：模型读的那一份判断 | 通读一遍：每条指令都指向一个真实存在的 `yan` 子命令；**没有任何一条要求模型 source 一个 lib** |
-| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 design §11 的验收链 | 一句话需求 → 一个 unit → 一个 shift → 子分支 MR 合回集成分支 → shift 下工还树 → 对外 MR 开出 → 你说合 → 合掉 → **`log.md` 完整记录了整条链路** |
+| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 design §11 的验收链 | design §11 的验收链整条走通，一步不落 |
 
 ---
 

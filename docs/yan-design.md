@@ -4,9 +4,9 @@
 > 定位：这份文档是设计决策的记录，不是实现规格。每条决策尽量带上「为什么」—半年后回来改的时候，理由比结论值钱。
 > 代码怎么摆、每块怎么测，是另外两份：[`architecture.md`](architecture.md)、[`implementation-plan.md`](implementation-plan.md)。
 >
-> **2026-08-05 改动**：§7 worktree 池改为 yan 内置（不再依赖 wtpool，也不包 treehouse）；
-> 新增 §8.4 forge 层，GitLab 和 GitHub 都支持；§12 待定 5「子分支上远端」定为**推**，
-> 两级 MR 保留。连带 §3 / §5.3 / §9.2 / §11 / 附录 C 同步更新。
+> **2026-08-05 改动**：§7、§8.4、§12 按三个 P0 的结论重写，
+> 连带 §3 / §5.3 / §9.2 / §11 / 附录 C 同步更新。
+> 三个 P0 定了什么、为什么，见 [`decisions.md`](decisions.md)。
 
 ## 目录
 
