@@ -24,7 +24,8 @@
 
 - 设计按主题分册放在 `docs/design/`，节号写在各分册的标题里；
   正文里引用某一节的时候，都会带上一个可以点的链接。
-- 跨文档引用要写清楚是哪份文档的哪一节，写法是文档名再加节号，例如 `design §7`、`architecture §3`；
+- 跨文档引用要写清楚是哪份文档的哪一节，写法是文档名再加节号，例如 [design §7](docs/design/worktree.md#7-worktree)
+  和 [architecture §3](docs/design/architecture.md#3-仓库结构)；
   而裸写的节号指的是当前这份文档，在 `docs/design/` 里则指的是设计本身，
   因为设计的节号横跨各个分册。
 - `docs/` 同时也是设计讨论的工作区，讨论产生的 artifact（MD / HTML）都放在这里。
