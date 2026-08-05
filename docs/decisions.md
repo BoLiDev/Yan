@@ -34,7 +34,7 @@ P0-3 掉出来一条不变量，已经写进设计：**下工和删分支都以 
 | `jq` | ✅ 1.8.1 | design §2 的硬依赖满足 |
 | `git` | ✅ 2.53.0 | — |
 | `gh` | ✅ 2.97.0 | GitHub 侧齐了 |
-| `claude` | ✅ 2.1.222 | design §5.5 那两个 hook 的宿主 |
+| `claude` | ✅ 2.1.222 | design §5.5 三个 hook 的宿主 |
 | `wtpool` | ❌ 不存在 | 它是另一台机器上未发布的 CLI。design §7 原本整节建立在它上面，这条直接导致了 P0-1 |
 | `glab` | ❌ 不存在 | GitLab 那份 forge 实现暂时没有靶子可测，见 [`implementation-plan.md`](implementation-plan.md) §4 |
 | `okt` | ❌ 不存在 | 不阻塞。design §10 的 hook 本来就是 opt-in + gitignored |
