@@ -51,7 +51,7 @@
 
 ## 附录 C · 脚本清单
 
-每个子命令的步骤、以及它各自持有的那条顺序不变量，见 [`architecture.md`](architecture.md) [§5](architecture.md#5-20-个子命令)。
+每个子命令的步骤、以及它各自持有的那条顺序不变量，见 [`architecture.md` §5](architecture.md#5-20-个子命令)。
 
 | 脚本 | 干什么 |
 | --- | --- |
