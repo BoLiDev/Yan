@@ -343,7 +343,7 @@ autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firs
 
 > 这就是它必须是独立的第二个 hook—一个没跑的 hook 没法报告自己没跑。
 
-**二、不能用 `stop_hook_active` 防死锁。** 一般 harness 靠它—含义是「这次 stop 紧跟在一次 hook 拦截之后」，读到 true 就放行，从而保证每个 turn 最多被拦一次。Claude 下这样做是错的，`docs/turnend-guard.md` 原话：
+**二、不能用 `stop_hook_active` 防死锁。** 一般 harness 靠它—含义是「这次 stop 紧跟在一次 hook 拦截之后」，读到 true 就放行，从而保证每个 turn 最多被拦一次。Claude 下这样做是错的，firstmate 的 `docs/turnend-guard.md` 原话：
 
 > *Claude Code sets `stop_hook_active=true` on every stop after any stop-hook continuation, including `asyncRewake` rewakes, which re-opened the 2026-07-21 blind window under the default one-shot behavior.*
 
@@ -621,7 +621,8 @@ target (master / release/x / 任意分支)
 也不包 treehouse，理由不是「零状态文件」那种设计取向，而是**分支模型对不上**，
 以及落地判据的口径对不上：
 
-1. 分支模型：treehouse 恒定 detached HEAD，把「不碰分支名」当卖点。
+1. 分支模型：treehouse 恒定 detached HEAD，把「不碰分支名」当卖点；而 yan 的子分支要从
+   集成分支切出、要 push、要开 MR（§6.1、§6.5），树上必须有真实分支。
 2. 落地判据的口径：它判定一棵树能不能还的条件是「HEAD 已并入 default branch」，而 yan
    的子分支合回的是集成分支，永远不是 default branch——于是每一次正常下工的还树都会被它
    拒绝，得长期带 `--force`，而 §9.2 明确把 `--force` 列成禁止动作。
@@ -892,7 +893,7 @@ name=$(hook branch-name <<< "$ctx") || die "分支命名被拒绝"
 
 ### 范围
 
-一个 `yan` 入口加 20 个子命令、2 个 hook 脚本、8 个 lib（清单见 附录 C，怎么摆见 [`architecture.md`](architecture.md) §5），外加 `AGENTS.md`。
+一个 `yan` 入口加 20 个子命令、2 个 hook 脚本、8 个 lib（子命令和 hook 清单见 附录 C，8 个 lib 和怎么摆见 [`architecture.md`](architecture.md) §3、§5），外加 `AGENTS.md`。
 
 两个决定让范围比原稿大了一点：内置 worktree 池（§7）和 forge 层支持两个远端（§8.4）。
 其中池的分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的只有复用池和 lease。
