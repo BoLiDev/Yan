@@ -210,5 +210,5 @@ tests/
 测试把 `YAN_LIB` 指到 `tests/stub/` 就完成替换——**不需要任何注入框架**。
 这个形状在 P0 就定死，后面所有 task 都沿用它。
 
-哪些用例必须写、什么时候跑，见 [`implementation-plan.md`](../implementation-plan.md) §2 和 §3。
+哪些用例必须写、什么时候跑，见 [`implementation-plan.md` §2](../implementation-plan.md#2-task-清单) 和 [§3](../implementation-plan.md#3-测试策略)。
 其中四条顺序回归用例值得单独记住：它们守的都是「错了不报错，只是悄悄坏掉」的东西。

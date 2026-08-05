@@ -116,7 +116,7 @@ $YAN_HOME/
         signal                 唤醒标记
 
   conf/                        本地选择，gitignored
-    hooks/                     外部权威接缝（§10）
+    hooks/                     外部权威接缝，见 boundaries.md §10
 
   repos/                       clone；yan 只读（唯一例外是 git fetch）
 ```

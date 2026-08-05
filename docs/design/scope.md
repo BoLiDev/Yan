@@ -69,7 +69,7 @@ Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 t
 
 1. `$YAN_HOME` 要不要 git 版本化？ `mem/user.md` 和 `learnings/` 有提交历史挺有价值（能看到偏好怎么演化）。如果版本化，`tasks/` 要不要一起进去（会很吵）。倾向 `mem/` 进、`tasks/` 不进。不阻塞 0→1—随时能加，`git init` 一下的事。
 2. `tasks/` 的裁剪策略：倾向不自动删任何东西，靠 `yan prune` 半手工裁，且 `artifacts/` 即使裁剪也单独保留。不阻塞 0→1，那时根本没有积累量。
-3. `yan` 的 task id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。注意它会进分支名（[§6.5](branching.md#65-两级分支有两个不同的命名权威) `yan/<task>-<unit>-<sid>`），所以短的有实际好处。倾向 `t042` 式序号，可读的标题住在 `brief.md` 和 `log.md` 的标题行。这条要在写 `yan task new` 之前定，见 [`implementation-plan.md`](../implementation-plan.md) [§4](memory.md#4-记忆系统)。
+3. `yan` 的 task id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。注意它会进分支名（[§6.5](branching.md#65-两级分支有两个不同的命名权威) `yan/<task>-<unit>-<sid>`），所以短的有实际好处。倾向 `t042` 式序号，可读的标题住在 `brief.md` 和 `log.md` 的标题行。这条要在写 `yan task new` 之前定，见 [`implementation-plan.md` §4](../implementation-plan.md#4-三个会挡路的东西)。
 4. `lib-pool` 的池根目录要不要做成可配置？`~/.yan-trees/<repo>-<hash>/N/<repo>`（[§3](INDEX.md#3-目录布局)）是当前写法。
 
 ### 已定：子分支推到远端（原待定 5）

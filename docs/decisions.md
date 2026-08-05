@@ -3,7 +3,7 @@
 > 状态：2026-08-05。
 > 定位：这份只记「什么时候定的、定了什么、理由的摘要、展开在哪」。
 > 每条决策的完整推理住在它管的那一节，不在这里——被否掉的那些选项也不在这里。
-> 本文里的 `design §x` 指 [`design/INDEX.md`](design/INDEX.md)。
+> 本文里的 `design §x` 指 `docs/design/` 下的设计文档，主干是 [`design/INDEX.md`](design/INDEX.md)，从它进去找到那一节住在哪个文件。
 
 ---
 
