@@ -11,6 +11,7 @@
 | --- | --- |
 | [docs/yan-design.md](docs/yan-design.md) | 主设计文档，决策记录 |
 | [docs/architecture.md](docs/architecture.md) | 分层、模块职责、依赖方向 |
+| [docs/implementation-plan.md](docs/implementation-plan.md) | 七个阶段、17 个 task、测试策略 |
 | [docs/p0-open-issues.md](docs/p0-open-issues.md) | 动工前必须敲定的问题 |
 | [docs/treehouse-vs-wtpool.md](docs/treehouse-vs-wtpool.md) | worktree 层选型调研 |
 
