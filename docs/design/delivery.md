@@ -8,9 +8,9 @@ firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限�
 
 | `mode` | 改代码 | commit | push | 开 MR | 交付物 | 终态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| scout | × | ✓（scratch） | × | × | `report.md` + `artifacts/` | `done: report` |
-| branch | ✓ | ✓ | × | × | 本地干净分支 | `done: branch <name>` |
-| mr | ✓ | ✓ | ✓ | ✓ | GitLab MR | `done: mr <url>` |
+| `scout` | × | ✓（scratch） | × | × | `report.md` + `artifacts/` | `done: report` |
+| `branch` | ✓ | ✓ | × | × | 本地干净分支 | `done: branch <name>` |
+| `mr` | ✓ | ✓ | ✓ | ✓ | GitLab MR | `done: mr <url>` |
 
 层级：`kind: scout | ship` 是 `task` 级（交付物类型不同）；`mode: branch | mr` 是 `unit` 级（不同 repo 的交付姿态不同）。per-repo 默认写在 `repos.json`，per-unit 覆盖写在 `task.json`。
 

@@ -55,7 +55,7 @@ firstmate 是灵感来源，不是蓝本。`yan` 有意在几处走了不同的�
 | --- | --- | --- |
 | 事实 | 分支、commit、merge history、diff | git 里，绝不镜像 |
 | 状态 | MR open/merged、CI 绿不绿、有没有冲突 | GitLab 现场查，绝不镜像 |
-| 决策 | branch、`target`、`scope`、`mode`、`unit` 怎么划、要不要合 | 必须自己存，而且变更历史有价值 |
+| 决策 | `branch`、`target`、`scope`、`mode`、`unit` 怎么划、要不要合 | 必须自己存，而且变更历史有价值 |
 
 推论是：一个 `unit` 用过哪些子分支、集成分支同步到 `target` 哪个点、MR 现在什么状态，这些全都不存，要用的时候现场查。但是「当前在哪个分支上干、打算往哪合」git 和 GitLab 都不知道（MR 还没开的时候尤其如此），所以必须自己存。
 
