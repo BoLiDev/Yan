@@ -367,7 +367,7 @@ hook 用 exit 2 唤醒模型时，user 可能正在跟 yan 聊别的，shift 的
 
 同样砍掉的还有：primary scope 判断（验 marker、比 git dir 和 git common dir—一个 yan 一个 task，没有 agent 树）、六个 harness 各一份适配（只 Claude，§5.6）、hook payload 解析（不读 stdin）。
 
-估计 guard 约 60 行，autoarm 约 100 行。
+两个都很小。guard 尤其小，因为它不读 stdin、不依赖 `jq`、也没有 firstmate 那两个 fail-open 分支。
 
 ### 5.6 harness 要求
 
@@ -405,7 +405,7 @@ session / workspace "t042 统一鉴权"
 
 `tmux ls` 直接就是 task 列表，切 session 就是切 task。yan 和它派的 shift 同处一个容器—外层只看到 task，切进去才看到具体 agent。这不需要任何额外机制：`yan start t042` 建容器并在里面起 yan，之后 yan 派 shift 就是在自己所在的容器里加一个 window。这正是 firstmate 的扁平默认路径。
 
-firstmate 那个可选的 `herdr-presentation-spaces`（每个 crewmate 一个一次性 workspace）不要抄—它有 80 行安全边界，光「Herdr 0.7.5 的 explicit close 会偷焦点」就要一整套 focus-safe emptying-close 方案（验证 close 会清空 → 把将死的 workspace 移到焦点后面 → 证明 pane 里只剩空闲 shell → 结束那个 shell 走 pane-death 路径 → 确认移除 → 失败回滚），而它自己承认 *Grouping is best-effort*。那份代价的根源是「workspace 的生命周期要自动推导」，而 yan 没有这个问题：容器的生命周期 = yan 的生命周期 = user 手动开关。
+firstmate 那个可选的 `herdr-presentation-spaces`（每个 crewmate 一个一次性 workspace）不要抄—它背着一整套安全边界，光「Herdr 0.7.5 的 explicit close 会偷焦点」就要一整套 focus-safe emptying-close 方案（验证 close 会清空 → 把将死的 workspace 移到焦点后面 → 证明 pane 里只剩空闲 shell → 结束那个 shell 走 pane-death 路径 → 确认移除 → 失败回滚），而它自己承认 *Grouping is best-effort*。那份代价的根源是「workspace 的生命周期要自动推导」，而 yan 没有这个问题：容器的生命周期 = yan 的生命周期 = user 手动开关。
 
 #### 从 firstmate 的 Herdr 实践里直接继承的三条
 
@@ -615,9 +615,9 @@ default branch——于是每一次正常下工的还树都会被它拒绝，得
 
 ### 热复用是硬契约，不是优化
 
-没有复用需求的话，一 shift 一次 `git worktree add` 就够了，那才 40 行。
-池多出来的那两百行全部是为了这一件事：**大 monorepo 上常驻 3 棵热树，
-租到哪一棵都不需要冷装依赖。**
+没有复用需求的话，一 shift 一次 `git worktree add`、下工 `remove` 就够了，
+根本不需要池、租约、背压这一整套。**池多出来的复杂度全部是为了这一件事：
+大 monorepo 上常驻 3 棵热树，租到哪一棵都不需要冷装依赖。**
 
 所以下面这条是 `lib-pool` 的契约，不是实现细节：
 
@@ -626,6 +626,26 @@ default branch——于是每一次正常下工的还树都会被它拒绝，得
 **一个诚实的边界**：它消掉的是**冷装**，不是所有 install。集成分支之间 lockfile 变了，
 热树里的 `node_modules` 就是旧的。正确的处理是 **brief 里每次都跑一遍 install**——
 热的时候几秒内 no-op，变了的时候增量装。不要试图聪明地跳过。
+
+### 池最多几棵树
+
+**per-repo 配置，写在 `repos.json` 里，默认 3。** 不是一个全局常量。
+
+理由：这个数是**磁盘和并行度的权衡，而对 monorepo 来说磁盘占主导**。
+一棵树的 `node_modules` 就可能好几个 G，3 棵就是十几个 G；
+而反过来，同一个仓库上同时跑 3 个 shift，对一个人 review 来说本来也接近上限了。
+小仓库配 8 无所谓，巨型 monorepo 可能只配得起 2——所以它必须跟着 repo 走。
+
+还有一条不那么直觉的：**树越多，热复用越弱。** 每棵树被用到的频率下降，
+更容易在某次 lockfile 变动之后变凉。池小反而更热。
+
+这个数直接决定了**同一个仓库上的最大并发 shift 数**，跟 task 数无关（§7 开头）。
+所以它不是实现细节，是一个真实的决策。
+
+**一个连带的坑**：`yan sync` 也要短租一棵树。如果池满了，`sync` 会失败——
+而它恰好发生在 `yan shift new` 的第一步。这不是死锁（池满时本来就不该再开 shift），
+但**错误信息必须说「池满，开不了新 shift」，而不是「sync 失败」**，
+否则你会去查一个根本不存在的同步问题。
 
 由此 0→1 **不需要** treehouse 那种 `post_create` provision hook：brief 本来就会跑 install，
 冷树和热树走同一条路径就都覆盖了，不用多加一层机制。首次撑开 N 棵新树要装 N 次，
@@ -836,38 +856,30 @@ name=$(hook branch-name <<< "$ctx") || die "分支命名被拒绝"
 
 ## 11. 0→1 范围
 
-### 规模估计
+### 范围
 
-一个 `yan` 入口加 19 个子命令、2 个 hook 脚本、7 个 lib（完整清单见 附录 C）。每个子命令一个文件，像 git—不写一个 2000 行的巨型脚本，每个子命令要独立可读、可单独测。
+一个 `yan` 入口加 20 个子命令、2 个 hook 脚本、8 个 lib（完整清单见 附录 C），外加 `AGENTS.md`。
+每个子命令一个文件，像 git—不写一个包罗万象的巨型脚本，每个子命令要独立可读、可单独测。
 
-| 组 | 文件 | 行 |
-| --- | --- | --- |
-| 入口 + 20 个子命令（加 `yan tree`） | 21 | ~1750 |
-| hook 脚本（autoarm 100 / guard 60） | 2 | ~160 |
-| lib（term 200 / forge 230 / git 120 / task 100 / json 60 / hook 50 / log 40） | 7 | ~800 |
-| 合计 | ~30 | ~2710 |
-
-比原稿的 ~2350 多出约 360 行，来自两个决定：内置 worktree 池（§7，约 +250，
-其中分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的是复用池加 lease）
-和 forge 层支持两个远端（§8.4，`lib-gitlab` 120 → `lib-forge` 230）。
+两个决定让范围比原稿大了一点：内置 worktree 池（§7）和 forge 层支持两个远端（§8.4）。
+其中池的分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的只有复用池和 lease。
 换回的是零外部依赖，以及 0→1 能在 yan 自己身上验收。
 
-加 `AGENTS.md` 约 300 行。
+### 为什么比 firstmate 小得多
 
-### 为什么是 firstmate 的 1/20
+firstmate 有 109 个文件、19 个 skill。差距不是奇迹，就是「明确不做」那些决定的和：
 
-firstmate 是 109 个文件、约 37,000 行、19 个 skill。差距不是奇迹，就是「明确不做」那些决定的算术和：
-
-| 它有而 yan 没有 | 文件数 |
+| 它有而 yan 没有 | 说明 |
 | --- | --- |
-| watcher 与 triage 机器 | 20 → yan 用 4 个（唤醒管道 1:1 照搬，省掉的是那层独立 triage，§5.5） |
-| 多 backend（Herdr / zellij / orca / cmux / codex-app）加抽象层 | ~13 → yan 以后只需 1 份 `lib-term.sh` 实现 |
-| X mode 与 public-followup | 10 |
-| PR poll 注册与信任绑定 | 8 |
-| secondmate 与配置继承 / AFK / no-mistakes 集成 | 11 |
-| install / lint / doc-check / treehouse | 6 |
+| watcher 与独立 triage 层 | 唤醒管道 1:1 照搬，省掉的是那层独立 triage（§5.5） |
+| 多 backend（Herdr / zellij / orca / cmux / codex-app）加抽象层 | yan 以后只需 `lib-term.sh` 的第二份实现 |
+| X mode 与 public-followup | 完全不做 |
+| PR poll 注册与信任绑定 | shift 下工不等 CI，不需要 |
+| secondmate 与配置继承 / AFK / no-mistakes 集成 | 一个 yan 一个 task，没有二级 agent 树 |
+| install / lint / doc-check / treehouse | 池内置，其余不做 |
 
-约 68 个文件直接省掉，剩下 40 个里还有一半是 firstmate 特有的（fleet-view、bearings-snapshot、composer-lib…）。行数比例（1/10）比文件数比例（1/5）更悬殊，因为它平均每个脚本 340 行—多 backend 分支、安全 journal、迁移路径都在里面；yan 平均约 85 行。
+差距不只在数量上，也在每个文件的厚度上：firstmate 的每个脚本里都塞着多 backend 分支、
+安全 journal、迁移路径。**yan 没有这些，不是因为写得更好，是因为它膨胀的原因我们一个都没有。**
 
 ### 关于 no-mistakes
 

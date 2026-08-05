@@ -60,7 +60,7 @@ user 能敲的和 agent 能调的是同一套东西，不多不少。
 
 ```
 $YAN_HOME/
-  AGENTS.md                  判断层。唯一常驻上下文，约 300 行
+  AGENTS.md                  判断层。唯一常驻上下文
   bin/
     yan                      入口：解析子命令，exec 对应文件
     yan-<cmd>.sh             20 个子命令，一个一个文件（§4.2）
@@ -133,7 +133,7 @@ $YAN_HOME/
 
 ## 5. 编排层：20 个子命令
 
-一个子命令一个文件，像 git。不写 2000 行的巨型脚本。
+一个子命令一个文件，像 git。不写一个包罗万象的巨型脚本——每个子命令要独立可读、可单独测。
 
 判断一个子命令属于「原子」还是「编排」，看它**有没有持有一条顺序不变量**——
 如果打乱它内部的步骤顺序会出错，它就是编排。
@@ -177,10 +177,10 @@ $YAN_HOME/
 
 调用者是 harness，不是 user 也不是模型。所以它有一条别人没有的约束：**不能依赖模型记得做任何事**。
 
-| 文件 | 类型 | 职责 | 约 |
-| --- | --- | --- | --- |
-| `hook-autoarm.sh` | Stop，`asyncRewake: true`，长 timeout | 拿单飞锁 → 在自己前台跑 `yan wait` → 翻译成 exit 0/2 | ~100 行 |
-| `hook-turnend-guard.sh` | Stop，阻塞式 | 监督不健康就拦住结束 turn，预算 3 次后 fail open **并大声报警** | ~60 行 |
+| 文件 | 类型 | 职责 |
+| --- | --- | --- |
+| `hook-autoarm.sh` | Stop，`asyncRewake: true`，长 timeout | 拿单飞锁 → 在自己前台跑 `yan wait` → 翻译成 exit 0/2 |
+| `hook-turnend-guard.sh` | Stop，阻塞式 | 监督不健康就拦住结束 turn，预算 3 次后 fail open **并大声报警** |
 
 两条来自 firstmate 实伤的硬规则：
 
