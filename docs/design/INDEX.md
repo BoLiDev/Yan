@@ -169,7 +169,7 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 「干到哪一步停」和「谁能按 merge」是两个正交的轴，`yan` 把它们显式分开。
 
-主线是这样走的：`mode` 有三档，scout 只调研不改代码，branch 改完就停在本地分支，mr 一路推到远端并开出 MR；默认是 mr，因为推到远端就是最好的备份。强制手段不做隔离机制，用启动参数加一条落地前的 `yan scope-check` 就够，而且越界的语义是「必须显式扩」而不是「禁止」。真正跟外部世界打交道的是 forge 这一层，它把 GitLab 和 GitHub 的差异藏在四个动词底下。
+主线是这样走的：`mode` 有三档，`scout` 只调研不改代码，`branch` 改完就停在本地分支，`mr` 一路推到远端并开出 MR；默认是 `mr`，因为推到远端就是最好的备份。强制手段不做隔离机制，用启动参数加一条落地前的 `yan scope-check` 就够，而且越界的语义是「必须显式扩」而不是「禁止」。真正跟外部世界打交道的是 forge 这一层，它把 GitLab 和 GitHub 的差异藏在四个动词底下。
 
 → [`delivery.md`](delivery.md)：[§8.1](delivery.md#81-两个正交的轴) 两个正交的轴 · [§8.2](delivery.md#82-三种-mode) 三种 `mode` · [§8.3](delivery.md#83-强制手段) 强制手段 · [§8.4](delivery.md#84-forge-层lib-forgesh) forge 层
 

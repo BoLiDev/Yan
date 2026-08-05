@@ -22,10 +22,13 @@
 
 ## 约定
 
-- 设计按主题分册放在 `docs/design/`，节号写在各分册的标题里；
-  正文里引用某一节的时候，都会带上一个可以点的链接。
-- 跨文档引用要写清楚是哪份文档的哪一节，写法是文档名再加节号，例如 [design §7](docs/design/worktree.md#7-worktree)
-  和 [architecture §3](docs/design/architecture.md#3-仓库结构)；
-  而裸写的节号指的是当前这份文档，在 `docs/design/` 里则指的是设计本身，
-  因为设计的节号横跨各个分册。
+- 设计按主题分册放在 `docs/design/`，节号写在各分册的标题里，一套编号横跨所有分册，
+  所以同一个节号在整个设计里只对应一处；分册之间互相引用就只写节号，配上一个能点过去的链接，
+  读者不必先知道那一节住在哪个文件。
+- 跨文档引用要写清楚是哪份文档的哪一节，写法是文档名再加节号，并且同样带上链接，
+  例如 [`architecture.md` §3](docs/design/architecture.md#3-仓库结构)
+  和 [`implementation-plan.md` §4](docs/implementation-plan.md#4-三个会挡路的东西)；
+  文档名和锚点写在一起，两者就不会各自漂走。
+- 不带链接的裸节号指的是当前这份文档自己的那一节，同一份文档内部的引用一律这么写。
+  `docs/design/architecture.md` 自带一套 1–7 的编号，它在开头就声明了这条。
 - `docs/` 同时也是设计讨论的工作区，讨论产生的 artifact（MD / HTML）都放在这里。
