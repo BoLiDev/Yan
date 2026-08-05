@@ -22,7 +22,7 @@
 
 ## 2. 谁能调谁
 
-**依赖只往下，从不往上，同层之间不互相调用。**
+**依赖只往下，从不往上。**
 
 ```mermaid
 graph TD
@@ -44,8 +44,11 @@ graph TD
     E --> F
 ```
 
-唯一被允许的同层依赖是 `lib-pool` → `lib-git`（池要做 `worktree add` / `reset` / `clean`）。
-它是显式列出的唯一一条例外，不是先例。
+`lib-pool` 会调 `lib-git`，因为池要做 `worktree add` / `reset` / `clean`。
+这不是例外——接缝调无状态工具，本来就是图里画出的那种向下依赖。
+
+真正要守的是另一条：**接缝之间不互相调用**，`lib-term` 不调 `lib-forge`，`lib-forge` 不调 `lib-pool`。
+每个接缝各藏一个外部权威，所以它们之间不该有边，这条不留先例。
 
 **模型从不 source 任何 lib，只能跑 `yan <cmd>`。**
 这是设计原则 4（user 和 agent 共用同一个入口）在结构上的体现——

@@ -34,7 +34,7 @@ firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限�
 
 具体的 flag 以各 harness 当时的 `--help` 为准，所以 spawn 脚本里维护一张小映射表就够了（harness → 设 cwd / 加目录 / 只读模式），不要为它做一层抽象。
 
-保留一条最便宜的校验：`yan scope-check <id>` 用 `git diff --name-only` 加前缀匹配，在 land 之前跑一次。它不约束 agent 干活，只在落地前报告越界。语义是「越界必须显式扩，不是禁止」：
+保留一条最便宜的校验：`yan scope-check <sid>` 用 `git diff --name-only` 加前缀匹配，在 land 之前跑一次。它不约束 agent 干活，只在落地前报告越界。语义是「越界必须显式扩，不是禁止」：
 
 > 改 `apps/auth` 时发现必须动 `apps/common` 的一个类型—这在真实工作里天天发生。硬拒绝会让 agent 卡死或者偷偷绕过。规则是改 `task.json` 扩 scope，并在 `log.md` 记一行。
 
