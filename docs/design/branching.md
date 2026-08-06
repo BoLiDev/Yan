@@ -113,12 +113,11 @@ target (master / release/x / 任意分支)
 
 集成分支的命名可以委托给外部权威（okt）；子分支的命名权永远归 `yan`。
 
-理由：okt 认识团队的概念（feature、app、release），完全不认识 `shift`。让它命名子分支没有意义，而且有害。子分支不能从集成分支名派生（例如 okt 给了 `feature/AUTH-123`，我们造 `feature/AUTH-123/s1`），四个理由：
+理由：okt 认识团队的概念（feature、app、release），完全不认识 `shift`。让它命名子分支没有意义，而且有害。子分支不能从集成分支名派生（例如 okt 给了 `feature/AUTH-123`，我们造 `feature/AUTH-123/s1`），三个理由：
 
-1. 团队 CI 常按分支前缀触发，每个 `shift` 都会白烧一次昂贵 CI
-2. 分支保护和规范检查可能对团队前缀有要求，内部分支会撞上
-3. 同事在 GitLab 上看分支列表会被内部分支淹没
-4. okt 可能扫描/管理它认识的前缀，`yan` 的内部分支不该被它看见
+1. 分支保护和规范检查可能对团队前缀有要求，内部分支会撞上
+2. 同事在 GitLab 上看分支列表会被内部分支淹没
+3. okt 可能扫描/管理它认识的前缀，`yan` 的内部分支不该被它看见
 
 外加一个 git 硬约束：`refs/heads/feature/AUTH-123` 已经是文件，`feature/AUTH-123/s1` 根本建不出来（`cannot lock ref ... exists`）。
 

@@ -12,7 +12,7 @@
 
 | | 决定 | 理由 | 展开在 |
 | --- | --- | --- | --- |
-| **P0-1** | `yan` 自带 worktree 池（`yan tree get \| return \| status`） | 整个项目不依赖任何额外的工具。treehouse 里值得抄的三样——随机 `lease_id`、条件还树、`--json`——一并抄了进来 | [design §7](design/worktree.md#7-worktree) |
+| **P0-1** | `yan` 自带 worktree 池（`yan tree get \| return \| status`） | 整个项目不必为此多依赖一个外部工具。treehouse 里值得抄的三样——随机 `lease_id`、条件还树、`--json`——一并抄了进来 | [design §7](design/worktree.md#7-worktree) |
 | **P0-2** | GitLab 和 GitHub 都支持，抽一层 forge deep module | 工作用 GitLab，日常用 GitHub，两个都是真实需求。附带收益：0→1 的验收标准可以在 `yan` 自己身上跑通 | [design §8.4](design/delivery.md#84-forge-层lib-forgesh) |
 | **P0-3** | 子分支推到远端，两级 MR 都保留 | 每个 `shift` 一个独立 MR，就是 `user` review 的主要方式 | [design §12](design/scope.md#12-待定)「已定」、[design §6.2](design/branching.md#62-两级分支--两级-review) |
 
