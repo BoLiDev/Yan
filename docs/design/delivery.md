@@ -38,7 +38,7 @@ firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限�
 
 > 改 `apps/auth` 时发现必须动 `apps/common` 的一个类型—这在真实工作里天天发生。硬拒绝会让 agent 卡死或者偷偷绕过。规则是改 `task.json` 扩 `scope`，并在 `log.md` 记一行。
 
-这样既挡掉乱改，又能看到范围是怎么长大的—`scope` 频繁膨胀本身就是「任务拆错了」的信号。
+这样既挡掉乱改，又能看到范围是怎么长大的—`scope` 频繁膨胀通常意味着任务拆错了。
 
 `sparse-checkout` 归档：它需要先解决「编辑范围 ≠ 构建闭包」这个问题（monorepo 里 `apps/auth` 编译通常需要 sibling 包在场），成本很高，所以等上下文真的开始疼了再做。
 

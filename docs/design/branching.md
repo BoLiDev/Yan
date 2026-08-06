@@ -149,4 +149,4 @@ target (master / release/x / 任意分支)
 
 > 一个 `unit` 的粒度 = 一个对外 MR 的粒度 = 同事一次 review 能吃下的量。
 
-一旦攒到 review 不下去，就说明它该拆成两个 `unit` 了（两个集成分支、两个对外 MR）。
+攒到 review 不下去的时候，它就该拆成两个 `unit` 了（两个集成分支、两个对外 MR）。

@@ -1,7 +1,7 @@
 # 实现计划：七个阶段，17 个 `task`
 
 > 依据：[`design/INDEX.md`](design/INDEX.md) 的决策，[`design/architecture.md`](design/architecture.md) 的分层。
-> 定位：这份说「按什么顺序做、每块怎么测」。
+> 定位：本文说明「按什么顺序做、每块怎么测」。
 > 本文里裸写的 `§x` 指本文；指进设计时写成 `design §x`，指别的文档时写文档名再加节号。
 
 ---
@@ -12,12 +12,12 @@
 而且等到发现监督那层跑不通的时候，已经有一大堆代码建立在它能工作这个假设上了。
 
 改成：**先撑起最小骨架（很小），然后每个阶段交付一个能真正跑起来、能独立验证的东西。**
-这也是设计原则 6「每一步只加当前真实疼痛所需要的机制」在实现顺序上的样子。
+这也是设计原则 6（从 0 到 1，再到 2、10、100）在实现顺序上的样子：每一步只加当前确实需要的机制。
 
 三个刻意的排序决定：
 
 1. **池排在第二个，不是最后。** 它是最大的一块 primitive，而且它自己就能用——
-   `yan tree get` 手敲就有价值，不需要任何 agent。早做等于早拿到一个真实用户，也就是造它的人自己。
+   `yan tree get` 手动调用就有价值，不需要任何 agent。早做等于早拿到一个真实用户，也就是造它的人自己。
 2. **监督排在第四，不排最后。** 它是风险最高、最不能增量验证的一块。
    排最后意味着在整个系统都压在它身上之后才发现 hook 不工作，那是致命的。
    排第四是因为到那时刚好有东西可以被监督。
@@ -143,7 +143,7 @@ graph LR
 | `yan-forge-gitlab` | GitLab 实现 | 同上一套用例，换一份 fixture。**需要 `glab` 和一个真实 GitLab 目标，见 §4** |
 | `yan-sync-mr-land` | `yan sync` + `yan mr` + `yan land` + `yan unit set` | `sync` 遇到冲突**真的退出**，不留下半个 rebase；`unit set --branch` 对 forge 四种状态各判一次 `end`（merged→delivered，closed/空→abandoned，open→问 `user`，查不到→问 `user`）；换赛道是原子的（判定 → 归档 → 覆盖 → log 一行，中途失败不留半成品）；`land` 没有明确授权时拒绝 |
 | `yan-shift-done` | `yan shift done` + `yan state` | **squash 场景下先还树后删分支**（这条单独立一个用例，见 §3）；`state` 从 meta + 终端 + git + forge 推导，**不读 `run/status` 的最后一行** |
-| `yan-session-start` | `yan session-start` 全量 reconcile | 硬 kill 掉 `yan` 之后重启，reconcile 得到的现实 = 实际现实（`shift` 还活着就是活着，死了就是死了）；**没有任何一条状态来自对话记忆** |
+| `yan-session-start` | `yan session-start` 全量 reconcile | 硬 kill 掉 `yan` 之后重启，reconcile 得到的状态 = 实际状态（`shift` 还活着就是活着，死了就是死了）；**没有任何一条状态来自对话记忆** |
 
 ### P6 · AGENTS.md 与验收
 

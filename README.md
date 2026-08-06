@@ -8,14 +8,14 @@
 ## 从哪儿开始读
 
 设计的主干是 [docs/design/INDEX.md](docs/design/INDEX.md)，
-它是通读一遍就能讲清楚 `yan` 怎么运作的那一份，各环节的细节由旁边的分册承接。
+它逐个板块地描述整个系统，每个板块的细节由 `docs/design/` 下的分册承接。
 
 其余几份文档按问题分列如下：
 
 | 问题 | 文档 |
 | --- | --- |
 | 为什么这么设计，以及每个环节负责什么 | [docs/design/INDEX.md](docs/design/INDEX.md) |
-| 某一环的完整论证（记忆、agent、监督、分支、worktree、交付、边界、范围） | `docs/design/` 里对应的那一份，INDEX 每一节末尾都给了链接 |
+| 某个板块的完整论证（记忆、agent、监督、分支、worktree、交付、边界、范围） | `docs/design/` 里对应的那一份，INDEX 每一节末尾都给了链接 |
 | 代码放在哪、谁能调谁、怎么测 | [docs/design/architecture.md](docs/design/architecture.md) |
 | 按什么顺序做，每块必须自带哪些用例 | [docs/implementation-plan.md](docs/implementation-plan.md) |
 | 某个决定是什么时候定的，当时手上有什么 | [docs/decisions.md](docs/decisions.md) |

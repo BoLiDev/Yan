@@ -8,7 +8,7 @@
 | Stop（autoarm） | `asyncRewake: true`，长 timeout | 拿单飞锁 → 在自己前台跑 `yan wait` → 翻译成 exit 0/2 |
 | Stop（turnend guard） | 阻塞式 | 监督不健康就拦住结束 turn，有界后 fail open |
 
-autoarm 负责起监督，guard 负责验证监督真的起来了—一个做事，一个验收。
+autoarm 负责起监督，guard 负责验证监督真的起来了。
 
 `yan wait` 是 watcher 本体，由 autoarm 在前台启动；模型从不调用它—所以「模型忘了起监督」这个失败模式不存在。它的输出契约是给 hook 读的（退出码加一行 reason），不是给模型读的 stdout：有事就写 wake 文件、打印 reason、exit 0；无事就静默 exit 非 0。它同时是纯观察者，不持有任何状态：超时、被杀、随 hook 进程树死掉，都不丢任何东西—`shift` 还在自己的终端里，状态全在文件里。这是「重启是非事件」在监督层的体现。
 
@@ -110,4 +110,4 @@ hook 用 exit 2 唤醒模型时，`user` 可能正在跟 `yan` 聊别的，`shif
 
 同样砍掉的还有：primary scope 判断（验 marker、比 git dir 和 git common dir—一个 `yan` 一个 `task`，没有 agent 树）、六个 harness 各一份适配（只 Claude，[§5.6](agents.md#56-harness-要求)）、hook payload 解析（不读 stdin）。
 
-两个都很小。guard 尤其小，因为它不读 stdin、不依赖 `jq`、也没有 firstmate 那两个 fail-open 分支。
+两个 hook 的实现都很小，guard 尤其小。

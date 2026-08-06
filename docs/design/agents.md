@@ -8,7 +8,7 @@
 | 中 | `yan` | 没有自己的状态文件 |
 | 短 | `shift` / sub-agent | 易失文件，下工即删 |
 
-中间那条是关键：`yan` 不该有任何持久运行状态。 每次启动就是一次全量 reconcile—扫 `tasks/`、查终端、查树池，现实是什么就是什么。这样「关掉重开一个」永远是非事件，不需要交接、不需要 resume。
+中间那条是关键：`yan` 不该有任何持久运行状态。 每次启动就是一次全量 reconcile—扫 `tasks/`、查终端、查树池，状态是什么就是什么。这样「关掉重开一个」永远是非事件，不需要交接、不需要 resume。
 
 这也让 `task` 的状态大部分不用存：「从没派过 `shift`」看 `shifts/` 是否为空、「有 `shift` 活着」扫 `run/` 加查终端、「没 `shift` 活着但没完成」是两者的补集—全部可推导。只有「已宣布完成」必须存，因为那是 `user` 的决定，不是事实。所以 `task.json` 里只需要一个完成标记，零状态漂移。
 
@@ -22,7 +22,7 @@
 
 ```
 必读   AGENTS.md · mem/user.md · tasks/<id>/{task.json,brief.md,log.md}
-       tasks/<id>/shifts/*/run/          （重建现实）
+       tasks/<id>/shifts/*/run/          （重建状态）
 按需   mem/repos.json                    （查 clone 路径）
        mem/learnings/<repo>.md           （只读涉及的那几片）
        tasks/<id>/shifts/*/outcome.md    （开新 shift 时）
@@ -41,8 +41,8 @@ cwd 是 `$YAN_HOME`（要跑 `bin/`、读 `mem/`），`--add-dir` 只放这个 `
 
 跨 `task` 的事谁管？答案都是「脚本，不是 agent」：
 
-- 两个 `task` 改了同一个 `scope` 会不会撞？  不需要任何机制。worktree 隔离了文件系统冲突；git 冲突和语义冲突是正常的开发现实，由 rebase + CI + review 处理，GitLab 会在合的时候报出来。文件重叠不是串行化的理由。
-- 想看全局有哪些 `task` 在跑？  `yan ls` 扫目录，`user` 自己敲。它带一列 `scope` 是有用的信息（`user` 自己判断要不要在意），但 `yan` 主动扫描并告警是噪音—重叠很常见、会反复报警然后被忽略。
+- 两个 `task` 改了同一个 `scope` 会不会撞？  不需要任何机制。worktree 隔离了文件系统冲突；git 冲突和语义冲突在开发中本来就会发生，由 rebase + CI + review 处理，GitLab 会在合的时候报出来。文件重叠不是串行化的理由。
+- 想看全局有哪些 `task` 在跑？  `yan ls` 扫目录，`user` 自己调用。它带一列 `scope` 是有用的信息（`user` 自己判断要不要在意），但 `yan` 主动扫描并告警是噪音—重叠很常见、会反复报警然后被忽略。
 - 多个 `yan` 同时写 `mem/`?  `user.md` 只在明确要求时写，而 `user` 一次只跟一个 `yan` 说话。真要保险加 flock。
 
 锁的粒度是 `task`，不是 home。 同时开两个 `yan` 做两个 `task` 完全合法；只有对同一个 `task` 开第二个 `yan` 才拦。
@@ -55,11 +55,11 @@ cwd 是 `$YAN_HOME`（要跑 `bin/`、读 `mem/`），`--add-dir` 只放这个 `
 
 下工条件为什么是「MR 合回集成分支」：  合了就意味着改动已经在集成分支上（远端有副本），树里的东西没有独占价值，还树是安全的。这比「活干完了」更强、更可验证，而且完全客观。
 
-**判断「合没合」查 MR 状态，不查 git 祖先关系。** 内部 MR 若是 squash 合的，集成分支不含子分支的 HEAD，祖先关系会说谎—但活确实已经落了。删分支同理。这和 [§6.6](branching.md#66-yan-永不解析分支名)「不解析分支名、归属查权威源」是同一条原则的延伸。
+**判断「合没合」查 MR 状态，不查 git 祖先关系。** 内部 MR 若是 squash 合的，集成分支不含子分支的 HEAD，祖先关系会说谎—但活确实已经落了。删分支同理。这和 [§6.6](branching.md#66-yan-永不解析分支名)「不解析分支名、归属查 source of truth」是同一条原则的延伸。
 
 还树必须排在删远端子分支之前，理由见 [§7](worktree.md#7-worktree)。
 
-不等对外 MR 的 CI。  这是有意的：只要 `shift` 挂在那儿等，就必须持续判断「它是在等还是卡了」—而那正是 firstmate `fm-crew-state.sh` 那五步推导（run-step 归属校验、head 祖先关系判断、status log 陈旧性反证、ci 步骤下「还在等检查」vs「检查绿了在等合并」的歧义消解）存在的唯一原因。为省一次重启把这整块复杂度请回来不划算。CI 红了由 `yan` 查 GitLab 发现，再派新 `shift` 修—轮询一个权威数据源比监督一个挂着的 agent 便宜一个数量级。
+不等对外 MR 的 CI。  这是有意的：只要 `shift` 挂在那儿等，就必须持续判断「它是在等还是卡了」—而那正是 firstmate `fm-crew-state.sh` 那五步推导（run-step 归属校验、head 祖先关系判断、status log 陈旧性反证、ci 步骤下「还在等检查」vs「检查绿了在等合并」的歧义消解）存在的唯一原因。为省一次重启把这整块复杂度请回来不划算。CI 红了由 `yan` 查 GitLab 发现，再派新 `shift` 修—轮询一个 source of truth 比监督一个挂着的 agent 便宜一个数量级。
 
 `shift` 从不横跨 `task`。  一个 `shift` 可以横跨同一个 `task` 的多个 `unit`（比如同时动 auth 和 gateway，一个 sub-agent 持两棵树），但那意味着两个子分支、两个 MR。
 
@@ -135,7 +135,7 @@ firstmate 那个可选的 `herdr-presentation-spaces`（每个 crewmate 一个�
 
 ### 从 firstmate 的 Herdr 实践里直接继承的三条
 
-1. **label 不是权威，记 id。** Herdr 不强制 workspace/tab 标签唯一（原话：*a label can never decide where a worker goes*）。所以 `run/meta.json` 记的是 id（tmux `$0` / `@3`，Herdr `workspace_id` / `tab_id` / `pane_id`），不靠名字找。这跟 [§6.6](branching.md#66-yan-永不解析分支名)「不解析分支名，靠存储」是同一条原则。
+1. **label 不是 source of truth，记 id。** Herdr 不强制 workspace/tab 标签唯一（原话：*a label can never decide where a worker goes*）。所以 `run/meta.json` 记的是 id（tmux `$0` / `@3`，Herdr `workspace_id` / `tab_id` / `pane_id`），不靠名字找。这跟 [§6.6](branching.md#66-yan-永不解析分支名)「不解析分支名，靠存储」是同一条原则。
 2. **close 要精确。** 只关自己记录的那个 window/pane，永不关 session/workspace（原话：*Cleanup closes only the exact recorded task pane and never calls `workspace close`*）。
 3. **不偷焦点。** tmux 用 `-d`，Herdr 用 `--no-focus`。
 

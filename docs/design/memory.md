@@ -8,7 +8,7 @@
 
 ## 4.2 `log.md` — 叙事层
 
-JSON 装不下「做到哪了」，而单独维护一份 `progress.md`，它和各个 `outcome.md` 迟早会对不上。所以用 append-only 的一行式日志：
+JSON 装不下「做到哪了」；单独维护一份 `progress.md` 又会跟各个 `outcome.md` 迟早对不上。所以用 append-only 的一行式日志：
 
 ```markdown
 # t042 统一鉴权 header
@@ -36,4 +36,4 @@ append-only 所以永不冲突；一行一条所以成本几乎为零；`user` �
 
 ## 4.4 不存什么
 
-临时路径、会变的版本号、复制过来的状态快照；repo 自己就能说明的东西（代码结构、git history—那属于 repo 的 `AGENTS.md`）；任何 git 或 GitLab 已经权威持有的东西。
+临时路径、会变的版本号、复制过来的状态快照；repo 自己就能说明的东西（代码结构、git history—那属于 repo 的 `AGENTS.md`）；任何 git 或 GitLab 已经作为 source of truth 持有的东西。

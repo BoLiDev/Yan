@@ -16,7 +16,7 @@
 | `tasks/<id>/artifacts/` | `shift` | 随时 | `user` | 任务收尾后 |
 | `shifts/<sid>/brief.md` | `yan` | spawn 前一次 | `shift` | 出生第一件事 |
 | `shifts/<sid>/outcome.md` | `shift`（`yan` 兜底） | 下工前 | `yan`、下一个 `shift` | 开新 `shift` 时 |
-| `run/meta.json` | spawn 脚本 | spawn 时 | `yan` | 启动，重建现实 |
+| `run/meta.json` | spawn 脚本 | spawn 时 | `yan` | 启动，重建状态 |
 | `run/status` | `shift` | 稀疏：只写需要 `yan` 动作的事件 | `yan` | 被唤醒时 |
 
 授权差别的理由见 [§4.1](memory.md#41-记忆的授权差别)。
