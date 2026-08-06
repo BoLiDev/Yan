@@ -10,7 +10,7 @@
 其中池的分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的只有复用池和 lease。
 换回的是零外部依赖，以及 0→1 能在 `yan` 自己身上验收。
 
-**0→1 验收**：一句话需求 → 一个 `unit` → 一个 `shift` → 子分支 MR 合回集成分支 → `shift` 下工还树 → 对外 MR 开出 → `user` 说合 → 合掉 → `log.md` 完整记录了整条链路。
+**0→1 验收**：一句话需求 → 一个 `unit` → 一个 `shift` → 子分支 MR 合回集成分支 → `shift` 下工还树 → 对外 MR 开出 → `user` 说合 → 合掉 → `log.md` 完整记录了这条链路。
 
 ### 为什么比 firstmate 小得多
 
@@ -32,7 +32,7 @@ firstmate 有 109 个文件、19 个 skill。差距不是奇迹，就是「明�
 
 不引入。 它在 firstmate 里承担「review + 补测试 + 补文档 + 修 CI」的自动化流水线，不引入的代价是质量把关落回 `user` + CI + 同事 review—这本来就是正常团队的做法。
 
-一致性检查：`yan` 的 `mode` 体系里没有 no-mistakes 那一档，默认 `mr` 直接开 MR；CI 红了由 `yan` 查 GitLab 发现、派新 `shift` 修（[§5.3](agents.md#53-shift-的生命周期)），整条链路不依赖它。
+一致性检查：`yan` 的 `mode` 体系里没有 no-mistakes 那一档，默认 `mr` 直接开 MR；CI 红了由 `yan` 查 GitLab 发现、派新 `shift` 修（[§5.3](agents.md#53-shift-的生命周期)），这条链路不依赖它。
 
 ### 路线
 

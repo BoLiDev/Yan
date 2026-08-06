@@ -72,7 +72,7 @@ autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firs
 - guard 完全不需要读 hook 的 stdin—它要的信息（有没有活、watcher 健康否、拦过几次、哪个 `task`）全在文件系统和 `YAN_TASK` 环境变量里。于是不依赖 `jq`，也没有 firstmate 那两个「jq 没装 / stdin 是空的」的 fail-open 分支。好测试，也不会被 harness 改 payload 悄悄搞坏。
 - 语义更合适：`stop_hook_active` 是「每 turn 拦一次、无限期唠叨」；自己数是「整个故障期间拦 3 次，然后明确报警并闭嘴」。autoarm 的 rewake 会频繁产生新 turn，前者会很吵而且没用。
 
-预算设 3，留在 Claude 自身那个 8 次硬上限以下（`fm-turnend-guard.sh` 注释：*below Claude's 8-block override*）—由我们自己决定何时放弃并打印有意义的警告，而不是被 harness 静默强行放行。
+预算设 3，留在 Claude 自身那个 8 次上限以下（`fm-turnend-guard.sh` 注释：*below Claude's 8-block override*）—由我们自己决定何时放弃并打印有意义的警告，而不是被 harness 静默强行放行。
 
 **三、用完预算必须 fail open。** 含义不是「算了不管了」，而是「进入盲跑，并且大声告诉 `user`」：`shift` 还在干活一切照旧，事件还在往 `run/status` 里写一条不丢，只是没人在盯—干完了不会有人叫 `user`。所以那次放行必须打印一句明确的话：自动监督坏了，从现在起得 `user` 自己看。那时的选择是自己 `yan ls` 看看，或者重启 `yan`（SessionStart 会 reconcile，往往顺手就恢复了）。
 
@@ -102,7 +102,7 @@ hook 用 exit 2 唤醒模型时，`user` 可能正在跟 `yan` 聊别的，`shif
 
 ## 成本、缺口、以及砍掉了什么
 
-多小时任务的成本接近零。 `yan wait` 单次寿命有界（30 分钟起），一个 3 小时的 `shift` 会有 6 次无事退出；wait 无事退出 → hook 跟着 exit 0（不是 exit 2），模型根本不被唤醒。「进程寿命有界、覆盖无界」靠的是 hook 每次 Stop 都重新触发；但如果模型一直没有新 turn，hook 也不会重新触发—这就是为什么单次寿命要设够长，以及为什么 guard 要检查 beacon 新鲜度（它是「autoarm 静默失效」的唯一探测手段）。
+多小时的任务不会因此多烧 token。 `yan wait` 单次寿命有界（30 分钟起），一个 3 小时的 `shift` 会有 6 次无事退出；wait 无事退出 → hook 跟着 exit 0（不是 exit 2），模型根本不被唤醒。「进程寿命有界、覆盖无界」靠的是 hook 每次 Stop 都重新触发；但如果模型一直没有新 turn，hook 也不会重新触发—这就是为什么单次寿命要设够长，以及为什么 guard 要检查 beacon 新鲜度（它是「autoarm 静默失效」的唯一探测手段）。
 
 一个明确接受的缺口：所有 `shift` 下工之后、对外 MR 的 CI 在跑时，没有任何 agent 在工作，三个 source 都没东西可等。0→1 的答案是 `yan` 结束 turn，不等 CI，结论在 `user` 下次开 `yan` 时由 reconcile 查 GitLab 得到。代价是 CI 红了不会主动通知 `user`。想要主动通知就加第四个 source（轮询 GitLab）—机制现成，排到 1→2。
 

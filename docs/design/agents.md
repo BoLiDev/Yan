@@ -59,7 +59,7 @@ cwd 是 `$YAN_HOME`（要跑 `bin/`、读 `mem/`），`--add-dir` 只放这个 `
 
 还树必须排在删远端子分支之前，理由见 [§7](worktree.md#7-worktree)。
 
-不等对外 MR 的 CI。  这是有意的：只要 `shift` 挂在那儿等，就必须持续判断「它是在等还是卡了」—而那正是 firstmate `fm-crew-state.sh` 那五步推导（run-step 归属校验、head 祖先关系判断、status log 陈旧性反证、ci 步骤下「还在等检查」vs「检查绿了在等合并」的歧义消解）存在的唯一原因。为省一次重启把这整块复杂度请回来不划算。CI 红了由 `yan` 查 GitLab 发现，再派新 `shift` 修—轮询一个 source of truth 比监督一个挂着的 agent 便宜一个数量级。
+不等对外 MR 的 CI。  这是有意的：只要 `shift` 挂在那儿等，就必须持续判断「它是在等还是卡了」—而那正是 firstmate `fm-crew-state.sh` 那五步推导（run-step 归属校验、head 祖先关系判断、status log 陈旧性反证、ci 步骤下「还在等检查」vs「检查绿了在等合并」的歧义消解）存在的唯一原因。为省一次重启把这整块复杂度请回来不划算。CI 红了由 `yan` 查 GitLab 发现，再派新 `shift` 修—轮询一个 source of truth 比监督一个挂着的 agent 便宜得多。
 
 `shift` 从不横跨 `task`。  一个 `shift` 可以横跨同一个 `task` 的多个 `unit`（比如同时动 auth 和 gateway，一个 sub-agent 持两棵树），但那意味着两个子分支、两个 MR。
 

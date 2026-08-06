@@ -11,7 +11,7 @@
 **不按层自底向上做。** 自底向上的问题是到最后一刻之前什么都不能用，没有任何反馈，
 而且等到发现监督那层跑不通的时候，已经有一大堆代码建立在它能工作这个假设上了。
 
-改成：**先撑起最小骨架（很小），然后每个阶段交付一个能真正跑起来、能独立验证的东西。**
+改成：**先搭起最小骨架（很小），然后每个阶段交付一个能真正跑起来、能独立验证的东西。**
 每一步只加当前确实需要的机制。
 
 三个刻意的排序决定：
@@ -119,7 +119,7 @@ graph LR
 | id | 交付 | 测试 |
 | --- | --- | --- |
 | `yan-unit` | `yan unit add`（`target` 必须显式给）+ `lib-hook.sh`（`branch-name` 接缝） | hook 非零退出 → **停下报错，绝不 fallback 到内置默认**；hook 缺失 → 用内置默认 `yan/<task>-<unit>-r<n>`，且 `n` = `history` 长度 + 1；hook 返回的分支已存在 → checkout 而不是重建 |
-| `yan-shift-new` | `yan shift new` + `yan send` + `yan report` + `yan scope-check` + brief 模板 | **cwd 断言：指向主 clone 时真的拒绝启动**（[design §7](design/worktree.md#7-worktree) 的硬不变量）；brief 里所有占位符都被替换（残留 `{...}` 直接失败）；`yan report` 只接受那五个 state，第六个词被拒；`report` 同时写了 status 和 signal；`scope-check` 越界时**只报告不拦** |
+| `yan-shift-new` | `yan shift new` + `yan send` + `yan report` + `yan scope-check` + brief 模板 | **cwd 断言：指向主 clone 时真的拒绝启动**（[design §7](design/worktree.md#7-worktree) 的不变量）；brief 里所有占位符都被替换（残留 `{...}` 直接失败）；`yan report` 只接受那五个 state，第六个词被拒；`report` 同时写了 status 和 signal；`scope-check` 越界时**只报告不拦** |
 
 **阶段里程碑：第一个 sub-agent 真的在树里干活了。** 这时还没有监督，pane 要靠人工盯。
 这是刻意的——先证明派工路径本身是对的，再上 hook 的复杂度。
@@ -132,7 +132,7 @@ graph LR
 | `yan-hooks` | `hook-autoarm.sh` + `hook-turnend-guard.sh` + `.claude/settings.json` | guard **完全不读 stdin**（喂它空 stdin 也照常工作）；拦 3 次后 fail open **并打印明确的告警**；watcher 恢复健康时计数清零；单飞锁：两个并发 autoarm 只起一个 watcher；「watcher 健康」的三个条件各自单独失败时都能拦（锁里的 pid 活着但 beacon 陈旧 → 拦；beacon 新鲜但锁没了/身份不匹配 → 拦） |
 
 **这一阶段的集成测试没法做成单元测试**，需要一次手动彩排：
-用一个假 `shift`（就是 `sleep 60 && yan report done "fake"`）跑完整条链路，
+用一个假 `shift`（就是 `sleep 60 && yan report done "fake"`）跑完这条链路，
 确认「turn 结束 → watcher 起来 → 假 `shift` 报告 → 模型被唤醒」这条链走得通。跑一次就够，然后把结果记录下来。
 
 ### P5 · 交付
@@ -143,14 +143,14 @@ graph LR
 | `yan-forge-gitlab` | GitLab 实现 | 同上一套用例，换一份 fixture。**需要 `glab` 和一个真实 GitLab 目标，见 §4** |
 | `yan-sync-mr-land` | `yan sync` + `yan mr` + `yan land` + `yan unit set` | `sync` 遇到冲突**真的退出**，不留下半个 rebase；`unit set --branch` 对 forge 四种状态各判一次 `end`（merged→delivered，closed/空→abandoned，open→问 `user`，查不到→问 `user`）；换赛道是原子的（判定 → 归档 → 覆盖 → log 一行，中途失败不留半成品）；`land` 没有明确授权时拒绝 |
 | `yan-shift-done` | `yan shift done` + `yan state` | **squash 场景下先还树后删分支**（这条单独立一个用例，见 §3）；`state` 从 meta + 终端 + git + forge 推导，**不读 `run/status` 的最后一行** |
-| `yan-session-start` | `yan session-start` 全量 reconcile | 硬 kill 掉 `yan` 之后重启，reconcile 得到的状态 = 实际状态（`shift` 还活着就是活着，死了就是死了）；**没有任何一条状态来自对话记忆** |
+| `yan-session-start` | `yan session-start` 全量 reconcile | 直接 kill 掉 `yan` 之后重启，reconcile 得到的状态 = 实际状态（`shift` 还活着就是活着，死了就是死了）；**没有任何一条状态来自对话记忆** |
 
 ### P6 · AGENTS.md 与验收
 
 | id | 交付 | 测试 |
 | --- | --- | --- |
 | `yan-agents-md` | `AGENTS.md`：模型读的那一份判断 | 通读一遍：每条指令都指向一个真实存在的 `yan` 子命令；**没有任何一条要求模型 source 一个 lib** |
-| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 [design §11](design/scope.md#11-01-范围) 的验收链 | [design §11](design/scope.md#11-01-范围) 的验收链整条走通，一步不落 |
+| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 [design §11](design/scope.md#11-01-范围) 的验收链 | [design §11](design/scope.md#11-01-范围) 的验收链完整走通，一步不落 |
 
 ---
 
@@ -202,7 +202,7 @@ CI（GitHub Actions）跑的是 `shellcheck` 加 `tests/run.sh`，而真实 forg
 如果用 sub-agent 来造 `yan`，可并行的地方：
 
 - **P2 的三个 `task` 完全独立**（`yan-store` / `yan-term-tmux` / `yan-registry`），三棵树同时开
-- **`yan-forge-github` 从 P0 之后就能开始**，不必等 P1–P4，可以和整条主线并行
+- **`yan-forge-github` 从 P0 之后就能开始**，不必等 P1–P4，可以和主线并行
 - **`yan-forge-gitlab` 随时可以插进来**，只要接口定了
 
 其余是真串行——`yan-shift-new` 必须等池和终端，`yan-hooks` 必须等 `yan-wait`。

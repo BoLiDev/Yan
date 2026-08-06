@@ -10,7 +10,7 @@ target (master / release/x / 任意分支)
       └─ 子分支 s3  ...（可并发，各自一棵 worktree）
 ```
 
-这个结构一次解决三件事：`shift` 的生命周期有了客观的绑定物（子分支合了就下工）、多 agent 并发有了隔离（各自的子分支加各自的树）、前进有了载体（新 `shift` 从集成分支当前 head 切出）。
+这个结构解决三件事：`shift` 的生命周期有了客观的绑定物（子分支合了就下工）、多 agent 并发有了隔离（各自的子分支加各自的树）、前进有了载体（新 `shift` 从集成分支当前 head 切出）。
 
 注意集成分支只代表当前这一轮—它会被整个替换，见 §6.3。所以「在同一轮里继续改」跟「上一轮已经交付或废弃了」是两种不同的机制，别当成一回事。
 
@@ -119,7 +119,7 @@ target (master / release/x / 任意分支)
 2. 同事在 GitLab 上看分支列表会被内部分支淹没
 3. okt 可能扫描/管理它认识的前缀，`yan` 的内部分支不该被它看见
 
-外加一个 git 硬约束：`refs/heads/feature/AUTH-123` 已经是文件，`feature/AUTH-123/s1` 根本建不出来（`cannot lock ref ... exists`）。
+外加一条 git 本身的限制：`refs/heads/feature/AUTH-123` 已经是文件，`feature/AUTH-123/s1` 根本建不出来（`cannot lock ref ... exists`）。
 
 ```
 集成分支    由 hook 命名；无 hook 时默认 yan/<task>-<unit>-r<n>

@@ -11,7 +11,7 @@
 整个结构是两条正交的切法交叉出来的，没有第三条。
 
 **切法一 · 判断 vs 步骤。** 模型读的判断写在 `AGENTS.md` 里，不需要判断的步骤写在 `bin/` 里由脚本执行。
-分界线是设计原则 3（[design §0](INDEX.md#0-什么是-yan)）：脚本不应该出现带业务语义的 `if`，这通常意味着分层出错了。
+分界线是设计原则 3（[design §0](INDEX.md#0-什么是-yan)）：脚本不应该出现带业务语义的 `if`，否则通常意味着分层不合理。
 
 **切法二 · 藏外部权威 vs 藏自有格式。** `lib-forge.sh` 藏的是 GitLab 和 GitHub 的差异，所以它厚；
 `lib-log.sh` 藏的只是「append 一行」，所以它薄。而薄在这里是对的——它不是在隐藏复杂度，
@@ -26,7 +26,7 @@
 ```mermaid
 graph TD
     A["AGENTS.md<br/>模型读的判断：拆 unit、定 scope、写 brief、决定派不派、要不要升级"]
-    B["bin/yan-*.sh<br/>20 个子命令，一个文件一个，各自持有一条顺序不变量"]
+    B["bin/yan-*.sh<br/>20 个子命令，一个文件一个，分成原子和编排两类"]
     H["hook-autoarm.sh / hook-turnend-guard.sh<br/>调用者是 harness，不是人也不是模型"]
     C["lib-term / lib-forge / lib-pool / lib-hook<br/>接缝：一个模块藏一个外部权威"]
     D["lib-task / lib-log<br/>yan 自己的文件格式"]
@@ -119,7 +119,7 @@ $YAN_HOME/
 | `lib-pool.sh` | worktree 池 | `pool_get` `pool_return` `pool_status` | 厚。租约、热复用契约、还树判据、孤立 commit 守卫都见 [design §7](worktree.md#7-worktree) |
 | `lib-hook.sh` | `conf/hooks/` 的调用协议（[design §10](boundaries.md#10-外部权威接缝okt-等)） | `hook_call <name> <json>` | 薄。但它是**唯一**允许执行 `conf/` 下面东西的地方 |
 
-三条硬规则：
+三条规则：
 
 1. **返回值必须是 `yan` 的封闭集合，不是外部权威的原话。**
    `forge_mr_state` 只回 `merged | closed | open | unknown`（这四个值怎么来的见 [design §8.4](delivery.md#84-forge-层lib-forgesh)），
@@ -137,8 +137,9 @@ $YAN_HOME/
 
 每个子命令单独一个文件，就像 git 那样。不要写一个包罗万象的巨型脚本，因为每个子命令都要能独立读懂、也能单独测。
 
-判断一个子命令属于「原子」还是「编排」，看它**有没有持有一条顺序不变量**——
-如果打乱它内部的步骤顺序会出错，它就是编排。
+判断一个子命令属于「原子」还是「编排」，看它**是否代表一个不可拆分的核心能力**——
+代表的是原子，要把几个能力按顺序拼起来才成立的是编排。
+用这条判据是因为原子命令就是 `yan` 的 primitive，而不可拆分才是 primitive 真正的意义。
 
 ### 5.1 原子命令
 

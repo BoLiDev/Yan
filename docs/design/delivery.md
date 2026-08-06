@@ -36,7 +36,7 @@ firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限�
 
 保留一条最便宜的校验：`yan scope-check <sid>` 用 `git diff --name-only` 加前缀匹配，在 land 之前跑一次。它不约束 agent 干活，只在落地前报告越界。语义是「越界必须显式扩，不是禁止」：
 
-> 改 `apps/auth` 时发现必须动 `apps/common` 的一个类型—这在真实工作里天天发生。硬拒绝会让 agent 卡死或者偷偷绕过。规则是改 `task.json` 扩 `scope`，并在 `log.md` 记一行。
+> 改 `apps/auth` 时发现必须动 `apps/common` 的一个类型—这在真实工作里天天发生。直接拒绝会让 agent 卡死或者偷偷绕过。规则是改 `task.json` 扩 `scope`，并在 `log.md` 记一行。
 
 这样既挡掉乱改，又能看到范围是怎么长大的—`scope` 频繁膨胀通常意味着任务拆错了。
 
@@ -66,7 +66,7 @@ forge_ci_state       green | red | pending | none
 1. **返回值是 `yan` 的封闭集合。** `forge_mr_state` 的四个值不是随便挑的—
    它们正是 [§6.4](branching.md#64-unit-的结构) 判定 `end` 需要的那四种情况，一一对应。不要漏第五种。
 2. **CI 只回答绿红。** GitLab 是一条 pipeline 一个状态，GitHub 是 N 个独立 check run
-   加 legacy status，「哪个 job 挂了」两边不对称，硬要统一就会漏。而 [§5.3](agents.md#53-shift-的生命周期) 需要的
+   加 legacy status，「哪个 job 挂了」两边不对称，强行统一就会漏。而 [§5.3](agents.md#53-shift-的生命周期) 需要的
    只是「CI 红了 → 派新 `shift` 修」。要看细节是 `shift` 的事——`shift` 可以知道自己在
    哪个 forge 上，因为它是在读，不是在做决定。
 3. **归属放 `repos.json` 的 per-repo 字段，不是全局开关。** 一个 `task` 完全可能同时
