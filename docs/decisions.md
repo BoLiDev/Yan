@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-08-05 · 动工前的三个 P0
+## 2026-08-05 · 动工前的 P0
 
 三个都已敲定，并且已经折进设计文档。
 
@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | **P0-1** | `yan` 自带 worktree 池（`yan tree get \| return \| status`） | 整个项目不必为此多依赖一个外部工具。treehouse 里值得抄的三样——随机 `lease_id`、条件还树、`--json`——一并抄了进来 | [design §7](design/worktree.md#7-worktree) |
 | **P0-2** | GitLab 和 GitHub 都支持，抽一层 forge deep module | 工作用 GitLab，日常用 GitHub，两个都是真实需求。附带收益：0→1 的验收标准可以在 `yan` 自己身上跑通 | [design §8.4](design/delivery.md#84-forge-层lib-forgesh) |
-| **P0-3** | 子分支推到远端，两级 MR 都保留 | 每个 `shift` 一个独立 MR，就是 `user` review 的主要方式 | [design §12](design/scope.md#12-待定)「已定」、[design §6.2](design/branching.md#62-两级分支--两级-review) |
+| **P0-3** | 子分支推到远端，两级 MR 都保留 | 每个 `shift` 一个独立 MR，就是 `user` review 的主要方式 | [design §12](design/scope.md#12-待定)「已定」、[design §6.2](design/branching.md#62-两级-review) |
 
 P0-3 掉出来一条不变量，已经写进设计：**下工和删分支都以 MR 状态为准，不以 git 祖先关系为准**
 （[design §5.3](design/agents.md#53-shift-的生命周期)）。
@@ -30,12 +30,12 @@ P0-3 掉出来一条不变量，已经写进设计：**下工和删分支都以 
 | `tmux` | ✅ 3.6 | [design §5.7](design/agents.md#57-终端拓扑) 的 0→1 路径没被卡住。原先担心的 tmux 缺失不成立 |
 | `herdr` | ✅ 0.7.5 | 2→10 的第二份 `lib-term.sh` 实现有环境 |
 | `treehouse` | ✅ v2.1.1 | 装着且在日常使用。但分支模型对不上，不拿它当池，理由见 [design §7](design/worktree.md#7-worktree) |
-| `jq` | ✅ 1.8.1 | [design §2](design/INDEX.md#2-三条判据) 的硬依赖满足 |
+| `jq` | ✅ 1.8.1 | [design §2](design/INDEX.md#2-存储判据) 的硬依赖满足 |
 | `git` | ✅ 2.53.0 | — |
 | `gh` | ✅ 2.97.0 | GitHub 侧齐了 |
 | `claude` | ✅ 2.1.222 | [design §5.5](design/supervision.md#55-监督) 三个 hook 的宿主 |
 | `wtpool` | ❌ 不存在 | 它是另一台机器上未发布的 CLI。[design §7](design/worktree.md#7-worktree) 原本整节建立在它上面，这条直接导致了 P0-1 |
-| `glab` | ❌ 不存在 | GitLab 那份 forge 实现暂时没有靶子可测，见 [`implementation-plan.md` §4](implementation-plan.md#4-三个会挡路的东西) |
+| `glab` | ❌ 不存在 | GitLab 那份 forge 实现暂时没有靶子可测，见 [`implementation-plan.md` §4](implementation-plan.md#4-现在挡路的问题) |
 | `okt` | ❌ 不存在 | 不阻塞。[design §10](design/boundaries.md#10-外部权威接缝okt-等) 的 hook 本来就是 opt-in + gitignored |
 
 ---
@@ -55,7 +55,7 @@ tmux 是验证过的参考实现，所以 0→1 按 [design §5.7](design/agents
 
 ---
 
-## 还没查的两件事
+## 还没查的公司仓库配置
 
 这两件都要看一眼公司仓库的配置，成本都很低。它们都是 P0-3（子分支推到远端）掉出来的。
 

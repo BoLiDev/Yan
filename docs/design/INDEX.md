@@ -1,6 +1,6 @@
 # `yan` 设计
 
-> 定位：本文是设计决策的记录，不是实现规格。每条决策尽量带上「为什么」—半年后回来改的时候，理由比结论值钱。
+> 定位：本文是设计决策的记录，不是实现规格。每条决策尽量带上「为什么」—半年后回来改的时候，理由比结论更重要。
 > 每条决策是什么时候定的，见 [`../decisions.md`](../decisions.md)。
 
 本文是主干。它先阐述后续会被反复讨论的三块内容（设计原则、词汇表、三条判据），
@@ -20,7 +20,6 @@
 3. prose 负责判断，脚本负责不需要判断的步骤。脚本不应该出现带业务语义的 if，这通常意味着分层出错了。
 4. `user` 和 agent 共用同一个入口。`yan` 的每一个动作都由 CLI 提供，`user` 可以直接调用，他看到的和 agent 看到的是同一份状态。
 5. 不可逆的动作必须过脚本，并且默认拒绝。
-6. 从 0 到 1，再到 2、10、100。
 
 ---
 
@@ -45,7 +44,7 @@
 
 ---
 
-## 2. 三条判据
+## 2. 存储判据
 
 这三条决定「什么该存、存在哪」，是整份设计里最常被引用的东西。
 
@@ -121,7 +120,7 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 # 主干
 
-## 记忆：跨 `task` 留下来的东西
+## 记忆系统
 
 `yan` 每次启动都要先知道两件事：`user` 是个什么样的人，以及这些仓库上踩过哪些坑。这两样住在 `mem/`，是全系统唯一跨 `task` 长命的记忆。
 
@@ -129,15 +128,15 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 → [`memory.md`](memory.md)：[§4.1](memory.md#41-记忆的授权差别) 授权差别 · [§4.2](memory.md#42-logmd--叙事层) `log.md` · [§4.3](memory.md#43-artifact) artifact · [§4.4](memory.md#44-不存什么) 不存什么
 
-## agent 与 `shift`：活怎么派出去，又怎么收回来
+## agent 与 `shift`
 
 `yan` 是主 agent，也是 `user` 的唯一接口；真正写代码的是一次性的 sub-agent，每一份派出去的活叫做一个 `shift`。
 
 一个 `yan` 只管一个 `task`，这样它的上下文预算有界，而且跟 `task` 总数无关。`yan` 自己不存任何运行状态，每次启动就做一次全量 reconcile，所以「关掉重开一个」永远是非事件。派一个 `shift` 出去，就是写 brief、租一棵树、起一个终端；`shift` 只在自己的树里干活，只在需要 `yan` 动作的时候往 `run/status` 追加一行事件。它的下工条件是客观的：子分支的 MR 已经合回集成分支。收回来的动作有固定顺序，还树必须排在删远端子分支之前。至于 `yan` 和 `shift` 之间怎么说话、哪些事根本不必唤醒模型，也都在这一节里。
 
-→ [`agents.md`](agents.md)：[§5.1](agents.md#51-寿命分层决定存储策略) 寿命分层 · [§5.2](agents.md#52-一个-yan--一个-task) 一个 `yan` = 一个 `task` · [§5.3](agents.md#53-shift-的生命周期) `shift` 的生命周期 · [§5.4](agents.md#54-通信) 通信 · [§5.6](agents.md#56-harness-要求) harness 要求 · [§5.7](agents.md#57-终端拓扑) 终端拓扑
+→ [`agents.md`](agents.md)：[§5.1](agents.md#51-寿命分层) 寿命分层 · [§5.2](agents.md#52-一个-yan--一个-task) 一个 `yan` = 一个 `task` · [§5.3](agents.md#53-shift-的生命周期) `shift` 的生命周期 · [§5.4](agents.md#54-通信) 通信 · [§5.6](agents.md#56-harness-要求) harness 要求 · [§5.7](agents.md#57-终端拓扑) 终端拓扑
 
-## 监督：干完了或者卡住了，谁来叫醒 `yan`
+## 监督系统
 
 `shift` 在自己的终端里跑几小时，中间没有人盯着。监督这一层要保证「它干完了」和「它卡住了」这两件事都能传到 `yan` 面前，而且不依赖模型记得去检查。
 
@@ -145,15 +144,15 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 → [`supervision.md`](supervision.md)：[§5.5 监督](supervision.md#55-监督)
 
-## 分支模型：两级分支，于是两级 review
+## 分支模型
 
 所有交付都落在一个两级结构上：若干条子分支合进一条集成分支，集成分支再整体合进 `target`。
 
 每个 `shift` 一条子分支，合回集成分支就下工，所以 `shift` 的生命周期有了一个客观的绑定物；并发也天然隔离，因为每个 `shift` 各自一条子分支加各自一棵树。这个结构还顺带给出了两级 review——子分支那一级由 `user` 自己验收，集成分支那一级才交给同事，于是同事只看到一个 MR。集成分支不是长命的，它会被整个替换，所以 `unit` 的结构里当前状态是几个标量、历史是 append-only 的数组。分支怎么命名也有讲究：集成分支可以委托给外部权威，子分支的命名权则永远归 `yan`。
 
-→ [`branching.md`](branching.md)：[§6.1](branching.md#61-两级结构) 两级结构 · [§6.2](branching.md#62-两级分支--两级-review) 两级 review · [§6.3](branching.md#63-集成分支怎么变) 集成分支怎么变 · [§6.4](branching.md#64-unit-的结构当前是标量历史是-append-only) `unit` 的结构 · [§6.5](branching.md#65-两级分支有两个不同的命名权威) 命名权威 · [§6.6](branching.md#66-yan-永不解析分支名) 永不解析分支名 · [§6.7](branching.md#67-unit-粒度的判据) `unit` 粒度
+→ [`branching.md`](branching.md)：[§6.1](branching.md#61-分支结构) 分支结构 · [§6.2](branching.md#62-两级-review) 两级 review · [§6.3](branching.md#63-集成分支怎么变) 集成分支怎么变 · [§6.4](branching.md#64-unit-的结构) `unit` 的结构 · [§6.5](branching.md#65-分支的命名权威) 命名权威 · [§6.6](branching.md#66-yan-永不解析分支名) 永不解析分支名 · [§6.7](branching.md#67-unit-粒度的判据) `unit` 粒度
 
-## worktree：`shift` 到底在哪里干活
+## worktree
 
 `shift` 不碰主 clone，它在一棵租来的 worktree 里干活，而这些树由 `yan` 自带的池管理。
 
@@ -161,15 +160,15 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 → [`worktree.md`](worktree.md)：[§7 worktree 与池](worktree.md#7-worktree)
 
-## 交付模式：干到哪一步停下来
+## 交付模式
 
 「干到哪一步停」和「谁能按 merge」是两个正交的轴，`yan` 把它们显式分开。
 
 `mode` 有三档，`scout` 只调研不改代码，`branch` 改完就停在本地分支，`mr` 一路推到远端并开出 MR；默认是 `mr`，因为推到远端就是最好的备份。强制手段不做隔离机制，用启动参数加一条落地前的 `yan scope-check` 就够，而且越界的语义是「必须显式扩」而不是「禁止」。真正跟外部世界打交道的是 forge 这一层，它把 GitLab 和 GitHub 的差异藏在四个动词底下。
 
-→ [`delivery.md`](delivery.md)：[§8.1](delivery.md#81-两个正交的轴) 两个正交的轴 · [§8.2](delivery.md#82-三种-mode) 三种 `mode` · [§8.3](delivery.md#83-强制手段) 强制手段 · [§8.4](delivery.md#84-forge-层lib-forgesh) forge 层
+→ [`delivery.md`](delivery.md)：[§8.1](delivery.md#81-mode-与-authority) `mode` 与 authority · [§8.2](delivery.md#82-scout--branch--mr) `scout` / `branch` / `mr` · [§8.3](delivery.md#83-强制手段) 强制手段 · [§8.4](delivery.md#84-forge-层lib-forgesh) forge 层
 
-## 边界：谁能写什么，以及什么委托出去
+## 边界
 
 前面这些结构都就位之后，还需要一条明确的线：哪些动作 `yan` 可以自己做，哪些必须等 `user` 开口。
 
@@ -177,7 +176,7 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 → [`boundaries.md`](boundaries.md)：[§9](boundaries.md#9-yan-的可写范围) 可写范围 · [§10](boundaries.md#10-外部权威接缝okt-等) 外部权威接缝（okt 等）
 
-## 范围与待定：0→1 做到哪里为止
+## 范围与待定
 
 设计到这里就完整了，剩下的是划定第一版做多少，以及还没想清楚的几件事。
 
@@ -185,7 +184,7 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 → [`scope.md`](scope.md)：[§11](scope.md#11-01-范围) 0→1 范围 · [§12](scope.md#12-待定) 待定
 
-## 代码怎么摆
+## 代码结构
 
 上面都是「为什么」，而这些决策落到文件上是什么形状，是另一个问题。
 
@@ -201,7 +200,7 @@ worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/
 
 ---
 
-## 设计之外的两份文档
+## 设计之外的文档
 
 | 文档 | 装什么 |
 | --- | --- |

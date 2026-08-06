@@ -1,6 +1,6 @@
 # 6. 分支模型
 
-## 6.1 两级结构
+## 6.1 分支结构
 
 ```
 target (master / release/x / 任意分支)
@@ -14,7 +14,7 @@ target (master / release/x / 任意分支)
 
 注意集成分支只代表当前这一轮—它会被整个替换，见 §6.3。所以「在同一轮里继续改」跟「上一轮已经交付或废弃了」是两种不同的机制，别当成一回事。
 
-## 6.2 两级分支 = 两级 review
+## 6.2 两级 review
 
 这是结构自带的，不是额外加的：
 
@@ -52,7 +52,7 @@ target (master / release/x / 任意分支)
 
 `target` 变更也不是纯记账：如果从 `release/x` 换成 `master`，集成分支就要 rebase 到新的 `target`，可能会撞上一堆冲突，也可能需要派一个 `shift` 去解。
 
-## 6.4 `unit` 的结构：当前是标量，历史是 append-only
+## 6.4 `unit` 的结构
 
 ```json
 { name: auth, repo: monorepo-x, scope: [apps/auth], needs: [proto],
@@ -80,7 +80,7 @@ target (master / release/x / 任意分支)
 | `target` | 往哪合过。可能跟当前不同（`2.0.1` 合 release，后来改成合 master） |
 | `at` | 退役时间。「什么时候开始用下一个」=「这个什么时候退役」，一个时间点够 |
 | `end` | delivered 还是 abandoned。没有它，history 里躺着一串分支，看不出哪个真上线了、哪个是半路扔掉的 |
-| `mr`（可选） | 唯一查起来麻烦的：分支删了之后要 `glab mr list --source-branch` 才找得到，同一分支开过多个 MR 还有歧义。而 URL 是不变的事实，存它不违反判据（[§2](INDEX.md#2-三条判据)）。废弃的轮次可能压根没开过 MR，所以这个字段可选 |
+| `mr`（可选） | 唯一查起来麻烦的：分支删了之后要 `glab mr list --source-branch` 才找得到，同一分支开过多个 MR 还有歧义。而 URL 是不变的事实，存它不违反判据（[§2](INDEX.md#2-存储判据)）。废弃的轮次可能压根没开过 MR，所以这个字段可选 |
 
 用 `end: "delivered" | "abandoned"` 而不是 `"abandoned": true`—读的时候一眼就懂，不靠「缺省即交付」这种约定。
 
@@ -109,7 +109,7 @@ target (master / release/x / 任意分支)
 
 `needs` 是落地顺序，`yan land` 按它拓扑排序。同一个 repo 可以在 units 里出现多次—team 的 monorepo 子应用各改各的，不能用同一个分支改两个应用，所以一个 `unit` = 一个子应用 = 一个分支 = 一棵树。
 
-## 6.5 两级分支有两个不同的命名权威
+## 6.5 分支的命名权威
 
 集成分支的命名可以委托给外部权威（okt）；子分支的命名权永远归 `yan`。
 

@@ -1,10 +1,10 @@
 # 8. 交付模式
 
-## 8.1 两个正交的轴
+## 8.1 `mode` 与 authority
 
-firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限等级，是「做到哪一步就停」；合并权限在它那里是另一个正交维度。`yan` 显式分开：轴 1 · `mode` 管干到哪一步停下来，轴 2 · authority 管谁能按 merge（[§9.2](boundaries.md#92-外部副作用真正需要边界的部分)）。
+firstmate 那三种模式（no-mistakes / direct-PR / local-only）不是权限等级，是「做到哪一步就停」；合并权限在它那里是另一个正交维度。`yan` 显式分开：轴 1 · `mode` 管干到哪一步停下来，轴 2 · authority 管谁能按 merge（[§9.2](boundaries.md#92-外部副作用)）。
 
-## 8.2 三种 `mode`
+## 8.2 `scout` / `branch` / `mr`
 
 | `mode` | 改代码 | commit | push | 开 MR | 交付物 | 终态 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -64,7 +64,7 @@ forge_ci_state       green | red | pending | none
 三条具体约束：
 
 1. **返回值是 `yan` 的封闭集合。** `forge_mr_state` 的四个值不是随便挑的—
-   它们正是 [§6.4](branching.md#64-unit-的结构当前是标量历史是-append-only) 判定 `end` 需要的那四种情况，一一对应。不要漏第五种。
+   它们正是 [§6.4](branching.md#64-unit-的结构) 判定 `end` 需要的那四种情况，一一对应。不要漏第五种。
 2. **CI 只回答绿红。** GitLab 是一条 pipeline 一个状态，GitHub 是 N 个独立 check run
    加 legacy status，「哪个 job 挂了」两边不对称，硬要统一就会漏。而 [§5.3](agents.md#53-shift-的生命周期) 需要的
    只是「CI 红了 → 派新 `shift` 修」。要看细节是 `shift` 的事——`shift` 可以知道自己在

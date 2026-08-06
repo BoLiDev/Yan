@@ -1,4 +1,4 @@
-# `yan` 架构：代码怎么摆
+# `yan` 架构
 
 > 定位：[`INDEX.md`](INDEX.md) 说「为什么」，本文说「代码放在哪、谁能调谁、怎么测」。
 > 决策记录见 [`decisions.md`](../decisions.md)。
@@ -6,7 +6,7 @@
 
 ---
 
-## 1. 两条切法
+## 1. 划分依据
 
 整个结构是两条正交的切法交叉出来的，没有第三条。
 
@@ -97,7 +97,7 @@ $YAN_HOME/
 
 | 模块 | 职责 | 强制的不变量 |
 | --- | --- | --- |
-| `lib-json.sh` | 读 / 写 JSON | 写一律 `tmp → mv`；每个文件带 `version` 字段。两条的理由见 [design §2](INDEX.md#2-三条判据) |
+| `lib-json.sh` | 读 / 写 JSON | 写一律 `tmp → mv`；每个文件带 `version` 字段。两条的理由见 [design §2](INDEX.md#2-存储判据) |
 | `lib-git.sh` | 在给定目录里跑 git：分支、fetch、rebase、merge、push、worktree、`status --porcelain` | 只接受显式的目录参数，**从不依赖 cwd**。永不 `--force` |
 
 ### 4.2 存储：`lib-task` / `lib-log`
@@ -107,10 +107,10 @@ $YAN_HOME/
 
 | 模块 | 职责 | 强制的不变量 |
 | --- | --- | --- |
-| `lib-task.sh` | `task.json` 的读写：units、`scope`、`branch`/`target`/`mode`/`mr` 四个标量、`history[]`、完成标记 | `history[]` **append-only**。当前四个标量和 history 分开，不是「当前 = 数组最后一项」（[design §6.4](branching.md#64-unit-的结构当前是标量历史是-append-only)） |
+| `lib-task.sh` | `task.json` 的读写：units、`scope`、`branch`/`target`/`mode`/`mr` 四个标量、`history[]`、完成标记 | `history[]` **append-only**。当前四个标量和 history 分开，不是「当前 = 数组最后一项」（[design §6.4](branching.md#64-unit-的结构)） |
 | `lib-log.sh` | 往 `log.md` append 一行 | **append-only，永不改写历史行**。所以永不冲突 |
 
-### 4.3 接缝：一个模块藏一个外部权威
+### 4.3 接缝：`lib-term` / `lib-forge` / `lib-pool` / `lib-hook`
 
 | 模块 | 藏什么 | 对外接口 | 深度 |
 | --- | --- | --- | --- |
@@ -133,14 +133,14 @@ $YAN_HOME/
 
 ---
 
-## 5. 20 个子命令
+## 5. 子命令
 
 每个子命令单独一个文件，就像 git 那样。不要写一个包罗万象的巨型脚本，因为每个子命令都要能独立读懂、也能单独测。
 
 判断一个子命令属于「原子」还是「编排」，看它**有没有持有一条顺序不变量**——
 如果打乱它内部的步骤顺序会出错，它就是编排。
 
-### 5.1 原子命令（一个动作，无编排）
+### 5.1 原子命令
 
 为什么它们必须是脚本而不是让 agent 自己做，见 [design §5.4](agents.md#54-通信)。
 
@@ -155,7 +155,7 @@ $YAN_HOME/
 | `yan open <id>` | 打开 `task` 目录 / artifacts |
 | `yan repo-add <url>` | 注册 repo，clone 到 `repos/`。`repos.json` 的唯一写入口 |
 
-### 5.2 编排命令（各自持有一条顺序不变量）
+### 5.2 编排命令
 
 | 命令 | 步骤 | 它持有的不变量 |
 | --- | --- | --- |
@@ -163,20 +163,20 @@ $YAN_HOME/
 | `yan shift done` | 校验 MR 已合 → 写 `outcome` → 写 log → `rm -rf run/` → 还树 → 删远端子分支 | **还树必须排在删分支之前**（[design §7](worktree.md#7-worktree)） |
 | `yan sync` | 租树 → fetch → rebase/merge `target` → push → 还树 | **有冲突就立刻退出交给 `shift`**，不在脚本里解冲突。时机固定：每次开新 `shift` 之前（[design §6.3](branching.md#63-集成分支怎么变)） |
 | `yan unit add` | `branch-name` hook → 分支存在则 checkout、不存在则从 base 切 → 写 `task.json` | **hook 非零退出就停下报错，绝不 fallback 到内置默认**（[design §10](boundaries.md#10-外部权威接缝okt-等)） |
-| `yan unit set --branch` | 查 forge 判定 `end` → 打包旧的进 `history[]`（带 `at`）→ 覆盖当前字段 → log 一行 | **换赛道是一个原子操作**，判定结果写进 history 之后就不再查 forge（[design §6.4](branching.md#64-unit-的结构当前是标量历史是-append-only)） |
-| `yan mr` | 开对外 MR → 写 `unit.mr` | 授权见 [design §9.2](boundaries.md#92-外部副作用真正需要边界的部分) |
-| `yan land` | 按 `needs` 拓扑排序 → 合 | **必须 `user` 明说**（[design §9.2](boundaries.md#92-外部副作用真正需要边界的部分)） |
+| `yan unit set --branch` | 查 forge 判定 `end` → 打包旧的进 `history[]`（带 `at`）→ 覆盖当前字段 → log 一行 | **换赛道是一个原子操作**，判定结果写进 history 之后就不再查 forge（[design §6.4](branching.md#64-unit-的结构)） |
+| `yan mr` | 开对外 MR → 写 `unit.mr` | 授权见 [design §9.2](boundaries.md#92-外部副作用) |
+| `yan land` | 按 `needs` 拓扑排序 → 合 | **必须 `user` 明说**（[design §9.2](boundaries.md#92-外部副作用)） |
 | `yan task new` | 建 `tasks/<id>/` → 写 brief | — |
 | `yan start <id>` | 建 `task` 终端容器 → 在里面起 `yan` | 一个 `task` 一个容器，容器生命周期 = `user` 手动开关（[design §5.7](agents.md#57-终端拓扑)） |
 | `yan state <sid>` | 从 `run/meta.json` + 终端 + git + forge 现场推导 | **当前状态只能推导，不能读 `run/status` 的最后一行**（[design §5.4](agents.md#54-通信)） |
-| `yan session-start` | 全量 reconcile：扫 `tasks/` → 查终端 → 查池 → 查 forge → 出摘要 | **重启是非事件**（[design §5.1](agents.md#51-寿命分层决定存储策略)） |
+| `yan session-start` | 全量 reconcile：扫 `tasks/` → 查终端 → 查池 → 查 forge → 出摘要 | **重启是非事件**（[design §5.1](agents.md#51-寿命分层)） |
 | `yan wait` | 盯三个 source，有事写 wake 文件 + 打印 reason + exit 0，无事静默 exit 非 0 | **纯观察者，不持有任何状态**（[design §5.5](supervision.md#55-监督)） |
 
 `yan wait` 是最容易写胖的一个：那三个 source 就长在它里面，不单独起一层（[design §5.5](supervision.md#55-监督)）。
 
 ---
 
-## 6. 两个 hook
+## 6. hook
 
 调用者是 harness，不是 `user` 也不是模型。所以它们有一条别人没有的约束：**不能依赖模型记得做任何事**。
 

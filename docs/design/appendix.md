@@ -51,14 +51,14 @@
 
 ## 附录 C · 脚本清单
 
-每个子命令的步骤、以及它各自持有的那条顺序不变量，见 [`architecture.md` §5](architecture.md#5-20-个子命令)。
+每个子命令的步骤、以及它各自持有的那条顺序不变量，见 [`architecture.md` §5](architecture.md#5-子命令)。
 
 | 脚本 | 干什么 |
 | --- | --- |
 | `yan repo-add` | 注册一个 repo，clone 到 `repos/` |
 | `yan task new` | 建 `tasks/<id>/`，写 brief |
 | `yan unit add` | 加一个 `unit`（`target` 必须显式给），建集成分支 |
-| `yan unit set` | 改 `branch` / `target` / `mode` / `scope`。换 `branch` 时判定 `end` 并归档（[§6.4](branching.md#64-unit-的结构当前是标量历史是-append-only)） |
+| `yan unit set` | 改 `branch` / `target` / `mode` / `scope`。换 `branch` 时判定 `end` 并归档（[§6.4](branching.md#64-unit-的结构)） |
 | `yan start` | 建 `task` 的终端容器，在里面起 `yan` |
 | `yan session-start` | 全量 reconcile，由 SessionStart hook 触发 |
 | `yan tree` | 内置 worktree 池：`get` / `return` / `status`（[§7](worktree.md#7-worktree)） |

@@ -1,6 +1,6 @@
 # 5. Agent 系统
 
-## 5.1 寿命分层决定存储策略
+## 5.1 寿命分层
 
 | 寿命 | 谁 | 存储策略 |
 | --- | --- | --- |
@@ -133,7 +133,7 @@ session / workspace "t042 统一鉴权"
 
 firstmate 那个可选的 `herdr-presentation-spaces`（每个 crewmate 一个一次性 workspace）不要抄—它背着一整套安全边界，光「Herdr 0.7.5 的 explicit close 会偷焦点」就要一整套 focus-safe emptying-close 方案（验证 close 会清空 → 把将死的 workspace 移到焦点后面 → 证明 pane 里只剩空闲 shell → 结束那个 shell 走 pane-death 路径 → 确认移除 → 失败回滚），而它自己承认 *Grouping is best-effort*。那份代价的根源是「workspace 的生命周期要自动推导」，而 `yan` 没有这个问题：容器的生命周期 = `yan` 的生命周期 = `user` 手动开关。
 
-### 从 firstmate 的 Herdr 实践里直接继承的三条
+### 从 firstmate 的 Herdr 实践里继承的做法
 
 1. **label 不是 source of truth，记 id。** Herdr 不强制 workspace/tab 标签唯一（原话：*a label can never decide where a worker goes*）。所以 `run/meta.json` 记的是 id（tmux `$0` / `@3`，Herdr `workspace_id` / `tab_id` / `pane_id`），不靠名字找。这跟 [§6.6](branching.md#66-yan-永不解析分支名)「不解析分支名，靠存储」是同一条原则。
 2. **close 要精确。** 只关自己记录的那个 window/pane，永不关 session/workspace（原话：*Cleanup closes only the exact recorded task pane and never calls `workspace close`*）。
@@ -155,4 +155,4 @@ term_list               列出容器里的 agent
 
 0→1 只有 tmux 实现。加 Herdr 就是写第二份实现加一个 `conf/backend` 开关—不是插件框架，只是别把 `tmux` 命令撒到十五个脚本里。
 
-`term_agent_alive` 是这个接缝最值钱的地方：tmux 下只能靠猜进程名（firstmate 连 Pi 跑在通用解释器里都认不出来），Herdr 有原生 agent registration，能干净区分「pane 在但 agent 死了」/「pane 没了」/「活着」。
+`term_agent_alive` 是这个接缝里最难做、也最关键的一个函数：tmux 下只能靠猜进程名（firstmate 连 Pi 跑在通用解释器里都认不出来），Herdr 有原生 agent registration，能干净区分「pane 在但 agent 死了」/「pane 没了」/「活着」。

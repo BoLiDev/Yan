@@ -4,7 +4,7 @@
 
 ### 范围
 
-一个 `yan` 入口加 20 个子命令、2 个 hook 脚本、8 个 lib（子命令和 hook 清单见 [附录 C](appendix.md#附录-c--脚本清单)，8 个 lib 和怎么摆见 [`architecture.md` §3](architecture.md#3-仓库结构)、[`architecture.md` §5](architecture.md#5-20-个子命令)），外加 `AGENTS.md`。
+一个 `yan` 入口加 20 个子命令、2 个 hook 脚本、8 个 lib（子命令和 hook 清单见 [附录 C](appendix.md#附录-c--脚本清单)，8 个 lib 和怎么摆见 [`architecture.md` §3](architecture.md#3-仓库结构)、[`architecture.md` §5](architecture.md#5-子命令)），外加 `AGENTS.md`。
 
 范围里最重的两块是内置 worktree 池（[§7](worktree.md#7-worktree)）和 forge 层支持两个远端（[§8.4](delivery.md#84-forge-层lib-forgesh)）。
 其中池的分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的只有复用池和 lease。
@@ -69,7 +69,7 @@ Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 t
 
 1. `$YAN_HOME` 要不要 git 版本化？ `mem/user.md` 和 `learnings/` 有提交历史挺有价值（能看到偏好怎么演化）。如果版本化，`tasks/` 要不要一起进去（会很吵）。倾向 `mem/` 进、`tasks/` 不进。不阻塞 0→1—随时能加，`git init` 一下的事。
 2. `tasks/` 的裁剪策略：倾向不自动删任何东西，靠 `yan prune` 半手工裁，且 `artifacts/` 即使裁剪也单独保留。不阻塞 0→1，那时根本没有积累量。
-3. `yan` 的 `task` id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。注意它会进分支名（[§6.5](branching.md#65-两级分支有两个不同的命名权威) `yan/<task>-<unit>-<sid>`），所以短的有实际好处。倾向 `t042` 式序号，可读的标题住在 `brief.md` 和 `log.md` 的标题行。这条要在写 `yan task new` 之前定，见 [`implementation-plan.md` §4](../implementation-plan.md#4-三个会挡路的东西)。
+3. `yan` 的 `task` id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。注意它会进分支名（[§6.5](branching.md#65-分支的命名权威) `yan/<task>-<unit>-<sid>`），所以短的有实际好处。倾向 `t042` 式序号，可读的标题住在 `brief.md` 和 `log.md` 的标题行。这条要在写 `yan task new` 之前定，见 [`implementation-plan.md` §4](../implementation-plan.md#4-现在挡路的问题)。
 4. `lib-pool` 的池根目录要不要做成可配置？`~/.yan-trees/<repo>-<hash>/N/<repo>`（[§3](INDEX.md#3-目录布局)）是当前写法。
 
 ### 已定：子分支推到远端
@@ -78,7 +78,7 @@ Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 t
 
 理由不在那些一条一条列得出来的利弊里，而是：**每个 `shift` 一个独立 MR，
 就是 `user` review 的主要方式**—一个 `shift` 一个 `shift` 地看它相对集成分支的 diff，
-本地基本不用看代码。这把 [§6.2](branching.md#62-两级分支--两级-review) 的两级 review 从「结构自带的副产品」
+本地基本不用看代码。这把 [§6.2](branching.md#62-两级-review) 的两级 review 从「结构自带的副产品」
 变成了「要这个系统的原因之一」。
 
 被明确接受的代价：服务器上会有一堆 `yan/*` 分支和一堆内部 MR。清理办法见 [§5.3](agents.md#53-shift-的生命周期) 和 [§7](worktree.md#7-worktree)

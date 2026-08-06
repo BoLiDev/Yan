@@ -27,7 +27,7 @@
   读者不必先知道那一节住在哪个文件。
 - 跨文档引用要写清楚是哪份文档的哪一节，写法是文档名再加节号，并且同样带上链接，
   例如 [`architecture.md` §3](docs/design/architecture.md#3-仓库结构)
-  和 [`implementation-plan.md` §4](docs/implementation-plan.md#4-三个会挡路的东西)；
+  和 [`implementation-plan.md` §4](docs/implementation-plan.md#4-现在挡路的问题)；
   文档名和锚点写在一起，两者就不会各自漂走。
 - 不共用这套编号的文档指进设计的时候是个例外，前缀写 `design` 而不是文件名，
   例如 [design §7](docs/design/worktree.md#7-worktree)；设计的节号既然横跨各个分册，

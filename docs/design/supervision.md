@@ -12,7 +12,7 @@ autoarm 负责起监督，guard 负责验证监督真的起来了。
 
 `yan wait` 是 watcher 本体，由 autoarm 在前台启动；模型从不调用它—所以「模型忘了起监督」这个失败模式不存在。它的输出契约是给 hook 读的（退出码加一行 reason），不是给模型读的 stdout：有事就写 wake 文件、打印 reason、exit 0；无事就静默 exit 非 0。它同时是纯观察者，不持有任何状态：超时、被杀、随 hook 进程树死掉，都不丢任何东西—`shift` 还在自己的终端里，状态全在文件里。这是「重启是非事件」在监督层的体现。
 
-SessionStart 是「重启即对接」的保障。这个能力本身来自 durable state 加全量 reconcile（[§5.1](agents.md#51-寿命分层决定存储策略)），不来自任何 hook—firstmate 的原话：
+SessionStart 是「重启即对接」的保障。这个能力本身来自 durable state 加全量 reconcile（[§5.1](agents.md#51-寿命分层)），不来自任何 hook—firstmate 的原话：
 
 > A restart must be a non-event because durable state and live backend inventory, not conversation memory, are authoritative.
 
@@ -43,7 +43,7 @@ user 说话 → yan 处理完 → 准备结束 turn
 
 「三次」的主体是模型，不是 guard。  guard 自己不起 watcher—它 exit 2 拦住 turn，模型被迫继续去查去修（看日志、检查终端还在不在、手动 arm 一次），再尝试结束 turn。所以三次 = 给模型三次介入机会。
 
-## 三样基础设施
+## 基础设施
 
 |  | 为什么 |
 | --- | --- |
@@ -55,7 +55,7 @@ user 说话 → yan 处理完 → 准备结束 turn
 
 autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firstmate 用 `timeout: 28800`，8 小时），让 hook 本身能活几小时；watcher 跑在 hook 的前台（绝不用 shell &），所以 harness 拥有进程组，超时或会话销毁时两者一起被杀。timeout 必须设长，否则 hook 被杀 watcher 就跟着死。
 
-## guard 的三个设计要点
+## guard 的设计要点
 
 **一、它的价值在 autoarm 根本没跑的时候。** 如果 autoarm 跑了但失败了，它自己会留下失败记录。但如果它压根没被调用（`.claude/settings.json` 被改坏、hook 路径错了、harness 跳过了它），它连「失败」都不会留下—什么记录都没有，看起来跟一切正常一模一样。这时 guard 是唯一的探测手段。
 
@@ -78,7 +78,7 @@ autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firs
 
 为什么不能一直拦：一直拦 = 整个 session 废掉，`user` 连话都说不上，而且每一轮循环都是一次完整的模型推理在烧 token。盲跑的后果是「晚点才知道」，卡死的后果是「完全不可用」。前者可以接受。
 
-## `yan wait` 看三个 source
+## `yan wait` 的 source
 
 只看 signal 不够，因为 agent 会死、会卡、会忘记报告—一个卡死的 `shift` 会让 `user` 一直干等到超时。这三条直接移植 firstmate 的教训：
 

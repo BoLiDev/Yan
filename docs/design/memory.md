@@ -28,7 +28,7 @@ append-only 所以永不冲突；一行一条所以成本几乎为零；`user` �
 
 由此得出一条硬约束：artifact 必须写在 worktree 之外。
 
-因为 worktree 要被 `yan tree return` 清空。`shift` 如果把 prototype 写在树里，两种结局都糟：被清掉，或者被 commit 进公司仓库。所以 spawn 时注入 `YAN_TASK_DIR=$YAN_HOME/tasks/<id>`，brief 明确要求产物写 `$YAN_TASK_DIR/artifacts/`。这条同时挡掉「agent 顺手把设计文档提交进公司仓库」这类事故—对多人仓库来说这个防护比省上下文更值钱。
+因为 worktree 要被 `yan tree return` 清空。`shift` 如果把 prototype 写在树里，两种结局都糟：被清掉，或者被 commit 进公司仓库。所以 spawn 时注入 `YAN_TASK_DIR=$YAN_HOME/tasks/<id>`，brief 明确要求产物写 `$YAN_TASK_DIR/artifacts/`。这条同时挡掉「agent 顺手把设计文档提交进公司仓库」这类事故—对多人仓库来说这个防护比省上下文更重要。
 
 它的寿命跟 `task` 目录一样长，不随 `shift` 下工删除—价值恰恰在任务结束之后。主要读者是 `user`，所以需要 `yan open <id>` 直接打开目录或在浏览器里看 html。索引 0→1 不做，靠目录和文件名，多到找不着再说。
 

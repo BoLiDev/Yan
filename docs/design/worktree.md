@@ -7,10 +7,10 @@
 以及落地判据的口径对不上：
 
 1. 分支模型：treehouse 恒定 detached HEAD，把「不碰分支名」当卖点；而 `yan` 的子分支要从
-   集成分支切出、要 push、要开 MR（[§6.1](branching.md#61-两级结构)、[§6.5](branching.md#65-两级分支有两个不同的命名权威)），树上必须有真实分支。
+   集成分支切出、要 push、要开 MR（[§6.1](branching.md#61-分支结构)、[§6.5](branching.md#65-分支的命名权威)），树上必须有真实分支。
 2. 落地判据的口径：它判定一棵树能不能还的条件是「HEAD 已并入 default branch」，而 `yan`
    的子分支合回的是集成分支，永远不是 default branch——于是每一次正常下工的还树都会被它
-   拒绝，得长期带 `--force`，而 [§9.2](boundaries.md#92-外部副作用真正需要边界的部分) 明确把 `--force` 列成禁止动作。
+   拒绝，得长期带 `--force`，而 [§9.2](boundaries.md#92-外部副作用) 明确把 `--force` 列成禁止动作。
 
 把最后一道防线变成日常动作，这个代价我不接受。
 
@@ -99,7 +99,7 @@ git -C "$tree" branch -r --contains HEAD  # 空   → 没有远端分支包含 H
 
 `yan tree return --force` 是禁止的，除非 `user` 明说这些改动可以丢。孤立 commit 守卫是最后一道防线：它拒绝还树的时候，正是「工作只在树里」的时候。拒绝是停下来查，不是加 `--force` 绕过。
 
-## 下工的动作顺序必须钉死：还树在前，删分支在后
+## 下工的动作顺序
 
 > **MR 合了 → 写 `outcome.md` → `rm -rf run/` → 还树 → 删远端子分支 → `shift` 结束**
 
