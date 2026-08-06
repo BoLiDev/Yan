@@ -155,6 +155,13 @@ $YAN_HOME/
 | `yan ls` | 扫 `tasks/*/task.json` 渲染队列 |
 | `yan open <id>` | 打开 `task` 目录 / artifacts |
 | `yan repo-add <url>` | 注册 repo，clone 到 `repos/`。`repos.json` 的唯一写入口 |
+| `yan task new` | 建 `tasks/<id>/`，写 brief |
+| `yan unit set --branch` | 查 forge 判定 `end` → 打包旧的进 `history[]`（带 `at`）→ 覆盖当前字段 → log 一行。**换赛道是一个原子操作**，判定结果写进 history 之后就不再查 forge（[design §6.4](branching.md#64-unit-的结构)） |
+| `yan mr` | 开对外 MR，写 `unit.mr`。授权见 [design §9.2](boundaries.md#92-外部副作用) |
+| `yan state <sid>` | 从 `run/meta.json` + 终端 + git + forge 现场推导。**当前状态只能推导，不能读 `run/status` 的最后一行**（[design §5.4](agents.md#54-通信)） |
+| `yan wait` | 盯三个 source，有事写 wake 文件 + 打印 reason + exit 0，无事静默 exit 非 0。**纯观察者，不持有任何状态**（[design §5.5](supervision.md#55-监督)） |
+
+`yan wait` 是最容易写胖的一个：那三个 source 就长在它里面，不单独起一层（[design §5.5](supervision.md#55-监督)）。
 
 ### 5.2 编排命令
 
@@ -164,16 +171,9 @@ $YAN_HOME/
 | `yan shift done` | 校验 MR 已合 → 写 `outcome` → 写 log → `rm -rf run/` → 还树 → 删远端子分支 | **还树必须排在删分支之前**（[design §7](worktree.md#7-worktree)） |
 | `yan sync` | 租树 → fetch → rebase/merge `target` → push → 还树 | **有冲突就立刻退出交给 `shift`**，不在脚本里解冲突。时机固定：每次开新 `shift` 之前（[design §6.3](branching.md#63-集成分支怎么变)） |
 | `yan unit add` | `branch-name` hook → 分支存在则 checkout、不存在则从 base 切 → 写 `task.json` | **hook 非零退出就停下报错，绝不 fallback 到内置默认**（[design §10](boundaries.md#10-外部权威接缝okt-等)） |
-| `yan unit set --branch` | 查 forge 判定 `end` → 打包旧的进 `history[]`（带 `at`）→ 覆盖当前字段 → log 一行 | **换赛道是一个原子操作**，判定结果写进 history 之后就不再查 forge（[design §6.4](branching.md#64-unit-的结构)） |
-| `yan mr` | 开对外 MR → 写 `unit.mr` | 授权见 [design §9.2](boundaries.md#92-外部副作用) |
 | `yan land` | 按 `needs` 拓扑排序 → 合 | **必须 `user` 明说**（[design §9.2](boundaries.md#92-外部副作用)） |
-| `yan task new` | 建 `tasks/<id>/` → 写 brief | — |
 | `yan start <id>` | 建 `task` 终端容器 → 在里面起 `yan` | 一个 `task` 一个容器，容器生命周期 = `user` 手动开关（[design §5.7](agents.md#57-终端拓扑)） |
-| `yan state <sid>` | 从 `run/meta.json` + 终端 + git + forge 现场推导 | **当前状态只能推导，不能读 `run/status` 的最后一行**（[design §5.4](agents.md#54-通信)） |
 | `yan session-start` | 全量 reconcile：扫 `tasks/` → 查终端 → 查池 → 查 forge → 出摘要 | **重启是非事件**（[design §5.1](agents.md#51-寿命分层)） |
-| `yan wait` | 盯三个 source，有事写 wake 文件 + 打印 reason + exit 0，无事静默 exit 非 0 | **纯观察者，不持有任何状态**（[design §5.5](supervision.md#55-监督)） |
-
-`yan wait` 是最容易写胖的一个：那三个 source 就长在它里面，不单独起一层（[design §5.5](supervision.md#55-监督)）。
 
 ---
 
