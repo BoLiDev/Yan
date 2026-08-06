@@ -33,5 +33,6 @@
   例如 [design §7](docs/design/worktree.md#7-worktree)；设计的节号既然横跨各个分册，
   节号本身就足以定位，至于那一节住在哪个文件，交给链接去回答。
 - 不带链接的裸节号指的是当前这份文档自己的那一节，同一份文档内部的引用一律这么写。
-  `docs/design/architecture.md` 自带一套 1–7 的编号，它在开头就声明了这条。
+  `docs/design/architecture.md`（1–7）和 `docs/implementation-plan.md`（0–5）各自带一套编号，
+  两份都在开头声明了这条。
 - `docs/` 同时也是设计讨论的工作区，讨论产生的 artifact（MD / HTML）都放在这里。
