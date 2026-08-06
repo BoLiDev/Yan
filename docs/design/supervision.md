@@ -88,7 +88,7 @@ autoarm 的关键结构是 `asyncRewake: true` 加一个很长的 timeout（firs
 | `term_agent_alive` | agent 死了—它不可能自己报告这件事 | 一次终端查询 |
 | pane 内容 hash 长时间不变 | agent 停下来但没报告—卡住、等确认对话框、忘了 report | `term_read` + `md5` |
 
-第三条成本极低、价值最高，因为「忘记报告」是 agent 最常见的失败模式。`yan` 不需要 firstmate 的第四个 source（PR 轮询），因为 `shift` 下工不等 CI（[§5.3](agents.md#53-shift-的生命周期)）。
+第三条值得有，因为「忘记报告」是 agent 最常见的失败模式，而它要付的成本上表已经写了：一次 `term_read` 加一次 `md5`。`yan` 不需要 firstmate 的第四个 source（PR 轮询），因为 `shift` 下工不等 CI（[§5.3](agents.md#53-shift-的生命周期)）。
 
 ## wake 插入时的规则
 

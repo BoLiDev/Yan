@@ -29,8 +29,8 @@
 
 | 词 | 是什么 | 寿命 |
 | --- | --- | --- |
-| `task` | 代表项目本身 | 长命（周、月） |
-| `unit` | 项目的其中一个交付通道 | 跟 `task` 同寿 |
+| `task` | 代表本次需求 | 长命（周、月） |
+| `unit` | 代表本次需求的一条交付通道 | 跟 `task` 同寿 |
 | `scope` | 限定一个 `unit` 能改动哪些路径 | 跟 `unit` 同寿，可显式扩张 |
 | `shift` | 推进 `unit` 的一次派工，跟 sub-agent 一对一 | 短命（小时） |
 | 集成分支 | `unit` 当前的 working 分支，`shift` 从它切出、也合回它 | 一轮交付；交付或废弃后由新的接替（[§6.3](branching.md#63-集成分支怎么变)） |
@@ -105,7 +105,7 @@ $YAN_HOME/
         signal                 唤醒标记
 
   conf/                        本地选择，gitignored
-    hooks/                     外部权威接缝，见 boundaries.md §10
+    hooks/                     外部权威接缝（§10）
 
   repos/                       clone；yan 只读（唯一例外是 git fetch）
 ```
