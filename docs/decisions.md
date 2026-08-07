@@ -1,82 +1,76 @@
-# 决策记录
+# Decision log
 
-> 定位：本文只记「什么时候定的、定了什么、理由的摘要、展开在哪」。
-> 每条决策的完整推理住在它管的那一节，不在这里——被否掉的那些选项也不在这里。
-> 本文里的 `design §x` 指 `docs/design/` 下的设计文档，主干是 [`design/INDEX.md`](design/INDEX.md)，从它进去找到那一节住在哪个文件。
+> This document records only when a decision was made, what was decided, a summary of the reasoning, and where the full version lives.
+> The complete reasoning for each decision lives in the section it governs, not here — and neither do the options that were rejected.
+> `design §x` refers to the design documents under `docs/design/`. The backbone is [`design/INDEX.md`](design/INDEX.md); start there to find which file a section lives in.
 
 ---
 
-## 2026-08-05 · 动工前的 P0
+## 2026-08-05. P0 decisions before starting
 
-三个都已敲定，并且已经折进设计文档。
+All three are settled and have already been folded into the design documents.
 
-| | 决定 | 理由 | 展开在 |
+| | Decision | Reasoning | Written up in |
 | --- | --- | --- | --- |
-| **P0-1** | `yan` 自带 worktree 池（`yan tree get \| return \| status`） | 整个项目不必为此多依赖一个外部工具。treehouse 里值得抄的三样——随机 `lease_id`、条件还树、`--json`——一并抄了进来 | [design §7](design/worktree.md#7-worktree) |
-| **P0-2** | GitLab 和 GitHub 都支持，抽一层 forge deep module | 工作用 GitLab，日常用 GitHub，两个都是真实需求。附带收益：0→1 的验收标准可以在 `yan` 自己身上跑通 | [design §8.4](design/delivery.md#84-forge-层lib-forgesh) |
-| **P0-3** | 子分支推到远端，两级 MR 都保留 | 每个 `shift` 一个独立 MR，就是 `user` review 的主要方式 | [design §12](design/scope.md#12-待定)「已定」、[design §6.2](design/branching.md#62-两级-review) |
+| **P0-1** | `yan` ships its own worktree pool (`yan tree get \| return \| status`) | the project does not need to depend on an outside tool for this. The three things worth taking from treehouse — random `lease_id`, conditional return, `--json` — were copied along with it | [design §7](design/worktree.md#7-worktrees) |
+| **P0-2** | support both GitLab and GitHub behind a forge deep module | GitLab at work, GitHub outside it; both are real needs. Side benefit: the acceptance test for the first version can be run against `yan` itself | [design §8.4](design/delivery.md#84-the-forge-layer) |
+| **P0-3** | shift branches are pushed to the remote, and both levels of MR are kept | one independent MR per `shift` is how `user` reviews the work | [design §12](design/scope.md#12-open-questions) under "settled", and [design §6.2](design/branching.md#62-two-levels-of-review) |
 
-P0-3 掉出来一条不变量，已经写进设计：**下工和删分支都以 MR 状态为准，不以 git 祖先关系为准**
-（[design §5.3](design/agents.md#53-shift-的生命周期)）。
+P0-3 produced one invariant, which is already in the design: **clocking out and deleting a branch are both decided by the MR's state, never by git ancestry** ([design §5.3](design/agents.md#53-the-life-of-a-shift)).
 
 ---
 
-## 2026-08-05 · 环境实测
+## 2026-08-05. What is actually installed
 
-这台机器上跑了一遍，把假设换成事实。
+Checked on this machine, to replace assumptions with facts.
 
-| 工具 | 状态 | 对设计的影响 |
+| Tool | Status | Effect on the design |
 | --- | --- | --- |
-| `tmux` | ✅ 3.6 | [design §5.7](design/agents.md#57-终端拓扑) 的 0→1 路径没被卡住。原先担心的 tmux 缺失不成立 |
-| `herdr` | ✅ 0.7.5 | 2→10 的第二份 `lib-term.sh` 实现有环境 |
-| `treehouse` | ✅ v2.1.1 | 装着且在日常使用。但分支模型对不上，不拿它当池，理由见 [design §7](design/worktree.md#7-worktree) |
-| `jq` | ✅ 1.8.1 | [design §2](design/INDEX.md#2-存储判据) 的硬依赖满足 |
+| `tmux` | ✅ 3.6 | the first-version path in [design §5.7](design/agents.md#57-terminal-topology) is not blocked. The earlier worry about tmux being missing does not apply |
+| `herdr` | ✅ 0.7.5 | there is an environment for the second `lib-term.sh` implementation in 2→10 |
+| `treehouse` | ✅ v2.1.1 | installed and in daily use. But its branch model does not match, so it is not used as the pool; the reasoning is in [design §7](design/worktree.md#7-worktrees) |
+| `jq` | ✅ 1.8.1 | the hard dependency from [design §2](design/INDEX.md#2-storage-criteria) is satisfied |
 | `git` | ✅ 2.53.0 | — |
-| `gh` | ✅ 2.97.0 | GitHub 侧齐了 |
-| `claude` | ✅ 2.1.222 | [design §5.5](design/supervision.md#55-监督) 三个 hook 的宿主 |
-| `wtpool` | ❌ 不存在 | 它是另一台机器上未发布的 CLI。[design §7](design/worktree.md#7-worktree) 原本整节建立在它上面，这条直接导致了 P0-1 |
-| `glab` | ❌ 不存在 | GitLab 那份 forge 实现暂时没有靶子可测，见 [`implementation-plan.md` §4](implementation-plan.md#4-现在挡路的问题) |
-| `okt` | ❌ 不存在 | 不阻塞。[design §10](design/boundaries.md#10-外部权威接缝okt-等) 的 hook 本来就是 opt-in + gitignored |
+| `gh` | ✅ 2.97.0 | the GitHub side is ready |
+| `claude` | ✅ 2.1.222 | the host for the three hooks in [design §5.5](design/supervision.md#55-supervision) |
+| `wtpool` | ❌ not present | it is an unreleased CLI on another machine. [design §7](design/worktree.md#7-worktrees) was originally built entirely on it, which is what led directly to P0-1 |
+| `glab` | ❌ not present | the GitLab forge implementation has nothing to test against for now; see [`implementation-plan.md` §4](implementation-plan.md#4-what-is-blocking-right-now) |
+| `okt` | ❌ not present | not blocking. The hook in [design §10](design/boundaries.md#10-seams-for-outside-authorities) is opt-in and gitignored anyway |
 
 ---
 
-## 2026-08-05 · 0→1 用 tmux，不用 herdr
+## 2026-08-05. tmux, not herdr, for the first version
 
-[design §5.7](design/agents.md#57-终端拓扑) 写的就是 tmux，这里补两条本机实测的证据，说明为什么现在不换。
-两条都是在这台机器、这个版本（herdr 0.7.5）上量到的，所以建议把它们一并记进 `mem/learnings/`，
-留给写第二份 `lib-term.sh` 实现的那一天：
+[design §5.7](design/agents.md#57-terminal-topology) already says tmux. These are two pieces of evidence measured on this machine explaining why not to switch now. Both were measured here, on this version (herdr 0.7.5), so they are worth recording in `mem/learnings/` for the day someone writes the second `lib-term.sh` implementation:
 
-1. 宿主恢复后 herdr 会丢掉 agent 的启动参数，恢复出来的 agent 停在手动确认模式，
-   看着活着但什么都不做。
-2. 往 herdr 后端发按键（`BTab` / `S-Tab`）不生效。
+1. After the host recovers, herdr loses the agent's startup arguments. The restored agent comes back in manual confirmation mode, so it looks alive but does nothing.
+2. Sending keys (`BTab` / `S-Tab`) to the herdr backend has no effect.
 
-tmux 是验证过的参考实现，所以 0→1 按 [design §5.7](design/agents.md#57-终端拓扑) 走它。`yan` 起一个独立的 tmux session
-在技术上没有问题，因为两个多路复用器互不干扰；代价是屏幕上会同时出现两套容器。
+tmux is the reference implementation that has been verified, so the first version uses it, as [design §5.7](design/agents.md#57-terminal-topology) says. There is no technical problem with `yan` starting its own tmux session, since two multiplexers do not interfere with each other. The cost is having two sets of containers on screen at the same time.
 
 ---
 
-## 2026-08-06 · 原子与编排的判据
+## 2026-08-06. The test for atomic versus orchestrating
 
-| | 决定 | 理由 | 展开在 |
+| | Decision | Reasoning | Written up in |
 | --- | --- | --- | --- |
-| **判据** | 子命令分成原子和编排，判据是它是否代表一个不可拆分的核心能力；原判据「有没有持有一条顺序不变量」不再用于这个分类 | 原子命令就是 `yan` 的 primitive，而不可拆分才是 primitive 真正的意义 | [`architecture.md` §5](design/architecture.md#5-子命令) |
+| **the test** | subcommands are split into atomic and orchestrating, and the test is whether the command represents one indivisible core capability. The earlier test, "does it hold an ordering invariant", is no longer used for this classification | the atomic commands are `yan`'s primitives, and being indivisible is what actually makes something a primitive | [`architecture.md` §5](design/architecture.md#5-subcommands) |
 
-顺序不变量这个概念本身继续用，只是不再当分类判据——例如 P0-3 掉出来的那条、以及编排命令各自持有的那条。
+The idea of an ordering invariant is still used; it is just no longer the classifier — for example the one that fell out of P0-3, and the ones each orchestrating command holds.
 
 ---
 
-## 2026-08-06 · 设计原则 6 退役
+## 2026-08-06. Design principle 6 retired
 
-| | 决定 | 理由 | 展开在 |
+| | Decision | Reasoning | Written up in |
 | --- | --- | --- | --- |
-| **设计原则 6** | 「从 0 到 1，再到 2、10、100。每一步只加当前真实疼痛所需要的机制」不再列在设计文档的设计原则里 | 它说的是进度，而进度归实现计划管，不归设计文档管 | [`implementation-plan.md` §0](implementation-plan.md#0-切分原则) |
+| **design principle 6** | "From 0 to 1, then to 2, 10, and 100. Each step adds only the machinery the current pain actually requires" is no longer listed among the design principles | it describes progress, and progress belongs to the implementation plan rather than the design documents | [`implementation-plan.md` §0](implementation-plan.md#0-how-the-work-is-split) |
 
 ---
 
-## 还没查的公司仓库配置
+## Unchecked settings on the work repository
 
-这两件都要看一眼公司仓库的配置，成本都很低。它们都是 P0-3（子分支推到远端）掉出来的。
+Both of these need a look at the work repository's settings, and both are cheap to check. Both fall out of P0-3, pushing shift branches to the remote.
 
-1. **分支保护 / push 规则会不会拒绝 `yan/*`。** 有些团队对分支名有强制规范。
-2. **已合的远端子分支要真的被删掉**，否则服务器上会堆一堆 `yan/*`。
-   [design §7](design/worktree.md#7-worktree) 的下工顺序已经写了这一步；开内部 MR 时直接勾上「合并后删除源分支」最省事。
+1. **Whether branch protection or push rules would reject `yan/*`.** Some teams enforce branch naming rules.
+2. **Merged remote shift branches must really be deleted**, otherwise `yan/*` branches pile up on the server. The clock-out order in [design §7](design/worktree.md#7-worktrees) already includes that step; the easiest approach is to tick "delete source branch after merge" when opening the internal MR.

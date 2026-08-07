@@ -1,44 +1,38 @@
-# 实现计划
+# Implementation plan
 
-> 依据：[`design/INDEX.md`](design/INDEX.md) 的决策，[`design/architecture.md`](design/architecture.md) 的分层。
-> 定位：本文说明「按什么顺序做、每块怎么测」。
-> 本文里裸写的 `§x` 指本文；指进设计时写成 `design §x`，指别的文档时写文档名再加节号。
-
----
-
-## 0. 切分原则
-
-**不按层自底向上做。** 自底向上的问题是到最后一刻之前什么都不能用，没有任何反馈，
-而且等到发现监督那层跑不通的时候，已经有一大堆代码建立在它能工作这个假设上了。
-
-改成：**先搭起最小骨架（很小），然后每个阶段交付一个能真正跑起来、能独立验证的东西。**
-每一步只加当前确实需要的机制。
-
-三个刻意的排序决定：
-
-1. **池排在第二个，不是最后。** 它是最大的一块 primitive，而且它自己就能用——
-   `yan tree get` 手动调用就有价值，不需要任何 agent。早做等于早拿到一个真实用户，也就是造它的人自己。
-2. **监督排在第四，不排最后。** 它是风险最高、最不能增量验证的一块。
-   排最后意味着在整个系统都压在它身上之后才发现 hook 不工作，那是致命的。
-   排第四是因为到那时刚好有东西可以被监督。
-3. **`AGENTS.md` 最后写，但要早读。** 它最后落地，可是 CLI 的形状应该被它塑造——
-   写每个子命令时都问一句「模型会怎么调它」。
+> Based on the decisions in [`design/INDEX.md`](design/INDEX.md) and the layering in [`design/architecture.md`](design/architecture.md).
+> This document says what order to build things in, and how each piece is tested.
+> A bare `§x` here refers to this document. References into the design are written as `design §x`, and references to another document are written as the document name plus a section number.
 
 ---
 
-## 1. 阶段总览
+## 0. How the work is split
 
-| 阶段 | 交付的能力 | `task` 数 | 阶段结束时成立的事 |
+**Not bottom-up, layer by layer.** The problem with building bottom-up is that nothing is usable until the very last moment, so there is no feedback along the way — and by the time you discover that the supervision layer does not work, a great deal of code already depends on the assumption that it does.
+
+Instead: **put up a minimal skeleton first (a very small one), then have every stage deliver something that actually runs and can be checked on its own.** Each step adds only the machinery that is genuinely needed at that point.
+
+Three deliberate ordering decisions:
+
+1. **The pool comes second, not last.** It is the largest primitive, and it is useful on its own — calling `yan tree get` by hand already has value, with no agent involved. Building it early means getting a real user early, namely the person building it.
+2. **Supervision comes fourth, not last.** It is the riskiest piece and the hardest to verify incrementally. Leaving it until the end would mean discovering that the hooks do not work only after the whole system is resting on them, which would be fatal. Fourth is where there is finally something worth supervising.
+3. **`AGENTS.md` is written last, but read early.** It lands last, and yet the shape of the CLI should be driven by it: while writing each subcommand, ask how the model would call it.
+
+---
+
+## 1. The phases
+
+| Stage | Capability delivered | Tasks | True at the end of the stage |
 | --- | --- | --- | --- |
-| **P0 地基** | 骨架 + 测试台 | 2 | 跑 `yan`，跑测试，CI 是绿的 |
-| **P1 池** | worktree 池 | 1 | **手动租树还树，热复用真的省掉冷装** |
-| **P2 记账与终端** | 存储 + 终端 | 3 | 建 `task`、看队列、在 tmux 里起进程 |
-| **P3 派工** | 派出第一个 `shift` | 2 | **第一个 sub-agent 真的在树里干活**（此时还要人工盯 pane） |
-| **P4 监督** | hook + watcher | 2 | `shift` 干完会自己发出通知 |
-| **P5 交付** | forge + 合并链路 | 5 | 子分支 MR、对外 MR、下工还树 |
-| **P6 AGENTS.md 与验收** | 判断 + 自举 | 2 | **[design §11](design/scope.md#11-01-范围) 的验收链在 Yan 自己身上跑通** |
+| **P0 foundation** | skeleton plus test harness | 2 | `yan` runs, the tests run, CI is green |
+| **P1 pool** | the worktree pool | 1 | **leasing and returning trees by hand works, and warm reuse really does skip the cold install** |
+| **P2 bookkeeping and terminals** | storage plus terminals | 3 | create a `task`, see the queue, start a process in tmux |
+| **P3 dispatch** | dispatch the first `shift` | 2 | **the first sub-agent is really working in a tree** (a person still has to watch the pane) |
+| **P4 supervision** | hooks plus the watcher | 2 | a `shift` sends a notification when it finishes |
+| **P5 delivery** | forge plus the merge chain | 5 | shift branch MRs, the outbound MR, clocking out and returning the tree |
+| **P6 AGENTS.md and acceptance** | judgements plus bootstrapping | 2 | **the acceptance chain from [design §11](design/scope.md#11-scope-of-the-first-version) runs on Yan's own repository** |
 
-依赖图（同一列内可并行）：
+The dependency graph (anything in the same column can run in parallel):
 
 ```mermaid
 graph LR
@@ -68,145 +62,132 @@ graph LR
 
 ---
 
-## 2. `task` 清单
+## 2. The `task` list
 
-每个 `task` 一个 `unit`，粒度按 [design §6.7](design/branching.md#67-unit-粒度的判据) 的判据定：**一个对外 MR 的粒度 = 一次 review 能吃下的量。**
+Each `task` has one `unit`, sized by the rule in [design §6.7](design/branching.md#67-how-big-a-unit-should-be): **the size of one outbound MR, which is how much one review can absorb.**
 
-「测试」一列写的是**这个 `task` 必须自带的用例**，不是泛泛的「要写测试」。
-测试台的形状（`tests/` 布局、`YAN_LIB` 替身机制）见 [`architecture.md` §7](design/architecture.md#7-可测性)，由 P0 定死，后面沿用。
+The "tests" column lists **the cases this particular `task` must bring with it**, not a general reminder to write tests. The shape of the test harness — the `tests/` layout and the `YAN_LIB` stand-in mechanism — is in [`architecture.md` §7](design/architecture.md#7-testability), fixed during P0 and used by everything after it.
 
-### P0 · 地基
+### P0. Foundation
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-skeleton` | `bin/yan` 入口（解析子命令 → exec `yan-<cmd>.sh`）、`lib-git.sh`、`tests/` 测试台、shellcheck、GitHub Actions | 未知子命令给出可用的错误和候选；`lib-git` 的每个函数只接受显式目录、**不依赖 cwd**（在别处 cd 之后调用仍然正确）；shellcheck 零告警 |
-| `yan-json` | `lib-json.sh`：读、原子写（`tmp → mv`）、`version` 字段 | **写到一半 kill -9，原文件完好无损**（这是这个模块存在的唯一理由，必须直接测它）；缺 `version` 的文件被拒绝 |
+| `yan-skeleton` | the `bin/yan` entry point (parse the subcommand, exec `yan-<cmd>.sh`), `lib-git.sh`, the `tests/` harness, shellcheck, GitHub Actions | an unknown subcommand produces a useful error with suggestions; every `lib-git` function takes an explicit directory and **does not rely on the working directory** (still correct when called after a `cd` elsewhere); shellcheck reports nothing |
+| `yan-json` | `lib-json.sh`: read, atomic write (`tmp → mv`), the `version` field | **kill -9 halfway through a write leaves the original file intact** — this is the only reason the module exists, so it has to be tested directly; a file missing `version` is rejected |
 
-### P1 · 池
+### P1. Pool
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-pool` | `lib-pool.sh` + `yan tree get\|return\|status`：租约（随机 `lease_id`）、条件还树、`--json`、热复用、背压、孤立 commit 守卫 | 见下面八条 |
+| `yan-pool` | `lib-pool.sh` plus `yan tree get\|return\|status`: leases with a random `lease_id`, conditional return, `--json`, warm reuse, backpressure, the orphan-commit guard | the eight cases below |
 
-这是整个项目测试密度最高的一个 `task`，八条一条都不能少：
+This is the most heavily tested task in the project, and none of the eight can be skipped:
 
-1. `get --base X --branch Y` → 路径存在、在 Y 分支上、基于 X
-2. **`return` 之后一个 gitignored 目录仍然在**（`node_modules` 替身）——
-   防的是某天有人给 `clean` 加 `-x`，池静默退化成每次冷装，**不报错，只是变慢**
-3. `return --if-lease-id <错的>` → **非零退出，且树完全没被动过**（不杀进程、不 reset、不清状态）
-4. 有未提交改动 → `return` 拒绝
-5. 有已 commit 未 push 的 commit → `return` 拒绝（孤立 commit 守卫）
-6. **池满 → `get` 失败，且不创建第 N+1 棵树**（这条守的是「池保持 N 棵热树」）。
-   N 取自 `repos.json` 的 per-repo 配置，默认 8
-7. 两个并发 `get` → 永远不会拿到同一棵树
-8. 池满时 `yan sync` 的错误信息说的是**「池满，开不了新 `shift`」**，不是「sync 失败」
+1. `get --base X --branch Y` → the path exists, it is on branch Y, and Y is based on X.
+2. **After `return`, a gitignored directory is still there** (use a stand-in for `node_modules`). This guards against someone adding `-x` to `clean` one day, which would silently turn the pool into a cold install every time — **no error, just slower**.
+3. `return --if-lease-id <wrong>` → **exits non-zero, and the tree is completely untouched** (no killed processes, no reset, no cleared state).
+4. Uncommitted changes present → `return` refuses.
+5. A commit that has not been pushed → `return` refuses (the orphan-commit guard).
+6. **Pool full → `get` fails and does not create tree number N+1** (this guards "the pool keeps N warm trees"). N comes from the per-repository setting in `repos.json`, default 8.
+7. Two concurrent `get` calls never hand out the same tree.
+8. When the pool is full, `yan sync`'s error message says **"the pool is full, cannot start a new `shift`"**, not "sync failed".
 
-**阶段里程碑：这时候池已经能手动用了。** 建议真的用一阵子再往下走。
+**Stage milestone: the pool is now usable by hand.** It is worth actually using it for a while before moving on.
 
-### P2 · 记账与终端
+### P2. Bookkeeping and terminals
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-store` | `lib-task.sh`（`task.json` 读写、四个当前标量、`history[]`）+ `lib-log.sh`（append 一行） | `history[]` 写进去之后任何操作都不改动它；`log.md` 的历史行永不被改写；`task.json` round-trip 不丢字段 |
-| `yan-term-tmux` | `lib-term.sh` 的 tmux 实现，七个函数 | **对真实 tmux 测**：起一个 `sleep 300` → `alive` 为真 → `send` 的文字真的到了 → `read` 读得到 → `close` 只关掉记录的那个 pane、**session 还在** → `list` 少一个。另测：`term_agent_alive` 在「pane 在但进程死了」时的返回值是明确的 |
-| `yan-registry` | `yan repo-add` / `task new` / `ls` / `open` | `repo-add` 是 `repos.json` 的唯一写入口；`ls` 扫目录得到的队列 = 目录真实内容（删掉一个 `task` 目录，`ls` 立刻少一个，**不需要任何同步**） |
+| `yan-store` | `lib-task.sh` (reading and writing `task.json`, the four current scalars, `history[]`) plus `lib-log.sh` (append one line) | once an entry is in `history[]`, no operation modifies it; existing lines in `log.md` are never rewritten; a `task.json` round trip loses no fields |
+| `yan-term-tmux` | the tmux implementation of `lib-term.sh`, all seven functions | **tested against real tmux**: start a `sleep 300` → `alive` is true → text sent with `send` really arrives → `read` can read it → `close` closes only the recorded pane and **the session is still there** → `list` shows one fewer. Also: `term_agent_alive` returns something unambiguous when the pane exists but the process has died |
+| `yan-registry` | `yan repo-add`, `task new`, `ls`, `open` | `repo-add` is the only writer of `repos.json`; the queue produced by scanning equals what is actually in the directory (delete a task directory and `ls` immediately shows one fewer, **with nothing to synchronise**) |
 
-`term_agent_alive` 在 tmux 下只能靠猜进程名，这是已知的近似（[design §5.7](design/agents.md#57-终端拓扑)）。**在代码里注明**，
-等 Herdr 那份实现（2→10）才变成「问」而不是「猜」。
+Under tmux, `term_agent_alive` can only guess from process names. That is a known approximation ([design §5.7](design/agents.md#57-terminal-topology)). **Say so in a comment in the code**; it becomes an answer rather than a guess once the Herdr implementation arrives in 2→10.
 
-### P3 · 派工
+### P3. Dispatch
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-unit` | `yan unit add`（`target` 必须显式给）+ `lib-hook.sh`（`branch-name` 接缝） | hook 非零退出 → **停下报错，绝不 fallback 到内置默认**；hook 缺失 → 用内置默认 `yan/<task>-<unit>-r<n>`，且 `n` = `history` 长度 + 1；hook 返回的分支已存在 → checkout 而不是重建 |
-| `yan-shift-new` | `yan shift new` + `yan send` + `yan report` + `yan scope-check` + brief 模板 | **cwd 断言：指向主 clone 时真的拒绝启动**（[design §7](design/worktree.md#7-worktree) 的不变量）；brief 里所有占位符都被替换（残留 `{...}` 直接失败）；`yan report` 只接受那五个 state，第六个词被拒；`report` 同时写了 status 和 signal；`scope-check` 越界时**只报告不拦** |
+| `yan-unit` | `yan unit add` (`target` must be given explicitly) plus `lib-hook.sh` (the `branch-name` seam) | the hook exits non-zero → **stop and report, never fall back to the built-in default**; the hook is absent → use the built-in default `yan/<task>-<unit>-r<n>`, with `n` equal to the length of `history` plus one; the branch the hook returned already exists → check it out rather than recreating it |
+| `yan-shift-new` | `yan shift new`, `yan send`, `yan report`, `yan scope-check`, and the brief template | **the working-directory assertion really refuses to start when it points at the main clone** (the invariant from [design §7](design/worktree.md#7-worktrees)); every placeholder in the brief is filled in (a leftover `{...}` fails outright); `yan report` accepts only the five states and rejects a sixth word; `report` writes both the status and the signal; `scope-check` **reports without blocking** when something is outside `scope` |
 
-**阶段里程碑：第一个 sub-agent 真的在树里干活了。** 这时还没有监督，pane 要靠人工盯。
-这是刻意的——先证明派工路径本身是对的，再上 hook 的复杂度。
+**Stage milestone: the first sub-agent is really working in a tree.** There is still no supervision, so a person has to watch the pane. That is deliberate — prove the dispatch path itself is right before adding the complexity of hooks.
 
-### P4 · 监督
+### P4. Supervision
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-wait` | `yan wait`（三个 source + wake 文件 + beacon）+ `yan drain` | 三个 source 各自单独触发一次，断言退出码和 wake 文件内容；三个都没动静 → 静默 exit 非 0；wake 文件在「watcher 退出」到「模型下一个 turn」之间**活下来**；beacon 每轮都被 touch |
-| `yan-hooks` | `hook-autoarm.sh` + `hook-turnend-guard.sh` + `.claude/settings.json` | guard **完全不读 stdin**（喂它空 stdin 也照常工作）；拦 3 次后 fail open **并打印明确的告警**；watcher 恢复健康时计数清零；单飞锁：两个并发 autoarm 只起一个 watcher；「watcher 健康」的三个条件各自单独失败时都能拦（锁里的 pid 活着但 beacon 陈旧 → 拦；beacon 新鲜但锁没了/身份不匹配 → 拦） |
+| `yan-wait` | `yan wait` (three sources, the wake file, the beacon) plus `yan drain` | trigger each of the three sources on its own and assert the exit code and the wake file's contents; nothing from any of the three → exit non-zero silently; the wake file **survives** from "the watcher exits" to "the model's next turn"; the beacon is touched on every loop |
+| `yan-hooks` | `hook-autoarm.sh`, `hook-turnend-guard.sh`, `.claude/settings.json` | the guard **never reads stdin** (it works normally when fed empty stdin); after blocking three times it fails open **and prints a clear warning**; the count resets when the watcher becomes healthy; the single-flight lock: two concurrent autoarms start only one watcher; each of the three conditions for "the watcher is healthy" blocks when it fails on its own (the pid in the lock is alive but the beacon is stale → block; the beacon is fresh but the lock is missing or the identity does not match → block) |
 
-**这一阶段的集成测试没法做成单元测试**，需要一次手动彩排：
-用一个假 `shift`（就是 `sleep 60 && yan report done "fake"`）跑完这条链路，
-确认「turn 结束 → watcher 起来 → 假 `shift` 报告 → 模型被唤醒」这条链走得通。跑一次就够，然后把结果记录下来。
+**The integration test for this stage cannot be a unit test.** It needs one manual rehearsal: run the chain with a fake `shift`, which is just `sleep 60 && yan report done "fake"`, and confirm that "the turn ends → the watcher starts → the fake `shift` reports → the model is woken" works end to end. Once is enough; write down the result.
 
-### P5 · 交付
+### P5. Delivery
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-forge-github` | `lib-forge.sh` 接口定义 + GitHub 实现（四个动词） | 四个 `forge_mr_state` 返回值各触发一次；**返回值只可能是那四个之一**（喂它一个古怪的 API 响应，必须回 `unknown` 而不是漏出原文）；`forge_ci_state` 把 N 个 check run 归约成一个绿红 |
-| `yan-forge-gitlab` | GitLab 实现 | 同上一套用例，换一份 fixture。**需要 `glab` 和一个真实 GitLab 目标，见 §4** |
-| `yan-sync-mr-land` | `yan sync` + `yan mr` + `yan land` + `yan unit set` | `sync` 遇到冲突**真的退出**，不留下半个 rebase；`unit set --branch` 对 forge 四种状态各判一次 `end`（merged→delivered，closed/空→abandoned，open→问 `user`，查不到→问 `user`）；换赛道是原子的（判定 → 归档 → 覆盖 → log 一行，中途失败不留半成品）；`land` 没有明确授权时拒绝 |
-| `yan-shift-done` | `yan shift done` + `yan state` | **squash 场景下先还树后删分支**（这条单独立一个用例，见 §3）；`state` 从 meta + 终端 + git + forge 推导，**不读 `run/status` 的最后一行** |
-| `yan-session-start` | `yan session-start` 全量 reconcile | 直接 kill 掉 `yan` 之后重启，reconcile 得到的状态 = 实际状态（`shift` 还活着就是活着，死了就是死了）；**没有任何一条状态来自对话记忆** |
+| `yan-forge-github` | the `lib-forge.sh` interface definition plus the GitHub implementation (four verbs) | each of the four `forge_mr_state` values is produced at least once; **the return value can only ever be one of those four** (feed it a strange API response and it must return `unknown` rather than leaking the raw text); `forge_ci_state` reduces N check runs to one green or red |
+| `yan-forge-gitlab` | the GitLab implementation | the same set of cases with a different fixture. **Requires `glab` and a real GitLab target; see §4** |
+| `yan-sync-mr-land` | `yan sync`, `yan mr`, `yan land`, `yan unit set` | `sync` **really exits** on a conflict and does not leave half a rebase behind; `unit set --branch` decides `end` correctly for all four forge states (merged→delivered, closed or empty→abandoned, open→ask `user`, unreachable→ask `user`); starting a new round is atomic (decide → archive → overwrite → one log line, and a failure partway leaves nothing half-done); `land` refuses without explicit authority |
+| `yan-shift-done` | `yan shift done` plus `yan state` | **in the squash case, the tree is returned before the branch is deleted** (this gets its own case; see §3); `state` derives from meta plus the terminal, git, and the forge, and **does not read the last line of `run/status`** |
+| `yan-session-start` | `yan session-start`, the full rebuild | kill `yan` outright, restart it, and the rebuilt picture matches reality (a `shift` that is alive is alive, one that died is dead); **no part of that picture comes from conversation memory** |
 
-### P6 · AGENTS.md 与验收
+### P6. AGENTS.md and acceptance
 
-| id | 交付 | 测试 |
+| id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-agents-md` | `AGENTS.md`：模型读的那一份判断 | 通读一遍：每条指令都指向一个真实存在的 `yan` 子命令；**没有任何一条要求模型 source 一个 lib** |
-| `yan-acceptance` | 在 **Yan 自己这个仓库**上跑通 [design §11](design/scope.md#11-01-范围) 的验收链 | [design §11](design/scope.md#11-01-范围) 的验收链完整走通，一步不落 |
+| `yan-agents-md` | `AGENTS.md`, the judgements the model reads | read it through: every instruction points at a `yan` subcommand that actually exists; **no instruction asks the model to source a library** |
+| `yan-acceptance` | run the acceptance chain from [design §11](design/scope.md#11-scope-of-the-first-version) on **Yan's own repository** | the chain from [design §11](design/scope.md#11-scope-of-the-first-version) completes with no step skipped |
 
 ---
 
-## 3. 测试策略
+## 3. Test strategy
 
-成本从低到高，跑的频率从高到低：
+From cheapest to most expensive, and from most often run to least:
 
-| 层级 | 对象 | 依赖 | 什么时候跑 |
+| Level | Subject | Dependencies | When it runs |
 | --- | --- | --- | --- |
-| **shellcheck** | 每个脚本 | 无 | 每次 commit。bash 里它能挡掉的东西多得惊人 |
-| **stub 级单元** | 子命令 | 无（接缝全替身） | 每次 commit，秒级。`tests/run.sh --fast` |
-| **真实权威接缝** | `lib-git` / `lib-pool` / `lib-term` | 一个临时 git 仓库、一个真实 tmux | 每次 PR。CI 上跑得动（runner 有 tmux） |
-| **真实 forge** | `lib-forge` | 网络 + token + 一个 scratch 仓库 | 本地手动 + PR 上打了标签才跑。**不进默认 CI** |
-| **顺序回归** | 那四条 | 视情况 | 每次 PR。见下 |
-| **手动彩排** | 监督整链 | 一个真实 Claude session | P4 一次，之后改 hook 时重跑 |
-| **验收** | 整个系统 | 全部 | P6 一次 |
+| **shellcheck** | every script | none | every commit. The number of things it catches in bash is surprising |
+| **stub-level unit tests** | subcommands | none, since every seam is a stand-in | every commit, in seconds. `tests/run.sh --fast` |
+| **real-authority seams** | `lib-git`, `lib-pool`, `lib-term` | a temporary git repository and a real tmux | every pull request. CI can run these, since the runner has tmux |
+| **real forge** | `lib-forge` | network, a token, a scratch repository | manually, and on pull requests with the right label. **Not part of the default CI run** |
+| **ordering regressions** | the four below | varies | every pull request. See below |
+| **manual rehearsal** | the whole supervision chain | a real Claude session | once during P4, and again whenever a hook changes |
+| **acceptance** | the whole system | everything | once during P6 |
 
-**四条顺序回归用例**，都是「错了不报错、只是悄悄坏掉」的类型，所以必须有用例守着：
+**The four ordering regression tests.** Each guards something that does not fail loudly, it just quietly stops working, which is exactly why it needs a test:
 
-1. `pool_return` 之后 gitignored 目录仍然在（加了 `-x` → 静默退化成每次冷装）
-2. `yan shift done` 先还树后删分支（顺序反了 → squash 时树还不回去）
-3. `yan shift new` 的 cwd 断言真的拒绝（失效 → sub-agent 在主 clone 里乱改）
-4. `yan sync` 冲突时真的退出（失效 → 留下半个 rebase，下一个 `shift` 从烂摊子上切分支）
+1. After `pool_return`, gitignored directories are still there (adding `-x` would silently degrade the pool into a cold install every time).
+2. `yan shift done` returns the tree before deleting the branch (reversed, a squash merge would make the tree impossible to return).
+3. `yan shift new`'s working-directory assertion really refuses (broken, a sub-agent would make changes inside the main clone).
+4. `yan sync` really exits on a conflict (broken, it would leave half a rebase behind and the next `shift` would branch off the mess).
 
-CI（GitHub Actions）跑的是 `shellcheck` 加 `tests/run.sh`，而真实 forge 那一层默认跳过。
+CI (GitHub Actions) runs `shellcheck` plus `tests/run.sh`, and skips the real-forge level by default.
 
 ---
 
-## 4. 现在挡路的问题
+## 4. What is blocking right now
 
-| | 挡住什么 | 现在能做什么 |
+| | What it blocks | What can be done now |
 | --- | --- | --- |
-| **`task` id 格式没定** | `yan-registry`（P2） | 选一个就行，选项和倾向见 [design §12](design/scope.md#12-待定) |
-| **`glab` 没装，也没有可测的 GitLab 目标** | `yan-forge-gitlab`（P5） | **不挡主线。** GitHub 那份就够跑通 [design §11](design/scope.md#11-01-范围) 的验收（Yan 自己在 GitHub 上）。GitLab 那份等有了靶子再单独做，接口已经被 GitHub 那份定死了 |
-| **Yan 仓库自己的交付姿态没定** | 怎么造 `yan` | 三选一，见下 |
+| **the `task` id format is undecided** | `yan-registry` (P2) | just pick one; the options and the current leaning are in [design §12](design/scope.md#12-open-questions) |
+| **`glab` is not installed, and there is no GitLab target to test against** | `yan-forge-gitlab` (P5) | **not blocking the main line.** The GitHub implementation is enough to run the acceptance chain from [design §11](design/scope.md#11-scope-of-the-first-version), since Yan itself is on GitHub. The GitLab implementation can wait until there is something to test against, and its interface is already fixed by the GitHub one |
+| **Yan's own delivery style is undecided** | how `yan` gets built | pick one of three; see below |
 
-最后一条要在三个里挑一个：`no-mistakes`（每次改动过完整的自动化流水线：review / 测试 /
-文档 / CI，再开 PR）、`direct-PR`（直接推分支开 PR，质量把关靠 `user` + CI）、
-`local-only`（不开 PR，本地分支）。**暂按 `no-mistakes` 注册（默认值），随时可改。**
+The last one is a choice between three options. `no-mistakes`: every change goes through a full automated pipeline (review, tests, documentation, CI) before a pull request is opened. `direct-PR`: push a branch and open a pull request directly, with `user` and CI as the quality gate. `local-only`: no pull requests, local branches only. **Registered as `no-mistakes` for now, as the default, and changeable at any time.**
 
-有点意思的是：**`yan` 自己的设计明确不引入 no-mistakes**（[design §11](design/scope.md#11-01-范围)），
-理由是「质量把关落回 `user` + CI + 同事 review，这本来就是正常团队的做法」。
-在 `yan` 这个仓库上用不用它，是另一件事，但值得一起想。
+There is something worth noticing here: **`yan`'s own design explicitly does not adopt no-mistakes** ([design §11](design/scope.md#11-scope-of-the-first-version)), on the grounds that quality control falls back to `user`, CI, and review by colleagues, which is how a normal team already works. Whether to use it on the `yan` repository is a separate question, but the two are worth thinking about together.
 
 ---
 
-## 5. 并行度
+## 5. What can run in parallel
 
-如果用 sub-agent 来造 `yan`，可并行的地方：
+If sub-agents are used to build `yan`, these can overlap:
 
-- **P2 的三个 `task` 完全独立**（`yan-store` / `yan-term-tmux` / `yan-registry`），三棵树同时开
-- **`yan-forge-github` 从 P0 之后就能开始**，不必等 P1–P4，可以和主线并行
-- **`yan-forge-gitlab` 随时可以插进来**，只要接口定了
+- **P2's three tasks are fully independent** (`yan-store`, `yan-term-tmux`, `yan-registry`), so all three trees can be open at once.
+- **`yan-forge-github` can start right after P0.** It does not have to wait for P1 through P4 and can run alongside the main line.
+- **`yan-forge-gitlab` can be slotted in at any time**, once the interface is fixed.
 
-其余是真串行——`yan-shift-new` 必须等池和终端，`yan-hooks` 必须等 `yan-wait`。
+The rest really is sequential: `yan-shift-new` has to wait for the pool and the terminals, and `yan-hooks` has to wait for `yan-wait`.
 
-**建议第一个阶段（P0+P1）自己手写。** 不是因为 sub-agent 干不了，
-而是这段代码定下了后面所有 `task` 的形状：测试台长什么样、子命令怎么 source lib、
-错误怎么报。这些约定由造 `yan` 的人亲手定一次，比写在 brief 里让别人猜要准得多。
+**Suggestion: write the first stage (P0 and P1) by hand.** Not because a sub-agent could not do it, but because this code sets the shape every later task follows — what the test harness looks like, how a subcommand sources a library, how errors are reported. Settling those conventions once, by hand, is far more accurate than writing them into a brief and hoping someone else infers them correctly.

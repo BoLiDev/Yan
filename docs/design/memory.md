@@ -1,39 +1,43 @@
-# 4. 记忆系统
+# 4. Memory
 
-## 4.1 记忆的授权差别
+## 4.1 Who may write what
 
-`user.md` 和 `learnings` 的授权不同。learnings 写错代价小（下次发现就改），而每次都问会导致根本不写；`user.md` 是关于人的判断，写错会持续误导。所以 learnings 允许 `yan` 自主写（重写式、带日期、带证据），`user.md` 只在 `user` 明确要求时写。
+`user.md` and the files under `learnings/` are written under different rules. A wrong entry in `learnings/` is cheap: the next time `yan` runs into the same thing, it corrects the file. Asking `user` for permission every time would just mean nothing ever gets written down. `user.md` is different, because it records judgements about a person; a wrong entry there keeps misleading `yan` for a long time.
 
-每条记忆的「谁写 / 何时写 / 谁读 / 何时读」完整清单见 [附录 A](appendix.md#附录-a--记忆读写契约)。
+So `yan` may write `learnings/` on its own. Each entry is rewritten in place rather than appended to, carries a date, and cites the evidence it came from. `user.md` is written only when `user` explicitly asks for it.
 
-## 4.2 `log.md` — 叙事层
+The full table of who writes each file, when, who reads it, and when, is in [Appendix A](appendix.md#appendix-a-memory-read-and-write-contract).
 
-JSON 装不下「做到哪了」；单独维护一份 `progress.md` 又会跟各个 `outcome.md` 迟早对不上。所以用 append-only 的一行式日志：
+## 4.2 `log.md`, the narrative layer
+
+JSON is a bad fit for "how far along are we". A separate `progress.md` is no better, because it would eventually disagree with the individual `outcome.md` files. So progress lives in an append-only log, one line per event:
 
 ```markdown
-# t042 统一鉴权 header
+# t042 unify the auth header
 
-- 08-04  s1 auth       实现 header 解析          → !31 合入集成分支
-- 08-05  s2 auth       接入 auth header          → !33 合入集成分支
-- 08-06  s3 auth       修 CI 报的类型错          → !35 合入集成分支
-- 08-07  auth       对外 MR !88 → release/bigproject
-- 09-01  决策       改为往 master 合（大项目稳定期结束）
+- 08-04  s1 auth       parse the header              → !31 merged into the integration branch
+- 08-05  s2 auth       call the parser from auth     → !33 merged into the integration branch
+- 08-06  s3 auth       fix the type error CI found   → !35 merged into the integration branch
+- 08-07  auth          outbound MR !88 → release/bigproject
+- 09-01  decision      retarget to master (the big release has stabilised)
 ```
 
-append-only 所以永不冲突；一行一条也没有什么成本；`user` 和 agent 读同一份—想知道情况 `cat log.md` 就够，不用拼二十个 `outcome.md`。它也是新 `shift` 的上下文来源：生成 brief 时整个塞进去（足够短）。
+Because it is append-only it never produces a merge conflict, and one line per event is cheap enough that nobody skips it. `user` and the agents read the same file, so `cat log.md` is enough to see where things stand — there is no need to stitch together twenty `outcome.md` files. It is also the context a new `shift` gets: the whole file is short enough to paste into a brief.
 
-## 4.3 artifact
+## 4.3 Artifacts
 
-公司仓库由多人协作，不能随便塞东西。 prototype html、设计文档、截图、性能图表、调研数据—项目相关，但不该进仓库。
+A work repository is shared with other people, so you cannot put whatever you like into it. Prototype HTML pages, design notes, screenshots, performance charts, research data — all of these belong to the project, but none of them belong in the repository.
 
-由此得出一条约束：artifact 必须写在 worktree 之外。
+That gives one constraint:
 
-因为 worktree 要被 `yan tree return` 清空。`shift` 如果把 prototype 写在树里，两种结局都糟：被清掉，或者被 commit 进公司仓库。所以 spawn 时注入 `YAN_TASK_DIR=$YAN_HOME/tasks/<id>`，brief 明确要求产物写 `$YAN_TASK_DIR/artifacts/`。这条同时挡掉「agent 顺手把设计文档提交进公司仓库」这类事故—对多人仓库来说这个防护比省上下文更重要。
+> Artifacts must be written outside the worktree.
 
-它的寿命跟 `task` 目录一样长，不随 `shift` 下工删除—价值恰恰在任务结束之后。主要读者是 `user`，所以需要 `yan open <id>` 直接打开目录或在浏览器里看 html。索引 0→1 不做，靠目录和文件名，多到找不着再说。
+The reason is that the worktree gets wiped by `yan tree return`. If a `shift` writes a prototype inside the tree, both possible endings are bad: the file is deleted, or it gets committed into the work repository. So `yan` sets `YAN_TASK_DIR=$YAN_HOME/tasks/<id>` when it starts a `shift`, and the brief tells the agent to write its output to `$YAN_TASK_DIR/artifacts/`. The same rule also prevents an agent from casually committing a design document into a shared repository, which matters more than the context it saves.
 
-和 `report.md` 的界线：report 是结论（给 agent 读、给未来 intake 复用）；artifacts 是产物本身（给人看的东西）。一个 prototype html 属于 artifacts，「这个 prototype 验证了什么」属于 report。
+Artifacts live as long as the `task` directory does, and are not deleted when a `shift` clocks out — most of their value comes after the task is over. Their main reader is `user`, so `yan open <id>` opens the directory directly, or opens an HTML file in a browser. There is no index in the first version; the directory listing and the file names are enough, and an index can wait until there are too many files to find things.
 
-## 4.4 不存什么
+The line between this and `report.md`: the report holds conclusions, written for agents to read and for future tasks to reuse. `artifacts/` holds the output itself, the things a person looks at. A prototype HTML page is an artifact; "what this prototype proved" belongs in the report.
 
-临时路径、会变的版本号、复制过来的状态快照；repo 自己就能说明的东西（代码结构、git history—那属于 repo 的 `AGENTS.md`）；任何 git 或 GitLab 已经作为 source of truth 持有的东西。
+## 4.4 What not to store
+
+Temporary paths, version numbers that will change, and copied-in snapshots of state. Anything the repository itself already explains, such as code structure or git history — that belongs in the repository's own `AGENTS.md`. And anything git or GitLab already holds as the source of truth.

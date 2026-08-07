@@ -1,112 +1,85 @@
-# 7. worktree
+# 7. Worktrees
 
-**池是 `yan` 自带的：`yan tree get | return | status`。** 它不是独立的二进制，也不依赖任何外部工具。
+**The pool is part of `yan`: `yan tree get | return | status`.** It is not a separate binary and it does not depend on any outside tool.
 
-不用 `user` 自己的 wtpool，因为它是另一台机器上未发布的 CLI。
-也不包 treehouse，理由不是「零状态文件」那种设计取向，而是**分支模型对不上**，
-以及落地判据的口径对不上：
+`user`'s own wtpool is not used, because it is an unreleased CLI that lives on another machine. treehouse is not wrapped either. The reason is not a preference for keeping zero state files; it is that the branch model does not match, and neither does the test for when a tree may be given back:
 
-1. 分支模型：treehouse 恒定 detached HEAD，把「不碰分支名」当卖点；而 `yan` 的子分支要从
-   集成分支切出、要 push、要开 MR（[§6.1](branching.md#61-分支结构)、[§6.5](branching.md#65-分支的命名权威)），树上必须有真实分支。
-2. 落地判据的口径：它判定一棵树能不能还的条件是「HEAD 已并入 default branch」，而 `yan`
-   的子分支合回的是集成分支，永远不是 default branch——于是每一次正常下工的还树都会被它
-   拒绝，得长期带 `--force`，而 [§9.2](boundaries.md#92-外部副作用) 明确把 `--force` 列成禁止动作。
+1. **Branch model.** treehouse always keeps a detached HEAD and treats "we never touch branch names" as a feature. But `yan`'s shift branches have to be cut from the integration branch, pushed, and turned into MRs ([§6.1](branching.md#61-branch-structure), [§6.5](branching.md#65-who-names-branches)), so the tree has to be on a real branch.
+2. **The test for giving a tree back.** treehouse allows it once HEAD has been merged into the **default branch**. But `yan`'s shift branches merge into the integration branch, which is never the default branch. So every normal clock-out would be refused, and `--force` would have to be passed permanently — and [§9.2](boundaries.md#92-external-side-effects) lists `--force` as a forbidden action.
 
-把最后一道防线变成日常动作，这个代价我不接受。
+Turning a last-resort escape hatch into an everyday step is a cost I am not willing to pay.
 
-零状态那条得公道说一句——**它是最弱的一条**：treehouse 需要状态文件，是因为
-它要表达「没有活进程但树仍被占用」这个语义，这个语义不可推导，必须存；而 `yan` 两种都要——
-`shift` 干活期间树里一直有活进程，进程扫描就够，但 `yan sync` 是无进程的短租（下面「隔离
-粒度」那条：集成分支不常驻任何树，临时租、用完就还），那段时间只能靠 lease 表达占用。
-所以零状态不构成拒绝理由，只是设计取向的差异。
+To be fair about the zero-state argument: **it is the weakest of the three.** treehouse needs a state file because it has to express "no process is running but this tree is still taken", and that cannot be derived from anything, so it must be stored. `yan` needs both cases. While a `shift` is working there is always a live process in the tree, so scanning processes would be enough. But `yan sync` takes a short lease with no process behind it (see the isolation rule below: the integration branch does not permanently occupy a tree, it is leased briefly and returned), and during that window only a lease can express that the tree is taken. So zero state is not a reason to reject treehouse; it is just a difference in taste.
 
-内置之后，接口直接按 `yan` 的模型定，不需要在租到的树里补做分支这一层：
+Building the pool in means the interface can be defined directly in terms of `yan`'s model, with no extra branch handling bolted on after the lease:
 
-- **分支感知**：`yan tree get --base <集成分支> --branch <子分支>`，租树时就把子分支切好
-- **绑定方式**：holder = `<task>/<unit>/<sid>`。`yan tree status` 直接显示归属，池本身就是运行时注册表
-- **租约身份**：每次 acquire 生成一个随机 `lease_id`（抄 treehouse）
-- **条件还树**：`return --if-lease-id` / `--if-lease-holder`，持锁比对，不匹配就在任何破坏性动作之前非零退出——不杀进程、不重置、不清状态。这对自动重试是安全的
-- **`--json` 输出**：`get` 回 `{path, lease_id, holder}`，`status` 回数组
-- **隔离粒度**：一个 `shift` 一棵树。集成分支不常驻任何树，`yan sync` 临时租、用完就还
-- **池占用**：= 当前活着的 `shift` 数，跟 `task` 数无关
-- **热复用**：还树 = `reset --hard` + `clean -fd`，永不带 `-x`。`-x` 会连 gitignore 的东西一起删，那一个字母就是「秒级复用」和「每次冷装」的分界线
-- **背压**：池满时 `get` 自己失败，不再撑新树。这条和上一条是配套的——满了就新建的话池会慢慢长胖，多出来的全是冷树，等于没池
+- **Branch-aware.** `yan tree get --base <integration branch> --branch <shift branch>` creates the shift branch as part of leasing the tree.
+- **How a lease is attached.** The holder string is `<task>/<unit>/<sid>`. `yan tree status` shows who holds what, which makes the pool its own runtime registry.
+- **Lease identity.** Every acquisition generates a random `lease_id` (copied from treehouse).
+- **Conditional return.** `return --if-lease-id` and `--if-lease-holder` compare while holding the lock, and if it does not match they exit non-zero *before* doing anything destructive — no killing processes, no resetting, no clearing state. That makes automatic retries safe.
+- **`--json` output.** `get` returns `{path, lease_id, holder}` and `status` returns an array.
+- **Isolation.** One tree per `shift`. The integration branch does not permanently occupy a tree; `yan sync` leases one briefly and returns it.
+- **How full the pool gets.** Occupancy equals the number of live shifts, and has nothing to do with the number of tasks.
+- **Warm reuse.** Returning a tree means `reset --hard` plus `clean -fd`, never with `-x`. `-x` deletes gitignored files too, and that one letter is the difference between reusing a tree in seconds and reinstalling everything from cold each time.
+- **Backpressure.** When the pool is full, `get` fails rather than creating another tree. This pairs with the previous point: if a full pool just grew, it would slowly get fatter, and every extra tree would be a cold one, which is the same as having no pool.
 
-`lease_id` 和条件还树不是可选项。它们解决的正是 [§5.5](supervision.md#55-监督) 里 guard 做「身份匹配」的同一类
-问题：只认 holder 标签的话，一个重试的、或者上一轮遗留的调用，可能还掉别人刚租到的树。
-监督层已经认真处理过一次陈旧身份的坑，池层不该还是裸的。
+`lease_id` and conditional return are not optional extras. They solve the same class of problem the guard's identity check solves in [§5.5](supervision.md#55-supervision): if only the holder label is checked, a retried call, or one left over from an earlier round, could return a tree somebody else has just leased. The supervision layer already took stale identity seriously; the pool should not be left bare.
 
-还有一条跟池配套的不变量：**spawn 必须断言 sub-agent 的 cwd 不等于主 clone 路径，否则拒绝启动。**
+One more invariant belongs with the pool: **when spawning a sub-agent, assert that its working directory is not the main clone's path, and refuse to start otherwise.**
 
-## 热复用契约
+## The warm-reuse contract
 
-没有复用需求的话，一 `shift` 一次 `git worktree add`、下工 `remove` 就够了，
-根本不需要池、租约、背压这一整套。**池多出来的复杂度全部是为了这一件事：
-大 monorepo 上常驻 3 棵热树，租到哪一棵都不需要冷装依赖。**
+If reuse were not needed, one `git worktree add` per `shift` and a `remove` at the end would do, and none of this — pool, leases, backpressure — would be necessary. **All of the extra complexity buys exactly one thing: on a large monorepo, three warm trees stay ready, and whichever one you lease needs no cold install.**
 
-所以下面这条是 `lib-pool` 的契约，不是实现细节：
+So this is a contract of `lib-pool`, not an implementation detail:
 
-> **还树用 `git clean -fd`，永远不加 `-x`。** gitignore 的依赖和构建缓存跨 `shift` 保留。
+> **Returning a tree uses `git clean -fd`, never with `-x`.** Gitignored dependencies and build caches survive from one `shift` to the next.
 
-一个诚实的边界：它消掉的是**冷装**，不是所有 install。集成分支之间 lockfile 变了，
-热树里的 `node_modules` 就是旧的。正确的处理是 brief 里每次都跑一遍 install——
-热的时候它几秒内就 no-op，lockfile 变了的时候则做一次增量安装。不要试图聪明地跳过这一步。
+An honest limit: this removes the *cold* install, not every install. When the lockfile changes between integration branches, the `node_modules` in a warm tree is out of date. The right way to handle that is to run the install every time in the brief. When the tree is warm it finishes in a couple of seconds with nothing to do; when the lockfile changed it does an incremental install. Do not try to be clever and skip the step.
 
-由此 0→1 **不需要** treehouse 那种 `post_create` provision hook：brief 本来就会跑 install，
-冷树和热树走同一条路径就都覆盖了，不用多加一层机制。首次撑开 N 棵新树要装 N 次，
-是一次性成本，知道就行。
+Because of that, the first version does **not** need treehouse's `post_create` provisioning hook. The brief already runs the install, so cold trees and warm trees take the same path and both are covered without an extra mechanism. Opening N new trees for the first time means N installs. That is a one-off cost; it is enough to know about it.
 
-## 池的大小
+## Pool size
 
-**per-repo 配置，写在 `repos.json` 里，默认 8。** 不是一个全局常量。
+**It is configured per repository in `repos.json`, and the default is 8.** It is not a global constant.
 
-这个数直接决定了同一个仓库上的最大并发 `shift` 数，跟 `task` 数无关（见上面「池占用」那条）。
-所以它不是实现细节，是一个真实的决策。
+This number directly sets the maximum number of concurrent shifts on one repository, independent of how many tasks exist (see "how full the pool gets" above). That makes it a real decision rather than an implementation detail.
 
-它是磁盘和并行度的权衡。默认给到 8，是因为并行度的上限不该由工具来替 `user` 设——
-池满本身就是准确的提示，真撞上了 `user` 自己会知道。需要往下调的情况有两种，都跟 monorepo 有关：
+It is a trade between disk space and parallelism. The default is 8 because a tool should not decide the ceiling on parallelism for `user` — a full pool is an accurate signal, and `user` will know when they hit it. There are two situations that call for a lower number, both on monorepos:
 
-1. **磁盘。** 一棵树的 `node_modules` 就可能好几个 G，8 棵是几十个 G。
-2. **树越多，热复用越弱。** 每棵树被用到的频率下降，更容易在某次 lockfile 变动之后变凉。
-   池小反而更热——这和「多开几棵总没坏处」的直觉是反的。
+1. **Disk.** A single tree's `node_modules` can be several gigabytes, so eight of them can be tens of gigabytes.
+2. **More trees means weaker warm reuse.** Each tree is used less often, so it is more likely to go cold after a lockfile change. A smaller pool is actually warmer, which is the opposite of the intuition that a few more trees can only help.
 
-所以巨型 monorepo 上把它调到 2 或 3 是完全合理的，而这正是它必须跟着 repo 走的原因。
+So setting it to 2 or 3 on a huge monorepo is entirely reasonable, and that is exactly why the setting has to follow the repository.
 
-**一个连带的坑**：`yan sync` 也要短租一棵树。如果池满了，`sync` 会失败——
-而它恰好发生在 `yan shift new` 的第一步。这不是死锁（池满时本来就不该再开 `shift`），
-但错误信息必须说「池满，开不了新 `shift`」，而不是「sync 失败」，
-否则就会去查一个根本不存在的同步问题。
+**One trap that follows from this:** `yan sync` also takes a short lease. If the pool is full, `sync` fails — and it happens to be the first step of `yan shift new`. This is not a deadlock, since a full pool means no new `shift` should be starting anyway. But the error message has to say "the pool is full, cannot start a new `shift`", not "sync failed", otherwise you go looking for a synchronisation problem that does not exist.
 
-## 还树的安全判据
+## When it is safe to return a tree
 
-还树 = `reset --hard` + `clean -fd`，会销毁树里的东西，所以只需回答一个问题：毁掉这棵树会不会丢东西。
+Returning a tree means `reset --hard` plus `clean -fd`, which destroys what is in it. So there is only one question to answer: would destroying this tree lose anything?
 
-| 情况 | 树外有副本? |
+| Situation | Is there a copy outside the tree? |
 | --- | --- |
-| 改了没 commit | ✗ 还树就永久没了 |
-| commit 了没 push | ✗ 孤立 commit 守卫就是拦这个 |
-| 已 push（MR 都还没开） | ✓ 副本在远端上，够了 |
-| 子分支已合回集成分支 | ✓ 这是 `shift` 的下工条件 |
+| changed, not committed | ✗ returning the tree loses it permanently |
+| committed, not pushed | ✗ this is what the orphan-commit guard is for |
+| pushed, even with no MR opened yet | ✓ the copy is on the remote, which is enough |
+| the shift branch is merged into the integration branch | ✓ this is the condition for clocking out |
 
-「有副本」和「已落地」是两个不同强度的判据：前者管「树能不能还」，后者管「`task` 能不能宣布完成」。firstmate 把它们揉进同一个 `work_is_landed()`（因为它的 crewmate 活到落地为止），`yan` 拆开了，所以还树只需要那个更弱的判据，两行就能查完：
+"There is a copy" and "the work has landed" are two tests of different strength. The first governs whether a tree may be returned; the second governs whether a `task` may be declared finished. firstmate folds both into one `work_is_landed()`, because its crewmates live until the work lands. `yan` separates them, so returning a tree only needs the weaker test, and two commands answer it:
 
 ```sh
-git -C "$tree" status --porcelain         # 非空 → 有未提交改动 → 没副本
-git -C "$tree" branch -r --contains HEAD  # 空   → 没有远端分支包含 HEAD → 没副本
+git -C "$tree" status --porcelain         # non-empty → uncommitted changes → no copy
+git -C "$tree" branch -r --contains HEAD  # empty     → no remote branch contains HEAD → no copy
 ```
 
-不用处理 firstmate 那些「squash merge 后分支被删、要去 `refs/pull/<n>/head` 捞」的情形—那是落地判断才需要的复杂度。
+None of firstmate's handling for "the branch was deleted after a squash merge, so go fishing in `refs/pull/<n>/head`" is needed. That complexity belongs to the landing test.
 
-`yan tree return --force` 是禁止的，除非 `user` 明说这些改动可以丢。孤立 commit 守卫是最后一道防线：它拒绝还树的时候，正是「工作只在树里」的时候。拒绝是停下来查，不是加 `--force` 绕过。
+`yan tree return --force` is forbidden unless `user` says explicitly that the changes can be thrown away. The orphan-commit guard is the last line of defence: the moment it refuses to return a tree is exactly the moment the work exists nowhere else. A refusal means stop and investigate, not add `--force` and move on.
 
-## 下工的动作顺序
+## The order of operations when clocking out
 
-> **MR 合了 → 写 `outcome.md` → `rm -rf run/` → 还树 → 删远端子分支 → `shift` 结束**
+> **MR merged → write `outcome.md` → `rm -rf run/` → return the tree → delete the remote shift branch → the `shift` ends**
 
-顺序反了的话，squash 会把上面那个副本判据搞坏。如果内部 MR 是 squash 合的，
-集成分支里没有子分支那个 HEAD；这时候先删远端子分支，`branch -r --contains HEAD`
-就变成空—判据说「没副本」，树还不回去了，而活其实早就落了。
+Get the order wrong and a squash merge breaks the copy test above. If the internal MR was squash-merged, the integration branch does not contain the shift branch's HEAD. Deleting the remote shift branch first would make `branch -r --contains HEAD` empty, so the test would report "no copy" and refuse to return the tree — even though the work landed long ago.
 
-还树在前、删分支在后，还树时远端子分支必然还在，副本判据必然成立；删在最后，
-那时活已经在集成分支里。**这样 `yan` 完全不用管团队把内部 MR 设成了 merge 还是 squash**——
-那个设置在公司仓库里可能根本不由我们决定。
+Returning first and deleting second means the remote shift branch is still there when the tree is returned, so the copy test always passes; and the deletion happens last, by which time the work is in the integration branch. **This way `yan` does not have to care whether the team configured internal MRs to merge or to squash** — and in a work repository, that setting may not be ours to decide.

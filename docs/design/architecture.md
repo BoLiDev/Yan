@@ -1,39 +1,36 @@
-# `yan` 架构
+# `yan` architecture
 
-> 定位：[`INDEX.md`](INDEX.md) 说「为什么」，本文说「代码放在哪、谁能调谁、怎么测」。
-> 决策记录见 [`decisions.md`](../decisions.md)。
-> 本文里裸写的 `§x.y` 指本文；指设计文档时一律写成 `design §x.y`。
-
----
-
-## 1. 划分依据
-
-整个结构是两条正交的切法交叉出来的，没有第三条。
-
-**切法一 · 判断 vs 步骤。** 模型读的判断写在 `AGENTS.md` 里，不需要判断的步骤写在 `bin/` 里由脚本执行。
-分界线是设计原则 3（[design §0](INDEX.md#0-什么是-yan)）：脚本不应该出现带业务语义的 `if`，否则通常意味着分层不合理。
-
-**切法二 · 藏外部权威 vs 藏自有格式。** `lib-forge.sh` 藏的是 GitLab 和 GitHub 的差异，所以它厚；
-`lib-log.sh` 藏的只是「append 一行」，所以它薄。而薄在这里是对的——它不是在隐藏复杂度，
-是在强制一条不变量（永不改写历史行）。如果把这两种东西叫同一个名字，就会让人误判该往里塞多少。
+> [`INDEX.md`](INDEX.md) says why. This document says where the code goes, what may call what, and how it is tested.
+> The decision log is in [`decisions.md`](../decisions.md).
+> A bare `§x.y` in this document refers to this document. References into the design documents are always written as `design §x.y`.
 
 ---
 
-## 2. 谁能调谁
+## 1. How the code is divided
 
-**依赖只往下，从不往上。**
+The whole structure comes from two independent ways of cutting it. There is no third.
+
+**Cut one: judgements versus steps.** Judgements, which the model reads, go in `AGENTS.md`. Steps that need no judgement go in `bin/` and are carried out by scripts. The dividing line is design principle 3 ([design §0](INDEX.md#0-what-yan-is)): a script should not contain an `if` about business meaning, and if it does, something is usually in the wrong layer.
+
+**Cut two: hiding an outside authority versus hiding one of our own formats.** `lib-forge.sh` hides the differences between GitLab and GitHub, so it is thick. `lib-log.sh` hides only "append one line", so it is thin. Thin is the right answer there, because it is not hiding complexity; it is enforcing one invariant (never rewrite an existing line). Giving both kinds of module the same name would make it easy to misjudge how much belongs inside them.
+
+---
+
+## 2. What may call what
+
+**Dependencies only point downwards, never up.**
 
 ```mermaid
 graph TD
-    A["AGENTS.md<br/>模型读的判断：拆 unit、定 scope、写 brief、决定派不派、要不要升级"]
-    B["bin/yan-*.sh<br/>20 个子命令，一个文件一个，分成原子和编排两类"]
-    H["hook-autoarm.sh / hook-turnend-guard.sh<br/>调用者是 harness，不是人也不是模型"]
-    C["lib-term / lib-forge / lib-pool / lib-hook<br/>接缝：一个模块藏一个外部权威"]
-    D["lib-task / lib-log<br/>yan 自己的文件格式"]
-    E["lib-json / lib-git<br/>无状态工具，不依赖任何东西"]
-    F["外部权威<br/>git · GitLab/GitHub · tmux/Herdr · 文件系统 · okt"]
+    A["AGENTS.md<br/>judgements the model makes: split units, set scope, write briefs, decide whether to dispatch, decide whether to escalate"]
+    B["bin/yan-*.sh<br/>20 subcommands, one file each, split into atomic and orchestrating"]
+    H["hook-autoarm.sh / hook-turnend-guard.sh<br/>called by the harness, not by a person and not by the model"]
+    C["lib-term / lib-forge / lib-pool / lib-hook<br/>seams: one module hides one outside authority"]
+    D["lib-task / lib-log<br/>yan's own file formats"]
+    E["lib-json / lib-git<br/>stateless utilities that depend on nothing"]
+    F["outside authorities<br/>git · GitLab/GitHub · tmux/Herdr · the file system · okt"]
 
-    A -->|"只调子命令，从不 source lib"| B
+    A -->|"only calls subcommands, never sources a lib"| B
     H --> B
     B --> C
     B --> D
@@ -43,175 +40,156 @@ graph TD
     E --> F
 ```
 
-`lib-pool` 会调 `lib-git`，因为池要做 `worktree add` / `reset` / `clean`。
-这不是例外——接缝调无状态工具，本来就是图里画出的那种向下依赖。
+`lib-pool` calls `lib-git`, because the pool has to run `worktree add`, `reset`, and `clean`. That is not an exception: a seam calling a stateless utility is exactly the kind of downward dependency the diagram shows.
 
-真正要守的是另一条：**接缝之间不互相调用**，`lib-term` 不调 `lib-forge`，`lib-forge` 不调 `lib-pool`。
-每个接缝各藏一个外部权威，所以它们之间不该有边，这条不留先例。
+The rule that actually needs guarding is a different one: **seams never call each other.** `lib-term` does not call `lib-forge`, and `lib-forge` does not call `lib-pool`. Each seam hides one outside authority, so there should be no edges between them, and no first exception.
 
-**模型从不 source 任何 lib，只能跑 `yan <cmd>`。**
-这是设计原则 4（`user` 和 agent 共用同一个入口）在结构上的体现——
-`user` 和 agent 能调用的是同一套东西，不多不少。
+**The model never sources a library; it can only run `yan <cmd>`.** This is design principle 4 (`user` and the agents share one entry point) expressed in the structure: `user` and the agents can call exactly the same set of things, no more and no less.
 
 ---
 
-## 3. 仓库结构
+## 3. Repository layout
 
-`$YAN_HOME` 就是这个 clone 本身，tracked 的代码和 gitignored 的私有数据同处一棵树
-（跟 firstmate 一样）。理由：自举最简单，而且单人用不需要「装一次、开 N 个 home」。
+`$YAN_HOME` is this clone itself, so the tracked code and the gitignored private data live in one tree, the same as firstmate. The reasons: bootstrapping is simplest that way, and a single-person tool does not need "install once, run N homes".
 
 ```
 $YAN_HOME/
-  AGENTS.md                  模型读的判断。唯一常驻上下文
+  AGENTS.md                  judgements the model reads. The only always-loaded context
   bin/
-    yan                      入口：解析子命令，exec 对应文件
-    yan-<cmd>.sh             20 个子命令，一个文件一个（§5）
-    lib-term.sh              接缝：终端
-    lib-forge.sh             接缝：GitLab / GitHub
-    lib-pool.sh              接缝：worktree 池
-    lib-hook.sh              接缝：conf/hooks/ 外部权威
-    lib-task.sh              存储：task.json
-    lib-log.sh               存储：log.md
-    lib-json.sh              工具：原子写 + version
-    lib-git.sh               工具：在给定目录里跑 git
-    hook-autoarm.sh          Stop hook（asyncRewake）
-    hook-turnend-guard.sh    Stop hook（阻塞式）
-  .claude/settings.json      注册上面两个 hook + SessionStart nudge
-  docs/                      设计文档
-  tests/                     每个子命令一个，接缝可替身（§7）
+    yan                      entry point: parse the subcommand, exec the matching file
+    yan-<cmd>.sh             20 subcommands, one file each (§5)
+    lib-term.sh              seam: terminals
+    lib-forge.sh             seam: GitLab / GitHub
+    lib-pool.sh              seam: the worktree pool
+    lib-hook.sh              seam: the outside authorities under conf/hooks/
+    lib-task.sh              storage: task.json
+    lib-log.sh               storage: log.md
+    lib-json.sh              utility: atomic writes plus the version field
+    lib-git.sh               utility: run git in a given directory
+    hook-autoarm.sh          Stop hook (asyncRewake)
+    hook-turnend-guard.sh    Stop hook (blocking)
+  .claude/settings.json      registers the two hooks above plus the SessionStart nudge
+  docs/                      the design documents
+  tests/                     one per subcommand, with stand-ins for the seams (§7)
 
-  mem/  tasks/  conf/  repos/    运行时数据，见 design §3
+  mem/  tasks/  conf/  repos/    runtime data; see design §3
 ```
 
-一条命名约定：**`bin/` 里只有三种前缀**——`yan-*`（子命令）、`lib-*`（库）、`hook-*`（钩子）。
-看文件名就知道它在哪一层、谁能调它。
+One naming convention: **`bin/` contains only three prefixes** — `yan-*` for subcommands, `lib-*` for libraries, `hook-*` for hooks. The file name tells you which layer it is in and who may call it.
 
 ---
 
-## 4. 模块职责
+## 4. Module responsibilities
 
-### 4.1 工具：`lib-json` / `lib-git`
+### 4.1 Utilities
 
-这两个模块都无状态，也不依赖任何东西。其中 `lib-git.sh` 是纯函数式的：给它一个路径和一个动作就行，
-它并不知道 `task`、`unit`、`shift` 是什么。
+Both of these are stateless and depend on nothing. `lib-git.sh` in particular is purely functional: give it a path and an action, and it does not need to know what a `task`, a `unit`, or a `shift` is.
 
-| 模块 | 职责 | 强制的不变量 |
+| Module | Responsibility | Invariants it enforces |
 | --- | --- | --- |
-| `lib-json.sh` | 读 / 写 JSON | 写一律 `tmp → mv`；每个文件带 `version` 字段。两条的理由见 [design §2](INDEX.md#2-存储判据) |
-| `lib-git.sh` | 在给定目录里跑 git：分支、fetch、rebase、merge、push、worktree、`status --porcelain` | 只接受显式的目录参数，**从不依赖 cwd**。永不 `--force` |
+| `lib-json.sh` | read and write JSON | always write via `tmp → mv`; every file carries a `version` field. The reasoning for both is in [design §2](INDEX.md#2-storage-criteria) |
+| `lib-git.sh` | run git in a given directory: branches, fetch, rebase, merge, push, worktree, `status --porcelain` | only accepts an explicit directory argument and **never relies on the working directory**. Never uses `--force` |
 
-### 4.2 存储：`lib-task` / `lib-log`
+### 4.2 Storage
 
-两个都薄，而且薄是对的。它们存在的理由不是隐藏复杂度，是让「原子写」「append-only」
-这两条不变量有一个唯一的执行点，而不是散在二十个调用处。
+Both are thin, and thin is right. They do not exist to hide complexity; they exist so that "write atomically" and "append only" each have exactly one place where they are enforced, rather than being spread across twenty call sites.
 
-| 模块 | 职责 | 强制的不变量 |
+| Module | Responsibility | Invariants it enforces |
 | --- | --- | --- |
-| `lib-task.sh` | `task.json` 的读写：units、`scope`、`branch`/`target`/`mode`/`mr` 四个标量、`history[]`、完成标记 | `history[]` **append-only**。当前四个标量和 history 分开，不是「当前 = 数组最后一项」（[design §6.4](branching.md#64-unit-的结构)） |
-| `lib-log.sh` | 往 `log.md` append 一行 | **append-only，永不改写历史行**。所以永不冲突 |
+| `lib-task.sh` | reading and writing `task.json`: units, `scope`, the four scalars `branch`/`target`/`mode`/`mr`, `history[]`, the completion flag | `history[]` is **append-only**. The four current scalars are kept separate from the history, rather than "current is the last array element" ([design §6.4](branching.md#64-the-shape-of-a-unit)) |
+| `lib-log.sh` | append one line to `log.md` | **append-only; existing lines are never rewritten**, which is why it never produces a conflict |
 
-### 4.3 接缝：`lib-term` / `lib-forge` / `lib-pool` / `lib-hook`
+### 4.3 Seams
 
-| 模块 | 藏什么 | 对外接口 | 深度 |
+| Module | What it hides | Interface | Depth |
 | --- | --- | --- | --- |
-| `lib-term.sh` | tmux 和 Herdr 的差异 | 七个函数 | 中。这一层藏了什么、七个函数分别干什么、加 Herdr 要做什么，都见 [design §5.7](agents.md#57-终端拓扑) |
-| `lib-forge.sh` | GitLab 和 GitHub 的五处差异 | 四个动词 | **厚**，是这里最典型的 deep module。哪五处差异、四个动词各回什么，见 [design §8.4](delivery.md#84-forge-层lib-forgesh) |
-| `lib-pool.sh` | worktree 池 | `pool_get` `pool_return` `pool_status` | 厚。租约、热复用契约、还树判据、孤立 commit 守卫都见 [design §7](worktree.md#7-worktree) |
-| `lib-hook.sh` | `conf/hooks/` 的调用协议（[design §10](boundaries.md#10-外部权威接缝okt-等)） | `hook_call <name> <json>` | 薄。但它是**唯一**允许执行 `conf/` 下面东西的地方 |
+| `lib-term.sh` | the differences between tmux and Herdr | seven functions | medium. What it hides, what each of the seven functions does, and what adding Herdr involves are all in [design §5.7](agents.md#57-terminal-topology) |
+| `lib-forge.sh` | five differences between GitLab and GitHub | four verbs | **thick**, and the clearest deep module here. Which five differences, and what each verb returns, are in [design §8.4](delivery.md#84-the-forge-layer) |
+| `lib-pool.sh` | the worktree pool | `pool_get`, `pool_return`, `pool_status` | thick. Leases, the warm-reuse contract, the test for returning a tree, and the orphan-commit guard are all in [design §7](worktree.md#7-worktrees) |
+| `lib-hook.sh` | the calling protocol for `conf/hooks/` ([design §10](boundaries.md#10-seams-for-outside-authorities)) | `hook_call <name> <json>` | thin. But it is the **only** place allowed to execute anything under `conf/` |
 
-三条规则：
+Three rules:
 
-1. **返回值必须是 `yan` 的封闭集合，不是外部权威的原话。**
-   `forge_mr_state` 只回 `merged | closed | open | unknown`（这四个值怎么来的见 [design §8.4](delivery.md#84-forge-层lib-forgesh)），
-   `term_agent_alive` 只回活 / 死 / 不确定。
-2. **不做决定。** 接缝报告事实，子命令决定怎么办。
-   `forge_ci_state` 回 `red` 是事实；「红了要派新 `shift` 修」是子命令的事。
-3. **不写 `$YAN_HOME` 的记账层。** 接缝只碰它自己那个外部权威。
+1. **Return values must come from a closed set defined by `yan`, not be the outside authority's own words.** `forge_mr_state` returns only `merged | closed | open | unknown` (where those four come from is in [design §8.4](delivery.md#84-the-forge-layer)), and `term_agent_alive` returns only alive, dead, or unknown.
+2. **Seams do not decide anything.** A seam reports facts; the subcommand decides what to do. `forge_ci_state` returning `red` is a fact; "red means dispatch a new `shift` to fix it" is the subcommand's business.
+3. **Seams do not write the bookkeeping under `$YAN_HOME`.** A seam only touches its own outside authority.
 
-四个接缝共同的失败模式是退化成 shallow module——每个函数一行透传，返回值原封不动漏出去，
-调用方还是得知道自己在跟谁说话。完整论证和唯一的避法见 [design §8.4](delivery.md#84-forge-层lib-forgesh)。
+All four seams share one failure mode: degrading into a shallow module, where every function is a one-line pass-through, return values leak out untouched, and the caller still has to know which system it is talking to. The full argument, and the one way to avoid it, are in [design §8.4](delivery.md#84-the-forge-layer).
 
 ---
 
-## 5. 子命令
+## 5. Subcommands
 
-每个子命令单独一个文件，就像 git 那样。不要写一个包罗万象的巨型脚本，因为每个子命令都要能独立读懂、也能单独测。
+Each subcommand is its own file, like git. Do not write one giant script that does everything, because each subcommand has to be readable on its own and testable on its own.
 
-判断一个子命令属于「原子」还是「编排」，看它**是否代表一个不可拆分的核心能力**——
-代表的是原子，要把几个能力按顺序拼起来才成立的是编排。
-用这条判据是因为原子命令就是 `yan` 的 primitive，而不可拆分才是 primitive 真正的意义。
+Whether a subcommand is atomic or orchestrating depends on **whether it represents one indivisible core capability**. If it does, it is atomic. If it only makes sense as several capabilities chained in order, it is orchestrating. That is the test because the atomic commands are `yan`'s primitives, and being indivisible is what makes something a primitive.
 
-### 5.1 原子命令
+### 5.1 Atomic commands
 
-其中几条为什么必须是脚本而不是让 agent 自己做，见 [design §5.4](agents.md#54-通信)。
+Why some of these have to be scripts rather than something the agent does itself is in [design §5.4](agents.md#54-communication).
 
-| 命令 | 职责 |
+| Command | Responsibility |
 | --- | --- |
-| `yan report <state> "<note>"` | append `run/status` + touch `run/signal`。只接受那五个 state |
-| `yan send <sid> "<line>"` | 单行消息发给 `shift`。文字和 Enter 分开发 |
-| `yan drain` | 读 wake 文件并清空。模型被唤醒后的第一件事 |
-| `yan scope-check <sid>` | `git diff --name-only` + 前缀匹配。**只报告，不拦**（[design §8.3](delivery.md#83-强制手段)） |
-| `yan tree get\|return\|status` | 池的用户入口 |
-| `yan ls` | 扫 `tasks/*/task.json` 渲染队列 |
-| `yan open <id>` | 打开 `task` 目录 / artifacts |
-| `yan repo-add <url>` | 注册 repo，clone 到 `repos/`。`repos.json` 的唯一写入口 |
-| `yan task new` | 建 `tasks/<id>/`，写 brief |
-| `yan unit set --branch` | 查 forge 判定 `end` → 打包旧的进 `history[]`（带 `at`）→ 覆盖当前字段 → log 一行。**换赛道是一个原子操作**，判定结果写进 history 之后就不再查 forge（[design §6.4](branching.md#64-unit-的结构)） |
-| `yan mr` | 开对外 MR，写 `unit.mr`。授权见 [design §9.2](boundaries.md#92-外部副作用) |
-| `yan state <sid>` | 从 `run/meta.json` + 终端 + git + forge 现场推导。**当前状态只能推导，不能读 `run/status` 的最后一行**（[design §5.4](agents.md#54-通信)） |
-| `yan wait` | 盯三个 source，有事写 wake 文件 + 打印 reason + exit 0，无事静默 exit 非 0。**纯观察者，不持有任何状态**（[design §5.5](supervision.md#55-监督)） |
+| `yan report <state> "<note>"` | append to `run/status` and touch `run/signal`. Accepts only the five allowed states |
+| `yan send <sid> "<line>"` | send one line to a `shift`. The text and the Enter key go separately |
+| `yan drain` | read the wake file and clear it. The first thing the model does after being woken |
+| `yan scope-check <sid>` | `git diff --name-only` plus prefix matching. **Reports only; never blocks** ([design §8.3](delivery.md#83-enforcement)) |
+| `yan tree get\|return\|status` | the user-facing entry point to the pool |
+| `yan ls` | scan `tasks/*/task.json` and render the queue |
+| `yan open <id>` | open a task directory or its artifacts |
+| `yan repo-add <url>` | register a repository and clone it into `repos/`. The only writer of `repos.json` |
+| `yan task new` | create `tasks/<id>/` and write the brief |
+| `yan unit set --branch` | ask the forge to decide `end` → move the old round into `history[]` with `at` → overwrite the current fields → add a log line. **Starting a new round is one atomic operation**, and once the decision is in the history the forge is never asked again ([design §6.4](branching.md#64-the-shape-of-a-unit)) |
+| `yan mr` | open the outbound MR and write `unit.mr`. Authority is in [design §9.2](boundaries.md#92-external-side-effects) |
+| `yan state <sid>` | derive the state from `run/meta.json` plus the terminal, git, and the forge. **The current state can only be derived; it is never the last line of `run/status`** ([design §5.4](agents.md#54-communication)) |
+| `yan wait` | watch three sources. If something happened, write the wake file, print the reason, and exit 0; otherwise exit non-zero silently. **A pure observer that holds no state** ([design §5.5](supervision.md#55-supervision)) |
 
-`yan wait` 是最容易写胖的一个：那三个 source 就长在它里面，不单独起一层（[design §5.5](supervision.md#55-监督)）。
+`yan wait` is the one most likely to grow fat: the three sources live inside it and do not get a layer of their own ([design §5.5](supervision.md#55-supervision)).
 
-### 5.2 编排命令
+### 5.2 Orchestrating commands
 
-| 命令 | 步骤 | 它持有的不变量 |
+| Command | Steps | The invariant it holds |
 | --- | --- | --- |
-| `yan shift new` | sync 集成分支 → 租树（含切子分支）→ 写 brief → 起终端 → 注入 `YAN_TASK_DIR` | **spawn 必须断言 sub-agent 的 cwd 不等于主 clone 路径，否则拒绝启动**（[design §7](worktree.md#7-worktree)） |
-| `yan shift done` | 校验 MR 已合 → 写 `outcome` → 写 log → `rm -rf run/` → 还树 → 删远端子分支 | **还树必须排在删分支之前**（[design §7](worktree.md#7-worktree)） |
-| `yan sync` | 租树 → fetch → rebase/merge `target` → push → 还树 | **有冲突就立刻退出交给 `shift`**，不在脚本里解冲突。时机固定：每次开新 `shift` 之前（[design §6.3](branching.md#63-集成分支怎么变)） |
-| `yan unit add` | `branch-name` hook → 分支存在则 checkout、不存在则从 base 切 → 写 `task.json` | **hook 非零退出就停下报错，绝不 fallback 到内置默认**（[design §10](boundaries.md#10-外部权威接缝okt-等)） |
-| `yan land` | 按 `needs` 拓扑排序 → 合 | **必须 `user` 明说**（[design §9.2](boundaries.md#92-外部副作用)） |
-| `yan start <id>` | 建 `task` 终端容器 → 在里面起 `yan` | 一个 `task` 一个容器，容器生命周期 = `user` 手动开关（[design §5.7](agents.md#57-终端拓扑)） |
-| `yan session-start` | 全量 reconcile：扫 `tasks/` → 查终端 → 查池 → 查 forge → 出摘要 | **重启是非事件**（[design §5.1](agents.md#51-寿命分层)） |
+| `yan shift new` | sync the integration branch → lease a tree, cutting the shift branch → write the brief → start the terminal → set `YAN_TASK_DIR` | **assert that the sub-agent's working directory is not the main clone's path, and refuse to start otherwise** ([design §7](worktree.md#7-worktrees)) |
+| `yan shift done` | verify the MR is merged → write `outcome` → write the log → `rm -rf run/` → return the tree → delete the remote shift branch | **returning the tree must come before deleting the branch** ([design §7](worktree.md#7-worktrees)) |
+| `yan sync` | lease a tree → fetch → rebase or merge `target` → push → return the tree | **exit immediately on a conflict and hand it to a `shift`**; conflicts are never resolved inside the script. Its timing is fixed: before every new `shift` ([design §6.3](branching.md#63-how-the-integration-branch-changes)) |
+| `yan unit add` | run the `branch-name` hook → check the branch out if it exists, cut it from the base if it does not → write `task.json` | **if the hook exits non-zero, stop and report; never fall back to the built-in default** ([design §10](boundaries.md#10-seams-for-outside-authorities)) |
+| `yan land` | topologically sort by `needs` → merge | **`user` has to ask for it** ([design §9.2](boundaries.md#92-external-side-effects)) |
+| `yan start <id>` | create the task's terminal container → start `yan` inside it | one container per `task`, and the container's lifetime is `user` opening and closing it ([design §5.7](agents.md#57-terminal-topology)) |
+| `yan session-start` | the full rebuild: scan `tasks/` → query the terminal → query the pool → query the forge → print a summary | **a restart is a non-event** ([design §5.1](agents.md#51-lifetime-tiers)) |
 
 ---
 
-## 6. hook
+## 6. Hooks
 
-调用者是 harness，不是 `user` 也不是模型。所以它们有一条别人没有的约束：**不能依赖模型记得做任何事**。
+Hooks are called by the harness, not by `user` and not by the model. That gives them one constraint nothing else has: **they cannot depend on the model remembering to do anything.**
 
-| 文件 | 怎么注册 |
+| File | How it is registered |
 | --- | --- |
-| `hook-autoarm.sh` | Stop，`asyncRewake: true`，长 timeout |
-| `hook-turnend-guard.sh` | Stop，阻塞式 |
+| `hook-autoarm.sh` | Stop, `asyncRewake: true`, long timeout |
+| `hook-turnend-guard.sh` | Stop, blocking |
 
-两个 hook 各自干什么、为什么是两个而不是一个，都在 [design §5.5](supervision.md#55-监督) 里。
-这里只补两条落到代码上必须钉死的规则，它们的理由同样在那一节（两条都是 firstmate 踩过的实伤）：
+What each hook does, and why there are two rather than one, is in [design §5.5](supervision.md#55-supervision). Only two rules need to be nailed down in the code here, and the reasoning for both is in that section — both are injuries firstmate already suffered:
 
-- **guard 不读 stdin，也不用 `stop_hook_active`。** 它自己数，计数写 `run/guard-failures`，
-  watcher 恢复健康时清零。
-- **watcher 就跑在 hook 的前台，绝不用 shell `&`。** timeout 必须设长。
+- **The guard does not read stdin, and does not use `stop_hook_active`.** It keeps its own count in `run/guard-failures`, and resets it when the watcher becomes healthy again.
+- **The watcher runs in the hook's foreground, never backgrounded with a shell `&`.** The timeout has to be long.
 
 ---
 
-## 7. 可测性
+## 7. Testability
 
-分层的实际回报在这儿：**接缝是唯一碰外部世界的东西**，所以测一个子命令 = 把接缝换成替身。
+This is where the layering pays off: **the seams are the only things that touch the outside world**, so testing a subcommand means replacing the seams with stand-ins.
 
 ```
 tests/
-  run.sh                 跑全部；--fast 只跑 stub 级
-  stub/lib-term.sh       记录调用，不起终端
-  stub/lib-forge.sh      回放固定的 MR 状态序列
-  stub/lib-pool.sh       发一个临时目录
+  run.sh                 run everything; --fast runs only the stub-level tests
+  stub/lib-term.sh       records calls, starts no terminal
+  stub/lib-forge.sh      replays a fixed sequence of MR states
+  stub/lib-pool.sh       hands out a temporary directory
   yan-shift-done.test.sh
   ...
 ```
 
-子命令统一用 `. "${YAN_LIB:-$YAN_HOME/bin}/lib-forge.sh"` 这种形式 source，
-测试把 `YAN_LIB` 指到 `tests/stub/` 就完成替换——**不需要任何注入框架**。
-这个形状在 P0 就定死，后面所有 `task` 都沿用它。
+Subcommands all source libraries in the same form, `. "${YAN_LIB:-$YAN_HOME/bin}/lib-forge.sh"`, so a test only has to point `YAN_LIB` at `tests/stub/` to swap them out. **No injection framework is needed.** This shape is fixed during P0, and every later task follows it.
 
-哪些用例必须写、什么时候跑，见 [`implementation-plan.md` §2](../implementation-plan.md#2-task-清单) 和 [`implementation-plan.md` §3](../implementation-plan.md#3-测试策略)。
-其中四条顺序回归用例最容易被忽略：它们守的都是「错了不报错，只是悄悄坏掉」的东西。
+Which test cases have to be written and when they run are in [`implementation-plan.md` §2](../implementation-plan.md#2-the-task-list) and [`implementation-plan.md` §3](../implementation-plan.md#3-test-strategy). The four ordering regression tests are the easiest ones to overlook: each of them guards something that does not fail loudly, it just quietly stops working.

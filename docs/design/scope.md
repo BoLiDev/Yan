@@ -1,85 +1,80 @@
-# 范围与待定
+# Scope and open questions
 
-## 11. 0→1 范围
+## 11. Scope of the first version
 
-### 范围
+Throughout the design, "0→1" means the first version that works end to end. "1→2", "2→10", and "10→100" are the stages after it.
 
-一个 `yan` 入口加 20 个子命令、2 个 hook 脚本、8 个 lib（子命令和 hook 清单见 [附录 C](appendix.md#附录-c--脚本清单)，8 个 lib 和怎么摆见 [`architecture.md` §3](architecture.md#3-仓库结构)、[`architecture.md` §5](architecture.md#5-子命令)），外加 `AGENTS.md`。
+### What is in it
 
-范围里最重的两块是内置 worktree 池（[§7](worktree.md#7-worktree)）和 forge 层支持两个远端（[§8.4](delivery.md#84-forge-层lib-forgesh)）。
-其中池的分支感知、还树判据、孤立 commit 守卫本来就要写，真正多出来的只有复用池和 lease。
-换回的是零外部依赖，以及 0→1 能在 `yan` 自己身上验收。
+One `yan` entry point plus 20 subcommands, 2 hook scripts, and 8 libraries, plus `AGENTS.md`. The list of subcommands and hooks is in [Appendix C](appendix.md#appendix-c-script-inventory); the 8 libraries and how they are arranged are in [`architecture.md` §3](architecture.md#3-repository-layout) and [`architecture.md` §5](architecture.md#5-subcommands).
 
-**0→1 验收**：一句话需求 → 一个 `unit` → 一个 `shift` → 子分支 MR 合回集成分支 → `shift` 下工还树 → 对外 MR 开出 → `user` 说合 → 合掉 → `log.md` 完整记录了这条链路。
+The two heaviest pieces are the built-in worktree pool ([§7](worktree.md#7-worktrees)) and the forge layer supporting two remotes ([§8.4](delivery.md#84-the-forge-layer)). Of the pool, the branch awareness, the test for returning a tree, and the orphan-commit guard all had to be written anyway; the genuinely extra parts are reuse and leases. What that buys is zero outside dependencies, and a first version that can be accepted against `yan`'s own repository.
 
-### 为什么比 firstmate 小得多
+**The acceptance test for 0→1:** a one-sentence request → one `unit` → one `shift` → the shift branch's MR merges into the integration branch → the `shift` clocks out and returns its tree → the outbound MR is opened → `user` says to merge → it is merged → `log.md` records the whole chain.
 
-firstmate 有 109 个文件、19 个 skill。差距不是奇迹，就是「明确不做」那些决定的和：
+### Why this is much smaller than firstmate
 
-| 它有而 `yan` 没有 | 说明 |
+firstmate has 109 files and 19 skills. The gap is not a miracle; it is the sum of the things ruled out:
+
+| firstmate has it, `yan` does not | Note |
 | --- | --- |
-| watcher 与独立 triage 层 | 唤醒管道 1:1 照搬，省掉的是那层独立 triage（[§5.5](supervision.md#55-监督)） |
-| 多 backend（Herdr / zellij / orca / cmux / codex-app）加抽象层 | `yan` 以后只需 `lib-term.sh` 的第二份实现 |
-| X mode 与 public-followup | 完全不做 |
-| PR poll 注册与信任绑定 | `shift` 下工不等 CI，不需要 |
-| secondmate 与配置继承 / AFK / no-mistakes 集成 | 一个 `yan` 一个 `task`，没有二级 agent 树 |
-| install / lint / doc-check / treehouse | 池内置，其余不做 |
+| a watcher plus a separate triage layer | the wake pipeline is copied one for one; what is dropped is the separate triage layer ([§5.5](supervision.md#55-supervision)) |
+| several backends (Herdr, zellij, orca, cmux, codex-app) plus an abstraction layer | `yan` will only ever need a second implementation of `lib-term.sh` |
+| X mode and public-followup | not done at all |
+| PR poll registration and trust binding | a `shift` does not wait for CI before clocking out, so this is unnecessary |
+| secondmate, config inheritance, AFK, no-mistakes integration | one `yan` per `task`, so there is no second-level agent tree |
+| install / lint / doc-check / treehouse | the pool is built in, the rest is not done |
 
-差距不只在数量上，也在每个文件的厚度上：firstmate 的每个脚本里都塞着多 backend 分支、
-安全 journal、迁移路径。**`yan` 没有这些，不是因为写得更好，是因为它膨胀的原因我们一个都没有。**
+The gap is not only in the number of files but in how thick each one is: every firstmate script carries multi-backend branches, a safety journal, and migration paths. **`yan` does not have those, not because it is written better, but because none of the things that made firstmate grow apply here.**
 
-### 关于 no-mistakes
+### On no-mistakes
 
-不引入。 它在 firstmate 里承担「review + 补测试 + 补文档 + 修 CI」的自动化流水线，不引入的代价是质量把关落回 `user` + CI + 同事 review—这本来就是正常团队的做法。
+Not adopted. In firstmate, no-mistakes is an automated pipeline for review, adding tests, adding documentation, and fixing CI. The cost of leaving it out is that quality control falls back to `user`, CI, and review by colleagues — which is how a normal team already works.
 
-一致性检查：`yan` 的 `mode` 体系里没有 no-mistakes 那一档，默认 `mr` 直接开 MR；CI 红了由 `yan` 查 GitLab 发现、派新 `shift` 修（[§5.3](agents.md#53-shift-的生命周期)），这条链路不依赖它。
+A consistency check: `yan`'s `mode` system has no no-mistakes level, and the default `mr` opens an MR directly. When CI goes red, `yan` finds out by asking GitLab and dispatches a new `shift` to fix it ([§5.3](agents.md#53-the-life-of-a-shift)). Nothing in that chain depends on it.
 
-### 路线
+### Roadmap
 
-| 阶段 | 加什么 |
+| Stage | What gets added |
 | --- | --- |
-| 0→1 | 上面这些。单 `unit` 单 `shift` 跑通 |
-| 1→2 | 多 `unit`（跨 repo / 跨 monorepo 子应用）、`needs` 落地顺序、多 `shift` 并发、`yan wait` 加 GitLab 轮询作为第四个 source |
-| 2→10 | Herdr（`lib-term.sh` 的第二份实现）、`scout` 交付物、卡死 `shift` 的恢复流程 |
-| 10→100 | 按任务选 model/effort、`merge-check` hook、learnings 定期裁剪 |
+| 0→1 | everything above. One `unit`, one `shift`, working end to end |
+| 1→2 | several units (across repositories, or across a monorepo's sub-applications), `needs` ordering, several concurrent shifts, and a fourth source for `yan wait` that polls GitLab |
+| 2→10 | Herdr (the second implementation of `lib-term.sh`), `scout` deliverables, and a recovery procedure for a stuck `shift` |
+| 10→100 | choosing model and effort per task, the `merge-check` hook, and periodic trimming of `learnings` |
 
-Herdr 是确定要支持的，只是受时间所限先不做。它带来两样 tmux 给不了的东西：
+Herdr will definitely be supported; it is only postponed for lack of time. It brings two things tmux cannot give:
 
-1. 原生 per-pane agent 状态—`term_agent_alive` 从猜变成问（[§5.7](agents.md#57-终端拓扑)）。
-2. push 事件（`pane.agent_status_changed`）—`yan wait` 的第三个 source（pane hash 不变 = 可能卡住）是个启发式；Herdr 的原生 `blocked` 状态是事实。轮询可以换成订阅一个 socket。
+1. Native per-pane agent status, so `term_agent_alive` goes from guessing to asking ([§5.7](agents.md#57-terminal-topology)).
+2. Push events (`pane.agent_status_changed`). The third source of `yan wait` — an unchanged pane hash meaning the agent may be stuck — is a heuristic, whereas Herdr's native `blocked` status is a fact. Polling could be replaced by subscribing to a socket.
 
-[§5.7](agents.md#57-终端拓扑) 把终端操作内聚成七个函数就是为了这一天：加 Herdr = 写第二份实现，不改数据模型。
+Gathering terminal operations into seven functions in [§5.7](agents.md#57-terminal-topology) is preparation for that day: adding Herdr means writing a second implementation, with no change to the data model.
 
-### 明确不做
+### Explicitly out of scope
 
-- `yan` 跑在 Claude Code 以外的 harness 上（[§5.6](agents.md#56-harness-要求)）。Codex、Kimi Code 等只作为 `shift` 的 harness
-- backend 抽象层 / 插件框架—Herdr 作为 `lib-term.sh` 的第二份实现进来，不需要框架
-- 社交平台入口
-- 跨 provider 配额路由
-- 二级 agent 树（`yan` 不 spawn `yan`）
-- 自己的质量流水线（firstmate 的 no-mistakes 位置）
+- Running `yan` itself on a harness other than Claude Code ([§5.6](agents.md#56-harness-requirements)). Codex, Kimi Code, and the rest are only harnesses for a `shift`.
+- A backend abstraction layer or plugin framework. Herdr arrives as a second implementation of `lib-term.sh`, and needs no framework.
+- Entry points from social platforms.
+- Routing quota across providers.
+- A second-level agent tree; `yan` never spawns another `yan`.
+- A quality pipeline of its own, the slot firstmate fills with no-mistakes.
 
-这些是 firstmate 的具体处境，不是 `yan` 的。
+These are firstmate's circumstances, not `yan`'s.
 
 ---
 
-## 12. 待定
+## 12. Open questions
 
-全系统还没定的都在这里，包括代码结构上的那几个。
+Everything still undecided across the system, including the ones about code structure.
 
-1. `$YAN_HOME` 要不要 git 版本化？ `mem/user.md` 和 `learnings/` 有提交历史挺有价值（能看到偏好怎么演化）。如果版本化，`tasks/` 要不要一起进去（会很吵）。倾向 `mem/` 进、`tasks/` 不进。不阻塞 0→1—随时能加，`git init` 一下的事。
-2. `tasks/` 的裁剪策略：倾向不自动删任何东西，靠 `yan prune` 半手工裁，且 `artifacts/` 即使裁剪也单独保留。不阻塞 0→1，那时根本没有积累量。
-3. `yan` 的 `task` id 格式：`t042` 这种纯序号，还是带语义的 slug？序号短但不可读，slug 可读但会跟 brief 标题重复。注意它会进分支名（[§6.5](branching.md#65-分支的命名权威) `yan/<task>-<unit>-<sid>`），所以短的有实际好处。倾向 `t042` 式序号，可读的标题住在 `brief.md` 和 `log.md` 的标题行。这条要在写 `yan task new` 之前定，见 [`implementation-plan.md` §4](../implementation-plan.md#4-现在挡路的问题)。
-4. `lib-pool` 的池根目录要不要做成可配置？`~/.yan-trees/<repo>-<hash>/N/<repo>`（[§3](INDEX.md#3-目录布局)）是当前写法。
+1. **Should `$YAN_HOME` be under git?** Having commit history for `mem/user.md` and `learnings/` would be valuable, because you could see how preferences evolved. If it is versioned, does `tasks/` go in too, which would be very noisy? Current leaning: `mem/` in, `tasks/` out. This does not block the first version — it can be added at any time with a `git init`.
+2. **How to trim `tasks/`.** Current leaning: delete nothing automatically, trim semi-manually with `yan prune`, and keep `artifacts/` even when the rest of a task is trimmed. This does not block the first version, since there will be nothing accumulated yet.
+3. **The format of a `task` id.** A plain sequence number like `t042`, or a slug with meaning in it? A number is short but says nothing; a slug reads well but duplicates the brief's title. Note that it goes into branch names ([§6.5](branching.md#65-who-names-branches), `yan/<task>-<unit>-<sid>`), so being short has a practical benefit. Current leaning: numbers in the `t042` style, with the readable title living in the title lines of `brief.md` and `log.md`. This has to be settled before `yan task new` is written; see [`implementation-plan.md` §4](../implementation-plan.md#4-what-is-blocking-right-now).
+4. **Should `lib-pool`'s pool root be configurable?** `~/.yan-trees/<repo>-<hash>/N/<repo>` ([§3](INDEX.md#3-directory-layout)) is what is written today.
 
-### 已定：子分支推到远端
+### Settled: shift branches are pushed to the remote
 
-**定了：推。** 两级 MR 都保留。
+**Decided: they are pushed.** Both levels of MR are kept.
 
-理由不在那些一条一条列得出来的利弊里，而是：**每个 `shift` 一个独立 MR，
-就是 `user` review 的主要方式**—一个 `shift` 一个 `shift` 地看它相对集成分支的 diff，
-本地基本不用看代码。这把 [§6.2](branching.md#62-两级-review) 的两级 review 从「结构自带的副产品」
-变成了「要这个系统的原因之一」。
+The reason is not on any list of pros and cons. It is this: **one independent MR per `shift` is how `user` reviews the work** — going through it one `shift` at a time, reading each diff against the integration branch, with almost no need to read code locally. That turns the two levels of review in [§6.2](branching.md#62-two-levels-of-review) from a by-product of the structure into one of the reasons for wanting the system at all.
 
-被明确接受的代价：服务器上会有一堆 `yan/*` 分支和一堆内部 MR。清理办法见 [§5.3](agents.md#53-shift-的生命周期) 和 [§7](worktree.md#7-worktree)
-的下工顺序—合了就删，删排在还树之后。CI 的重复触发成本经 `user` 判断可以忽略，不做处理。
+The accepted cost: the server accumulates a pile of `yan/*` branches and a pile of internal MRs. The cleanup is the clock-out order in [§5.3](agents.md#53-the-life-of-a-shift) and [§7](worktree.md#7-worktrees) — once merged, delete, and the deletion comes after the tree is returned. `user` judged the cost of the repeated CI runs to be negligible, so nothing is done about it.

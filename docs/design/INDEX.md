@@ -1,216 +1,216 @@
-# `yan` 设计
+# `yan` design
 
-> 定位：本文是设计决策的记录，不是实现规格。每条决策尽量带上「为什么」—半年后回来改的时候，理由比结论更重要。
-> 每条决策是什么时候定的，见 [`../decisions.md`](../decisions.md)。
+> This document records design decisions. It is not an implementation specification. Each decision tries to carry its "why" with it, because when you come back to change something six months later, the reasoning matters more than the conclusion.
+> When each decision was made is recorded in [`../decisions.md`](../decisions.md).
 
-本文是主干。它先阐述后续会被反复讨论的三块内容（设计原则、词汇表、存储判据），
-再逐个板块地描述整个系统的主干，以及每个板块在主干流程中的职责与位置。
-本文希望能够帮助读者快速理解 `yan` 的设计思路，每个部分的细节留在子文当中，读者可按需查看。
+This is the backbone. It starts with three things the rest of the design keeps referring back to — the design principles, the glossary, and the storage criteria — and then walks through the system one part at a time, saying what each part is responsible for and where it sits in the overall flow. The aim is to let you understand the shape of `yan` quickly; the details of each part live in a separate document, which you can read when you need it.
 
 ---
 
-## 0. 什么是 `yan`
+## 0. What `yan` is
 
-`yan` 是一个单人用的软件工作编排系统：`user` 提出一件要做的事，`yan` 把它拆成可派发的活，派给一次性的 sub-agent 在隔离的 git worktree 里完成，最后交付成 GitLab MR。`user` 在整个过程中只需要专注于需求的理解和设计，以及对实现片段的审核，无需关心实现细节和琐碎的信息（例如 worktree 位置、分支名称、哪个 agent 在做哪个部分）；同时因其多 `shift` 可并行的特性，降低了处理任务队列的心智负担。
+`yan` is a work orchestration system for one person. `user` describes something that needs doing, `yan` breaks it into pieces that can be handed out, each piece goes to a single-use sub-agent working in an isolated git worktree, and the result is delivered as a GitLab merge request.
 
-### 设计原则
+Throughout the process `user` only has to think about understanding the requirement, designing the approach, and reviewing the pieces as they come back. Nothing about the mechanics — which worktree, which branch name, which agent is doing which part — needs their attention. And because several shifts can run at once, keeping a queue of work moving takes much less mental effort.
 
-1. 不要存可以推导出来的状态。目录结构、git 和 GitLab 是 source of truth。
-2. 唯一 owner。每条信息有唯一的写入者和唯一的读取时机，以此避免状态不一致。
-3. prose 负责判断，脚本负责不需要判断的步骤。脚本不应该出现带业务语义的 if，否则通常意味着分层不合理。
-4. `user` 和 agent 共用同一个入口。`yan` 的每一个动作都由 CLI 提供，`user` 可以直接调用，他看到的和 agent 看到的是同一份状态。
-5. 不可逆的动作必须过脚本，并且默认拒绝。
+### Design principles
+
+1. **Do not store state you can derive.** The directory structure, git, and GitLab are the source of truth.
+2. **One owner per piece of information.** Every piece has exactly one writer and one point at which it is read. This is how state stays consistent.
+3. **Prose makes judgements; scripts do the steps that need none.** A script containing an `if` about business meaning usually means something has been put in the wrong layer.
+4. **`user` and the agents use the same entry point.** Every action `yan` can take is offered as a CLI command, `user` can run it directly, and both see the same state.
+5. **Anything irreversible goes through a script, and is refused by default.**
 
 ---
 
-## 1. 词汇表
+## 1. Glossary
 
-全系统命名的唯一来源：脚本、文档、`AGENTS.md` 都用这里的词。
+This is the single source of naming for the whole system. Scripts, documents, and `AGENTS.md` all use these words.
 
-| 词 | 是什么 | 寿命 |
+| Word | What it is | Lifetime |
 | --- | --- | --- |
-| `task` | 代表本次需求 | 长命（周、月） |
-| `unit` | 代表本次需求的一条交付通道 | 跟 `task` 同寿 |
-| `scope` | 限定一个 `unit` 能改动哪些路径 | 跟 `unit` 同寿，可显式扩张 |
-| `shift` | 推进 `unit` 的一次派工，跟 sub-agent 一对一 | 短命（小时） |
-| 集成分支 | `unit` 当前的 working 分支，`shift` 从它切出、也合回它 | 一轮交付；交付或废弃后由新的接替（[§6.3](branching.md#63-集成分支怎么变)） |
-| 子分支 | `shift` 干活的分支，从集成分支切出，合回集成分支 | 跟 `shift` 同寿 |
-| `target` | 集成分支最终要合进去的分支（master / release/x / 任意分支） | 可变，是决策 |
-| `yan` | 主 agent，`user` 的唯一接口 | 中寿，无持久状态 |
+| `task` | one thing that needs doing | long: weeks or months |
+| `unit` | one delivery channel for that task | as long as the `task` |
+| `scope` | which paths a `unit` is allowed to change | as long as the `unit`, and it can be widened explicitly |
+| `shift` | one piece of work handed out, one per sub-agent | short: hours |
+| integration branch | the `unit`'s current working branch. Shifts branch off it and merge back into it | one round of delivery; once delivered or abandoned, a new one takes over ([§6.3](branching.md#63-how-the-integration-branch-changes)) |
+| shift branch | the branch one `shift` works on, cut from the integration branch and merged back into it | as long as the `shift` |
+| `target` | the branch the integration branch is ultimately merged into (master, release/x, any branch) | changeable, and it is a decision |
+| `yan` | the main agent, and `user`'s only interface | medium-lived, with no persistent state |
 
-读起来是：一个 `task` 有若干 `unit`；推进 `unit` 靠一个个 `shift`；每个 `shift` 在自己的子分支上干活，合回集成分支；集成分支最终交付给 `target`。
+Read as a sentence: a `task` has one or more `unit`s; a `unit` is pushed forward by a series of `shift`s; each `shift` works on its own shift branch and merges back into the integration branch; the integration branch is eventually delivered to `target`.
 
-实现注意：`shift` 是 shell 内建命令。`yan shift new` 作为子命令没问题，但脚本里别用 `shift` 当变量名，用 `sid`。
+One implementation note: `shift` is a shell builtin. `yan shift new` is fine as a subcommand, but do not use `shift` as a variable name in a script — use `sid`.
 
 ---
 
-## 2. 存储判据
+## 2. Storage criteria
 
-这三条决定「什么该存、存在哪」，是整份设计里最常被引用的东西。
+These three rows decide what gets stored and where. They are the most frequently cited thing in the whole design.
 
-| 类别 | 例子 | 策略 |
+| Category | Examples | What to do |
 | --- | --- | --- |
-| 事实 | 分支、commit、merge history、diff | git 里，绝不镜像 |
-| 状态 | MR open/merged、CI 绿不绿、有没有冲突 | GitLab 现场查，绝不镜像 |
-| 决策 | `branch`、`target`、`scope`、`mode`、`unit` 怎么划、要不要合 | 必须自己存，而且变更历史有价值 |
+| facts | branches, commits, merge history, diffs | they live in git, and are never mirrored |
+| state | whether an MR is open or merged, whether CI is green, whether there is a conflict | look it up on GitLab when needed, never mirror it |
+| decisions | `branch`, `target`, `scope`, `mode`, how units are divided, whether to merge | must be stored by us, and the history of changes is worth keeping |
 
-推论是：一个 `unit` 用过哪些子分支、集成分支同步到 `target` 哪个点、MR 现在什么状态，这些全都不存，要用的时候现场查。但是「当前在哪个分支上干、打算往哪合」git 和 GitLab 都不知道（MR 还没开的时候尤其如此），所以必须自己存。
+What follows from that: which shift branches a `unit` has used, how far the integration branch has caught up with `target`, what state an MR is in — none of that is stored. It is looked up at the moment it is needed. But "which branch are we working on, and where do we intend to merge it" is something neither git nor GitLab knows, especially before an MR has been opened, so it has to be stored.
 
-注意「为什么」不算结构化决策，它是叙事。叙事（「现在做到哪一步、还差什么」）正是第三类里值得单列的那个子类别，它是散文，任何工具都推不出来，也不适合塞进 JSON，所以它住在 `log.md`（[§4.2](memory.md#42-logmd--叙事层)）。
+Note that "why" is not a structured decision. It is narrative. Narrative — "where we have got to, what is still missing" — is exactly the sub-category worth calling out inside the third row: it is prose, no tool can derive it, and it does not belong in JSON. So it lives in `log.md` ([§4.2](memory.md#42-logmd-the-narrative-layer)).
 
-### 格式选择
+### Choosing a format
 
-判据是主要读者，脚本读的用 JSON，模型或者 `user` 读的用 Markdown。一个文件不要有两种身份。判据不是「以后要不要程序化」。
+The test is who reads the file. If a script reads it, JSON. If a model or `user` reads it, Markdown. **A file should not have two identities.** The test is not "might we want to process this programmatically some day".
 
 | JSON | Markdown |
 | --- | --- |
-| `mem/repos.json`、`tasks/<id>/task.json`、`run/meta.json` | `mem/user.md`、`mem/learnings/*.md` |
-|  | `brief.md`、`log.md`、`report.md`、`outcome.md`、`run/status` |
+| `mem/repos.json`, `tasks/<id>/task.json`, `run/meta.json` | `mem/user.md`, `mem/learnings/*.md` |
+|  | `brief.md`, `log.md`, `report.md`, `outcome.md`, `run/status` |
 
-`run/status` 保持纯文本追加行，因为它需要「崩溃也不毁坏已有内容」，而 JSON 数组做不到这一点。
+`run/status` stays as appended lines of plain text, because it has to survive a crash without damaging what is already there, and a JSON array cannot do that.
 
-用 JSON 要付三笔成本，都在脚本里统一处理：
+Using JSON costs three things, all handled in one place in the scripts:
 
-1. 原子写：一律 `写 tmp → mv`。JSON 是整文件替换语义，中途断掉会毁掉整个文件；markdown append 则天然抗损坏。
-2. `version` 字段：每个 JSON 都带。这是给未来 schema 迁移留的唯一钩子。
-3. `jq` 是硬依赖，bootstrap 检查要列上。
+1. **Atomic writes.** Always write a temporary file and then `mv` it. JSON replaces the whole file, so an interruption halfway destroys all of it. Appending to Markdown is naturally resistant to that.
+2. **A `version` field** in every JSON file. This is the one hook left for a future schema migration.
+3. **`jq` becomes a hard dependency**, so the bootstrap check has to list it.
 
 ---
 
-## 3. 目录布局
+## 3. Directory layout
 
 ```
 $YAN_HOME/
-  AGENTS.md                    yan 的职责说明（唯一常驻上下文）
+  AGENTS.md                    what yan is responsible for (the only always-loaded context)
   bin/  docs/
 
-  mem/                         长命记忆，人可读可手改
-    user.md                    user 的偏好与工作风格
-    repos.json                 仓库注册表
-    learnings/general.md       跨 repo 通用的坑
-    learnings/<repo>.md        repo-specific 的坑
+  mem/                         long-lived memory, readable and editable by hand
+    user.md                    user's preferences and working style
+    repos.json                 the repository registry
+    learnings/general.md       pitfalls that apply across repositories
+    learnings/<repo>.md        pitfalls specific to one repository
 
-  tasks/<id>/                  * 目录本身长命
-    task.json                  结构化决策：units / scope / 交付历史
-    brief.md                   任务契约
-    log.md                     append-only 叙事进度
-    report.md                  知识产出（结论）
-    artifacts/                 * 不该进真实仓库的项目产物
+  tasks/<id>/                  * the directory itself is long-lived
+    task.json                  structured decisions: units / scope / delivery history
+    brief.md                   the task contract
+    log.md                     append-only narrative progress
+    report.md                  what was learned (conclusions)
+    artifacts/                 * project output that does not belong in a real repository
     shifts/<sid>/
-      brief.md                 派工单                    ← 长命
-      outcome.md               这个 shift 干了什么、结论  ← 长命
-      run/                     * 唯一易失层，下工时整目录删
-        meta.json              树路径 / 终端 id / 子分支名
-        status                 事件流（append-only）
-        signal                 唤醒标记
+      brief.md                 the work order                  ← long-lived
+      outcome.md               what this shift did, and what it concluded  ← long-lived
+      run/                     * the only throwaway layer; deleted entirely at clock-out
+        meta.json              tree path / terminal id / shift branch name
+        status                 the event stream (append-only)
+        signal                 the wake marker
 
-  conf/                        本地选择，gitignored
-    hooks/                     外部权威接缝（§10）
+  conf/                        local choices, gitignored
+    hooks/                     seams for outside authorities (§10)
 
-  repos/                       clone；yan 只读（唯一例外是 git fetch）
+  repos/                       clones; yan only reads them (the one exception is git fetch)
 ```
 
-文件的生命周期通过目录来表达，而不用文件清单：`tasks/<id>/` 长命，`.../run/` 易失。所以 `shift` 下工就是 `rm -rf .../run/` 加一次 `yan tree return`。用一个 `rm -rf` 就能清干净，因为「哪些文件该删」的清单迟早会漏。
+Lifetime is expressed by directory, not by a list of files: `tasks/<id>/` is long-lived, `.../run/` is throwaway. So a `shift` clocking out is `rm -rf .../run/` plus one `yan tree return`. A single `rm -rf` cleans up completely, whereas a list of "which files should be deleted" will eventually miss one.
 
-没有 backlog 文件。 队列是扫出来的视图：`yan ls` 扫 `tasks/*/task.json`，这消掉了整个系统最容易出的那类 bug。
+**There is no backlog file.** The queue is a view produced by scanning: `yan ls` reads `tasks/*/task.json`. That removes the single most bug-prone thing in the whole system.
 
-worktree 不在这棵树里。 `yan tree` 的池在 `~/.yan-trees/<repo>-<hash>/N/<repo>`，所以 `repos/` 对整个系统来说就是个纯粹的 git 源加代码参考，`shift` 干活根本不碰它。池的运行时记录（lease）也放在池根目录里，不放在 `$YAN_HOME`，因为它跟着池走，不跟着 `task` 走。
+**Worktrees are not in this tree.** `yan tree`'s pool lives at `~/.yan-trees/<repo>-<hash>/N/<repo>`, which makes `repos/` purely a git source and a place to read code; a `shift` never touches it. The pool's runtime records (the leases) also live in the pool's root directory rather than in `$YAN_HOME`, because they belong to the pool, not to a task.
 
 ---
 
-# 主干
+# The backbone
 
-## 记忆系统
+## Memory
 
-`yan` 每次启动都要先知道两件事：`user` 是个什么样的人，以及这些仓库上踩过哪些坑。这两样住在 `mem/`，是全系统唯一跨 `task` 长命的记忆。
+Every time `yan` starts, it needs to know two things: what kind of person `user` is, and what pitfalls have already been hit in these repositories. Both live in `mem/`, the only memory in the system that outlives a task.
 
-`mem/user.md` 只在 `user` 明确要求时才写，因为它是关于人的判断，写错会持续误导；`mem/learnings/` 允许 `yan` 拿到证据后自己写，因为写错的代价小，而每次都问会导致根本不写。`task` 内部的进度则不进记忆，而是一行一行追加进 `log.md`——它是 §2 第三类里那个「叙事」子类别的落点，`user` 和 agent 读的是同一份。还有一类东西既不进仓库也不进记忆，就是 artifact（prototype、截图、调研数据），它们必须写在 worktree 之外，否则不是被清掉就是被误提交进公司仓库。
+`mem/user.md` is written only when `user` asks, because it records judgements about a person and a wrong entry keeps misleading. `mem/learnings/` may be written by `yan` on its own once there is evidence, because a wrong entry there is cheap and asking every time would mean nothing gets written at all. Progress inside a task does not go into memory; it is appended one line at a time to `log.md`, which is where the narrative sub-category from §2 ends up, and which `user` and the agents read as the same file. There is one more kind of thing that goes neither into the repository nor into memory: artifacts (prototypes, screenshots, research data). Those have to be written outside the worktree, or they are either wiped or accidentally committed into the work repository.
 
-→ [`memory.md`](memory.md)：[§4.1](memory.md#41-记忆的授权差别) 授权差别 · [§4.2](memory.md#42-logmd--叙事层) `log.md` · [§4.3](memory.md#43-artifact) artifact · [§4.4](memory.md#44-不存什么) 不存什么
+→ [`memory.md`](memory.md): [§4.1](memory.md#41-who-may-write-what) who may write what · [§4.2](memory.md#42-logmd-the-narrative-layer) `log.md` · [§4.3](memory.md#43-artifacts) artifacts · [§4.4](memory.md#44-what-not-to-store) what not to store
 
-## agent 与 `shift`
+## Agents and shifts
 
-`yan` 是主 agent，也是 `user` 的唯一接口；真正写代码的是一次性的 sub-agent，每一份派出去的活叫做一个 `shift`。
+`yan` is the main agent and `user`'s only interface. The code is actually written by single-use sub-agents, and each piece of work handed to one is called a `shift`.
 
-一个 `yan` 只管一个 `task`，这样它的上下文预算有界，而且跟 `task` 总数无关。`yan` 自己不存任何运行状态，每次启动就做一次全量 reconcile，所以「关掉重开一个」永远是非事件。派一个 `shift` 出去，就是写 brief、租一棵树、起一个终端；`shift` 只在自己的树里干活，只在需要 `yan` 动作的时候往 `run/status` 追加一行事件。它的下工条件是客观的：子分支的 MR 已经合回集成分支。收回来的动作有固定顺序，还树必须排在删远端子分支之前。至于 `yan` 和 `shift` 之间怎么说话、哪些事根本不必唤醒模型，也都在这一节里。
+One `yan` handles one `task`, which keeps its context budget bounded and independent of how many tasks exist. `yan` stores no running state of its own; every startup rebuilds the whole picture from what is actually there, which makes closing it and opening a new one a non-event. Dispatching a `shift` means writing a brief, leasing a tree, and starting a terminal. The `shift` works only inside its own tree, and appends a line to `run/status` only when something needs `yan` to act. Its condition for clocking out is objective: the shift branch's MR has been merged into the integration branch. The teardown has a fixed order, and returning the tree must come before deleting the remote shift branch. How `yan` and a `shift` talk to each other, and which events need no model at all, are also in this section.
 
-→ [`agents.md`](agents.md)：[§5.1](agents.md#51-寿命分层) 寿命分层 · [§5.2](agents.md#52-一个-yan--一个-task) 一个 `yan` = 一个 `task` · [§5.3](agents.md#53-shift-的生命周期) `shift` 的生命周期 · [§5.4](agents.md#54-通信) 通信 · [§5.6](agents.md#56-harness-要求) harness 要求 · [§5.7](agents.md#57-终端拓扑) 终端拓扑
+→ [`agents.md`](agents.md): [§5.1](agents.md#51-lifetime-tiers) lifetime tiers · [§5.2](agents.md#52-one-yan-per-task) one `yan` per `task` · [§5.3](agents.md#53-the-life-of-a-shift) the life of a `shift` · [§5.4](agents.md#54-communication) communication · [§5.6](agents.md#56-harness-requirements) harness requirements · [§5.7](agents.md#57-terminal-topology) terminal topology
 
-## 监督系统
+## Supervision
 
-`shift` 在自己的终端里跑几小时，中间没有人盯着。监督这一层要保证「它干完了」和「它卡住了」这两件事都能传到 `yan` 面前，而且不依赖模型记得去检查。
+A `shift` runs in its own terminal for hours with nobody watching it. This layer makes sure that both "it finished" and "it is stuck" reach `yan`, without depending on the model remembering to check.
 
-这条链路由 Claude Code 的 hook 串起来：SessionStart 保证每次启动先 reconcile，autoarm 在自己的前台跑起 watcher，turnend guard 验证监督真的起来了。watcher 本体是 `yan wait`，它盯三个 source：`shift` 主动报告的 signal、agent 是不是还活着、以及 pane 内容长时间不变（这一条抓的是「忘记报告」，也是 agent 最常见的失败模式）。这一节篇幅最大，因为它记的多半是同类系统上已经踩过的实伤。
+The chain is held together by Claude Code's hooks: SessionStart guarantees a full rebuild at startup, autoarm starts the watcher in its own foreground, and the turnend guard verifies that supervision really did start. The watcher itself is `yan wait`, and it watches three sources: the signal a `shift` raises on its own, whether the agent is still alive, and whether the pane's contents have stopped changing for a long time. That last one catches an agent that forgot to report, which is the most common way an agent fails. This is the longest section, because most of what it records are injuries that similar systems have already suffered.
 
-→ [`supervision.md`](supervision.md)：[§5.5 监督](supervision.md#55-监督)
+→ [`supervision.md`](supervision.md): [§5.5 supervision](supervision.md#55-supervision)
 
-## 分支模型
+## The branch model
 
-交付落在两级结构上，若干条子分支合进一条集成分支，集成分支再整体合进 `target`。
+Delivery rests on a two-level structure: several shift branches merge into one integration branch, and the integration branch merges into `target` as a whole.
 
 ```mermaid
 graph BT
-    S1["子分支 s1"] -->|MR| I["集成分支"]
-    S2["子分支 s2"] -->|MR| I
-    S3["子分支 s3"] -->|MR| I
-    I -->|对外 MR| T["target"]
+    S1["shift branch s1"] -->|MR| I["integration branch"]
+    S2["shift branch s2"] -->|MR| I
+    S3["shift branch s3"] -->|MR| I
+    I -->|outbound MR| T["target"]
 ```
 
-每个 `shift` 一条子分支，合回集成分支就下工，所以 `shift` 的生命周期有了一个客观的绑定物；并发也天然隔离，因为每个 `shift` 各自一条子分支加各自一棵树。这个结构还顺带给出了两级 review——子分支那一级由 `user` 自己验收，集成分支那一级才交给同事，于是同事只看到一个 MR。集成分支不是长命的，它会被整个替换，所以 `unit` 的结构里当前状态是几个标量、历史是 append-only 的数组。分支怎么命名也有讲究：集成分支可以委托给外部权威，子分支的命名权则永远归 `yan`。
+Each `shift` gets one shift branch and clocks out when it is merged, which gives a `shift`'s life an objective end condition. Concurrency is isolated for free, since each `shift` has its own branch and its own tree. The structure also produces two levels of review: `user` accepts the shift branch level, and only the integration branch level goes to colleagues, so colleagues see exactly one MR. The integration branch is not long-lived — it gets replaced wholesale — which is why a `unit` keeps its current state as a few scalars and its history as an append-only array. Naming matters too: the integration branch's name may be delegated to an outside authority, while shift branch names always belong to `yan`.
 
-→ [`branching.md`](branching.md)：[§6.1](branching.md#61-分支结构) 分支结构 · [§6.2](branching.md#62-两级-review) 两级 review · [§6.3](branching.md#63-集成分支怎么变) 集成分支怎么变 · [§6.4](branching.md#64-unit-的结构) `unit` 的结构 · [§6.5](branching.md#65-分支的命名权威) 命名权威 · [§6.6](branching.md#66-yan-永不解析分支名) 永不解析分支名 · [§6.7](branching.md#67-unit-粒度的判据) `unit` 粒度
+→ [`branching.md`](branching.md): [§6.1](branching.md#61-branch-structure) branch structure · [§6.2](branching.md#62-two-levels-of-review) two levels of review · [§6.3](branching.md#63-how-the-integration-branch-changes) how the integration branch changes · [§6.4](branching.md#64-the-shape-of-a-unit) the shape of a `unit` · [§6.5](branching.md#65-who-names-branches) who names branches · [§6.6](branching.md#66-yan-never-parses-branch-names) never parsing branch names · [§6.7](branching.md#67-how-big-a-unit-should-be) how big a `unit` should be
 
-## worktree
+## Worktrees
 
-`shift` 不碰主 clone，它在一棵租来的 worktree 里干活，而这些树由 `yan` 自带的池管理。
+A `shift` never touches a main clone. It works in a leased worktree, and those trees are managed by a pool built into `yan`.
 
-`yan tree get` 会按给定的集成分支和子分支名租一棵树出来，`yan tree return` 把树还回池里。池之所以存在，只是为了热复用——还树的时候用 `git clean -fd` 而永远不加 `-x`，gitignore 掉的依赖和构建缓存因此跨 `shift` 保留下来，大 monorepo 上省掉的就是每次冷装。还树之前要先回答一个问题：毁掉这棵树会不会丢东西。答案靠两行 git 命令，而不是靠「活有没有落地」那个更强的判据。
+`yan tree get` leases a tree for a given integration branch and shift branch name; `yan tree return` gives it back. The only reason the pool exists is warm reuse: returning a tree uses `git clean -fd` and never `-x`, so gitignored dependencies and build caches survive from one `shift` to the next, which on a large monorepo saves a cold install every time. Before a tree is returned there is one question to answer: would destroying it lose anything? Two git commands answer it, and it is a weaker test than "has the work landed".
 
-→ [`worktree.md`](worktree.md)：[§7 worktree 与池](worktree.md#7-worktree)
+→ [`worktree.md`](worktree.md): [§7 worktrees and the pool](worktree.md#7-worktrees)
 
-## 交付模式
+## Delivery modes
 
-「干到哪一步停」和「谁能按 merge」是两个正交的轴，`yan` 把它们显式分开。
+"How far the work goes before it stops" and "who may press merge" are two separate axes, and `yan` keeps them separate.
 
-`mode` 有三档，`scout` 只调研不改代码，`branch` 改完就停在本地分支，`mr` 一路推到远端并开出 MR；默认是 `mr`，因为推到远端就是最好的备份。强制手段不做隔离机制，用启动参数加一条落地前的 `yan scope-check` 就够，而且越界的语义是「必须显式扩」而不是「禁止」。真正跟外部世界打交道的是 forge 这一层，它把 GitLab 和 GitHub 的差异藏在四个动词底下。
+`mode` has three settings. `scout` investigates without changing code, `branch` stops at a local branch, and `mr` goes all the way to a pushed branch with an MR opened. The default is `mr`, because pushing to a remote is the best backup available. Enforcement does not use an isolation mechanism; startup arguments plus one `yan scope-check` before landing are enough, and going outside `scope` means widening it explicitly rather than being blocked. The part that actually talks to the outside world is the forge layer, which hides the differences between GitLab and GitHub behind four verbs.
 
-→ [`delivery.md`](delivery.md)：[§8.1](delivery.md#81-mode-与-authority) `mode` 与 authority · [§8.2](delivery.md#82-scout--branch--mr) `scout` / `branch` / `mr` · [§8.3](delivery.md#83-强制手段) 强制手段 · [§8.4](delivery.md#84-forge-层lib-forgesh) forge 层
+→ [`delivery.md`](delivery.md): [§8.1](delivery.md#81-mode-and-authority) `mode` and authority · [§8.2](delivery.md#82-the-three-modes) the three modes · [§8.3](delivery.md#83-enforcement) enforcement · [§8.4](delivery.md#84-the-forge-layer) the forge layer
 
-## 边界
+## Boundaries
 
-前面这些结构都就位之后，还需要一条明确的线：哪些动作 `yan` 可以自己做，哪些必须等 `user` 开口。
+Once all of that is in place, one more line is needed: which actions `yan` may take on its own, and which have to wait for `user`.
 
-`yan` 只写自己的记账层，主 clone 除了 `git fetch` 一律不碰，`shift` 则只写自己那三处加它租来的树。对外的副作用只用一条线分界：在自己的分支和本机范围内可以自主，影响到 `target`、或者同事会看见的动作，必须 `user` 明说。另外还有一类决策 `yan` 根本不打算自己做，比如集成分支该叫什么名字，这类通过 `conf/hooks/` 委托给外部权威。
+`yan` writes only its own bookkeeping. It never touches a main clone except with `git fetch`. A `shift` writes only in its own three places plus the tree it leased. Side effects on the outside world are divided by a single line: inside your own branches and your own machine, act freely; anything that affects `target` or that a colleague will see requires `user` to say so. There is also a class of decisions `yan` does not intend to make at all, such as what the integration branch should be called, and those are delegated to an outside authority through `conf/hooks/`.
 
-→ [`boundaries.md`](boundaries.md)：[§9](boundaries.md#9-yan-的可写范围) 可写范围 · [§10](boundaries.md#10-外部权威接缝okt-等) 外部权威接缝（okt 等）
+→ [`boundaries.md`](boundaries.md): [§9](boundaries.md#9-what-yan-may-write) what `yan` may write · [§10](boundaries.md#10-seams-for-outside-authorities) seams for outside authorities
 
-## 范围与待定
+## Scope and open questions
 
-设计到这里就完整了，剩下的是划定第一版做多少，以及还没想清楚的几件事。
+The design is complete at that point. What is left is deciding how much goes into the first version, and listing the things that are not settled.
 
-0→1 是一个 `yan` 入口加 20 个子命令、2 个 hook、8 个 lib，验收标准是整条链在 `yan` 自己这个仓库上跑通一遍。它比同类的编排系统小得多，原因不是写得更好，而是那些系统膨胀的理由 `yan` 一个都没有。往后的路线分成 1→2、2→10、10→100 三段，Herdr 确定要支持，只是先不做。
+The first version is one `yan` entry point plus 20 subcommands, 2 hooks, and 8 libraries, and it is accepted when the whole chain runs end to end on `yan`'s own repository. It is much smaller than comparable orchestration systems, not because it is written better, but because none of the reasons those systems grew apply here. The road after that has three stages, and Herdr will definitely be supported, just not yet.
 
-→ [`scope.md`](scope.md)：[§11](scope.md#11-01-范围) 0→1 范围 · [§12](scope.md#12-待定) 待定
+→ [`scope.md`](scope.md): [§11](scope.md#11-scope-of-the-first-version) scope of the first version · [§12](scope.md#12-open-questions) open questions
 
-## 代码结构
+## Code structure
 
-上面都是「为什么」，而这些决策落到文件上是什么形状，是另一个问题。
+Everything above is the "why". What shape those decisions take once they become files is a separate question.
 
-整个 `bin/` 由两条正交的切法交叉出来，依赖只往下、从不往上，模型能调的只有 `yan <cmd>`，从不 source 任何 lib。在这个结构里，子命令还分成原子和编排两类，判据是它是否代表一个不可拆分的核心能力。这样分层是为了可测性——接缝是唯一碰外部世界的东西，所以测一个子命令就是把接缝换成替身。
+The whole of `bin/` is produced by two independent ways of cutting the code. Dependencies only ever point downwards. The only thing a model may call is `yan <cmd>`; it never sources a library. Within that structure, subcommands are split into atomic and orchestrating ones, and the test is whether a command represents one indivisible core capability. The layering exists for testability: the seams are the only things that touch the outside world, so testing a subcommand means replacing the seams with stand-ins.
 
-→ [`architecture.md`](architecture.md)：分层、模块职责、仓库结构、可测性
+→ [`architecture.md`](architecture.md): layering, module responsibilities, repository layout, testability
 
-## 附录
+## Appendices
 
-三份查的时候才看的清单：记忆读写契约、`yan` 的文件系统边界、脚本清单。
+Three lists to look things up in: the memory read and write contract, `yan`'s file system boundary, and the script inventory.
 
-→ [`appendix.md`](appendix.md)：[附录 A](appendix.md#附录-a--记忆读写契约) / B / C
+→ [`appendix.md`](appendix.md): [Appendix A](appendix.md#appendix-a-memory-read-and-write-contract) / B / C
 
 ---
 
-## 设计之外的文档
+## Documents outside the design
 
-| 文档 | 装什么 |
+| Document | What it holds |
 | --- | --- |
-| [`../implementation-plan.md`](../implementation-plan.md) | 按什么顺序做，每块必须自带哪些用例 |
-| [`../decisions.md`](../decisions.md) | 某个决定是什么时候定的，当时手上有什么 |
+| [`../implementation-plan.md`](../implementation-plan.md) | what order to build things in, and which test cases each piece must bring with it |
+| [`../decisions.md`](../decisions.md) | when a decision was made, and what was known at the time |

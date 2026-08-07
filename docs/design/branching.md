@@ -1,58 +1,58 @@
-# 6. 分支模型
+# 6. The branch model
 
-## 6.1 分支结构
+## 6.1 Branch structure
 
 ```
-target (master / release/x / 任意分支)
- └─ 集成分支（当前这一轮的 working 分支）———→ 对外 MR —→ target
-      ├─ 子分支 s1  → MR → 合回集成分支 → shift s1 下工
-      ├─ 子分支 s2  → MR → 合回集成分支 → shift s2 下工
-      └─ 子分支 s3  ...（可并发，各自一棵 worktree）
+target (master / release/x / any branch)
+ └─ integration branch (the working branch for this round) ———→ outbound MR —→ target
+      ├─ shift branch s1  → MR → merged into the integration branch → shift s1 clocks out
+      ├─ shift branch s2  → MR → merged into the integration branch → shift s2 clocks out
+      └─ shift branch s3  ... (these can run at the same time, each in its own worktree)
 ```
 
-这个结构解决三件事：`shift` 的生命周期有了客观的绑定物（子分支合了就下工）、多 agent 并发有了隔离（各自的子分支加各自的树）、前进有了载体（新 `shift` 从集成分支当前 head 切出）。
+This structure settles three things at once. The life of a `shift` gets an objective end condition: its branch is merged, so it clocks out. Concurrent agents get isolation: each has its own branch and its own tree. And progress gets somewhere to accumulate: a new `shift` branches from the integration branch's current head.
 
-注意集成分支只代表当前这一轮—它会被整个替换，见 §6.3。所以「在同一轮里继续改」跟「上一轮已经交付或废弃了」是两种不同的机制，别当成一回事。
+Note that the integration branch only represents the current round. It gets replaced wholesale; see §6.3. So "keep working within this round" and "the last round has already been delivered or abandoned" are two different mechanisms, and should not be treated as one.
 
-## 6.2 两级 review
+## 6.2 Two levels of review
 
-这是结构自带的，不是额外加的：
+This comes free with the structure; it was not added on top:
 
-| MR | 合到 | 谁 review | 性质 |
+| MR | Merges into | Who reviews it | What it is |
 | --- | --- | --- | --- |
-| 子分支 → 集成分支 | `user` 自己 own 的分支 | `user` + CI，不需要同事 | 内部验收关口 |
-| 集成分支 → `target` | `target` | 同事正式评审 | 对外交付 |
+| shift branch → integration branch | a branch `user` owns | `user` plus CI, no colleagues involved | an internal checkpoint |
+| integration branch → `target` | `target` | a formal review by colleagues | the outward delivery |
 
-同事只看到一个 MR，不会被噪音淹。
+Colleagues see one MR, so they are not buried in noise.
 
-## 6.3 集成分支怎么变
+## 6.3 How the integration branch changes
 
-三种「往前」加一种「换赛道」：
+Three ways of moving forward, plus one way of starting over:
 
-| 变化 | 谁做 | 记在哪 |
+| Change | Who does it | Where it is recorded |
 | --- | --- | --- |
-| 吸收子分支 | `shift` 的 MR | git merge history |
-| 同步 `target` | `yan sync` | git |
-| `target` 变更 | `yan unit set --target`（需 `user` 明说） | `unit.target` 字段 |
-| 换掉整个集成分支 | `yan unit set --branch`（需 `user` 明说） | `unit.branch` 字段 + 旧的进 `history[]` |
+| absorb a shift branch | the `shift`'s MR | git merge history |
+| catch up with `target` | `yan sync` | git |
+| change `target` | `yan unit set --target`, and `user` has to ask for it | the `unit.target` field |
+| replace the integration branch entirely | `yan unit set --branch`, and `user` has to ask for it | the `unit.branch` field, and the old value moves into `history[]` |
 
-「同步 `target`」绝不能交给子分支的 agent—它只看得见自己那点改动，让它 rebase 整个集成分支是灾难。`yan sync` 是脚本动作，不是 `shift`: 租树 → fetch → rebase/merge `target` → push → 还树，不需要 agent，只有产生冲突时才派一个 `shift` 去解。时机固定：每次开新 `shift` 之前先 sync，新子分支从同步后的 head 切。这样冲突集中在「集成分支 ← `target`」一处，不会散到每个子分支里各解一遍。
+**Catching up with `target` must never be given to a shift branch's agent.** That agent only sees its own small change; asking it to rebase the whole integration branch is a disaster. `yan sync` is a script action, not a `shift`: lease a tree → fetch → rebase or merge `target` → push → return the tree. No agent is involved, and a `shift` is only dispatched if there are conflicts to resolve. Its timing is fixed: sync before starting each new `shift`, so the new shift branch comes off the head that has just caught up. That keeps conflicts in one place — the integration branch against `target` — instead of scattering them across every shift branch to be solved again and again.
 
-最后那一种是这个模型里最容易被漏掉的：集成分支不是长命的。 真实工作方式是 okt 拉一个 `2.0.1`，改完、上线、合进 master，然后收到反馈，再拉一个 `2.0.2`。所以 `unit` 的集成分支会整个被替换，而不是一直往前推。
+The last row is the one this model is easiest to miss: **the integration branch is not long-lived.** The way the work actually goes is that okt cuts a `2.0.1`, the work is done, it ships, it merges into master, feedback arrives, and then a `2.0.2` is cut. So a unit's integration branch is replaced outright rather than pushed forward forever.
 
-由此「要改」有三种形态，机制完全不同：
+That gives "we need to change something" three different shapes, with completely different mechanisms:
 
-|  | 上一轮的结局 | 怎么办 | 新分支的 base |
+|  | How the last round ended | What to do | The new branch's base |
 | --- | --- | --- | --- |
-| 同一轮内 | 集成分支还没合进 `target` | 派新 `shift`，从当前集成分支切子分支，合回去 | 当前集成分支 |
-| 交付后收到反馈 | 已合进 `target`、关闭了 | 换赛道：okt 拉 `2.0.2` | `target`（已含上一轮） |
-| 废弃 | 因为某些原因不用了，没合 | 同样换赛道，但标记为废弃 | 旧分支本身（活不丢） |
+| within the same round | the integration branch has not merged into `target` yet | dispatch a new `shift`, branch off the current integration branch, merge back into it | the current integration branch |
+| feedback after delivery | already merged into `target`, and closed | start a new round: okt cuts `2.0.2` | `target`, which already contains the last round |
+| abandoned | dropped for some reason, never merged | also a new round, but marked as abandoned | the old branch itself, so the work is not lost |
 
-后两种都用 `yan unit set --branch <新分支>` 来做，区别只在于 history 里怎么记。
+The last two both use `yan unit set --branch <new branch>`. The only difference is how they are recorded in the history.
 
-`target` 变更也不是纯记账：如果从 `release/x` 换成 `master`，集成分支就要 rebase 到新的 `target`，可能会撞上一堆冲突，也可能需要派一个 `shift` 去解。
+Changing `target` is not just bookkeeping either. Switching from `release/x` to `master` means the integration branch has to be rebased onto the new `target`, which may hit a pile of conflicts, and may need a `shift` to sort out.
 
-## 6.4 `unit` 的结构
+## 6.4 The shape of a `unit`
 
 ```json
 { name: auth, repo: monorepo-x, scope: [apps/auth], needs: [proto],
@@ -68,84 +68,84 @@ target (master / release/x / 任意分支)
   ] }
 ```
 
-当前状态是四个可变标量（`branch` / `target` / `mode` / `mr`），因为 `yan` 唯一的操作性需求就是「派新 `shift` 时从哪个分支切」—那只需要一个字符串。`mr` 是当前轮开出的对外 MR，`yan mr` 开的时候写上。
+The current state is four mutable scalars — `branch`, `target`, `mode`, `mr` — because the only operational thing `yan` ever needs is "which branch does a new `shift` branch off", and that is one string. `mr` is the outbound MR for the current round, written when `yan mr` opens it.
 
-`history[]` 是 append-only 的历史，写进去就再也不动。跟当前分开而不是「当前就是数组最后一项」，因为当前要频繁读，而且 append-only 的语义更干脆。
+`history[]` is append-only: once an entry is written it is never touched again. It is kept separate from the current state rather than being "the current state is the last array element", because the current state is read often, and append-only is a cleaner rule when nothing else is mixed into it.
 
-每项最多五个字段，各有理由：
+Each entry has at most five fields, and each one earns its place:
 
-| 字段 | 为什么存 |
+| Field | Why it is stored |
 | --- | --- |
-| `branch` | 核心—哪个分支用过 |
-| `target` | 往哪合过。可能跟当前不同（`2.0.1` 合 release，后来改成合 master） |
-| `at` | 退役时间。「什么时候开始用下一个」=「这个什么时候退役」，一个时间点够 |
-| `end` | delivered 还是 abandoned。没有它，history 里躺着一串分支，看不出哪个真上线了、哪个是半路扔掉的 |
-| `mr`（可选） | 唯一查起来麻烦的：分支删了之后要 `glab mr list --source-branch` 才找得到，同一分支开过多个 MR 还有歧义。而 URL 是不变的事实，存它不违反判据（[§2](INDEX.md#2-存储判据)）。废弃的轮次可能压根没开过 MR，所以这个字段可选 |
+| `branch` | the point of the record: which branch was used |
+| `target` | where it was merged. It can differ from the current value, for example `2.0.1` went to a release branch and later rounds went to master |
+| `at` | when it was retired. "When did the next one start" and "when did this one end" are the same moment, so one timestamp is enough |
+| `end` | `delivered` or `abandoned`. Without it, the history is a list of branches with no way to tell which ones actually shipped and which were dropped halfway |
+| `mr` (optional) | the only one that is genuinely awkward to look up later: once the branch is deleted you need `glab mr list --source-branch` to find it, and if the branch had several MRs the answer is ambiguous. A URL is a fixed fact, so storing it does not break the storage rules ([§2](INDEX.md#2-storage-criteria)). An abandoned round may never have opened an MR at all, which is why the field is optional |
 
-用 `end: "delivered" | "abandoned"` 而不是 `"abandoned": true`—读的时候一眼就懂，不靠「缺省即交付」这种约定。
+The field is `end: "delivered" | "abandoned"` rather than `"abandoned": true`, so it reads clearly without relying on a convention like "absent means delivered".
 
-不存的三样：`why`（叙事，`log.md` 有）、`base`（`git log` 看得出新分支含不含旧分支的 commit）、历史轮次的 `mode`（没人会查）。
+Three things are deliberately not stored: `why` (that is narrative, and it is in `log.md`), `base` (`git log` shows whether the new branch contains the old branch's commits), and `mode` for past rounds (nobody ever looks it up).
 
-`end` 由 `yan` 自己判断，不需要额外的 flag—换分支时查一下当前 `mr` 在 GitLab 上的状态：
+`yan` works out `end` on its own, without an extra flag. When the branch is being replaced, it checks the current `mr`'s state on GitLab:
 
-| GitLab 上的状态 | 判定 |
+| State on GitLab | Conclusion |
 | --- | --- |
 | merged | `delivered` |
-| closed，或 `mr` 字段本来就是空的 | `abandoned` |
-| 还 open | 这轮还没结束，先问 `user`：是要废弃它，还是搞错了 |
-| 查不到（离线、MR 被删） | 问 `user` |
+| closed, or the `mr` field was empty to begin with | `abandoned` |
+| still open | this round is not over. Ask `user` first: abandon it, or was this a mistake? |
+| cannot be reached (offline, MR deleted) | ask `user` |
 
-这符合「会变的状态查 GitLab」的判据。但判断结果必须写进 history—写完之后就不再查 GitLab 了，历史要自解释。
+This follows the rule that changing state is looked up on GitLab rather than stored. But the conclusion has to be written into the history, and after that GitLab is never asked again — the history has to explain itself.
 
-换赛道是一个原子操作：判定 `end` → 把当前 `branch`/`target`/`mr` 打包追加进 `history[]`（带 `at`）→ 覆盖当前字段 → `log.md` 记一行。
+Starting a new round is one atomic operation: work out `end` → append the current `branch`, `target`, and `mr` to `history[]` together with `at` → overwrite the current fields → add a line to `log.md`.
 
-废弃的那一行 `log` 必须写清原因。 正常轮换的原因摆在那儿（上线了、有反馈）；废弃的原因才是最容易忘的—半年后再看到 `2.0.3` 断在那儿，已经想不起来当初为什么扔掉它了。
-
-```
-- 08-25  auth  废弃 2.0.3 → 2.0.4（基于 2.0.3; 上游 proto 改了接口，这条线的 MR 没法 review 了）
-```
-
-`target` 没有默认值，`yan unit add` 必须显式给—`user` 的实际工作方式是大项目期团队短期维护一个分支大家往里合，平稳期各自往 master 合，没有一个安全的默认。
-
-`needs` 是落地顺序，`yan land` 按它拓扑排序。同一个 repo 可以在 units 里出现多次—team 的 monorepo 子应用各改各的，不能用同一个分支改两个应用，所以一个 `unit` = 一个子应用 = 一个分支 = 一棵树。
-
-## 6.5 分支的命名权威
-
-集成分支的命名可以委托给外部权威（okt）；子分支的命名权永远归 `yan`。
-
-理由：okt 认识团队的概念（feature、app、release），完全不认识 `shift`。让它命名子分支没有意义，而且有害。子分支不能从集成分支名派生（例如 okt 给了 `feature/AUTH-123`，我们造 `feature/AUTH-123/s1`），三个理由：
-
-1. 分支保护和规范检查可能对团队前缀有要求，内部分支会撞上
-2. 同事在 GitLab 上看分支列表会被内部分支淹没
-3. okt 可能扫描/管理它认识的前缀，`yan` 的内部分支不该被它看见
-
-外加一条 git 本身的限制：`refs/heads/feature/AUTH-123` 已经是文件，`feature/AUTH-123/s1` 根本建不出来（`cannot lock ref ... exists`）。
+**The log line for an abandoned round has to say why.** The reason for a normal rotation is obvious from context — it shipped, or feedback came in. The reason for abandoning something is the one that gets forgotten. Six months later, when you find `2.0.3` stopping dead in the history, you will not remember why it was dropped.
 
 ```
-集成分支    由 hook 命名；无 hook 时默认 yan/<task>-<unit>-r<n>
-            例：2.0.2（okt 给的）   或   yan/t042-auth-r2（内置默认）
-子分支      永远由 yan 命名，固定格式，不派生自集成分支
-            yan/<task>-<unit>-<sid>        例：yan/t042-auth-s7
+- 08-25  auth  abandoned 2.0.3 → 2.0.4 (based on 2.0.3; upstream proto changed its interface, so the MR on this line could not be reviewed)
 ```
 
-内置默认必须带轮次号 `r<n>`，因为集成分支会被替换（§6.3）—不带的话第二轮会跟第一轮撞名，同一个分支名建不出来第二次。
+`target` has no default value, and `yan unit add` requires it explicitly. The way `user` actually works, a big release means the team keeps one shared branch for a while and everyone merges into it, while quiet periods mean everyone merges into master. There is no safe default.
 
-`n` = `history[]` 的长度 + 1，不需要额外存：轮次号本来就是历史记了几笔。有 hook 时 okt 给什么就是什么（`2.0.2` 自带版本语义），轮次号不参与。
+`needs` records the landing order, and `yan land` topologically sorts by it. The same repository may appear in several units: the sub-applications of the team's monorepo are worked on separately, and you cannot change two applications on the same branch. So one `unit` is one sub-application is one branch is one tree.
 
-子分支不带轮次号。 `sid` 是全局递增的（s1、s2、s3…），第二轮的 `s7` 天然不会跟第一轮的 `s3` 撞；而且 §6.6 定了 `yan` 不解析分支名、归属查存储，所以子分支名不需要表达它属于哪一轮。
+## 6.5 Who names branches
 
-`yan/t042-auth-r2` 和 `yan/t042-auth-s7` 是同级的两个文件名，永不冲突—所以不需要 `/trunk` 之类的后缀。
+The integration branch's name may be delegated to an outside authority (okt). The shift branch's name always belongs to `yan`.
 
-## 6.6 `yan` 永不解析分支名
+The reason is that okt understands the team's concepts — features, applications, releases — and knows nothing about a `shift`. Letting it name shift branches would be pointless, and actively harmful. Shift branch names must also not be derived from the integration branch's name, for example turning okt's `feature/AUTH-123` into `feature/AUTH-123/s1`. Three reasons:
 
-因为集成分支的命名可能由 okt 接管，`yan` 不能假设它有任何结构：不靠前缀 glob 推断归属，而是 `task.json` 存 `unit.branch`、`run/meta.json` 存 `shift` 的子分支名。反向查询（「这分支是谁的」）查存储，不拆字符串。
+1. Branch protection and naming checks may impose rules on the team's prefixes, and internal branches would run into them.
+2. Colleagues looking at the branch list on GitLab would be flooded with internal branches.
+3. okt may scan or manage the prefixes it recognises, and `yan`'s internal branches should not be visible to it.
 
-例外：`git branch --list 'yan/*'` 可以用来找出所有 `yan` 造的分支做运维清理。那是「枚举自己的东西」，不是「从名字推断归属」，不违反这条。
+There is also a hard limit in git itself: once `refs/heads/feature/AUTH-123` exists as a file, `feature/AUTH-123/s1` cannot be created at all (`cannot lock ref ... exists`).
 
-## 6.7 `unit` 粒度的判据
+```
+integration branch   named by the hook; without a hook, defaults to yan/<task>-<unit>-r<n>
+                     e.g. 2.0.2 (from okt)   or   yan/t042-auth-r2 (the built-in default)
+shift branch         always named by yan, fixed format, never derived from the integration branch
+                     yan/<task>-<unit>-<sid>        e.g. yan/t042-auth-s7
+```
 
-集成分支合到 `target` 时，那个 MR 的 diff 是所有 `shift` 的总和。`shift` 攒多了，同事就 review 不下去了。这个成本反过来给了 `unit` 粒度一个明确标准：
+The built-in default has to carry the round number `r<n>`, because the integration branch gets replaced (§6.3). Without it, the second round would collide with the first, and the same branch name cannot be created twice.
 
-> 一个 `unit` 的粒度 = 一个对外 MR 的粒度 = 同事一次 review 能吃下的量。
+`n` is the length of `history[]` plus one, so it needs no extra storage: the round number is just how many entries the history has. When a hook is present, whatever okt returns is used as is (`2.0.2` already carries version meaning), and the round number plays no part.
 
-攒到 review 不下去的时候，它就该拆成两个 `unit` 了（两个集成分支、两个对外 MR）。
+**Shift branches carry no round number.** `sid` increases globally (s1, s2, s3, …), so the second round's `s7` cannot collide with the first round's `s3`. And §6.6 establishes that `yan` never parses branch names and always looks ownership up in storage, so a shift branch name does not have to say which round it belongs to.
+
+`yan/t042-auth-r2` and `yan/t042-auth-s7` are two file names at the same level and can never collide, so there is no need for a `/trunk`-style suffix.
+
+## 6.6 `yan` never parses branch names
+
+Because naming the integration branch may be taken over by okt, `yan` cannot assume the name has any structure. It does not infer ownership by globbing a prefix. Instead, `task.json` stores `unit.branch`, and `run/meta.json` stores the shift branch name. Asking the reverse question — "who does this branch belong to?" — means looking in storage, not splitting a string.
+
+One exception: `git branch --list 'yan/*'` may be used to find every branch `yan` created, for maintenance cleanup. That is enumerating our own things, not inferring ownership from a name, so it does not break the rule.
+
+## 6.7 How big a `unit` should be
+
+When the integration branch merges into `target`, that MR's diff is the sum of every `shift`. Pile up enough shifts and colleagues cannot get through the review. That cost gives the size of a `unit` a clear standard:
+
+> The size of a `unit` is the size of one outbound MR, which is how much a colleague can review in one sitting.
+
+When it grows past what a review can absorb, it should have been split into two units — two integration branches, two outbound MRs.

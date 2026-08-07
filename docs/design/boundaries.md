@@ -1,78 +1,78 @@
-# 边界
+# Boundaries
 
-## 9. `yan` 的可写范围
+## 9. What `yan` may write
 
-### 9.1 文件系统
+### 9.1 The file system
 
-`yan` 写的只有自己的记账层：`task.json`、`log.md`、各级 `brief.md`、`run/meta.json`、`mem/learnings/`、`mem/repos.json`。
+`yan` writes only its own bookkeeping: `task.json`, `log.md`, the `brief.md` files at each level, `run/meta.json`, `mem/learnings/`, and `mem/repos.json`.
 
-`yan` 不写的有四类：`repos/` 主 clone（唯一允许的写是 `git fetch`，永不 checkout、永不改工作区、永不 commit）、`shift` 自己写的 `status` / `outcome.md` / `artifacts/`、`user` 的本地选择 `conf/`、以及 `yan` 自己的 `bin/` 和 `AGENTS.md`（运行时不自改）。其他 `task` 的目录也不读（[§5.2](agents.md#52-一个-yan--一个-task)）。
+There are four groups it does not write. The main clones under `repos/` (the only write allowed there is `git fetch`; never check out, never touch the working tree, never commit). The files a `shift` writes for itself: `status`, `outcome.md`, `artifacts/`. `user`'s local choices in `conf/`. And `yan`'s own `bin/` and `AGENTS.md`, which it does not modify at runtime. It also does not read other tasks' directories ([§5.2](agents.md#52-one-yan-per-task)).
 
-逐条清单见 [附录 B](appendix.md#附录-b--yan-的文件系统边界)。
+The full list is in [Appendix B](appendix.md#appendix-b-file-system-boundary-for-yan).
 
-### 9.2 外部副作用
+### 9.2 External side effects
 
-| 动作 | 谁做 | 授权 |
+| Action | Who does it | Authority |
 | --- | --- | --- |
-| `yan tree get / return`（不带 force） | `yan`、`shift` | 自主 |
-| `yan tree return --force` | — | 禁止，除非 `user` 明说可丢 |
-| 起 / 关终端 | `yan` | 自主 |
-| push 子分支 | `shift` | 自主 |
-| push 集成分支（`yan sync` 后） | `yan` | 自主 |
-| `git push --force` 到任何地方 | — | 禁止 |
-| 开子分支 MR（→ 集成分支） | `shift` | 自主 |
-| 合子分支 MR（→ 集成分支） | `yan` | 自主（内部验收，`user` own 这个分支） |
-| 开对外 MR（集成分支 → `target`） | `yan` | 自主（开 MR 可逆） |
-| 合对外 MR（→ `target`） | `yan` | 必须 `user` 明说 |
-| 删已合并的子分支 | `yan` | 自主。必须排在还树之后（[§7](worktree.md#7-worktree)） |
-| 删未合并的任何分支 | — | 禁止 |
-| `yan unit set`（改 `branch` / `target` / `mode` / `scope`） | `yan` | 必须 `user` 明说—改的全是决策 |
-| MR 上留评论、@人 | — | 必须 `user` 明说，会打扰同事 |
+| `yan tree get / return` without force | `yan`, `shift` | on its own |
+| `yan tree return --force` | — | forbidden, unless `user` says the changes can be thrown away |
+| open or close a terminal | `yan` | on its own |
+| push a shift branch | `shift` | on its own |
+| push the integration branch, after `yan sync` | `yan` | on its own |
+| `git push --force` anywhere | — | forbidden |
+| open a shift branch MR into the integration branch | `shift` | on its own |
+| merge a shift branch MR into the integration branch | `yan` | on its own — this is the internal checkpoint, on a branch `user` owns |
+| open the outbound MR from the integration branch to `target` | `yan` | on its own, because opening an MR is reversible |
+| merge the outbound MR into `target` | `yan` | `user` has to ask for it |
+| delete a merged shift branch | `yan` | on its own, and it must come after the tree is returned ([§7](worktree.md#7-worktrees)) |
+| delete any unmerged branch | — | forbidden |
+| `yan unit set`, changing `branch`, `target`, `mode`, or `scope` | `yan` | `user` has to ask for it, because every one of these is a decision |
+| comment on an MR, or mention someone | — | `user` has to ask for it, because it interrupts colleagues |
 
-> 在自己的分支和本机范围内可以自主；影响到 `target`、或者同事会看见的动作，必须 `user` 明说。
+> Inside your own branches and your own machine, act on your own. Anything that affects `target`, or that a colleague will see, requires `user` to say so.
 
-### 9.3 `shift` 的范围
+### 9.3 What a `shift` may write
 
-`shift` 只写三处：自己 `shifts/<sid>/` 下的 status 和 outcome、`tasks/<id>/artifacts/`、以及它租来的那棵树里的代码。`mem/`、`task.json`、集成分支、主 clone 一律不碰。
+A `shift` writes in three places: the `status` and `outcome` files under its own `shifts/<sid>/`, `tasks/<id>/artifacts/`, and the code in the tree it leased. It never touches `mem/`, `task.json`, the integration branch, or a main clone.
 
-反过来，`yan` 从不进 worktree 改代码。唯一进树的场合是 `yan sync`，那是脚本动作，有冲突就立刻退出交给 `shift`。这条让「谁改了什么」永远可归因。
+In the other direction, `yan` never goes into a worktree to edit code. The one time it enters a tree is `yan sync`, which is a script action, and which exits immediately on a conflict and hands the job to a `shift`. This keeps "who changed what" always attributable.
 
 ---
 
-## 10. 外部权威接缝（okt 等）
+## 10. Seams for outside authorities
 
-> 跟 [§5.5](supervision.md#55-监督) 的 Claude Code hook 区分开：那是 harness 的生命周期钩子，这里是把「分支该叫什么名、能不能合」这类决策委托给外部权威的接缝。两者同名不同物。
+> Keep this separate from the Claude Code hooks in [§5.5](supervision.md#55-supervision). Those are the harness's lifecycle hooks. These are seams for delegating decisions — what a branch should be called, whether it may be merged — to an outside authority. Same word, different things.
 
-`user` 的团队用 okt 管分支命名和可合并性。`yan` 的代码里不出现 `okt` 三个字母，通过一个 opt-in 接缝委托出去。
+`user`'s team uses okt to manage branch naming and mergeability. The three letters `okt` do not appear anywhere in `yan`'s code; the work is delegated through an opt-in seam.
 
 ```
 conf/hooks/
-  branch-name      给集成分支起名（或直接建好它）
-  merge-check      判断能不能合   ← 留位置，0→1 不实现
+  branch-name      name the integration branch (or create it outright)
+  merge-check      decide whether it may be merged   ← reserved, not implemented in the first version
 ```
 
-`conf/` 是 LOCAL、gitignored—这是这台机器、这个团队的选择，不是 `yan` 的一部分。
+`conf/` is local and gitignored. It represents the choices of this machine and this team, and is not part of `yan`.
 
-### branch-name 契约
+### The branch-name contract
 
-只在集成分支上调用。 子分支永远由 `yan` 自己命名（[§6.5](branching.md#65-分支的命名权威)）—okt 不认识 `shift`，让它命名没有意义。
+**It is called for the integration branch only.** Shift branches are always named by `yan` ([§6.5](branching.md#65-who-names-branches)); okt knows nothing about a `shift`, so letting it choose would be meaningless.
 
-输入 JSON 走 stdin（字段以后能加，不破坏已有 hook），输出一行分支名走 stdout。这个不对称是有意的。
+The input is JSON on stdin, so fields can be added later without breaking an existing hook. The output is one line on stdout, the branch name. The asymmetry is deliberate.
 
 ```json
-{ task: t042, task_title: 统一鉴权 header,
+{ task: t042, task_title: unify the auth header,
   unit: auth, repo: monorepo-x, target: master,
   scope: [apps/auth] }
 ```
 
-hook 允许自己去创建/注册分支，只要最后在 stdout 打印分支名。`yan` 的逻辑因此能同时支持「okt 只给名字」和「okt 直接把分支建好了」两种用法：
+The hook may create or register the branch itself, as long as it prints the branch name on stdout at the end. That lets `yan` support both styles — okt only handing back a name, and okt having created the branch already:
 
 ```
-name=$(hook branch-name <<< "$ctx") || die "分支命名被拒绝"
-分支已存在（本地或远端）→ checkout 它
-分支不存在            → 从 base 切一个
+name=$(hook branch-name <<< "$ctx") || die "branch naming was refused"
+the branch already exists (locally or on the remote) → check it out
+the branch does not exist                            → cut it from the base
 ```
 
-失败语义：hook 非零退出时 `yan` 停下来报错，绝不 fallback 到内置默认。否则 okt 拒绝之后 `yan` 会悄悄造出一个不合团队规范、可能根本合不进去的分支—那比直接失败糟糕得多。
+Failure semantics: if the hook exits non-zero, `yan` stops and reports the error. It never falls back to the built-in default. Otherwise, after okt refused, `yan` would quietly create a branch that breaks the team's rules and may not be mergeable at all — which is much worse than failing outright.
 
-**为什么是 hook 而不是内置**：分支名属于决策那一类，而决策可以由外部权威做。`yan` 的职责只是「把决策记下来，并且不假设它长什么样」。`merge-check` 以后接进来是同一个道理：「能不能合」是决策，okt 可以是决策者，`yan` 只负责执行和记录。
+**Why this is a hook rather than built in:** a branch name is a decision, and decisions can be made by an outside authority. `yan`'s job is to record the decision and to assume nothing about its shape. `merge-check` will work the same way when it arrives: whether something may be merged is a decision, okt can be the one making it, and `yan` only carries it out and records it.
