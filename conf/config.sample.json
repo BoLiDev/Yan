@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "agents": { "yan": "codex", "shift": "claude" },
+  "forge": { "kind": "gitlab", "host": "gitlab.company.internal" },
+  "backend": "tmux"
+}
