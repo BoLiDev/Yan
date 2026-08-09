@@ -22,6 +22,26 @@ _json_err() {
 	printf 'lib-json: %s\n' "$1" >&2
 }
 
+# _json_lf - strip the CR from CRLF line endings.
+#
+# jq.exe on Git Bash emits CRLF:
+#
+#   $ printf '{"a":"1","b":"2"}' | jq -r 'to_entries[]|.key' | od -c
+#   0000000   a  \r  \n   b  \r  \n
+#
+# This is worse than it looks. `$(...)` strips a *trailing* newline, so a
+# single-value read looks perfectly fine and hides the problem entirely; only
+# MULTI-LINE output is corrupted, and then every line but the last carries a
+# trailing CR. A comparison against a literal then fails for no visible reason,
+# on one platform only. Every jq pass in this library goes through here.
+#
+# Only a trailing CR is removed, never one in the middle of a line: jq escapes
+# real control characters inside JSON strings as \r (two characters), so a raw
+# CR byte at end of line is always the line-ending artefact and never data.
+_json_lf() {
+	sed $'s/\r$//'
+}
+
 # _json_atomic_write <file> <json-string>
 #
 # The only place in the code base that replaces a JSON file.
@@ -53,6 +73,9 @@ _json_atomic_write() {
 	fi
 
 	# One jq pass both validates the input and guarantees the version field.
+	# jq must stay the last command in this pipeline-free form: piping it
+	# straight into _json_lf would hand us the exit status of sed instead, and
+	# an invalid-JSON write would then look like a success.
 	if ! printf '%s' "$json" | jq '
 			if type == "object" and (has("version") | not)
 			then . + {version: 1}
@@ -61,6 +84,14 @@ _json_atomic_write() {
 		rm -f -- "$tmp"
 		_json_err "refusing to write invalid JSON to $file"
 		return 1
+	fi
+
+	# Normalise separately, so the file is LF on both platforms and a JSON file
+	# written on Windows is byte-identical to one written on Linux.
+	if _json_lf <"$tmp" >"$tmp.lf" 2>/dev/null; then
+		mv -f -- "$tmp.lf" "$tmp"
+	else
+		rm -f -- "$tmp.lf"
 	fi
 
 	# Belt and braces: never mv anything jq cannot read back, and never mv an
@@ -98,7 +129,8 @@ json_read() {
 		_json_err "no such file: $file"
 		return 1
 	fi
-	jq -r "$filter" "$file"
+	jq -r "$filter" "$file" | _json_lf
+	return "${PIPESTATUS[0]}"
 }
 
 # json_write <file> <json-string>
