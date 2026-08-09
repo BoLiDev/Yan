@@ -36,9 +36,12 @@
 # (cli-ux.md §4) - attaching is what user meant, and a second agent is what
 # they did not.
 #
-# THE SOFT PATH IS PHASE 9. `yan continue` with no id would select among the
-# incomplete tasks with a Clack prompt; until that exists, and always when
-# there is no TTY, this refuses and names the flag to pass (cli-ux.md §1).
+# THE SOFT PATH. With no id and a person at the keyboard, this selects among
+# the INCOMPLETE tasks with a Clack prompt (cli-ux.md §4) - the list comes from
+# `yan ls --json`, and the selection comes straight back as
+# `yan continue --task <id>`. Without a TTY there is nobody to answer, so it
+# refuses and names the flag to pass (cli-ux.md §1). That order matters: a
+# prompt reached by a hook, a script or an agent is a hang, not a question.
 #
 # Exit codes: 0 fine (including "already running, attach instead"), 2 you
 # called this wrongly, 1 anything else.
@@ -55,6 +58,8 @@ set -euo pipefail
 . "${YAN_LIB:-$YAN_HOME/bin}/lib-lock.sh"
 # shellcheck source=bin/lib-boot.sh
 . "${YAN_LIB:-$YAN_HOME/bin}/lib-boot.sh"
+# shellcheck source=bin/lib-ui.sh
+. "${YAN_LIB:-$YAN_HOME/bin}/lib-ui.sh"
 
 # The label of yan's own window in the task container. Shifts are labelled
 # <sid>-<unit>, so the two can never be confused. Nothing is LOCATED by this
@@ -81,8 +86,8 @@ agents.yan from conf/config.json.
 A second yan on the same task is refused: when one is already running this
 attaches to it rather than spawning a duplicate.
 
-Selecting a task interactively when no id is given is the soft path and is not
-implemented yet; pass the id.
+With no id and a terminal, this asks which of the incomplete tasks to open.
+Without a terminal it refuses: pass --task <id>.
 EOF
 }
 
@@ -131,8 +136,21 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$id" ]; then
+	# Soft path: a person, a terminal, and a missing value (cli-ux.md §1).
+	# ui_run replaces this process, so nothing after it runs on that path.
+	if ui_soft_path_wanted; then
+		soft=(continue)
+		[ -n "$agent" ] && soft+=(--agent "$agent")
+		ui_run "${soft[@]}"
+		die "the interactive prompts could not be started"
+	fi
+
+	why=$(ui_why_unavailable)
+	if ui_is_tty && [ -n "$why" ]; then
+		printf 'yan continue: the interactive path is unavailable: %s\n' "$why" >&2
+	fi
 	usage >&2
-	die "which task? pass 'yan continue <id>' or 'yan continue --task <id>'. Choosing from the incomplete tasks interactively is the soft path and is not implemented yet; 'yan ls' lists them" 2
+	die "which task? pass 'yan continue <id>' or 'yan continue --task <id>'. Choosing from the incomplete tasks interactively needs a terminal; 'yan ls' lists them" 2
 fi
 
 task_exists "$id" || die "no such task: $id - 'yan ls' lists the tasks in $YAN_HOME/tasks" 2
