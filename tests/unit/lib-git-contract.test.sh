@@ -34,6 +34,7 @@ fns=(
 	git_worktree_add
 	git_worktree_remove
 	git_worktree_list
+	git_worktree_prune
 	git_reset_hard
 	git_clean_fd
 	git_branches_containing_head

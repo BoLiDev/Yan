@@ -219,6 +219,16 @@ git_worktree_remove() {
 	git -C "$dir" worktree remove "$@"
 }
 
+# git_worktree_prune <dir>
+#
+# Removes only the administrative records of worktrees whose directory is
+# already gone. It never touches a directory that still exists, which is why
+# the pool may call it before handing a slot out.
+git_worktree_prune() {
+	_git_dir "${1:-}" || return $?
+	git -C "$1" worktree prune
+}
+
 # git_worktree_list <dir>
 git_worktree_list() {
 	_git_dir "${1:-}" || return $?
