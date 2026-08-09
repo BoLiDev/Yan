@@ -1,7 +1,6 @@
 # `yan` design
 
 > This document records design decisions. It is not an implementation specification. Each decision tries to carry its "why" with it, because when you come back to change something six months later, the reasoning matters more than the conclusion.
-> When each decision was made is recorded in [`../decisions.md`](../decisions.md).
 
 This is the backbone. It starts with three things the rest of the design keeps referring back to — the design principles, the glossary, and the storage criteria — and then walks through the system one part at a time, saying what each part is responsible for and where it sits in the overall flow.
 
@@ -204,12 +203,3 @@ The whole of `bin/` is produced by two independent ways of cutting the code. Dep
 Four lists to look things up in: the memory read and write contract, `yan`'s file system boundary, the script inventory, and configuration (inventory plus sample).
 
 → [`appendix.md`](appendix.md): [Appendix A](appendix.md#appendix-a-memory-read-and-write-contract) / [B](appendix.md#appendix-b-file-system-boundary-for-yan) / [C](appendix.md#appendix-c-script-inventory) / [D](appendix.md#appendix-d-configuration)
-
----
-
-## Documents outside the design
-
-| Document | What it holds |
-| --- | --- |
-| [`../implementation-plan.md`](../implementation-plan.md) | what order to build things in, and which test cases each piece must bring with it |
-| [`../decisions.md`](../decisions.md) | when a decision was made, and what was known at the time |

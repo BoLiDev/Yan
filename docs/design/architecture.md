@@ -1,7 +1,6 @@
 # `yan` architecture
 
 > [`INDEX.md`](INDEX.md) says why. This document says where the code goes, what may call what, and how it is tested.
-> The decision log is in [`decisions.md`](../decisions.md).
 > A bare `§x.y` in this document refers to this document. References into the design documents are always written as `design §x.y`.
 
 ---
@@ -196,4 +195,4 @@ tests/
 
 Subcommands all source libraries in the same form, `. "${YAN_LIB:-$YAN_HOME/bin}/lib-forge.sh"`, so a test only has to point `YAN_LIB` at `tests/stub/` to swap them out. **No injection framework is needed.** This shape is fixed during P0, and every later task follows it.
 
-Which test cases have to be written and when they run are in [`implementation-plan.md` §2](../implementation-plan.md#2-the-task-list) and [`implementation-plan.md` §3](../implementation-plan.md#3-test-strategy). The four ordering regression tests are the easiest ones to overlook: each of them guards something that does not fail loudly, it just quietly stops working.
+Four ordering regressions are the easiest ones to overlook — each guards something that does not fail loudly, it just quietly stops working: after `pool_return`, gitignored directories are still there; `yan shift done` returns the tree before deleting the branch; `yan shift new`'s working-directory assertion really refuses; `yan sync` really exits on a conflict.
