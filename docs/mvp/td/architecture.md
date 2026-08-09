@@ -22,7 +22,8 @@ The whole structure comes from two independent ways of cutting it. There is no t
 ```mermaid
 graph TD
     A["AGENTS.md<br/>judgements the model makes: split units, set scope, write briefs, decide whether to dispatch, decide whether to escalate"]
-    B["bin/yan-*.sh<br/>20 subcommands, one file each, split into atomic and orchestrating"]
+    U["ui/ soft path<br/>Node + @clack/prompts; human TTY only"]
+    B["bin/yan-*.sh<br/>subcommands, atomic and orchestrating"]
     H["hook-autoarm.sh / hook-turnend-guard.sh<br/>called by the harness, not by a person and not by the model"]
     C["lib-term / lib-forge / lib-pool / lib-hook<br/>seams: one module hides one outside authority"]
     D["lib-task / lib-log<br/>yan's own file formats"]
@@ -30,6 +31,7 @@ graph TD
     F["outside authorities<br/>git · the forge (GitHub/GitLab) · tmux/Herdr · the file system · optional branch-name hook"]
 
     A -->|"only calls subcommands, never sources a lib"| B
+    U -->|"collects answers, then yan with full flags"| B
     H --> B
     B --> C
     B --> D
@@ -43,7 +45,7 @@ graph TD
 
 The rule that actually needs guarding is a different one: **seams never call each other.** `lib-term` does not call `lib-forge`, and `lib-forge` does not call `lib-pool`. Each seam hides one outside authority, so there should be no edges between them, and no first exception.
 
-**The model never sources a library; it can only run `yan <cmd>`.** This is design principle 4 (`user` and the agents share one entry point) expressed in the structure: `user` and the agents can call exactly the same set of things, no more and no less.
+**The model never sources a library; it can only run `yan <cmd>`.** This is design principle 4 (`user` and the agents share one entry point) expressed in the structure: `user` and the agents can call exactly the same set of things, no more and no less. The soft path under `ui/` is for people only ([cli-ux.md](cli-ux.md)); it is not a second entry point for agents.
 
 ---
 
@@ -56,7 +58,7 @@ $YAN_HOME/
   AGENTS.md                  judgements the model reads. The only always-loaded context
   bin/
     yan                      entry point: parse the subcommand, exec the matching file
-    yan-<cmd>.sh             20 subcommands, one file each (§5)
+    yan-<cmd>.sh             subcommands, one file each (§5); hard path
     lib-term.sh              seam: terminals
     lib-forge.sh             seam: the remote git forge (GitHub / GitLab)
     lib-pool.sh              seam: the worktree pool
@@ -67,6 +69,7 @@ $YAN_HOME/
     lib-git.sh               utility: run git in a given directory
     hook-autoarm.sh          Stop hook (Claude asyncRewake only)
     hook-turnend-guard.sh    Stop hook (blocking; --claude / --codex)
+  ui/                        Node soft path only: `@clack/prompts` wrappers that collect answers then exec `yan <cmd>` with full flags ([cli-ux.md](cli-ux.md))
   .claude/settings.json      Claude: SessionStart + guard + autoarm
   .codex/hooks.json          Codex: SessionStart + guard only (no autoarm)
   conf/                      local choices (`config.json`, optional hooks); see [td Appendix D](appendix.md#appendix-d-configuration)
@@ -76,7 +79,7 @@ $YAN_HOME/
   mem/  tasks/  conf/  repos/    runtime data; see td §3
 ```
 
-One naming convention: **`bin/` contains only three prefixes** — `yan-*` for subcommands, `lib-*` for libraries, `hook-*` for hooks. The file name tells you which layer it is in and who may call it.
+One naming convention: **`bin/` contains only three prefixes** — `yan-*` for subcommands, `lib-*` for libraries, `hook-*` for hooks. The file name tells you which layer it is in and who may call it. Human-only prompt code lives under `ui/`, not under `bin/`, so agents never confuse it with a primitive.
 
 ---
 
@@ -139,7 +142,6 @@ Why some of these have to be scripts rather than something the agent does itself
 | `yan ls` | with no argument: scan `tasks/*/task.json` and render the queue. With a task id: print that task's related facts in one place — its units (integration branch, `target`, `mode`, `scope`), and every live `shift` with **shift branch name** and **worktree absolute path** (from `run/meta.json`, checked against the pool when needed). Optional `--json`. A pure derived view; it stores nothing |
 | `yan open <id>` | open a task directory or its artifacts |
 | `yan repo-add <url>` | register a repository and clone it into `repos/`. The only writer of `repos.json` |
-| `yan task new` | create `tasks/<id>/` and write the brief |
 | `yan unit set --branch` | ask the forge to decide `end` → move the old round into `history[]` with `at` → overwrite the current fields → add a log line. **Starting a new round is one atomic operation**, and once the decision is in the history the forge is never asked again ([td §6.4](branching.md#64-the-shape-of-a-unit)) |
 | `yan mr` | open the outbound MR and write `unit.mr`. Authority is in [td §9.2](boundaries.md#92-external-side-effects) |
 | `yan state <sid>` | derive the state from `run/meta.json` plus the terminal, git, and the forge. **The current state can only be derived; it is never the last line of `run/status`** ([td §5.4](agents.md#54-communication)) |
@@ -151,12 +153,13 @@ Why some of these have to be scripts rather than something the agent does itself
 
 | Command | Steps | The invariant it holds |
 | --- | --- | --- |
+| `yan task new` | soft path: Clack prompts for title / description / repos / monorepo packages / `target` → write brief and unit(s) → enter container with `agents.yan`. Hard path: same steps from flags ([cli-ux.md](cli-ux.md)) | **create ends with `user` already inside the task**; agents use the hard path only |
 | `yan shift new` | sync the integration branch → lease a tree, cutting the shift branch → write the brief → start the terminal with `agents.shift` from `conf/config.json` (or `--agent`) → set `YAN_TASK_DIR` | **assert that the sub-agent's working directory is not the main clone's path, and refuse to start otherwise** ([td §7](worktree.md#7-worktrees)) |
 | `yan shift done` | verify the MR is merged → write `outcome` → write the log → `rm -rf run/` → return the tree → delete the remote shift branch | **returning the tree must come before deleting the branch** ([td §7](worktree.md#7-worktrees)) |
 | `yan sync` | lease a tree → fetch → rebase or merge `target` → push → return the tree | **exit immediately on a conflict and hand it to a `shift`**; conflicts are never resolved inside the script. Its timing is fixed: before every new `shift` ([td §6.3](branching.md#63-how-the-integration-branch-changes)) |
-| `yan unit add` | run the `branch-name` hook → check the branch out if it exists, cut it from the base if it does not → write `task.json` | **if the hook exits non-zero, stop and report; never fall back to the built-in default** ([td §10](boundaries.md#10-seams-for-outside-authorities)) |
+| `yan unit add` | run the `branch-name` hook → check the branch out if it exists, cut it from the base if it does not → write `task.json`. Soft path may multiselect repos/packages into `scope` ([cli-ux.md](cli-ux.md)) | **if the hook exits non-zero, stop and report; never fall back to the built-in default** ([td §10](boundaries.md#10-seams-for-outside-authorities)) |
 | `yan land` | topologically sort by `needs` → merge | **`user` has to ask for it** ([td §9.2](boundaries.md#92-external-side-effects)) |
-| `yan start <id>` | create the task's terminal container → start `yan` inside it using `agents.yan` from `conf/config.json` | one container per `task`, and the container's lifetime is `user` opening and closing it ([td §5.7](agents.md#57-terminal-topology)) |
+| `yan continue [<id>]` | create or attach the task's terminal container → start `yan` with `agents.yan` from `conf/config.json`. Soft path: select task when id omitted ([cli-ux.md](cli-ux.md)) | one container per `task`, and the container's lifetime is `user` opening and closing it ([td §5.7](agents.md#57-terminal-topology)); rename of the former `yan start` |
 | `yan session-start` | the full rebuild: scan `tasks/` → query the terminal → query the pool → query the forge → print a summary | **a restart is a non-event** ([td §5.1](agents.md#51-lifetime-tiers)) |
 
 ---

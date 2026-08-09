@@ -56,10 +56,10 @@ The steps of each subcommand, and whether it is atomic or orchestrating, are in 
 | Script | What it does |
 | --- | --- |
 | `yan repo-add` | register a repository and clone it into `repos/` |
-| `yan task new` | create `tasks/<id>/` and write the brief |
-| `yan unit add` | add a `unit` (`target` must be given explicitly) and create the integration branch |
+| `yan task new` | soft path: title, description, repos, monorepo-aware `scope`, unit(s), then enter the task container; hard path: same with flags ([cli-ux.md](cli-ux.md)) |
+| `yan unit add` | add a `unit` (`target` must be given explicitly) and create the integration branch; soft path may offer repo/package select |
 | `yan unit set` | change `branch`, `target`, `mode`, or `scope`. When `branch` changes, decide `end` and archive the old round ([§6.4](branching.md#64-the-shape-of-a-unit)) |
-| `yan start` | create the task's terminal container and start `yan` inside it ([§5.6](agents.md#56-harness-requirements), [Appendix D](#appendix-d-configuration)) |
+| `yan continue` | create or attach the task's terminal container and start `yan` inside it; soft path selects the task when no id ([§5.6](agents.md#56-harness-requirements), [cli-ux.md](cli-ux.md), [Appendix D](#appendix-d-configuration)) |
 | `yan session-start` | the full rebuild at startup, triggered by the SessionStart hook |
 | `yan tree` | the built-in worktree pool: `get`, `return`, `status` ([§7](worktree.md#7-worktrees)) |
 | `yan shift new` | dispatch a `shift`; agent from `config.json` `agents.shift` or `--agent` ([§5.3](agents.md#53-the-life-of-a-shift), [§5.6](agents.md#56-harness-requirements)) |
@@ -98,7 +98,7 @@ Two things stay beside it, not inside it:
 | Field | Required | Values | Notes |
 | --- | --- | --- | --- |
 | `version` | yes | integer | same migration hook as every other JSON file |
-| `agents.yan` | yes | `claude` \| `codex` | `yan start` launches this CLI ([§5.6](agents.md#56-harness-requirements)) |
+| `agents.yan` | yes | `claude` \| `codex` | `yan continue` / enter-after-`task new` launches this CLI ([§5.6](agents.md#56-harness-requirements), [cli-ux.md](cli-ux.md)) |
 | `agents.shift` | yes | any CLI that meets [§5.6](agents.md#56-harness-requirements) | `yan shift new` default; override one dispatch with `--agent` |
 | `forge.kind` | yes | `github` \| `gitlab` | one forge per `$YAN_HOME` ([§8.4](delivery.md#84-the-forge-layer)) |
 | `forge.host` | when `kind` is `gitlab` | hostname, no scheme | never inferred from a clone URL |

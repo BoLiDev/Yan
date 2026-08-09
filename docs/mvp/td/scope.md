@@ -6,11 +6,11 @@ Throughout the design, "0→1" means the first version that works end to end. "1
 
 ### What is in it
 
-One `yan` entry point plus 20 subcommands, 2 hook scripts, dual harness registration (`.claude/settings.json` and `.codex/hooks.json`), and 8 libraries, plus `AGENTS.md`. The list of subcommands and hooks is in [Appendix C](appendix.md#appendix-c-script-inventory); the 8 libraries and how they are arranged are in [`architecture.md` §3](architecture.md#3-repository-layout) and [`architecture.md` §5](architecture.md#5-subcommands).
+One `yan` entry point plus the subcommands in [Appendix C](appendix.md#appendix-c-script-inventory), 2 hook scripts, dual harness registration (`.claude/settings.json` and `.codex/hooks.json`), 8 libraries, `AGENTS.md`, and the human soft path (`ui/` + `@clack/prompts`) described in [`cli-ux.md`](cli-ux.md). How subcommands are arranged is in [`architecture.md` §3](architecture.md#3-repository-layout) and [`architecture.md` §5](architecture.md#5-subcommands).
 
-The two heaviest pieces are the built-in worktree pool ([§7](worktree.md#7-worktrees)) and the forge layer supporting two remotes ([§8.4](delivery.md#84-the-forge-layer)). Of the pool, the branch awareness, the test for returning a tree, and the orphan-commit guard all had to be written anyway; the genuinely extra parts are reuse and leases. What that buys is zero outside dependencies, and a first version that can be accepted against `yan`'s own repository.
+The two heaviest pieces are the built-in worktree pool ([§7](worktree.md#7-worktrees)) and the forge layer supporting two remotes ([§8.4](delivery.md#84-the-forge-layer)). Of the pool, the branch awareness, the test for returning a tree, and the orphan-commit guard all had to be written anyway; the genuinely extra parts are reuse and leases. What that buys is zero outside dependencies for the hard path, and a first version that can be accepted against `yan`'s own repository. Node is required only for the soft path.
 
-**The acceptance test for 0→1:** a one-sentence request → one `unit` → one `shift` → the shift branch's MR merges into the integration branch → the `shift` clocks out and returns its tree → the outbound MR is opened → `user` says to merge → it is merged → `log.md` records the whole chain. At least one harness path (Claude or Codex) must complete that chain end to end; the other must pass its hook-contract tests in P4 ([§5.5](supervision.md#55-supervision), [§5.6](agents.md#56-harness-requirements)).
+**The acceptance test for 0→1:** `yan task new` (interactive or flagged) produces a task with monorepo-aware `scope` when applicable, enters the container, then: one `unit` → one `shift` → the shift branch's MR merges into the integration branch → the `shift` clocks out and returns its tree → the outbound MR is opened → `user` says to merge → it is merged → `log.md` records the whole chain. Reopening with `yan continue` must reattach. At least one harness path (Claude or Codex) must complete that chain end to end; the other must pass its hook-contract tests in P4 ([§5.5](supervision.md#55-supervision), [§5.6](agents.md#56-harness-requirements)).
 
 ### Why the first version stays small
 
@@ -37,8 +37,8 @@ A consistency check: `yan`'s `mode` system has no such level, and the default `m
 
 | Stage | What gets added |
 | --- | --- |
-| 0→1 | everything above. One `unit`, one `shift`, working end to end |
-| 1→2 | several units (across repositories, or across a monorepo's sub-applications), `needs` ordering, several concurrent shifts, and a fourth source for `yan wait` that polls the forge |
+| 0→1 | everything above, including soft-path create/`continue`, monorepo package multiselect into `scope` / units at create time ([cli-ux.md](cli-ux.md)). Acceptance still stresses one live `shift` end to end |
+| 1→2 | `needs` ordering across several units, several concurrent shifts, and a fourth source for `yan wait` that polls the forge |
 | 2→10 | Herdr (the second implementation of `lib-term.sh`), `scout` deliverables, and a recovery procedure for a stuck `shift` |
 | 10→100 | choosing model and effort per task, the `merge-check` hook, and periodic trimming of `learnings` |
 
@@ -68,7 +68,7 @@ Everything still undecided across the system, including the ones about code stru
 
 1. **Should `$YAN_HOME` be under git?** Having commit history for `mem/user.md` and `learnings/` would be valuable, because you could see how preferences evolved. If it is versioned, does `tasks/` go in too, which would be very noisy? Current leaning: `mem/` in, `tasks/` out. This does not block the first version — it can be added at any time with a `git init`.
 2. **How to trim `tasks/`.** Current leaning: delete nothing automatically, trim semi-manually with `yan prune`, and keep `artifacts/` even when the rest of a task is trimmed. This does not block the first version, since there will be nothing accumulated yet.
-3. **The format of a `task` id.** A plain sequence number like `t042`, or a slug with meaning in it? A number is short but says nothing; a slug reads well but duplicates the brief's title. Note that it goes into branch names ([§6.5](branching.md#65-who-names-branches), `yan/<task>-<unit>-<sid>`), so being short has a practical benefit. Current leaning: numbers in the `t042` style, with the readable title living in the title lines of `brief.md` and `log.md`. This has to be settled before `yan task new` is written.
+3. **The format of a `task` id.** A plain sequence number like `t042`, or a slug with meaning in it? A number is short but says nothing; a slug reads well but duplicates the brief's title. Note that it goes into branch names ([§6.5](branching.md#65-who-names-branches), `yan/<task>-<unit>-<sid>`), so being short has a practical benefit. Current leaning: numbers in the `t042` style, with the readable title living in the title lines of `brief.md` and `log.md` (and collected by `yan task new`'s title prompt). This has to be settled before `yan task new` is written.
 4. **Should `lib-pool`'s pool root be configurable?** `~/.yan-trees/<repo>-<hash>/N/<repo>` ([§3](INDEX.md#3-directory-layout)) is what is written today.
 
 ### Settled: shift branches are pushed to the remote
@@ -78,3 +78,7 @@ Everything still undecided across the system, including the ones about code stru
 The reason is not on any list of pros and cons. It is this: **one independent MR per `shift` is how `user` reviews the work** — going through it one `shift` at a time, reading each diff against the integration branch, with almost no need to read code locally. That turns the two levels of review in [§6.2](branching.md#62-two-levels-of-review) from a by-product of the structure into one of the reasons for wanting the system at all.
 
 The accepted cost: the server accumulates a pile of `yan/*` branches and a pile of internal MRs. The cleanup is the clock-out order in [§5.3](agents.md#53-the-life-of-a-shift) and [§7](worktree.md#7-worktrees) — once merged, delete, and the deletion comes after the tree is returned. `user` judged the cost of the repeated CI runs to be negligible, so nothing is done about it.
+
+### Settled: human CLI soft path
+
+**Decided:** TTY prompts via `@clack/prompts`; `yan task new` creates units (including monorepo package scope) and enters the session; `yan start` is renamed `yan continue`; full flags or non-TTY skip prompts. Details in [`cli-ux.md`](cli-ux.md).

@@ -74,6 +74,8 @@ Using JSON costs three things, all handled in one place in the scripts:
 2. **A `version` field** in every JSON file. This is the one hook left for a future schema migration.
 3. **`jq` becomes a hard dependency**, so the bootstrap check has to list it.
 
+The human soft path adds one more bootstrap dependency: **Node**, for `@clack/prompts` only ([cli-ux.md](cli-ux.md)). Agents and the hard path do not need it.
+
 ---
 
 ## 3. Directory layout
@@ -81,7 +83,7 @@ Using JSON costs three things, all handled in one place in the scripts:
 ```
 $YAN_HOME/
   AGENTS.md                    what yan is responsible for (the only always-loaded context)
-  bin/  docs/
+  bin/  docs/  ui/             ui/ is the Node soft path for Clack prompts ([cli-ux.md](cli-ux.md))
 
   mem/                         long-lived memory, readable and editable by hand
     user.md                    user's preferences and working style
@@ -125,6 +127,12 @@ Every time `yan` starts, it needs to know two things: what kind of person `user`
 `mem/user.md` is written only when `user` asks, because it records judgements about a person and a wrong entry keeps misleading. `mem/learnings/` may be written by `yan` on its own once there is evidence, because a wrong entry there is cheap and asking every time would mean nothing gets written at all. Progress inside a task does not go into memory; it is appended one line at a time to `log.md`, which is where the narrative sub-category from §2 ends up, and which `user` and the agents read as the same file. There is one more kind of thing that goes neither into the repository nor into memory: artifacts (prototypes, screenshots, research data). Those have to be written outside the worktree, or they are either wiped or accidentally committed into the work repository.
 
 → [`memory.md`](memory.md): [§4.1](memory.md#41-who-may-write-what) who may write what · [§4.2](memory.md#42-logmd-the-narrative-layer) `log.md` · [§4.3](memory.md#43-artifacts) artifacts · [§4.4](memory.md#44-what-not-to-store) what not to store
+
+## Human CLI UX
+
+`user` and the agents share the same subcommands, but not the same input style. On a TTY, missing arguments become Clack prompts (`text` / `select` / `multiselect`); with full flags, or without a TTY, the same commands run silently or refuse with the flags to pass. `yan task new` is the strong create path: title, description, involved repos, monorepo-aware `scope`, unit(s), then the task container and main agent — no separate start step. Coming back later is `yan continue` (select a task if no id). Node is a dependency only for that interactive soft path.
+
+→ [`cli-ux.md`](cli-ux.md): soft vs hard path · `@clack/prompts` · `yan task new` · `yan continue` · monorepo scope picking
 
 ## Agents and shifts
 
@@ -186,7 +194,7 @@ Once all of that is in place, one more line is needed: which actions `yan` may t
 
 The design is complete at that point. What is left is deciding how much goes into the first version, and listing the things that are not settled.
 
-The first version is one `yan` entry point plus 20 subcommands, 2 hooks, and 8 libraries, and it is accepted when the whole chain runs end to end on `yan`'s own repository. It is much smaller than comparable orchestration systems, not because it is written better, but because none of the reasons those systems grew apply here. The road after that has three stages, and Herdr will definitely be supported, just not yet.
+The first version is one `yan` entry point plus the subcommands in Appendix C, 2 hooks, 8 libraries, and a Node soft path for Clack prompts ([cli-ux.md](cli-ux.md)). It is accepted when the whole chain runs end to end on `yan`'s own repository. It is much smaller than comparable orchestration systems, not because it is written better, but because none of the reasons those systems grew apply here. The road after that has three stages, and Herdr will definitely be supported, just not yet.
 
 → [`scope.md`](scope.md): [§11](scope.md#11-scope-of-the-first-version) scope of the first version · [§12](scope.md#12-open-questions) open questions
 
@@ -194,7 +202,7 @@ The first version is one `yan` entry point plus 20 subcommands, 2 hooks, and 8 l
 
 Everything above is the "why". What shape those decisions take once they become files is a separate question.
 
-The whole of `bin/` is produced by two independent ways of cutting the code. Dependencies only ever point downwards. The only thing a model may call is `yan <cmd>`; it never sources a library. Within that structure, subcommands are split into atomic and orchestrating ones, and the test is whether a command represents one indivisible core capability. The layering exists for testability: the seams are the only things that touch the outside world, so testing a subcommand means replacing the seams with stand-ins.
+The whole of `bin/` is produced by two independent ways of cutting the code. Dependencies only ever point downwards. The only thing a model may call is `yan <cmd>`; it never sources a library. Within that structure, subcommands are split into atomic and orchestrating ones, and the test is whether a command represents one indivisible core capability. The layering exists for testability: the seams are the only things that touch the outside world, so testing a subcommand means replacing the seams with stand-ins. Human prompts live beside that stack, not inside the seams ([cli-ux.md](cli-ux.md)).
 
 → [`architecture.md`](architecture.md): layering, module responsibilities, repository layout, testability
 

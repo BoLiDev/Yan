@@ -98,7 +98,7 @@ Supervision is large enough to have its own document: see [`supervision.md`](sup
 
 ## 5.6 Harness requirements
 
-**Agent defaults live in user-global `conf/config.json`** (`agents.yan` and `agents.shift`). Shape and sample: [Appendix D](appendix.md#appendix-d-configuration). `yan start` reads `agents.yan`; `yan shift new` reads `agents.shift`, with a one-off override via `--agent`. The CLI actually started is recorded in `run/meta.json`.
+**Agent defaults live in user-global `conf/config.json`** (`agents.yan` and `agents.shift`). Shape and sample: [Appendix D](appendix.md#appendix-d-configuration). `yan continue` (and the enter step at the end of `yan task new`) reads `agents.yan`; `yan shift new` reads `agents.shift`, with a one-off override via `--agent`. The CLI actually started is recorded in `run/meta.json`. Human create/reopen UX: [cli-ux.md](cli-ux.md).
 
 **`yan` itself runs on Claude Code or Codex.** Other harnesses for the main agent stay out of scope. The shared supervision core is the same; what differs is how continuous coverage is armed — Claude can hold `yan wait` in a long-lived Stop hook (`asyncRewake`), while Codex cannot (official hooks still parse `async` but do not run async command hooks). Codex therefore uses a model-driven loop of `yan wait --seconds N` instead. The full split is in [§5.5](supervision.md#55-supervision).
 
@@ -132,7 +132,7 @@ session / workspace "t042 unify the auth header"
 └── s4-gateway   ← a shift
 ```
 
-`tmux ls` is the task list, and switching sessions is switching tasks. `yan` and the shifts it dispatched share one container, so the outer level shows only tasks and you see individual agents after switching into one. None of this needs extra machinery: `yan start t042` creates the container and starts `yan` inside it, and dispatching a `shift` adds a window to the container `yan` is already in.
+`tmux ls` is the task list, and switching sessions is switching tasks. `yan` and the shifts it dispatched share one container, so the outer level shows only tasks and you see individual agents after switching into one. None of this needs extra machinery: `yan continue t042` creates or attaches the container and starts `yan` inside it (a fresh task reaches the same enter step from `yan task new`), and dispatching a `shift` adds a window to the container `yan` is already in.
 
 Giving every sub-agent its own throwaway Herdr workspace is not worth it. It carries a whole set of safety boundaries with it. The single fact that "an explicit close in Herdr 0.7.5 steals focus" requires an entire focus-safe emptying-close procedure: verify that closing empties the workspace, move the dying workspace behind the focused one, prove the pane holds nothing but an idle shell, end that shell so it exits through the pane-death path, confirm removal, and roll back on failure — and the design still admits that *grouping is best-effort*. All of that cost comes from wanting a workspace's lifetime to be derived automatically, and `yan` does not have that problem: the container's lifetime is `yan`'s lifetime, and `user` opens and closes it by hand.
 
