@@ -17,13 +17,26 @@ Append `2>&1 \| tr -d "\0"` to WSL invocations — WSL emits NUL bytes that garb
 
 `tests/run.sh` prints the runtime it detected on its first line. Quote that line when reporting results.
 
-## 2. Three portability constraints
+## 2. Four portability constraints
 
 **2.1 `winpty` — read this before writing Phase 3.** A native Windows console program (`claude.exe`, `codex.exe`, `gh.exe`) started inside an MSYS2 tmux pane is handed a pipe, not a console. It sees no TTY, decides it is non-interactive, prints nothing useful, and exits. It must be launched as `winpty <cmd> …`. On Linux there is no `winpty` and none is needed. `lib-term`'s spawn path therefore has to branch on the platform (`boot_platform` in `bin/lib-boot.sh` returns `windows` or `linux`). `yan doctor` already fails when `winpty` is missing on Windows.
 
 **2.2 No `flock`.** Git Bash has none, and `noclobber` redirection is not reliably atomic on the filesystems MSYS2 exposes. `mkdir` is the atomic primitive on both platforms. All locking goes through `bin/lib-lock.sh` (`lock_acquire`, `lock_release`, `lock_is_held`, `lock_is_stale`, `with_lock`). Do not invent a second scheme.
 
-**2.3 Native vs POSIX paths.** On Git Bash the shell says `/tmp/x` and `git.exe` says `C:/Users/…/Temp/x` for the same file. Any comparison between a path *we* built and a path a *native tool printed* must normalise first (`cygpath -m`, identity on Linux). Tests have `native_path` in `tests/assert.sh`. Phase 2 needs this when matching `git worktree list --porcelain` output against pool paths.
+**2.3 `jq.exe` emits CRLF on Git Bash.**
+
+```
+$ printf '{"a":"1","b":"2"}' | jq -r 'to_entries[]|.key' | od -c
+0000000   a  \r  \n   b  \r  \n
+```
+
+This one is dangerous because it hides. `$(...)` strips a *trailing* newline, so a **single-value** read looks perfectly correct — only **multi-line** output is corrupted, and then every line but the last keeps a trailing CR. A comparison against a literal then fails for no visible reason, on one platform only, in code that was tested and passed on the other.
+
+`lib-json.sh` handles it centrally: `json_read` strips a trailing CR per line, and `json_write` / `json_edit` write LF files, so a JSON file produced on Windows is byte-identical to one produced on Linux. **Read JSON through `lib-json.sh` and you inherit the fix.** If you must call `jq` directly, strip CR yourself. Only a *trailing* CR is ever removed — jq escapes real control characters inside strings as `\r` (two characters), so a raw CR at end of line is always the line-ending artefact and never data.
+
+Note the shape of the trap when writing the fix: piping `jq` straight into `sed` hands you *sed's* exit status, which turns every invalid-JSON write into a silent success. `tests/unit/lib-json-crlf.test.sh` guards both the CR and that seam.
+
+**2.4 Native vs POSIX paths.** On Git Bash the shell says `/tmp/x` and `git.exe` says `C:/Users/…/Temp/x` for the same file. Any comparison between a path *we* built and a path a *native tool printed* must normalise first (`cygpath -m`, identity on Linux). Tests have `native_path` in `tests/assert.sh`. Phase 2 needs this when matching `git worktree list --porcelain` output against pool paths.
 
 ## 3. Line endings and file modes
 
