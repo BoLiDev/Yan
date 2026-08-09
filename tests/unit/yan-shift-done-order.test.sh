@@ -183,3 +183,43 @@ assert_contains "$out" 'has NOT been deleted'
 assert_not_contains "$(cat "$calls/calls")" 'git ' 'the branch survives a refused return'
 
 printf 'ok\n'
+
+# --- the MR url reaches yan through the shift's own report ------------------
+#
+# delivery.md §8.2 makes `done: mr <url>` the deliverable in mr mode. The shift
+# opens its own merge request, so that note is the only channel carrying the
+# address back - nothing else records it. Without this the hard path stalls at
+# the very last step: the agent does everything right and `shift done` still
+# has to be told the URL by hand. Observed against a real dispatch.
+#
+# The forge still decides whether it merged; the note only supplies the address.
+
+rm -f "$calls/calls"
+REPORTED_MR=https://example.test/org/repo/pull/42
+
+# A real lease, so the return succeeds and the run reaches the forge call the
+# way a genuine clock-out would. meta.json is built from scratch because s1's
+# was deleted by its own clock-out above - that deletion is the point of run/.
+lease7=$(pool_get "$clone" 8 feat/auth yan/t042-auth-s7 t042/auth/s7)
+tree7=$(printf '%s' "$lease7" | jq -r .path)
+lease_id7=$(printf '%s' "$lease7" | jq -r .lease_id)
+
+run7=$home/tasks/t042/shifts/s7/run
+mkdir -p "$run7"
+MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 jq -nc \
+	--arg tree "$tree7" --arg clone "$clone" --arg lease "$lease_id7" \
+	'{version: 1, task: "t042", sid: "s7", unit: "auth", repo: "monorepo-x",
+	  branch: "yan/t042-auth-s7", tree: $tree, clone: $clone,
+	  holder: "t042/auth/s7", lease_id: $lease, agent: "claude", mr: ""}' >"$run7/meta.json"
+
+# mr is empty in meta.json: the address exists ONLY in what the shift reported.
+printf '2026-08-09T09:00:00Z\tstarted\tread the brief\n' >"$run7/status"
+printf '2026-08-09T09:30:00Z\tdone\tmr %s\n' "$REPORTED_MR" >>"$run7/status"
+
+export YAN_STUB_FORGE_MR_STATES=merged
+capture bash "$yan" shift "done" s7
+assert_eq 0 "$rc" "$out"
+
+assert_contains "$(grep '^mr_state ' "$calls/calls")" "mr=$REPORTED_MR" \
+	'the URL the shift reported is the one the forge is asked about'
+assert_contains "$(cat "$home/tasks/t042/shifts/s7/outcome.md")" "$REPORTED_MR"

@@ -171,6 +171,17 @@ agent_id=$(shift_meta_agent_id || true)
 if [ -z "$mr" ]; then
 	mr=$(shift_meta_mr || true)
 fi
+if [ -z "$mr" ]; then
+	# The shift opens its own MR, so the URL reaches us through the note of its
+	# `done` event - delivery.md §8.2's `done: mr <url>`. Without this the whole
+	# hard path stalls at the last step: the agent does everything right, and
+	# `shift done` still has to be told the address by hand. Observed against a
+	# real dispatch.
+	#
+	# The forge still decides whether it merged; this only supplies the address
+	# to ask about.
+	mr=$(shift_reported_mr || true)
+fi
 
 if ! shift_is_live; then
 	die "shift $(shift_label) has already clocked out - run/ is gone, which is the fact that says so" 2

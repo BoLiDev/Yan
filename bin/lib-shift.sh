@@ -284,6 +284,29 @@ shift_meta_agent_id() { shift_meta_get pane pane_id window window_id agent_id te
 # shift_meta_mr - the shift branch's merge request, when one has been recorded.
 shift_meta_mr() { shift_meta_get mr mr_url; }
 
+# shift_reported_mr - the merge request URL the shift reported, if any.
+#
+# delivery.md §8.2 gives `mr` mode the final state `done: mr <url>`, so the URL
+# reaches yan through the note of a `done` event: the shift opens its own MR,
+# and `yan report done "mr <url>"` is the only channel that carries the address
+# back. Nothing else records it - `yan` does not open the shift's MR and cannot
+# ask the forge "which MR came from this branch" without putting forge
+# vocabulary in a subcommand.
+#
+# This does NOT break invariant 2 ("every line is an event, not the state").
+# The verdict "has it merged?" still comes from the forge and only from the
+# forge. What is read here is a FACT the shift recorded - an address - which is
+# exactly what an event log is for. The last URL wins because a shift that
+# reopened its MR reported the newer one later.
+shift_reported_mr() {
+	local f=$SHIFT_RUN/status url=''
+	[ -f "$f" ] || return 1
+	url=$(sed -n 's|.*\(https\{0,1\}://[^[:space:]]*\).*|\1|p' "$f" | tail -1)
+	url=${url%$'\r'}
+	[ -n "$url" ] || return 1
+	printf '%s\n' "$url"
+}
+
 # --- run/status -------------------------------------------------------------
 
 # shift_event_count - how many events have been reported.
