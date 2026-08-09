@@ -24,17 +24,61 @@ assert_contains "$(head -n 20 "$owner")" 'ONLY WRITER' "the header must say so o
 assert_ne 0 "$(grep -c 'json_edit "\$REGISTRY"' "$owner")" "and it must actually be one"
 
 # Later phases will READ the registry (lib-pool wants pool_size, and that is
-# fine). What none of them may do is write it, so the rule is checked as
-# "names repos.json AND calls a lib-json writer", not as a file allowlist that
-# a parallel phase would trip over for merely reading.
+# fine), and will NAME it in comments and error messages. Neither makes them a
+# writer.
+#
+# The rule has to be checked per LINE, not per file. "This file mentions
+# repos.json somewhere and also calls a JSON writer somewhere" is far too
+# coarse: lib-pool.sh writes lease files and merely explains in a comment why
+# it does not read the registry, and a per-file check flags it for that comment
+# - punishing the code for documenting its own compliance. Two narrower
+# questions are the real rule:
+#
+#   1. no line that names repos.json may also call a JSON writer, and
+#   2. no variable holding a repos.json path may be passed to a JSON writer.
+#
+# (2) is what makes this more than a spelling check: yan-repo-add.sh itself
+# writes through `json_edit "$REGISTRY"`, so a copy of that pattern elsewhere
+# is exactly the second writer we are trying to prevent.
+
+writers='json_(write|edit|init)'
+
+# 1. writer and registry on the same line.
+while IFS= read -r hit; do
+	[ -n "$hit" ] || continue
+	case ${hit%%:*} in
+	*/yan-repo-add.sh) continue ;;
+	esac
+	_assert_die "only yan repo-add may write mem/repos.json" "offending line: $hit"
+done < <(grep -rnE "repos\.json" "$YAN_REPO_ROOT/bin" |
+	grep -vE ':[0-9]+:[[:space:]]*#' |
+	grep -E "$writers" || true)
+
+# 2. a variable assigned a repos.json path, then handed to a writer.
 while IFS= read -r f; do
 	[ -n "$f" ] || continue
 	case ${f##*/} in
 	yan-repo-add.sh) continue ;;
 	esac
-	assert_eq 0 "$(grep -c -E 'json_(write|edit|init)' "$f")" \
-		"only yan repo-add may write mem/repos.json - ${f##*/} names it and calls a JSON writer"
-done < <(grep -rn 'repos\.json' "$YAN_REPO_ROOT/bin" | grep -v ':[0-9]*:[[:space:]]*#' | cut -d: -f1 | LC_ALL=C sort -u || true)
+	# Variables in this file that hold a repos.json path.
+	vars=$(grep -oE '^[[:space:]]*(local[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=[^=]*repos\.json' "$f" |
+		sed -E 's/^[[:space:]]*(local[[:space:]]+)?//; s/=.*//' | LC_ALL=C sort -u || true)
+	[ -n "$vars" ] || continue
+	while IFS= read -r v; do
+		[ -n "$v" ] || continue
+		if grep -qE "${writers}[[:space:]]+\"?\\\$\{?$v\b" "$f"; then
+			_assert_die "only yan repo-add may write mem/repos.json" \
+				"file:     ${f##*/}" "variable: \$$v holds a repos.json path and is passed to a JSON writer"
+		fi
+	done <<EOF
+$vars
+EOF
+done < <(find "$YAN_REPO_ROOT/bin" -type f -name '*.sh' -o -type f -name 'yan' | LC_ALL=C sort || true)
+
+# The check must have teeth: prove pattern (2) fires on the owner itself, which
+# is the one file legitimately doing it.
+assert_ne 0 "$(grep -cE "${writers}[[:space:]]+\"?\\\$\{?REGISTRY\b" "$owner")" \
+	"the \$REGISTRY-to-writer pattern the check looks for must exist in the owner"
 
 # --- URL -> name -----------------------------------------------------------
 #
