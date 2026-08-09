@@ -19,3 +19,7 @@ tasks/*
 
 repos/*
 !repos/.gitkeep
+
+# Scratch git worktrees used when several agents work on the checkout at once.
+# .claude itself stays tracked: settings.json is a deliverable (architecture.md §3).
+.claude/worktrees/
