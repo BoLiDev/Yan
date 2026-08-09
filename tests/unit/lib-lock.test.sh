@@ -47,28 +47,62 @@ assert_fail with_lock "$tmp/y.lock" 0
 #
 # N subshells race for the same lockdir. mkdir is the atomic step, so exactly
 # one of them may report a win.
+#
+# Two things here are deliberate, because the obvious way to write this test is
+# flaky and the flakiness looks exactly like a lock bug:
+#
+#   1. NOBODY RELEASES DURING THE RACE. An earlier version had the winner hold
+#      the lock for `sleep 1` and then release. With timeout 0 the losers give
+#      up immediately, so on a loaded machine the last subshell could start
+#      after the first had already released - and win, legitimately. Two
+#      "winners" that never overlapped, reported as a violation of atomicity.
+#      Holding the lock for the whole race removes the timing assumption: a
+#      second winner is then impossible unless mkdir really is not atomic.
+#   2. A START BARRIER. Without one there is no guarantee the racers ever
+#      overlap, so the test could pass while proving nothing. Every racer spins
+#      until `go` appears, so they are all inside lock_acquire together.
 
 race=$tmp/race.lock
 results=$tmp/results
+gate=$tmp/go
 mkdir -p "$results"
 
 for i in 1 2 3 4 5 6 7 8; do
 	(
+		# Barrier: do not touch the lock until every racer is up.
+		while [ ! -e "$gate" ]; do :; done
 		if lock_acquire "$race" 0 2>/dev/null; then
-			printf 'win %s\n' "$$" >"$results/$i"
-			# Hold it long enough that the losers are certainly still trying.
-			sleep 1
-			lock_release "$race" >/dev/null 2>&1
+			printf 'win %s\n' "$BASHPID" >"$results/$i"
 		else
 			printf 'lose\n' >"$results/$i"
 		fi
 	) &
 done
+# Give the racers a moment to reach the barrier, then release them together.
+sleep 0.3 2>/dev/null || sleep 1
+: >"$gate"
 wait
 
 wins=$(grep -l '^win' "$results"/* 2>/dev/null | wc -l | tr -d ' ')
 assert_eq 1 "$wins" "exactly one concurrent lock_acquire may win"
-assert_file_missing "$race" "the winner must have released the lock"
+assert_eq 8 "$(find "$results" -type f | wc -l | tr -d ' ')" "every racer must report"
+
+# The lock directory is still there - nobody released it during the race.
+assert_file_exists "$race" "the lock is still taken after the race"
+
+# Ownership is recorded as `$$`, which inside a subshell is the PARENT shell -
+# so the owner here is this test script, not the subshell that ran the mkdir.
+# That is the intended semantics, and it matters well beyond this test: the
+# owner of a lock is the `yan` process, not whatever transient subshell happened
+# to take it. A subshell finishing therefore does NOT make the lock stale, while
+# the `yan wait` process itself dying does - which is exactly what supervision's
+# single-flight check needs. Asserting it here pins the behaviour down.
+assert_ok lock_is_held "$race"
+assert_fail lock_is_stale "$race"
+
+# And this process, being the recorded owner, may release it.
+assert_ok lock_release "$race"
+assert_file_missing "$race" "the owner must be able to release"
 
 # --- a waiter eventually gets it -------------------------------------------
 #
