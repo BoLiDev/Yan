@@ -444,11 +444,46 @@ fi
 [ -n "$agent" ] || die "no shift agent configured - set agents.shift in $(boot_config_path), or pass --agent" 2
 
 # The harness mapping table (delivery.md §8.3 asks for a small table here and
-# says in as many words not to build an abstraction layer for it). Three
+# says in as many words not to build an abstraction layer for it). Four
 # columns: how this harness is given an extra directory, how it is made
-# read-only for a scout, and whether it takes its opening prompt as an
-# argument. The working directory is not in the table because the terminal sets
-# it (term_agent_start -c).
+# read-only for a scout, HOW IT IS MADE TO RUN UNATTENDED, and whether it takes
+# its opening prompt as an argument. The working directory is not in the table
+# because the terminal sets it (term_agent_start -c).
+#
+# ---------------------------------------------------------------------------
+# WHY THE UNATTENDED COLUMN EXISTS
+# ---------------------------------------------------------------------------
+# A shift runs for hours in a pane with nobody watching it (td §5.5). A harness
+# that asks permission before each tool use does not "run slowly" in that
+# setting - it stops on its first command and waits forever. Observed against a
+# real dispatch: the agent read its brief, went to run one `ls`, and parked on
+#
+#   Do you want to proceed?  > 1. Yes  2. Yes, allow ...  3. No
+#
+# Nothing downstream can recover from that on its own: supervision would
+# eventually notice the pane has stopped changing and call it stuck, which is
+# correct but useless - every shift would need a human for its first command.
+#
+# Granting the permission up front is consistent with how this design draws its
+# safety boundary, and does not weaken it. delivery.md §8.3 already refuses to
+# use an isolation mechanism for enforcement: the agent's world is its working
+# directory plus --add-dir, the tree is a disposable lease that gets reset and
+# cleaned when it is returned (worktree.md), the shift branch is its own, and
+# "branch protection on the forge is the real last line of defence". The thing
+# being skipped is a prompt, not a boundary.
+#
+# scout is the exception and keeps its read-only mode: its whole contract is
+# that it does not change code (§8.2), so it must not be handed a free hand.
+#
+# ONE PROMPT THIS DOES NOT REMOVE. Claude Code also asks, once per directory it
+# has never seen, whether the workspace is trusted; that dialog is only skipped
+# in non-interactive mode, and a shift is interactive by definition. Because the
+# pool hands out a fixed set of stable paths, it appears at most once per pool
+# slot per machine and never again. It is not silently fatal either: an agent
+# parked on a dialog stops changing its pane, which is exactly the third source
+# `yan wait` watches - supervision.md names "waiting on a dialog" as one of the
+# things that source is for - so `yan` is woken, reads the pane, and can answer
+# with `yan send`. Verified end to end against a real dispatch.
 agent_args=()
 case ${agent##*/} in
 claude | claude.exe)
@@ -457,11 +492,18 @@ claude | claude.exe)
 	done
 	if [ "$mode" = scout ]; then
 		agent_args+=(--permission-mode plan)
+	else
+		agent_args+=(--dangerously-skip-permissions)
 	fi
 	;;
 codex | codex.exe)
 	if [ "$mode" = scout ]; then
 		agent_args+=(--sandbox read-only)
+	else
+		# UNVERIFIED: codex is not installed on this machine, so this flag comes
+		# from its documentation and has never been run. Check it against
+		# `codex --help` before trusting a Codex shift to run unattended.
+		agent_args+=(--dangerously-bypass-approvals-and-sandbox)
 	fi
 	;;
 *) ;;
