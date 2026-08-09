@@ -4,7 +4,31 @@ A work orchestration system for one person: you describe something that needs do
 breaks it into pieces that can be handed out, each piece goes to a single-use sub-agent
 working in an isolated git worktree, and the result is delivered as a merge request.
 
-Status: **design**. Implementation has not started.
+Status: **MVP implemented**. The whole hard path runs on tmux against GitHub, on both
+Git Bash (Windows) and Linux. Herdr is design-complete and deliberately not built.
+
+## Getting started
+
+```sh
+cp conf/config.sample.json conf/config.json   # then edit it
+(cd ui && npm install)                        # the human soft path only
+bin/yan doctor                                # checks everything below
+```
+
+`yan doctor` is the fastest way to find out whether this machine can run `yan`. It checks
+`git` and `jq`, a **global** git identity (a shift commits in a leased worktree, which
+sees only the global config), the one forge CLI `forge.kind` selects, `tmux`, `winpty`
+on Windows, and Node for the soft path.
+
+Then: `yan repo-add <url>` → `yan task new` → you are inside the task.
+
+| Runtime | Notes |
+| --- | --- |
+| Git Bash (Windows) | needs `tmux` (MSYS2 build) and `winpty`; a native agent CLI in an MSYS2 pane gets no TTY without it |
+| Linux / WSL | nothing special |
+
+Tests: `tests/run.sh` (`--fast` for the stub level, `--e2e` for the ones that touch a
+real forge or a real agent CLI).
 
 ## Where to start reading
 
