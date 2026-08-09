@@ -86,6 +86,46 @@ boot_check_core() {
 			boot_report fail "$c" "not on PATH - install $c and retry"
 		fi
 	done
+	boot_check_git_identity
+}
+
+# A commit identity every shift can see.
+#
+# Every shift commits, and it commits in a LEASED WORKTREE under
+# ~/.yan-trees - not in this checkout and not in the main clone. A repository
+# whose identity is only in its own .git/config therefore gives a shift
+# nothing, and `git commit` fails with "Please tell me who you are" after the
+# work is already done. Only a global (or system) identity reaches a worktree.
+#
+# This is not hypothetical: on the machine yan was built on, Git Bash had no
+# global identity at all - the checkout had a local one, which read as fine
+# from here and was invisible to every tree the pool handed out.
+#
+# yan does not fix this itself. Writing git config is `user`'s decision, and
+# the only place yan could write it is the main clone, which Appendix B makes
+# read-only apart from `git fetch`. So doctor reports it and says what to run.
+boot_check_git_identity() {
+	local name email
+	boot_have git || return 0
+
+	# --global, deliberately: reading it from inside this repository would find
+	# the checkout's own local value and report a healthy identity that no
+	# leased worktree can see.
+	name=$(git config --global user.name 2>/dev/null) || name=
+	email=$(git config --global user.email 2>/dev/null) || email=
+	if [ -z "$name" ]; then
+		name=$(git config --system user.name 2>/dev/null) || name=
+	fi
+	if [ -z "$email" ]; then
+		email=$(git config --system user.email 2>/dev/null) || email=
+	fi
+
+	if [ -n "$name" ] && [ -n "$email" ]; then
+		boot_report ok "git identity" "$name <$email>"
+		return 0
+	fi
+	boot_report fail "git identity" \
+		"no global user.name/user.email - every shift commits in a leased worktree, which sees only the global config, so its commit would fail after the work is done. Run: git config --global user.name '<you>' && git config --global user.email '<you@example.com>'"
 }
 
 boot_check_config() {
