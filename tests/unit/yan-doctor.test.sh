@@ -105,3 +105,33 @@ assert_ne "" "$(jq -r '.forge.kind' "$sample")"
 assert_eq tmux "$(jq -r '.backend' "$sample")"
 
 printf 'ok\n'
+
+# --- a commit identity every leased worktree can see ------------------------
+#
+# Every shift commits, and it commits in a leased worktree under ~/.yan-trees -
+# not in this checkout and not in the main clone. An identity that lives only
+# in a repository's own .git/config is therefore invisible where it is needed,
+# and `git commit` fails after the work is already done.
+#
+# Found on the machine yan was built on: Git Bash had no global identity at
+# all, while the checkout had a local one - which reads as perfectly healthy
+# from inside the checkout.
+#
+# GIT_CONFIG_GLOBAL / GIT_CONFIG_SYSTEM point git at files we control, so this
+# neither reads nor writes the developer's real configuration.
+
+idhome=$tmp/idhome
+mk_yan_home "$idhome"
+
+: >"$tmp/empty-global"
+: >"$tmp/empty-system"
+GIT_CONFIG_GLOBAL=$tmp/empty-global GIT_CONFIG_SYSTEM=$tmp/empty-system \
+	capture bash "$idhome/bin/yan" doctor
+assert_contains "$out" "git identity" "doctor must ask about the commit identity"
+assert_contains "$out" "leased worktree" "and say why a local identity is not enough"
+assert_ne 0 "$rc" "a missing commit identity is a failure, not a warning"
+
+printf '[user]\n\tname = Test Person\n\temail = test@example.invalid\n' >"$tmp/good-global"
+GIT_CONFIG_GLOBAL=$tmp/good-global GIT_CONFIG_SYSTEM=$tmp/empty-system \
+	capture bash "$idhome/bin/yan" doctor
+assert_contains "$out" "Test Person <test@example.invalid>" "a global identity satisfies it"
