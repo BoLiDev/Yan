@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+#
+# yan - the single entry point shared by `user` and the agents (td INDEX.md,
+# design principle 4).
+#
+# Dispatch is DERIVED, never tabulated. Given `yan foo bar` this script looks
+# for $YAN_HOME/bin/yan-foo-bar.sh first and $YAN_HOME/bin/yan-foo.sh second.
+# There is deliberately no `case` list of subcommands in this file: later
+# phases add bin/yan-*.sh files in parallel, and a central list would make
+# every one of those pull requests conflict here. It is also design principle
+# 1 - do not store state you can derive; the file system already knows which
+# subcommands exist.
+#
+set -euo pipefail
+
+YAN_VERSION="0.1.0"
+
+yan_die() {
+	printf 'yan: %s\n' "$1" >&2
+	exit "${2:-1}"
+}
+
+# Absolute directory holding this script, with symlinks resolved.
+yan_self_dir() {
+	local src=${BASH_SOURCE[0]} dir
+	while [ -L "$src" ]; do
+		dir=$(cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd)
+		src=$(readlink "$src")
+		case $src in
+		/*) ;;
+		*) src=$dir/$src ;;
+		esac
+	done
+	cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd
+}
+
+# An exported $YAN_HOME wins, but only when it really is a yan home.
+if [ -n "${YAN_HOME:-}" ] && [ -d "$YAN_HOME" ] && [ -f "$YAN_HOME/bin/yan" ]; then
+	YAN_HOME=$(cd -P "$YAN_HOME" >/dev/null 2>&1 && pwd)
+else
+	YAN_HOME=$(dirname "$(yan_self_dir)")
+fi
+export YAN_HOME
+
+# The subcommand list is a glob of what is on disk, never a literal list.
+yan_subcommands() {
+	local f name
+	(
+		shopt -s nullglob
+		for f in "$YAN_HOME"/bin/yan-*.sh; do
+			name=${f##*/}
+			name=${name#yan-}
+			name=${name%.sh}
+			printf '%s\n' "$name"
+		done
+	) | LC_ALL=C sort
+}
+
+yan_usage() {
+	local c
+	printf 'yan %s\n\n' "$YAN_VERSION"
+	printf 'usage: yan <command> [args...]\n\n'
+	printf 'commands:\n'
+	while IFS= read -r c; do
+		printf '  %s\n' "$c"
+	done < <(yan_subcommands)
+	printf '\n'
+	printf 'Names come from bin/yan-*.sh. A hyphen may also be written as a\n'
+	printf 'space: `yan shift new` and `yan shift-new` reach the same file.\n'
+}
+
+yan_unknown() {
+	printf 'yan: unknown command: %s\n\n' "$1" >&2
+	yan_usage >&2
+	exit 1
+}
+
+if [ $# -eq 0 ]; then
+	yan_usage
+	exit 0
+fi
+
+case $1 in
+-h | --help | help)
+	yan_usage
+	exit 0
+	;;
+-V | --version)
+	printf 'yan %s\n' "$YAN_VERSION"
+	exit 0
+	;;
+esac
+
+# The two universal hard dependencies, checked inline so this stays cheap.
+# Everything else (forge CLI, terminal backend, node) belongs to `yan doctor`.
+for _yan_dep in git jq; do
+	command -v "$_yan_dep" >/dev/null 2>&1 ||
+		yan_die "missing required dependency: $_yan_dep - install it, then run 'yan doctor'"
+done
+unset _yan_dep
+
+yan_cmd=$1
+shift
+
+case $yan_cmd in
+'' | -* | *[!A-Za-z0-9_-]*) yan_unknown "$yan_cmd" ;;
+esac
+
+yan_target=
+yan_word2=${1:-}
+case $yan_word2 in
+'' | -* | *[!A-Za-z0-9_-]*) ;;
+*)
+	if [ -f "$YAN_HOME/bin/yan-$yan_cmd-$yan_word2.sh" ]; then
+		yan_target="$YAN_HOME/bin/yan-$yan_cmd-$yan_word2.sh"
+		shift
+	fi
+	;;
+esac
+
+if [ -z "$yan_target" ] && [ -f "$YAN_HOME/bin/yan-$yan_cmd.sh" ]; then
+	yan_target="$YAN_HOME/bin/yan-$yan_cmd.sh"
+fi
+
+[ -n "$yan_target" ] || yan_unknown "$yan_cmd"
+
+if [ -x "$yan_target" ]; then
+	exec "$yan_target" "$@"
+fi
+exec bash "$yan_target" "$@"

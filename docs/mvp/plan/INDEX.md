@@ -291,6 +291,8 @@ That is the E2E bar. Soft-path polish and dual-forge on both machines can be une
 
 ## 7. Working agreement with Agents
 
+Implementation conventions established by Phase 0 — the two supported runtimes, the portability constraints, the sourcing form, the `tests/` layout — are in [`conventions.md`](conventions.md). Read it before starting any phase.
+
 | Do | Don't |
 | --- | --- |
 | Name the phase number in the PR / commit summary | Implement “the rest of the spine” unprompted |
