@@ -15,6 +15,15 @@
 #
 #   YAN_STUB_TERM_ALIVE=alive|dead|unknown   what term_agent_alive answers
 #   YAN_STUB_TERM_READ="..."                 what term_read prints
+#   YAN_STUB_TERM_READ_SEQ=<file>            one LINE of that file per
+#                                            term_read call, in order. Past the
+#                                            last line the last line repeats,
+#                                            so "the pane moved and then froze"
+#                                            is one fixture. It is what lets
+#                                            supervision's third source - a
+#                                            pane whose content hash stops
+#                                            changing - be driven without a
+#                                            terminal and without sleeping
 #   YAN_STUB_TERM_SEND_RC=1                  make term_send fail
 #   YAN_STUB_TERM_BACKEND_RC=1               make every function fail closed,
 #                                            the way `backend: herdr` does
@@ -215,6 +224,34 @@ term_read() {
 	_term_backend || return $?
 	_term_need_agent_id "${1:-}" || return $?
 	_term_stub_record "read id=$1 lines=${2:-}"
+
+	# The counter lives on disk because term_read is nearly always called from
+	# a command substitution, and a variable set in a subshell would reset on
+	# every call.
+	if [ -n "${YAN_STUB_TERM_READ_SEQ:-}" ] && [ -f "$YAN_STUB_TERM_READ_SEQ" ]; then
+		local dir key n total
+		dir=$(_term_stub_dir)
+		mkdir -p -- "$dir"
+		key=${1//[!A-Za-z0-9]/_}
+		n=0
+		if [ -f "$dir/read-seq.$key" ]; then
+			n=$(tr -dc '0-9' <"$dir/read-seq.$key")
+		fi
+		n=$((${n:-0} + 1))
+		printf '%s\n' "$n" >"$dir/read-seq.$key"
+		total=$(grep -c . <"$YAN_STUB_TERM_READ_SEQ" || true)
+		total=${total//[!0-9]/}
+		if [ "${total:-0}" -eq 0 ]; then
+			printf '\n'
+			return 0
+		fi
+		if [ "$n" -gt "$total" ]; then
+			n=$total
+		fi
+		sed -n "${n}p" <"$YAN_STUB_TERM_READ_SEQ"
+		return 0
+	fi
+
 	printf '%s\n' "${YAN_STUB_TERM_READ:-}"
 }
 
