@@ -309,6 +309,56 @@ shift_reported_mr() {
 
 # --- run/status -------------------------------------------------------------
 
+# shift_resume_from_pool <task> <sid>
+#
+# When run/ is gone, tell apart "this shift clocked out cleanly" from "a
+# teardown deleted run/ and then stopped before the tree came back".
+#
+# From $YAN_HOME the two are identical, and the difference is expensive: the
+# second leaves a tree leased and a remote branch undeleted, with nothing left
+# to say which shift they belonged to.
+#
+# Nothing needs to be stored to tell them apart. The pool already records the
+# holder as <task>/<unit>/<sid>, together with the branch, the path and the
+# lease id - which is everything the rest of the teardown needs. So the answer
+# is derived, exactly as design principle 1 asks: ask the pool.
+#
+# Prints one JSON object ({unit, repo, clone, path, branch, holder, lease_id})
+# and returns 0 when such a lease exists; returns 1 when it does not, which is
+# the honest "it really has clocked out".
+#
+# Only this task's own units are searched: a task-scoped `yan` may not read
+# another task's directory (td §5.2), and the holder is namespaced by task
+# anyway.
+shift_resume_from_pool() {
+	local task=${1:-} sid=${2:-} unit repo clone want found
+	[ -n "$task" ] && [ -n "$sid" ] || return 1
+	command -v pool_status >/dev/null 2>&1 || return 1
+	command -v task_unit_names >/dev/null 2>&1 || return 1
+
+	while IFS= read -r unit; do
+		[ -n "$unit" ] || continue
+		want="$task/$unit/$sid"
+		repo=$(task_unit_get "$task" "$unit" repo 2>/dev/null) || continue
+		[ -n "$repo" ] || continue
+		clone=$(_shift_home)/repos/$repo
+		[ -d "$clone" ] || continue
+		found=$(pool_status "$clone" 2>/dev/null |
+			jq -c --arg h "$want" --arg u "$unit" --arg r "$repo" --arg c "$clone" \
+				'(if type=="array" then . else [.] end)
+				 | map(select(.holder == $h))
+				 | .[0] // empty
+				 | . + {unit: $u, repo: $r, clone: $c}' 2>/dev/null) || continue
+		if [ -n "$found" ]; then
+			printf '%s\n' "$found"
+			return 0
+		fi
+	done <<EOF
+$(task_unit_names "$task" 2>/dev/null)
+EOF
+	return 1
+}
+
 # shift_event_count - how many events have been reported.
 #
 # A count, not a verdict. It tells you whether anything has happened; it says
