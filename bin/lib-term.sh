@@ -239,6 +239,23 @@ _term_quote_cmd() {
 	printf '%s' "$out"
 }
 
+# _term_is_shebang_script <command> - zero when the command resolves to a file
+# whose first two bytes are `#!`.
+#
+# Only ever consulted on Windows, to decide whether winpty needs an interpreter
+# in front of the command (see term_agent_start). A command that cannot be
+# resolved, or cannot be read, is treated as NOT a script: that is the previous
+# behaviour, so an unresolvable name fails the way it always did rather than
+# acquiring a confusing `bash` in front of it.
+_term_is_shebang_script() {
+	local cmd=${1:-} path head
+	[ -n "$cmd" ] || return 1
+	path=$(command -v -- "$cmd" 2>/dev/null) || return 1
+	[ -f "$path" ] || return 1
+	head=$(head -c 2 -- "$path" 2>/dev/null) || return 1
+	[ "$head" = '#!' ]
+}
+
 # --- the seven -------------------------------------------------------------
 
 # term_container_create <name> - create (or find) the task container.
@@ -375,7 +392,22 @@ term_agent_start() {
 			_term_err "winpty is not on PATH - on Windows an agent CLI started in a tmux pane gets no TTY and exits immediately, so it has to run as 'winpty <cmd>'; install it (pacman -S winpty) and run 'yan doctor'"
 			return 1
 		fi
-		cmd="winpty $cmd"
+		# winpty launches a NATIVE Windows process, so it cannot start a script
+		# with a shebang: `winpty ./cli` fails with
+		#   %1 is not a valid Win32 application. (error 0xc1)
+		# and the pane dies instantly. This is not hypothetical for `yan`: the
+		# MVP accepts any shift CLI that meets td §5.6, and an npm-installed one
+		# resolves to a shell-script shim under Git Bash. `claude` here happens
+		# to be a real .exe, which is why the e2e never caught it.
+		#
+		# Handing the script to an interpreter fixes it, and the interpreter IS
+		# a native process, so winpty is happy. Native executables are left
+		# exactly as they were.
+		if _term_is_shebang_script "$1"; then
+			cmd="winpty bash $cmd"
+		else
+			cmd="winpty $cmd"
+		fi
 	fi
 
 	local args=(new-window -d -P -F '#{window_id} #{pane_id}' -t "$sid:" -n "$label")
