@@ -393,6 +393,15 @@ mkdir -p -- "$task_dir_abs/artifacts" || true
 	printf -- '  returned, so anything left in it is destroyed or accidentally committed.\n'
 	printf -- '- Report only when yan has to act:\n'
 	printf -- '      %s/bin/yan report <started|done|blocked|needs-decision|conflict> "<one line>"\n' "$YAN_HOME"
+	if [ "$mode" = mr ]; then
+		# delivery.md §8.2: in mr mode the deliverable is `done: mr <url>`. The
+		# shift opens its own merge request, so this note is the ONLY way the
+		# address reaches yan - `yan shift done` needs it to ask the forge
+		# whether the work landed.
+		printf -- '  When you are done, the note must carry the merge request URL, because that\n'
+		printf -- '  is how yan learns the address to ask the forge about:\n'
+		printf -- '      %s/bin/yan report done "mr <url>"\n' "$YAN_HOME"
+	fi
 	printf -- '- Check your own diff against the scope before landing: %s/bin/yan scope-check %s\n' "$YAN_HOME" "$sid"
 	if [ "$mode" = scout ]; then
 		printf -- '- mode is scout: investigate and write it up. Do not push and do not open a merge request.\n'
