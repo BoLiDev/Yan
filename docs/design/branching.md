@@ -82,22 +82,22 @@ Each entry has at most five fields, and each one earns its place:
 | `target` | where it was merged. It can differ from the current value, for example one round went to a release branch and later rounds went to master |
 | `at` | when it was retired. "When did the next one start" and "when did this one end" are the same moment, so one timestamp is enough |
 | `end` | `delivered` or `abandoned`. Without it, the history is a list of branches with no way to tell which ones actually shipped and which were dropped halfway |
-| `mr` (optional) | the only one that is genuinely awkward to look up later: once the branch is deleted you need `glab mr list --source-branch` to find it, and if the branch had several MRs the answer is ambiguous. A URL is a fixed fact, so storing it does not break the storage rules ([§2](INDEX.md#2-storage-criteria)). An abandoned round may never have opened an MR at all, which is why the field is optional |
+| `mr` (optional) | the only one that is genuinely awkward to look up later: once the branch is deleted you need the forge's "list MRs by source branch" to find it, and if the branch had several MRs the answer is ambiguous. A URL is a fixed fact, so storing it does not break the storage rules ([§2](INDEX.md#2-storage-criteria)). An abandoned round may never have opened an MR at all, which is why the field is optional |
 
 The field is `end: "delivered" | "abandoned"` rather than `"abandoned": true`, so it reads clearly without relying on a convention like "absent means delivered".
 
 Three things are deliberately not stored: `why` (that is narrative, and it is in `log.md`), `base` (`git log` shows whether the new branch contains the old branch's commits), and `mode` for past rounds (nobody ever looks it up).
 
-`yan` works out `end` on its own, without an extra flag. When the branch is being replaced, it checks the current `mr`'s state on GitLab:
+`yan` works out `end` on its own, without an extra flag. When the branch is being replaced, it checks the current `mr`'s state on the forge:
 
-| State on GitLab | Conclusion |
+| State on the forge | Conclusion |
 | --- | --- |
 | merged | `delivered` |
 | closed, or the `mr` field was empty to begin with | `abandoned` |
 | still open | this round is not over. Ask `user` first: abandon it, or was this a mistake? |
 | cannot be reached (offline, MR deleted) | ask `user` |
 
-This follows the rule that changing state is looked up on GitLab rather than stored. But the conclusion has to be written into the history, and after that GitLab is never asked again — the history has to explain itself.
+This follows the rule that changing state is looked up on the forge rather than stored. But the conclusion has to be written into the history, and after that the forge is never asked again — the history has to explain itself.
 
 Starting a new round is one atomic operation: work out `end` → append the current `branch`, `target`, and `mr` to `history[]` together with `at` → overwrite the current fields → add a line to `log.md`.
 

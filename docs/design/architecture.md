@@ -12,7 +12,7 @@ The whole structure comes from two independent ways of cutting it. There is no t
 
 **Cut one: judgements versus steps.** Judgements, which the model reads, go in `AGENTS.md`. Steps that need no judgement go in `bin/` and are carried out by scripts. The dividing line is design principle 3 ([design §0](INDEX.md#0-what-yan-is)): a script should not contain an `if` about business meaning, and if it does, something is usually in the wrong layer.
 
-**Cut two: hiding an outside authority versus hiding one of our own formats.** `lib-forge.sh` hides the differences between GitLab and GitHub, so it is thick. `lib-log.sh` hides only "append one line", so it is thin. Thin is the right answer there, because it is not hiding complexity; it is enforcing one invariant (never rewrite an existing line). Giving both kinds of module the same name would make it easy to misjudge how much belongs inside them.
+**Cut two: hiding an outside authority versus hiding one of our own formats.** `lib-forge.sh` is the remote git seam: it hides which forge this machine uses (GitHub or GitLab), so it is thick. `lib-log.sh` hides only "append one line", so it is thin. Thin is the right answer there, because it is not hiding complexity; it is enforcing one invariant (never rewrite an existing line). Giving both kinds of module the same name would make it easy to misjudge how much belongs inside them.
 
 ---
 
@@ -28,7 +28,7 @@ graph TD
     C["lib-term / lib-forge / lib-pool / lib-hook<br/>seams: one module hides one outside authority"]
     D["lib-task / lib-log<br/>yan's own file formats"]
     E["lib-json / lib-git<br/>stateless utilities that depend on nothing"]
-    F["outside authorities<br/>git · GitLab/GitHub · tmux/Herdr · the file system · optional branch-name hook"]
+    F["outside authorities<br/>git · the forge (GitHub/GitLab) · tmux/Herdr · the file system · optional branch-name hook"]
 
     A -->|"only calls subcommands, never sources a lib"| B
     H --> B
@@ -59,7 +59,7 @@ $YAN_HOME/
     yan                      entry point: parse the subcommand, exec the matching file
     yan-<cmd>.sh             20 subcommands, one file each (§5)
     lib-term.sh              seam: terminals
-    lib-forge.sh             seam: GitLab / GitHub
+    lib-forge.sh             seam: the remote git forge (GitHub / GitLab)
     lib-pool.sh              seam: the worktree pool
     lib-hook.sh              seam: the outside authorities under conf/hooks/
     lib-task.sh              storage: task.json
@@ -70,7 +70,7 @@ $YAN_HOME/
     hook-turnend-guard.sh    Stop hook (blocking; --claude / --codex)
   .claude/settings.json      Claude: SessionStart + guard + autoarm
   .codex/hooks.json          Codex: SessionStart + guard only (no autoarm)
-  conf/harness               claude | codex — which CLI yan start launches
+  conf/                      local choices (`config.json`, optional hooks); see [design Appendix D](appendix.md#appendix-d-configuration)
   docs/                      the design documents
   tests/                     one per subcommand, with stand-ins for the seams (§7)
 
@@ -106,7 +106,7 @@ Both are thin, and thin is right. They do not exist to hide complexity; they exi
 | Module | What it hides | Interface | Depth |
 | --- | --- | --- | --- |
 | `lib-term.sh` | the differences between tmux and Herdr | seven functions | medium. What it hides, what each of the seven functions does, and what adding Herdr involves are all in [design §5.7](agents.md#57-terminal-topology) |
-| `lib-forge.sh` | five differences between GitLab and GitHub | four verbs | **thick**, and the clearest deep module here. Which five differences, and what each verb returns, are in [design §8.4](delivery.md#84-the-forge-layer) |
+| `lib-forge.sh` | which forge this machine uses, and the five differences between GitHub and GitLab | four verbs | **thick**, and the clearest deep module here. Config shape in [Appendix D](appendix.md#appendix-d-configuration); differences and return values in [design §8.4](delivery.md#84-the-forge-layer) |
 | `lib-pool.sh` | the worktree pool | `pool_get`, `pool_return`, `pool_status` | thick. Leases, the warm-reuse contract, the test for returning a tree, and the orphan-commit guard are all in [design §7](worktree.md#7-worktrees) |
 | `lib-hook.sh` | the calling protocol for `conf/hooks/` ([design §10](boundaries.md#10-seams-for-outside-authorities)) | `hook_call <name> <json>` | thin. But it is the **only** place allowed to execute anything under `conf/` |
 
@@ -152,12 +152,12 @@ Why some of these have to be scripts rather than something the agent does itself
 
 | Command | Steps | The invariant it holds |
 | --- | --- | --- |
-| `yan shift new` | sync the integration branch → lease a tree, cutting the shift branch → write the brief → start the terminal → set `YAN_TASK_DIR` | **assert that the sub-agent's working directory is not the main clone's path, and refuse to start otherwise** ([design §7](worktree.md#7-worktrees)) |
+| `yan shift new` | sync the integration branch → lease a tree, cutting the shift branch → write the brief → start the terminal with `agents.shift` from `conf/config.json` (or `--agent`) → set `YAN_TASK_DIR` | **assert that the sub-agent's working directory is not the main clone's path, and refuse to start otherwise** ([design §7](worktree.md#7-worktrees)) |
 | `yan shift done` | verify the MR is merged → write `outcome` → write the log → `rm -rf run/` → return the tree → delete the remote shift branch | **returning the tree must come before deleting the branch** ([design §7](worktree.md#7-worktrees)) |
 | `yan sync` | lease a tree → fetch → rebase or merge `target` → push → return the tree | **exit immediately on a conflict and hand it to a `shift`**; conflicts are never resolved inside the script. Its timing is fixed: before every new `shift` ([design §6.3](branching.md#63-how-the-integration-branch-changes)) |
 | `yan unit add` | run the `branch-name` hook → check the branch out if it exists, cut it from the base if it does not → write `task.json` | **if the hook exits non-zero, stop and report; never fall back to the built-in default** ([design §10](boundaries.md#10-seams-for-outside-authorities)) |
 | `yan land` | topologically sort by `needs` → merge | **`user` has to ask for it** ([design §9.2](boundaries.md#92-external-side-effects)) |
-| `yan start <id>` | create the task's terminal container → start `yan` inside it using `conf/harness` (`claude` \| `codex`) | one container per `task`, and the container's lifetime is `user` opening and closing it ([design §5.7](agents.md#57-terminal-topology)) |
+| `yan start <id>` | create the task's terminal container → start `yan` inside it using `agents.yan` from `conf/config.json` | one container per `task`, and the container's lifetime is `user` opening and closing it ([design §5.7](agents.md#57-terminal-topology)) |
 | `yan session-start` | the full rebuild: scan `tasks/` → query the terminal → query the pool → query the forge → print a summary | **a restart is a non-event** ([design §5.1](agents.md#51-lifetime-tiers)) |
 
 ---

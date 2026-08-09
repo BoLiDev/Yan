@@ -31,14 +31,14 @@ The scripts stay thin because those multi-backend branches, journals, and migrat
 
 Not adopted. An automated pipeline for review, adding tests, adding documentation, and fixing CI is out of scope. Quality control falls back to `user`, CI, and review by colleagues — which is how a normal team already works.
 
-A consistency check: `yan`'s `mode` system has no such level, and the default `mr` opens an MR directly. When CI goes red, `yan` finds out by asking GitLab and dispatches a new `shift` to fix it ([§5.3](agents.md#53-the-life-of-a-shift)). Nothing in that chain depends on an automated quality pipeline.
+A consistency check: `yan`'s `mode` system has no such level, and the default `mr` opens an MR directly. When CI goes red, `yan` finds out by asking the forge and dispatches a new `shift` to fix it ([§5.3](agents.md#53-the-life-of-a-shift)). Nothing in that chain depends on an automated quality pipeline.
 
 ### Roadmap
 
 | Stage | What gets added |
 | --- | --- |
 | 0→1 | everything above. One `unit`, one `shift`, working end to end |
-| 1→2 | several units (across repositories, or across a monorepo's sub-applications), `needs` ordering, several concurrent shifts, and a fourth source for `yan wait` that polls GitLab |
+| 1→2 | several units (across repositories, or across a monorepo's sub-applications), `needs` ordering, several concurrent shifts, and a fourth source for `yan wait` that polls the forge |
 | 2→10 | Herdr (the second implementation of `lib-term.sh`), `scout` deliverables, and a recovery procedure for a stuck `shift` |
 | 10→100 | choosing model and effort per task, the `merge-check` hook, and periodic trimming of `learnings` |
 
@@ -52,7 +52,7 @@ Gathering terminal operations into seven functions in [§5.7](agents.md#57-termi
 ### Explicitly out of scope
 
 - Running `yan` on harnesses other than Claude Code and Codex ([§5.6](agents.md#56-harness-requirements)). Kimi and the rest remain shift-only CLIs.
-- A backend abstraction layer or plugin framework. Herdr arrives as a second implementation of `lib-term.sh`, and needs no framework. Dual harness for `yan` is two hook registrations plus `conf/harness`, not a plugin system.
+- A backend abstraction layer or plugin framework. Herdr arrives as a second implementation of `lib-term.sh`, and needs no framework. Dual harness for `yan` is two hook registrations plus `conf/config.json`, not a plugin system.
 - Entry points from social platforms.
 - Routing quota across providers.
 - A second-level agent tree; `yan` never spawns another `yan`.

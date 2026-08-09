@@ -41,7 +41,7 @@ Because of that, the first version does **not** need treehouse's `post_create` p
 
 ## Pool size
 
-**It is configured per repository in `repos.json`, and the default is 8.** It is not a global constant.
+**It is configured per repository as `pool_size` in `repos.json` (default 8).** Field shape: [Appendix D](appendix.md#appendix-d-configuration). It is not a global constant.
 
 This number directly sets the maximum number of concurrent shifts on one repository, independent of how many tasks exist (see "how full the pool gets" above). That makes it a real decision rather than an implementation detail.
 

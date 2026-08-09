@@ -9,13 +9,13 @@ This is the backbone. It starts with three things the rest of the design keeps r
 
 ## 0. What `yan` is
 
-`yan` is a work orchestration system for one person. `user` describes something that needs doing, `yan` breaks it into pieces that can be handed out, each piece goes to a single-use sub-agent working in an isolated git worktree, and the result is delivered as a GitLab merge request.
+`yan` is a work orchestration system for one person. `user` describes something that needs doing, `yan` breaks it into pieces that can be handed out, each piece goes to a single-use sub-agent working in an isolated git worktree, and the result is delivered as a merge request on the forge configured for this machine.
 
 Throughout the process `user` only has to think about understanding the requirement, designing the approach, and reviewing the pieces as they come back. Nothing about the mechanics — which worktree, which branch name, which agent is doing which part — needs their attention. And because several shifts can run at once, keeping a queue of work moving takes much less mental effort.
 
 ### Design principles
 
-1. **Do not store state you can derive.** The directory structure, git, and GitLab are the source of truth.
+1. **Do not store state you can derive.** The directory structure, git, and the forge are the source of truth.
 2. **One owner per piece of information.** Every piece has exactly one writer and one point at which it is read. This is how state stays consistent.
 3. **Prose makes judgements and scripts do the steps that need no judgements to keep the primitive.**
 4. **`user` and the agents use the same entry point.** Every action `yan` can take is offered as a CLI command, `user` can run it directly, and both see the same state.
@@ -51,10 +51,10 @@ These three rows decide what gets stored and where. They are the most frequently
 | Category | Examples | What to do |
 | --- | --- | --- |
 | facts | branches, commits, merge history, diffs | they live in git, and are never mirrored |
-| state | whether an MR is open or merged, whether CI is green, whether there is a conflict | look it up on GitLab when needed, never mirror it |
+| state | whether an MR is open or merged, whether CI is green, whether there is a conflict | look it up on the forge when needed, never mirror it |
 | decisions | `branch`, `target`, `scope`, `mode`, how units are divided, whether to merge | must be stored by us, and the history of changes is worth keeping |
 
-What follows from that: which shift branches a `unit` has used, how far the integration branch has caught up with `target`, what state an MR is in — none of that is stored. It is looked up at the moment it is needed. But "which branch are we working on, and where do we intend to merge it" is something neither git nor GitLab knows, especially before an MR has been opened, so it has to be stored.
+What follows from that: which shift branches a `unit` has used, how far the integration branch has caught up with `target`, what state an MR is in — none of that is stored. It is looked up at the moment it is needed. But "which branch are we working on, and where do we intend to merge it" is something neither git nor the forge knows, especially before an MR has been opened, so it has to be stored.
 
 Note that "why" is not a structured decision. It is narrative. Narrative — "where we have got to, what is still missing" — is exactly the sub-category worth calling out inside the third row: it is prose, no tool can derive it, and it does not belong in JSON. So it lives in `log.md` ([§4.2](memory.md#42-logmd-the-narrative-layer)).
 
@@ -86,7 +86,7 @@ $YAN_HOME/
 
   mem/                         long-lived memory, readable and editable by hand
     user.md                    user's preferences and working style
-    repos.json                 the repository registry
+    repos.json                 the repository registry; fields in [Appendix D](appendix.md#appendix-d-configuration)
     learnings/general.md       pitfalls that apply across repositories
     learnings/<repo>.md        pitfalls specific to one repository
 
@@ -100,12 +100,11 @@ $YAN_HOME/
       brief.md                 the work order                  ← long-lived
       outcome.md               what this shift did, and what it concluded  ← long-lived
       run/                     * the only throwaway layer; deleted entirely at clock-out
-        meta.json              tree path / terminal id / shift branch name
+        meta.json              tree path / terminal id / shift branch name / agent CLI
         status                 the event stream (append-only)
         signal                 the wake marker
 
-  conf/                        local choices, gitignored
-    hooks/                     seams for outside authorities (§10)
+  conf/                        local choices, gitignored — `config.json` plus optional hooks; see [Appendix D](appendix.md#appendix-d-configuration)
 
   repos/                       clones; yan only reads them (the one exception is git fetch)
 ```
@@ -172,7 +171,7 @@ A `shift` never touches a main clone. It works in a leased worktree, and those t
 
 "How far the work goes before it stops" and "who may press merge" are two separate axes, and `yan` keeps them separate.
 
-`mode` has three settings. `scout` investigates without changing code, `branch` stops at a local branch, and `mr` goes all the way to a pushed branch with an MR opened. The default is `mr`, because pushing to a remote is the best backup available. Enforcement does not use an isolation mechanism; startup arguments plus one `yan scope-check` before landing are enough, and going outside `scope` means widening it explicitly rather than being blocked. The part that actually talks to the outside world is the forge layer, which hides the differences between GitLab and GitHub behind four verbs.
+`mode` has three settings. `scout` investigates without changing code, `branch` stops at a local branch, and `mr` goes all the way to a pushed branch with an MR opened. The default is `mr`, because pushing to a remote is the best backup available. Enforcement does not use an isolation mechanism; startup arguments plus one `yan scope-check` before landing are enough, and going outside `scope` means widening it explicitly rather than being blocked. The part that actually talks to the outside world is the forge layer — `yan`'s remote git seam — which hides GitHub versus GitLab behind four verbs; provider config is machine-global in `conf/config.json` ([Appendix D](appendix.md#appendix-d-configuration)).
 
 → [`delivery.md`](delivery.md): [§8.1](delivery.md#81-mode-and-authority) `mode` and authority · [§8.2](delivery.md#82-the-three-modes) the three modes · [§8.3](delivery.md#83-enforcement) enforcement · [§8.4](delivery.md#84-the-forge-layer) the forge layer
 
@@ -202,9 +201,9 @@ The whole of `bin/` is produced by two independent ways of cutting the code. Dep
 
 ## Appendices
 
-Three lists to look things up in: the memory read and write contract, `yan`'s file system boundary, and the script inventory.
+Four lists to look things up in: the memory read and write contract, `yan`'s file system boundary, the script inventory, and configuration (inventory plus sample).
 
-→ [`appendix.md`](appendix.md): [Appendix A](appendix.md#appendix-a-memory-read-and-write-contract) / B / C
+→ [`appendix.md`](appendix.md): [Appendix A](appendix.md#appendix-a-memory-read-and-write-contract) / [B](appendix.md#appendix-b-file-system-boundary-for-yan) / [C](appendix.md#appendix-c-script-inventory) / [D](appendix.md#appendix-d-configuration)
 
 ---
 

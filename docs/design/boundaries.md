@@ -51,7 +51,7 @@ conf/hooks/
   merge-check      decide whether it may be merged   ← reserved, not implemented in the first version
 ```
 
-`conf/` is local and gitignored. It represents the choices of this machine and this team, and is not part of `yan`.
+`conf/` is local and gitignored. It represents the choices of this machine and this team, and is not part of `yan`. The full inventory and a sample are in [Appendix D](appendix.md#appendix-d-configuration).
 
 ### The branch-name contract
 

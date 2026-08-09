@@ -39,7 +39,7 @@ The working directory is `$YAN_HOME`, because `yan` needs to run things in `bin/
 
 So who handles the things that cross task boundaries? In every case the answer is a script, not an agent:
 
-- **Two tasks changing the same `scope`.** No mechanism is needed. Worktrees already keep the file systems apart, and git conflicts and semantic conflicts are a normal part of development — rebase, CI, and review deal with them, and GitLab will say so at merge time. Overlapping files are not a reason to serialise work.
+- **Two tasks changing the same `scope`.** No mechanism is needed. Worktrees already keep the file systems apart, and git conflicts and semantic conflicts are a normal part of development — rebase, CI, and review deal with them, and the forge will say so at merge time. Overlapping files are not a reason to serialise work.
 - **Seeing every running task at once.** `yan ls` scans the directory; `user` runs it. Showing a `scope` column is useful information, and `user` decides whether to care. Having `yan` scan for overlaps and warn about them would be noise: overlap is common, the warning would fire again and again, and it would be ignored. **Looking inside one task** is the same command with an id: `yan ls <id>` prints that task's units and every live `shift`'s shift branch and worktree absolute path — the inspect view `user` and `yan` both need when something has gone missing or died.
 - **Several `yan` instances writing `mem/` at once.** `user.md` is only written on request, and `user` talks to one `yan` at a time. If that ever stops being true, add an `flock`.
 
@@ -47,7 +47,7 @@ The lock is per `task`, not per home directory. Running two `yan` instances for 
 
 ## 5.3 The life of a `shift`
 
-- **Start.** `yan` writes `shifts/<sid>/brief.md`, leases a tree with `yan tree get --base <integration branch> --branch <shift branch>` (the holder string is `<task>/<unit>/<sid>`), opens a terminal, and sets `YAN_TASK_DIR`.
+- **Start.** `yan` writes `shifts/<sid>/brief.md`, leases a tree with `yan tree get --base <integration branch> --branch <shift branch>` (the holder string is `<task>/<unit>/<sid>`), opens a terminal with the shift agent from `conf/config.json` (or `--agent`), and sets `YAN_TASK_DIR`.
 - **Work.** The sub-agent works only inside its own tree. It appends a line to `run/status` when, and only when, something needs `yan` to act.
 - **Clock out.** Once the shift branch's MR has been merged into the integration branch: write `outcome.md` → `rm -rf run/` → `yan tree return` → delete the remote shift branch.
 
@@ -57,7 +57,7 @@ Why the condition for clocking out is "the MR has been merged into the integrati
 
 Returning the tree must come before deleting the remote shift branch. The reason is in [§7](worktree.md#7-worktrees).
 
-**A `shift` does not wait for the outbound MR's CI.** This is deliberate. If CI goes red, `yan` finds out by asking GitLab, and dispatches a new `shift` to fix it. Polling one source of truth is far cheaper than supervising an agent that is parked.
+**A `shift` does not wait for the outbound MR's CI.** This is deliberate. If CI goes red, `yan` finds out by asking the forge, and dispatches a new `shift` to fix it. Polling one source of truth is far cheaper than supervising an agent that is parked.
 
 **A `shift` never spans two tasks.** It may span several `unit`s of the same task — one sub-agent holding two trees, changing `auth` and `gateway` at the same time — but that means two shift branches and two MRs.
 
@@ -98,7 +98,9 @@ Supervision is large enough to have its own document: see [`supervision.md`](sup
 
 ## 5.6 Harness requirements
 
-**`yan` itself runs on Claude Code or Codex.** `conf/harness` is `claude` or `codex`; `yan start` launches the matching CLI. Other harnesses for `yan` stay out of scope. The shared supervision core is the same; what differs is how continuous coverage is armed — Claude can hold `yan wait` in a long-lived Stop hook (`asyncRewake`), while Codex cannot (official hooks still parse `async` but do not run async command hooks). Codex therefore uses a model-driven loop of `yan wait --seconds N` instead. The full split is in [§5.5](supervision.md#55-supervision).
+**Agent defaults live in user-global `conf/config.json`** (`agents.yan` and `agents.shift`). Shape and sample: [Appendix D](appendix.md#appendix-d-configuration). `yan start` reads `agents.yan`; `yan shift new` reads `agents.shift`, with a one-off override via `--agent`. The CLI actually started is recorded in `run/meta.json`.
+
+**`yan` itself runs on Claude Code or Codex.** Other harnesses for the main agent stay out of scope. The shared supervision core is the same; what differs is how continuous coverage is armed — Claude can hold `yan wait` in a long-lived Stop hook (`asyncRewake`), while Codex cannot (official hooks still parse `async` but do not run async command hooks). Codex therefore uses a model-driven loop of `yan wait --seconds N` instead. The full split is in [§5.5](supervision.md#55-supervision).
 
 The trade is the same either way: quieter Claude coverage versus Codex checkpoints that return control every N seconds, cost tool-round-trip tokens while idle, and cannot wake the model after a turn has truly ended. Personal use can stay on Claude; company use can stay on Codex without inventing a detached watcher daemon.
 
@@ -154,6 +156,6 @@ term_agent_close        close exactly one recorded agent
 term_list               list the agents in a container
 ```
 
-The first version has only the tmux implementation. Adding Herdr means writing a second implementation and a `conf/backend` switch — not a plugin framework, just a way of keeping `tmux` commands out of fifteen different scripts.
+The first version has only the tmux implementation. Adding Herdr means writing a second implementation and flipping `backend` in `conf/config.json` ([Appendix D](appendix.md#appendix-d-configuration)) — not a plugin framework, just a way of keeping `tmux` commands out of fifteen different scripts.
 
 `term_agent_alive` is the hardest and most important function in this seam. Under tmux the only option is to guess from process names, which fails for agents that run inside a generic interpreter. Herdr has native agent registration, which cleanly separates "the pane is there but the agent died" from "the pane is gone" from "alive".

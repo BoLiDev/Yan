@@ -40,4 +40,4 @@ The line between this and `report.md`: the report holds conclusions, written for
 
 ## 4.4 What not to store
 
-Temporary paths, version numbers that will change, and copied-in snapshots of state. Anything the repository itself already explains, such as code structure or git history — that belongs in the repository's own `AGENTS.md`. And anything git or GitLab already holds as the source of truth.
+Temporary paths, version numbers that will change, and copied-in snapshots of state. Anything the repository itself already explains, such as code structure or git history — that belongs in the repository's own `AGENTS.md`. And anything git or the forge already holds as the source of truth.

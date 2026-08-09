@@ -13,7 +13,7 @@ All three are settled and have already been folded into the design documents.
 | | Decision | Reasoning | Written up in |
 | --- | --- | --- | --- |
 | **P0-1** | `yan` ships its own worktree pool (`yan tree get \| return \| status`) | the project does not need to depend on an outside tool for this. The three things worth taking from treehouse — random `lease_id`, conditional return, `--json` — were copied along with it | [design §7](design/worktree.md#7-worktrees) |
-| **P0-2** | support both GitLab and GitHub behind a forge deep module | GitLab at work, GitHub outside it; both are real needs. Side benefit: the acceptance test for the first version can be run against `yan` itself | [design §8.4](design/delivery.md#84-the-forge-layer) |
+| **P0-2** | support both GitLab and GitHub behind a forge deep module (user-global `forge` in `conf/config.json`; GitLab requires `host`) | GitLab at work, GitHub outside it; both are real needs, but one machine uses one forge. Side benefit: the acceptance test for the first version can be run against `yan` itself | [design §8.4](design/delivery.md#84-the-forge-layer) |
 | **P0-3** | shift branches are pushed to the remote, and both levels of MR are kept | one independent MR per `shift` is how `user` reviews the work | [design §12](design/scope.md#12-open-questions) under "settled", and [design §6.2](design/branching.md#62-two-levels-of-review) |
 
 P0-3 produced one invariant, which is already in the design: **clocking out and deleting a branch are both decided by the MR's state, never by git ancestry** ([design §5.3](design/agents.md#53-the-life-of-a-shift)).
@@ -79,8 +79,27 @@ The idea of an ordering invariant is still used; it is just no longer the classi
 
 | | Decision | Reasoning | Written up in |
 | --- | --- | --- | --- |
-| **dual harness** | `yan` runs on Claude or Codex (`conf/harness`); shifts stay any CLI | company use is Codex-only; personal use stays on Claude. Official Codex hooks still lack Claude's long-lived `asyncRewake` | [design §5.6](design/agents.md#56-harness-requirements), [design §5.5](design/supervision.md#55-supervision) |
+| **dual harness** | `yan` runs on Claude or Codex; shifts stay any CLI; both defaults live in `conf/config.json` | company use is Codex-only for `yan`; personal use stays on Claude. Shift default is independent. Official Codex hooks still lack Claude's long-lived `asyncRewake` | [design §5.6](design/agents.md#56-harness-requirements), [design §5.5](design/supervision.md#55-supervision) |
 | **Codex coverage** | model loops `yan wait --seconds N` (default 180); Stop registers guard only — no autoarm, no detach daemon | wait's return *is* the rewake when the harness cannot hold a long Stop | [design §5.5](design/supervision.md#55-supervision) |
+
+---
+
+## 2026-08-09. Forge is a configured remote git layer
+
+| | Decision | Reasoning | Written up in |
+| --- | --- | --- | --- |
+| **forge as remote git** | every MR/CI call goes through `lib-forge`; callers never branch on provider | documents had drifted into GitLab-as-default wording; the seam only works if the rest of the system stays forge-neutral | [design §8.4](design/delivery.md#84-the-forge-layer) |
+| **user-global forge** | one machine, one forge, declared in `conf/config.json` | a given `$YAN_HOME` does not mix providers across projects; company and personal use different machines (or edit config and re-auth) | [design §8.4](design/delivery.md#84-the-forge-layer), [Appendix D](design/appendix.md#appendix-d-configuration) |
+| **bootstrap by need** | check only the CLI `forge.kind` selects | requiring both `gh` and `glab` up front couples a GitHub-only setup to GitLab tooling | [design §8.4](design/delivery.md#84-the-forge-layer) |
+
+---
+
+## 2026-08-09. One user-level `conf/config.json`
+
+| | Decision | Reasoning | Written up in |
+| --- | --- | --- | --- |
+| **single config file** | machine preferences live in one `conf/config.json` (`agents`, `forge`, optional `backend`); `mem/repos.json` stays the registry; `conf/hooks/*` stay executables | one place to look for user-level settings; splitting agents/forge into separate files was accidental fragmentation. JSON rather than YAML because `jq` is already required | [Appendix D](design/appendix.md#appendix-d-configuration) |
+| **agent defaults** | `agents.yan` (`claude` \| `codex`) and `agents.shift` (any qualifying CLI); `yan shift new --agent` overrides one dispatch | main and shift defaults are independent; replaces the old single-token `conf/harness` | [design §5.6](design/agents.md#56-harness-requirements) |
 
 ---
 
