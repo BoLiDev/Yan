@@ -1,0 +1,17 @@
+{
+  "id": 155016544,
+  "iid": 147,
+  "project_id": 15513260,
+  "state": "opened",
+  "merged_at": null,
+  "target_branch": "main",
+  "source_branch": "feat/old-server",
+  "web_url": "https://gitlab.example.com/my-group/my-project/-/merge_requests/147",
+  "pipeline": {
+    "id": 538317960,
+    "sha": "2222222222222222222222222222222222222222",
+    "ref": "feat/old-server",
+    "status": "success",
+    "web_url": "https://gitlab.example.com/my-group/my-project/-/pipelines/538317960"
+  }
+}

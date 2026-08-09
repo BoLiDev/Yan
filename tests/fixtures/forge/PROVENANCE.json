@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "why": "Mapping raw forge JSON to yan's closed return sets is the part of lib-forge.sh most likely to be wrong in production, so it is tested against payloads that really came off the wire - not against shapes someone remembered. Every file below says where it came from and whether it was verified against a live server. Read `verified: false` as 'nobody has ever seen a server send exactly this'.",
+  "captured_on": "2026-08-09",
+  "tooling": { "gh": "2.97.0", "glab": "1.112.0" },
+  "files": {
+    "github/mr-merged-mergecommit.json": {
+      "verified": true,
+      "source": "gh pr view 1 --repo BoLiDev/Yan --json state,mergedAt,url,number,headRefName,baseRefName,isDraft",
+      "verbatim": true,
+      "note": "This repository's own PR #1, landed with a merge commit. Read-only call."
+    },
+    "github/mr-merged-squash-branch-deleted.json": {
+      "verified": true,
+      "source": "gh pr view 14103 --repo cli/cli --json state,mergedAt,url,number,headRefName,baseRefName,isDraft",
+      "verbatim": true,
+      "note": "Squash-merged: mergeCommit 62efc15 differs from headRefOid e4b4931, so the head commit is NOT an ancestor of the base branch. The head branch williammartin-scaling-guacamole has also been deleted (branches API returns 404). Both awkward cases in one payload; the forge still says MERGED."
+    },
+    "github/mr-open.json": {
+      "verified": true,
+      "source": "gh pr view 14108 --repo cli/cli --json state,mergedAt,url,number,headRefName,baseRefName,isDraft",
+      "verbatim": true,
+      "note": "Open at capture time."
+    },
+    "github/mr-closed-unmerged.json": {
+      "verified": true,
+      "source": "gh pr view 14097 --repo cli/cli --json state,mergedAt,url,number,headRefName,baseRefName,isDraft",
+      "verbatim": true,
+      "note": "Closed without merging, and a draft, so it also proves isDraft does not affect the state mapping."
+    },
+    "github/mr-api-error.stdout.txt": {
+      "verified": true,
+      "source": "gh pr view 999999 --repo BoLiDev/Yan --json state,mergedAt (stdout)",
+      "verbatim": true,
+      "note": "Empty. This is what the mapper is handed when the forge refuses; it must answer unknown, not crash."
+    },
+    "github/mr-api-error.stderr.txt": {
+      "verified": true,
+      "source": "gh pr view 999999 --repo BoLiDev/Yan --json state,mergedAt (stderr)",
+      "verbatim": true,
+      "note": "gh exits 1 with this text."
+    },
+    "github/ci-none.json": {
+      "verified": true,
+      "source": "gh pr view 1 --repo BoLiDev/Yan --json statusCheckRollup",
+      "verbatim": true,
+      "note": "Empty rollup - this repository runs no CI. Maps to none."
+    },
+    "github/ci-checks-green.json": {
+      "verified": true,
+      "source": "gh pr view 14103 --repo cli/cli --json statusCheckRollup",
+      "verbatim": false,
+      "note": "Checks API only. First six entries of the real rollup, each object copied verbatim; the rest were dropped so the fixture stays readable. SUCCESS plus SKIPPED."
+    },
+    "github/ci-checks-mixed-red.json": {
+      "verified": true,
+      "source": "gh pr view 65158 --repo nodejs/node --json statusCheckRollup",
+      "verbatim": false,
+      "note": "Two real FAILURE CheckRuns, two SUCCESS and one SKIPPED, each object verbatim, selected from a much larger real rollup. Any failure means red."
+    },
+    "github/ci-checks-running.json": {
+      "verified": true,
+      "source": "gh pr view 65159 --repo nodejs/node --json statusCheckRollup",
+      "verbatim": false,
+      "note": "Three IN_PROGRESS CheckRuns (note conclusion is the empty string, not null) plus two SUCCESS, objects verbatim, selected from a larger rollup."
+    },
+    "github/ci-status-green.json": {
+      "verified": true,
+      "source": "gh pr view 65091 --repo nodejs/node --json statusCheckRollup",
+      "verbatim": false,
+      "note": "Legacy commit-status API only (StatusContext, from node's Jenkins). Four verbatim objects selected from a larger rollup."
+    },
+    "github/ci-status-pending.json": {
+      "verified": true,
+      "source": "gh pr view 65144 --repo nodejs/node --json statusCheckRollup",
+      "verbatim": false,
+      "note": "Two PENDING StatusContexts mixed with two SUCCESS CheckRuns - both GitHub CI systems in one array. Objects verbatim, selected from a larger rollup."
+    },
+    "github/ci-status-red.json": {
+      "verified": true,
+      "source": "gh pr view 65145 --repo nodejs/node --json statusCheckRollup",
+      "verbatim": false,
+      "note": "Legacy StatusContexts, two FAILURE and two SUCCESS. Objects verbatim, selected from a larger rollup."
+    },
+    "github/ci-red-beats-pending.json": {
+      "verified": true,
+      "source": "gh pr view 65148 --repo nodejs/node --json statusCheckRollup",
+      "verbatim": false,
+      "note": "A real rollup that is failing while other jobs are still running. Objects verbatim, selected from a larger rollup. Pins the precedence rule: red beats pending."
+    },
+
+    "gitlab/mr-merged.json": {
+      "verified": false,
+      "source": "GitLab REST API documentation, GET /projects/:id/merge_requests/:merge_request_iid",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED. No GitLab account was available, so no glab call was ever made against a live server. Field names and value vocabularies (state, merged_at, head_pipeline.status) come from the published API documentation; ids, hostnames and shas are invented."
+    },
+    "gitlab/mr-opened.json": {
+      "verified": false,
+      "source": "GitLab REST API documentation, GET /projects/:id/merge_requests/:merge_request_iid",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/mr-closed.json": {
+      "verified": false,
+      "source": "GitLab REST API documentation, GET /projects/:id/merge_requests/:merge_request_iid",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/mr-locked.json": {
+      "verified": false,
+      "source": "GitLab REST API documentation - merge request state is one of opened, closed, locked, merged",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED. `locked` is the fourth GitLab state; yan collapses it onto open."
+    },
+    "gitlab/mr-state-unknown-to-yan.json": {
+      "verified": false,
+      "source": "invented",
+      "verbatim": false,
+      "note": "SYNTHETIC. A state GitLab does not currently document, to prove an unrecognised value becomes unknown rather than leaking through."
+    },
+    "gitlab/ci-failed.json": {
+      "verified": false,
+      "source": "GitLab pipeline status vocabulary: created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/ci-canceled.json": {
+      "verified": false,
+      "source": "GitLab pipeline status vocabulary",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/ci-skipped.json": {
+      "verified": false,
+      "source": "GitLab pipeline status vocabulary",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/ci-pending-created.json": {
+      "verified": false,
+      "source": "GitLab pipeline status vocabulary",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/ci-no-pipeline.json": {
+      "verified": false,
+      "source": "GitLab REST API documentation - head_pipeline is null when no pipeline ran",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    },
+    "gitlab/ci-legacy-pipeline-field.json": {
+      "verified": false,
+      "source": "GitLab REST API documentation - older servers expose `pipeline` rather than `head_pipeline`",
+      "verbatim": false,
+      "note": "DOCUMENTATION-DERIVED, NOT CAPTURED."
+    }
+  }
+}

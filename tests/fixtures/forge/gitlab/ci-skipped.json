@@ -1,0 +1,19 @@
+{
+  "id": 155016539,
+  "iid": 142,
+  "project_id": 15513260,
+  "state": "opened",
+  "merged_at": null,
+  "target_branch": "main",
+  "source_branch": "docs/typo",
+  "web_url": "https://gitlab.example.com/my-group/my-project/-/merge_requests/142",
+  "head_pipeline": {
+    "id": 538317952,
+    "iid": 1892,
+    "project_id": 15513260,
+    "ref": "docs/typo",
+    "status": "skipped",
+    "source": "merge_request_event",
+    "web_url": "https://gitlab.example.com/my-group/my-project/-/pipelines/538317952"
+  }
+}
