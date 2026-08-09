@@ -1,0 +1,11 @@
+{
+  "id": 155016546,
+  "iid": 149,
+  "project_id": 15513260,
+  "state": "some_state_yan_has_never_heard_of",
+  "merged_at": null,
+  "target_branch": "main",
+  "source_branch": "feat/future",
+  "web_url": "https://gitlab.example.com/my-group/my-project/-/merge_requests/149",
+  "head_pipeline": null
+}

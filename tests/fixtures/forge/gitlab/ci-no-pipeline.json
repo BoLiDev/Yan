@@ -1,0 +1,12 @@
+{
+  "id": 155016543,
+  "iid": 146,
+  "project_id": 15513260,
+  "state": "opened",
+  "merged_at": null,
+  "target_branch": "main",
+  "source_branch": "chore/no-ci",
+  "web_url": "https://gitlab.example.com/my-group/my-project/-/merge_requests/146",
+  "head_pipeline": null,
+  "pipeline": null
+}
