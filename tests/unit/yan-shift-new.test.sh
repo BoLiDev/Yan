@@ -123,6 +123,18 @@ assert_contains "$start_line" "cmd=claude --add-dir $tree/apps/common" \
 assert_contains "$start_line" "$brief" 'the opening prompt points at the brief'
 assert_not_contains "$start_line" "dir=$clone" 'never the main clone'
 
+# A shift runs for hours with nobody watching (td §5.5), so the harness has to
+# be told up front that it may act. Without this the agent stops on its FIRST
+# tool call waiting for someone to answer "Do you want to proceed?" - observed
+# against a real dispatch - and every shift would need a human to start it.
+# The boundary is unchanged: the agent's world is still its workdir plus
+# --add-dir, and the tree is a disposable lease (delivery.md §8.3).
+assert_contains "$start_line" '--dangerously-skip-permissions' \
+	'a shift must be able to run unattended'
+
+# (a scout must NOT get that flag - asserted at the end of this file, because
+# dispatching another shift here would change what the next derived sid is)
+
 container_line=$(printf '%s\n' "$log" | grep '^container_create ')
 assert_contains "$container_line" 'name=t042 unify the auth header'
 
@@ -236,3 +248,28 @@ assert_eq 2 "$rc"
 assert_contains "$out" 'no such unit'
 
 printf 'ok\n'
+
+# --- a scout is the exception -----------------------------------------------
+#
+# `--dangerously-skip-permissions` and the read-only mode must never both
+# apply. A scout's whole contract is that it does not change code
+# (delivery.md §8.2), so it keeps plan mode and must not be handed a free hand.
+#
+# This runs last on purpose: dispatching another shift changes which sid the
+# derivation test above would see next.
+
+task_unit_add t042 probe monorepo-x master --branch feat/probe --scope apps/auth
+task_unit_set t042 probe mode scout
+rm -f "$calls/calls"
+mkdir -p "$tmp/tree2/apps/auth"
+export YAN_STUB_POOL_PATH=$tmp/tree2
+export YAN_STUB_POOL_WITNESS=''
+export YAN_STUB_TERM_WITNESS=''
+
+capture bash "$yan" shift new --task t042 --unit probe --sid s90 --brief-text 'just look'
+assert_eq 0 "$rc" "$out"
+
+scout_line=$(grep '^agent_start ' "$calls/calls")
+assert_contains "$scout_line" '--permission-mode plan' 'a scout is read-only'
+assert_not_contains "$scout_line" '--dangerously-skip-permissions' \
+	'a scout must never be given a free hand'
