@@ -258,3 +258,13 @@ git_clone() {
 	shift
 	git -C "$dir" clone "$@"
 }
+
+# git_remote_url <dir> [remote=origin]
+#
+# Non-zero when <dir> is not a git repository or has no such remote, which is
+# how a caller tells "this directory is a clone of that URL" from "this
+# directory merely has the same name".
+git_remote_url() {
+	_git_dir "${1:-}" || return $?
+	git -C "$1" remote get-url "${2:-origin}" 2>/dev/null
+}
