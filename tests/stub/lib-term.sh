@@ -63,11 +63,27 @@ term_stub_call_count() {
 	printf '%s\n' "${n:-0}"
 }
 
+# Every call is one line in $YAN_STUB_TERM_DIR/calls. Point YAN_STUB_TERM_DIR
+# at the same directory as YAN_STUB_POOL_DIR / YAN_STUB_FORGE_DIR and the
+# stubs share one file, so a test reads the terminal, pool and forge calls of
+# one subcommand as a single ordered list.
+#
+# YAN_STUB_TERM_WITNESS names a path whose presence is recorded on every line
+# as witness=present|absent. It is how a step no seam can see - "the brief had
+# already been written when the agent was started" - becomes an assertion about
+# one recorded line. Unset, nothing is added and the format is unchanged.
 _term_stub_record() {
-	local dir
+	local dir line=$*
 	dir=$(_term_stub_dir)
 	mkdir -p -- "$dir"
-	printf '%s\n' "$*" >>"$dir/calls"
+	if [ -n "${YAN_STUB_TERM_WITNESS:-}" ]; then
+		if [ -e "$YAN_STUB_TERM_WITNESS" ]; then
+			line="$line witness=present"
+		else
+			line="$line witness=absent"
+		fi
+	fi
+	printf '%s\n' "$line" >>"$dir/calls"
 }
 
 # The backend gate. `herdr` fails closed in the real library and so does this.
