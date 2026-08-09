@@ -35,7 +35,6 @@ Checked on this machine, to replace assumptions with facts.
 | `claude` | ✅ 2.1.222 | the host for the three hooks in [design §5.5](design/supervision.md#55-supervision) |
 | `wtpool` | ❌ not present | it is an unreleased CLI on another machine. [design §7](design/worktree.md#7-worktrees) was originally built entirely on it, which is what led directly to P0-1 |
 | `glab` | ❌ not present | the GitLab forge implementation has nothing to test against for now; see [`implementation-plan.md` §4](implementation-plan.md#4-what-is-blocking-right-now) |
-| `okt` | ❌ not present | not blocking. The hook in [design §10](design/boundaries.md#10-seams-for-outside-authorities) is opt-in and gitignored anyway |
 
 ---
 
@@ -65,6 +64,23 @@ The idea of an ordering invariant is still used; it is just no longer the classi
 | | Decision | Reasoning | Written up in |
 | --- | --- | --- | --- |
 | **design principle 6** | "From 0 to 1, then to 2, 10, and 100. Each step adds only the machinery the current pain actually requires" is no longer listed among the design principles | it describes progress, and progress belongs to the implementation plan rather than the design documents | [`implementation-plan.md` §0](implementation-plan.md#0-how-the-work-is-split) |
+
+---
+
+## 2026-08-09. `yan ls <id>` is the task inspect view
+
+| | Decision | Reasoning | Written up in |
+| --- | --- | --- | --- |
+| **`yan ls <id>`** | enhance `yan ls` rather than add a new command: no argument keeps the queue; a task id prints that task's related facts, including each live shift's branch and worktree absolute path | the queue and the inspect view are the same kind of thing — a scan of what is already there — so they share one verb. `yan state` stays per-`shift`; `yan session-start` stays the SessionStart rebuild | [`architecture.md` §5.1](design/architecture.md#51-atomic-commands), [design §5.2](design/agents.md#52-one-yan-per-task) |
+
+---
+
+## 2026-08-09. `yan` supports Claude Code and Codex
+
+| | Decision | Reasoning | Written up in |
+| --- | --- | --- | --- |
+| **dual harness** | `yan` runs on Claude or Codex (`conf/harness`); shifts stay any CLI | company use is Codex-only; personal use stays on Claude. Official Codex hooks still lack Claude's long-lived `asyncRewake` | [design §5.6](design/agents.md#56-harness-requirements), [design §5.5](design/supervision.md#55-supervision) |
+| **Codex coverage** | model loops `yan wait --seconds N` (default 180); Stop registers guard only — no autoarm, no detach daemon | wait's return *is* the rewake when the harness cannot hold a long Stop | [design §5.5](design/supervision.md#55-supervision) |
 
 ---
 

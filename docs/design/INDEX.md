@@ -3,7 +3,7 @@
 > This document records design decisions. It is not an implementation specification. Each decision tries to carry its "why" with it, because when you come back to change something six months later, the reasoning matters more than the conclusion.
 > When each decision was made is recorded in [`../decisions.md`](../decisions.md).
 
-This is the backbone. It starts with three things the rest of the design keeps referring back to — the design principles, the glossary, and the storage criteria — and then walks through the system one part at a time, saying what each part is responsible for and where it sits in the overall flow. The aim is to let you understand the shape of `yan` quickly; the details of each part live in a separate document, which you can read when you need it.
+This is the backbone. It starts with three things the rest of the design keeps referring back to — the design principles, the glossary, and the storage criteria — and then walks through the system one part at a time, saying what each part is responsible for and where it sits in the overall flow.
 
 ---
 
@@ -17,7 +17,7 @@ Throughout the process `user` only has to think about understanding the requirem
 
 1. **Do not store state you can derive.** The directory structure, git, and GitLab are the source of truth.
 2. **One owner per piece of information.** Every piece has exactly one writer and one point at which it is read. This is how state stays consistent.
-3. **Prose makes judgements; scripts do the steps that need none.** A script containing an `if` about business meaning usually means something has been put in the wrong layer.
+3. **Prose makes judgements and scripts do the steps that need no judgements to keep the primitive.**
 4. **`user` and the agents use the same entry point.** Every action `yan` can take is offered as a CLI command, `user` can run it directly, and both see the same state.
 5. **Anything irreversible goes through a script, and is refused by default.**
 
@@ -112,7 +112,7 @@ $YAN_HOME/
 
 Lifetime is expressed by directory, not by a list of files: `tasks/<id>/` is long-lived, `.../run/` is throwaway. So a `shift` clocking out is `rm -rf .../run/` plus one `yan tree return`. A single `rm -rf` cleans up completely, whereas a list of "which files should be deleted" will eventually miss one.
 
-**There is no backlog file.** The queue is a view produced by scanning: `yan ls` reads `tasks/*/task.json`. That removes the single most bug-prone thing in the whole system.
+**There is no backlog file.** The queue is a view produced by scanning: `yan ls` reads `tasks/*/task.json`. That removes the single most bug-prone thing in the whole system. The same command with a task id (`yan ls <id>`) is the deeper view of one task — units, live shifts, each shift's branch and worktree absolute path — still derived, never stored.
 
 **Worktrees are not in this tree.** `yan tree`'s pool lives at `~/.yan-trees/<repo>-<hash>/N/<repo>`, which makes `repos/` purely a git source and a place to read code; a `shift` never touches it. The pool's runtime records (the leases) also live in the pool's root directory rather than in `$YAN_HOME`, because they belong to the pool, not to a task.
 
@@ -130,7 +130,7 @@ Every time `yan` starts, it needs to know two things: what kind of person `user`
 
 ## Agents and shifts
 
-`yan` is the main agent and `user`'s only interface. The code is actually written by single-use sub-agents, and each piece of work handed to one is called a `shift`.
+`yan` is the main agent and `user`'s only interface while `user` is still able inspect the shift through tmux/herdr panel. The code is actually written by single-use sub-agents, and each piece of work handed to one is called a `shift`.
 
 One `yan` handles one `task`, which keeps its context budget bounded and independent of how many tasks exist. `yan` stores no running state of its own; every startup rebuilds the whole picture from what is actually there, which makes closing it and opening a new one a non-event. Dispatching a `shift` means writing a brief, leasing a tree, and starting a terminal. The `shift` works only inside its own tree, and appends a line to `run/status` only when something needs `yan` to act. Its condition for clocking out is objective: the shift branch's MR has been merged into the integration branch. The teardown has a fixed order, and returning the tree must come before deleting the remote shift branch. How `yan` and a `shift` talk to each other, and which events need no model at all, are also in this section.
 
@@ -140,7 +140,7 @@ One `yan` handles one `task`, which keeps its context budget bounded and indepen
 
 A `shift` runs in its own terminal for hours with nobody watching it. This layer makes sure that both "it finished" and "it is stuck" reach `yan`, without depending on the model remembering to check.
 
-The chain is held together by Claude Code's hooks: SessionStart guarantees a full rebuild at startup, autoarm starts the watcher in its own foreground, and the turnend guard verifies that supervision really did start. The watcher itself is `yan wait`, and it watches three sources: the signal a `shift` raises on its own, whether the agent is still alive, and whether the pane's contents have stopped changing for a long time. That last one catches an agent that forgot to report, which is the most common way an agent fails. This is the longest section, because most of what it records are injuries that similar systems have already suffered.
+The watcher is `yan wait` (three sources: signal, agent alive, pane hash). Claude Code arms it from a long-lived Stop autoarm (`asyncRewake`); Codex has no equivalent async Stop, so the model loops `yan wait --seconds N` instead, with a Stop guard that blocks clocking out while supervision responsibility remains. SessionStart only rebuilds via `yan session-start` — it does not run the 180s wait. Harness and multiplexer stay different axes ([§5.6](agents.md#56-harness-requirements), [§5.7](agents.md#57-terminal-topology)).
 
 → [`supervision.md`](supervision.md): [§5.5 supervision](supervision.md#55-supervision)
 
@@ -156,7 +156,7 @@ graph BT
     I -->|outbound MR| T["target"]
 ```
 
-Each `shift` gets one shift branch and clocks out when it is merged, which gives a `shift`'s life an objective end condition. Concurrency is isolated for free, since each `shift` has its own branch and its own tree. The structure also produces two levels of review: `user` accepts the shift branch level, and only the integration branch level goes to colleagues, so colleagues see exactly one MR. The integration branch is not long-lived — it gets replaced wholesale — which is why a `unit` keeps its current state as a few scalars and its history as an append-only array. Naming matters too: the integration branch's name may be delegated to an outside authority, while shift branch names always belong to `yan`.
+Each `shift` gets one shift branch and clocks out when it is merged, which gives a `shift`'s life an objective end condition. Concurrency is isolated for free, since each `shift` has its own branch and its own tree. The structure also produces two levels of review: `user` accepts the shift branch level, and only the integration branch level goes to colleagues, so colleagues see exactly one MR. The integration branch is not long-lived — it gets replaced wholesale — which is why a `unit` keeps its current state as a few scalars and its history as an append-only array. Naming matters too: shift branch names always belong to `yan`; how the integration branch is named or created is `user`'s decision ([§6.5](branching.md#65-who-names-branches)).
 
 → [`branching.md`](branching.md): [§6.1](branching.md#61-branch-structure) branch structure · [§6.2](branching.md#62-two-levels-of-review) two levels of review · [§6.3](branching.md#63-how-the-integration-branch-changes) how the integration branch changes · [§6.4](branching.md#64-the-shape-of-a-unit) the shape of a `unit` · [§6.5](branching.md#65-who-names-branches) who names branches · [§6.6](branching.md#66-yan-never-parses-branch-names) never parsing branch names · [§6.7](branching.md#67-how-big-a-unit-should-be) how big a `unit` should be
 
@@ -180,7 +180,7 @@ A `shift` never touches a main clone. It works in a leased worktree, and those t
 
 Once all of that is in place, one more line is needed: which actions `yan` may take on its own, and which have to wait for `user`.
 
-`yan` writes only its own bookkeeping. It never touches a main clone except with `git fetch`. A `shift` writes only in its own three places plus the tree it leased. Side effects on the outside world are divided by a single line: inside your own branches and your own machine, act freely; anything that affects `target` or that a colleague will see requires `user` to say so. There is also a class of decisions `yan` does not intend to make at all, such as what the integration branch should be called, and those are delegated to an outside authority through `conf/hooks/`.
+`yan` writes only its own bookkeeping. It never touches a main clone except with `git fetch`. A `shift` writes only in its own three places plus the tree it leased. Side effects on the outside world are divided by a single line: inside your own branches and your own machine, act freely; anything that affects `target` or that a colleague will see requires `user` to say so. How the integration branch is named or created is `user`'s decision; when that decision is outsourced, it goes through an opt-in seam under `conf/hooks/` ([§10](boundaries.md#10-seams-for-outside-authorities)).
 
 → [`boundaries.md`](boundaries.md): [§9](boundaries.md#9-what-yan-may-write) what `yan` may write · [§10](boundaries.md#10-seams-for-outside-authorities) seams for outside authorities
 

@@ -38,14 +38,14 @@ Three ways of moving forward, plus one way of starting over:
 
 **Catching up with `target` must never be given to a shift branch's agent.** That agent only sees its own small change; asking it to rebase the whole integration branch is a disaster. `yan sync` is a script action, not a `shift`: lease a tree → fetch → rebase or merge `target` → push → return the tree. No agent is involved, and a `shift` is only dispatched if there are conflicts to resolve. Its timing is fixed: sync before starting each new `shift`, so the new shift branch comes off the head that has just caught up. That keeps conflicts in one place — the integration branch against `target` — instead of scattering them across every shift branch to be solved again and again.
 
-The last row is the one this model is easiest to miss: **the integration branch is not long-lived.** The way the work actually goes is that okt cuts a `2.0.1`, the work is done, it ships, it merges into master, feedback arrives, and then a `2.0.2` is cut. So a unit's integration branch is replaced outright rather than pushed forward forever.
+The last row is the one this model is easiest to miss: **the integration branch is not long-lived.** A round is delivered or abandoned, then work usually continues on a **new** working branch rather than pushing one branch forward forever. Who creates that new branch, and what it is called, is up to `user` (see [§6.5](branching.md#65-who-names-branches)); `yan` only records the new name in `unit.branch` and archives the old round.
 
 That gives "we need to change something" three different shapes, with completely different mechanisms:
 
 |  | How the last round ended | What to do | The new branch's base |
 | --- | --- | --- | --- |
 | within the same round | the integration branch has not merged into `target` yet | dispatch a new `shift`, branch off the current integration branch, merge back into it | the current integration branch |
-| feedback after delivery | already merged into `target`, and closed | start a new round: okt cuts `2.0.2` | `target`, which already contains the last round |
+| feedback after delivery | already merged into `target`, and closed | start a new round with a new integration branch | `target`, which already contains the last round |
 | abandoned | dropped for some reason, never merged | also a new round, but marked as abandoned | the old branch itself, so the work is not lost |
 
 The last two both use `yan unit set --branch <new branch>`. The only difference is how they are recorded in the history.
@@ -54,16 +54,18 @@ Changing `target` is not just bookkeeping either. Switching from `release/x` to 
 
 ## 6.4 The shape of a `unit`
 
+> Integration branch names in the examples below (`feat/auth`, and so on) are illustrative only. The real name always follows `user`'s scheme ([§6.5](#65-who-names-branches)).
+
 ```json
 { name: auth, repo: monorepo-x, scope: [apps/auth], needs: [proto],
 
-  branch: 2.0.4,  target: master,  mode: mr,
+  branch: feat/auth,  target: master,  mode: mr,
   mr: https://gitlab.../merge_requests/88,
 
   history: [
-    { branch: 2.0.1, target: master, at: 2026-08-20,
+    { branch: feat/auth-r1, target: master, at: 2026-08-20,
       end: delivered, mr: https://gitlab.../merge_requests/31 },
-    { branch: 2.0.3, target: master, at: 2026-08-25,
+    { branch: feat/auth-wip, target: master, at: 2026-08-25,
       end: abandoned }
   ] }
 ```
@@ -77,7 +79,7 @@ Each entry has at most five fields, and each one earns its place:
 | Field | Why it is stored |
 | --- | --- |
 | `branch` | the point of the record: which branch was used |
-| `target` | where it was merged. It can differ from the current value, for example `2.0.1` went to a release branch and later rounds went to master |
+| `target` | where it was merged. It can differ from the current value, for example one round went to a release branch and later rounds went to master |
 | `at` | when it was retired. "When did the next one start" and "when did this one end" are the same moment, so one timestamp is enough |
 | `end` | `delivered` or `abandoned`. Without it, the history is a list of branches with no way to tell which ones actually shipped and which were dropped halfway |
 | `mr` (optional) | the only one that is genuinely awkward to look up later: once the branch is deleted you need `glab mr list --source-branch` to find it, and if the branch had several MRs the answer is ambiguous. A URL is a fixed fact, so storing it does not break the storage rules ([§2](INDEX.md#2-storage-criteria)). An abandoned round may never have opened an MR at all, which is why the field is optional |
@@ -99,10 +101,10 @@ This follows the rule that changing state is looked up on GitLab rather than sto
 
 Starting a new round is one atomic operation: work out `end` → append the current `branch`, `target`, and `mr` to `history[]` together with `at` → overwrite the current fields → add a line to `log.md`.
 
-**The log line for an abandoned round has to say why.** The reason for a normal rotation is obvious from context — it shipped, or feedback came in. The reason for abandoning something is the one that gets forgotten. Six months later, when you find `2.0.3` stopping dead in the history, you will not remember why it was dropped.
+**The log line for an abandoned round has to say why.** The reason for a normal rotation is obvious from context — it shipped, or feedback came in. The reason for abandoning something is the one that gets forgotten. Six months later, when you find a round stopping dead in the history, you will not remember why it was dropped.
 
 ```
-- 08-25  auth  abandoned 2.0.3 → 2.0.4 (based on 2.0.3; upstream proto changed its interface, so the MR on this line could not be reviewed)
+- 08-25  auth  abandoned feat/auth-wip → feat/auth (based on feat/auth-wip; upstream proto changed its interface, so the MR on this line could not be reviewed)
 ```
 
 `target` has no default value, and `yan unit add` requires it explicitly. The way `user` actually works, a big release means the team keeps one shared branch for a while and everyone merges into it, while quiet periods mean everyone merges into master. There is no safe default.
@@ -111,26 +113,27 @@ Starting a new round is one atomic operation: work out `end` → append the curr
 
 ## 6.5 Who names branches
 
-The integration branch's name may be delegated to an outside authority (okt). The shift branch's name always belongs to `yan`.
+**Shift branch names always belong to `yan`.** Integration branch names are **`user`'s decision** — not because `user` must type every name by hand, but because **how** an integration branch is chosen or created is decided by `user`: name it directly, let `yan` follow a skill or local rule, or opt into `conf/hooks/branch-name` so some other tooling answers. `yan` records the resulting string in `unit.branch` and assumes nothing about its shape. It does not own the team's branch-management process; it only owns shift branches.
 
-The reason is that okt understands the team's concepts — features, applications, releases — and knows nothing about a `shift`. Letting it name shift branches would be pointless, and actively harmful. Shift branch names must also not be derived from the integration branch's name, for example turning okt's `feature/AUTH-123` into `feature/AUTH-123/s1`. Three reasons:
+Shift branch names must also not be derived from the integration branch's name, for example turning `feature/AUTH-123` into `feature/AUTH-123/s1`. Three reasons:
 
 1. Branch protection and naming checks may impose rules on the team's prefixes, and internal branches would run into them.
-2. Colleagues looking at the branch list on GitLab would be flooded with internal branches.
-3. okt may scan or manage the prefixes it recognises, and `yan`'s internal branches should not be visible to it.
+2. Colleagues looking at the branch list on the forge would be flooded with internal branches.
+3. Whatever process `user` uses to manage their own working branches should not see or manage `yan/*` internals.
 
 There is also a hard limit in git itself: once `refs/heads/feature/AUTH-123` exists as a file, `feature/AUTH-123/s1` cannot be created at all (`cannot lock ref ... exists`).
 
 ```
-integration branch   named by the hook; without a hook, defaults to yan/<task>-<unit>-r<n>
-                     e.g. 2.0.2 (from okt)   or   yan/t042-auth-r2 (the built-in default)
+integration branch   decided by user (directly, via skill, or via the optional hook);
+                     without a hook and without an explicit name, defaults to yan/<task>-<unit>-r<n>
+                     e.g. feat/auth   or   yan/t042-auth-r2 (the built-in default)
 shift branch         always named by yan, fixed format, never derived from the integration branch
                      yan/<task>-<unit>-<sid>        e.g. yan/t042-auth-s7
 ```
 
 The built-in default has to carry the round number `r<n>`, because the integration branch gets replaced (§6.3). Without it, the second round would collide with the first, and the same branch name cannot be created twice.
 
-`n` is the length of `history[]` plus one, so it needs no extra storage: the round number is just how many entries the history has. When a hook is present, whatever okt returns is used as is (`2.0.2` already carries version meaning), and the round number plays no part.
+`n` is the length of `history[]` plus one, so it needs no extra storage: the round number is just how many entries the history has. When `user` (or the hook) supplies a name, it is used as is — any shape is fine — and the built-in round number plays no part.
 
 **Shift branches carry no round number.** `sid` increases globally (s1, s2, s3, …), so the second round's `s7` cannot collide with the first round's `s3`. And §6.6 establishes that `yan` never parses branch names and always looks ownership up in storage, so a shift branch name does not have to say which round it belongs to.
 
@@ -138,7 +141,7 @@ The built-in default has to carry the round number `r<n>`, because the integrati
 
 ## 6.6 `yan` never parses branch names
 
-Because naming the integration branch may be taken over by okt, `yan` cannot assume the name has any structure. It does not infer ownership by globbing a prefix. Instead, `task.json` stores `unit.branch`, and `run/meta.json` stores the shift branch name. Asking the reverse question — "who does this branch belong to?" — means looking in storage, not splitting a string.
+Because the integration branch's name comes from `user`'s process, `yan` cannot assume the name has any structure. It does not infer ownership by globbing a prefix. Instead, `task.json` stores `unit.branch`, and `run/meta.json` stores the shift branch name. Asking the reverse question — "who does this branch belong to?" — means looking in storage, not splitting a string.
 
 One exception: `git branch --list 'yan/*'` may be used to find every branch `yan` created, for maintenance cleanup. That is enumerating our own things, not inferring ownership from a name, so it does not break the rule.
 

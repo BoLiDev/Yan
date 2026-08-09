@@ -1,28 +1,124 @@
 # 5.5 Supervision
 
-The supervision machinery copies firstmate's three hooks exactly, all registered in `.claude/settings.json`. What it does not copy is firstmate's separate triage layer.
+Supervision answers: when a `shift` finishes or gets stuck, who wakes `yan` up?
+
+The design splits into a **shared core** (`yan wait`, wake file, lock, beacon, drain, guard predicates) plus a thin **harness binding** for Claude Code and for Codex. It does not add a separate triage layer on top of the three wait sources. It does not support a third harness for `yan`, and it does not use a detached/`&` watcher as the Codex path.
+
+```mermaid
+flowchart TB
+  subgraph shared [Shared_core]
+    Wait["yan wait / yan wait --seconds N"]
+    Wake[wake_file_and_drain]
+    Lock[lock_and_beacon]
+    GuardPred[guard_predicates]
+  end
+  subgraph claude [Claude_binding]
+    SS1[SessionStart_rebuild]
+    AA[Stop_autoarm]
+    G1[Stop_guard_budget3]
+    AA --> Wait
+  end
+  subgraph codex [Codex_binding]
+    SS2[SessionStart_rebuild]
+    CP["model loops yan wait --seconds"]
+    G2[Stop_guard_only]
+    CP --> Wait
+  end
+  shared --> claude
+  shared --> codex
+```
+
+Quick glossary (easy to confuse):
+
+| Concept | What it is | What it is not |
+| --- | --- | --- |
+| SessionStart | hook nudges **`yan session-start`** (rebuild in seconds) | not a 180s `yan wait` |
+| checkpoint | Codex **actively** calling `yan wait --seconds N` | not a separate command; not part of SessionStart |
+| long coverage | many checkpoint slices in a row (wall clock can be long) | not the guard's budget of 3 |
+| guard budget 3 | at most three blocked attempts to end the turn, then fail open | not "poll the shift three more times" |
+| beacon | **`yan wait` writes** it; **guard / health checks read** it | not how a shift's death is detected |
+| shift event | `yan report` → `status` + `signal` | not an arbitrary progress file |
+| shift died | **`term_agent_alive`** | not the beacon |
+| shift stuck | **pane content hash unchanged for a long time** | not the beacon |
+
+---
+
+## Shared core
+
+### `yan wait`
+
+`yan wait` is the watcher. It is a pure observer and holds no durable state of its own: a timeout, a kill, or dying with its process tree loses nothing — the `shift` is still in its own terminal and the facts live in files.
+
+Two shapes, one command:
+
+| Shape | Who starts it | Duration |
+| --- | --- | --- |
+| `yan wait` (long) | Claude Stop autoarm, in the hook's foreground | minutes to hours |
+| `yan wait --seconds N` | Codex model, as a foreground tool call (default `N=180`, overridable via `YAN_CODEX_CHECKPOINT`) | hard stop at N; return control to the model |
+
+Same three sources in both shapes. On an actionable event: write the wake file, print a reason, exit 0. On a quiet end with `--seconds`: exit with the agreed non-zero code (e.g. 124) so the model knows to drain and, if still responsible, start another slice. Without `--seconds`, a quiet end is a silent non-zero exit for the Claude hook path (no model wake).
+
+### The sources
+
+| Source | What it catches | Cost |
+| --- | --- | --- |
+| `run/signal` | the `shift` reporting on its own via `yan report` | a file existence check |
+| `term_agent_alive` | the agent died, which it cannot report itself | one terminal query |
+| the pane's content hash not changing for a long time | stuck, waiting on a dialog, or forgot to report | `term_read` plus `md5` |
+
+The third earns its place because forgetting to report is the most common agent failure. `yan` does not need a fourth source that polls pull requests: a `shift` does not wait for CI before clocking out ([§5.3](agents.md#53-the-life-of-a-shift)).
+
+### Infrastructure
+
+| | Why it exists |
+| --- | --- |
+| single-flight lock | under Claude, every Stop can fire autoarm; without a lock you get several watchers |
+| wake file | the reason must survive from "wait exited" to "the model's next turn" |
+| beacon | `yan wait` touches a timestamp each loop; a live pid alone does not prove the watcher is looping |
+
+"Watcher healthy" (used on the Claude path) means all of: the lock exists and its pid is alive; the identity matches; the beacon is fresh (default 300s). Both directions matter: a stale beacon blocks even when a watcher pid is live; a fresh leftover beacon blocks when the lock is missing, dead, or identity-mismatched.
+
+The beacon is attendance for the **watcher**. Other processes read it. It is not how shift death is detected.
+
+### SessionStart rebuild
+
+A restart is a non-event because durable state plus live inventory are authoritative ([§5.1](agents.md#51-lifetime-tiers)), not because of any hook. SessionStart only removes the need for the model to remember: inject "run `yan session-start` first". That rebuild is seconds-scale. It does **not** run `yan wait --seconds`.
+
+### `yan drain`
+
+After a wake (Claude rewake or Codex tool return with a reason), the model reads and clears the wake file with `yan drain` before acting.
+
+### Interrupting wakes
+
+When a shift notification arrives while `user` is mid-conversation with `yan`:
+
+> Handle the notification first, then return to what `user` was talking about.
+
+Per-task `yan` keeps those interruptions on-topic.
+
+### Known gap (both harnesses)
+
+After every `shift` has clocked out and outbound CI is running, none of the three sources has anything to wait for. The first version ends the turn without waiting for CI; the next SessionStart asks the forge. A fourth source that polls CI is deferred.
+
+---
+
+## Claude binding
+
+Registered in `.claude/settings.json`.
 
 | Hook | Type | What it does |
 | --- | --- | --- |
-| SessionStart | nudge | injects one instruction: run `yan session-start` first |
-| Stop (autoarm) | `asyncRewake: true`, long timeout | take the single-flight lock → run `yan wait` in its own foreground → turn the result into exit 0 or exit 2 |
-| Stop (turnend guard) | blocking | if supervision is not healthy, block the end of the turn; give up after a bounded number of tries and fail open |
+| SessionStart | nudge | run `yan session-start` first |
+| Stop (autoarm) | `asyncRewake: true`, long timeout | take the single-flight lock → run long `yan wait` in the hook foreground → exit 0 quiet or exit 2 to rewake |
+| Stop (turnend guard) | blocking | if there is work to supervise and the watcher is not healthy, block; after three failures, fail open |
 
-autoarm's job is to start supervision. The guard's job is to check that supervision actually started.
+autoarm starts supervision. The guard checks that supervision actually started. The model never calls `yan wait` on this path — so "the model forgot to start supervision" is not a possible failure for Claude.
 
-`yan wait` is the watcher itself. autoarm starts it in the foreground, and the model never calls it — which is why "the model forgot to start supervision" is not a possible failure. Its output contract is written for the hook to read (an exit code plus one line of reason), not as stdout for the model: if something happened, it writes a wake file, prints the reason, and exits 0; if nothing happened, it exits non-zero silently. It is also a pure observer and holds no state, so a timeout, a kill, or dying along with the hook's process tree loses nothing — the `shift` is still in its own terminal and all the state is in files. This is what "a restart is a non-event" looks like at the supervision layer.
-
-SessionStart is what makes a restart pick up where things stand. That ability comes from durable state plus a full rebuild at startup ([§5.1](agents.md#51-lifetime-tiers)), not from any hook. In firstmate's words:
-
-> A restart must be a non-event because durable state and live backend inventory, not conversation memory, are authoritative.
-
-The hook only removes the dependency on the model remembering to do it: at startup it injects an instruction to rebuild first. This is exactly what firstmate does (`FIRSTMATE_OP: v1 session-start: Run bin/fm-session-start.sh now, exactly once, before executing any other instructions`).
-
-## The full flow
+### Claude Stop flow
 
 ```
-user speaks → yan finishes → yan is about to end the turn
-   ↓  both Stop hooks fire on the same event, concurrently
+user speaks → yan finishes → about to end the turn
+   ↓  both Stop hooks fire concurrently
 
    guard (blocking)                  autoarm (asyncRewake, long timeout)
    ─────────────────             ──────────────────────────────────
@@ -34,80 +130,109 @@ user speaks → yan finishes → yan is about to end the turn
    wait 800ms: was the lock taken?    the watcher sees s1 finish
      yes → let it through                ↓ write the wake file
    neither → count + 1                 exit 2 + a banner on stderr
-     ≤3 → exit 2, block, and the        ↓
-          model goes and fixes it     yan is woken → yan drain
-     >3 → let it through + warn       →  "s1 is done, MR ..."
+     ≤3 → exit 2, block                 ↓
+     >3 → let it through + warn       yan is woken → yan drain
 ```
 
-Where the 800 ms comes from: both hooks fire on the same Stop event, so they are racing. The guard will often reach its check before autoarm does, and at that moment autoarm has not taken the lock yet and the watcher is not up yet. It looks like nobody is on duty, when in fact someone is walking through the door. So the guard waits a moment (firstmate uses `FM_CLAUDE_AUTOARM_SYNC_WAIT_MS`, default 800 ms) to give autoarm a chance to claim the lock. Without that wait, the guard would report a false alarm at the end of every normal turn.
+The 800 ms wait is so the guard does not false-alarm while autoarm is still claiming the lock.
 
-The "three tries" budget belongs to the model, not to the guard. The guard does not start a watcher itself. It exits 2, which blocks the turn, and the model has to go and investigate: read the log, check whether the terminal is still there, arm the watcher by hand, and then try to end the turn again. So three tries means three chances for the model to intervene.
+**Guard reason on Claude:** there is still supervision responsibility **and** nobody is on duty (watcher unhealthy). Ending the turn while shifts are live is fine when autoarm is holding `yan wait`.
 
-## Infrastructure
+autoarm uses a long timeout (eight hours is a workable default). The watcher runs in the hook foreground, never `&`, so the harness owns the process group.
 
-|  | Why it exists |
+### Claude guard details
+
+**One:** the guard's value shows up when autoarm never ran at all (broken settings, skipped hook). Only a second hook can detect that.
+
+**Two:** do not use Claude's `stop_hook_active` as a one-shot unblock. Claude sets it true after asyncRewake continuations too, which re-opens a blind window: the turn that needs a new watcher armed already looks "already continued", so a one-shot guard lets it through. The guard keeps its own count in `run/guard-failures`, reset when the watcher is healthy again. It does not need to read stdin.
+
+The budget is 3 (under Claude's own ~8-block override). After that, fail open with a loud warning: automatic supervision is broken; use `yan ls <id>` or restart.
+
+**Three:** fail open on purpose rather than wedge the session forever.
+
+---
+
+## Codex binding
+
+Registered in `.codex/hooks.json` (and/or the documented `config.toml` hooks fragment).
+
+| Hook | What it does |
 | --- | --- |
-| single-flight lock | Claude does not deduplicate async hooks; every Stop fires one. Without a lock you would end up with several watchers |
-| wake file | the reason for waking has to survive from "the watcher exits" to "the model's next turn". One line in an exit-2 banner is not enough. In firstmate's words: *The durable wake queue preserves actionable events between a rewake and the next Stop-launched arm* |
-| beacon | `yan wait` touches a timestamp file on every loop, because a live pid does not prove the watcher is doing anything |
+| SessionStart | same rebuild nudge / context injection for `yan session-start` |
+| Stop (turnend guard only) | block ending the turn while supervision responsibility remains; no autoarm |
 
-So "the watcher is healthy" does not mean "the process exists". It means three things at once: the lock file exists and the pid inside it is alive; the identity matches, so that pid really is our watcher and not some unrelated process that reused the number; and the beacon is fresh (300 seconds by default). firstmate blocks in both directions: *A stale beacon blocks even when a watcher pid is live; A fresh leftover beacon blocks when the lock is missing, dead, or identity-mismatched.*
+There is **no** Stop autoarm on Codex. As of the public Codex hooks docs (checked 2026-08-09): *The `async` option is parsed, but asynchronous command hooks aren't supported yet.* Stop can synchronously return `decision: "block"` for an immediate continuation; it cannot hold a multi-hour watcher and rewake later the way Claude's `asyncRewake` does. Once a turn has truly ended, nothing wakes the model until `user` speaks or SessionStart runs again.
 
-autoarm's shape matters: `asyncRewake: true` plus a very long timeout (firstmate uses `timeout: 28800`, eight hours) so the hook itself can live for hours. The watcher runs in the hook's foreground, never backgrounded with a shell `&`, so the harness owns the process group and both die together on a timeout or when the session is destroyed. The timeout has to be long, because when the hook is killed the watcher goes with it.
+### How long coverage works on Codex
 
-## Design points for the guard
+The model **actively** loops:
 
-**One: its value shows up when autoarm never ran at all.** If autoarm ran and failed, it leaves a record of the failure behind. But if it was never invoked — `.claude/settings.json` got broken, the hook path is wrong, the harness skipped it — there is no record at all, not even a failure. That state looks exactly like everything being fine. The guard is the only way to detect it.
+1. When this session still has shifts to supervise, run `yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180}` as a foreground tool.
+2. On an event: `yan drain`, handle, start the next `--seconds` slice.
+3. On quiet timeout: drain anyway, handle any newly visible user message, start the next slice.
+4. Never use shell `&` or Codex background tasks for watcher supervision.
+5. Do not use long unbounded `yan wait` as Codex's normal path.
 
-> This is why it has to be a second, separate hook. A hook that did not run cannot report that it did not run.
+"Cannot reason while a foreground tool call is running" is why the slice must be bounded: returning control is what makes the next wake possible. Wall-clock coverage can still be long if the model keeps looping. That loop is orthogonal to the guard's budget of 3.
 
-**Two: `stop_hook_active` cannot be used to prevent a deadlock.** Most harnesses rely on it. It means "this stop came immediately after a hook blocked the previous one", so reading true and letting the turn through guarantees each turn is blocked at most once. Under Claude that is wrong. From firstmate's `docs/turnend-guard.md`:
+```mermaid
+sequenceDiagram
+  participant Codex as Codex_model
+  participant Wait as yan_wait_seconds
+  participant Shift as shift_agent
+  participant Disk as signal_wake_lock_beacon
 
-> *Claude Code sets `stop_hook_active=true` on every stop after any stop-hook continuation, including `asyncRewake` rewakes, which re-opened the 2026-07-21 blind window under the default one-shot behavior.*
+  Codex->>Wait: yan wait --seconds 180
+  loop while still responsible
+    Wait->>Disk: poll three sources; touch beacon
+    Shift-->>Disk: report or die or stuck
+    alt event in slice
+      Wait->>Disk: write wake
+      Wait-->>Codex: exit 0 + reason
+      Codex->>Disk: yan drain
+      Codex->>Wait: next --seconds
+    else quiet timeout
+      Wait-->>Codex: timed out
+      Codex->>Disk: drain
+      Codex->>Wait: next --seconds
+    end
+  end
+```
 
-The root cause is that two unrelated things share one flag. When the guard blocks, the flag means "I just blocked you, do not block again", and that calls for a counter. When autoarm rewakes, it means "something happened, wake up", which has nothing to do with preventing deadlocks. On the turn that autoarm woke, the very first stop already carries true — but it should have been false, because the guard never blocked that turn. So the guard lets it through, and that is precisely the turn that needed a new watcher started at its end. That is the blind window. It is a real injury, not a theoretical risk.
+### Codex Stop / guard
 
-So the guard keeps its own count. The count is written to `run/guard-failures` and reset when the watcher becomes healthy again, and autoarm's rewakes cannot touch it. Two things fall out of that:
+```mermaid
+sequenceDiagram
+  participant Codex as Codex_model
+  participant Guard as turnend_guard
 
-- The guard does not need to read the hook's stdin at all. Everything it needs — whether there is work, whether the watcher is healthy, how many times it has blocked, which `task` this is — is in the file system and the `YAN_TASK` environment variable. So it does not depend on `jq`, and it does not need firstmate's two fail-open branches for "jq is not installed" and "stdin was empty". It is easy to test, and a harness changing its payload cannot quietly break it.
-- The semantics fit better. `stop_hook_active` means "block once per turn, forever". Counting yourself means "block three times during the whole outage, then warn clearly and stop". autoarm's rewakes create new turns often, so the first behaviour would be both noisy and useless.
+  Codex->>Guard: Stop (no autoarm)
+  alt still responsible and blocks less than 3
+    Guard-->>Codex: decision block — run yan wait --seconds again
+  else no responsibility, or fail-open after 3
+    Guard-->>Codex: allow stop (warn loudly on fail-open)
+  end
+```
 
-The budget is 3, which stays under Claude's own limit of 8 (from the comment in `fm-turnend-guard.sh`: *below Claude's 8-block override*). That way we decide when to give up and print a warning that means something, instead of the harness silently forcing the turn through.
+**Guard reason on Codex:** there is still supervision responsibility (live shifts that need watching) and the model is trying to end the turn. That is the primary predicate — not Claude's "autoarm lock + fresh beacon", because between slices there is no long-lived wait process. Beacon/lock may still help detect odd states; they are not the main "may I clock out?" test.
 
-**Three: once the budget is used up, it must fail open.** Failing open does not mean giving up on the problem. It means going blind on purpose and saying so loudly. The `shift` keeps working as before, and its events are still appended to `run/status`, so nothing is lost. What is missing is anyone watching: when the work finishes, nobody will say so. That is why the turn that finally goes through has to print a clear message — automatic supervision is broken, from here on `user` has to check manually. At that point the options are to run `yan ls` and look, or to restart `yan`, which rebuilds at SessionStart and often fixes the problem on the way.
+Codex may use `stop_hook_active` one-shot behaviour where it matches Codex's continuation model. The shared fail-open budget of 3 still applies so a broken loop cannot wedge the session forever.
 
-Why it cannot block forever: blocking forever means the whole session is unusable, `user` cannot get a word in, and every loop is a full model inference burning tokens. Going blind means finding out late. Being wedged means not being able to work at all. The first is acceptable.
+A diligent Codex rarely meets the guard. A lazy one gets blocked up to three times ("run another `yan wait --seconds`"), then fail-open, after which coverage waits for the next user turn or SessionStart.
 
-## The sources `yan wait` watches
+Interactive Codex TUI may not always fire project SessionStart hooks. Binding must also put the rebuild + checkpoint protocol into `AGENTS.md` / injected instructions so a missed hook is not silent blindness.
 
-Watching the signal file alone is not enough, because an agent can die, get stuck, or forget to report — and one stuck `shift` would leave `user` waiting until the timeout. These three sources come straight from firstmate's experience:
+Optional for a later thin cut: a PreToolUse seatbelt that denies backgrounded / piped long `yan wait` anti-patterns on Codex.
 
-| Source | What it catches | Cost |
-| --- | --- | --- |
-| `run/signal` | the `shift` reporting on its own | a file existence check |
-| `term_agent_alive` | the agent died, which it cannot possibly report itself | one terminal query |
-| the pane's content hash not changing for a long time | the agent stopped without reporting: stuck, waiting on a confirmation dialog, or it forgot | `term_read` plus `md5` |
+### Accepted Codex cost
 
-The third one earns its place, because forgetting to report is the most common way an agent fails, and its cost is right there in the table: one `term_read` and one `md5`. `yan` does not need firstmate's fourth source, polling pull requests, because a `shift` does not wait for CI before clocking out ([§5.3](agents.md#53-the-life-of-a-shift)).
+- Idle coverage costs a tool round trip about every N seconds.
+- During a foreground `--seconds` call the model cannot reason in parallel; interruptibility is worse than Claude asyncRewake.
+- Continuity depends partly on the model keeping the protocol; fail-open then needs `user` or a restart.
+- Codex is not zero-cost parity with Claude; it is the supported company path.
 
-## Rules for an interrupting wake
+---
 
-When a hook wakes the model with exit 2, `user` may be in the middle of talking to `yan` about something else, and the notification from the `shift` will cut into that conversation. That is the behaviour we want, but `AGENTS.md` has to carry one rule:
+## What was cut
 
-> When a notification from a `shift` arrives, handle it first, then return to what `user` was talking about. Do not drop it or postpone it because another topic is in progress.
-
-Without that rule you get failures like: a `shift` reported `blocked`, but `yan` was discussing an approach at the time and simply forgot.
-
-One extra benefit of the per-task design: since a `yan` only handles one task, "something else" is usually still inside that task, so an interrupting wake stays on topic. A global main agent, as in firstmate, will interrupt a conversation about t051 with a blocked report from t042, and that really is jarring.
-
-## Cost, gaps, and what was cut
-
-**A task that runs for hours does not cost extra tokens.** A single run of `yan wait` is bounded (30 minutes and up), so a three-hour `shift` produces about six quiet exits. A quiet exit makes the hook exit 0 rather than 2, and the model is never woken. Coverage is unbounded even though each process is bounded, because the hook fires again on every Stop. But if the model never takes another turn, the hook never fires again — which is why a single run has to be long enough, and why the guard checks that the beacon is fresh. That check is the only way to detect autoarm failing silently.
-
-There is one gap we accept knowingly. After every `shift` has clocked out and the outbound MR's CI is running, no agent is working and none of the three sources has anything to wait for. The answer for the first version is that `yan` ends the turn without waiting for CI, and the outcome is picked up the next time `user` starts `yan`, when the startup rebuild asks GitLab. The cost is that a red CI run does not notify `user` on its own. Getting that notification means adding a fourth source that polls GitLab — the machinery already exists, and it is scheduled for the version after the first.
-
-What was cut: firstmate's twenty files are not spent on the pipeline. The pipeline is just the three hooks above. They are spent on a separate triage layer — absorbing harmless wakes, a "provably working" test, a wedge timer, an escalation counter, a demand-deep-inspection flag, an upper bound on busy turns. In `yan`, triage is exactly the three sources, and it lives inside `yan wait` rather than in a layer of its own. It can be this thin because none of the things that made firstmate's version grow apply here: busy-detection across several backends, run-step attribution for no-mistakes, conflicts between several home directories, procevent, X-mode.
-
-Also cut: primary-scope detection (checking a marker, comparing the git dir against the git common dir — with one `yan` per `task` there is no agent tree), a separate adaptation for each of six harnesses (there is only Claude, [§5.6](agents.md#56-harness-requirements)), and hook payload parsing (stdin is never read).
-
-Both hooks are small, and the guard is the smaller of the two.
+A separate triage layer above the wake pipeline, primary-scope detection for a second-level agent tree, and adapters for many harnesses. `yan` keeps two bindings only (Claude and Codex). Triage stays inside `yan wait`'s three sources.

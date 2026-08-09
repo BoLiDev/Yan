@@ -59,13 +59,13 @@ The steps of each subcommand, and whether it is atomic or orchestrating, are in 
 | `yan task new` | create `tasks/<id>/` and write the brief |
 | `yan unit add` | add a `unit` (`target` must be given explicitly) and create the integration branch |
 | `yan unit set` | change `branch`, `target`, `mode`, or `scope`. When `branch` changes, decide `end` and archive the old round ([§6.4](branching.md#64-the-shape-of-a-unit)) |
-| `yan start` | create the task's terminal container and start `yan` inside it |
+| `yan start` | create the task's terminal container and start `yan` inside it (`conf/harness`: `claude` \| `codex`) |
 | `yan session-start` | the full rebuild at startup, triggered by the SessionStart hook |
 | `yan tree` | the built-in worktree pool: `get`, `return`, `status` ([§7](worktree.md#7-worktrees)) |
 | `yan shift new` | dispatch a `shift` ([§5.3](agents.md#53-the-life-of-a-shift)) |
 | `yan send` | send one line to a `shift` |
 | `yan report` | called by a `shift`: append to `status` and touch `signal` |
-| `yan wait` | the watcher itself, started in the foreground by autoarm, watching three sources ([§5.5](supervision.md#55-supervision)) |
+| `yan wait` | the watcher: long form (Claude autoarm) or `yan wait --seconds N` (Codex checkpoint); three sources ([§5.5](supervision.md#55-supervision)) |
 | `yan drain` | read the wake file after the model has been woken |
 | `yan state` | derive the current state from `meta` plus the terminal, git, and GitLab |
 | `yan scope-check` | check the diff for paths outside `scope` |
@@ -73,9 +73,9 @@ The steps of each subcommand, and whether it is atomic or orchestrating, are in 
 | `yan sync` | bring the integration branch up to date with `target` |
 | `yan mr` | open the outbound MR |
 | `yan land` | merge it (requires authority) |
-| `yan ls` | scan `tasks/` and render the queue |
+| `yan ls` | without an id: render the queue. With `<id>`: print one task's units and live shifts, including each shift's branch and worktree absolute path (`--json` optional) |
 | `yan open` | open a task directory or its artifacts |
-| `hook-autoarm.sh` | the asyncRewake Stop hook ([§5.5](supervision.md#55-supervision)) |
-| `hook-turnend-guard.sh` | the blocking Stop hook ([§5.5](supervision.md#55-supervision)) |
+| `hook-autoarm.sh` | Claude-only asyncRewake Stop hook ([§5.5](supervision.md#55-supervision)) |
+| `hook-turnend-guard.sh` | blocking Stop hook for Claude and Codex ([§5.5](supervision.md#55-supervision)) |
 | `bin/lib-term.sh` | the terminal seam ([§5.7](agents.md#57-terminal-topology)) |
 | `bin/lib-forge.sh` | the GitLab and GitHub seam ([§8.4](delivery.md#84-the-forge-layer)) |

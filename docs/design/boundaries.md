@@ -41,9 +41,9 @@ In the other direction, `yan` never goes into a worktree to edit code. The one t
 
 ## 10. Seams for outside authorities
 
-> Keep this separate from the Claude Code hooks in [§5.5](supervision.md#55-supervision). Those are the harness's lifecycle hooks. These are seams for delegating decisions — what a branch should be called, whether it may be merged — to an outside authority. Same word, different things.
+> Keep this separate from the harness lifecycle hooks in [§5.5](supervision.md#55-supervision) (Claude Code and Codex). Those are harness hooks. These are seams for decisions `user` may want answered outside `yan` — what the integration branch should be called, whether it may be merged. Same word, different things.
 
-`user`'s team uses okt to manage branch naming and mergeability. The three letters `okt` do not appear anywhere in `yan`'s code; the work is delegated through an opt-in seam.
+`user` may already have branch-naming or merge rules (a local script, a skill, team tooling). None of that belongs inside `yan`'s code. Opt-in hooks under `conf/hooks/` are the seam: `yan` asks, records the answer, and assumes nothing about the name's shape.
 
 ```
 conf/hooks/
@@ -55,7 +55,7 @@ conf/hooks/
 
 ### The branch-name contract
 
-**It is called for the integration branch only.** Shift branches are always named by `yan` ([§6.5](branching.md#65-who-names-branches)); okt knows nothing about a `shift`, so letting it choose would be meaningless.
+**It is called for the integration branch only.** Shift branches are always named by `yan` ([§6.5](branching.md#65-who-names-branches)). How the integration name is produced is `user`'s decision; the hook is one way to supply that decision, not a second owner of shift branches.
 
 The input is JSON on stdin, so fields can be added later without breaking an existing hook. The output is one line on stdout, the branch name. The asymmetry is deliberate.
 
@@ -65,7 +65,7 @@ The input is JSON on stdin, so fields can be added later without breaking an exi
   scope: [apps/auth] }
 ```
 
-The hook may create or register the branch itself, as long as it prints the branch name on stdout at the end. That lets `yan` support both styles — okt only handing back a name, and okt having created the branch already:
+The hook may create or register the branch itself, as long as it prints the branch name on stdout at the end. That covers both "return a name" and "create the branch, then return its name":
 
 ```
 name=$(hook branch-name <<< "$ctx") || die "branch naming was refused"
@@ -73,6 +73,6 @@ the branch already exists (locally or on the remote) → check it out
 the branch does not exist                            → cut it from the base
 ```
 
-Failure semantics: if the hook exits non-zero, `yan` stops and reports the error. It never falls back to the built-in default. Otherwise, after okt refused, `yan` would quietly create a branch that breaks the team's rules and may not be mergeable at all — which is much worse than failing outright.
+Failure semantics: if the hook exits non-zero, `yan` stops and reports the error. It never falls back to the built-in default. Otherwise, after the hook refused, `yan` would quietly create a branch that breaks the team's rules and may not be mergeable at all — which is much worse than failing outright.
 
-**Why this is a hook rather than built in:** a branch name is a decision, and decisions can be made by an outside authority. `yan`'s job is to record the decision and to assume nothing about its shape. `merge-check` will work the same way when it arrives: whether something may be merged is a decision, okt can be the one making it, and `yan` only carries it out and records it.
+**Why this is a hook rather than built in:** the integration branch's name is `user`'s decision ([§6.5](branching.md#65-who-names-branches)). `yan`'s job is to record it and to assume nothing about its shape. `merge-check` will work the same way when it arrives: whether something may be merged is a decision `user` may outsource; `yan` only carries it out and records it.

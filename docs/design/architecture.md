@@ -28,7 +28,7 @@ graph TD
     C["lib-term / lib-forge / lib-pool / lib-hook<br/>seams: one module hides one outside authority"]
     D["lib-task / lib-log<br/>yan's own file formats"]
     E["lib-json / lib-git<br/>stateless utilities that depend on nothing"]
-    F["outside authorities<br/>git · GitLab/GitHub · tmux/Herdr · the file system · okt"]
+    F["outside authorities<br/>git · GitLab/GitHub · tmux/Herdr · the file system · optional branch-name hook"]
 
     A -->|"only calls subcommands, never sources a lib"| B
     H --> B
@@ -50,7 +50,7 @@ The rule that actually needs guarding is a different one: **seams never call eac
 
 ## 3. Repository layout
 
-`$YAN_HOME` is this clone itself, so the tracked code and the gitignored private data live in one tree, the same as firstmate. The reasons: bootstrapping is simplest that way, and a single-person tool does not need "install once, run N homes".
+`$YAN_HOME` is this clone itself, so the tracked code and the gitignored private data live in one tree. The reasons: bootstrapping is simplest that way, and a single-person tool does not need "install once, run N homes".
 
 ```
 $YAN_HOME/
@@ -66,9 +66,11 @@ $YAN_HOME/
     lib-log.sh               storage: log.md
     lib-json.sh              utility: atomic writes plus the version field
     lib-git.sh               utility: run git in a given directory
-    hook-autoarm.sh          Stop hook (asyncRewake)
-    hook-turnend-guard.sh    Stop hook (blocking)
-  .claude/settings.json      registers the two hooks above plus the SessionStart nudge
+    hook-autoarm.sh          Stop hook (Claude asyncRewake only)
+    hook-turnend-guard.sh    Stop hook (blocking; --claude / --codex)
+  .claude/settings.json      Claude: SessionStart + guard + autoarm
+  .codex/hooks.json          Codex: SessionStart + guard only (no autoarm)
+  conf/harness               claude | codex — which CLI yan start launches
   docs/                      the design documents
   tests/                     one per subcommand, with stand-ins for the seams (§7)
 
@@ -135,14 +137,14 @@ Why some of these have to be scripts rather than something the agent does itself
 | `yan drain` | read the wake file and clear it. The first thing the model does after being woken |
 | `yan scope-check <sid>` | `git diff --name-only` plus prefix matching. **Reports only; never blocks** ([design §8.3](delivery.md#83-enforcement)) |
 | `yan tree get\|return\|status` | the user-facing entry point to the pool |
-| `yan ls` | scan `tasks/*/task.json` and render the queue |
+| `yan ls` | with no argument: scan `tasks/*/task.json` and render the queue. With a task id: print that task's related facts in one place — its units (integration branch, `target`, `mode`, `scope`), and every live `shift` with **shift branch name** and **worktree absolute path** (from `run/meta.json`, checked against the pool when needed). Optional `--json`. A pure derived view; it stores nothing |
 | `yan open <id>` | open a task directory or its artifacts |
 | `yan repo-add <url>` | register a repository and clone it into `repos/`. The only writer of `repos.json` |
 | `yan task new` | create `tasks/<id>/` and write the brief |
 | `yan unit set --branch` | ask the forge to decide `end` → move the old round into `history[]` with `at` → overwrite the current fields → add a log line. **Starting a new round is one atomic operation**, and once the decision is in the history the forge is never asked again ([design §6.4](branching.md#64-the-shape-of-a-unit)) |
 | `yan mr` | open the outbound MR and write `unit.mr`. Authority is in [design §9.2](boundaries.md#92-external-side-effects) |
 | `yan state <sid>` | derive the state from `run/meta.json` plus the terminal, git, and the forge. **The current state can only be derived; it is never the last line of `run/status`** ([design §5.4](agents.md#54-communication)) |
-| `yan wait` | watch three sources. If something happened, write the wake file, print the reason, and exit 0; otherwise exit non-zero silently. **A pure observer that holds no state** ([design §5.5](supervision.md#55-supervision)) |
+| `yan wait` | watch three sources. With no bound (Claude autoarm): on an event write the wake file, print the reason, exit 0; quiet → non-zero silent. With `--seconds N` (Codex checkpoint): same sources, hard stop at N (quiet → agreed non-zero such as 124). **One command, two shapes; pure observer** ([design §5.5](supervision.md#55-supervision)) |
 
 `yan wait` is the one most likely to grow fat: the three sources live inside it and do not get a layer of their own ([design §5.5](supervision.md#55-supervision)).
 
@@ -155,7 +157,7 @@ Why some of these have to be scripts rather than something the agent does itself
 | `yan sync` | lease a tree → fetch → rebase or merge `target` → push → return the tree | **exit immediately on a conflict and hand it to a `shift`**; conflicts are never resolved inside the script. Its timing is fixed: before every new `shift` ([design §6.3](branching.md#63-how-the-integration-branch-changes)) |
 | `yan unit add` | run the `branch-name` hook → check the branch out if it exists, cut it from the base if it does not → write `task.json` | **if the hook exits non-zero, stop and report; never fall back to the built-in default** ([design §10](boundaries.md#10-seams-for-outside-authorities)) |
 | `yan land` | topologically sort by `needs` → merge | **`user` has to ask for it** ([design §9.2](boundaries.md#92-external-side-effects)) |
-| `yan start <id>` | create the task's terminal container → start `yan` inside it | one container per `task`, and the container's lifetime is `user` opening and closing it ([design §5.7](agents.md#57-terminal-topology)) |
+| `yan start <id>` | create the task's terminal container → start `yan` inside it using `conf/harness` (`claude` \| `codex`) | one container per `task`, and the container's lifetime is `user` opening and closing it ([design §5.7](agents.md#57-terminal-topology)) |
 | `yan session-start` | the full rebuild: scan `tasks/` → query the terminal → query the pool → query the forge → print a summary | **a restart is a non-event** ([design §5.1](agents.md#51-lifetime-tiers)) |
 
 ---
@@ -164,15 +166,17 @@ Why some of these have to be scripts rather than something the agent does itself
 
 Hooks are called by the harness, not by `user` and not by the model. That gives them one constraint nothing else has: **they cannot depend on the model remembering to do anything.**
 
-| File | How it is registered |
-| --- | --- |
-| `hook-autoarm.sh` | Stop, `asyncRewake: true`, long timeout |
-| `hook-turnend-guard.sh` | Stop, blocking |
+| File | Claude (`.claude/settings.json`) | Codex (`.codex/hooks.json`) |
+| --- | --- | --- |
+| SessionStart → `yan session-start` | yes | yes |
+| `hook-autoarm.sh` | Stop, `asyncRewake: true`, long timeout | **not registered** |
+| `hook-turnend-guard.sh` | Stop, blocking; own `guard-failures` budget; does not trust Claude `stop_hook_active` | Stop, blocking; primary test is remaining supervision responsibility; may use Codex `stop_hook_active` one-shot |
 
-What each hook does, and why there are two rather than one, is in [design §5.5](supervision.md#55-supervision). Only two rules need to be nailed down in the code here, and the reasoning for both is in that section — both are injuries firstmate already suffered:
+What each path does is in [design §5.5](supervision.md#55-supervision). Code-level rules:
 
-- **The guard does not read stdin, and does not use `stop_hook_active`.** It keeps its own count in `run/guard-failures`, and resets it when the watcher becomes healthy again.
-- **The watcher runs in the hook's foreground, never backgrounded with a shell `&`.** The timeout has to be long.
+- **Claude guard** does not read stdin and does not use `stop_hook_active` as a one-shot unblock; it keeps `run/guard-failures`.
+- **Claude autoarm** runs long `yan wait` in the hook foreground, never `&`.
+- **Codex** has no autoarm; the model loops `yan wait --seconds N`; never `&` / background for supervision.
 
 ---
 

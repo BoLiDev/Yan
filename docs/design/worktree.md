@@ -65,14 +65,14 @@ Returning a tree means `reset --hard` plus `clean -fd`, which destroys what is i
 | pushed, even with no MR opened yet | ✓ the copy is on the remote, which is enough |
 | the shift branch is merged into the integration branch | ✓ this is the condition for clocking out |
 
-"There is a copy" and "the work has landed" are two tests of different strength. The first governs whether a tree may be returned; the second governs whether a `task` may be declared finished. firstmate folds both into one `work_is_landed()`, because its crewmates live until the work lands. `yan` separates them, so returning a tree only needs the weaker test, and two commands answer it:
+"There is a copy" and "the work has landed" are two tests of different strength. The first governs whether a tree may be returned; the second governs whether a `task` may be declared finished. Folding both into one "landed" check fits systems whose workers live until the work lands. `yan` separates them, so returning a tree only needs the weaker test, and two commands answer it:
 
 ```sh
 git -C "$tree" status --porcelain         # non-empty → uncommitted changes → no copy
 git -C "$tree" branch -r --contains HEAD  # empty     → no remote branch contains HEAD → no copy
 ```
 
-None of firstmate's handling for "the branch was deleted after a squash merge, so go fishing in `refs/pull/<n>/head`" is needed. That complexity belongs to the landing test.
+Fishing in `refs/pull/<n>/head` after a squash merge deleted the branch is not needed. That complexity belongs to the landing test.
 
 `yan tree return --force` is forbidden unless `user` says explicitly that the changes can be thrown away. The orphan-commit guard is the last line of defence: the moment it refuses to return a tree is exactly the moment the work exists nowhere else. A refusal means stop and investigate, not add `--force` and move on.
 

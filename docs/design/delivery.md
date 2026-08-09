@@ -2,7 +2,7 @@
 
 ## 8.1 `mode` and authority
 
-firstmate's three modes (no-mistakes, direct-PR, local-only) are not permission levels. They say how far the work goes before it stops, and merge permission is a separate dimension there. `yan` splits the two explicitly: axis 1, `mode`, decides where the work stops; axis 2, authority, decides who may press merge ([§9.2](boundaries.md#92-external-side-effects)).
+How far the work goes before it stops, and who may press merge, are separate dimensions. `yan` splits them explicitly: axis 1, `mode`, decides where the work stops; axis 2, authority, decides who may press merge ([§9.2](boundaries.md#92-external-side-effects)).
 
 ## 8.2 The three modes
 
@@ -14,7 +14,7 @@ firstmate's three modes (no-mistakes, direct-PR, local-only) are not permission 
 
 These sit at two levels. `kind: scout | ship` belongs to the `task`, because it changes what is delivered. `mode: branch | mr` belongs to the `unit`, because different repositories want different delivery styles. The per-repository default is in `repos.json`, and a per-unit override goes in `task.json`.
 
-A `scout`'s tree is declared to be disposable scratch space, an idea taken from firstmate. It may get as dirty as it likes and may commit freely, because reproducing a bug and trying things out both need that. What it may not do is push or land anything, and once the report is written the whole tree is thrown away. This is far more practical than forbidding all changes.
+A `scout`'s tree is declared to be disposable scratch space. It may get as dirty as it likes and may commit freely, because reproducing a bug and trying things out both need that. What it may not do is push or land anything, and once the report is written the whole tree is thrown away. This is far more practical than forbidding all changes.
 
 The default `mode` is `mr` rather than `branch`, because pushing to a remote is the best backup available. `branch` is for repositories where you cannot push branches freely — branch protection, naming rules, or a push triggering an expensive CI run.
 

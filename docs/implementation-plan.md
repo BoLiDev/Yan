@@ -117,8 +117,8 @@ Under tmux, `term_agent_alive` can only guess from process names. That is a know
 
 | id | Delivers | Tests |
 | --- | --- | --- |
-| `yan-wait` | `yan wait` (three sources, the wake file, the beacon) plus `yan drain` | trigger each of the three sources on its own and assert the exit code and the wake file's contents; nothing from any of the three → exit non-zero silently; the wake file **survives** from "the watcher exits" to "the model's next turn"; the beacon is touched on every loop |
-| `yan-hooks` | `hook-autoarm.sh`, `hook-turnend-guard.sh`, `.claude/settings.json` | the guard **never reads stdin** (it works normally when fed empty stdin); after blocking three times it fails open **and prints a clear warning**; the count resets when the watcher becomes healthy; the single-flight lock: two concurrent autoarms start only one watcher; each of the three conditions for "the watcher is healthy" blocks when it fails on its own (the pid in the lock is alive but the beacon is stale → block; the beacon is fresh but the lock is missing or the identity does not match → block) |
+| `yan-wait` | `yan wait` (three sources, wake file, beacon) plus `yan wait --seconds N` and `yan drain` | trigger each of the three sources on its own and assert the exit code and the wake file's contents; nothing from any of the three → exit non-zero silently; with `--seconds`, quiet timeout exits with the agreed code (e.g. 124) and still allows drain; the wake file **survives** from "the watcher exits" to "the model's next turn"; the beacon is touched on every loop |
+| `yan-hooks` | `hook-autoarm.sh` (Claude only), `hook-turnend-guard.sh` (`--claude` / `--codex`), `.claude/settings.json`, `.codex/hooks.json` | Claude: guard **never reads stdin**; after blocking three times it fails open **and prints a clear warning**; the count resets when the watcher becomes healthy; single-flight lock: two concurrent autoarms start only one watcher; each healthy-condition failure blocks on its own. Codex: no autoarm registration; guard blocks ending the turn while supervision responsibility remains and asks for another `yan wait --seconds`; fail-open after three blocks |
 
 **The integration test for this stage cannot be a unit test.** It needs one manual rehearsal: run the chain with a fake `shift`, which is just `sleep 60 && yan report done "fake"`, and confirm that "the turn ends → the watcher starts → the fake `shift` reports → the model is woken" works end to end. Once is enough; write down the result.
 
@@ -152,7 +152,7 @@ From cheapest to most expensive, and from most often run to least:
 | **real-authority seams** | `lib-git`, `lib-pool`, `lib-term` | a temporary git repository and a real tmux | every pull request. CI can run these, since the runner has tmux |
 | **real forge** | `lib-forge` | network, a token, a scratch repository | manually, and on pull requests with the right label. **Not part of the default CI run** |
 | **ordering regressions** | the four below | varies | every pull request. See below |
-| **manual rehearsal** | the whole supervision chain | a real Claude session | once during P4, and again whenever a hook changes |
+| **manual rehearsal** | the whole supervision chain | a real Claude session and a real Codex session (or hook-contract live check if full Codex E2E is blocked) | once during P4, and again whenever a hook changes |
 | **acceptance** | the whole system | everything | once during P6 |
 
 **The four ordering regression tests.** Each guards something that does not fail loudly, it just quietly stops working, which is exactly why it needs a test:
@@ -174,9 +174,9 @@ CI (GitHub Actions) runs `shellcheck` plus `tests/run.sh`, and skips the real-fo
 | **`glab` is not installed, and there is no GitLab target to test against** | `yan-forge-gitlab` (P5) | **not blocking the main line.** The GitHub implementation is enough to run the acceptance chain from [design §11](design/scope.md#11-scope-of-the-first-version), since Yan itself is on GitHub. The GitLab implementation can wait until there is something to test against, and its interface is already fixed by the GitHub one |
 | **Yan's own delivery style is undecided** | how `yan` gets built | pick one of three; see below |
 
-The last one is a choice between three options. `no-mistakes`: every change goes through a full automated pipeline (review, tests, documentation, CI) before a pull request is opened. `direct-PR`: push a branch and open a pull request directly, with `user` and CI as the quality gate. `local-only`: no pull requests, local branches only. **Registered as `no-mistakes` for now, as the default, and changeable at any time.**
+The last one is a choice between three options. Full automated pipeline before opening a PR (review, tests, documentation, CI). Direct PR: push a branch and open a pull request, with `user` and CI as the quality gate. Local-only: no pull requests, local branches only. **Registered as the full automated pipeline for now, as the default, and changeable at any time.**
 
-There is something worth noticing here: **`yan`'s own design explicitly does not adopt no-mistakes** ([design §11](design/scope.md#11-scope-of-the-first-version)), on the grounds that quality control falls back to `user`, CI, and review by colleagues, which is how a normal team already works. Whether to use it on the `yan` repository is a separate question, but the two are worth thinking about together.
+There is something worth noticing here: **`yan`'s own design explicitly does not adopt an automated quality pipeline as a product mode** ([design §11](design/scope.md#11-scope-of-the-first-version)), on the grounds that quality control falls back to `user`, CI, and review by colleagues, which is how a normal team already works. Whether to use a strict pipeline on the `yan` repository itself is a separate question, but the two are worth thinking about together.
 
 ---
 

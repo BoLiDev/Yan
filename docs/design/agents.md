@@ -14,9 +14,7 @@ It also means most of a task's state never has to be stored. "No `shift` has eve
 
 ## 5.2 One `yan` per `task`
 
-This is one of the biggest departures from firstmate, where a single main agent looks after every project and every task.
-
-The reason is context budget. A task-scoped `yan` has a bounded one, and its size does not depend on how many tasks exist. firstmate needs a whole apparatus for this — a startup memory budget, a compressed backlog listing, a rule that only the tail of the status log is read — and all of it exists because its main agent has to hold the whole world at once.
+The reason is context budget. A task-scoped `yan` has a bounded one, and its size does not depend on how many tasks exist.
 
 What a task-scoped `yan` sees:
 
@@ -42,7 +40,7 @@ The working directory is `$YAN_HOME`, because `yan` needs to run things in `bin/
 So who handles the things that cross task boundaries? In every case the answer is a script, not an agent:
 
 - **Two tasks changing the same `scope`.** No mechanism is needed. Worktrees already keep the file systems apart, and git conflicts and semantic conflicts are a normal part of development — rebase, CI, and review deal with them, and GitLab will say so at merge time. Overlapping files are not a reason to serialise work.
-- **Seeing every running task at once.** `yan ls` scans the directory; `user` runs it. Showing a `scope` column is useful information, and `user` decides whether to care. Having `yan` scan for overlaps and warn about them would be noise: overlap is common, the warning would fire again and again, and it would be ignored.
+- **Seeing every running task at once.** `yan ls` scans the directory; `user` runs it. Showing a `scope` column is useful information, and `user` decides whether to care. Having `yan` scan for overlaps and warn about them would be noise: overlap is common, the warning would fire again and again, and it would be ignored. **Looking inside one task** is the same command with an id: `yan ls <id>` prints that task's units and every live `shift`'s shift branch and worktree absolute path — the inspect view `user` and `yan` both need when something has gone missing or died.
 - **Several `yan` instances writing `mem/` at once.** `user.md` is only written on request, and `user` talks to one `yan` at a time. If that ever stops being true, add an `flock`.
 
 The lock is per `task`, not per home directory. Running two `yan` instances for two different tasks is fine. Only a second `yan` on the same task is refused.
@@ -59,7 +57,7 @@ Why the condition for clocking out is "the MR has been merged into the integrati
 
 Returning the tree must come before deleting the remote shift branch. The reason is in [§7](worktree.md#7-worktrees).
 
-**A `shift` does not wait for the outbound MR's CI.** This is deliberate. The moment a `shift` sits there waiting, something has to keep deciding whether it is waiting or stuck — and that is the only reason firstmate's `fm-crew-state.sh` needs its five-step derivation (checking which run-step a result belongs to, comparing HEAD ancestry, using staleness of the status log as counter-evidence, and disambiguating "still waiting for checks" from "checks are green, waiting for the merge button"). Bringing all of that complexity back to save one restart is not worth it. If CI goes red, `yan` finds out by asking GitLab, and dispatches a new `shift` to fix it. Polling one source of truth is far cheaper than supervising an agent that is parked.
+**A `shift` does not wait for the outbound MR's CI.** This is deliberate. If CI goes red, `yan` finds out by asking GitLab, and dispatches a new `shift` to fix it. Polling one source of truth is far cheaper than supervising an agent that is parked.
 
 **A `shift` never spans two tasks.** It may span several `unit`s of the same task — one sub-agent holding two trees, changing `auth` and `gateway` at the same time — but that means two shift branches and two MRs.
 
@@ -68,7 +66,7 @@ Returning the tree must come before deleting the remote shift branch. The reason
 | Direction | Mechanism | Constraints |
 | --- | --- | --- |
 | `yan` → `shift`, at start | the `brief.md` file | the long contract lives only here, and is written once |
-| `yan` → `shift`, while running | `yan send`, which wraps `term_send`; one short line | anything long goes into a file, and only the path is sent. The text and the Enter key are sent separately: type the text once, and retry only the Enter (a lesson from firstmate) |
+| `yan` → `shift`, while running | `yan send`, which wraps `term_send`; one short line | anything long goes into a file, and only the path is sent. The text and the Enter key are sent separately: type the text once, and retry only the Enter |
 | `shift` → `yan` | `yan report <state> "<note>"` | the script appends to `run/status` and touches `run/signal` in one go |
 
 Why `yan report` has to be a script rather than a brief telling the agent to do two things: do not count on an agent remembering step two. Wrapping it in one command also lets it check that the state is one of the five allowed words, add a timestamp, and write atomically. It is the only `yan` command a `shift` needs to call, apart from `yan scope-check`, which a `shift` may run on itself.
@@ -77,7 +75,7 @@ Three rules that do not bend:
 
 - Shifts do not talk to each other. Work that needs coordination is given to one `shift` holding several trees.
 - A `shift` never talks to `user` directly. Everything it reports goes through `run/status`, and `yan` turns it into plain language.
-- *Every line in `run/status` is an event, not the current state.* This has to be clear from the first day, otherwise it repeats firstmate's mistake, where `tail -1` was read as the current state when it was only the most recent event.
+- *Every line in `run/status` is an event, not the current state.* This has to be clear from the first day. Reading `tail -1` as "the current state" is wrong: it is only the most recent event.
 
 ### Deterministic steps should not wake the model
 
@@ -100,20 +98,20 @@ Supervision is large enough to have its own document: see [`supervision.md`](sup
 
 ## 5.6 Harness requirements
 
-**`yan` targets Claude Code only. Codex and other harnesses are explicitly out of scope.**
+**`yan` itself runs on Claude Code or Codex.** `conf/harness` is `claude` or `codex`; `yan start` launches the matching CLI. Other harnesses for `yan` stay out of scope. The shared supervision core is the same; what differs is how continuous coverage is armed — Claude can hold `yan wait` in a long-lived Stop hook (`asyncRewake`), while Codex cannot (official hooks still parse `async` but do not run async command hooks). Codex therefore uses a model-driven loop of `yan wait --seconds N` instead. The full split is in [§5.5](supervision.md#55-supervision).
 
-This is a trade-off, not an oversight. Staying harness-independent costs one of two things. Either you inject keystrokes, and pay for it with fake `user` messages appearing in the chat log, races against the composer, and heuristics about whether a pane has gone quiet. Or you use bounded foreground checkpoints, and pay for it by pressing Esc to say anything and burning a few thousand tokens an hour on the round trips. firstmate's hook-based approach is cleaner than both, and it is worth committing to one harness to get it.
+The trade is the same either way: quieter Claude coverage versus Codex checkpoints that return control every N seconds, cost tool-round-trip tokens while idle, and cannot wake the model after a turn has truly ended. Personal use can stay on Claude; company use can stay on Codex without inventing a detached watcher daemon.
 
-**That commitment applies only to `yan` itself. A `shift` can run on any agent CLI.** Everything a `shift` needs from its harness:
+**A `shift` can still run on any agent CLI.** Everything a `shift` needs from its harness:
 
 1. It accepts an initial prompt at startup, so it can be told to read the brief.
 2. It runs inside a terminal pane.
 3. It can run shell commands, to call `yan report`, git, and the test suite.
 4. It accepts typed input from `tmux send-keys`, so it can be steered.
 
-**No hooks required, no background mode required.** Codex, Kimi Code, and in-house CLIs all qualify. And a `shift` is where the tokens actually go, because it is the one writing code; `yan` only orchestrates. So the value of cheaper models, open models, and in-house models is fully available at the `shift` layer, which makes tying `yan` to Claude Code a good trade.
+**No hooks required for a `shift`, no background mode required.** Codex, Kimi Code, and in-house CLIs all qualify at the shift layer. Tokens mostly go there; `yan` only orchestrates.
 
-This does not conflict with Herdr: Herdr is a multiplexer (a backend), Claude Code is a harness. The three hooks are Claude Code's own lifecycle hooks and do not care whether tmux or Herdr is outside. They are different axes.
+This does not conflict with Herdr: Herdr is a multiplexer (a backend); Claude Code and Codex are harnesses. Lifecycle hooks belong to the harness and do not care whether tmux or Herdr is outside. They are different axes.
 
 ## 5.7 Terminal topology
 
@@ -132,11 +130,11 @@ session / workspace "t042 unify the auth header"
 └── s4-gateway   ← a shift
 ```
 
-`tmux ls` is the task list, and switching sessions is switching tasks. `yan` and the shifts it dispatched share one container, so the outer level shows only tasks and you see individual agents after switching into one. None of this needs extra machinery: `yan start t042` creates the container and starts `yan` inside it, and dispatching a `shift` adds a window to the container `yan` is already in. This is firstmate's flat default path.
+`tmux ls` is the task list, and switching sessions is switching tasks. `yan` and the shifts it dispatched share one container, so the outer level shows only tasks and you see individual agents after switching into one. None of this needs extra machinery: `yan start t042` creates the container and starts `yan` inside it, and dispatching a `shift` adds a window to the container `yan` is already in.
 
-firstmate's optional `herdr-presentation-spaces` mode, which gives every crewmate a throwaway workspace, is not worth copying. It carries a whole set of safety boundaries with it. The single fact that "an explicit close in Herdr 0.7.5 steals focus" requires an entire focus-safe emptying-close procedure: verify that closing empties the workspace, move the dying workspace behind the focused one, prove the pane holds nothing but an idle shell, end that shell so it exits through the pane-death path, confirm removal, and roll back on failure — and the design still admits that *grouping is best-effort*. All of that cost comes from wanting a workspace's lifetime to be derived automatically, and `yan` does not have that problem: the container's lifetime is `yan`'s lifetime, and `user` opens and closes it by hand.
+Giving every sub-agent its own throwaway Herdr workspace is not worth it. It carries a whole set of safety boundaries with it. The single fact that "an explicit close in Herdr 0.7.5 steals focus" requires an entire focus-safe emptying-close procedure: verify that closing empties the workspace, move the dying workspace behind the focused one, prove the pane holds nothing but an idle shell, end that shell so it exits through the pane-death path, confirm removal, and roll back on failure — and the design still admits that *grouping is best-effort*. All of that cost comes from wanting a workspace's lifetime to be derived automatically, and `yan` does not have that problem: the container's lifetime is `yan`'s lifetime, and `user` opens and closes it by hand.
 
-### Practices inherited from firstmate's Herdr work
+### Herdr Practices
 
 1. **A label is not a source of truth; record the id.** Herdr does not require workspace or tab labels to be unique (in its own words, *a label can never decide where a worker goes*). So `run/meta.json` records ids — `$0` and `@3` under tmux, `workspace_id`, `tab_id`, and `pane_id` under Herdr — and nothing is located by name. This is the same principle as [§6.6](branching.md#66-yan-never-parses-branch-names): do not parse names, look them up in storage.
 2. **Close exactly one thing.** Only the window or pane that was recorded is closed, never the session or workspace (in its own words, *cleanup closes only the exact recorded task pane and never calls `workspace close`*).
@@ -144,7 +142,7 @@ firstmate's optional `herdr-presentation-spaces` mode, which gives every crewmat
 
 ### What herdr-readiness should look like
 
-There is no backend abstraction layer; that is a product of firstmate supporting five backends. What there is, is cohesion: every terminal operation lives in one file, `bin/lib-term.sh`, as seven functions.
+There is no backend abstraction layer; What there is, is cohesion: every terminal operation lives in one file, `bin/lib-term.sh`, as seven functions.
 
 ```
 term_container_create   create the task container
@@ -158,4 +156,4 @@ term_list               list the agents in a container
 
 The first version has only the tmux implementation. Adding Herdr means writing a second implementation and a `conf/backend` switch — not a plugin framework, just a way of keeping `tmux` commands out of fifteen different scripts.
 
-`term_agent_alive` is the hardest and most important function in this seam. Under tmux the only option is to guess from process names, and firstmate could not even recognise Pi when it ran inside a generic interpreter. Herdr has native agent registration, which cleanly separates "the pane is there but the agent died" from "the pane is gone" from "alive".
+`term_agent_alive` is the hardest and most important function in this seam. Under tmux the only option is to guess from process names, which fails for agents that run inside a generic interpreter. Herdr has native agent registration, which cleanly separates "the pane is there but the agent died" from "the pane is gone" from "alive".

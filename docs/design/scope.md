@@ -6,32 +6,32 @@ Throughout the design, "0→1" means the first version that works end to end. "1
 
 ### What is in it
 
-One `yan` entry point plus 20 subcommands, 2 hook scripts, and 8 libraries, plus `AGENTS.md`. The list of subcommands and hooks is in [Appendix C](appendix.md#appendix-c-script-inventory); the 8 libraries and how they are arranged are in [`architecture.md` §3](architecture.md#3-repository-layout) and [`architecture.md` §5](architecture.md#5-subcommands).
+One `yan` entry point plus 20 subcommands, 2 hook scripts, dual harness registration (`.claude/settings.json` and `.codex/hooks.json`), and 8 libraries, plus `AGENTS.md`. The list of subcommands and hooks is in [Appendix C](appendix.md#appendix-c-script-inventory); the 8 libraries and how they are arranged are in [`architecture.md` §3](architecture.md#3-repository-layout) and [`architecture.md` §5](architecture.md#5-subcommands).
 
 The two heaviest pieces are the built-in worktree pool ([§7](worktree.md#7-worktrees)) and the forge layer supporting two remotes ([§8.4](delivery.md#84-the-forge-layer)). Of the pool, the branch awareness, the test for returning a tree, and the orphan-commit guard all had to be written anyway; the genuinely extra parts are reuse and leases. What that buys is zero outside dependencies, and a first version that can be accepted against `yan`'s own repository.
 
-**The acceptance test for 0→1:** a one-sentence request → one `unit` → one `shift` → the shift branch's MR merges into the integration branch → the `shift` clocks out and returns its tree → the outbound MR is opened → `user` says to merge → it is merged → `log.md` records the whole chain.
+**The acceptance test for 0→1:** a one-sentence request → one `unit` → one `shift` → the shift branch's MR merges into the integration branch → the `shift` clocks out and returns its tree → the outbound MR is opened → `user` says to merge → it is merged → `log.md` records the whole chain. At least one harness path (Claude or Codex) must complete that chain end to end; the other must pass its hook-contract tests in P4 ([§5.5](supervision.md#55-supervision), [§5.6](agents.md#56-harness-requirements)).
 
-### Why this is much smaller than firstmate
+### Why the first version stays small
 
-firstmate has 109 files and 19 skills. The gap is not a miracle; it is the sum of the things ruled out:
+The surface area is the sum of what was deliberately left out:
 
-| firstmate has it, `yan` does not | Note |
+| Ruled out | Note |
 | --- | --- |
-| a watcher plus a separate triage layer | the wake pipeline is copied one for one; what is dropped is the separate triage layer ([§5.5](supervision.md#55-supervision)) |
-| several backends (Herdr, zellij, orca, cmux, codex-app) plus an abstraction layer | `yan` will only ever need a second implementation of `lib-term.sh` |
-| X mode and public-followup | not done at all |
+| a separate triage layer above the wake pipeline | the three sources live inside `yan wait` ([§5.5](supervision.md#55-supervision)) |
+| many terminal backends plus an abstraction layer | `yan` needs a second `lib-term.sh` for Herdr later; for `yan`'s own harness it only binds Claude and Codex ([§5.6](agents.md#56-harness-requirements)) |
+| X mode and public-followup style features | not done at all |
 | PR poll registration and trust binding | a `shift` does not wait for CI before clocking out, so this is unnecessary |
-| secondmate, config inheritance, AFK, no-mistakes integration | one `yan` per `task`, so there is no second-level agent tree |
-| install / lint / doc-check / treehouse | the pool is built in, the rest is not done |
+| a second-level agent tree, AFK modes, automated quality pipelines | one `yan` per `task`; quality stays with `user`, CI, and review |
+| wrapping an outside worktree tool | the pool is built in |
 
-The gap is not only in the number of files but in how thick each one is: every firstmate script carries multi-backend branches, a safety journal, and migration paths. **`yan` does not have those, not because it is written better, but because none of the things that made firstmate grow apply here.**
+The scripts stay thin because those multi-backend branches, journals, and migration paths are not required here.
 
-### On no-mistakes
+### On automated quality pipelines
 
-Not adopted. In firstmate, no-mistakes is an automated pipeline for review, adding tests, adding documentation, and fixing CI. The cost of leaving it out is that quality control falls back to `user`, CI, and review by colleagues — which is how a normal team already works.
+Not adopted. An automated pipeline for review, adding tests, adding documentation, and fixing CI is out of scope. Quality control falls back to `user`, CI, and review by colleagues — which is how a normal team already works.
 
-A consistency check: `yan`'s `mode` system has no no-mistakes level, and the default `mr` opens an MR directly. When CI goes red, `yan` finds out by asking GitLab and dispatches a new `shift` to fix it ([§5.3](agents.md#53-the-life-of-a-shift)). Nothing in that chain depends on it.
+A consistency check: `yan`'s `mode` system has no such level, and the default `mr` opens an MR directly. When CI goes red, `yan` finds out by asking GitLab and dispatches a new `shift` to fix it ([§5.3](agents.md#53-the-life-of-a-shift)). Nothing in that chain depends on an automated quality pipeline.
 
 ### Roadmap
 
@@ -51,14 +51,14 @@ Gathering terminal operations into seven functions in [§5.7](agents.md#57-termi
 
 ### Explicitly out of scope
 
-- Running `yan` itself on a harness other than Claude Code ([§5.6](agents.md#56-harness-requirements)). Codex, Kimi Code, and the rest are only harnesses for a `shift`.
-- A backend abstraction layer or plugin framework. Herdr arrives as a second implementation of `lib-term.sh`, and needs no framework.
+- Running `yan` on harnesses other than Claude Code and Codex ([§5.6](agents.md#56-harness-requirements)). Kimi and the rest remain shift-only CLIs.
+- A backend abstraction layer or plugin framework. Herdr arrives as a second implementation of `lib-term.sh`, and needs no framework. Dual harness for `yan` is two hook registrations plus `conf/harness`, not a plugin system.
 - Entry points from social platforms.
 - Routing quota across providers.
 - A second-level agent tree; `yan` never spawns another `yan`.
-- A quality pipeline of its own, the slot firstmate fills with no-mistakes.
+- An automated quality pipeline (review / tests / docs / CI-fix as a built-in product mode).
 
-These are firstmate's circumstances, not `yan`'s.
+These are not `yan`'s circumstances.
 
 ---
 
