@@ -169,3 +169,53 @@ fx_git -C "$tree2" push -u origin yan/t042-auth-s2 >/dev/null 2>&1
 assert_ok pool_return "$clone" "$tree2" '' ''
 
 printf 'ok\n'
+
+# --- an interrupted teardown can be finished --------------------------------
+#
+# The documented order deletes run/ (step 4) BEFORE returning the tree (step 5).
+# So a return that refuses - or a kill, or a sleeping laptop - leaves run/ gone,
+# the tree still leased and the remote branch still there, with nothing left in
+# $YAN_HOME to say which shift they belonged to.
+#
+# Observed for real, and it is not an exotic path: the tree came back dirty
+# because the install step the brief mandates had generated an untracked file.
+# The guard refused exactly as it should, and the shift then became impossible
+# to finish through `yan shift done` at all.
+#
+# Nothing extra is stored to fix this. The pool already records the holder as
+# <task>/<unit>/<sid> along with the branch, path and lease id, so the answer is
+# derived (design principle 1): ask the pool.
+
+sid=s5
+tree5=$(dispatch "$sid")
+
+# Land it the same way, so the forge would say merged.
+git -C "$tree5" commit -q --allow-empty -m 'work for s5'
+git -C "$tree5" push -q origin "yan/t042-auth-$sid"
+squash_merge "yan/t042-auth-$sid"
+
+# Make the tree dirty, exactly as a generated lockfile does, so step 5 refuses.
+printf 'generated\n' >"$tree5/leftover.txt"
+
+export YAN_STUB_FORGE_MR_STATES=merged
+capture bash "$yan" shift "done" "$sid" --mr "$MR"
+assert_ne 0 "$rc" 'a dirty tree must refuse, so the teardown stops at step 5'
+assert_contains "$out" 'has NOT been deleted' 'and it must not delete the branch'
+
+# The half-torn-down state: run/ gone, tree still leased, branch still there.
+assert_file_missing "$home/tasks/t042/shifts/$sid/run" 'run/ was already deleted'
+assert_ne '' "$(pool_status "$clone" | jq -r --arg h "t042/auth/$sid" \
+	'(if type=="array" then . else [.] end)|map(select(.holder==$h))|.[0].path // ""')" \
+	'the tree is still leased'
+
+# Now resolve what made it refuse, as an operator would, and re-run.
+rm -f "$tree5/leftover.txt"
+capture bash "$yan" shift "done" "$sid"
+assert_eq 0 "$rc" "the teardown must be finishable: $out"
+assert_contains "$out" 'finishing the teardown' 'and it must say that is what it is doing'
+
+assert_eq '' "$(pool_status "$clone" | jq -r --arg h "t042/auth/$sid" \
+	'(if type=="array" then . else [.] end)|map(select(.holder==$h))|.[0].path // ""')" \
+	'the tree is back in the pool'
+assert_eq '' "$(git -C "$clone" ls-remote --heads origin "yan/t042-auth-$sid")" \
+	'and only now is the remote branch gone'

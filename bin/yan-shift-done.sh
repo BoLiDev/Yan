@@ -161,6 +161,10 @@ shift_resolve "$sid" "$opt_task" || exit $?
 
 # --- everything the teardown needs, read before run/ is deleted -------------
 
+# Set when run/ is already gone but the pool still holds this shift's tree, so
+# the teardown is being finished rather than started. See below.
+resuming=0
+
 unit=$(shift_meta_unit || true)
 branch=$(shift_meta_branch || true)
 tree=$(shift_meta_tree || true)
@@ -184,7 +188,34 @@ if [ -z "$mr" ]; then
 fi
 
 if ! shift_is_live; then
-	die "shift $(shift_label) has already clocked out - run/ is gone, which is the fact that says so" 2
+	# run/ is gone. Either this shift really has clocked out, or a previous
+	# teardown got as far as deleting run/ (step 4) and then stopped - the tree
+	# return refused, the process was killed, the machine slept.
+	#
+	# The two look identical from $YAN_HOME, and the difference matters: the
+	# second leaves a tree LEASED and a remote branch UNDELETED, and refusing
+	# makes that permanent, because the command can no longer say which shift it
+	# was. Observed for real: a tree came back dirty, the return refused exactly
+	# as it should, and the shift became impossible to finish.
+	#
+	# The fact that tells them apart is not stored, it is derived - which is the
+	# whole point of design principle 1. The pool records the holder as
+	# <task>/<unit>/<sid>, plus the branch, the path and the lease id. That is
+	# everything step 5 and step 6 need. So: ask the pool.
+	if resume=$(shift_resume_from_pool "$SHIFT_TASK" "$SHIFT_SID"); then
+		unit=$(printf '%s' "$resume" | jq -r '.unit // ""')
+		branch=$(printf '%s' "$resume" | jq -r '.branch // ""')
+		tree=$(printf '%s' "$resume" | jq -r '.path // ""')
+		clone=$(printf '%s' "$resume" | jq -r '.clone // ""')
+		holder=$(printf '%s' "$resume" | jq -r '.holder // ""')
+		lease_id=$(printf '%s' "$resume" | jq -r '.lease_id // ""')
+		agent_id=
+		resuming=1
+		printf 'yan shift done: %s left a tree leased - finishing the teardown that stopped at the tree return\n' \
+			"$(shift_label)" >&2
+	else
+		die "shift $(shift_label) has already clocked out - run/ is gone, which is the fact that says so" 2
+	fi
 fi
 [ -n "$branch" ] || die "run/meta.json does not say which shift branch $(shift_label) is on - it cannot be cleaned up automatically"
 
@@ -197,12 +228,19 @@ if [ -z "$clone" ] && [ -n "$SHIFT_TASK" ] && [ -n "$unit" ]; then
 	fi
 fi
 
-# --- 1. is it merged? -------------------------------------------------------
-#
-# The forge answers, and it answers with one of yan's four words. Ancestry is
-# never consulted: see the header.
+# Steps 1 to 4 are skipped when resuming. They already ran in the attempt that
+# stopped: the forge was asked and said merged, outcome.md was written, the log
+# line was appended, and run/ was deleted - that deletion is what we are
+# recovering from. Re-running them would ask the forge about an MR whose URL is
+# gone with run/, and would append the same log line twice.
+if [ "$resuming" -eq 0 ]; then
 
-[ -n "$mr" ] || die "no merge request recorded for $(shift_label) - pass --mr <url>. Whether the work landed is the forge's answer, and yan will not guess it from git history" 2
+	# --- 1. is it merged? -----------------------------------------------------
+	#
+	# The forge answers, and it answers with one of yan's four words. Ancestry is
+	# never consulted: see the header.
+
+	[ -n "$mr" ] || die "no merge request recorded for $(shift_label) - pass --mr <url>. Whether the work landed is the forge's answer, and yan will not guess it from git history" 2
 
 forge_args=(--mr "$mr")
 if [ -n "$tree" ] && [ -d "$tree" ]; then
@@ -256,7 +294,18 @@ fi
 # (td INDEX.md §3), which is why nothing here enumerates meta.json / status /
 # signal - a list would eventually miss one.
 
-rm -rf -- "$SHIFT_RUN" || die "cannot delete $SHIFT_RUN"
+	rm -rf -- "$SHIFT_RUN" || die "cannot delete $SHIFT_RUN"
+else
+	# What the interrupted attempt already produced. outcome.md is on disk from
+	# its step 2, and `mr` went with run/ - the outcome file still records it,
+	# which is exactly why Appendix A calls that file long-lived.
+	outcome=$SHIFT_DIR/outcome.md
+	outcome_by=$([ -f "$outcome" ] && printf 'written earlier' || printf 'missing')
+	if [ -z "$mr" ] && [ -f "$outcome" ]; then
+		mr=$(sed -n 's|.*\(https\{0,1\}://[^[:space:]]*\).*|\1|p' "$outcome" | head -1)
+	fi
+	mr=${mr:-'(recorded in outcome.md)'}
+fi
 
 # --- 5. return the tree, BEFORE the branch is deleted -----------------------
 
