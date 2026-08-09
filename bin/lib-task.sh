@@ -199,6 +199,31 @@ task_list() {
 	) | LC_ALL=C sort
 }
 
+# task_container_name <id> - the name of this task's terminal container.
+#
+# One container per task (td agents.md §5.7), and `yan continue` and
+# `yan shift new` both have to reach the SAME one - `continue` creates it and
+# `shift new` adds a window to the container yan is already in. Two private
+# copies of the rule would eventually disagree and quietly give a task two
+# containers, so the derivation lives here, next to the task's other naming.
+#
+# `:` and `.` are replaced because tmux reads both as target separators even
+# inside an exact-match name, and lib-term refuses a name containing them: a
+# container user cannot attach to by name would defeat `tmux ls` being the task
+# list. The name is for humans; nothing is ever looked up by it.
+task_container_name() {
+	local id=${1:-} title name
+	_task_id_ok "$id" || return $?
+	title=$(task_title "$id" 2>/dev/null) || title=
+	name=$id
+	if [ -n "$title" ]; then
+		name="$id $title"
+	fi
+	name=${name//:/-}
+	name=${name//./-}
+	printf '%s\n' "$name"
+}
+
 # --- task level readers and writers ----------------------------------------
 
 # task_json <id> - the whole file, compact.
