@@ -37,7 +37,7 @@ So this is a contract of `lib-pool`, not an implementation detail:
 
 An honest limit: this removes the *cold* install, not every install. When the lockfile changes between integration branches, the `node_modules` in a warm tree is out of date. The right way to handle that is to run the install every time in the brief. When the tree is warm it finishes in a couple of seconds with nothing to do; when the lockfile changed it does an incremental install. Do not try to be clever and skip the step.
 
-Because of that, the first version does **not** need treehouse's `post_create` provisioning hook. The brief already runs the install, so cold trees and warm trees take the same path and both are covered without an extra mechanism. Opening N new trees for the first time means N installs. That is a one-off cost; it is enough to know about it.
+Because of that, `yan` does **not** need treehouse's `post_create` provisioning hook. The brief already runs the install, so cold trees and warm trees take the same path and both are covered without an extra mechanism. Opening N new trees for the first time means N installs. That is a one-off cost; it is enough to know about it.
 
 ## Pool size
 

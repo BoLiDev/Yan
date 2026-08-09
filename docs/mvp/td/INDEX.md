@@ -190,13 +190,11 @@ Once all of that is in place, one more line is needed: which actions `yan` may t
 
 → [`boundaries.md`](boundaries.md): [§9](boundaries.md#9-what-yan-may-write) what `yan` may write · [§10](boundaries.md#10-seams-for-outside-authorities) seams for outside authorities
 
-## Scope and open questions
+## System boundary and open questions
 
-The design is complete at that point. What is left is deciding how much goes into the first version, and listing the things that are not settled.
+The design is complete at that point. What remains is naming the product boundary — what belongs and what is ruled out — and listing the decisions that are still open.
 
-The first version is one `yan` entry point plus the subcommands in Appendix C, 2 hooks, 8 libraries, and a Node soft path for Clack prompts ([cli-ux.md](cli-ux.md)). It is accepted when the whole chain runs end to end on `yan`'s own repository. It is much smaller than comparable orchestration systems, not because it is written better, but because none of the reasons those systems grew apply here. The road after that has three stages, and Herdr will definitely be supported, just not yet.
-
-→ [`scope.md`](scope.md): [§11](scope.md#11-scope-of-the-first-version) scope of the first version · [§12](scope.md#12-open-questions) open questions
+→ [`scope.md`](scope.md): [§11](scope.md#11-system-boundary) system boundary · [§12](scope.md#12-open-questions) open questions
 
 ## Code structure
 

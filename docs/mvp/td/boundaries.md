@@ -48,7 +48,7 @@ In the other direction, `yan` never goes into a worktree to edit code. The one t
 ```
 conf/hooks/
   branch-name      name the integration branch (or create it outright)
-  merge-check      decide whether it may be merged   ← reserved, not implemented in the first version
+  merge-check      decide whether it may be merged   ← reserved name; unused
 ```
 
 `conf/` is local and gitignored. It represents the choices of this machine and this team, and is not part of `yan`. The full inventory and a sample are in [Appendix D](appendix.md#appendix-d-configuration).

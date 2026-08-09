@@ -117,7 +117,7 @@ This does not conflict with Herdr: Herdr is a multiplexer (a backend); Claude Co
 
 ## 5.7 Terminal topology
 
-**One terminal container per `task`.** The first version uses tmux, and Herdr comes later. Their nesting concepts line up one to one, so choosing the right topology now means the migration later changes only which CLI is called, not the data model.
+**One terminal container per `task`.** The terminal backend is chosen in `conf/config.json` (`tmux` or `herdr`). Their nesting concepts line up one to one, so swapping the backend changes only which CLI is called, not the data model.
 
 | Concept | tmux | Herdr |
 | --- | --- | --- |
@@ -156,6 +156,6 @@ term_agent_close        close exactly one recorded agent
 term_list               list the agents in a container
 ```
 
-The first version has only the tmux implementation. Adding Herdr means writing a second implementation and flipping `backend` in `conf/config.json` ([Appendix D](appendix.md#appendix-d-configuration)) — not a plugin framework, just a way of keeping `tmux` commands out of fifteen different scripts.
+`lib-term.sh` holds the tmux implementation; Herdr is a second implementation behind `backend` in `conf/config.json` ([Appendix D](appendix.md#appendix-d-configuration)) — not a plugin framework, just a way of keeping `tmux` commands out of fifteen different scripts.
 
 `term_agent_alive` is the hardest and most important function in this seam. Under tmux the only option is to guess from process names, which fails for agents that run inside a generic interpreter. Herdr has native agent registration, which cleanly separates "the pane is there but the agent died" from "the pane is gone" from "alive".

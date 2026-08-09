@@ -196,6 +196,6 @@ tests/
   ...
 ```
 
-Subcommands all source libraries in the same form, `. "${YAN_LIB:-$YAN_HOME/bin}/lib-forge.sh"`, so a test only has to point `YAN_LIB` at `tests/stub/` to swap them out. **No injection framework is needed.** This shape is fixed during P0, and every later task follows it.
+Subcommands all source libraries in the same form, `. "${YAN_LIB:-$YAN_HOME/bin}/lib-forge.sh"`, so a test only has to point `YAN_LIB` at `tests/stub/` to swap them out. **No injection framework is needed.** That sourcing shape is the convention every subcommand follows.
 
 Four ordering regressions are the easiest ones to overlook — each guards something that does not fail loudly, it just quietly stops working: after `pool_return`, gitignored directories are still there; `yan shift done` returns the tree before deleting the branch; `yan shift new`'s working-directory assertion really refuses; `yan sync` really exits on a conflict.

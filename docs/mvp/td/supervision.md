@@ -98,7 +98,7 @@ Per-task `yan` keeps those interruptions on-topic.
 
 ### Known gap (both harnesses)
 
-After every `shift` has clocked out and outbound CI is running, none of the three sources has anything to wait for. The first version ends the turn without waiting for CI; the next SessionStart asks the forge. A fourth source that polls CI is deferred.
+After every `shift` has clocked out and outbound CI is running, none of the three sources has anything to wait for. The design ends the turn without waiting for CI; the next SessionStart asks the forge. `yan wait` has three sources; a fourth that polls CI is not part of it.
 
 ---
 
@@ -221,8 +221,6 @@ Codex may use `stop_hook_active` one-shot behaviour where it matches Codex's con
 A diligent Codex rarely meets the guard. A lazy one gets blocked up to three times ("run another `yan wait --seconds`"), then fail-open, after which coverage waits for the next user turn or SessionStart.
 
 Interactive Codex TUI may not always fire project SessionStart hooks. Binding must also put the rebuild + checkpoint protocol into `AGENTS.md` / injected instructions so a missed hook is not silent blindness.
-
-Optional for a later thin cut: a PreToolUse seatbelt that denies backgrounded / piped long `yan wait` anti-patterns on Codex.
 
 ### Accepted Codex cost
 

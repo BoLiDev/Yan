@@ -86,7 +86,7 @@ There is no `yan start` name in the inventory. Docs and scripts say `continue`.
 
 ### Detection (best effort)
 
-For each selected clone under `repos/`, treat it as a monorepo when any of these is true (extend later if needed; do not pretend completeness):
+For each selected clone under `repos/`, treat it as a monorepo when any of these is true (best effort; the list is not claimed to be complete):
 
 - `pnpm-workspace.yaml` (or npm/yarn workspace manifests) exists at the root
 - a top-level `packages/` or `apps/` directory exists
@@ -100,12 +100,12 @@ When a monorepo is detected, list candidate packages/apps (children of `packages
 How selections become units (aligned with [§6.4](branching.md#64-the-shape-of-a-unit) / [§6.7](branching.md#67-how-big-a-unit-should-be)):
 
 - **One selected package → one `unit`** with `scope` set to that path (one sub-application, one integration branch, one tree)
-- Several packages selected under one repo → several units in the same `task new` run, unless `user` explicitly groups them (hard flags can express grouping later; soft path default is one unit per package)
+- Several packages selected under one repo → several units in the same `task new` run, unless `user` explicitly groups them (hard flags may express grouping; soft path default is one unit per package)
 - A non-monorepo repo → one unit whose `scope` is the repo root
 
 False negatives are acceptable: `user` can still widen `scope` later with `yan unit set`. False positives that offer a noisy list are acceptable if escape to "whole repo" remains one of the choices.
 
-This package-level picking is **in 0→1** ([§11](scope.md#11-scope-of-the-first-version)). It is part of create UX, not a later stage.
+Package-level picking is part of create UX ([§11](scope.md#11-system-boundary)).
 
 ---
 

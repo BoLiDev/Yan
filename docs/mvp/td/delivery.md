@@ -22,7 +22,7 @@ The default `mode` is `mr` rather than `branch`, because pushing to a remote is 
 
 ## 8.3 Enforcement
 
-The first version does not spend effort building an isolation mechanism. Startup arguments are enough:
+Enforcement does not use an isolation mechanism. Startup arguments are enough:
 
 | Goal | How |
 | --- | --- |
@@ -40,13 +40,13 @@ One cheap check is worth keeping: `yan scope-check <sid>` runs `git diff --name-
 
 That blocks stray edits while still showing how the scope grew — and `scope` growing often usually means the task was split in the wrong places.
 
-`sparse-checkout` is shelved. Using it requires first solving "the set of files you edit is not the set of files you need to build" (in a monorepo, compiling `apps/auth` usually needs its sibling packages present), and that is expensive. It can wait until context pressure is actually painful.
+`sparse-checkout` is not adopted. Using it requires first solving "the set of files you edit is not the set of files you need to build" (in a monorepo, compiling `apps/auth` usually needs its sibling packages present), and that cost is not worth it while context pressure is manageable another way.
 
 ## 8.4 The forge layer
 
 The forge is `yan`'s **remote git layer**: everything that opens, queries, or merges an MR, and everything that asks about CI, goes through it. Callers speak only forge vocabulary. They do not know whether the repository lives on GitHub or on GitLab.
 
-**Both providers are supported by configuration**, because both are real needs: GitLab at work (often self-hosted), GitHub outside it. A side benefit: once GitHub is supported, the first version's acceptance test can be run against `yan`'s own repository.
+**Both providers are supported by configuration**, because both are real needs: GitLab at work (often self-hosted), GitHub outside it.
 
 The design test here is Ousterhout's deep module: a narrow interface over a thick implementation. This layer qualifies. It exposes four verbs, and underneath it hides five differences between the two CLIs: argument shapes, terminology (MR versus PR), JSON shapes, authentication, and the CI model.
 
@@ -71,4 +71,4 @@ Three further constraints on the interface:
 
 Authentication is not unified. `gh` and `glab` each manage their own login, and this layer does not try to paper over that. The bootstrap check verifies the one CLI `forge.kind` selects — not both — and names it if missing. For GitLab it also checks that `glab` is authenticated for that `host`.
 
-This is not the backend abstraction layer that [§11](scope.md#11-scope-of-the-first-version) rules out under "explicitly out of scope". What that rules out is a plugin framework. This has the same shape as `lib-term.sh` in [§5.7](agents.md#57-terminal-topology): **a few functions gathered into one file, not a framework.**
+This is not the backend abstraction layer that [§11](scope.md#11-system-boundary) rules out under "explicitly out of scope". What that rules out is a plugin framework. This has the same shape as `lib-term.sh` in [§5.7](agents.md#57-terminal-topology): **a few functions gathered into one file, not a framework.**

@@ -102,7 +102,7 @@ Two things stay beside it, not inside it:
 | `agents.shift` | yes | any CLI that meets [§5.6](agents.md#56-harness-requirements) | `yan shift new` default; override one dispatch with `--agent` |
 | `forge.kind` | yes | `github` \| `gitlab` | one forge per `$YAN_HOME` ([§8.4](delivery.md#84-the-forge-layer)) |
 | `forge.host` | when `kind` is `gitlab` | hostname, no scheme | never inferred from a clone URL |
-| `backend` | no | `tmux` \| `herdr` | defaults to `tmux`; reserved until Herdr lands ([§5.7](agents.md#57-terminal-topology)) |
+| `backend` | no | `tmux` \| `herdr` | defaults to `tmux` ([§5.7](agents.md#57-terminal-topology)) |
 
 ### `mem/repos.json` fields (per repository)
 

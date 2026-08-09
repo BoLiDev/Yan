@@ -34,7 +34,7 @@ That gives one constraint:
 
 The reason is that the worktree gets wiped by `yan tree return`. If a `shift` writes a prototype inside the tree, both possible endings are bad: the file is deleted, or it gets committed into the work repository. So `yan` sets `YAN_TASK_DIR=$YAN_HOME/tasks/<id>` when it starts a `shift`, and the brief tells the agent to write its output to `$YAN_TASK_DIR/artifacts/`. The same rule also prevents an agent from casually committing a design document into a shared repository, which matters more than the context it saves.
 
-Artifacts live as long as the `task` directory does, and are not deleted when a `shift` clocks out — most of their value comes after the task is over. Their main reader is `user`, so `yan open <id>` opens the directory directly, or opens an HTML file in a browser. There is no index in the first version; the directory listing and the file names are enough, and an index can wait until there are too many files to find things.
+Artifacts live as long as the `task` directory does, and are not deleted when a `shift` clocks out — most of their value comes after the task is over. Their main reader is `user`, so `yan open <id>` opens the directory directly, or opens an HTML file in a browser. There is no index; the directory listing and the file names are enough.
 
 The line between this and `report.md`: the report holds conclusions, written for agents to read and for future tasks to reuse. `artifacts/` holds the output itself, the things a person looks at. A prototype HTML page is an artifact; "what this prototype proved" belongs in the report.
 
