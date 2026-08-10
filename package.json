@@ -1,0 +1,27 @@
+{
+  "name": "yan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "yan - one main agent per task, orchestrating single-use shifts. V2 runtime: TypeScript on Herdr.",
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "scripts": {
+    "build": "npm run lint:seams && tsc -p tsconfig.json",
+    "lint:seams": "node scripts/check-seam-imports.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run"
+  },
+  "dependencies": {
+    "commander": "14.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
