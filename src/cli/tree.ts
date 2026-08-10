@@ -1,9 +1,6 @@
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { CommandError } from './shared/errors.js';
-import { repoDir } from './shared/repo.js';
-import { yanHome } from '../util/home.js';
-import { readJsonIfPresent } from '../util/json.js';
+import { DEFAULT_POOL_SIZE, poolSize, repoTarget } from './shared/repo.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './shared/action.js';
 
@@ -22,17 +19,6 @@ import { action, out } from './shared/action.js';
  * 1 anything else.
  */
 
-const DEFAULT_POOL_SIZE = 8;
-
-function poolSize(repoKey: string): number {
-  const registry = readJsonIfPresent(join(yanHome(), 'mem', 'repos.json'));
-  if (typeof registry !== 'object' || registry === null) return DEFAULT_POOL_SIZE;
-  const entry = (registry as Record<string, unknown>)[repoKey];
-  if (typeof entry !== 'object' || entry === null) return DEFAULT_POOL_SIZE;
-  const size = (entry as Record<string, unknown>).pool_size;
-  return typeof size === 'number' && Number.isInteger(size) && size > 0 ? size : DEFAULT_POOL_SIZE;
-}
-
 interface CommonOptions {
   repo?: string;
 }
@@ -42,8 +28,7 @@ function clone(options: CommonOptions): { clone: string; key: string } {
     throw CommandError.usage('tree', '--repo is required: a repository name under repos/, or the path to a clone',
     );
   }
-  const dir = repoDir('tree', options.repo);
-  return { clone: dir, key: dir.slice(dir.lastIndexOf('/') + 1) };
+  return repoTarget('tree', options.repo);
 }
 
 const get = new Command('get')
