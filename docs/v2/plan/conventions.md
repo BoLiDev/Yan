@@ -35,6 +35,8 @@ Windows is a first-class target, not an afterthought. A change that only works o
 
 Herdr accepts native paths for `--cwd` and returns them with backslashes. Normalise on the way in and out of the seam, once.
 
+**What `normalizePath()` does not do.** It reconciles drive-letter spellings (`C:\x` / `C:/x` / `/c/x`). It does **not** resolve MSYS mount points — Git Bash's `/tmp` is `C:\Users\<user>\AppData\Local\Temp`, and no amount of string normalisation will discover that. Where a real mount translation is needed, shell out to `cygpath -m` on Windows and use identity on Linux, exactly as the MVP did. Say which one you need; they are not the same function.
+
 **Line endings.** `.gitattributes` keeps `* text=auto eol=lf` and `*.sh text eol=lf` — the three remaining shell stubs still fail with `bad interpreter` if they arrive as CRLF. TypeScript sources are LF for the same reason everything else is.
 
 ---

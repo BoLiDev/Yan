@@ -1,16 +1,22 @@
 import { defineConfig } from 'vitest/config';
 
-// The three tiers are the MVP's, kept by name (plan/conventions.md §5):
-//   unit/         fast, seams replaced by fakes
-//   integration/  real git, real file system, no network, no Herdr
-//   e2e/          real Herdr, real forge; skipped loudly when the binary is absent
+// Where a test lives says who it is for:
+//
+//   src/<module>/*.test.ts   the MODULE's own test. It may import the module's
+//                            internal files, which is exactly why it lives
+//                            here: a test in tests/ could only reach them by
+//                            widening the public surface.
+//   tests/integration/       cross-module, driven through the CLI
+//   tests/e2e/               real Herdr, real forge; skipped loudly when absent
+//   tests/unit/              what is left: shared helpers and cross-cutting rules
 //
 // Only *.test.ts is collected, so the bash suite (tests/**/*.test.sh) and the
 // vitest suite live side by side for the whole migration without either
-// discovering the other.
+// discovering the other. `tsconfig.json` excludes src/**/*.test.ts from the
+// build, so colocated tests never reach dist/.
 export default defineConfig({
   test: {
-    include: ['tests/{unit,integration,e2e}/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/{unit,integration,e2e}/**/*.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // Git and worktree fixtures are real directories on disk; running files in

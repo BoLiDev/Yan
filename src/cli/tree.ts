@@ -5,7 +5,7 @@ import { usageError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { normalizePath } from '../util/paths.js';
-import { poolGet, poolReturn, poolStatus } from '../seams/pool/index.js';
+import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './support/action.js';
 
 /**
@@ -16,7 +16,7 @@ import { action, out } from './support/action.js';
  * outside tool. This file is the thin command layer: it resolves which
  * repository is meant, reads `pool_size` from mem/repos.json (yan's own
  * bookkeeping, which the seam must not read), and formats what the seam
- * reports. Every decision that matters lives in `src/seams/pool/`.
+ * reports. Every decision that matters lives in `src/externals/worktree/`.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 a conditional return was
  * refused because the lease identity did not match (nothing was touched),
@@ -84,8 +84,7 @@ const get = new Command('get')
           throw usageError('tree_usage', '--holder is required, in the form <task>/<unit>/<sid>');
         }
 
-        const grant = poolGet(
-          target.clone,
+        const grant = new WorktreePool(target.clone).get(
           poolSize(target.key),
           options.base,
           options.branch,
@@ -127,7 +126,10 @@ const returnTree = new Command('return')
         // The --if-* options are compared before anything destructive happens; a
         // mismatch exits 3 and touches nothing, which is what makes an
         // automatic retry safe.
-        const returned = poolReturn(target.clone, which, options.ifLeaseId, options.ifLeaseHolder);
+        const returned = new WorktreePool(target.clone).return(which, {
+          leaseId: options.ifLeaseId,
+          holder: options.ifLeaseHolder,
+        });
         out(`returned ${returned}`);
       },
     ),
@@ -140,7 +142,7 @@ const status = new Command('status')
   .action(
     action('yan tree', (options: CommonOptions & { json?: boolean }) => {
       const target = clone(options);
-      const leases = poolStatus(target.clone);
+      const leases = new WorktreePool(target.clone).status();
       if (options.json === true) {
         out(JSON.stringify(leases, null, 2));
         return;

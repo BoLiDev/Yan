@@ -1,0 +1,687 @@
+{
+ "src/cli/doctor.ts": {
+  "val": [
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/home.ts",
+   "src/util/json.ts",
+   "src/seams/terminal/index.ts",
+   "src/cli/support/action.ts"
+  ],
+  "ext": [
+   "node:child_process",
+   "node:path",
+   "commander"
+  ],
+  "lines": 123
+ },
+ "src/cli/drain.ts": {
+  "val": [
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/store/task.ts",
+   "src/cli/support/action.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path",
+   "commander"
+  ],
+  "lines": 75
+ },
+ "src/cli/ls.ts": {
+  "val": [
+   "queueJson",
+   "taskDetailJson",
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts",
+   "src/util/json.ts",
+   "src/store/task.ts",
+   "src/cli/support/action.ts",
+   "src/cli/support/table.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path",
+   "commander"
+  ],
+  "lines": 223
+ },
+ "src/cli/open.ts": {
+  "val": [
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/paths.ts",
+   "src/store/task.ts",
+   "src/cli/support/action.ts"
+  ],
+  "ext": [
+   "node:child_process",
+   "node:fs",
+   "node:path",
+   "commander"
+  ],
+  "lines": 85
+ },
+ "src/cli/repo-add.ts": {
+  "val": [
+   "repoNameFromUrl",
+   "sameUrl",
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/git.ts",
+   "src/util/home.ts",
+   "src/util/json.ts",
+   "src/util/paths.ts",
+   "src/cli/support/action.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path",
+   "commander"
+  ],
+  "lines": 173
+ },
+ "src/cli/scope-check.ts": {
+  "val": [
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/git.ts",
+   "src/store/task.ts",
+   "src/store/shift.ts",
+   "src/cli/support/action.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "commander"
+  ],
+  "lines": 172
+ },
+ "src/cli/support/action.ts": {
+  "val": [
+   "action",
+   "out"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts"
+  ],
+  "ext": [],
+  "lines": 32
+ },
+ "src/cli/support/resolve.ts": {
+  "val": [
+   "setPrompter",
+   "isTty",
+   "MISSING_OPTIONS",
+   "resolve"
+  ],
+  "typ": [
+   "OptionSpec",
+   "Prompter"
+  ],
+  "deps": [
+   "src/util/error.ts"
+  ],
+  "ext": [],
+  "lines": 88
+ },
+ "src/cli/support/table.ts": {
+  "val": [
+   "renderTable",
+   "dash"
+  ],
+  "typ": [],
+  "deps": [],
+  "ext": [],
+  "lines": 31
+ },
+ "src/cli/tree.ts": {
+  "val": [
+   "command"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts",
+   "src/util/json.ts",
+   "src/util/paths.ts",
+   "src/seams/pool/index.ts",
+   "src/cli/support/action.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path",
+   "commander"
+  ],
+  "lines": 173
+ },
+ "src/cli/yan.ts": {
+  "val": [
+   "YAN_VERSION",
+   "joinTwoWordCommand",
+   "buildProgram",
+   "main"
+  ],
+  "typ": [
+   "CommandModule"
+  ],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts"
+  ],
+  "ext": [
+   "node:child_process",
+   "node:path",
+   "node:url",
+   "commander"
+  ],
+  "lines": 163
+ },
+ "src/seams/forge/client.ts": {
+  "val": [
+   "CLI_MISSING",
+   "runForgeCli"
+  ],
+  "typ": [
+   "ForgeResult",
+   "ForgeInvocation"
+  ],
+  "deps": [],
+  "ext": [
+   "node:child_process"
+  ],
+  "lines": 70
+ },
+ "src/seams/forge/github.ts": {
+  "val": [
+   "mapMrState",
+   "mapCiState",
+   "refArgs"
+  ],
+  "typ": [],
+  "deps": [
+   "src/seams/forge/types.ts"
+  ],
+  "ext": [],
+  "lines": 140
+ },
+ "src/seams/forge/gitlab.ts": {
+  "val": [
+   "mapMrState",
+   "mapCiState",
+   "refArgs"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/seams/forge/types.ts"
+  ],
+  "ext": [],
+  "lines": 120
+ },
+ "src/seams/forge/index.ts": {
+  "val": [
+   "forgeCli",
+   "forgeMrCreate",
+   "forgeMrState",
+   "forgeMrMerge",
+   "forgeCiState"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts",
+   "src/seams/forge/client.ts",
+   "src/seams/forge/github.ts",
+   "src/seams/forge/gitlab.ts",
+   "src/seams/forge/types.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path"
+  ],
+  "lines": 420
+ },
+ "src/seams/forge/types.ts": {
+  "val": [
+   "MR_STATES",
+   "CI_STATES",
+   "FORGE_USAGE",
+   "FORGE_CONFIG",
+   "FORGE_FAILED",
+   "gateMrState",
+   "gateCiState"
+  ],
+  "typ": [
+   "MrState",
+   "CiState",
+   "MergeStrategy",
+   "ForgeKind",
+   "RepoRef",
+   "MrCreateOptions",
+   "MrRef",
+   "MrMergeOptions"
+  ],
+  "deps": [],
+  "ext": [],
+  "lines": 81
+ },
+ "src/seams/pool/index.ts": {
+  "val": [
+   "POOL_USAGE",
+   "POOL_FULL",
+   "POOL_FAILED",
+   "POOL_MISMATCH",
+   "POOL_MISMATCH_EXIT",
+   "poolRoot",
+   "poolDir",
+   "poolGet",
+   "poolReturn",
+   "poolStatus",
+   "sameTree"
+  ],
+  "typ": [
+   "Lease",
+   "LeaseGrant"
+  ],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/git.ts",
+   "src/util/json.ts",
+   "src/util/lock.ts",
+   "src/util/paths.ts"
+  ],
+  "ext": [
+   "node:crypto",
+   "node:fs",
+   "node:os",
+   "node:path"
+  ],
+  "lines": 567
+ },
+ "src/seams/terminal/client.ts": {
+  "val": [
+   "TERM_UNREACHABLE",
+   "TERM_NOT_FOUND",
+   "TERM_REFUSED",
+   "TERM_BUG",
+   "herdrErrorCode",
+   "runHerdr",
+   "herdrCall",
+   "mapError"
+  ],
+  "typ": [
+   "HerdrResult"
+  ],
+  "deps": [
+   "src/util/error.ts"
+  ],
+  "ext": [
+   "node:child_process"
+  ],
+  "lines": 121
+ },
+ "src/seams/terminal/index.ts": {
+  "val": [
+   "termContainerCreate",
+   "termAgentStart",
+   "termSend",
+   "termRead",
+   "termAgentAlive",
+   "termReconcile",
+   "termAgentClose",
+   "termList",
+   "termVersion",
+   "termIntegrationStatus"
+  ],
+  "typ": [
+   "Alive",
+   "Container",
+   "StartedAgent",
+   "ListedAgent",
+   "ReadSource",
+   "HerdrVersion"
+  ],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/paths.ts",
+   "src/seams/terminal/client.ts",
+   "src/seams/terminal/types.ts"
+  ],
+  "ext": [],
+  "lines": 466
+ },
+ "src/seams/terminal/types.ts": {
+  "val": [
+   "HERDR_PROTOCOL",
+   "HERDR_SCHEMA_VERSION",
+   "AGENT_SESSION_REF_KIND",
+   "AGENT_STATUS",
+   "AGENT_VIEW_BUILTIN_FIELD",
+   "AGENT_VIEW_BUILTIN_SORT_FIELD",
+   "AGENT_VIEW_CONTEXT",
+   "AGENT_VIEW_SORT_ORDER",
+   "CLIENT_WINDOW_TITLE_REASON",
+   "CONFIG_RELOAD_STATUS",
+   "EVENT_KIND",
+   "INTEGRATION_TARGET",
+   "NOTIFICATION_SHOW_REASON",
+   "NOTIFICATION_SHOW_SOUND",
+   "PANE_AGENT_STATE",
+   "PANE_DIRECTION",
+   "PANE_FOCUS_DIRECTION_REASON",
+   "PANE_GRAPHICS_FORMAT",
+   "PANE_MOVE_REASON",
+   "PANE_RESIZE_REASON",
+   "PANE_SWAP_REASON",
+   "PANE_ZOOM_MODE",
+   "PANE_ZOOM_REASON",
+   "PLUGIN_ACTION_CONTEXT",
+   "PLUGIN_COMMAND_STATUS",
+   "PLUGIN_PANE_PLACEMENT",
+   "PLUGIN_PLATFORM",
+   "PLUGIN_SOURCE_KIND",
+   "READ_FORMAT",
+   "READ_SOURCE",
+   "SPLIT_DIRECTION",
+   "SUBSCRIPTION_EVENT_KIND",
+   "TOAST_HERDR_POSITION"
+  ],
+  "typ": [
+   "AgentSessionRefKind",
+   "AgentStatus",
+   "AgentViewBuiltinField",
+   "AgentViewBuiltinSortField",
+   "AgentViewContext",
+   "AgentViewSortOrder",
+   "ClientWindowTitleReason",
+   "ConfigReloadStatus",
+   "EventKind",
+   "IntegrationTarget",
+   "NotificationShowReason",
+   "NotificationShowSound",
+   "PaneAgentState",
+   "PaneDirection",
+   "PaneFocusDirectionReason",
+   "PaneGraphicsFormat",
+   "PaneMoveReason",
+   "PaneResizeReason",
+   "PaneSwapReason",
+   "PaneZoomMode",
+   "PaneZoomReason",
+   "PluginActionContext",
+   "PluginCommandStatus",
+   "PluginPanePlacement",
+   "PluginPlatform",
+   "PluginSourceKind",
+   "ReadFormat",
+   "ReadSource",
+   "SplitDirection",
+   "SubscriptionEventKind",
+   "ToastHerdrPosition"
+  ],
+  "deps": [],
+  "ext": [],
+  "lines": 273
+ },
+ "src/store/log.ts": {
+  "val": [
+   "LOG_USAGE",
+   "LOG_FAILED",
+   "logFile",
+   "logInit",
+   "logAppend"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts",
+   "src/util/paths.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path"
+  ],
+  "lines": 84
+ },
+ "src/store/shift.ts": {
+  "val": [
+   "SHIFT_USAGE",
+   "SHIFT_MISSING",
+   "SHIFT_AMBIGUOUS",
+   "isShiftId",
+   "shiftUse",
+   "shiftResolve",
+   "shiftResolveDir",
+   "shiftResolveEnv",
+   "shiftLabel",
+   "shiftMetaFile",
+   "shiftStatusFile",
+   "shiftSignalFile",
+   "shiftIsLive",
+   "shiftMetaGet",
+   "shiftMetaUnit",
+   "shiftMetaBranch",
+   "shiftMetaTree",
+   "shiftMetaAgent",
+   "shiftMetaAgentId",
+   "shiftMetaMr",
+   "shiftReportedMr",
+   "shiftEventCount",
+   "shiftEventAppend",
+   "liveShifts"
+  ],
+  "typ": [
+   "ShiftRef"
+  ],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts",
+   "src/util/json.ts",
+   "src/util/paths.ts",
+   "src/store/task.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path"
+  ],
+  "lines": 339
+ },
+ "src/store/task.ts": {
+  "val": [
+   "MODES",
+   "ENDS",
+   "TASK_USAGE",
+   "TASK_MISSING",
+   "TASK_EXISTS",
+   "isTaskId",
+   "taskDir",
+   "taskFile",
+   "taskExists",
+   "readTask",
+   "taskList",
+   "taskTitle",
+   "taskIsComplete",
+   "findUnit",
+   "requireUnit",
+   "taskContainerName",
+   "taskInit",
+   "setComplete",
+   "unitAdd",
+   "unitSet",
+   "unitSetScope",
+   "unitSetNeeds",
+   "unitRounds",
+   "historyAppend",
+   "unitRotate"
+  ],
+  "typ": [
+   "Mode",
+   "HistoryEnd",
+   "HistoryEntry",
+   "Unit",
+   "Task",
+   "UnitAddOptions",
+   "ScalarField"
+  ],
+  "deps": [
+   "src/util/error.ts",
+   "src/util/home.ts",
+   "src/util/json.ts",
+   "src/util/paths.ts",
+   "src/store/log.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path"
+  ],
+  "lines": 446
+ },
+ "src/util/error.ts": {
+  "val": [
+   "YanError",
+   "isYanError",
+   "usageError"
+  ],
+  "typ": [],
+  "deps": [],
+  "ext": [],
+  "lines": 32
+ },
+ "src/util/git.ts": {
+  "val": [
+   "GIT_USAGE",
+   "GIT_FAILED",
+   "GIT_FORCE_REFUSED",
+   "git",
+   "gitOk",
+   "gitOut",
+   "gitLines",
+   "currentBranch",
+   "branchExists",
+   "remoteBranchExists",
+   "statusPorcelain",
+   "isClean",
+   "revParse",
+   "diffNameOnly",
+   "branchesContainingHead",
+   "fetch",
+   "checkout",
+   "createBranch",
+   "rebase",
+   "merge",
+   "isForceFlag",
+   "push",
+   "deleteRemoteBranch",
+   "worktreeAdd",
+   "worktreeRemove",
+   "worktreePrune",
+   "worktreeList",
+   "resetHard",
+   "cleanFd",
+   "clone",
+   "remoteUrl"
+  ],
+  "typ": [
+   "GitResult"
+  ],
+  "deps": [
+   "src/util/error.ts"
+  ],
+  "ext": [
+   "node:child_process",
+   "node:fs"
+  ],
+  "lines": 254
+ },
+ "src/util/home.ts": {
+  "val": [
+   "yanHome",
+   "subcommands"
+  ],
+  "typ": [
+   "Subcommands"
+  ],
+  "deps": [],
+  "ext": [
+   "node:fs",
+   "node:path",
+   "node:url"
+  ],
+  "lines": 72
+ },
+ "src/util/json.ts": {
+  "val": [
+   "JSON_INVALID",
+   "JSON_MISSING",
+   "JSON_WRITE_FAILED",
+   "parseJson",
+   "readJson",
+   "readJsonIfPresent",
+   "writeJson",
+   "writeJsonText",
+   "editJson",
+   "initJson"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:path"
+  ],
+  "lines": 182
+ },
+ "src/util/lock.ts": {
+  "val": [
+   "LOCK_TIMEOUT",
+   "isStale",
+   "isHeld",
+   "withLock"
+  ],
+  "typ": [],
+  "deps": [
+   "src/util/error.ts"
+  ],
+  "ext": [
+   "node:fs",
+   "node:os",
+   "node:path"
+  ],
+  "lines": 144
+ },
+ "src/util/paths.ts": {
+  "val": [
+   "normalizePath",
+   "samePath",
+   "isInside",
+   "nativePath"
+  ],
+  "typ": [],
+  "deps": [],
+  "ext": [
+   "node:path"
+  ],
+  "lines": 79
+ }
+}

@@ -19,5 +19,9 @@
     "sourceMap": false,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  // A module's own test lives beside it (vitest.config.ts says why) but is not
+  // part of the program: without this it would be compiled into dist/ and
+  // shipped, and `rootDir` would drag tests/helpers/ in with it.
+  "exclude": ["src/**/*.test.ts"]
 }

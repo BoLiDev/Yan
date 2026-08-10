@@ -26,7 +26,7 @@ Container lifetime is unchanged: `user` opens and closes it. `yan` never closes 
 | Function | Herdr | Note |
 | --- | --- | --- |
 | `term_container_create` | `workspace create` → `.result.workspace` / `.tab` / `.root_pane` | only when `user` asks for a new workspace; normally `yan` joins the one it is already in |
-| `term_agent_start` | `pane split --cwd <leased tree> --no-focus --env …` → `agent start <name> --kind <k> --pane <id> -- <argv>` | **two steps.** `agent start` requires an existing pane already at an interactive prompt and never creates layout |
+| `term_agent_start` | `pane split --direction right --cwd <leased tree> --no-focus --env …` → `agent start <name> --kind <k> --pane <id> -- <argv>` → **confirm** | **three steps.** `agent start` requires an existing pane already at an interactive prompt and never creates layout. `--direction` is required, not optional. The confirm step is not optional either — see below |
 | `term_send` | `agent prompt <target> <text> [--wait]` | atomic: text and Enter in one submission, honouring the pane's live bracketed-paste mode |
 | `term_read` | `agent read <target> --source <s> --lines N` | `s ∈ visible \| recent \| recent-unwrapped \| detection`; use `recent-unwrapped` for transcripts |
 | `term_agent_alive` | `agent get` + `pane get` — see [§5](#5-alive-dead-unknown) | the one function that needs more than a single call |
@@ -35,7 +35,7 @@ Container lifetime is unchanged: `user` opens and closes it. `yan` never closes 
 
 Three things `term_agent_start` gains that are worth naming, because each deletes MVP code:
 
-1. **It returns only once Herdr has detected the expected agent in that pane and considers it ready for input** (default 30 s, max 300 s). The MVP sent keys and hoped.
+1. **It waits for Herdr to detect the agent before returning** (default 30 s, max 300 s) — which is better than the MVP sending keys and hoping, but is **not proof the agent is up**. Measured: `agent start --kind codex` returned `interactive_ready: true` in 3.1 s for a `codex` that had already exited, because screen detection matched the bare PowerShell prompt it left behind; `agent get` said `agent_not_found` a minute later, and the `agent prompt` in between typed the brief **into PowerShell** ([evidence §11.7](evidence.md#117-agent-start---kind-codex)). So `term_agent_start` confirms afterwards — `agent get` by name — and reports failure if the agent is not there. **And nothing may be sent to a pane that has not just been confirmed alive.**
 2. **Arguments are an argv array, not a command line.** `agent start … -- --append-system-prompt "…"` echoes back `argv: ["claude","--append-system-prompt","…"]`. No shell in between, so no quoting layer.
 3. **`--env KEY=VALUE` on `pane split`** carries `YAN_TASK`, `YAN_TASK_DIR` and friends into the shift's environment without a wrapper script.
 
@@ -47,11 +47,13 @@ Herdr recognises 21 agent kinds, including `claude` and `codex`. `conf/config.js
 
 **The MVP's rule 1 — a label is not a source of truth; record the id — is unchanged and is now easier to obey.**
 
-| | Shape | Promise |
+| | Example | Promise |
 | --- | --- | --- |
-| workspace | `w1` | opaque, stable |
+| workspace | `w1`, `wF` | opaque, stable |
 | tab | `w1:t1` | opaque, stable, **never reused after close** |
-| pane | `w1:p1` | opaque, stable, never reused after close |
+| pane | `w1:p1`, `wF:p3` | opaque, stable, never reused after close |
+
+**These are examples, not a format.** `herdr --skill` calls them *"opaque stable handles"* and means it: the suffix is not a decimal counter, and a session that has opened enough workspaces hands out `wA`, `wF` and so on ([evidence §11](evidence.md#11-the-phase-5-event-spike) shows `wF:p2`). Never parse an id, never sort by one, never generate one, never assume its length. Store what Herdr returned and pass it back.
 | agent name | `[a-z][a-z0-9_-]{0,31}` | **unique among live agents**; cleared when the agent exits, is released, or is replaced |
 
 The agent name is the one genuinely new handle. tmux window names are not unique, which is why the MVP banned name lookup outright; Herdr enforces uniqueness, so a name *is* addressable. `yan` still records ids in `run/meta.json` and still addresses by id, for one reason: a name is only unique among *live* agents, so it cannot identify a shift that has died — and identifying dead shifts is precisely what supervision does.

@@ -160,7 +160,7 @@ Each begins `param([string]$Action = "")` followed by `if ($Action -ne "session"
 
 **Consequence:** `yan doctor` checks `integration status` for every kind in `conf/config.json`'s `agents.*` — for the session id and to notice a version change — but it must **not** report that supervision is authoritative because an integration is present. This snapshot is dated; re-read it rather than trusting the lines above.
 
-Also observed: `codex` is not on `PATH` here. `agent start --kind <k>` resolves a canonical executable, so Phase 5 needs to confirm how Herdr finds an agent binary that a shell cannot.
+*(Superseded by [§11.7](#117-agent-start---kind-codex): `codex` is on `PATH` at `~/AppData/Local/Programs/OpenAI/Codex/bin/codex`, so the question of how Herdr resolves an agent binary a shell cannot find was never asked. A worse problem was found instead.)*
 
 ---
 

@@ -20,7 +20,7 @@ in its own leased worktree on its own shift branch. You orchestrate;
 
 ## How you act
 
-**You only ever run** `yan <command>`**.** You never source a library from `bin/`, and you
+**You only ever run `yan <command>`.** You never source a library from `bin/`, and you
 never run `git`, `gh`, `glab`, `tmux` or `node` yourself for anything a subcommand
 already does. The interactive prompts are for people at a keyboard, not for you: you
 already know your arguments, so you pass them as flags. `yan --help` lists what exists,
