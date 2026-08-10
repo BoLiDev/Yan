@@ -69,11 +69,17 @@ That is the line the MVP already drew between facts, state, and decisions ([td �
 
 | Moment | Call |
 | --- | --- |
-| `yan continue` / `yan task new` starts the main agent | workspace tokens for the task and its current unit |
-| `yan unit set --branch` starts a new round | workspace tokens rewritten |
-| `yan shift new` splits the pane | pane title and `display_agent` for the new shift |
-| `yan shift done` | pane title cleared before the pane is closed |
-| task complete, or `yan` exits | `--clear-token` for every token it set |
+| Moment | Call | Owner |
+| --- | --- | --- |
+| `yan continue` / `yan task new` starts the main agent | workspace tokens for the task and its current unit | Phase 8 |
+| `yan unit set --branch` starts a new round | workspace tokens rewritten — **if the workspace can be identified**, see below | Phase 7 |
+| `yan shift new` splits the pane | pane title and `display_agent` for the new shift | Phase 7 |
+| `yan shift done` | pane title cleared before the pane is closed | Phase 7 |
+| task complete, or `yan` exits | `--clear-token` for every token it set | **unowned** until Phase 8 |
+
+**Which workspace?** There are exactly two ways to know, and one of them is unusable here: `workspace create` returns the id but *creates*, so a relabel must never call it; and a live shift's `run/meta.json` records the container it was dispatched into. So `unit set --branch` derives the workspace from a live shift of that unit and **silently does nothing when there is none** — a task with no shift running has no workspace to label, and inventing one would be worse than an unlabelled tab.
+
+The last row has no owner yet, and saying so is better than implying it happens. Clearing on exit needs someone who knows the workspace's lifetime, and that is `yan continue` — Phase 8.
 
 Failures here are **never fatal**. If Herdr refuses a metadata call, `yan` logs one line and carries on: the work is correct with ugly labels, and a tool that will not dispatch a shift because a title did not stick is a worse tool.
 

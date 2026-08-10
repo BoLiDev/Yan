@@ -241,7 +241,7 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 
 **Delivers:** `yan shift new`, `yan shift done`, `yan sync`, `yan unit add`, `yan unit set`, `yan state`, `yan send`, `yan report`, `yan session-start`, `yan mr`, `yan land`, and the display-metadata calls from [display.md §4](../td/display.md#4-when-each-call-happens).
 
-**And their bash twins, deleted** (rule 6). Eleven commands is most of what is left in `bin/`: `tests/run.sh` should come out of this phase at roughly twenty scripts instead of fifty-six. The shrinking suite is the progress meter — if it has not shrunk, commands were ported without being finished.
+**And their bash twins, deleted** (rule 6). Phase 7 owns 17 of the 58 bash test scripts, so the suite comes out of this phase at **roughly forty**, not twenty. (Twenty was this document's arithmetic error: it assumed rule 6 would also collect the twelve scripts belonging to phases 1–6, which rule 6 postdates and does not reach backwards to. Clearing those is Phase 8's, below.) The shrinking suite is still the progress meter — if it has not shrunk by seventeen, commands were ported without being finished.
 
 **Trace** — the four MVP ordering regressions first, because none of them fails loudly:
 - `shift new` asserts the sub-agent's cwd is not a main clone and **refuses** otherwise
@@ -262,9 +262,16 @@ and then:
 
 ### Phase 8 — New entry
 
-**Delivers:** bare `yan` → select; `src/ui/prompts.ts`; `yan continue` without the container half; `yan task new` ending in the current pane; `lib-ui.sh` and `ui/` deleted.
+**Delivers:** bare `yan` → select; `src/ui/prompts.ts`; `yan continue` without the container half; `yan task new` ending in the current pane; `lib-ui.sh` and `ui/` deleted. **And rule 6's back debt** — see below.
+
+**This phase empties `bin/` of commands.** `continue` and `task new` are the last two with no TypeScript twin, and porting them removes the last bash *writer* — which is what `tests/integration/interop.test.ts` exists to compare against. Its premise ("bash writes, TypeScript reads") expires here, and with it the reason the eight already-ported command scripts from phases 1–6 have been kept: `interop` invokes `bin/yan-ls.sh` directly in four places, and until now deleting it would have taken the test with it.
+
+So the order matters, and it is: port the two → retire `interop.test.ts` → delete the remaining eight `bin/yan-*.sh` and their twelve tests. After this phase `bin/` holds no command implementation at all, and Phase 9 is tmux, the `lib-*.sh` that outlived their callers, and the three stubs.
 
 **Trace**
+- `bin/yan-*.sh` is empty of commands; `tests/run.sh` is down to the `lib-*` and tmux scripts
+- `interop.test.ts` is deleted, not adapted — there is no longer a bash side for it to compare with
+- **Commander's own argument errors exit 2, like every other "you called this wrongly".** Today an unknown option or a missing option-argument exits 1, because that is Commander's default and Phase 0 inherited it — so `yan tree get --nonsense` and `yan tree get` (no `--repo`) disagree about what the same class of mistake is worth. The CLI layer is open in this phase; this is where it gets settled
 - `yan` with a TTY shows create-new-task plus live tasks, derived from the same scan `yan ls` uses; without a TTY it prints usage and exits 0
 - Choosing a task starts the main agent **in the calling pane**; no workspace is created
 - A dispatched shift lands in a sibling pane and `user`'s focus does not move

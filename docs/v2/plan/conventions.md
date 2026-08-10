@@ -81,10 +81,14 @@ Four ordering regressions ([td §7](../../mvp/td/architecture.md#7-testability))
 3. `shift new`'s working-directory assertion really refuses
 4. `sync` really exits on a conflict
 
-To which V2 adds two:
+To which V2 adds four. **This is the whole list — eight, numbered here and nowhere else.** It was briefly two lists, one here and one in orchestration.md, each numbered 5–6 and each calling itself "the two V2 adds"; a design document that restates a list is a design document that will disagree with it.
 
 5. `yan` never calls `agent focus` on a shift's pane ([supervision.md §3](../td/supervision.md#3-what-the-events-mean-to-yan))
-6. the terminal seam contains no call that can close a workspace, tab, or pane `yan` did not create
+6. the Herdr module contains no call that can close a workspace, tab, or pane `yan` did not create
+7. a `done` wake never tears down a shift whose merge request has not merged ([orchestration.md §4](../td/orchestration.md#4-done-is-not-a-verdict))
+8. a `shift new` that fails after leasing returns the tree ([orchestration.md §2](../td/orchestration.md#2-starting-a-shift-is-now-five-steps-and-the-fifth-is-new))
+
+All eight have live tests as of Phase 7.
 
 ---
 

@@ -68,6 +68,8 @@ Nothing else is allowed to stand in for the middle line.
 
 `send` was two operations — type the text, then send Enter, retryable separately — because tmux `send-keys` could not do both atomically. Herdr's `agent prompt` submits text and Enter in one call, honouring the pane's live bracketed-paste mode, so the split has nothing left to do and is gone.
 
+**This is the one place in Phase 7 where "port, prove green, then change" cannot be obeyed, and it is licensed here rather than argued about later.** The rule assumes the old behaviour can exist in the new language first. It cannot: Herdr has no call that types without submitting, so there is nothing to port `--no-enter` onto. The split does not survive the move and its tests go with it, in the same commit as the port.
+
 What replaces it is a different guard: **nothing is sent to a pane without a live agent.** A prompt to a pane whose agent has died is typed into whatever shell is there, which then tries to run it as a command ([evidence §11.7](evidence.md#117-agent-start---kind-codex)). The seam refuses; the orchestrator decides — a dead shift is a `died:` wake, not a retry.
 
 Everything else in [td §5.4](../../mvp/td/agents.md#54-communication) stands: the brief is written once and is the long contract, anything long goes in a file and only the path is sent, and `yan report` is a script because a brief telling an agent to do two things gets one of them done.
@@ -94,17 +96,14 @@ The commands get correspondingly thinner, and that is the test of whether the la
 
 ## 8. What Phase 7 must not lose
 
-The four the MVP named, each guarding something that does not fail loudly:
+**The list lives in [conventions.md §5](../plan/conventions.md#the-tests-that-must-never-go-red) and is not restated here.** It briefly was, numbered 5–6 in both places, each copy describing itself as "the two V2 adds" — which is how a list becomes two lists that disagree.
 
-1. after returning a tree, gitignored directories are still there
-2. `shift done` returns the tree **before** deleting the remote branch
-3. `shift new`'s working-directory assertion really refuses
-4. `sync` really exits on a conflict and never resolves one
+This phase contributes the last two of the eight:
 
-To which this phase adds two of its own:
+- a `done` wake never tears down a shift whose MR has not merged ([§4](#4-done-is-not-a-verdict))
+- a `shift new` that fails after leasing returns the tree ([§2](#2-starting-a-shift-is-now-five-steps-and-the-fifth-is-new))
 
-5. a `done` wake never tears down a shift whose MR has not merged ([§4](#4-done-is-not-a-verdict))
-6. a `shift new` that fails after leasing returns the tree ([§2](#2-starting-a-shift-is-now-five-steps-and-the-fifth-is-new))
+The second is the one that hides. A dispatch throwing between the lease and the agent leaks a pool slot on **every** failed attempt, and a pool that quietly loses a slot per failure looks like a pool that is simply busy.
 
 ---
 

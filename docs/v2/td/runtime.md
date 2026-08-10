@@ -35,6 +35,11 @@ $YAN_HOME/
         schema.ts             GENERATED from `herdr api schema --json`
       remote-git/             GitHub / GitLab behind four verbs
       worktree/               the worktree pool
+      conf-hook/              the calling protocol for conf/hooks/ — an outside
+                              authority like any other, and boundaries.md §10
+                              wants exactly one door to it. NOT `src/hooks/`,
+                              which is the harness's Stop hooks: one is a thing
+                              yan calls, the other is a thing that calls yan
     records/                  yan's own file formats, one directory each
       task/                   task.json — Task and Unit
       shift/                  shifts/<sid>/run/ — Shift
