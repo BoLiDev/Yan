@@ -153,7 +153,7 @@ function collect(value: string, previous: readonly string[] | undefined): string
 
 // --- unit add ---------------------------------------------------------------
 
-interface AddOptions {
+export interface AddOptions {
   task?: string;
   unit?: string;
   repo?: string;
@@ -164,6 +164,95 @@ interface AddOptions {
   scope: string[];
   needs: string[];
   json?: boolean;
+}
+
+export interface AddResult {
+  readonly task: string;
+  readonly unit: string;
+  readonly branch: string;
+  readonly target: string;
+  readonly name_from: NameSource;
+  readonly branch_state: string;
+}
+
+/**
+ * The command without the process around it.
+ *
+ * `yan task new` adds its units through this rather than re-implementing any of
+ * it: the branch-name hook, the "stop if the hook refuses" rule, and making the
+ * branch exist all live here, and two homes for those rules would be two homes
+ * that drift.
+ */
+export function addTaskUnit(options: AddOptions): AddResult {
+  const task = options.task ?? '';
+  const unit = options.unit ?? '';
+  const repo = options.repo ?? '';
+  const target = options.target ?? '';
+
+  if (task === '') throw CommandError.usage('unit_add', '--task is required');
+  if (unit === '') throw CommandError.usage('unit_add', '--unit is required');
+  if (repo === '') {
+    throw CommandError.usage('unit_add', '--repo is required: a repository under repos/, or the path to a clone');
+  }
+  // The one argument with no default anywhere in yan.
+  if (target === '') {
+    throw CommandError.usage('unit_add', "--target is required and is never guessed: say which branch this unit delivers into (branching.md §6.4 - a release period and a quiet period have different answers, so there is no safe default)",
+    );
+  }
+
+  if (!Task.exists(task)) {
+    throw CommandError.usage('unit_add', `no such task: ${task} - create it first`);
+  }
+  const record = new Task(task);
+  if (record.findUnit(unit) !== undefined) {
+    throw new CommandError('unit_add', 'exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan ls ${task}' shows them`,
+    );
+  }
+
+  const clone = repoDir('unit_add', repo);
+
+  // n is the round number: len(history) + 1, so it needs no storage of its
+  // own. A unit that is only now being added has no history, so this is r1
+  // — but the expression is written the same way here and in `unit set`,
+  // because that is the rule and not a coincidence.
+  const round = 1;
+  const { branch, from } = decideBranchName(
+    'unit_add',
+    options.branch,
+    {
+      task,
+      task_title: record.title(),
+      unit,
+      repo,
+      target,
+      scope: options.scope,
+      round,
+    },
+    'no unit was added',
+  );
+  checkRefName('unit_add', branch);
+
+  const how = ensureBranch('yan unit add', clone, repo, branch, options.base ?? target);
+
+  try {
+    record.addUnit(unit, repo, target, {
+      branch,
+      mode: options.mode,
+      scope: options.scope,
+      needs: options.needs,
+    });
+  } catch (err) {
+    throw new CommandError('unit_add', 'not_recorded', `the branch '${branch}' is ready in ${clone}, but task.json was not updated: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  try {
+    new Log(task).append(`${unit}  unit added on ${branch} → ${target} (${how}; name from ${from})`);
+  } catch {
+    process.stderr.write('yan unit add: the unit was written but log.md was not appended to\n');
+  }
+
+  return { task, unit, branch, target, name_from: from, branch_state: how };
 }
 
 const add = new Command('add')
@@ -196,78 +285,11 @@ never falls back to the built-in default.`,
   )
   .action(
     action('yan unit add', (options: AddOptions) => {
-      const task = options.task ?? '';
-      const unit = options.unit ?? '';
-      const repo = options.repo ?? '';
-      const target = options.target ?? '';
-
-      if (task === '') throw CommandError.usage('unit_add', '--task is required');
-      if (unit === '') throw CommandError.usage('unit_add', '--unit is required');
-      if (repo === '') {
-        throw CommandError.usage('unit_add', '--repo is required: a repository under repos/, or the path to a clone');
-      }
-      // The one argument with no default anywhere in yan.
-      if (target === '') {
-        throw CommandError.usage('unit_add', "--target is required and is never guessed: say which branch this unit delivers into (branching.md §6.4 - a release period and a quiet period have different answers, so there is no safe default)",
-        );
-      }
-
-      if (!Task.exists(task)) {
-        throw CommandError.usage('unit_add', `no such task: ${task} - create it first`);
-      }
-      const record = new Task(task);
-      if (record.findUnit(unit) !== undefined) {
-        throw new CommandError('unit_add', 'exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan ls ${task}' shows them`,
-        );
-      }
-
-      const clone = repoDir('unit_add', repo);
-
-      // n is the round number: len(history) + 1, so it needs no storage of its
-      // own. A unit that is only now being added has no history, so this is r1
-      // — but the expression is written the same way here and in `unit set`,
-      // because that is the rule and not a coincidence.
-      const round = 1;
-      const { branch, from } = decideBranchName(
-        'unit_add',
-        options.branch,
-        {
-          task,
-          task_title: record.title(),
-          unit,
-          repo,
-          target,
-          scope: options.scope,
-          round,
-        },
-        'no unit was added',
-      );
-      checkRefName('unit_add', branch);
-
-      const how = ensureBranch('yan unit add', clone, repo, branch, options.base ?? target);
-
-      try {
-        record.addUnit(unit, repo, target, {
-          branch,
-          mode: options.mode,
-          scope: options.scope,
-          needs: options.needs,
-        });
-      } catch (err) {
-        throw new CommandError('unit_add', 'not_recorded', `the branch '${branch}' is ready in ${clone}, but task.json was not updated: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-
-      try {
-        new Log(task).append(`${unit}  unit added on ${branch} → ${target} (${how}; name from ${from})`);
-      } catch {
-        process.stderr.write('yan unit add: the unit was written but log.md was not appended to\n');
-      }
-
+      const r = addTaskUnit(options);
       if (options.json === true) {
-        out(JSON.stringify({ task, unit, branch, target, name_from: from, branch_state: how }));
+        out(JSON.stringify(r));
       } else {
-        out(`${unit}  ${branch} → ${target}  (${how}, name from ${from})`);
+        out(`${r.unit}  ${r.branch} → ${r.target}  (${r.branch_state}, name from ${r.name_from})`);
       }
     }),
   );
