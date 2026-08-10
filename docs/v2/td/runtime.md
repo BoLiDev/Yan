@@ -26,17 +26,20 @@ $YAN_HOME/
     cli/
       yan.ts                  Commander root: the program, global options, dispatch
       <command>.ts            one file per subcommand, declaring its own options
-    seams/
-      terminal/               the Herdr seam (terminal.md)
-        index.ts              the seven functions — the only public surface
-        client.ts             socket/CLI transport, error mapping
-        types.ts              GENERATED from `herdr api schema --json`
-      forge/                  GitHub / GitLab behind four verbs
-      pool/                   the worktree pool
-      hook/                   conf/hooks/ calling protocol
-    store/
-      task.ts                 task.json
-      log.ts                  log.md (append only)
+    externals/                one directory per OUTSIDE AUTHORITY, one index.ts each
+      herdr/                  the multiplexer (terminal.md) — both transports, one authority
+        index.ts              the module's whole public surface
+        terminal.ts           the CLI transport: panes, agents, send, read
+        events.ts             the socket transport: agent-status subscriptions
+        ids.ts                what a pane id is. ONE copy, which is the point of the merge
+        schema.ts             GENERATED from `herdr api schema --json`
+      remote-git/             GitHub / GitLab behind four verbs
+      worktree/               the worktree pool
+    records/                  yan's own file formats, one directory each
+      task/                   task.json — Task and Unit
+      shift/                  shifts/<sid>/run/ — Shift
+      log/                    log.md, append only
+      supervision/            run/{lock,wake,beacon,guard-failures}
     util/
       json.ts                 atomic write + version field
       git.ts                  run git in a given directory

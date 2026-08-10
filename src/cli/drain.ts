@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { Command } from 'commander';
-import { CommandError } from './support/errors.js';
+import { CommandError } from './shared/errors.js';
 import { Supervision } from '../records/supervision/index.js';
-import { action, out } from './support/action.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan drain` — read the wake file and clear it (supervision.md).

@@ -1,7 +1,9 @@
 import { connect, type Socket } from 'node:net';
 import { EventsError } from './errors.js';
+import { isPaneId } from './ids.js';
 import { defaultEndpoint } from './socket.js';
-import { AGENT_STATUS, type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './types.js';
+import { AGENT_STATUS } from './schema.js';
+import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './types.js';
 
 /**
  * Herdr's event stream, over the socket (supervision.md §2, evidence §11.1).
@@ -44,19 +46,6 @@ import { AGENT_STATUS, type AgentStatus, type AgentStatusEvent, type ClosedEvent
 const SUBSCRIBABLE = 'pane.agent_status_changed';
 
 /** Herdr's pane id shape. Opaque: checked for shape, never parsed. */
-const PANE_ID = /^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/;
-
-/**
- * Could Herdr have issued this id?
- *
- * Exported because a caller has to be able to ask BEFORE subscribing. A shift
- * dispatched by the tmux half carries a `%7`, and a subscription containing one
- * is refused whole — so a watcher that did not filter would lose the
- * subscription for every other shift because of one legacy pane.
- */
-export function isPaneId(value: string): boolean {
-  return PANE_ID.test(value);
-}
 
 export interface TerminalEventsOptions {
   /** Defaults to this machine's Herdr socket, with the Windows pipe-name rule applied. */
@@ -139,7 +128,7 @@ export class TerminalEvents {
    */
   public async subscribe(panes: readonly string[]): Promise<void> {
     const wanted = panes.filter((pane) => {
-      if (!PANE_ID.test(pane)) {
+      if (!isPaneId(pane)) {
         throw EventsError.usage(`a subscription needs a pane id like w1:p1, never a label: got '${pane}'`);
       }
       return !this.panes.has(pane);

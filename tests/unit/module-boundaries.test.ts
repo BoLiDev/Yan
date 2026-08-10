@@ -56,9 +56,9 @@ describe('rule 1: only index.ts may be imported from outside a module', () => {
 
   it("allows a module's own files to import each other, which is why the test lives inside", () => {
     const root = mkTempDir();
-    write(root, 'externals/terminal/index.ts', `import { call } from './client.js';\n`);
-    write(root, 'externals/terminal/client.ts', `export function call(): void {}\n`);
-    write(root, 'externals/terminal/terminal.test.ts', `import './client.js';\n`);
+    write(root, 'externals/alpha/index.ts', `import { call } from './client.js';\n`);
+    write(root, 'externals/alpha/client.ts', `export function call(): void {}\n`);
+    write(root, 'externals/alpha/alpha.test.ts', `import './client.js';\n`);
 
     expect(lint(root).code).toBe(0);
   });
@@ -67,12 +67,15 @@ describe('rule 1: only index.ts may be imported from outside a module', () => {
 describe('rule 2: no sideways edges between modules', () => {
   it('fails when one external imports another', () => {
     const root = mkTempDir();
-    write(root, 'externals/remote-git/index.ts', `import { x } from '../terminal/index.js';\n`);
-    write(root, 'externals/terminal/index.ts', `export const x = 1;\n`);
+    // Deliberately not real module names: this test is about the rule, and a
+    // fixture named after a real module gets damaged the next time one is
+    // renamed. It was, once.
+    write(root, 'externals/alpha/index.ts', `import { x } from '../beta/index.js';\n`);
+    write(root, 'externals/beta/index.ts', `export const x = 1;\n`);
 
     const r = lint(root);
     expect(r.code).toBe(1);
-    expect(r.out).toContain('externals/remote-git may not import externals/terminal');
+    expect(r.out).toContain('externals/alpha may not import externals/beta');
   });
 
   it('allows an external to import src/util', () => {

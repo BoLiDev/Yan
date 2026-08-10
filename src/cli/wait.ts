@@ -3,15 +3,15 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { Supervision, type WatcherState } from '../records/supervision/index.js';
 import { Task } from '../records/task/index.js';
-import { Terminal } from '../externals/terminal/index.js';
+import { Terminal } from '../externals/herdr/index.js';
 import {
   TerminalEvents,
   isPaneId,
   type AgentStatus,
   type AgentStatusEvent,
-} from '../externals/terminal-events/index.js';
-import { CommandError } from './support/errors.js';
-import { action, out } from './support/action.js';
+} from '../externals/herdr/index.js';
+import { CommandError } from './shared/errors.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan wait` — the watcher (supervision.md §2, architecture.md §5.1).

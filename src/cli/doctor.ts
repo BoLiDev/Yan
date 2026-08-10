@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
-import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/terminal/index.js';
-import { action, out } from './support/action.js';
+import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan doctor` — the checklist, plus the Herdr section this phase earns.

@@ -61,8 +61,8 @@ function namesIn(dir: string, prefix: string, suffix: string, skip: readonly str
 }
 
 export function subcommands(home: string): Subcommands {
-  // Only the top level of dist/cli/ is subcommands. Shared CLI plumbing lives
-  // one directory down, in src/cli/support/, precisely so that this stays a
+  // Only the top level of dist/cli/ is subcommands. What every command shares lives
+  // one directory down, in src/cli/shared/, precisely so that this stays a
   // derivation and never needs a list of exceptions.
   const ported = namesIn(join(home, 'dist', 'cli'), '', '.js', ['yan']);
   const shell = namesIn(join(home, 'bin'), 'yan-', '.sh', []);

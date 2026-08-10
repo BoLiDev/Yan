@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Terminal } from './index.js';
 import * as term from './index.js';
-import { herdrErrorCode, mapError } from './client.js';
+import { herdrErrorCode, mapError } from './cli.js';
 import { AGENT_STATUS, HERDR_PROTOCOL } from './schema.js';
 import { TerminalError } from './errors.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
@@ -19,7 +19,7 @@ import { repoRoot } from '../../../tests/helpers/fixtures.js';
  * out of `agentAlive`.
  */
 
-const moduleDir = join(repoRoot, 'src', 'externals', 'terminal');
+const moduleDir = join(repoRoot, 'src', 'externals', 'herdr');
 
 /**
  * The seam with its comments stripped.

@@ -15,7 +15,7 @@
  *      or `gh` error object must never propagate (plan/conventions.md §2), so
  *      there has to be one question that separates a condition yan anticipated
  *      from a crash it did not.
- *   2. ONE EXIT MAPPING. `src/cli/support/action.ts` turns any of these into a
+ *   2. ONE EXIT MAPPING. `src/cli/shared/action.ts` turns any of these into a
  *      process exit code. Without a shared base that would be one `instanceof`
  *      per module, forever out of date.
  *

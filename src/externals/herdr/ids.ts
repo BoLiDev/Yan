@@ -18,8 +18,21 @@ const PANE_ID = /^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/;
 /** Herdr's own rule for an agent name. */
 const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 
+/**
+ * Could Herdr have issued this id?
+ *
+ * The predicate rather than the guard, because a caller has to be able to ask
+ * BEFORE subscribing. A shift dispatched by the tmux half carries a `%7`, and a
+ * subscription containing one is refused WHOLE — so a watcher that did not
+ * filter would lose the subscription for every other shift because of one
+ * legacy pane ([evidence §12.1](../../../docs/v2/td/evidence.md)).
+ */
+export function isPaneId(value: string): boolean {
+  return PANE_ID.test(value);
+}
+
 export function requirePaneId(value: string, what: string): string {
-  if (!PANE_ID.test(value)) {
+  if (!isPaneId(value)) {
     throw TerminalError.usage(`${what} needs a pane id like w1:p1, never a label: got '${value}'`);
   }
   return value;

@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { Command } from 'commander';
-import { CommandError } from './support/errors.js';
+import { CommandError } from './shared/errors.js';
 import { diffNameOnly, git, gitOk, statusPorcelain } from '../util/git.js';
 import { Task } from '../records/task/index.js';
 import { Shift } from '../records/shift/index.js';
-import { action, out } from './support/action.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan scope-check <sid>` — which changed paths lie outside the unit's scope.

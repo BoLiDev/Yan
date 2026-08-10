@@ -69,3 +69,23 @@ export interface HerdrHealth {
   /** kind → state, from `herdr integration status`. Empty when it cannot be read. */
   readonly integrations: Record<string, string>;
 }
+
+/**
+ * One `pane.agent_status_changed` off the socket.
+ *
+ * This is the only event kind yan subscribes to. `pane_exited` is in Herdr's
+ * `EventKind` but not in `SubscriptionEventKind`, and `events.wait` refuses it
+ * — so "the agent died" has no push channel at all, which is why the liveness
+ * poll survives (supervision.md §2).
+ */
+export interface AgentStatusEvent {
+  readonly pane: string;
+  readonly status: AgentStatus;
+  /** The agent kind Herdr detected: claude, codex, … Empty when it did not say. */
+  readonly kind: string;
+}
+
+/** A subscription that has ended, and why, as far as this side can tell. */
+export interface ClosedEvent {
+  readonly reason: string;
+}

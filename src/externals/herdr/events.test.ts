@@ -3,7 +3,7 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { TerminalEvents } from './client.js';
+import { TerminalEvents } from './events.js';
 import { EventsError } from './errors.js';
 import { defaultEndpoint, endpointFor, herdrSocketPath } from './socket.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
@@ -356,9 +356,9 @@ describe('a subscription that ends', () => {
 });
 
 describe('the module cannot move the user or close anything', () => {
-  const source = readdirSync(join(repoRoot, 'src', 'externals', 'terminal-events'))
+  const source = readdirSync(join(repoRoot, 'src', 'externals', 'herdr'))
     .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-    .map((f) => readFileSync(join(repoRoot, 'src', 'externals', 'terminal-events', f), 'utf8'))
+    .map((f) => readFileSync(join(repoRoot, 'src', 'externals', 'herdr', f), 'utf8'))
     .join('\n')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');

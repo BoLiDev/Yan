@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resolve, setPrompter } from '../../src/cli/support/resolve.js';
-import { CommandError } from '../../src/cli/support/errors.js';
+import { resolve, setPrompter } from '../../src/cli/shared/resolve.js';
+import { CommandError } from '../../src/cli/shared/errors.js';
 
 /**
  * The soft/hard rule (runtime.md §3, cli-ux.md §1). The half that matters is

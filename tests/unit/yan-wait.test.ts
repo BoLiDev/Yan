@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { WAIT_SOURCES, watch, type EventSource, type StatusReader } from '../../src/cli/wait.js';
 import { Supervision } from '../../src/records/supervision/index.js';
 import { Task } from '../../src/records/task/index.js';
-import type { AgentStatus, AgentStatusEvent } from '../../src/externals/terminal-events/index.js';
+import type { AgentStatus, AgentStatusEvent } from '../../src/externals/herdr/index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
 
 /**
@@ -531,11 +531,27 @@ describe('a shift dispatched by the tmux half', () => {
   });
 });
 
-describe('the module layout Phase 6 promised', () => {
-  it('gives the socket client its own module with its own index and test', () => {
-    const dir = join(repoRoot, 'src', 'externals', 'terminal-events');
-    const files = readdirSync(dir);
+describe('the socket client lives with the rest of Herdr', () => {
+  it('is a file in the herdr module, with its own test, behind one index.ts', () => {
+    // Phase 6 gave it a module of its own, `externals/terminal-events`. That
+    // was one module too many: `externals` may not import each other, so the
+    // pane-id shape and the agent-status union were each written twice and a
+    // test existed only to police the copies. Two transports, one authority,
+    // one module.
+    const files = readdirSync(join(repoRoot, 'src', 'externals', 'herdr'));
     expect(files).toContain('index.ts');
-    expect(files.some((f) => f.endsWith('.test.ts'))).toBe(true);
+    expect(files).toContain('events.ts');
+    expect(files).toContain('events.test.ts');
+    // The CLI transport is in the same module, which is the whole point.
+    expect(files).toContain('terminal.ts');
+    expect(files).toContain('ids.ts');
+  });
+
+  it('and there is no second Herdr module for it to drift from', () => {
+    expect(readdirSync(join(repoRoot, 'src', 'externals')).sort()).toEqual([
+      'herdr',
+      'remote-git',
+      'worktree',
+    ]);
   });
 });

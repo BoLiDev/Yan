@@ -1,6 +1,6 @@
 import { TerminalError } from './errors.js';
 import { nativePath } from '../../util/paths.js';
-import { herdrCall, mapError, runHerdr, type HerdrRunner } from './client.js';
+import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
 import { paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { agentSessionOf, asRecord, statusOf, str } from './parse.js';
 import type {

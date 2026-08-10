@@ -99,7 +99,9 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 
 ## 5. Phases
 
-> **Phases 0–6 have landed, and the module names moved afterwards.** The entries below are the specs those phases were built to, left as written. The paths in them — `src/seams/forge`, `src/seams/pool`, `src/store` — are the old ones. The tree today is `src/externals/{terminal,terminal-events,remote-git,worktree}` and `src/records/{task,shift,log,supervision}`, each a directory with one `index.ts` that is its whole public surface, plus `src/hooks/` for the two Stop hooks the harnesses run.
+> **Phases 0–6 have landed, and the module names moved afterwards.** The entries below are the specs those phases were built to, left as written. The paths in them — `src/seams/forge`, `src/seams/pool`, `src/store` — are the old ones. The tree today is `src/externals/{herdr,remote-git,worktree}` and `src/records/{task,shift,log,supervision}`, each a directory with one `index.ts` that is its whole public surface, plus `src/hooks/` for the two Stop hooks the harnesses run.
+
+> Phase 6 briefly gave the event socket a module of its own, `externals/terminal-events`. It was folded into `externals/herdr` straight afterwards: two transports are not two authorities, and keeping them apart meant writing the pane-id shape and the agent-status union twice, with a test whose only job was to police the copies.
 
 ### Phase 0 — TS skeleton & dual dispatch
 

@@ -1,12 +1,12 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
-import { CommandError } from './support/errors.js';
+import { CommandError } from './shared/errors.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { normalizePath } from '../util/paths.js';
 import { WorktreePool } from '../externals/worktree/index.js';
-import { action, out } from './support/action.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan tree get | return | status` — the entry point to the worktree pool

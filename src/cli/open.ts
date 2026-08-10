@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { CommandError } from './support/errors.js';
+import { CommandError } from './shared/errors.js';
 import { nativePath } from '../util/paths.js';
 import { Task } from '../records/task/index.js';
-import { action, out } from './support/action.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan open <id> [--artifacts]` — open a task directory, or its artifacts/.

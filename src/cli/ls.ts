@@ -1,12 +1,12 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { CommandError } from './support/errors.js';
+import { CommandError } from './shared/errors.js';
 import { yanHome } from '../util/home.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
 import { Task } from '../records/task/index.js';
-import { action, out } from './support/action.js';
-import { dash, renderTable } from './support/table.js';
+import { action, out } from './shared/action.js';
+import { dash, renderTable } from './shared/table.js';
 
 /**
  * `yan ls [<id>] [--json]` — the queue, and the deeper view of one task.

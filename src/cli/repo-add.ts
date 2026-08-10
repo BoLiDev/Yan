@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { CommandError } from './support/errors.js';
+import { CommandError } from './shared/errors.js';
 import { clone, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { editJson, initJson, readJson } from '../util/json.js';
 import { samePath } from '../util/paths.js';
-import { action, out } from './support/action.js';
+import { action, out } from './shared/action.js';
 
 /**
  * `yan repo-add <url>` — register a repository and clone it into `repos/`.

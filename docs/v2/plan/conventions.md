@@ -25,7 +25,7 @@ Windows is a first-class target, not an afterthought. A change that only works o
 - **Return closed unions, never the outside authority's strings.** `type MrState = 'merged' | 'closed' | 'open' | 'unknown'`. This is [td §4.3 rule 1](../../mvp/td/architecture.md#43-seams) with the compiler enforcing it.
 - **Every module names its own error.** `YanError` is an **abstract** base and nothing throws it — a single concrete error would mean every failure in the system arrives under one name, and a name that fits everything describes nothing. Each module declares a subclass in its `errors.ts`: `WorktreeError`, `TerminalError`, `TaskError`. The throw site says what kind of thing failed; `code` says which condition.
 - **Codes hang off the class, not on loose constants.** `WorktreeError.codes.mismatch`, not an exported `WORKTREE_MISMATCH`. "What can this module throw" is then answered by one thing a reader already has in hand, and the codes cannot be public in one module and private in another. They keep a module prefix (`worktree_mismatch`) because `code` outlives the class: it is what a test asserts on and what survives a JSON boundary.
-- **The base earns its place twice.** `isYanError(e)` is the ours-versus-theirs boundary — a Herdr or `gh` error object must never propagate — and `src/cli/support/action.ts` needs one `instanceof` to map any of them to an exit code. Those are the only two reasons it exists.
+- **The base earns its place twice.** `isYanError(e)` is the ours-versus-theirs boundary — a Herdr or `gh` error object must never propagate — and `src/cli/shared/action.ts` needs one `instanceof` to map any of them to an exit code. Those are the only two reasons it exists.
 - **The command layer is the one exception.** `CommandError` takes the command as an argument instead of having six subclasses, because nothing catches a command error: it travels a few lines to `action()`, which prints it. Six names carrying no decision are six names too many.
 - **No module under `src/` imports another seam.** Enforced by lint, not by discipline ([runtime.md §2](../td/runtime.md#2-layout)).
 - **Comments explain why, not what.** The MVP's shell carries unusually good comments — `lib-term.sh`'s four rules, `lib-json.sh`'s CRLF explanation. Port that habit. A comment that restates the code is noise; one that records a decision is the reason the next person does not undo it.
@@ -49,7 +49,10 @@ Herdr accepts native paths for `--cwd` and returns them with backslashes. Normal
 
 `lib-lock.sh` used `mkdir` because Git Bash has no `flock` and `noclobber` is not reliably atomic on MSYS2 filesystems. In Node the primitive is `fs.open(path, 'wx')` — atomic exclusive create on both platforms — plus `fs.rename` for atomic replace. **Do not port the `mkdir` scheme and do not invent a second one.**
 
-The only remaining lock is `yan wait`'s single-flight ([supervision.md §4](../td/supervision.md#4-what-survives-from-the-mvp)). If a second lock appears, that is a design smell worth raising before implementing.
+**There are two locks, and there must never be a third without its reason written down.**
+
+1. `yan wait`'s single-flight ([supervision.md §4](../td/supervision.md#4-what-survives-from-the-mvp)) — under Claude every Stop can fire autoarm, and without it several watchers start.
+2. The worktree pool's, per clone. This one is not the obvious kind: exclusive create already serialises slot allocation, but `git worktree add` writes the *shared* clone's `.git/config`, and two of them collide on git's own config lock. The reasoning is in `externals/worktree/worktree.ts`, at length, because it is the sort of thing someone deletes on a tidy-up.
 
 ---
 

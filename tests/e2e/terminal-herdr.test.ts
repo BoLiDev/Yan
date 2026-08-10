@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { Terminal } from '../../src/externals/terminal/index.js';
-import * as term from '../../src/externals/terminal/index.js';
+import { Terminal } from '../../src/externals/herdr/index.js';
+import * as term from '../../src/externals/herdr/index.js';
 import { repoRoot } from '../helpers/fixtures.js';
 
 /**
@@ -68,7 +68,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     expect(started.name).toBe('yane2e');
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
     expect(started.pane).not.toBe(container.pane);
-    expect([...term.AGENT_STATUS_VALUES]).toContain(started.status);
+    expect([...term.AGENT_STATUS]).toContain(started.status);
     // agent_session arrives from the integration's SessionStart hook. Its
     // absence is normal, not an error (terminal.md §7) — so this only asserts
     // the shape when it is there.
