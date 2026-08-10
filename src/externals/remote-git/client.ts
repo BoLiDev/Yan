@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 /**
- * The one place a forge CLI is actually executed.
+ * The one place a host CLI is actually executed.
  *
  * Host routing lives here. It is NOT authentication: `gh` and `glab` each keep
  * their own login, and naming the host only tells the CLI which of its own
@@ -11,30 +11,30 @@ import { spawnSync } from 'node:child_process';
  * JSON on stdout the moment a CLI printed a deprecation notice — and a mapper
  * fed corrupted JSON would answer `unknown` for a perfectly healthy MR.
  *
- * This module is the seam's only edge to the outside world, which is what lets
+ * This file is the module's only edge to the outside world, which is what lets
  * a test replace it by import rather than by an environment-variable trick
  * (plan/conventions.md §5).
  */
 
-export interface ForgeResult {
+export interface CliResult {
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
 }
 
-export interface ForgeInvocation {
+export interface CliInvocation {
   readonly cli: 'gh' | 'glab';
   readonly args: readonly string[];
   /** Run in this directory, when the caller named one with `dir`. */
   readonly cwd?: string;
-  /** GH_HOST / GITLAB_HOST, when `forge.host` names one. */
+  /** GH_HOST / GITLAB_HOST, when the configured host names one. */
   readonly host?: string;
 }
 
-/** rc 127 is "the CLI is not installed", which is not a forge answer at all. */
+/** rc 127 is "the CLI is not installed", which is not an answer at all. */
 export const CLI_MISSING = 127;
 
-export function runForgeCli(invocation: ForgeInvocation): ForgeResult {
+export function runCli(invocation: CliInvocation): CliResult {
   const env = { ...process.env };
   if (invocation.host !== undefined && invocation.host !== '') {
     if (invocation.cli === 'gh') env.GH_HOST = invocation.host;
@@ -52,7 +52,7 @@ export function runForgeCli(invocation: ForgeInvocation): ForgeResult {
     return {
       code: CLI_MISSING,
       stdout: '',
-      stderr: `lib-forge: ${invocation.cli} is not on PATH - install it, then run 'yan doctor'`,
+      stderr: `remote-git: ${invocation.cli} is not on PATH - install it, then run 'yan doctor'`,
     };
   }
 

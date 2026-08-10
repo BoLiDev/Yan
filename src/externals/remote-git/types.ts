@@ -1,10 +1,11 @@
 /**
- * The forge seam's vocabulary. This file is the whole contract a caller sees.
+ * The vocabulary a caller of this module sees. It never learns whether the
+ * repository lives on GitHub or on GitLab.
  *
  * RETURN VALUES ARE A CLOSED SET DEFINED BY YAN (delivery.md §8.4). Every path
- * out of `forgeMrState` goes through `gateMrState` and every path out of
- * `forgeCiState` through `gateCiState`, so a fifth value cannot slip in even by
- * accident — and now the compiler says so too (plan/conventions.md §2).
+ * out of `mrState` goes through `gateMrState` and every path out of `ciState`
+ * through `gateCiState`, so a fifth value cannot slip in even by accident — and
+ * now the compiler says so too (plan/conventions.md §2).
  *
  * The four values of `MrState` exist because branching.md §6.4 needs exactly
  * those four to decide a round's `end`: merged → delivered, closed → abandoned,
@@ -13,21 +14,17 @@
  * CI answers only green or red (plus pending and none) on purpose. "Which job
  * failed" does not line up between the two providers and forcing it to would
  * drop information. What the caller needs is "CI is red". Which job, and why,
- * is the shift's business — and a shift may know which forge it is on, because
+ * is the shift's business — and a shift may know which host it is on, because
  * it is reading, not deciding.
  */
 
 export type MrState = 'merged' | 'closed' | 'open' | 'unknown';
 export type CiState = 'green' | 'red' | 'pending' | 'none';
 export type MergeStrategy = 'merge' | 'squash' | 'rebase';
-export type ForgeKind = 'github' | 'gitlab';
+export type HostKind = 'github' | 'gitlab';
 
 export const MR_STATES: readonly MrState[] = ['merged', 'closed', 'open', 'unknown'];
 export const CI_STATES: readonly CiState[] = ['green', 'red', 'pending', 'none'];
-
-export const FORGE_USAGE = 'forge_usage';
-export const FORGE_CONFIG = 'forge_config';
-export const FORGE_FAILED = 'forge_failed';
 
 /**
  * A repository is named with `repo` (a slug) or `dir` (a path), never with a
@@ -48,7 +45,7 @@ export interface MrCreateOptions extends RepoRef {
 }
 
 export interface MrRef extends RepoRef {
-  /** The URL `forgeMrCreate` returned, or a plain number. */
+  /** The URL `createMr` returned, or a plain number. */
   readonly mr: string;
 }
 
@@ -59,12 +56,12 @@ export interface MrMergeOptions extends MrRef {
 
 /**
  * The last statement on every path out of the two query verbs. If a mapper or a
- * provider branch ever produces something else, the gate turns it into the safe
- * member of the set and says so, rather than leaking a fifth value.
+ * provider ever produces something else, the gate turns it into the safe member
+ * of the set and says so, rather than leaking a fifth value.
  */
 export function gateMrState(value: string): MrState {
   if ((MR_STATES as readonly string[]).includes(value)) return value as MrState;
-  process.stderr.write(`lib-forge: internal: '${value}' is not a merge request state - reporting unknown\n`);
+  process.stderr.write(`remote-git: internal: '${value}' is not a merge request state - reporting unknown\n`);
   return 'unknown';
 }
 
@@ -75,6 +72,6 @@ export function gateMrState(value: string): MrState {
  */
 export function gateCiState(value: string): CiState {
   if ((CI_STATES as readonly string[]).includes(value)) return value as CiState;
-  process.stderr.write(`lib-forge: internal: '${value}' is not a CI state - reporting pending\n`);
+  process.stderr.write(`remote-git: internal: '${value}' is not a CI state - reporting pending\n`);
   return 'pending';
 }

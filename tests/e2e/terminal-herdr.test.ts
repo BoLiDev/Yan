@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import * as term from '../../src/seams/terminal/index.js';
+import { Terminal } from '../../src/externals/terminal/index.js';
+import * as term from '../../src/externals/terminal/index.js';
 import { repoRoot } from '../helpers/fixtures.js';
 
 /**
@@ -47,7 +48,7 @@ afterAll(() => {
 describe.runIf(present)('the seven functions, round-trip', () => {
   it('creates a container, starts an agent, lists it, and closes exactly that pane', () => {
     // 1/7 — a workspace of our own, so nothing here can disturb user's.
-    const container = term.termContainerCreate('yan-e2e', repoRoot);
+    const container = new Terminal().createContainer('yan-e2e', repoRoot);
     created = container.workspace;
     expect(container.workspace).toMatch(/^w[0-9A-Za-z]+$/);
     expect(container.tab).toMatch(/^w[0-9A-Za-z]+:t[0-9A-Za-z]+$/);
@@ -56,7 +57,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     // 2/7 — two steps: split with cwd and env, then start the agent into it.
     // It returns only once Herdr reports the agent interactive-ready, which is
     // what deleted the MVP's send-keys-and-hope start confirmation.
-    const started = term.termAgentStart({
+    const started = new Terminal().startAgent({
       container: container.workspace,
       name: 'yane2e',
       kind: 'claude',
@@ -76,10 +77,10 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     }
 
     // 5/7 — alive, by the two-step derivation.
-    expect(term.termAgentAlive(started.pane)).toBe('alive');
+    expect(new Terminal().agentAlive(started.pane)).toBe('alive');
 
     // 7/7 — the agent is listed, with its id, its state and its kind.
-    const listed = term.termList(container.workspace);
+    const listed = new Terminal().list(container.workspace);
     const mine = listed.find((a) => a.pane === started.pane);
     expect(mine, JSON.stringify(listed)).toBeDefined();
     expect(mine?.name).toBe('yane2e');
@@ -87,12 +88,12 @@ describe.runIf(present)('the seven functions, round-trip', () => {
 
     // 4/7 — reading does not mark the tab seen, which is why yan reads instead
     // of focusing (supervision.md §3).
-    const screen = term.termRead(started.pane, 20);
+    const screen = new Terminal().read(started.pane, 20);
     expect(typeof screen).toBe('string');
 
     // 6/7 — close exactly the recorded pane, and the derivation follows it.
-    term.termAgentClose(started.pane);
-    expect(term.termAgentAlive(started.pane)).toBe('dead');
+    new Terminal().close(started.pane);
+    expect(new Terminal().agentAlive(started.pane)).toBe('dead');
 
     // The workspace is still ours to close, and afterAll does it.
     expect(created).toBe(container.workspace);
@@ -101,14 +102,14 @@ describe.runIf(present)('the seven functions, round-trip', () => {
   it('carries argv through without a shell in between', () => {
     // evidence.md §2: `--append-system-prompt "a b"` survives intact, which is
     // what deleted `_term_quote_cmd`.
-    const container = term.termContainerCreate('yan-e2e-argv', repoRoot);
+    const container = new Terminal().createContainer('yan-e2e-argv', repoRoot);
     const previous = created;
     created = container.workspace;
     if (previous !== undefined) {
       spawnSync('herdr', ['workspace', 'close', previous], { encoding: 'utf8', windowsHide: true });
     }
 
-    const started = term.termAgentStart({
+    const started = new Terminal().startAgent({
       container: container.workspace,
       name: 'yane2eargv',
       kind: 'claude',
@@ -117,17 +118,17 @@ describe.runIf(present)('the seven functions, round-trip', () => {
       timeoutMs: 120_000,
     });
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
-    term.termAgentClose(started.pane);
+    new Terminal().close(started.pane);
   });
 
   it('reports the installed version and the integrations, without claiming authority', () => {
-    const version = term.termVersion();
+    const version = term.herdrHealth();
     expect(version).toBeDefined();
     expect(version?.protocol).toBe(term.HERDR_PROTOCOL);
     expect(version?.schemaVersion).toBe(term.HERDR_SCHEMA_VERSION);
 
     // An installed integration is a session-id and version fact, nothing more.
-    const status = term.termIntegrationStatus();
+    const status = version?.integrations ?? {};
     expect(typeof status).toBe('object');
   });
 });

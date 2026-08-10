@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import * as github from '../../src/seams/forge/github.js';
-import * as gitlab from '../../src/seams/forge/gitlab.js';
-import { CI_STATES, MR_STATES, gateCiState, gateMrState } from '../../src/seams/forge/types.js';
-import { repoRoot } from '../helpers/fixtures.js';
+import * as github from './github.js';
+import * as gitlab from './gitlab.js';
+import { CI_STATES, MR_STATES, gateCiState, gateMrState } from './types.js';
+import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
  * The port of `tests/unit/lib-forge-map.test.sh`.

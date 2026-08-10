@@ -26,6 +26,7 @@ Windows is a first-class target, not an afterthought. A change that only works o
 - **Errors carry a code.** One `YanError` with a `code` field, thrown by seams after mapping. Never let a Herdr or `gh` error object propagate.
 - **No module under `src/` imports another seam.** Enforced by lint, not by discipline ([runtime.md §2](../td/runtime.md#2-layout)).
 - **Comments explain why, not what.** The MVP's shell carries unusually good comments — `lib-term.sh`'s four rules, `lib-json.sh`'s CRLF explanation. Port that habit. A comment that restates the code is noise; one that records a decision is the reason the next person does not undo it.
+- **No section banners.** `// --- internals ---` above a run of `private` methods, or `// --- paths ---` at the top of `layout.ts`, says only what the modifier or the filename already says. They were worth something in a 567-line shell file with no other navigation; in split files with modifiers they are decoration. If a file needs a banner to be navigable, split it.
 
 ---
 

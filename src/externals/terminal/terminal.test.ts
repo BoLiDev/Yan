@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import * as term from '../../src/seams/terminal/index.js';
-import { herdrErrorCode, mapError } from '../../src/seams/terminal/client.js';
-import { AGENT_STATUS, HERDR_PROTOCOL } from '../../src/seams/terminal/types.js';
-import { YanError } from '../../src/util/error.js';
-import { repoRoot } from '../helpers/fixtures.js';
+import { Terminal } from './index.js';
+import * as term from './index.js';
+import { herdrErrorCode, mapError } from './client.js';
+import { AGENT_STATUS, HERDR_PROTOCOL } from './schema.js';
+import { YanError } from '../../util/error.js';
+import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
  * The assertions of `tests/unit/lib-term-contract.test.sh`, ported to vitest and
@@ -15,10 +16,10 @@ import { repoRoot } from '../helpers/fixtures.js';
  * Everything here is true whether or not Herdr is installed, which is what
  * makes it a contract test rather than an integration test: the id rules, the
  * "cannot close what yan did not create" promise, and the closed set that comes
- * out of `termAgentAlive`.
+ * out of `agentAlive`.
  */
 
-const seamDir = join(repoRoot, 'src', 'seams', 'terminal');
+const moduleDir = join(repoRoot, 'src', 'externals', 'terminal');
 
 /**
  * The seam with its comments stripped.
@@ -29,9 +30,12 @@ const seamDir = join(repoRoot, 'src', 'seams', 'terminal');
  * make writing that reason down a test failure, which is exactly backwards.
  */
 function seamSource(): string {
-  return readdirSync(seamDir)
-    .filter((f) => f.endsWith('.ts'))
-    .map((f) => readFileSync(join(seamDir, f), 'utf8'))
+  return readdirSync(moduleDir)
+    // Not this file. It lives in the module now, and it names every forbidden
+    // string as the literal it asserts against — grepping itself would fail
+    // every rule below.
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+    .map((f) => readFileSync(join(moduleDir, f), 'utf8'))
     .join('\n')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
@@ -44,10 +48,10 @@ describe('ids are used, nothing is located by label alone', () => {
   // exactly what supervision does.
   const notPaneIds = ['yan', 's3-auth', '', '@3', '%7', 'w1', 'w1:t1', '3', 'w1:p'];
 
-  it.each(notPaneIds)('termSend refuses %j', (bad) => {
+  it.each(notPaneIds)('send refuses %j', (bad) => {
     let thrown: unknown;
     try {
-      term.termSend(bad, 'hello');
+      new Terminal().send(bad, 'hello');
     } catch (e) {
       thrown = e;
     }
@@ -56,11 +60,11 @@ describe('ids are used, nothing is located by label alone', () => {
     expect((thrown as YanError).message).toContain('never a label');
   });
 
-  it.each(notPaneIds)('termRead / termAgentAlive / termAgentClose refuse %j', (bad) => {
+  it.each(notPaneIds)('read / agentAlive / close refuse %j', (bad) => {
     for (const call of [
-      () => term.termRead(bad),
-      () => term.termAgentAlive(bad),
-      () => term.termAgentClose(bad),
+      () => new Terminal().read(bad),
+      () => new Terminal().agentAlive(bad),
+      () => new Terminal().close(bad),
     ]) {
       let thrown: unknown;
       try {
@@ -74,11 +78,11 @@ describe('ids are used, nothing is located by label alone', () => {
   });
 
   it.each(['mysession', 't042', '', 'w1:p1', '$0', '%7'])(
-    'termList refuses the container name %j',
+    'list refuses the container name %j',
     (bad) => {
       let thrown: unknown;
       try {
-        term.termList(bad === '' ? 'not-a-workspace' : bad);
+        new Terminal().list(bad === '' ? 'not-a-workspace' : bad);
       } catch (e) {
         thrown = e;
       }
@@ -91,7 +95,7 @@ describe('ids are used, nothing is located by label alone', () => {
     // It then fails on Herdr, not on parsing — so it must not be a usage error.
     let thrown: unknown;
     try {
-      term.termRead('w9:p99');
+      new Terminal().read('w9:p99');
     } catch (e) {
       thrown = e;
     }
@@ -103,17 +107,17 @@ describe('ids are used, nothing is located by label alone', () => {
 
 describe('usage errors', () => {
   it('are exit 2, which means you called this wrongly', () => {
-    expect(() => term.termContainerCreate('')).toThrow(YanError);
-    expect(() => term.termRead('w1:p1', 0)).toThrow(/whole number of lines/);
-    expect(() => term.termSend('w1:p1', '')).toThrow(/nothing to send/);
+    expect(() => new Terminal().createContainer('')).toThrow(YanError);
+    expect(() => new Terminal().read('w1:p1', 0)).toThrow(/whole number of lines/);
+    expect(() => new Terminal().send('w1:p1', '')).toThrow(/nothing to send/);
     expect(() =>
-      term.termAgentStart({ container: 'w1', name: 'Bad Name', kind: 'claude', cwd: '.' }),
+      new Terminal().startAgent({ container: 'w1', name: 'Bad Name', kind: 'claude', cwd: '.' }),
     ).toThrow(/agent name/);
     expect(() =>
-      term.termAgentStart({ container: 'w1', name: 'ok', kind: '', cwd: '.' }),
+      new Terminal().startAgent({ container: 'w1', name: 'ok', kind: '', cwd: '.' }),
     ).toThrow(/agent kind/);
     expect(() =>
-      term.termAgentStart({ container: 'w1', name: 'ok', kind: 'claude', cwd: '' }),
+      new Terminal().startAgent({ container: 'w1', name: 'ok', kind: 'claude', cwd: '' }),
     ).toThrow(/working directory/);
   });
 });
@@ -220,7 +224,7 @@ describe('alive is a closed set of three words', () => {
     const path = process.env.PATH;
     process.env.PATH = join(repoRoot, 'no-such-directory');
     try {
-      expect(term.termAgentAlive('w9:p99')).toBe('unknown');
+      expect(new Terminal().agentAlive('w9:p99')).toBe('unknown');
     } finally {
       if (path === undefined) delete process.env.PATH;
       else process.env.PATH = path;
@@ -239,7 +243,7 @@ describe('the generated types', () => {
   });
 
   it('are generated, and say so', () => {
-    const generated = readFileSync(join(seamDir, 'types.ts'), 'utf8');
+    const generated = readFileSync(join(moduleDir, 'schema.ts'), 'utf8');
     expect(generated.startsWith('// GENERATED')).toBe(true);
   });
 });

@@ -1,10 +1,13 @@
-import type { CiState, MrState } from './types.js';
+import type { CliResult } from './client.js';
+import type { Provider } from './provider.js';
+import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
+import { extractUrl } from './validate.js';
 
 /**
  * GitHub's JSON, mapped into yan's vocabulary. Both mappers are PURE: no
  * network, no configuration, no module state. They are the highest-value code
- * in this seam, because a wrong confident answer would come from here, and they
- * are tested against payloads a real `gh` really printed
+ * in this module, because a wrong confident answer would come from here, and
+ * they are tested against payloads a real `gh` really printed
  * (tests/fixtures/forge/PROVENANCE.json).
  */
 
@@ -38,7 +41,7 @@ function lower(value: unknown): string {
  * `mergedAt` (REST: `merged`) is consulted before `state`, and deliberately so:
  * a SQUASH-merged pull request is merged even though its head commit is not an
  * ancestor of the base branch and its branch may already be deleted. Local git
- * ancestry is not the question; what the forge says is (Rule 1).
+ * ancestry is not the question; what the host says is (Rule 1).
  */
 export function mapMrState(payload: string): MrState {
   const o = asObject(payload);
@@ -137,3 +140,46 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
   }
   return args;
 }
+
+export const githubProvider: Provider = {
+  cli: 'gh',
+
+  createArgs(options: MrCreateOptions, body: string): string[] {
+    const args = [
+      'pr',
+      'create',
+      '--base',
+      options.target,
+      '--head',
+      options.source,
+      '--title',
+      options.title,
+      '--body',
+      body,
+    ];
+    if (options.draft === true) args.push('--draft');
+    if (options.repo !== undefined && options.repo !== '') args.push('--repo', options.repo);
+    return args;
+  },
+
+  createdUrl(result: CliResult): string {
+    return extractUrl(result.stdout, /https?:\/\/\S+\/pull\/[0-9]+/g);
+  },
+
+  stateArgs(mr, repo) {
+    return ['pr', 'view', ...refArgs(mr, repo), '--json', 'state,mergedAt'];
+  },
+
+  ciArgs(mr, repo) {
+    return ['pr', 'view', ...refArgs(mr, repo), '--json', 'statusCheckRollup'];
+  },
+
+  mergeArgs(mr: string, repo: string | undefined, strategy: MergeStrategy, deleteSource: boolean) {
+    const args = ['pr', 'merge', ...refArgs(mr, repo), `--${strategy}`];
+    if (deleteSource) args.push('--delete-branch');
+    return args;
+  },
+
+  mapMrState,
+  mapCiState,
+};

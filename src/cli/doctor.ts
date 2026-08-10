@@ -3,12 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
-import {
-  HERDR_PROTOCOL,
-  HERDR_SCHEMA_VERSION,
-  termIntegrationStatus,
-  termVersion,
-} from '../seams/terminal/index.js';
+import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/terminal/index.js';
 import { action, out } from './support/action.js';
 
 /**
@@ -64,7 +59,7 @@ export const command = new Command('doctor')
       out('');
       out('herdr');
 
-      const version = termVersion();
+      const version = herdrHealth();
       if (version === undefined) {
         line(report, 'fail', 'herdr', "not answering - install it, or start it, then run 'yan doctor'");
       } else {
@@ -85,7 +80,9 @@ export const command = new Command('doctor')
         );
       }
 
-      const installed = termIntegrationStatus();
+      // Empty when herdr did not answer at all; the failure is already reported
+      // above, and every kind then reads as "no integration installed".
+      const installed = version?.integrations ?? {};
       const kinds = configuredAgentKinds();
       if (kinds.length === 0) {
         line(report, 'warn', 'integrations', 'conf/config.json names no agents');

@@ -1,5 +1,9 @@
 import { YanError } from '../../util/error.js';
-import { FORGE_USAGE, type CiState, type MrState } from './types.js';
+import type { CliResult } from './client.js';
+import { REMOTE_GIT_USAGE } from './errors.js';
+import type { Provider } from './provider.js';
+import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
+import { extractUrl } from './validate.js';
 
 /**
  * GitLab's JSON, mapped into yan's vocabulary. Both mappers are PURE.
@@ -83,7 +87,7 @@ export function mapCiState(payload: string): CiState {
 
 /**
  * `glab` wants an iid, not a URL. A yan merge request reference is usually the
- * URL `forgeMrCreate` returned, so splitting it into "which project" and "which
+ * URL `createMr` returned, so splitting it into "which project" and "which
  * number" happens here, once, instead of at every call site.
  */
 export function refArgs(mr: string, repo: string | undefined): string[] {
@@ -107,7 +111,7 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
     throw new YanError(
-      FORGE_USAGE,
+      REMOTE_GIT_USAGE,
       `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
       { exitCode: 2 },
     );
@@ -117,3 +121,64 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
   if (project !== '') args.push('--repo', project);
   return args;
 }
+
+export const gitlabProvider: Provider = {
+  cli: 'glab',
+
+  /**
+   * `--no-editor` and `--yes` together are what make this non-interactive; glab
+   * otherwise opens an editor and waits, which inside a pane looks like a hang.
+   */
+  createArgs(options: MrCreateOptions, body: string): string[] {
+    const args = [
+      'mr',
+      'create',
+      '--source-branch',
+      options.source,
+      '--target-branch',
+      options.target,
+      '--title',
+      options.title,
+      '--description',
+      body,
+      '--no-editor',
+      '--yes',
+    ];
+    if (options.draft === true) args.push('--draft');
+    if (options.repo !== undefined && options.repo !== '') args.push('--repo', options.repo);
+    return args;
+  },
+
+  /** glab puts the URL on either stream depending on version, so search both. */
+  createdUrl(result: CliResult): string {
+    return extractUrl(
+      `${result.stdout}${result.stderr}`,
+      /https?:\/\/\S+\/merge_requests\/[0-9]+/g,
+    );
+  },
+
+  stateArgs(mr, repo) {
+    return ['mr', 'view', ...refArgs(mr, repo), '--output', 'json'];
+  },
+
+  ciArgs(mr, repo) {
+    return ['mr', 'view', ...refArgs(mr, repo), '--output', 'json'];
+  },
+
+  /**
+   * `--auto-merge` defaults to TRUE in glab: with a pipeline running it would
+   * schedule the merge and report success without merging anything. yan's verb
+   * means "merge it now", so the default is turned off here rather than left
+   * for every caller to remember.
+   */
+  mergeArgs(mr: string, repo: string | undefined, strategy: MergeStrategy, deleteSource: boolean) {
+    const args = ['mr', 'merge', ...refArgs(mr, repo), '--yes', '--auto-merge=false'];
+    if (strategy === 'squash') args.push('--squash');
+    if (strategy === 'rebase') args.push('--rebase');
+    if (deleteSource) args.push('--remove-source-branch');
+    return args;
+  },
+
+  mapMrState,
+  mapCiState,
+};

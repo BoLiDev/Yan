@@ -37,9 +37,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const srcRoot = resolve(process.argv[2] ?? join(repoRoot, 'src'));
 
 // Directories whose children are each one module with one entry point.
-// `seams` is still listed while the rename is in flight; it goes when the last
-// module has moved out of it.
-const MODULE_ROOTS = ['externals', 'seams'];
+const MODULE_ROOTS = ['externals'];
 
 function walk(dir) {
   let entries;
@@ -100,7 +98,15 @@ function isEntry(target, layer) {
 
 const violations = [];
 
-for (const file of walk(srcRoot)) {
+// tests/ is scanned too, and that is the point of rule 1 rather than an extra:
+// the only thing that had ever reached past an entry point was a test, because
+// a test in tests/ cannot see a module's internals any other way. A module's
+// own test lives inside the module and is covered by the src walk.
+// Skipped when an explicit root was passed — that is fixture mode.
+const roots = [srcRoot];
+if (process.argv[2] === undefined) roots.push(join(repoRoot, 'tests'));
+
+for (const file of roots.flatMap(walk)) {
   const source = readFileSync(file, 'utf8');
   const fromLayer = layerOf(file);
   for (const match of source.matchAll(SPECIFIER)) {
@@ -152,4 +158,6 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-process.stdout.write(`module boundaries: ok (${posix(relative(repoRoot, srcRoot)) || '.'})\n`);
+process.stdout.write(
+  `module boundaries: ok (${roots.map((r) => posix(relative(repoRoot, r)) || '.').join(', ')})\n`,
+);

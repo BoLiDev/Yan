@@ -180,8 +180,6 @@ export class WorktreePool {
     }));
   }
 
-  // --- internals -----------------------------------------------------------
-
   private getLocked(size: number, base: string, branch: string, holder: string): LeaseGrant {
     const name = repoName(absolute(this.clone));
 
