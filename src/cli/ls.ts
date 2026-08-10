@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { CommandError } from './support/errors.js';
 import { yanHome } from '../util/home.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
-import { isTaskId, taskDir, taskExists, taskFile, taskList } from '../store/task.js';
+import { Task } from '../records/task/index.js';
 import { action, out } from './support/action.js';
 import { dash, renderTable } from './support/table.js';
 
@@ -50,7 +50,7 @@ interface ShiftRow {
  * file may be half-written at the moment we look (lib-shift invariant 3).
  */
 function shiftRows(id: string): ShiftRow[] {
-  const dir = join(taskDir(id), 'shifts');
+  const dir = join(new Task(id).dir, 'shifts');
   let sids: string[];
   try {
     sids = readdirSync(dir);
@@ -80,7 +80,7 @@ function shiftRows(id: string): ShiftRow[] {
 }
 
 function rawTask(id: string): Record<string, unknown> {
-  const raw = readJsonIfPresent(taskFile(id));
+  const raw = readJsonIfPresent(new Task(id).file);
   return typeof raw === 'object' && raw !== null && !Array.isArray(raw)
     ? (raw as Record<string, unknown>)
     : {};
@@ -95,7 +95,7 @@ function rawUnits(task: Record<string, unknown>): Record<string, unknown>[] {
 }
 
 export function queueJson(): unknown {
-  const tasks = taskList().map((id) => {
+  const tasks = Task.list().map((id) => {
     const task = rawTask(id);
     const units = rawUnits(task);
     return {
@@ -156,7 +156,7 @@ function renderTask(id: string, json: ReturnType<typeof taskDetailJson>): void {
   };
   out(`${String(data.id)}  ${String(data.title)}`);
   out(`state    ${data.complete ? 'done' : 'open'}`);
-  out(`dir      ${taskDir(id)}`);
+  out(`dir      ${new Task(id).dir}`);
 
   out('');
   out('units');
@@ -210,8 +210,8 @@ export const command = new Command('ls')
         return;
       }
 
-      if (!isTaskId(id) || !taskExists(id)) {
-        const where = isTaskId(id) ? taskFile(id) : `${id}/task.json`;
+      if (!Task.exists(id)) {
+        const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
         throw new CommandError('task', 'missing', `no such task: ${id} - ${where} does not exist`);
       }
 

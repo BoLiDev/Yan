@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as t from '../../src/store/task.js';
-import { TaskError } from '../../src/store/task.js';
-import { cleanupTempDirs, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
+import { Task, TaskError, Unit } from './index.js';
+import type { TaskData, UnitData } from './index.js';
+import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 
 /**
  * The port of `tests/unit/lib-task.test.sh`.
@@ -11,6 +11,18 @@ import { cleanupTempDirs, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
  * Phase 1 Trace: "history[] stays append-only; the four current scalars stay
  * separate from it."
  */
+
+/**
+ * The unit data a fixture just wrote. A test accessor, not module surface:
+ * `Task.unit(name)` hands back identity, and `.read()` is how you get data —
+ * pulling a unit out of an already-parsed document is a convenience only a
+ * test wants.
+ */
+function requireUnitOf(task: TaskData, name: string): UnitData {
+  const found = task.units.find((u) => u.name === name);
+  if (found === undefined) throw new Error(`no such unit in the fixture: `);
+  return found;
+}
 
 let home = '';
 let previousHome: string | undefined;
@@ -29,8 +41,8 @@ afterEach(() => {
 afterAll(cleanupTempDirs);
 
 function seed(): void {
-  t.taskInit('t042', 'unify the auth header');
-  t.unitAdd('t042', 'auth', 'monorepo-x', 'master', {
+  Task.create('t042', 'unify the auth header');
+  new Task('t042').addUnit('auth', 'monorepo-x', 'master', {
     branch: 'feat/auth-r1',
     scope: ['apps/auth', 'apps/common'],
   });
@@ -38,47 +50,47 @@ function seed(): void {
 
 describe('creation', () => {
   it('makes task.json, brief.md and log.md, and is idempotent', () => {
-    t.taskInit('t042', 'unify the auth header');
-    const dir = t.taskDir('t042');
+    Task.create('t042', 'unify the auth header');
+    const dir = new Task('t042').dir;
     expect(readFileSync(join(dir, 'brief.md'), 'utf8')).toContain('# t042 unify the auth header');
     expect(readFileSync(join(dir, 'log.md'), 'utf8')).toBe('# t042 unify the auth header\n\n');
 
-    t.taskInit('t042', 'a different title');
-    expect(t.taskTitle('t042')).toBe('unify the auth header');
+    Task.create('t042', 'a different title');
+    expect(new Task('t042').title()).toBe('unify the auth header');
   });
 
   it('refuses a bad task id', () => {
-    expect(() => t.taskInit('', 'x')).toThrow(TaskError);
-    expect(() => t.taskInit('has space', 'x')).toThrow(TaskError);
-    expect(() => t.taskInit('t042/../escape', 'x')).toThrow(TaskError);
+    expect(() => Task.create('', 'x')).toThrow(TaskError);
+    expect(() => Task.create('has space', 'x')).toThrow(TaskError);
+    expect(() => Task.create('t042/../escape', 'x')).toThrow(TaskError);
   });
 
   it('lists tasks by scanning, never from a stored list', () => {
-    t.taskInit('t002', 'second');
-    t.taskInit('t001', 'first');
-    expect(t.taskList()).toEqual(['t001', 't002']);
+    Task.create('t002', 'second');
+    Task.create('t001', 'first');
+    expect(Task.list()).toEqual(['t001', 't002']);
   });
 });
 
 describe('units', () => {
   it('requires an explicit target and defaults mode to mr', () => {
-    t.taskInit('t042', 'x');
-    expect(() => t.unitAdd('t042', 'auth', 'monorepo-x', '')).toThrow(TaskError);
-    t.unitAdd('t042', 'auth', 'monorepo-x', 'master');
-    expect(t.requireUnit(t.readTask('t042'), 'auth').mode).toBe('mr');
+    Task.create('t042', 'x');
+    expect(() => new Task('t042').addUnit('auth', 'monorepo-x', '')).toThrow(TaskError);
+    new Task('t042').addUnit('auth', 'monorepo-x', 'master');
+    expect(requireUnitOf(new Task('t042').read(), 'auth').mode).toBe('mr');
   });
 
   it('refuses a duplicate unit and an invalid mode', () => {
     seed();
-    expect(() => t.unitAdd('t042', 'auth', 'monorepo-x', 'master')).toThrow(TaskError);
-    expect(() => t.unitAdd('t042', 'other', 'monorepo-x', 'master', { mode: 'nope' })).toThrow(
+    expect(() => new Task('t042').addUnit('auth', 'monorepo-x', 'master')).toThrow(TaskError);
+    expect(() => new Task('t042').addUnit('other', 'monorepo-x', 'master', { mode: 'nope' })).toThrow(
       TaskError,
     );
   });
 
   it('writes the unit shape branching.md §6.4 specifies, in that key order', () => {
     seed();
-    const raw = JSON.parse(readFileSync(t.taskFile('t042'), 'utf8')) as {
+    const raw = JSON.parse(readFileSync(new Task('t042').file, 'utf8')) as {
       units: Record<string, unknown>[];
     };
     expect(Object.keys(raw.units[0] as object)).toEqual([
@@ -98,11 +110,11 @@ describe('units', () => {
 describe('the four current scalars', () => {
   it('are set without ever touching history[]', () => {
     seed();
-    t.unitSet('t042', 'auth', 'branch', 'feat/auth-r2');
-    t.unitSet('t042', 'auth', 'mr', 'https://example.invalid/mr/31');
-    t.unitSet('t042', 'auth', 'mode', 'branch');
+    new Task('t042').unit('auth').set('branch', 'feat/auth-r2');
+    new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/31');
+    new Task('t042').unit('auth').set('mode', 'branch');
 
-    const unit = t.requireUnit(t.readTask('t042'), 'auth');
+    const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r2');
     expect(unit.mr).toBe('https://example.invalid/mr/31');
     expect(unit.mode).toBe('branch');
@@ -111,12 +123,12 @@ describe('the four current scalars', () => {
 
   it('refuses an invalid mode', () => {
     seed();
-    expect(() => t.unitSet('t042', 'auth', 'mode', 'nope')).toThrow(TaskError);
+    expect(() => new Task('t042').unit('auth').set('mode', 'nope')).toThrow(TaskError);
   });
 
   it('refuses an unknown unit', () => {
     seed();
-    expect(() => t.unitSet('t042', 'nope', 'branch', 'x')).toThrow(TaskError);
+    expect(() => new Task('t042').unit('nope').set('branch', 'x')).toThrow(TaskError);
   });
 });
 
@@ -124,36 +136,38 @@ describe('history is append-only', () => {
   it('offers no way to reach an existing entry', () => {
     // The API is the enforcement. If one of these ever appears, invariant 1 has
     // been lost and this test is the alarm.
-    const surface = Object.keys(t);
-    for (const forbidden of ['historySet', 'historyReplace', 'historyDelete', 'historyAt']) {
+    const surface = Object.getOwnPropertyNames(Unit.prototype);
+    for (const forbidden of ['setHistory', 'replaceHistory', 'deleteHistory', 'historyAt']) {
       expect(surface).not.toContain(forbidden);
     }
+    // The only writer is an append, and it takes no index.
+    expect(surface).toContain('appendHistory');
   });
 
   it('carries every earlier entry across untouched', () => {
     seed();
-    t.historyAppend('t042', 'auth', 'feat/auth-r1', 'master', '08-01', 'delivered', 'mr/1');
-    t.historyAppend('t042', 'auth', 'feat/auth-r2', 'master', '08-05', 'abandoned');
+    new Task('t042').unit('auth').appendHistory('feat/auth-r1', 'master', '08-01', 'delivered', 'mr/1');
+    new Task('t042').unit('auth').appendHistory('feat/auth-r2', 'master', '08-05', 'abandoned');
 
-    const history = t.requireUnit(t.readTask('t042'), 'auth').history;
+    const history = requireUnitOf(new Task('t042').read(), 'auth').history;
     expect(history).toEqual([
       { branch: 'feat/auth-r1', target: 'master', at: '08-01', end: 'delivered', mr: 'mr/1' },
       { branch: 'feat/auth-r2', target: 'master', at: '08-05', end: 'abandoned' },
     ]);
-    expect(t.unitRounds('t042', 'auth')).toBe(2);
+    expect(new Task('t042').unit('auth').rounds()).toBe(2);
   });
 
   it('refuses an end that is not delivered or abandoned', () => {
     seed();
-    expect(() => t.historyAppend('t042', 'auth', 'b', 'master', '', 'finished')).toThrow(TaskError);
+    expect(() => new Task('t042').unit('auth').appendHistory('b', 'master', '', 'finished')).toThrow(TaskError);
   });
 
   it('rotate archives the round and clears mr, atomically', () => {
     seed();
-    t.unitSet('t042', 'auth', 'mr', 'https://example.invalid/mr/31');
-    t.unitRotate('t042', 'auth', 'delivered', 'feat/auth-r2', '08-09');
+    new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/31');
+    new Task('t042').unit('auth').rotate('delivered', 'feat/auth-r2', '08-09');
 
-    const unit = t.requireUnit(t.readTask('t042'), 'auth');
+    const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r2');
     expect(unit.mr).toBeNull();
     expect(unit.history).toEqual([
@@ -171,24 +185,24 @@ describe('history is append-only', () => {
 describe('the completion flag', () => {
   it('is the one thing about a task that is stored rather than derived', () => {
     seed();
-    expect(t.taskIsComplete('t042')).toBe(false);
-    t.setComplete('t042', true);
-    expect(t.taskIsComplete('t042')).toBe(true);
+    expect(new Task('t042').isComplete()).toBe(false);
+    new Task('t042').setComplete(true);
+    expect(new Task('t042').isComplete()).toBe(true);
   });
 });
 
 describe('reading is defensive', () => {
   it('survives a task.json missing every optional key', () => {
-    t.taskInit('t042', 'x');
-    writeFileSync(t.taskFile('t042'), '{"version":1}\n');
-    const task = t.readTask('t042');
+    Task.create('t042', 'x');
+    writeFileSync(new Task('t042').file, '{"version":1}\n');
+    const task = new Task('t042').read();
     expect(task.title).toBe('');
     expect(task.units).toEqual([]);
     expect(task.complete).toBe(false);
   });
 
   it('reports a genuinely missing task rather than inventing one', () => {
-    expect(() => t.readTask('nope')).toThrow(TaskError);
-    expect(t.taskExists('nope')).toBe(false);
+    expect(() => new Task('nope').read()).toThrow(TaskError);
+    expect(Task.exists('nope')).toBe(false);
   });
 });

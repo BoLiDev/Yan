@@ -12,7 +12,7 @@
 //      the helper becomes public by accident, and nobody can say what the
 //      module offers any more.
 //
-//   2. NO SIDEWAYS EDGES. No module under src/externals/<a>/ imports
+//   2. NO SIDEWAYS EDGES, BETWEEN EXTERNALS. No module under src/externals/<a>/ imports
 //      src/externals/<b>/. An external maps one outside authority into yan's
 //      vocabulary; one that reaches into another has started making decisions,
 //      which is the one thing they exist not to do (td §4.3).
@@ -37,7 +37,14 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const srcRoot = resolve(process.argv[2] ?? join(repoRoot, 'src'));
 
 // Directories whose children are each one module with one entry point.
-const MODULE_ROOTS = ['externals'];
+const MODULE_ROOTS = ['externals', 'records'];
+
+// …but only externals may not import each other. `records/` is yan's own
+// domain and it genuinely nests: a task HAS a log, a shift BELONGS TO a task,
+// so `shift → task → log` is the hierarchy and not a leak. What rule 2 forbids
+// for externals — one outside authority reaching into another, which means it
+// has started deciding — has no counterpart here.
+const NO_SIDEWAYS_EDGES = ['externals'];
 
 function walk(dir) {
   let entries;
@@ -127,8 +134,14 @@ for (const file of roots.flatMap(walk)) {
       );
     }
 
-    // 2. no sideways edges
-    if (fromIsModule && toIsModule && fromLayer !== toLayer) {
+    // 2. no sideways edges, between externals only
+    if (
+      fromIsModule &&
+      toIsModule &&
+      fromLayer !== toLayer &&
+      NO_SIDEWAYS_EDGES.includes(fromLayer.split('/')[0]) &&
+      NO_SIDEWAYS_EDGES.includes(toLayer.split('/')[0])
+    ) {
       violations.push(`${where}\n    ${fromLayer} may not import ${toLayer}`);
     }
 

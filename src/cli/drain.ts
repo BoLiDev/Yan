@@ -2,7 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { CommandError } from './support/errors.js';
-import { taskDir } from '../store/task.js';
+import { Task } from '../records/task/index.js';
 import { action, out } from './support/action.js';
 
 /**
@@ -41,7 +41,7 @@ export const command = new Command('drain')
           throw CommandError.usage('drain', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
           );
         }
-        wake = join(taskDir(task), 'run', 'wake');
+        wake = join(new Task(task).dir, 'run', 'wake');
       }
 
       if (!existsSync(wake)) return;

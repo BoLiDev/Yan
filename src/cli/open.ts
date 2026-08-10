@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { CommandError } from './support/errors.js';
 import { nativePath } from '../util/paths.js';
-import { taskDir, taskExists } from '../store/task.js';
+import { Task } from '../records/task/index.js';
 import { action, out } from './support/action.js';
 
 /**
@@ -47,9 +47,9 @@ export const command = new Command('open')
       if (id === undefined || id === '') {
         throw new CommandError('open', 'usage', 'a task id is required', { exitCode: 2 });
       }
-      if (!taskExists(id)) throw new CommandError('task', 'missing', `no such task: ${id}`);
+      if (!Task.exists(id)) throw new CommandError('task', 'missing', `no such task: ${id}`);
 
-      let dir = taskDir(id);
+      let dir = new Task(id).dir;
       if (options.artifacts === true) {
         dir = join(dir, 'artifacts');
         // yan may tidy artifacts/ but never changes what is in it (Appendix B).

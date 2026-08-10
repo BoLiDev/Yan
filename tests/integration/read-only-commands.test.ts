@@ -53,9 +53,9 @@ beforeEach(async () => {
   previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
   process.env.YAN_HOME = home;
-  const store = await import('../../src/store/task.js');
-  store.taskInit('t042', 'unify the auth header');
-  store.unitAdd('t042', 'auth', 'monorepo-x', 'master', {
+  const store = await import('../../src/records/task/index.js');
+  store.Task.create('t042', 'unify the auth header');
+  new store.Task('t042').addUnit('auth', 'monorepo-x', 'master', {
     branch: 'feat/auth',
     scope: ['apps/auth'],
   });

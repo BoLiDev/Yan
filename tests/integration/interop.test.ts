@@ -132,11 +132,11 @@ describe('bash writes, TypeScript reads', () => {
 
 describe('TypeScript writes, bash reads', () => {
   /** The TS store, driven in this process against the fixture home. */
-  async function withStore<T>(fn: (store: typeof import('../../src/store/task.js')) => T): Promise<T> {
+  async function withStore<T>(fn: (store: typeof import('../../src/records/task/index.js')) => T): Promise<T> {
     const previous = process.env.YAN_HOME;
     process.env.YAN_HOME = home;
     try {
-      return fn(await import('../../src/store/task.js'));
+      return fn(await import('../../src/records/task/index.js'));
     } finally {
       if (previous === undefined) delete process.env.YAN_HOME;
       else process.env.YAN_HOME = previous;
@@ -145,13 +145,13 @@ describe('TypeScript writes, bash reads', () => {
 
   it('a task created by the TS store is shown correctly by the bash yan ls', async () => {
     await withStore((store) => {
-      store.taskInit('t099', 'ported side writes');
-      store.unitAdd('t099', 'proto', 'monorepo-x', 'main', {
+      store.Task.create('t099', 'ported side writes');
+      new store.Task('t099').addUnit('proto', 'monorepo-x', 'main', {
         branch: 'feat/proto',
         scope: ['apps/proto'],
         needs: ['auth'],
       });
-      store.historyAppend('t099', 'proto', 'feat/proto-r0', 'main', '08-01', 'delivered');
+      new store.Task('t099').unit('proto').appendHistory('feat/proto-r0', 'main', '08-01', 'delivered');
     });
 
     const shell = yanShell('yan-ls.sh', ['t099', '--json']);
@@ -179,8 +179,8 @@ describe('TypeScript writes, bash reads', () => {
     expect(seeded.code, seeded.stderr).toBe(0);
 
     await withStore((store) => {
-      store.taskInit('tts', 'same bytes');
-      store.unitAdd('tts', 'auth', 'monorepo-x', 'master', {
+      store.Task.create('tts', 'same bytes');
+      new store.Task('tts').addUnit('auth', 'monorepo-x', 'master', {
         branch: 'feat/x',
         scope: ['apps/auth'],
         needs: ['other'],

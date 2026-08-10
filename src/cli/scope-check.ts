@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { CommandError } from './support/errors.js';
 import { diffNameOnly, git, gitOk, statusPorcelain } from '../util/git.js';
-import { findUnit, readTask, taskExists } from '../store/task.js';
-import { shiftMetaTree, shiftMetaUnit, shiftResolve } from '../store/shift.js';
+import { Task } from '../records/task/index.js';
+import { Shift } from '../records/shift/index.js';
 import { action, out } from './support/action.js';
 
 /**
@@ -59,9 +59,10 @@ export const command = new Command('scope-check')
       if (sid === undefined || sid === '') {
         throw new CommandError('scope', 'usage', 'a shift id is required', { exitCode: 2 });
       }
-      const ref = shiftResolve(sid, options.task ?? '');
-      const unit = shiftMetaUnit(ref) ?? '';
-      const tree = shiftMetaTree(ref);
+      const shift = Shift.resolve(sid, options.task ?? '');
+      const meta = shift.meta();
+      const unit = meta.unit ?? '';
+      const tree = meta.tree;
 
       if (tree === undefined) {
         throw new CommandError('scope', 'no_tree', `run/meta.json for ${sid} records no tree - there is no working tree to diff`,
@@ -78,8 +79,8 @@ export const command = new Command('scope-check')
       let scopeKnown = false;
       let scope: string[] = [];
       let base = '';
-      if (ref.task !== '' && unit !== '' && taskExists(ref.task)) {
-        const found = findUnit(readTask(ref.task), unit);
+      if (shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
+        const found = new Task(shift.task).findUnit(unit)?.read();
         if (found !== undefined) {
           scopeKnown = true;
           scope = found.scope.map((p) => p.replace(/\/+$/, ''));
@@ -127,8 +128,8 @@ export const command = new Command('scope-check')
         out(
           JSON.stringify({
             version: 1,
-            sid: ref.sid,
-            task: ref.task,
+            sid: shift.sid,
+            task: shift.task,
             unit,
             tree,
             base: baseRef !== '' ? baseRef : base,
@@ -142,7 +143,7 @@ export const command = new Command('scope-check')
         return;
       }
 
-      out(`${ref.sid}  task ${ref.task === '' ? '-' : ref.task}  unit ${unit === '' ? '-' : unit}`);
+      out(`${shift.sid}  task ${shift.task === '' ? '-' : shift.task}  unit ${unit === '' ? '-' : unit}`);
       out(`tree     ${tree}`);
       if (!scopeKnown) {
         out('scope    (unknown: no unit recorded for this shift, or no such unit in task.json)');
