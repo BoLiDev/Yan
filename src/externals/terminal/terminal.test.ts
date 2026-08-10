@@ -247,3 +247,62 @@ describe('the generated types', () => {
     expect(generated.startsWith('// GENERATED')).toBe(true);
   });
 });
+
+describe('an agent that is not really there', () => {
+  const ok = (body: unknown) => ({ code: 0, stdout: JSON.stringify({ result: body }), stderr: '' });
+  const agentGone = {
+    code: 1,
+    stdout: '',
+    stderr: '{"error":{"code":"agent_not_found","message":"x"}}',
+  };
+
+  /**
+   * A herdr that answers `pane split` and `agent start` happily, reports the
+   * agent ready — and then has no agent in that pane. That is evidence.md
+   * §11.7: codex exited at once and Herdr matched the bare shell prompt it left
+   * behind.
+   */
+  function pretendingHerdr(alive: boolean) {
+    return (args: readonly string[]) => {
+      const verb = `${args[0]} ${args[1]}`;
+      if (verb === 'pane list') return ok({ panes: [{ pane_id: 'w1:p1', workspace_id: 'w1' }] });
+      if (verb === 'pane split') return ok({ pane: { pane_id: 'w1:p2' } });
+      if (verb === 'agent start') {
+        return ok({ agent: { name: 's1', pane_id: 'w1:p2', agent_status: 'idle' } });
+      }
+      if (verb === 'agent get') return alive ? ok({ agent: { pane_id: 'w1:p2' } }) : agentGone;
+      // The pane is still there; it is the agent that is gone.
+      if (verb === 'pane get') return ok({});
+      return ok({});
+    };
+  }
+
+  it('startAgent refuses rather than handing back an empty pane', () => {
+    const term = new Terminal({ run: pretendingHerdr(false) });
+    expect(() =>
+      term.startAgent({ container: 'w1', name: 's1', kind: 'codex', cwd: '.' }),
+    ).toThrow(/no agent is there/);
+  });
+
+  it('startAgent returns normally when the agent really is there', () => {
+    const term = new Terminal({ run: pretendingHerdr(true) });
+    const started = term.startAgent({ container: 'w1', name: 's1', kind: 'claude', cwd: '.' });
+    expect(started.pane).toBe('w1:p2');
+    expect(started.name).toBe('s1');
+  });
+
+  it('send refuses, because the text would be typed into the shell', () => {
+    const term = new Terminal({ run: pretendingHerdr(false) });
+    expect(() => term.send('w1:p2', 'here is your brief')).toThrow(/refusing to send/);
+  });
+
+  it('send goes through when the agent is alive', () => {
+    const sent: string[][] = [];
+    const run = (args: readonly string[]) => {
+      sent.push([...args]);
+      return pretendingHerdr(true)(args);
+    };
+    new Terminal({ run }).send('w1:p2', 'here is your brief');
+    expect(sent.some((a) => a[0] === 'agent' && a[1] === 'prompt')).toBe(true);
+  });
+});

@@ -31,6 +31,7 @@
  */
 
 export { Terminal } from './terminal.js';
+export type { TerminalOptions } from './terminal.js';
 export { herdrHealth } from './health.js';
 export { TerminalError } from './errors.js';
 export { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION } from './schema.js';

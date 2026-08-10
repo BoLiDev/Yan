@@ -1,6 +1,6 @@
 import { TerminalError } from './errors.js';
 import { nativePath } from '../../util/paths.js';
-import { herdrCall, mapError, runHerdr } from './client.js';
+import { herdrCall, mapError, runHerdr, type HerdrRunner } from './client.js';
 import { paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { agentSessionOf, asRecord, statusOf, str } from './parse.js';
 import type {
@@ -60,7 +60,23 @@ import type {
  *   - command quoting. `agent start … -- <argv>` takes an argv array, so there
  *     is no shell in between (evidence.md §2).
  */
+export interface TerminalOptions {
+  /** Defaults to the real `herdr`. */
+  readonly run?: HerdrRunner;
+}
+
 export class Terminal {
+  private readonly run: HerdrRunner;
+
+  public constructor(options: TerminalOptions = {}) {
+    this.run = options.run ?? runHerdr;
+  }
+
+  /** Run a herdr command that must succeed, and return its parsed `.result`. */
+  private call(args: readonly string[], what: string): unknown {
+    return herdrCall(this.run, args, what);
+  }
+
   /**
    * Create the task container.
    *
@@ -73,7 +89,7 @@ export class Terminal {
     const args = ['workspace', 'create', '--label', label, '--no-focus'];
     if (cwd !== undefined && cwd !== '') args.push('--cwd', nativePath(cwd));
 
-    const result = asRecord(herdrCall(args, 'workspace create'));
+    const result = asRecord(this.call(args, 'workspace create'));
     const workspace = asRecord(result.workspace);
     return {
       workspace: str(workspace.workspace_id) || str(result.workspace_id),
@@ -91,10 +107,16 @@ export class Terminal {
    * working directory, and the agent is started into it.
    *
    * `agent start` waits for Herdr to detect the agent before returning — but
-   * that is NOT proof the agent is up: it reported `interactive_ready` for a
-   * codex that had already exited, and matched the bare shell prompt it left
-   * behind (evidence.md §11.7). Confirming afterwards is a behaviour change and
-   * lands in its own commit, not in the one that moved this file.
+   * that is NOT proof the agent is up. It reported `interactive_ready: true`
+   * for a codex that had already exited, having matched the bare shell prompt
+   * it left behind (evidence.md §11.7). So this asks again, and refuses rather
+   * than handing back a pane with nothing in it.
+   *
+   * WHAT THIS DOES NOT DO: it is not a fix for that codex. Detection is
+   * screen-based, so a second look a millisecond later can be wrong in exactly
+   * the same way. It catches the case where the agent is already visibly gone,
+   * which is cheap and worth having; why codex exits at once is still open, and
+   * a guard is not an answer to it.
    */
   public startAgent(options: StartAgentOptions): StartedAgent {
     requireAgentName(options.name);
@@ -108,12 +130,24 @@ export class Terminal {
     // layer: `--append-system-prompt "a b"` survives intact (evidence.md §2).
     if (options.argv !== undefined && options.argv.length > 0) startArgs.push('--', ...options.argv);
 
-    const started = asRecord(herdrCall(startArgs, 'agent start'));
+    const started = asRecord(this.call(startArgs, 'agent start'));
     const agent = asRecord(started.agent);
+    const reported = str(agent.pane_id) || pane;
+
+    // Anything but `alive` is a refusal. `agent start` has just succeeded, so
+    // herdr is reachable this instant; an `unknown` one call later is not a
+    // transport blip, it is something genuinely wrong.
+    if (this.agentAlive(reported) !== 'alive') {
+      throw new TerminalError(
+        'notFound',
+        `herdr reported '${options.name}' ready in ${reported}, but no agent is there - the CLI probably exited at once. Look at the pane before sending anything to it`,
+      );
+    }
+
     const session = agentSessionOf(agent.agent_session);
     return {
       name: str(agent.name) || options.name,
-      pane: str(agent.pane_id) || pane,
+      pane: reported,
       status: statusOf(agent.agent_status),
       ...(session === undefined ? {} : { agent_session: session }),
     };
@@ -127,16 +161,26 @@ export class Terminal {
    * because tmux `send-keys` could not do that; there is nothing left for it to
    * do here.
    *
-   * A prompt to a pane whose agent has died is typed into the shell, which then
-   * tries to run it as a command (evidence.md §11.7). Guarding against that is
-   * a behaviour change and lands in its own commit.
+   * NOTHING IS SENT TO A PANE WITHOUT A LIVE AGENT. A prompt to a pane whose
+   * agent has died is typed into the shell, which then tries to run it as a
+   * command (evidence.md §11.7) — a brief pasted into PowerShell, one line at a
+   * time. One extra call before each send is a cheap price; sends are not hot.
+   *
+   * The same caveat as `startAgent`: detection is screen-based, so this catches
+   * a pane whose agent is visibly gone and cannot promise more than that.
    */
   public send(pane: string, text: string, waitMs?: number): void {
     requirePaneId(pane, 'send');
     if (text === '') throw TerminalError.usage('there is nothing to send');
+    if (this.agentAlive(pane) !== 'alive') {
+      throw new TerminalError(
+        'notFound',
+        `no live agent in ${pane} - refusing to send, because the text would be typed into whatever shell is there`,
+      );
+    }
     const args = ['agent', 'prompt', pane, text];
     if (waitMs !== undefined) args.push('--wait', '--timeout', String(waitMs));
-    herdrCall(args, 'agent prompt');
+    this.call(args, 'agent prompt');
   }
 
   /**
@@ -151,7 +195,7 @@ export class Terminal {
       throw TerminalError.usage(`a whole number of lines is required, got '${lines}'`);
     }
     const body = asRecord(
-      herdrCall(['agent', 'read', pane, '--source', source, '--lines', String(lines)], 'agent read'),
+      this.call(['agent', 'read', pane, '--source', source, '--lines', String(lines)], 'agent read'),
     );
     if (typeof body.text === 'string') return body.text;
     if (Array.isArray(body.lines)) return body.lines.map((l) => str(l)).join('\n');
@@ -180,11 +224,11 @@ export class Terminal {
   public agentAlive(pane: string): Alive {
     requirePaneId(pane, 'agentAlive');
 
-    const agent = runHerdr(['agent', 'get', pane]);
+    const agent = this.run(['agent', 'get', pane]);
     if (agent.code === 0) return 'alive';
     if (mapError(agent, 'agent get').code !== TerminalError.codes.notFound) return 'unknown';
 
-    const paneResult = runHerdr(['pane', 'get', pane]);
+    const paneResult = this.run(['pane', 'get', pane]);
     if (paneResult.code === 0) return 'dead';
     return mapError(paneResult, 'pane get').code === TerminalError.codes.notFound ? 'dead' : 'unknown';
   }
@@ -202,7 +246,7 @@ export class Terminal {
    */
   public reconcile(name: string, recordedPane: string): string | undefined {
     requireAgentName(name);
-    const byName = runHerdr(['agent', 'get', name]);
+    const byName = this.run(['agent', 'get', name]);
     if (byName.code !== 0) return undefined;
     let pane = '';
     try {
@@ -217,7 +261,7 @@ export class Terminal {
   /** Close exactly the recorded pane. Nothing here can close a workspace or a tab; see rule 2. */
   public close(pane: string): void {
     requirePaneId(pane, 'close');
-    herdrCall(['pane', 'close', pane], 'pane close');
+    this.call(['pane', 'close', pane], 'pane close');
   }
 
   /**
@@ -231,7 +275,7 @@ export class Terminal {
     const scoped = container !== undefined && container !== '';
     if (scoped) requireWorkspaceId(container, 'list');
 
-    const result = herdrCall(['agent', 'list'], 'agent list');
+    const result = this.call(['agent', 'list'], 'agent list');
     const body = asRecord(result);
     const raw = Array.isArray(body.agents) ? body.agents : Array.isArray(result) ? result : [];
 
@@ -282,7 +326,7 @@ export class Terminal {
       args.push('--env', `${key}=${value}`);
     }
 
-    const split = asRecord(herdrCall(args, 'pane split'));
+    const split = asRecord(this.call(args, 'pane split'));
     const pane =
       str(asRecord(split.pane).pane_id) || str(split.pane_id) || str(asRecord(split.result).pane_id);
     if (pane === '') throw TerminalError.usage('herdr did not report a pane id for the split');
@@ -296,7 +340,7 @@ export class Terminal {
    * root pane, so the panes are listed and filtered by workspace instead.
    */
   private firstPaneOf(container: string): string {
-    const body = asRecord(herdrCall(['pane', 'list'], 'pane list'));
+    const body = asRecord(this.call(['pane', 'list'], 'pane list'));
     const panes = Array.isArray(body.panes) ? body.panes : [];
     const first = panes
       .map((p) => asRecord(p))

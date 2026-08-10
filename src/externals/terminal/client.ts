@@ -67,14 +67,17 @@ export function runHerdr(args: readonly string[]): HerdrResult {
   };
 }
 
+/** How a herdr command is actually run. Replaceable so a test needs no module mocking. */
+export type HerdrRunner = (args: readonly string[]) => HerdrResult;
+
 /**
  * Run a herdr command that must succeed, and return its parsed `.result`.
  *
  * Mutating commands legitimately answer with rc 0 and empty stdout, so an empty
  * body is `undefined`, never an error.
  */
-export function herdrCall(args: readonly string[], what: string): unknown {
-  const result = runHerdr(args);
+export function herdrCall(run: HerdrRunner, args: readonly string[], what: string): unknown {
+  const result = run(args);
   if (result.code === 0) {
     const body = result.stdout.trim();
     if (body === '') return undefined;
