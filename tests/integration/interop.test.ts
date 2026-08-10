@@ -66,7 +66,7 @@ beforeAll(() => {
 });
 
 describe('bash writes, TypeScript reads', () => {
-  it('a bash yan shift new is shown correctly by a TS yan ls', () => {
+  it('a shift the bash half recorded is shown correctly by a TS yan ls', () => {
     const seeded = bashLib(
       `task_init t042 'unify the auth header'; ` +
         `task_unit_add t042 auth monorepo-x master --branch feat/auth --scope apps/auth --scope apps/common`,
@@ -75,16 +75,29 @@ describe('bash writes, TypeScript reads', () => {
 
     const tree = mkTempDir('yan-tree-');
     mkdirSync(join(tree, 'apps', 'auth'), { recursive: true });
-    const calls = mkTempDir('yan-calls-');
 
-    const dispatched = yan(['shift', 'new', '--task', 't042', '--unit', 'auth', '--sid', 's1', '--brief-text', 'parse the header'], {
-      YAN_STUB_POOL_DIR: calls,
-      YAN_STUB_TERM_DIR: calls,
-      YAN_STUB_FORGE_DIR: calls,
-      YAN_STUB_POOL_PATH: tree,
-      YAN_STUB_POOL_LEASE_ID: 'lease-abc123',
-    });
-    expect(dispatched.code, `${dispatched.stdout}${dispatched.stderr}`).toBe(0);
+    // `yan shift new` is TypeScript from Phase 7 on, so the bash half no longer
+    // dispatches. What is still worth proving is the boundary itself: the two
+    // halves' interop IS the file system (plan/INDEX.md §2), so run/meta.json is
+    // written here by bash's own `json_write` and read by the ported `yan ls`.
+    const wrote = sh([
+      '-c',
+      `set -e; . "$YAN_HOME/bin/lib-json.sh"; mkdir -p "$YAN_HOME/tasks/t042/shifts/s1/run"; ` +
+        `json_write "$YAN_HOME/tasks/t042/shifts/s1/run/meta.json" "$1"`,
+      '_',
+      JSON.stringify({
+        version: 1, task: 't042', sid: 's1', unit: 'auth', repo: 'monorepo-x',
+        branch: 'yan/t042-auth-s1', base: 'feat/auth',
+        // Forward slashes on both platforms: that is the spelling yan records
+        // (conventions §3), and it keeps the JSON free of escapes the two
+        // halves would have to agree about.
+        tree: tree.replace(/\\/g, '/'),
+        clone: join(home, 'repos', 'monorepo-x').replace(/\\/g, '/'),
+        holder: 't042/auth/s1', lease_id: 'lease-abc123', agent: 'claude',
+        container: 'w1', pane: 'w1:p7', mr: '',
+      }),
+    ]);
+    expect(wrote.code, wrote.stderr).toBe(0);
     expect(existsSync(join(home, 'tasks', 't042', 'shifts', 's1', 'run', 'meta.json'))).toBe(true);
 
     // The TypeScript half, reading a file the shell half wrote.

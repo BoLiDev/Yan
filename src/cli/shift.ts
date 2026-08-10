@@ -8,6 +8,7 @@ import { CommandError } from './shared/errors.js';
 import { poolSize, repoTarget } from './shared/repo.js';
 import { sync } from './sync.js';
 import { Terminal } from '../externals/herdr/index.js';
+import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, WorktreeError, type LeaseGrant } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
@@ -15,6 +16,7 @@ import { Task, type UnitData } from '../records/task/index.js';
 import { isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
+import { deleteRemoteBranch } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
 
 /**
@@ -470,4 +472,371 @@ with its target and a shift has to reconcile it first.`,
     }),
   );
 
-export const command = new Command('shift').description('dispatch and clock out shifts').addCommand(newShift);
+// --- shift done -------------------------------------------------------------
+
+/**
+ * `yan shift done` — clock a shift out (agents.md §5.3, worktree.md §7).
+ *
+ * ---------------------------------------------------------------------------
+ * THE ORDER IS THE WHOLE COMMAND
+ * ---------------------------------------------------------------------------
+ *
+ *   verify the MR is merged
+ *     → write outcome.md
+ *       → write the log line
+ *         → rm -rf run/
+ *           → RETURN THE TREE
+ *             → THEN delete the remote shift branch
+ *
+ * Two of those arrows are load-bearing, and neither fails loudly when it is got
+ * wrong.
+ *
+ * 1. "MERGED" IS ANSWERED BY THE MR'S STATE, NEVER BY GIT ANCESTRY. If the
+ *    internal merge request was SQUASH-merged, the integration branch does not
+ *    contain the shift branch's HEAD at all, so `merge-base --is-ancestor`
+ *    would say "not merged" about work that landed an hour ago. The host is the
+ *    source of truth; this command asks it and does not look at the shape of
+ *    the history.
+ *
+ *    THIS IS ALSO WHAT MAKES A `done` WAKE SAFE. The spike found plan approval
+ *    arriving as `done` (evidence §11.3), so a wake reason is now a
+ *    plausible-looking way to skip the check — and what follows "finished" is
+ *    destructive. `done` is a reason to look, never a verdict
+ *    (orchestration.md §4). Nothing may stand in for this step.
+ *
+ * 2. THE TREE GOES BACK BEFORE THE REMOTE BRANCH IS DELETED. The pool's
+ *    orphan-commit guard refuses to return a tree when no remote branch
+ *    contains HEAD, because that is exactly the moment the commits exist
+ *    nowhere else. Deleting the remote shift branch also removes its
+ *    remote-tracking ref — which worktrees share with the main clone — so after
+ *    a squash merge, deleting first makes that list empty and the guard
+ *    refuses. The slot is then stranded with no way to recover it, since there
+ *    is deliberately no forcing flag anywhere. Return first and the copy test
+ *    always passes; delete last and the work is in the integration branch by
+ *    then.
+ *
+ * Everything the teardown needs is read out of `run/meta.json` BEFORE `run/` is
+ * deleted, because deleting it is step four and the tree path, the lease id and
+ * the branch name all live in there.
+ *
+ * `rm -rf run/` is the whole cleanup for the throwaway layer: one directory,
+ * not a list of files. A list would eventually miss one.
+ *
+ * Exit codes: 0 fine, 2 you called this wrongly, 4 the merge request has not
+ * merged so there is nothing to clock out yet, 1 anything else.
+ */
+
+const RC_NOT_MERGED = 4;
+
+export interface DoneOptions {
+  task?: string;
+  mr?: string;
+  outcome?: string;
+  keepPane?: boolean;
+  json?: boolean;
+}
+
+/** What `shift done` needs from the terminal. `Terminal` is the real one. */
+export interface Closer {
+  close(pane: string): void;
+  clearPaneTitle(pane: string): void;
+}
+
+export interface DoneDeps {
+  readonly terminal?: Closer;
+  readonly pool?: (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
+  readonly mrStateOf?: (mr: string, dir: string | undefined) => MrState;
+  readonly deleteBranch?: (clone: string, branch: string) => boolean;
+}
+
+export interface DoneResult {
+  readonly version: 1;
+  readonly sid: string;
+  readonly task: string;
+  readonly unit: string;
+  readonly branch: string;
+  readonly mr: string;
+  readonly mr_state: 'merged';
+  readonly tree: string;
+  readonly outcome_by: string;
+  readonly run_removed: true;
+  readonly tree_returned: boolean;
+  readonly branch_deleted: boolean;
+}
+
+/**
+ * When `run/` is gone, tell apart "this shift clocked out cleanly" from "a
+ * teardown deleted run/ and then stopped before the tree came back".
+ *
+ * From `$YAN_HOME` the two are identical, and the difference is expensive: the
+ * second leaves a tree leased and a remote branch undeleted, with nothing left
+ * to say which shift they belonged to. Observed for real: a tree came back
+ * dirty, the return refused exactly as it should, and the shift became
+ * impossible to finish.
+ *
+ * Nothing needs to be stored to tell them apart. The pool already records the
+ * holder as `<task>/<unit>/<sid>`, together with the branch, the path and the
+ * lease id — which is everything the rest of the teardown needs. So the answer
+ * is derived: ask the pool.
+ */
+function resumeFromPool(
+  task: string,
+  sid: string,
+  deps: DoneDeps,
+): { unit: string; clone: string; path: string; branch: string; holder: string; leaseId: string } | undefined {
+  if (task === '' || !Task.exists(task)) return undefined;
+  for (const unit of new Task(task).read().units) {
+    const clone = normalizePath(join(yanHome(), 'repos', unit.repo));
+    if (!existsSync(clone)) continue;
+    let leases;
+    try {
+      leases = (deps.pool?.(clone) ?? new WorktreePool(clone)).status();
+    } catch {
+      continue;
+    }
+    const held = leases.find((l) => l.holder === `${task}/${unit.name}/${sid}`);
+    if (held !== undefined) {
+      return {
+        unit: unit.name,
+        clone,
+        path: held.path,
+        branch: held.branch,
+        holder: held.holder,
+        leaseId: held.lease_id,
+      };
+    }
+  }
+  return undefined;
+}
+
+export function clockOut(sid: string | undefined, options: DoneOptions, deps: DoneDeps = {}): DoneResult {
+  if (sid === undefined || sid === '') {
+    throw CommandError.usage('shift_done', 'a shift id is required');
+  }
+  if (options.outcome !== undefined && !existsSync(options.outcome)) {
+    throw CommandError.usage('shift_done', `no such outcome file: ${options.outcome}`);
+  }
+
+  const shift = Shift.resolve(sid, options.task ?? '');
+  const meta = shift.meta();
+
+  let unit = meta.unit ?? '';
+  let branch = meta.branch ?? '';
+  let tree = meta.tree ?? '';
+  let clone = meta.clone ?? '';
+  let holder = meta.holder ?? '';
+  let leaseId = meta.leaseId ?? '';
+  let pane = meta.agentId ?? '';
+  // The shift opens its own MR, so the URL reaches us through the note of its
+  // `done` event — delivery.md §8.2's `done: mr <url>`. Without this the hard
+  // path stalls at the last step: the agent does everything right and
+  // `shift done` still has to be told the address by hand.
+  let mr = options.mr ?? meta.mr ?? shift.reportedMr() ?? '';
+
+  let resuming = false;
+  if (!shift.isLive()) {
+    const resume = resumeFromPool(shift.task, shift.sid, deps);
+    if (resume === undefined) {
+      throw CommandError.usage('shift_done', `shift ${shift.label()} has already clocked out - run/ is gone, which is the fact that says so`,
+      );
+    }
+    ({ unit, branch, clone, holder } = resume);
+    tree = resume.path;
+    leaseId = resume.leaseId;
+    pane = '';
+    resuming = true;
+    process.stderr.write(`yan shift done: ${shift.label()} left a tree leased - finishing the teardown that stopped at the tree return\n`,
+    );
+  }
+  if (branch === '') {
+    throw new CommandError('shift_done', 'no_branch', `run/meta.json does not say which shift branch ${shift.label()} is on - it cannot be cleaned up automatically`,
+    );
+  }
+
+  // The main clone. meta.json records it at dispatch; task.json is the fallback
+  // for a shift dispatched before that key existed.
+  if (clone === '' && shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
+    const repo = new Task(shift.task).findUnit(unit)?.read().repo ?? '';
+    const guess = normalizePath(join(yanHome(), 'repos', repo));
+    if (repo !== '' && existsSync(guess)) clone = guess;
+  }
+
+  const outcomeFile = join(shift.dir, 'outcome.md');
+  let outcomeBy: string;
+
+  // Steps 1 to 4 are skipped when resuming. They already ran in the attempt
+  // that stopped: the host was asked and said merged, outcome.md was written,
+  // the log line was appended, and run/ was deleted - that deletion is what we
+  // are recovering from. Re-running them would ask the host about an MR whose
+  // URL went with run/, and would append the same log line twice.
+  if (!resuming) {
+    // --- 1. is it merged? ---------------------------------------------------
+    if (mr === '') {
+      throw CommandError.usage('shift_done', `no merge request recorded for ${shift.label()} - pass --mr <url>. Whether the work landed is the host's answer, and yan will not guess it from git history`,
+      );
+    }
+    const dir = tree !== '' && existsSync(tree) ? tree : clone !== '' && existsSync(clone) ? clone : undefined;
+    const ask = deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
+    const state = ask(mr, dir);
+    if (state !== 'merged') {
+      throw new CommandError('shift_done', 'not_merged', `${mr} is '${state}', not merged - a shift clocks out when its merge request has been merged into the integration branch, and nothing sooner (agents.md §5.3)`,
+        { exitCode: RC_NOT_MERGED },
+      );
+    }
+
+    // --- 2. outcome.md ------------------------------------------------------
+    // The shift writes this itself before wrapping up. yan is the fallback for
+    // a shift that died without doing so, and it marks the file as written
+    // after the fact rather than pretending the shift wrote it.
+    if (existsSync(outcomeFile)) {
+      outcomeBy = 'shift';
+    } else if (options.outcome !== undefined) {
+      outcomeBy = 'yan';
+      writeFileSync(outcomeFile, readFileSync(options.outcome, 'utf8'));
+    } else {
+      outcomeBy = 'yan';
+      writeFileSync(
+        outcomeFile,
+        [
+          `# ${shift.sid} ${unit}`,
+          '',
+          `- shift branch: ${branch}`,
+          `- merge request: ${mr} (merged)`,
+          `- events reported: ${shift.eventCount()}`,
+          '',
+          'Written by yan when the shift clocked out: the shift did not leave an',
+          'outcome of its own, so this records only what could be observed.',
+          '',
+        ].join('\n'),
+      );
+    }
+
+    // --- 3. the log line ----------------------------------------------------
+    if (shift.task !== '') {
+      try {
+        new Log(shift.task).append(`${shift.sid} ${unit}  ${mr} merged into the integration branch`);
+      } catch { /* the teardown matters more than its narration */ }
+    }
+
+    // --- 4. rm -rf run/ -----------------------------------------------------
+    // One directory. Lifetime is expressed by the directory, not by a list of
+    // files, which is why nothing here enumerates meta.json / status / signal:
+    // a list would eventually miss one.
+    rmSync(shift.run, { recursive: true, force: true });
+  } else {
+    // What the interrupted attempt already produced. outcome.md is on disk from
+    // its step 2, and `mr` went with run/ - the outcome file still records it,
+    // which is exactly why that file is long-lived.
+    outcomeBy = existsSync(outcomeFile) ? 'written earlier' : 'missing';
+    if (mr === '' && existsSync(outcomeFile)) {
+      mr = /https?:\/\/\S+/.exec(readFileSync(outcomeFile, 'utf8'))?.[0] ?? '';
+    }
+    if (mr === '') mr = '(recorded in outcome.md)';
+  }
+
+  // --- 5. return the tree, BEFORE the branch is deleted ---------------------
+  let returned = '';
+  if (tree === '') {
+    process.stderr.write(`yan shift done: no worktree recorded for ${shift.label()}, so there is none to return\n`);
+  } else if (clone === '') {
+    process.stderr.write(`yan shift done: the main clone of ${shift.label()} is not recorded, so the tree at ${tree} must be returned by hand\n`,
+    );
+  } else {
+    try {
+      returned = (deps.pool?.(clone) ?? new WorktreePool(clone)).return(tree, { leaseId, holder });
+    } catch (err) {
+      // Deliberately fatal, and deliberately BEFORE the branch is deleted. A
+      // refusal here means the commits may exist nowhere else, and deleting the
+      // remote branch next would make that permanent.
+      throw new CommandError('shift_done', 'return_refused', `the tree at ${tree} could not be returned, so the remote branch ${branch} has NOT been deleted - investigate before anything else touches it (${err instanceof Error ? err.message : String(err)})`,
+        { exitCode: isYanError(err) ? err.exitCode : 1, cause: err },
+      );
+    }
+  }
+
+  // --- 6. and only now, the remote shift branch -----------------------------
+  let deleted = false;
+  if (clone !== '' && existsSync(clone)) {
+    const drop =
+      deps.deleteBranch ?? ((c: string, b: string) => deleteRemoteBranch(c, 'origin', b).code === 0);
+    deleted = drop(clone, branch);
+    if (!deleted) {
+      process.stderr.write(`yan shift done: the remote branch ${branch} could not be deleted (it may already be gone) - the tree is back in the pool either way\n`,
+      );
+    }
+  }
+
+  // --- 7. the agent's pane --------------------------------------------------
+  // Last, and never fatal: this closes exactly one recorded pane and can never
+  // touch the container, whose lifetime belongs to `user`.
+  if (options.keepPane !== true && pane !== '') {
+    const terminal = deps.terminal ?? new Terminal();
+    display('could not clear the shift pane title', () => {
+      terminal.clearPaneTitle(pane);
+    });
+    display('could not close the shift pane', () => {
+      terminal.close(pane);
+    });
+  }
+
+  return {
+    version: 1,
+    sid: shift.sid,
+    task: shift.task,
+    unit,
+    branch,
+    mr,
+    mr_state: 'merged',
+    tree: returned !== '' ? returned : tree,
+    outcome_by: outcomeBy,
+    run_removed: true,
+    tree_returned: returned !== '',
+    branch_deleted: deleted,
+  };
+}
+
+const doneShift = new Command('done')
+  .description('clock a shift out once its merge request has merged')
+  .argument('[sid]')
+  .option('--task <id>', 'the task; defaults to $YAN_TASK')
+  .option('--mr <url>', "the shift branch's merge request, when run/meta.json has none")
+  .option('--outcome <file>', 'a file whose contents become outcome.md if the shift wrote none')
+  .option('--keep-pane', "leave the agent's pane open")
+  .option('--json', 'print the teardown record instead of a summary')
+  .addHelpText(
+    'after',
+    `
+usage: yan shift done <sid> [--task <id>] [--mr <url>]
+                      [--outcome <file>] [--keep-pane] [--json]
+
+Clocks a shift out, in the one order that survives a squash merge:
+
+  the merge request is merged -> outcome.md -> the log line
+    -> rm -rf run/ -> return the tree -> delete the remote shift branch
+
+Whether it merged is asked of the host, never inferred from git ancestry: a
+squash-merged branch is not an ancestor of the branch it landed on.
+
+Exit code 4 means the merge request has not merged, so there is nothing to
+clock out yet.`,
+  )
+  .action(
+    action('yan shift done', (sid: string | undefined, options: DoneOptions) => {
+      const r = clockOut(sid, options);
+      if (options.json === true) {
+        out(JSON.stringify(r));
+        return;
+      }
+      out(`${r.sid} clocked out`);
+      out(`mr       ${r.mr} (merged)`);
+      out(`outcome  ${join(new Shift(r.task, r.sid).dir, 'outcome.md')} (${r.outcome_by})`);
+      out('run      removed');
+      out(`tree     ${r.tree_returned ? r.tree : 'not returned'}`);
+      out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'left on origin'}`);
+    }),
+  );
+
+export const command = new Command('shift')
+  .description('dispatch and clock out shifts')
+  .addCommand(newShift)
+  .addCommand(doneShift);

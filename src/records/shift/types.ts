@@ -24,6 +24,8 @@ export interface ShiftMeta {
   readonly clone?: string;
   /** The lease `tree get` granted. Conditional return compares it. */
   readonly leaseId?: string;
+  /** The pool holder string, `<task>/<unit>/<sid>`. Conditional return compares it too. */
+  readonly holder?: string;
   /** The terminal container the pane lives in. Display only; never looked up by. */
   readonly container?: string;
 }

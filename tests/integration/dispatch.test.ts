@@ -90,7 +90,7 @@ describe('bin/yan, in a built tree', () => {
     // Commander's own layout...
     expect(r.out).toContain('Usage: yan');
     // ...listing the shell half it has not taken over yet.
-    for (const name of ['doctor', 'ls', 'session-start', 'shift-done', 'wait']) {
+    for (const name of ['doctor', 'ls', 'session-start', 'shift', 'wait']) {
       expect(r.out, name).toContain(name);
     }
   });
