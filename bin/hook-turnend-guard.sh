@@ -66,6 +66,13 @@ if [ -z "${YAN_HOME:-}" ] || [ ! -f "${YAN_HOME}/bin/yan" ]; then
 fi
 export YAN_HOME
 
+# Dual dispatch, exactly as bin/yan does it. `node` is checked too: a guard that
+# dies on a missing interpreter blocks the turn it exists to protect, which is
+# the opposite of failing open.
+if [ -f "$YAN_HOME/dist/hooks/turnend-guard.js" ] && command -v node >/dev/null 2>&1; then
+	exec node "$YAN_HOME/dist/hooks/turnend-guard.js" "$@"
+fi
+
 # shellcheck source=bin/lib-watch.sh
 . "${YAN_LIB:-$YAN_HOME/bin}/lib-watch.sh"
 

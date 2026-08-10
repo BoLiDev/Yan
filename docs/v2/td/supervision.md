@@ -1,7 +1,8 @@
 # Supervision, second cut
 
 > This document revises [td §5.5](../../mvp/td/supervision.md#55-supervision). The question it answers is unchanged: *when a `shift` finishes or gets stuck, who wakes `yan` up?* What changes is that one of the three things the MVP had to infer, Herdr reports as a fact.
-> The Phase 5 spike has run, and it cost this document its headline: the redesign is **not** the large subtraction it was written as. See [§6](#6-what-this-actually-costs) for the real ledger and [§7](#7-what-is-still-open) for what Phase 6 must settle.
+> The Phase 5 spike has run, and it cost this document its headline: the redesign is **not** the large subtraction it was written as. See [§6](#6-what-this-actually-costs) for the real ledger.
+> Phase 6 has since been built. The two things it was left to decide — whether the beacon survives, and what "watcher healthy" means across a reconnect — are settled in [§4](#4-what-survives-from-the-mvp) and [§5](#5-what-the-guard-checks-now); [§7](#7-what-is-still-open) is what remains open after it.
 
 ---
 
@@ -39,7 +40,15 @@ flowchart LR
   W -->|"quiet, unbounded"| Q["silent non-zero"]
 ```
 
-Two sources, not three. The wake file, `yan drain`, the reasons vocabulary, and the exit-code contract are all unchanged, because everything downstream of "something happened" already worked.
+**Two push sources and one poll.** The diagram counts what pushes: a file and a socket. It is not the whole list, and Phase 6 found the difference matters when writing the code — the liveness poll produces a wake reason of its own (`died:`), so it is a *source* in every sense that counts, and `yan wait --sources` names all three:
+
+```
+signal          run/signal exists            the shift reported via `yan report`
+agent-status    a Herdr subscription         blocked / done, seen from outside
+agent-alive     termAgentAlive says dead     the agent died and cannot say so
+```
+
+What is gone, and what "two, not three" was really about, is the MVP's **pane-content hash**. The wake file, `yan drain`, the reasons vocabulary, and the exit-code contract are all unchanged, because everything downstream of "something happened" already worked.
 
 **Subscription, not polling — but the transport is not the CLI.** The spike found that `herdr api` has exactly two subcommands, `snapshot` and `schema`: `events.subscribe` exists in the request schema and has **no CLI verb at all**. A subscriber has to speak the socket protocol itself, and on Windows the socket is a named pipe whose name is the `.sock` path ([evidence §11.1](evidence.md#111-there-is-no-cli-for-eventssubscribe-the-transport-is-a-named-pipe)). So the terminal seam's CLI transport does not cover supervision: **`yan wait` needs a second, socket-level client, and that is the first thing Phase 6 builds.**
 
@@ -93,11 +102,21 @@ Not everything goes. Kept, for the reasons the MVP gave:
 - **Both harness bindings, unchanged.** Claude autoarm plus turn-end guard; Codex checkpoint loop plus guard. Herdr is the multiplexer axis; the harness is a different axis, and [td §5.6 / §5.7](../../mvp/td/agents.md#56-harness-requirements) keeps them apart.
 - **The known gap.** After every shift has clocked out and outbound CI is running, there is still nothing to wait for. `yan wait` still does not poll CI. Unchanged, and still deliberate.
 
-**The beacon: the argument for retiring it did not survive the spike.**
+**The beacon: KEPT. Decided in Phase 6, with the reconnect path built.**
 
-It was going to go because "a subscriber blocked on a socket either holds the connection or does not, and the guard can ask that directly". That reasoning assumed one blocking read. What Phase 6 actually builds is a subscription that can end and reconnect, **plus** a poll for liveness, because `pane_exited` cannot be subscribed to. "Is the watcher still going round?" is a real question again, which is exactly what the beacon answered.
+It was going to go because "a subscriber blocked on a socket either holds the connection or does not, and the guard can ask that directly". That reasoning assumed one blocking read. What Phase 6 actually built is a subscription that can end and reconnect, **plus** a poll for liveness, because `pane_exited` cannot be subscribed to. "Is the watcher still going round?" is a real question again, which is exactly what the beacon answered.
 
-So the beacon is **not** retired here. Phase 6 decides, with the reconnect path in front of it, and whichever way it goes the reason is written down — including, if it stays, that the freshness-window bugs it brings back are the price.
+Three things had to be true for it to go, and none of them is:
+
+| the retirement argument needed | what Phase 6 found |
+| --- | --- |
+| one blocking read, so "connected" ≡ "watching" | a loop: subscribe, snapshot, poll, reconnect. A watcher can be disconnected and perfectly healthy |
+| the connection observable from another process | on Windows it is a named pipe held by the watcher. The guard is a different process and cannot see it at all |
+| the lock to imply attendance | a process that stopped looping still holds its lock. A pid is not attendance — the MVP's original reason, unchanged |
+
+So the beacon stays, and **the price is stated rather than discovered**: it reintroduces a freshness window, which means a guard can call a live watcher unhealthy if the loop legitimately takes longer than `YAN_WATCH_BEACON_MAX` (300 s) to come round. That is survivable because the loop's period is the poll interval (5 s by default) and because the guard fails open after three attempts; it would stop being survivable if any wait source ever became a long blocking call without touching the beacon first. **A watcher that blocks must touch the beacon before it blocks.**
+
+**What the beacon attests to changed, and that is the substantive half of the decision.** It is written by the SUPERVISION LOOP, not by the subscription — every turn of the loop touches it, including the turns spent reconnecting. It says "this watcher went round recently", never "this watcher is subscribed". `run/beacon` carries a fourth field naming the loop's state (`subscribed` / `reconnecting` / `polling`) for a human reading it; **no predicate branches on that field.**
 
 ---
 
@@ -105,7 +124,15 @@ So the beacon is **not** retired here. Phase 6 decides, with the reconnect path 
 
 "Watcher healthy" was: the lock exists, its pid is alive, the identity matches, and the beacon is fresh.
 
-The first three are unchanged. The fourth is **open**, and it is the same question as the beacon's: a watcher that is reconnecting is neither dead nor subscribed, and a guard that reads that moment as unhealthy blocks a turn for no reason. Phase 6 settles it against the reconnect path it builds — "holds a live subscription" is only the right test if there is never a legitimate gap.
+**All four are unchanged, and Phase 6 settled the fourth: a watcher that is mid-reconnect is HEALTHY.**
+
+The question was whether "holds a live subscription" should join the list. It should not, and the reasoning is the same one that kept the beacon:
+
+1. **A reconnect gap is the design working, not failing.** The subscription is expected to end — the spike never got to watch a Herdr restart happen under one ([evidence §11.4](evidence.md#114-a-subscription-survives-and-reaches-a-hooks-environment)), so `yan wait` treats "it ended" as a state it handles. A guard that blocked a turn for the seconds a reconnect takes would be inventing a fault out of the recovery path.
+2. **The watcher is not blind during the gap.** `run/signal` never went through the socket, and neither did the liveness poll — which is the source that has no push channel at all. What a disconnected watcher loses is `blocked` / `done` arriving *promptly*; the snapshot taken on the way back in recovers them, one loop late.
+3. **The guard could not ask the question anyway.** The subscription is a socket the watcher holds; on Windows a named pipe. There is no file, no lock field and no API by which another process could check it, so "holds a live subscription" would have to be self-reported through a file — which is a beacon with a worse name.
+
+So the test is **"went round recently"**, which is exactly what a loop-written beacon answers, and the guard has no notion of subscription state at all. What is still unhealthy is unchanged: no lock, a dead owner, a foreign identity, a stale beacon, or a beacon and a lock belonging to different processes.
 
 The Claude guard's other rules do not change and are still the parts most likely to be got wrong on a rewrite: it keeps its own count in `run/guard-failures`, it does **not** use `stop_hook_active` as a one-shot unblock, its budget is 3, and it fails open with a loud warning rather than wedging the session. The 800 ms wait that stops the guard false-alarming while autoarm is still claiming the lock stays.
 
@@ -122,7 +149,7 @@ The Phase 5 spike has run ([evidence §11](evidence.md#11-the-phase-5-event-spik
 | pane-content hash | `lib-watch.sh`'s hashing | **deleted** |
 | poll loop for liveness | yes | **still needed** — `pane_exited` cannot be subscribed to |
 | single-flight lock | `lib-lock.sh`, 221 lines of `mkdir` scheme | kept, on `fs.open(…, 'wx')`, much smaller |
-| beacon | yes | **open** ([§4](#4-what-survives-from-the-mvp)) |
+| beacon | yes | **kept**, and now attests to the loop rather than the connection ([§4](#4-what-survives-from-the-mvp)) |
 | `run/signal` watch | yes | kept |
 | named-pipe JSON-RPC client | — | **new**, and Windows needs the pipe-name rule |
 | reconnect / re-subscribe / snapshot | — | **new**, and mandatory ([§2](#2-the-shape-of-yan-wait)) |
@@ -136,8 +163,10 @@ Two consequences for how Phase 6 is judged:
 
 ## 7. What is still open
 
-The spike answered its five questions and left three things that Phase 6 has to settle rather than assume:
+The spike answered its five questions and left three things for Phase 6. Item 2 is now decided; items 1 and 3 are not the kind of thing an implementation can close.
 
-1. **Multi-hour subscriptions, and server restart.** 420 s was measured; the autoarm case is hours. Restart was never tested — `herdr server stop` kills the user's session. Handle it as a state, do not wait to observe it.
-2. **The beacon, and what "watcher healthy" means** with a reconnect gap in the picture ([§4](#4-what-survives-from-the-mvp), [§5](#5-what-the-guard-checks-now)).
+1. **Multi-hour subscriptions, and server restart.** 420 s was measured; the autoarm case is hours. Restart was never tested — `herdr server stop` kills the user's session. Phase 6 handled it as a state rather than waiting to observe it: `yan wait` reconnects, re-subscribes from `run/meta.json`, and snapshots on the way back in, and its test ends the connection under it rather than hoping. **Still open** is the wall-clock claim itself — nothing yet has held a subscription for hours, and the first long autoarm run is the measurement.
+2. **The beacon, and what "watcher healthy" means** — **decided**: both kept, both defined against the loop rather than the connection ([§4](#4-what-survives-from-the-mvp), [§5](#5-what-the-guard-checks-now)).
 3. **Plan approval arrives as `done`** ([§3](#done-does-not-mean-finished)). Whether more of Claude's and Codex's prompts miss is a manifest question, not a yan one — but `run/signal` is what covers the gap, and that is why it is not going anywhere.
+
+And one thing Phase 6 opened that was not on the list: **what a watcher does when the socket is not there at all.** `yan wait` degrades to polling `agent list` for status — the same facts, one loop late, which is the fallback the Phase 5 gate named — and says so once on stderr. That is deliberately not silent: a watcher running blind to `blocked` is a thing `user` should be able to see in the transcript.

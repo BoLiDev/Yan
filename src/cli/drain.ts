@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { CommandError } from './support/errors.js';
-import { Task } from '../records/task/index.js';
+import { Supervision } from '../records/supervision/index.js';
 import { action, out } from './support/action.js';
 
 /**
@@ -34,15 +33,17 @@ export const command = new Command('drain')
   .option('--peek', 'print the reason without clearing it')
   .action(
     action('drain', (id: string | undefined, options: { peek?: boolean }) => {
-      let wake = process.env.YAN_WAKE_FILE ?? '';
-      if (wake === '') {
-        const task = id ?? process.env.YAN_TASK ?? '';
-        if (task === '') {
-          throw CommandError.usage('drain', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
-          );
-        }
-        wake = join(new Task(task).dir, 'run', 'wake');
+      const task = id ?? process.env.YAN_TASK ?? '';
+      const override = process.env.YAN_WAKE_FILE ?? '';
+      if (task === '' && override === '') {
+        throw CommandError.usage('drain', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
+        );
       }
+      // Through the supervision record rather than by joining the path here:
+      // `yan wait` writes this file and `yan drain` clears it, and two private
+      // copies of where it lives is how the pair ends up pointing at different
+      // files under $YAN_WAKE_FILE.
+      const wake = task === '' ? override : new Supervision(task).wake;
 
       if (!existsSync(wake)) return;
 

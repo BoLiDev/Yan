@@ -99,7 +99,7 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 
 ## 5. Phases
 
-> **Phases 0–5 have landed, and the module names moved afterwards.** The entries below are the specs those phases were built to, left as written. The paths in them — `src/seams/forge`, `src/seams/pool`, `src/store` — are the old ones. The tree today is `src/externals/{terminal,remote-git,worktree}` and `src/records/{task,shift,log}`, each a directory with one `index.ts` that is its whole public surface.
+> **Phases 0–6 have landed, and the module names moved afterwards.** The entries below are the specs those phases were built to, left as written. The paths in them — `src/seams/forge`, `src/seams/pool`, `src/store` — are the old ones. The tree today is `src/externals/{terminal,terminal-events,remote-git,worktree}` and `src/records/{task,shift,log,supervision}`, each a directory with one `index.ts` that is its whole public surface, plus `src/hooks/` for the two Stop hooks the harnesses run.
 
 ### Phase 0 — TS skeleton & dual dispatch
 

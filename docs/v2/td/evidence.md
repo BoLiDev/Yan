@@ -365,3 +365,31 @@ Every call returned rc 0 and empty stdout — a mutating command succeeding sile
 3. `blocked` covers three of the four prompts that matter and misses plan approval, which arrives as `done` and still wakes `yan` ([§11.3](#113-which-prompts-herdr-recognises)).
 
 None of those is the failure supervision.md §6 defined as the gate's failure condition, so **Phase 6 proceeds on subscription rather than on the `agent list` polling fallback** — with the pane-liveness poll kept, and with `run/signal` kept, which §11.3 makes more important rather than less.
+
+---
+
+## 12. Measured while building Phase 6
+
+> Same machine and same build as [§11](#11-the-phase-5-event-spike) — `herdr 0.8.0-preview.2026-08-04-d78e3d3b5126`, protocol 19, `schema_version` 1, Windows 11 / Git Bash. These are things the socket client found once it was real code rather than a spike script.
+
+### 12.1 An unknown `pane_id` in a subscription closes the connection
+
+The spike subscribed to panes that existed. `yan wait` cannot promise that: `run/meta.json` holds the pane a shift was dispatched into, and between the agent dying and the shift clocking out that id names a pane the server no longer has.
+
+Asked about one, the server does **not** answer `{"id":…,"error":…}`. It closes the connection:
+
+```
+-> {"id":"yan:1","method":"events.subscribe","params":{"subscriptions":[
+     {"type":"pane.agent_status_changed","pane_id":"w1:p1"},      <- real
+     {"type":"pane.agent_status_changed","pane_id":"w9:p99"}]}}   <- never existed
+<- (connection closed, no response)
+```
+
+The valid pane in the same request loses its subscription too, because the subscription lives on the connection that just went away. Repeated once per turn of a watcher's loop — which is what a naive "subscribe to every live shift" does — this is an event stream that is never up for more than one interval.
+
+**Consequence, and it is a constraint on Phase 6's design rather than a note:** `yan wait` subscribes only to panes the current `agent list` snapshot shows, and re-checks that before adding a pane. The subscription set is therefore always a subset of what Herdr knows, and a stale id in `run/meta.json` costs that one shift its event source (it keeps `run/signal` and the liveness poll, which is what reports it dead a moment later) instead of costing every shift the connection.
+
+### 12.2 The pipe-name rule works from a compiled client
+
+Confirmed end to end, outside the spike: `defaultEndpoint()` resolved
+`%APPDATA%\herdr\herdr.sock` to `\.\pipe\C:\Users\…\AppData\Roaming\herdr\herdr.sock`, connected, subscribed to a live pane and received `subscription_started`, with no `HERDR_*` variable set by the caller. [§11.1](#111-there-is-no-cli-for-eventssubscribe-the-transport-is-a-named-pipe) holds.

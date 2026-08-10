@@ -40,6 +40,14 @@ if [ -z "${YAN_HOME:-}" ] || [ ! -f "${YAN_HOME}/bin/yan" ]; then
 fi
 export YAN_HOME
 
+# Dual dispatch, exactly as bin/yan does it: the compiled hook wins wherever it
+# exists, and a tree that has never been built still works on the shell half.
+# `node` is checked too, because a Stop hook that dies on a missing interpreter
+# is a Stop hook that blocks a turn - the one thing this file must never do.
+if [ -f "$YAN_HOME/dist/hooks/autoarm.js" ] && command -v node >/dev/null 2>&1; then
+	exec node "$YAN_HOME/dist/hooks/autoarm.js" "$@"
+fi
+
 # shellcheck source=bin/lib-watch.sh
 . "${YAN_LIB:-$YAN_HOME/bin}/lib-watch.sh"
 

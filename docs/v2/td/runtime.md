@@ -42,10 +42,13 @@ $YAN_HOME/
       git.ts                  run git in a given directory
     ui/
       prompts.ts              @clack/prompts wrappers (soft path only)
+    hooks/
+      autoarm.ts              Claude's Stop autoarm — runs the long `yan wait`
+      turnend-guard.ts        the blocking Stop hook, both harnesses
   bin/
-    yan                       shell stub: exec node dist/yan.js "$@"
-    hook-autoarm.sh           shell stub: exec node dist/hook-autoarm.js "$@"
-    hook-turnend-guard.sh     shell stub
+    yan                       shell stub: exec node dist/cli/yan.js "$@"
+    hook-autoarm.sh           shell stub: exec node dist/hooks/autoarm.js "$@"
+    hook-turnend-guard.sh     shell stub: exec node dist/hooks/turnend-guard.js "$@"
   dist/                       build output, gitignored
   tests/                      vitest, mirroring src/
   conf/  mem/  tasks/  repos/  docs/          unchanged

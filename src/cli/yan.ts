@@ -138,7 +138,12 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   try {
     await program.parseAsync([...joinTwoWordCommand(argv, found.all)], { from: 'user' });
-    return 0;
+    // A subcommand that ended with a status of its own keeps it. `yan wait` is
+    // the first: 124 for a quiet slice, 3 for nothing left to supervise, 4 for
+    // "somebody else is already on duty" — none of them an error, so none of
+    // them a thrown YanError, and returning 0 unconditionally here would erase
+    // the whole contract.
+    return typeof process.exitCode === 'number' ? process.exitCode : 0;
   } catch (err) {
     if (isYanError(err)) {
       process.stderr.write(`yan: ${err.message}\n`);
