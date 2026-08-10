@@ -184,6 +184,55 @@ export class Terminal {
   }
 
   /**
+   * Tell Herdr what a workspace is delivering (display.md §2).
+   *
+   * `--source yan` names the reporter, so yan's labels never collide with
+   * another tool's and can be withdrawn as a set. `--ttl-ms` expires them, so a
+   * yan that dies mid-task leaves labels that clean themselves up.
+   *
+   * DISPLAY ONLY. Nothing reported here is ever read back as a fact: task.json
+   * remains the only record of which unit is on which branch, and a token that
+   * goes stale is a cosmetic bug rather than a correctness one. Callers treat a
+   * failure as one logged line, never as a reason to abandon the operation.
+   */
+  public setWorkspaceTokens(
+    workspace: string,
+    tokens: Readonly<Record<string, string>>,
+    ttlMs?: number,
+  ): void {
+    requireWorkspaceId(workspace, 'workspace report-metadata');
+    const args = ['workspace', 'report-metadata', workspace, '--source', 'yan'];
+    for (const [key, value] of Object.entries(tokens)) args.push('--token', `${key}=${value}`);
+    if (ttlMs !== undefined) args.push('--ttl-ms', String(ttlMs));
+    this.call(args, 'workspace report-metadata');
+  }
+
+  /** Withdraw tokens yan set. Teardown is explicit and complete. */
+  public clearWorkspaceTokens(workspace: string, names: readonly string[]): void {
+    requireWorkspaceId(workspace, 'workspace report-metadata');
+    if (names.length === 0) return;
+    const args = ['workspace', 'report-metadata', workspace, '--source', 'yan'];
+    for (const name of names) args.push('--clear-token', name);
+    this.call(args, 'workspace report-metadata');
+  }
+
+  /** Tell Herdr which shift a pane is (display.md §2). Display only. */
+  public setPaneTitle(pane: string, title: string, displayAgent?: string): void {
+    requirePaneId(pane, 'pane report-metadata');
+    const args = ['pane', 'report-metadata', pane, '--source', 'yan', '--title', title];
+    if (displayAgent !== undefined && displayAgent !== '') {
+      args.push('--display-agent', displayAgent);
+    }
+    this.call(args, 'pane report-metadata');
+  }
+
+  /** Withdraw the title before the pane is closed. */
+  public clearPaneTitle(pane: string): void {
+    requirePaneId(pane, 'pane report-metadata');
+    this.call(['pane', 'report-metadata', pane, '--source', 'yan', '--clear-title'], 'pane report-metadata');
+  }
+
+  /**
    * Read what is on an agent's terminal.
    *
    * `recent-unwrapped` for transcripts. Reading does NOT mark the tab seen,
