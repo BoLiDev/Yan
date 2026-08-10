@@ -1,10 +1,9 @@
-import { existsSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import { CommandError } from './shared/errors.js';
+import { repoDir } from './shared/repo.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
-import { normalizePath } from '../util/paths.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './shared/action.js';
 
@@ -25,14 +24,6 @@ import { action, out } from './shared/action.js';
 
 const DEFAULT_POOL_SIZE = 8;
 
-function repoDir(name: string): string {
-  const inHome = join(yanHome(), 'repos', name);
-  if (existsSync(inHome) && statSync(inHome).isDirectory()) return normalizePath(resolve(inHome));
-  if (existsSync(name) && statSync(name).isDirectory()) return normalizePath(resolve(name));
-  throw CommandError.usage('tree', `unknown repository: ${name} - register it with 'yan repo-add', or pass the path to a clone`,
-  );
-}
-
 function poolSize(repoKey: string): number {
   const registry = readJsonIfPresent(join(yanHome(), 'mem', 'repos.json'));
   if (typeof registry !== 'object' || registry === null) return DEFAULT_POOL_SIZE;
@@ -51,7 +42,7 @@ function clone(options: CommonOptions): { clone: string; key: string } {
     throw CommandError.usage('tree', '--repo is required: a repository name under repos/, or the path to a clone',
     );
   }
-  const dir = repoDir(options.repo);
+  const dir = repoDir('tree', options.repo);
   return { clone: dir, key: dir.slice(dir.lastIndexOf('/') + 1) };
 }
 

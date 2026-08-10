@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -79,4 +80,80 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
   );
   writeFileSync(join(dest, 'mem', 'repos.json'), '{\n  "version": 1\n}\n');
   return dest;
+}
+
+/**
+ * The vitest half of `tests/fixtures.sh`'s git universe.
+ *
+ * Everything goes through `fxGit`, which pins an identity and the default
+ * branch name with `git -c`, so these helpers work on a machine with no global
+ * git config at all (conventions §5). Nothing here touches the network.
+ */
+export function fxGit(args: readonly string[], cwd?: string): { code: number; stdout: string; stderr: string } {
+  const r = spawnSync(
+    'git',
+    [
+      '-c', 'user.name=yan tests',
+      '-c', 'user.email=yan-tests@localhost',
+      '-c', 'init.defaultBranch=main',
+      '-c', 'commit.gpgsign=false',
+      '-c', 'tag.gpgsign=false',
+      '-c', 'advice.detachedHead=false',
+      '-c', 'protocol.file.allow=always',
+      ...args,
+    ],
+    { cwd, encoding: 'utf8', windowsHide: true },
+  );
+  return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+/** A bare repo with one commit on `main`. */
+export function mkBareRemote(bare: string): string {
+  mkdirSync(bare, { recursive: true });
+  fxGit(['init', '--bare', '--initial-branch=main', bare]);
+
+  const seed = mkTempDir('yan-seed-');
+  fxGit(['init', '--initial-branch=main', seed]);
+  writeFileSync(join(seed, 'README.md'), 'fixture repository\n');
+  fxGit(['add', 'README.md'], seed);
+  fxGit(['commit', '-m', 'initial commit'], seed);
+  fxGit(['remote', 'add', 'origin', bare], seed);
+  fxGit(['push', '-u', 'origin', 'main'], seed);
+  rmSync(seed, { recursive: true, force: true });
+  return bare;
+}
+
+/** A working clone with a local identity configured. */
+export function mkClone(bare: string, dir: string): string {
+  mkdirSync(join(dir, '..'), { recursive: true });
+  fxGit(['clone', bare, dir]);
+  fxGit(['config', 'user.name', 'yan tests'], dir);
+  fxGit(['config', 'user.email', 'yan-tests@localhost'], dir);
+  fxGit(['config', 'commit.gpgsign', 'false'], dir);
+  return dir;
+}
+
+/** One commit adding or replacing a file. */
+export function mkCommit(dir: string, rel: string, body: string, message?: string): void {
+  const full = join(dir, rel);
+  mkdirSync(join(full, '..'), { recursive: true });
+  writeFileSync(full, `${body}\n`);
+  fxGit(['add', '--', rel], dir);
+  fxGit(['commit', '-m', message ?? `add ${rel}`], dir);
+}
+
+/** Run `bin/yan` in a fixture home, exactly the way a person or an agent does. */
+export function runYan(
+  home: string,
+  args: readonly string[],
+  env: Record<string, string> = {},
+): { code: number; stdout: string; stderr: string; out: string } {
+  const r = spawnSync('bash', [join(home, 'bin', 'yan'), ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, YAN_HOME: home, ...env },
+    windowsHide: true,
+  });
+  const stdout = r.stdout ?? '';
+  const stderr = r.stderr ?? '';
+  return { code: r.status ?? 1, stdout, stderr, out: `${stdout}${stderr}` };
 }

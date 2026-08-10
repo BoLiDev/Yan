@@ -548,10 +548,13 @@ describe('the socket client lives with the rest of Herdr', () => {
   });
 
   it('and there is no second Herdr module for it to drift from', () => {
-    expect(readdirSync(join(repoRoot, 'src', 'externals')).sort()).toEqual([
-      'herdr',
-      'remote-git',
-      'worktree',
-    ]);
+    // One outside authority, one module. The list grows when yan learns about a
+    // new authority — Phase 7 added `conf-hook` for `conf/hooks/` — but no
+    // authority may ever appear twice, which is what this pins.
+    const externals = readdirSync(join(repoRoot, 'src', 'externals')).sort();
+    expect(externals.filter((n) => /herdr|terminal|event|pane/.test(n))).toEqual(['herdr']);
+    expect(externals).toContain('remote-git');
+    expect(externals).toContain('worktree');
+    expect(new Set(externals).size).toBe(externals.length);
   });
 });

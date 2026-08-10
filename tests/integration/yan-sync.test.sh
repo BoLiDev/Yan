@@ -29,6 +29,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 home=$tmp/home
 mk_yan_home "$home"
+mk_yan_dist "$home"
 YAN=$home/bin/yan
 
 pool_root=$tmp/trees

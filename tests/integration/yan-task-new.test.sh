@@ -29,6 +29,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 home=$tmp/home
 mk_yan_home "$home"
+mk_yan_dist "$home"
 cp "$YAN_REPO_ROOT/tests/stub/lib-term.sh" "$home/bin/lib-term.sh"
 
 export YAN_HOME=$home

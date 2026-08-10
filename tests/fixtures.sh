@@ -103,3 +103,26 @@ mk_config() {
 	mkdir -p "$dest/conf"
 	printf '%s\n' "${2:?mk_config needs JSON}" >"$dest/conf/config.json"
 }
+
+# mk_yan_dist <yan-home> - make the compiled half reachable from a bash test.
+#
+# mk_yan_home copies bin/ only, which is the ordinary state of a fresh clone and
+# is what proves the shell fallback works. A test that USES a command already
+# ported to TypeScript needs the other half as well (plan/INDEX.md rule 6: a
+# ported command loses its shell twin). node_modules is linked rather than
+# copied - copying it would dominate the runtime of every test that calls this.
+mk_yan_dist() {
+	local dest=${1:?mk_yan_dist needs a yan home}
+	if [ ! -f "$_YAN_FIXTURES_ROOT/dist/cli/yan.js" ]; then
+		printf 'mk_yan_dist: dist/ is not built - run `npm run build` first\n' >&2
+		return 1
+	fi
+	mkdir -p "$dest/dist"
+	cp -R "$_YAN_FIXTURES_ROOT/dist/." "$dest/dist/"
+	cp "$_YAN_FIXTURES_ROOT/package.json" "$dest/package.json"
+	if [ ! -e "$dest/node_modules" ]; then
+		ln -s "$_YAN_FIXTURES_ROOT/node_modules" "$dest/node_modules" 2>/dev/null ||
+			cmd //c mklink //J "$(cygpath -w "$dest/node_modules")" "$(cygpath -w "$_YAN_FIXTURES_ROOT/node_modules")" >/dev/null 2>&1 ||
+			return 1
+	fi
+}
