@@ -90,7 +90,7 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 | 3 | Pool seam | leases, warm reuse, the orphan guard |
 | 4 | Terminal seam on Herdr | the seven functions, generated types, the two-step alive derivation |
 | 5 | Event spike (gate) | does `events.subscribe` hold up |
-| 6 | Supervision | `yan wait` on two sources; beacon and pane hash deleted |
+| 6 | Supervision | a socket client, `yan wait` on two sources, reconnect; only the pane hash is deleted |
 | 7 | Orchestrators | `shift new/done`, `sync`, `unit`, `session-start`, display metadata |
 | 8 | New entry | bare `yan` select, Clack in `src/ui`, `attach` removed |
 | 9 | Retire tmux & bash | delete the tmux seam and every remaining `bin/*.sh` but three stubs |
@@ -98,6 +98,8 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 ---
 
 ## 5. Phases
+
+> **Phases 0–5 have landed, and the module names moved afterwards.** The entries below are the specs those phases were built to, left as written. The paths in them — `src/seams/forge`, `src/seams/pool`, `src/store` — are the old ones. The tree today is `src/externals/{terminal,remote-git,worktree}` and `src/records/{task,shift,log}`, each a directory with one `index.ts` that is its whole public surface.
 
 ### Phase 0 — TS skeleton & dual dispatch
 
@@ -187,7 +189,7 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 
 ### Phase 5 — Event spike (gate)
 
-**Delivers:** a throwaway spike plus a written answer to the four questions in [supervision.md §6](../td/supervision.md#6-what-must-be-proven-first), recorded as a new section of [`evidence.md`](../td/evidence.md).
+**Delivers:** a throwaway spike plus a written answer to the five questions this phase set, recorded as a new section of [`evidence.md`](../td/evidence.md). *(Landed: [evidence §11](../td/evidence.md#11-the-phase-5-event-spike). What it left open became [supervision.md §7](../td/supervision.md#7-what-is-still-open).)*
 
 **Precondition:** both integrations `current` in `herdr integration status` — the configuration `yan` will run in. Note this does **not** buy authoritative state: at v7 the Claude and Codex integrations report session identity only, so `blocked` and `done` are screen matches either way ([sources.md §4.1](../td/sources.md#41-detection-has-two-mechanisms-and-yans-agents-get-the-weaker-one)). Question 3 below is therefore the one that decides how much of supervision survives.
 
@@ -197,7 +199,7 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 - **The prompts that matter are enumerated and each is checked** — permission request, plan approval, tool prompt, and whatever else Claude and Codex actually block on — with a written list of which ones Herdr recognises and which it reports as `idle`. This is screen matching for both agents, so a single happy-path observation proves nothing
 - The window between dispatch and subscription is measured, and whether a post-subscribe snapshot read is needed is settled
 - `agent wait --until` is exercised once, for the single-shift case
-- **Whether `pane report-agent --state` suppresses Herdr's own detection** for that pane is measured both ways, and a recommendation is written ([supervision.md §6 q5](../td/supervision.md#6-what-must-be-proven-first))
+- **Whether `pane report-agent --state` suppresses Herdr's own detection** for that pane is measured both ways, and a recommendation is written
 - `agent start --kind codex` succeeds when `codex` is not on the caller's `PATH`, or how Herdr resolves the executable is documented
 
 **Gate:** if subscription is unreliable, Phase 6 falls back to polling `agent list` — still on facts rather than a content hash — and the lock and beacon stay. Say which, in writing, before starting Phase 6.
@@ -206,19 +208,25 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 
 ### Phase 6 — Supervision
 
-**Delivers:** `yan wait` on two sources, `hook-autoarm` and `hook-turnend-guard` as TypeScript behind shell stubs, `.claude/settings.json` and `.codex/hooks.json` updated.
+**Delivers:** a socket client for Herdr's event stream, `yan wait` on two sources, `hook-autoarm` and `hook-turnend-guard` as TypeScript behind shell stubs, `.claude/settings.json` and `.codex/hooks.json` updated.
+
+**This phase is not the deletion it was planned as.** `events.subscribe` has no CLI verb, `pane_exited` cannot be subscribed to, and a reconnect path is mandatory — so a named-pipe client and a reconnect loop come in while only the pane-content hash goes out. Roughly a wash on line count, a clear win on signal ([supervision.md §6](../td/supervision.md#6-what-this-actually-costs)). **Delete nothing to hit a number.**
 
 **Trace**
-- Two sources only: `run/signal` and Herdr events. The pane-content hash is **gone**
+- A socket client speaks `events.subscribe` over the named pipe, with the Windows pipe-name rule, and lives in its own module with its own `index.ts` and its own test
+- Two sources: `run/signal` and Herdr events. The pane-content hash is **gone**; the liveness poll is **not**, because `pane_exited` has no push channel
+- Subscribe → snapshot each live pane → block. The snapshot is what closes the window for a `yan wait` starting up over shifts that are already running
+- A subscription that ends is reconnected and re-subscribed from `run/meta.json`, and takes a snapshot on the way back in. That path is tested by ending the connection under it, not by hoping
 - `blocked` → escalate; `done` → wake; `idle` / `working` / `unknown` → not actionable
+- **`done` is a reason to look, never a verdict.** Plan approval arrives as `done` ([evidence §11.3](../td/evidence.md#113-which-prompts-herdr-recognises)), so anything that could clock a shift out re-checks the objective condition — the MR merged into the integration branch — first. A test drives a `done` wake on a shift with no merged MR and asserts nothing was torn down
 - **`yan` never calls `agent focus` on a shift pane** — a test asserts the string is absent from the seam
 - Claude: SessionStart → `yan session-start`; Stop autoarm runs long `yan wait` in the hook foreground, never `&`
 - Guard keeps its own count in `run/guard-failures`, budget 3, does not use `stop_hook_active` as a one-shot, fails open loudly, keeps the 800 ms lock-claim wait
 - Codex: no autoarm; the model loops `yan wait --seconds N`; quiet end exits 124
-- The beacon is deleted; "watcher healthy" now means the lock holder holds a live subscription
+- **The beacon is decided, not assumed.** Its retirement argument assumed one blocking read and does not survive a reconnect loop plus a poll. Keep it or drop it, and write down which and why — the same decision settles what "watcher healthy" means when a watcher is legitimately mid-reconnect
 - No CI-polling fourth source
 
-**td:** [supervision.md](../td/supervision.md)
+**td:** [supervision.md](../td/supervision.md) §2, §3, §6, §7
 
 ---
 

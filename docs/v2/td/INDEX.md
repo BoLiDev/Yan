@@ -47,7 +47,7 @@ The MVP's create flow ends by building a container and putting `user` inside it.
 
 ## 2. What gets deleted
 
-V2 is unusual in that most of its value is subtraction. Recorded here so the plan can be checked against it:
+Most of V2's value is subtraction — **with one exception, and it is the one this table originally got wrong.** Supervision was written up as the largest deletion of all; the Phase 5 spike showed it is close to a wash. The row below says so. Everything else here holds.
 
 | Deleted | Lines | Because |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ V2 is unusual in that most of its value is subtraction. Recorded here so the pla
 | `_term_quote_cmd` and tmux `send-keys` quoting | `lib-term.sh:229-276` | Herdr takes argv arrays ([evidence.md §2](evidence.md#2-argv-passthrough)) |
 | `_json_lf` and every CRLF strip | `lib-json.sh:40-42` + 126 sites | no `jq` |
 | `lib-lock.sh`'s `mkdir` lock scheme | 221 | Node has atomic rename; and the watcher it protected mostly goes away |
-| the pane-content hash source and the beacon | most of `lib-watch.sh` (365) and `yan-wait.sh` (372) | Herdr reports `blocked` as a fact ([supervision.md](supervision.md)) |
+| the pane-content hash source | part of `lib-watch.sh` (365) | Herdr reports `blocked` as a state ([supervision.md](supervision.md)) — **and this row is the only supervision deletion**; the poll loop, the lock and possibly the beacon all stay, and a named-pipe client and a reconnect path are new. Supervision is roughly a wash on line count and a clear win on signal quality ([supervision.md §6](supervision.md#6-what-this-actually-costs)) |
 | 20 hand-written flag parsers | across `bin/yan-*.sh` | Commander |
 | the tmux implementation of the seam | most of `lib-term.sh` (710) | after, not before, Herdr passes the contract test |
 

@@ -182,7 +182,7 @@ Everything in this section is **design input, not measurement**. It comes from `
 | Herdr on Linux / WSL | not tried | [conventions](../plan/conventions.md) claims two platforms |
 | `default_shell` actually switching the pane shell | config read, not set | terminal.md §7 |
 
-The first four rows are why [supervision.md §6](supervision.md#6-what-must-be-proven-first) makes Phase 5 a spike, and why no MVP supervision code may be deleted before it passes.
+The first four rows are why [supervision.md §7](supervision.md#7-what-is-still-open) is the list Phase 6 inherits, and why no MVP supervision code was deleted before the spike ran.
 
 Facts taken from Herdr's website rather than from this machine — how detection works, the `idle` false negative, the tmux-nesting limitation — are kept separately in [`sources.md §4`](sources.md#4-what-only-the-website-says), because they carry a different kind of authority and need re-checking on a different schedule.
 
@@ -206,7 +206,7 @@ Measured on the MVP tree at `be1984a`, for judging progress and for knowing what
 
 ## 11. The Phase 5 event spike
 
-> Run 2026-08-10 against the same build as the rest of this document — `herdr 0.8.0-preview.2026-08-04-d78e3d3b5126`, protocol 19, `schema_version` 1 — inside a live Herdr session on Windows 11 / Git Bash. `herdr integration status` reported `claude: current (v7)` and `codex: current (v7)`, which is the precondition [supervision.md §6](supervision.md#6-what-must-be-proven-first) sets.
+> Run 2026-08-10 against the same build as the rest of this document — `herdr 0.8.0-preview.2026-08-04-d78e3d3b5126`, protocol 19, `schema_version` 1 — inside a live Herdr session on Windows 11 / Git Bash. `herdr integration status` reported `claude: current (v7)` and `codex: current (v7)`, which is the precondition Phase 5 set.
 >
 > This section answers the five questions in supervision.md §6. It is the gate for Phase 6.
 
