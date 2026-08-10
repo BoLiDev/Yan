@@ -10,6 +10,8 @@
   "scripts": {
     "build": "npm run lint:seams && tsc -p tsconfig.json",
     "lint:seams": "node scripts/check-seam-imports.mjs",
+    "types:herdr": "node scripts/generate-herdr-types.mjs",
+    "types:herdr:check": "node scripts/generate-herdr-types.mjs --check",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && vitest run"
   },
