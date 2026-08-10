@@ -1,3 +1,5 @@
+import { Shift } from '../../records/shift/index.js';
+
 /**
  * Telling Herdr what it is looking at (display.md §4).
  *
@@ -24,3 +26,27 @@ export function display(what: string, call: () => void): void {
     process.stderr.write(`yan: ${what} (display only, carrying on): ${message}\n`);
   }
 }
+
+/**
+ * Which workspace this task's panes live in, DERIVED from a live shift's
+ * `run/meta.json` — never created.
+ *
+ * `createContainer` would make one, and a command that only wants to relabel
+ * has no business creating a workspace. So the answer is "the container a live
+ * shift recorded", and `undefined` when nothing is running: there is then
+ * nothing on screen to relabel, which is not a failure.
+ */
+export function containerOf(task: string): string | undefined {
+  for (const shift of Shift.liveIn(task)) {
+    const container = shift.meta().container;
+    if (container !== undefined && container !== '') return container;
+  }
+  return undefined;
+}
+
+/** The tokens display.md §2 defines, in one place so the two writers agree. */
+export function unitTokens(task: string, unit: string, branch: string): Record<string, string> {
+  return { task, unit, branch };
+}
+
+export const UNIT_TOKEN_NAMES = ['task', 'unit', 'branch'] as const;

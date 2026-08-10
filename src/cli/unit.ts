@@ -1,8 +1,10 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
+import { containerOf, display, unitTokens } from './shared/display.js';
 import { repoDir } from './shared/repo.js';
 import { callHook, HookError } from '../externals/conf-hook/index.js';
+import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
@@ -322,6 +324,11 @@ export interface SetOptions {
  */
 export type MrStateReader = (mr: string, dir: string) => MrState;
 
+/** What `unit set` reports to Herdr. Display only, and never fatal. */
+export interface Labeller {
+  setWorkspaceTokens(workspace: string, tokens: Record<string, string>): void;
+}
+
 const set = new Command('set')
   .description("change a unit's branch, target, mode or scope")
   .option('--task <id>', 'the task the unit belongs to')
@@ -354,7 +361,7 @@ Exit 4 means nothing was changed and \`user\` has to answer something first.`,
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 
 /** The command without the process around it: everything that decides is here. */
-export function setUnit(options: SetOptions, readMrState?: MrStateReader): void {
+export function setUnit(options: SetOptions, readMrState?: MrStateReader, terminal?: Labeller): void {
   const task = options.task ?? '';
   const unitName = options.unit ?? '';
   const wantBranch = options.branch !== undefined;
@@ -485,6 +492,18 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader): void 
     } catch {
       process.stderr.write('yan unit set: task.json was updated but log.md was not appended to\n');
     }
+
+    // display.md §4: a new round rewrites the workspace tokens. The workspace
+    // is DERIVED from a live shift rather than created — a command that only
+    // wants to relabel has no business making one — so a task with nothing
+    // running simply has nothing on screen to relabel.
+    const container = containerOf(task);
+    if (container !== undefined) {
+      display('could not rewrite the workspace tokens', () => {
+        (terminal ?? new Terminal()).setWorkspaceTokens(container, unitTokens(task, unitName, branch));
+      });
+    }
+
     changed.push(`round ${retiring} ${end} on ${before.branch}; round ${round} is now ${branch} (${how}, name from ${nameFrom})`,
     );
   }
