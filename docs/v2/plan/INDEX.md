@@ -47,6 +47,11 @@ Each phase is **one reviewable unit** — one merge request, one shift, one sitt
 3. **Never port a module and change its behaviour in the same commit.** Port, prove green, then change. This is the rule most likely to be broken and the most expensive when it is.
 4. **Nothing from [td INDEX §2 "what gets deleted"](../td/INDEX.md#2-what-gets-deleted) is deleted speculatively.** Each deletion is a Trace bullet in the phase that earns it.
 5. **Phase 5 is a gate.** No supervision code is deleted before it passes.
+6. **A ported command takes its bash twin with it.** When `yan <cmd>` is green in TypeScript, `bin/yan-<cmd>.sh` and its `tests/**/yan-<cmd>.test.sh` go in the same commit.
+
+Rule 6 is not an exception to rule 4. Rule 4 guards the list in [td INDEX §2](../td/INDEX.md#2-what-gets-deleted), where each entry names the phase that earns it. This is narrower: a command whose replacement is proven has no job left, and keeping it means every later phase spends minutes testing code production does not run. Two things are explicitly not covered by it — the **tmux terminal implementation**, which is the reference the Herdr contract is compared against until Phase 9, and any `lib-*.sh` still sourced by a command that has not moved.
+
+The cost, stated rather than discovered: that command loses its dual-dispatch fallback. It is the right trade. `npm test` builds first, the fallback existed so a half-migrated tree stayed usable, and now that the foundation is all in place a loud "no such command" beats a silent fall back to an implementation that stopped being maintained three phases ago.
 
 ---
 
@@ -236,6 +241,8 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 
 **Delivers:** `yan shift new`, `yan shift done`, `yan sync`, `yan unit add`, `yan unit set`, `yan state`, `yan send`, `yan report`, `yan session-start`, `yan mr`, `yan land`, and the display-metadata calls from [display.md §4](../td/display.md#4-when-each-call-happens).
 
+**And their bash twins, deleted** (rule 6). Eleven commands is most of what is left in `bin/`: `tests/run.sh` should come out of this phase at roughly twenty scripts instead of fifty-six. The shrinking suite is the progress meter — if it has not shrunk, commands were ported without being finished.
+
 **Trace** — the four MVP ordering regressions first, because none of them fails loudly:
 - `shift new` asserts the sub-agent's cwd is not a main clone and **refuses** otherwise
 - `shift done` order: MR merged → `outcome` → `rm -rf run/` → **return the tree** → **then** delete the remote branch
@@ -249,7 +256,7 @@ and then:
 - Workspace tokens and pane titles are set at the moments in display.md §4, cleared on teardown, and a metadata failure logs one line without aborting the operation
 - `target` is never defaulted by any command
 
-**td:** [td agents §5.1–5.4](../../mvp/td/agents.md), [display.md](../td/display.md)
+**td:** [orchestration.md](../td/orchestration.md), [display.md](../td/display.md), [td agents §5.1–5.4](../../mvp/td/agents.md) for what is unchanged
 
 ---
 
@@ -272,7 +279,9 @@ and then:
 
 ### Phase 9 — Retire tmux and bash
 
-**Delivers:** deletion. The tmux implementation, the `backend` config key and its fail-closed branches, every `bin/*.sh` except the three hook/entry stubs, `tests/run.sh`, `tests/assert.sh`, `tests/stub/`, and the `jq` / `winpty` / `tmux` dependency checks.
+**Delivers:** deletion — most of it already done by rule 6 as each command landed, so what is left is the part that had a reason to wait. The tmux terminal implementation and the `backend` config key with its fail-closed branches; whatever `bin/*.sh` remains beyond the three hook/entry stubs; `tests/run.sh`, `tests/assert.sh`, `tests/stub/`; and the `jq` / `winpty` / `tmux` dependency checks.
+
+The three stubs keep their behaviour — dual dispatch, the node check — and keep being tested, from **vitest**, which can spawn a shell script as easily as anything else. A whole bash test framework is not needed to cover fifteen lines.
 
 **Trace**
 - `grep -ri tmux bin/ src/` returns nothing but history

@@ -84,6 +84,7 @@ Short list, and it is meant to stay short. "It runs `git`" is not on it: spawnin
 | [`supervision.md`](supervision.md) | what replaces `yan wait`'s three sources, and what survives |
 | [`cli-ux.md`](cli-ux.md) | living inside Herdr; bare `yan`; Commander next to Clack |
 | [`display.md`](display.md) | `yan` owns the worktree pool, Herdr shows it |
+| [`orchestration.md`](orchestration.md) | the life of a shift under Herdr: dispatch, teardown, and what `done` does not mean |
 | [`evidence.md`](evidence.md) | every measurement the above rests on, and what is still unverified |
 | [`sources.md`](sources.md) | which Herdr resource is authoritative for what, how to re-verify after an upgrade, and the three facts only the website states |
 
