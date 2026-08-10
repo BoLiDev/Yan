@@ -11,7 +11,7 @@ import {
   writeSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { YanError, usageError } from './error.js';
+import { YanError, type YanErrorOptions } from './error.js';
 
 /**
  * Read and write JSON. The TypeScript half of `bin/lib-json.sh`.
@@ -33,9 +33,27 @@ import { YanError, usageError } from './error.js';
  * after someone.
  */
 
-export const JSON_INVALID = 'json_invalid';
-export const JSON_MISSING = 'json_missing';
-export const JSON_WRITE_FAILED = 'json_write_failed';
+const CODES = {
+  missing: 'json_missing',
+  invalid: 'json_invalid',
+  writeFailed: 'json_write_failed',
+} as const;
+
+export type JsonErrorKind = keyof typeof CODES;
+
+/** What reading or writing one of yan's JSON files can fail with. */
+export class JsonError extends YanError {
+  public static readonly codes = CODES;
+
+  public constructor(kind: JsonErrorKind, message: string, options?: YanErrorOptions) {
+    super(CODES[kind], message, options);
+  }
+
+  /** The caller passed something impossible. Exit 2. */
+  public static usage(kind: JsonErrorKind, message: string): JsonError {
+    return new JsonError(kind, message, { exitCode: 2 });
+  }
+}
 
 let tmpCounter = 0;
 
@@ -44,10 +62,10 @@ function serialize(value: unknown): string {
   try {
     text = JSON.stringify(value, null, 2);
   } catch (cause) {
-    throw new YanError(JSON_INVALID, 'refusing to write a value that is not JSON', { cause });
+    throw new JsonError('invalid', 'refusing to write a value that is not JSON', { cause });
   }
   if (text === undefined) {
-    throw new YanError(JSON_INVALID, 'refusing to write a value that is not JSON');
+    throw new JsonError('invalid', 'refusing to write a value that is not JSON');
   }
   // Two-space indent and a trailing newline is jq's default pretty printing, so
   // a file written by the TypeScript half is byte-identical to one written by
@@ -69,7 +87,7 @@ function withVersion(value: unknown, fallback = 1): unknown {
 }
 
 function atomicWrite(file: string, value: unknown, versionFallback = 1): void {
-  if (!file) throw usageError(JSON_WRITE_FAILED, 'a target file is required');
+  if (!file) throw JsonError.usage('writeFailed', 'a target file is required');
 
   const text = serialize(withVersion(value, versionFallback));
 
@@ -77,7 +95,7 @@ function atomicWrite(file: string, value: unknown, versionFallback = 1): void {
   try {
     mkdirSync(dir, { recursive: true });
   } catch (cause) {
-    throw new YanError(JSON_WRITE_FAILED, `cannot create directory: ${dir}`, { cause });
+    throw new JsonError('writeFailed', `cannot create directory: ${dir}`, { cause });
   }
 
   // The temporary file is anchored to the target's own directory on purpose:
@@ -106,7 +124,7 @@ function atomicWrite(file: string, value: unknown, versionFallback = 1): void {
     } catch {
       // The temp file may never have been created; nothing to clean up.
     }
-    throw new YanError(JSON_WRITE_FAILED, `cannot replace ${file}`, { cause });
+    throw new JsonError('writeFailed', `cannot replace ${file}`, { cause });
   }
 }
 
@@ -115,23 +133,23 @@ export function parseJson(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
   } catch (cause) {
-    throw new YanError(JSON_INVALID, 'not valid JSON', { cause });
+    throw new JsonError('invalid', 'not valid JSON', { cause });
   }
 }
 
 /** The whole file, parsed. Throws when the file is missing or malformed. */
 export function readJson(file: string): unknown {
-  if (!file) throw usageError(JSON_MISSING, 'a file is required');
+  if (!file) throw JsonError.usage('missing', 'a file is required');
   let text: string;
   try {
     text = readFileSync(file, 'utf8');
   } catch (cause) {
-    throw new YanError(JSON_MISSING, `no such file: ${file}`, { cause });
+    throw new JsonError('missing', `no such file: ${file}`, { cause });
   }
   try {
     return parseJson(text);
   } catch (cause) {
-    throw new YanError(JSON_INVALID, `not valid JSON: ${file}`, { cause });
+    throw new JsonError('invalid', `not valid JSON: ${file}`, { cause });
   }
 }
 
@@ -155,7 +173,7 @@ export function writeJson(file: string, value: unknown): void {
  */
 export function writeJsonText(file: string, text: string): void {
   if (text === '') {
-    throw new YanError(JSON_INVALID, `refusing to write empty content to ${file}`);
+    throw new JsonError('invalid', `refusing to write empty content to ${file}`);
   }
   atomicWrite(file, parseJson(text));
 }

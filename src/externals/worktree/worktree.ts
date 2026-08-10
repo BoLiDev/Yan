@@ -1,15 +1,8 @@
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { YanError, usageError } from '../../util/error.js';
 import * as git from '../../util/git.js';
 import { withLock } from '../../util/lock.js';
-import {
-  WORKTREE_FAILED,
-  WORKTREE_FULL,
-  WORKTREE_MISMATCH,
-  WORKTREE_MISMATCH_EXIT,
-  WORKTREE_USAGE,
-} from './errors.js';
+import { WorktreeError } from './errors.js';
 import { baseRef, isRegisteredWorktree } from './git-facts.js';
 import { assertReturnable, wipe } from './guard.js';
 import { absolute, cloneDir, leaseFile, leasesDir, lockFile, repoName, slotTree } from './layout.js';
@@ -60,14 +53,14 @@ export class WorktreePool {
    *   than at the top of all three methods.
    */
   public constructor(clone: string) {
-    if (!clone) throw usageError(WORKTREE_USAGE, 'a main clone directory is required');
+    if (!clone) throw WorktreeError.usage('a main clone directory is required');
     let isDir = false;
     try {
       isDir = statSync(clone).isDirectory();
     } catch {
       isDir = false;
     }
-    if (!isDir) throw usageError(WORKTREE_USAGE, `not a directory: ${clone}`);
+    if (!isDir) throw WorktreeError.usage(`not a directory: ${clone}`);
 
     this.clone = clone;
     this.dir = cloneDir(clone);
@@ -82,25 +75,23 @@ export class WorktreePool {
    */
   public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
     if (!Number.isInteger(size) || size <= 0) {
-      throw usageError(WORKTREE_USAGE, `the pool size must be a positive whole number, got: ${size}`);
+      throw WorktreeError.usage(`the pool size must be a positive whole number, got: ${size}`);
     }
     if (!base) {
-      throw usageError(
-        WORKTREE_USAGE,
+      throw WorktreeError.usage(
         'a base ref is required - a tree is always cut from an explicit base',
       );
     }
     if (!branch) {
-      throw usageError(
-        WORKTREE_USAGE,
+      throw WorktreeError.usage(
         'a branch name is required - a leased tree is never left on a detached HEAD',
       );
     }
     if (!holder) {
-      throw usageError(WORKTREE_USAGE, 'a holder is required, in the form <task>/<unit>/<sid>');
+      throw WorktreeError.usage('a holder is required, in the form <task>/<unit>/<sid>');
     }
     if (/\s/.test(`${branch}${holder}`)) {
-      throw usageError(WORKTREE_USAGE, 'a branch name and a holder may not contain whitespace');
+      throw WorktreeError.usage('a branch name and a holder may not contain whitespace');
     }
 
     mkdirSync(leasesDir(this.dir), { recursive: true });
@@ -119,16 +110,15 @@ export class WorktreePool {
    */
   public return(target: string, expect: ReturnExpectation = {}): string {
     if (!target) {
-      throw usageError(
-        WORKTREE_USAGE,
+      throw WorktreeError.usage(
         "which tree? pass the path 'yan tree get' printed, or its slot number",
       );
     }
 
     const slot = slotOf(this.dir, target);
     if (slot === undefined) {
-      throw new YanError(
-        WORKTREE_FAILED,
+      throw new WorktreeError(
+        'failed',
         `no lease matches '${target}' - 'yan tree status' lists what the pool is holding`,
       );
     }
@@ -139,17 +129,13 @@ export class WorktreePool {
     const tree = lease?.path ?? '';
 
     if (expect.leaseId !== undefined && expect.leaseId !== '' && expect.leaseId !== haveId) {
-      throw new YanError(
-        WORKTREE_MISMATCH,
+      throw WorktreeError.mismatch(
         `lease id does not match: slot ${slot} is held under '${haveId}', not '${expect.leaseId}' - nothing was touched`,
-        { exitCode: WORKTREE_MISMATCH_EXIT },
       );
     }
     if (expect.holder !== undefined && expect.holder !== '' && expect.holder !== haveHolder) {
-      throw new YanError(
-        WORKTREE_MISMATCH,
+      throw WorktreeError.mismatch(
         `holder does not match: slot ${slot} is held by '${haveHolder}', not '${expect.holder}' - nothing was touched`,
-        { exitCode: WORKTREE_MISMATCH_EXIT },
       );
     }
 
@@ -193,8 +179,8 @@ export class WorktreePool {
     if (slot === undefined) {
       // Backpressure. A full pool fails instead of growing: an extra tree would
       // be a cold one, which is the same as having no pool (worktree.md §7).
-      throw new YanError(
-        WORKTREE_FULL,
+      throw new WorktreeError(
+        'full',
         `the pool is full - all ${size} trees are leased, cannot start a new shift. 'yan tree status' shows who holds them; raise pool_size in mem/repos.json only if this machine can afford another tree`,
       );
     }
@@ -228,8 +214,8 @@ export class WorktreePool {
 
     if (isRegisteredWorktree(this.clone, tree)) {
       if (!git.isClean(tree)) {
-        throw new YanError(
-          WORKTREE_FAILED,
+        throw new WorktreeError(
+          'failed',
           `the tree in slot ${slot} still has changes: ${tree} - it was not returned properly, so investigate before it is leased again`,
         );
       }
@@ -237,14 +223,14 @@ export class WorktreePool {
         ? git.checkout(tree, [branch])
         : git.checkout(tree, ['-b', branch, ref]);
       if (checkout.code !== 0) {
-        throw new YanError(WORKTREE_FAILED, `cannot put ${tree} on '${branch}': ${checkout.stderr.trim()}`);
+        throw new WorktreeError('failed', `cannot put ${tree} on '${branch}': ${checkout.stderr.trim()}`);
       }
       return;
     }
 
     if (existsSync(tree)) {
-      throw new YanError(
-        WORKTREE_FAILED,
+      throw new WorktreeError(
+        'failed',
         `${tree} exists but git does not know it as a worktree - move it aside; the pool never deletes a directory it cannot account for`,
       );
     }
@@ -252,8 +238,8 @@ export class WorktreePool {
       ? git.worktreeAdd(this.clone, [tree, branch])
       : git.worktreeAdd(this.clone, ['-b', branch, tree, ref]);
     if (added.code !== 0) {
-      throw new YanError(
-        WORKTREE_FAILED,
+      throw new WorktreeError(
+        'failed',
         `cannot add a worktree at ${tree} on '${branch}': ${added.stderr.trim()}`,
       );
     }
@@ -272,8 +258,8 @@ export class WorktreePool {
       current = '';
     }
     if (current !== branch) {
-      throw new YanError(
-        WORKTREE_FAILED,
+      throw new WorktreeError(
+        'failed',
         `the tree is on '${current === '' ? 'an unknown ref' : current}', not '${branch}' - refusing to hand out a tree that is not on its shift branch`,
       );
     }

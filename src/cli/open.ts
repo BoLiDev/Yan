@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { YanError } from '../util/error.js';
+import { CommandError } from './support/errors.js';
 import { nativePath } from '../util/paths.js';
 import { taskDir, taskExists } from '../store/task.js';
 import { action, out } from './support/action.js';
@@ -45,9 +45,9 @@ export const command = new Command('open')
   .action(
     action('open', (id: string | undefined, options: { artifacts?: boolean }) => {
       if (id === undefined || id === '') {
-        throw new YanError('open_usage', 'a task id is required', { exitCode: 2 });
+        throw new CommandError('open', 'usage', 'a task id is required', { exitCode: 2 });
       }
-      if (!taskExists(id)) throw new YanError('task_missing', `no such task: ${id}`);
+      if (!taskExists(id)) throw new CommandError('task', 'missing', `no such task: ${id}`);
 
       let dir = taskDir(id);
       if (options.artifacts === true) {
@@ -57,7 +57,7 @@ export const command = new Command('open')
         mkdirSync(dir, { recursive: true });
       }
       if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-        throw new YanError('open_failed', `not a directory: ${dir}`);
+        throw new CommandError('open', 'failed', `not a directory: ${dir}`);
       }
 
       out(dir);

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as t from '../../src/store/task.js';
-import { YanError } from '../../src/util/error.js';
+import { TaskError } from '../../src/store/task.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
 
 /**
@@ -48,9 +48,9 @@ describe('creation', () => {
   });
 
   it('refuses a bad task id', () => {
-    expect(() => t.taskInit('', 'x')).toThrow(YanError);
-    expect(() => t.taskInit('has space', 'x')).toThrow(YanError);
-    expect(() => t.taskInit('t042/../escape', 'x')).toThrow(YanError);
+    expect(() => t.taskInit('', 'x')).toThrow(TaskError);
+    expect(() => t.taskInit('has space', 'x')).toThrow(TaskError);
+    expect(() => t.taskInit('t042/../escape', 'x')).toThrow(TaskError);
   });
 
   it('lists tasks by scanning, never from a stored list', () => {
@@ -63,16 +63,16 @@ describe('creation', () => {
 describe('units', () => {
   it('requires an explicit target and defaults mode to mr', () => {
     t.taskInit('t042', 'x');
-    expect(() => t.unitAdd('t042', 'auth', 'monorepo-x', '')).toThrow(YanError);
+    expect(() => t.unitAdd('t042', 'auth', 'monorepo-x', '')).toThrow(TaskError);
     t.unitAdd('t042', 'auth', 'monorepo-x', 'master');
     expect(t.requireUnit(t.readTask('t042'), 'auth').mode).toBe('mr');
   });
 
   it('refuses a duplicate unit and an invalid mode', () => {
     seed();
-    expect(() => t.unitAdd('t042', 'auth', 'monorepo-x', 'master')).toThrow(YanError);
+    expect(() => t.unitAdd('t042', 'auth', 'monorepo-x', 'master')).toThrow(TaskError);
     expect(() => t.unitAdd('t042', 'other', 'monorepo-x', 'master', { mode: 'nope' })).toThrow(
-      YanError,
+      TaskError,
     );
   });
 
@@ -111,12 +111,12 @@ describe('the four current scalars', () => {
 
   it('refuses an invalid mode', () => {
     seed();
-    expect(() => t.unitSet('t042', 'auth', 'mode', 'nope')).toThrow(YanError);
+    expect(() => t.unitSet('t042', 'auth', 'mode', 'nope')).toThrow(TaskError);
   });
 
   it('refuses an unknown unit', () => {
     seed();
-    expect(() => t.unitSet('t042', 'nope', 'branch', 'x')).toThrow(YanError);
+    expect(() => t.unitSet('t042', 'nope', 'branch', 'x')).toThrow(TaskError);
   });
 });
 
@@ -145,7 +145,7 @@ describe('history is append-only', () => {
 
   it('refuses an end that is not delivered or abandoned', () => {
     seed();
-    expect(() => t.historyAppend('t042', 'auth', 'b', 'master', '', 'finished')).toThrow(YanError);
+    expect(() => t.historyAppend('t042', 'auth', 'b', 'master', '', 'finished')).toThrow(TaskError);
   });
 
   it('rotate archives the round and clears mr, atomically', () => {
@@ -188,7 +188,7 @@ describe('reading is defensive', () => {
   });
 
   it('reports a genuinely missing task rather than inventing one', () => {
-    expect(() => t.readTask('nope')).toThrow(YanError);
+    expect(() => t.readTask('nope')).toThrow(TaskError);
     expect(t.taskExists('nope')).toBe(false);
   });
 });

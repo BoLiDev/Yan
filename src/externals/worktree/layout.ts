@@ -2,9 +2,8 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { YanError, usageError } from '../../util/error.js';
 import { normalizePath } from '../../util/paths.js';
-import { WORKTREE_FAILED, WORKTREE_USAGE } from './errors.js';
+import { WorktreeError } from './errors.js';
 
 /**
  * Where the pool keeps things (td INDEX.md §3):
@@ -46,8 +45,8 @@ export function rootDir(): string {
   try {
     mkdirSync(root, { recursive: true });
   } catch (cause) {
-    throw new YanError(
-      WORKTREE_FAILED,
+    throw new WorktreeError(
+      'failed',
       `cannot create the pool root: ${root} - set YAN_POOL_ROOT to a writable directory`,
       { cause },
     );
@@ -57,7 +56,7 @@ export function rootDir(): string {
 
 /** This clone's pool: `<root>/<repo>-<hash>`. */
 export function cloneDir(clone: string): string {
-  if (!clone) throw usageError(WORKTREE_USAGE, 'a main clone directory is required');
+  if (!clone) throw WorktreeError.usage('a main clone directory is required');
   const abs = absolute(clone);
   return `${rootDir()}/${repoName(abs)}-${shortHash(pathKey(abs))}`;
 }

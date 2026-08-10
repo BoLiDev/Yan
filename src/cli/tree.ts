@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
-import { usageError } from '../util/error.js';
+import { CommandError } from './support/errors.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { normalizePath } from '../util/paths.js';
@@ -29,9 +29,7 @@ function repoDir(name: string): string {
   const inHome = join(yanHome(), 'repos', name);
   if (existsSync(inHome) && statSync(inHome).isDirectory()) return normalizePath(resolve(inHome));
   if (existsSync(name) && statSync(name).isDirectory()) return normalizePath(resolve(name));
-  throw usageError(
-    'tree_usage',
-    `unknown repository: ${name} - register it with 'yan repo-add', or pass the path to a clone`,
+  throw CommandError.usage('tree', `unknown repository: ${name} - register it with 'yan repo-add', or pass the path to a clone`,
   );
 }
 
@@ -50,9 +48,7 @@ interface CommonOptions {
 
 function clone(options: CommonOptions): { clone: string; key: string } {
   if (options.repo === undefined || options.repo === '') {
-    throw usageError(
-      'tree_usage',
-      '--repo is required: a repository name under repos/, or the path to a clone',
+    throw CommandError.usage('tree', '--repo is required: a repository name under repos/, or the path to a clone',
     );
   }
   const dir = repoDir(options.repo);
@@ -72,16 +68,14 @@ const get = new Command('get')
       (options: CommonOptions & { base?: string; branch?: string; holder?: string; json?: boolean }) => {
         const target = clone(options);
         if (!options.base) {
-          throw usageError(
-            'tree_usage',
-            '--base is required: a tree is always cut from an explicit integration branch',
+          throw CommandError.usage('tree', '--base is required: a tree is always cut from an explicit integration branch',
           );
         }
         if (!options.branch) {
-          throw usageError('tree_usage', '--branch is required: leasing a tree creates the shift branch');
+          throw CommandError.usage('tree', '--branch is required: leasing a tree creates the shift branch');
         }
         if (!options.holder) {
-          throw usageError('tree_usage', '--holder is required, in the form <task>/<unit>/<sid>');
+          throw CommandError.usage('tree', '--holder is required, in the form <task>/<unit>/<sid>');
         }
 
         const grant = new WorktreePool(target.clone).get(
@@ -118,9 +112,7 @@ const returnTree = new Command('return')
         const target = clone(options);
         const which = options.path ?? positional ?? options.slot ?? '';
         if (which === '') {
-          throw usageError(
-            'tree_usage',
-            "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
+          throw CommandError.usage('tree', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
           );
         }
         // The --if-* options are compared before anything destructive happens; a

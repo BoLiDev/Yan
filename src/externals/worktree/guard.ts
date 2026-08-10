@@ -1,6 +1,5 @@
-import { YanError } from '../../util/error.js';
 import * as git from '../../util/git.js';
-import { WORKTREE_FAILED } from './errors.js';
+import { WorktreeError } from './errors.js';
 
 /**
  * The orphan-commit guard.
@@ -17,8 +16,8 @@ import { WORKTREE_FAILED } from './errors.js';
  */
 export function assertReturnable(tree: string): void {
   if (git.statusPorcelain(tree).trim() !== '') {
-    throw new YanError(
-      WORKTREE_FAILED,
+    throw new WorktreeError(
+      'failed',
       `refusing to return ${tree}: it has uncommitted changes and returning it would destroy them permanently - commit and push them first`,
     );
   }
@@ -30,8 +29,8 @@ export function assertReturnable(tree: string): void {
     contained = [];
   }
   if (contained.filter((l) => l.trim() !== '').length === 0) {
-    throw new YanError(
-      WORKTREE_FAILED,
+    throw new WorktreeError(
+      'failed',
       `refusing to return ${tree}: no remote branch contains HEAD, so these commits exist nowhere else - push the branch first`,
     );
   }
@@ -47,6 +46,6 @@ export function assertReturnable(tree: string): void {
  * spelled out here.
  */
 export function wipe(tree: string): void {
-  if (git.resetHard(tree).code !== 0) throw new YanError(WORKTREE_FAILED, `cannot reset ${tree}`);
-  if (git.cleanFd(tree).code !== 0) throw new YanError(WORKTREE_FAILED, `cannot clean ${tree}`);
+  if (git.resetHard(tree).code !== 0) throw new WorktreeError('failed', `cannot reset ${tree}`);
+  if (git.cleanFd(tree).code !== 0) throw new WorktreeError('failed', `cannot clean ${tree}`);
 }

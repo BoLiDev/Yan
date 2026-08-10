@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MISSING_OPTIONS, resolve, setPrompter } from '../../src/cli/support/resolve.js';
-import { YanError } from '../../src/util/error.js';
+import { resolve, setPrompter } from '../../src/cli/support/resolve.js';
+import { CommandError } from '../../src/cli/support/errors.js';
 
 /**
  * The soft/hard rule (runtime.md §3, cli-ux.md §1). The half that matters is
@@ -41,18 +41,18 @@ describe('resolve', () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(YanError);
-    expect((thrown as YanError).code).toBe(MISSING_OPTIONS);
-    expect((thrown as YanError).exitCode).toBe(2);
-    expect((thrown as YanError).message).toContain('--task');
-    expect((thrown as YanError).message).toContain('--unit');
+    expect(thrown).toBeInstanceOf(CommandError);
+    expect((thrown as CommandError).code).toBe('missing_options');
+    expect((thrown as CommandError).exitCode).toBe(2);
+    expect((thrown as CommandError).message).toContain('--task');
+    expect((thrown as CommandError).message).toContain('--unit');
   });
 
   it('refuses with a TTY when no prompter is installed', async () => {
     // Phase 0 ships no src/ui/. Until Phase 8 installs Clack there is no soft
     // path at all, and "no prompter" must refuse rather than hang.
     setTty(true);
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
   });
 
   it('prompts only for what is missing, and only with a TTY', async () => {
@@ -73,18 +73,18 @@ describe('resolve', () => {
     const prompter = vi.fn(async () => ({ task: 'nope' }));
     setPrompter(prompter);
 
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
     expect(prompter).not.toHaveBeenCalled();
   });
 
   it('refuses when the prompt came back empty', async () => {
     setTty(true);
     setPrompter(async () => ({}));
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
   });
 
   it('treats an empty string as missing', async () => {
     setTty(false);
-    await expect(resolve({ task: '', unit: 'auth' }, SPEC)).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ task: '', unit: 'auth' }, SPEC)).rejects.toBeInstanceOf(CommandError);
   });
 });

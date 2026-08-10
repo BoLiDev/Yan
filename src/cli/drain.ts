@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { YanError, usageError } from '../util/error.js';
+import { CommandError } from './support/errors.js';
 import { taskDir } from '../store/task.js';
 import { action, out } from './support/action.js';
 
@@ -38,9 +38,7 @@ export const command = new Command('drain')
       if (wake === '') {
         const task = id ?? process.env.YAN_TASK ?? '';
         if (task === '') {
-          throw usageError(
-            'drain_usage',
-            'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
+          throw CommandError.usage('drain', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
           );
         }
         wake = join(taskDir(task), 'run', 'wake');
@@ -53,7 +51,7 @@ export const command = new Command('drain')
       try {
         reason = readFileSync(wake, 'utf8');
       } catch (cause) {
-        throw new YanError('drain_failed', `cannot read the wake file: ${wake}`, { cause });
+        throw new CommandError('drain', 'failed', `cannot read the wake file: ${wake}`, { cause });
       }
 
       const trimmed = reason.replace(/\r?\n$/, '');
@@ -64,9 +62,7 @@ export const command = new Command('drain')
       try {
         rmSync(wake, { force: true });
       } catch (cause) {
-        throw new YanError(
-          'drain_failed',
-          `the reason was printed but the wake file could not be cleared: ${wake}`,
+        throw new CommandError('drain', 'failed', `the reason was printed but the wake file could not be cleared: ${wake}`,
           { cause },
         );
       }

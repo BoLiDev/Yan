@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { YanError, usageError } from './error.js';
+import { YanError, type YanErrorOptions } from './error.js';
 
 /**
  * Run git in a given directory. The TypeScript half of `bin/lib-git.sh`.
@@ -24,9 +24,27 @@ import { YanError, usageError } from './error.js';
  *      tests/unit/util-git.test.ts greps for it.)
  */
 
-export const GIT_USAGE = 'git_usage';
-export const GIT_FAILED = 'git_failed';
-export const GIT_FORCE_REFUSED = 'git_force_refused';
+const CODES = {
+  usage: 'git_usage',
+  failed: 'git_failed',
+  forceRefused: 'git_force_refused',
+} as const;
+
+export type GitErrorKind = keyof typeof CODES;
+
+/** What running git can fail with. */
+export class GitError extends YanError {
+  public static readonly codes = CODES;
+
+  public constructor(kind: GitErrorKind, message: string, options?: YanErrorOptions) {
+    super(CODES[kind], message, options);
+  }
+
+  /** The caller passed something impossible. Exit 2. */
+  public static usage(message: string): GitError {
+    return new GitError('usage', message, { exitCode: 2 });
+  }
+}
 
 export interface GitResult {
   readonly code: number;
@@ -36,9 +54,7 @@ export interface GitResult {
 
 function requireDir(dir: string | undefined): string {
   if (!dir) {
-    throw usageError(
-      GIT_USAGE,
-      'a directory argument is required (this module never uses the current working directory)',
+    throw GitError.usage('a directory argument is required (this module never uses the current working directory)',
     );
   }
   let isDir = false;
@@ -47,12 +63,12 @@ function requireDir(dir: string | undefined): string {
   } catch {
     isDir = false;
   }
-  if (!isDir) throw usageError(GIT_USAGE, `not a directory: ${dir}`);
+  if (!isDir) throw GitError.usage(`not a directory: ${dir}`);
   return dir;
 }
 
 function requireArg(value: string | undefined, message: string): string {
-  if (!value) throw usageError(GIT_USAGE, message);
+  if (!value) throw GitError.usage(message);
   return value;
 }
 
@@ -64,7 +80,7 @@ export function git(dir: string, args: readonly string[]): GitResult {
     windowsHide: true,
   });
   if (r.error) {
-    throw new YanError(GIT_FAILED, `cannot run git: ${r.error.message}`, { cause: r.error });
+    throw new GitError('failed', `cannot run git: ${r.error.message}`, { cause: r.error });
   }
   return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -74,11 +90,11 @@ export function gitOk(dir: string, args: readonly string[]): boolean {
   return git(dir, args).code === 0;
 }
 
-/** Trimmed stdout, or a YanError carrying git's own stderr. */
+/** Trimmed stdout, or a GitError carrying git's own stderr. */
 export function gitOut(dir: string, args: readonly string[]): string {
   const r = git(dir, args);
   if (r.code !== 0) {
-    throw new YanError(GIT_FAILED, `git ${args.join(' ')} failed: ${r.stderr.trim()}`);
+    throw new GitError('failed', `git ${args.join(' ')} failed: ${r.stderr.trim()}`);
   }
   return r.stdout.trim();
 }
@@ -171,9 +187,7 @@ export function isForceFlag(arg: string): boolean {
 export function push(dir: string, args: readonly string[] = []): GitResult {
   for (const a of args) {
     if (isForceFlag(a)) {
-      throw new YanError(
-        GIT_FORCE_REFUSED,
-        'refusing to force-push: it is forbidden (boundaries.md §9.2)',
+      throw new GitError('forceRefused', 'refusing to force-push: it is forbidden (boundaries.md §9.2)',
         { exitCode: 2 },
       );
     }

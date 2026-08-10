@@ -1,4 +1,4 @@
-import { usageError } from '../../util/error.js';
+import { TerminalError } from './errors.js';
 
 /**
  * Herdr's identifiers, and the guards that keep a label from being passed where
@@ -20,21 +20,21 @@ const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 
 export function requirePaneId(value: string, what: string): string {
   if (!PANE_ID.test(value)) {
-    throw usageError('term_usage', `${what} needs a pane id like w1:p1, never a label: got '${value}'`);
+    throw TerminalError.usage(`${what} needs a pane id like w1:p1, never a label: got '${value}'`);
   }
   return value;
 }
 
 export function requireWorkspaceId(value: string, what: string): string {
   if (!WORKSPACE_ID.test(value)) {
-    throw usageError('term_usage', `${what} needs a workspace id like w1, never a name: got '${value}'`);
+    throw TerminalError.usage(`${what} needs a workspace id like w1, never a name: got '${value}'`);
   }
   return value;
 }
 
 export function requireAgentName(value: string): string {
   if (!AGENT_NAME.test(value)) {
-    throw usageError('term_usage', `an agent name is [a-z][a-z0-9_-]{0,31}: got '${value}'`);
+    throw TerminalError.usage(`an agent name is [a-z][a-z0-9_-]{0,31}: got '${value}'`);
   }
   return value;
 }

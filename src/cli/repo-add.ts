@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { YanError, usageError } from '../util/error.js';
+import { CommandError } from './support/errors.js';
 import { clone, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { editJson, initJson, readJson } from '../util/json.js';
@@ -75,33 +75,29 @@ export const command = new Command('repo-add')
         options: { name?: string; modeDefault?: string; poolSize?: string },
       ) => {
         if (url === undefined || url === '') {
-          throw usageError('repo_usage', 'a clone URL is required');
+          throw CommandError.usage('repo', 'a clone URL is required');
         }
 
         const name = options.name && options.name !== '' ? options.name : repoNameFromUrl(url);
         if (name === '' || !/^[A-Za-z0-9._-]+$/.test(name)) {
-          throw usageError(
-            'repo_usage',
-            `cannot derive a usable repository name from '${url}' - pass --name`,
+          throw CommandError.usage('repo', `cannot derive a usable repository name from '${url}' - pass --name`,
           );
         }
         if (name === 'version') {
           // The registry keeps repositories at the top level beside `version`
           // (Appendix D), so that one name is not available.
-          throw usageError('repo_usage', "'version' is not a usable repository name - pass --name");
+          throw CommandError.usage('repo', "'version' is not a usable repository name - pass --name");
         }
 
         const mode = options.modeDefault ?? '';
         if (mode !== '' && !['scout', 'branch', 'mr'].includes(mode)) {
-          throw usageError(
-            'repo_usage',
-            `invalid --mode-default '${mode}' - one of: scout branch mr`,
+          throw CommandError.usage('repo', `invalid --mode-default '${mode}' - one of: scout branch mr`,
           );
         }
 
         const pool = options.poolSize ?? '';
         if (pool !== '' && (!/^[0-9]+$/.test(pool) || Number(pool) <= 0)) {
-          throw usageError('repo_usage', `invalid --pool-size '${pool}' - a positive integer`);
+          throw CommandError.usage('repo', `invalid --pool-size '${pool}' - a positive integer`);
         }
 
         const home = yanHome();
@@ -118,9 +114,7 @@ export const command = new Command('repo-add')
         const registeredUrl = typeof entry.url === 'string' ? entry.url : '';
 
         if (registeredUrl !== '' && !sameUrl(registeredUrl, url)) {
-          throw new YanError(
-            'repo_conflict',
-            `'${name}' is already registered as ${registeredUrl} - pass --name to register ${url} under a different name`,
+          throw new CommandError('repo', 'conflict', `'${name}' is already registered as ${registeredUrl} - pass --name to register ${url} under a different name`,
           );
         }
 
@@ -128,16 +122,14 @@ export const command = new Command('repo-add')
         if (existsSync(dest)) {
           const existing = remoteUrl(dest) ?? '';
           if (!sameUrl(existing, url)) {
-            throw new YanError(
-              'repo_conflict',
-              `${dest} already exists and is not a clone of ${url} (origin: ${existing === '' ? 'none' : existing}) - move it aside first; repo-add never clones over an existing directory`,
+            throw new CommandError('repo', 'conflict', `${dest} already exists and is not a clone of ${url} (origin: ${existing === '' ? 'none' : existing}) - move it aside first; repo-add never clones over an existing directory`,
             );
           }
           out(`repo-add: ${dest} already exists, keeping it (no re-clone)`);
         } else {
           out(`repo-add: cloning ${url} into ${dest}`);
           if (clone(reposDir, url, name).code !== 0) {
-            throw new YanError('repo_clone_failed', `clone failed: ${url}`);
+            throw new CommandError('repo', 'clone_failed', `clone failed: ${url}`);
           }
         }
 

@@ -1,8 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { usageError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
-import { REMOTE_GIT_CONFIG } from './errors.js';
+import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';
 
 /**
@@ -43,39 +42,31 @@ function section(parsed: unknown): { data: Record<string, unknown>; name: string
 export function readConfig(): RemoteGitConfig {
   const path = configPath();
   if (!existsSync(path)) {
-    throw usageError(
-      REMOTE_GIT_CONFIG,
-      `no configuration at ${path} - copy conf/config.sample.json there and set remote_git.kind`,
+    throw RemoteGitError.config(`no configuration at ${path} - copy conf/config.sample.json there and set remote_git.kind`,
     );
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(path, 'utf8'));
   } catch {
-    throw usageError(REMOTE_GIT_CONFIG, `cannot read ${path} - it is not valid JSON; run 'yan doctor'`);
+    throw RemoteGitError.config(`cannot read ${path} - it is not valid JSON; run 'yan doctor'`);
   }
 
   const { data, name } = section(parsed);
 
   const kind = typeof data.kind === 'string' ? data.kind : '';
   if (kind === '') {
-    throw usageError(
-      REMOTE_GIT_CONFIG,
-      `${name}.kind is not set in ${path} - set it to github or gitlab, then run 'yan doctor'`,
+    throw RemoteGitError.config(`${name}.kind is not set in ${path} - set it to github or gitlab, then run 'yan doctor'`,
     );
   }
   if (kind !== 'github' && kind !== 'gitlab') {
-    throw usageError(
-      REMOTE_GIT_CONFIG,
-      `${name}.kind is '${kind}', which yan does not support - use github or gitlab`,
+    throw RemoteGitError.config(`${name}.kind is '${kind}', which yan does not support - use github or gitlab`,
     );
   }
 
   const host = typeof data.host === 'string' ? data.host : '';
   if (kind === 'gitlab' && host === '') {
-    throw usageError(
-      REMOTE_GIT_CONFIG,
-      `${name}.host is required when ${name}.kind is gitlab - set it in ${path} (hostname, no scheme), then run 'yan doctor'`,
+    throw RemoteGitError.config(`${name}.host is required when ${name}.kind is gitlab - set it in ${path} (hostname, no scheme), then run 'yan doctor'`,
     );
   }
   return { kind, host };

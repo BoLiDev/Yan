@@ -1,6 +1,6 @@
-import { usageError } from '../../util/error.js';
+import { TerminalError } from './errors.js';
 import { nativePath } from '../../util/paths.js';
-import { herdrCall, mapError, runHerdr, TERM_NOT_FOUND } from './client.js';
+import { herdrCall, mapError, runHerdr } from './client.js';
 import { paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { agentSessionOf, asRecord, statusOf, str } from './parse.js';
 import type {
@@ -69,7 +69,7 @@ export class Terminal {
    * move whoever asked for it.
    */
   public createContainer(label: string, cwd?: string): Container {
-    if (label === '') throw usageError('term_usage', 'a container label is required');
+    if (label === '') throw TerminalError.usage('a container label is required');
     const args = ['workspace', 'create', '--label', label, '--no-focus'];
     if (cwd !== undefined && cwd !== '') args.push('--cwd', nativePath(cwd));
 
@@ -98,8 +98,8 @@ export class Terminal {
    */
   public startAgent(options: StartAgentOptions): StartedAgent {
     requireAgentName(options.name);
-    if (options.kind === '') throw usageError('term_usage', 'an agent kind is required');
-    if (options.cwd === '') throw usageError('term_usage', 'a working directory is required');
+    if (options.kind === '') throw TerminalError.usage('an agent kind is required');
+    if (options.cwd === '') throw TerminalError.usage('a working directory is required');
 
     const pane = this.split(options);
     const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
@@ -133,7 +133,7 @@ export class Terminal {
    */
   public send(pane: string, text: string, waitMs?: number): void {
     requirePaneId(pane, 'send');
-    if (text === '') throw usageError('term_usage', 'there is nothing to send');
+    if (text === '') throw TerminalError.usage('there is nothing to send');
     const args = ['agent', 'prompt', pane, text];
     if (waitMs !== undefined) args.push('--wait', '--timeout', String(waitMs));
     herdrCall(args, 'agent prompt');
@@ -148,7 +148,7 @@ export class Terminal {
   public read(pane: string, lines = 80, source: ReadSource = 'recent-unwrapped'): string {
     requirePaneId(pane, 'read');
     if (!Number.isInteger(lines) || lines <= 0) {
-      throw usageError('term_usage', `a whole number of lines is required, got '${lines}'`);
+      throw TerminalError.usage(`a whole number of lines is required, got '${lines}'`);
     }
     const body = asRecord(
       herdrCall(['agent', 'read', pane, '--source', source, '--lines', String(lines)], 'agent read'),
@@ -182,11 +182,11 @@ export class Terminal {
 
     const agent = runHerdr(['agent', 'get', pane]);
     if (agent.code === 0) return 'alive';
-    if (mapError(agent, 'agent get').code !== TERM_NOT_FOUND) return 'unknown';
+    if (mapError(agent, 'agent get').code !== TerminalError.codes.notFound) return 'unknown';
 
     const paneResult = runHerdr(['pane', 'get', pane]);
     if (paneResult.code === 0) return 'dead';
-    return mapError(paneResult, 'pane get').code === TERM_NOT_FOUND ? 'dead' : 'unknown';
+    return mapError(paneResult, 'pane get').code === TerminalError.codes.notFound ? 'dead' : 'unknown';
   }
 
   /**
@@ -285,7 +285,7 @@ export class Terminal {
     const split = asRecord(herdrCall(args, 'pane split'));
     const pane =
       str(asRecord(split.pane).pane_id) || str(split.pane_id) || str(asRecord(split.result).pane_id);
-    if (pane === '') throw usageError('term_usage', 'herdr did not report a pane id for the split');
+    if (pane === '') throw TerminalError.usage('herdr did not report a pane id for the split');
     return pane;
   }
 
@@ -304,7 +304,7 @@ export class Terminal {
       .map((p) => str(p.pane_id))
       .find((id) => id !== '');
     if (first === undefined) {
-      throw usageError('term_usage', `${container} has no pane to split`);
+      throw TerminalError.usage(`${container} has no pane to split`);
     }
     return first;
   }

@@ -10,7 +10,7 @@ import {
   writeJson,
   writeJsonText,
 } from '../../src/util/json.js';
-import { YanError } from '../../src/util/error.js';
+import { JsonError } from '../../src/util/json.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
 
 /**
@@ -91,11 +91,11 @@ describe('writeJson', () => {
 
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(() => writeJson(f, circular)).toThrow(YanError);
+    expect(() => writeJson(f, circular)).toThrow(JsonError);
     expect(readJson(f)).toEqual({ a: 1, version: 1 });
     expect(countTemps(tmp)).toBe(0);
 
-    expect(() => writeJson(f, undefined)).toThrow(YanError);
+    expect(() => writeJson(f, undefined)).toThrow(JsonError);
     expect(readJson(f)).toEqual({ a: 1, version: 1 });
   });
 });
@@ -107,7 +107,7 @@ describe('writeJsonText', () => {
     writeJson(f, { a: 1 });
 
     for (const bad of ['{"a":', 'not json at all', '']) {
-      expect(() => writeJsonText(f, bad)).toThrow(YanError);
+      expect(() => writeJsonText(f, bad)).toThrow(JsonError);
       expect(readJson(f)).toEqual({ a: 1, version: 1 });
     }
     expect(countTemps(tmp)).toBe(0);
@@ -163,7 +163,7 @@ describe('editJson', () => {
 
   it('refuses a missing file', () => {
     const tmp = mkTempDir();
-    expect(() => editJson(join(tmp, 'missing.json'), (c) => c)).toThrow(YanError);
+    expect(() => editJson(join(tmp, 'missing.json'), (c) => c)).toThrow(JsonError);
   });
 });
 
@@ -182,7 +182,7 @@ describe('initJson', () => {
 describe('reading', () => {
   it('refuses a missing file, but readJsonIfPresent does not', () => {
     const tmp = mkTempDir();
-    expect(() => readJson(join(tmp, 'missing.json'))).toThrow(YanError);
+    expect(() => readJson(join(tmp, 'missing.json'))).toThrow(JsonError);
     expect(readJsonIfPresent(join(tmp, 'missing.json'))).toBeUndefined();
   });
 
@@ -190,11 +190,11 @@ describe('reading', () => {
     const tmp = mkTempDir();
     const f = join(tmp, 'broken.json');
     writeFileSync(f, '{oh no');
-    expect(() => readJson(f)).toThrow(YanError);
+    expect(() => readJson(f)).toThrow(JsonError);
   });
 
   it('parseJson refuses invalid text', () => {
-    expect(() => parseJson('{')).toThrow(YanError);
+    expect(() => parseJson('{')).toThrow(JsonError);
     expect(parseJson('{"a":1}')).toEqual({ a: 1 });
   });
 });

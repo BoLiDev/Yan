@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
-import { WORKTREE_MISMATCH } from './errors.js';
+import { WorktreeError } from './errors.js';
 import { cloneDir } from './layout.js';
 import { WorktreePool } from './index.js';
 
@@ -12,7 +12,7 @@ import { WorktreePool } from './index.js';
  * The pool against real git and a real (local, bare) remote. No network.
  *
  * This test lives beside the module on purpose: it reaches for `cloneDir` and
- * `WORKTREE_MISMATCH`, which are the module's own business and are not exported
+ * `WorktreeError`, which are the module's own business and are not exported
  * from `index.ts`. A test in `tests/` could only see them by widening the
  * public surface, which is how the surface got wide in the first place.
  *
@@ -189,7 +189,7 @@ describe('the conditional return', () => {
     } catch (e) {
       thrown = e;
     }
-    expect((thrown as { code: string }).code).toBe(WORKTREE_MISMATCH);
+    expect((thrown as { code: string }).code).toBe(WorktreeError.codes.mismatch);
     expect((thrown as { exitCode: number }).exitCode).toBe(3);
     expect((thrown as Error).message).toContain('nothing was touched');
     expect(existsSync(join(grant.path, 'stray2.txt'))).toBe(true);
@@ -200,7 +200,7 @@ describe('the conditional return', () => {
     } catch (e) {
       thrown = e;
     }
-    expect((thrown as { code: string }).code).toBe(WORKTREE_MISMATCH);
+    expect((thrown as { code: string }).code).toBe(WorktreeError.codes.mismatch);
     expect((thrown as Error).message).toContain('holder does not match');
 
     // With a matching identity the guard is what refuses.

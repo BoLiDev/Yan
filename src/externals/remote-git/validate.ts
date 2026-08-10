@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { YanError, usageError } from '../../util/error.js';
 import type { CliResult } from './client.js';
-import { REMOTE_GIT_FAILED, REMOTE_GIT_USAGE } from './errors.js';
+import { RemoteGitError } from './errors.js';
 import type { MrCreateOptions, MrRef, RepoRef } from './types.js';
 
 /**
@@ -21,9 +20,7 @@ export function only(input: object, allowed: readonly string[]): void {
   for (const key of Object.keys(options)) {
     if (options[key] === undefined) continue;
     if (!allowed.includes(key)) {
-      throw usageError(
-        REMOTE_GIT_USAGE,
-        `'${key}' is not accepted here - these verbs take yan's own options only, never gh's or glab's`,
+      throw RemoteGitError.usage(`'${key}' is not accepted here - these verbs take yan's own options only, never gh's or glab's`,
       );
     }
   }
@@ -37,15 +34,13 @@ export function checkDir(ref: RepoRef): string | undefined {
   } catch {
     isDir = false;
   }
-  if (!isDir) throw usageError(REMOTE_GIT_USAGE, `dir is not a directory: ${ref.dir}`);
+  if (!isDir) throw RemoteGitError.usage(`dir is not a directory: ${ref.dir}`);
   return ref.dir;
 }
 
 export function requireMr(ref: MrRef): string {
   if (ref.mr === undefined || ref.mr === '') {
-    throw usageError(
-      REMOTE_GIT_USAGE,
-      'mr is required - pass the merge request URL createMr returned, or its number',
+    throw RemoteGitError.usage('mr is required - pass the merge request URL createMr returned, or its number',
     );
   }
   // A URL or a branch name that arrived from a JSON file read on Git Bash may
@@ -56,10 +51,10 @@ export function requireMr(ref: MrRef): string {
 export function bodyText(options: MrCreateOptions): string {
   if (options.bodyFile !== undefined && options.bodyFile !== '') {
     if (options.body !== undefined && options.body !== '') {
-      throw usageError(REMOTE_GIT_USAGE, 'body and bodyFile are alternatives - pass one');
+      throw RemoteGitError.usage('body and bodyFile are alternatives - pass one');
     }
     if (!existsSync(options.bodyFile)) {
-      throw usageError(REMOTE_GIT_USAGE, `bodyFile does not exist: ${options.bodyFile}`);
+      throw RemoteGitError.usage(`bodyFile does not exist: ${options.bodyFile}`);
     }
     return readFileSync(options.bodyFile, 'utf8');
   }
@@ -70,9 +65,7 @@ export function bodyText(options: MrCreateOptions): string {
 export function extractUrl(text: string, pattern: RegExp): string {
   const matches = text.match(pattern);
   if (matches === null || matches.length === 0) {
-    throw new YanError(
-      REMOTE_GIT_FAILED,
-      'the host did not print a merge request URL - check the repository by hand',
+    throw new RemoteGitError('failed', 'the host did not print a merge request URL - check the repository by hand',
     );
   }
   return (matches[matches.length - 1] ?? '').replace(/\r/g, '');

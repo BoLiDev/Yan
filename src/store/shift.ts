@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, utimesSync, closeSync, openSync } from 'node:fs';
 import { basename, dirname, join, resolve as resolvePath } from 'node:path';
-import { YanError, usageError } from '../util/error.js';
+import { YanError, type YanErrorOptions } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { normalizePath } from '../util/paths.js';
@@ -34,9 +34,27 @@ import { taskDir } from './task.js';
  *      one thing, not two.
  */
 
-export const SHIFT_USAGE = 'shift_usage';
-export const SHIFT_MISSING = 'shift_missing';
-export const SHIFT_AMBIGUOUS = 'shift_ambiguous';
+const CODES = {
+  usage: 'shift_usage',
+  missing: 'shift_missing',
+  ambiguous: 'shift_ambiguous',
+} as const;
+
+export type ShiftErrorKind = keyof typeof CODES;
+
+/** What resolving or reading a shift can fail with. */
+export class ShiftError extends YanError {
+  public static readonly codes = CODES;
+
+  public constructor(kind: ShiftErrorKind, message: string, options?: YanErrorOptions) {
+    super(CODES[kind], message, options);
+  }
+
+  /** The caller passed something impossible. Exit 2. */
+  public static usage(message: string): ShiftError {
+    return new ShiftError('usage', message, { exitCode: 2 });
+  }
+}
 
 /** Which shift we are pointing at. The bash version's four globals, as a value. */
 export interface ShiftRef {
@@ -53,9 +71,7 @@ export function isShiftId(sid: string): boolean {
 
 function requireSid(sid: string): string {
   if (!isShiftId(sid)) {
-    throw usageError(
-      SHIFT_USAGE,
-      `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
+    throw ShiftError.usage(`invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
     );
   }
   return sid;
@@ -84,10 +100,7 @@ export function shiftResolve(sid: string, task = ''): ShiftRef {
   if (want !== '') {
     const ref = shiftUse(want, sid);
     if (!existsSync(ref.dir)) {
-      throw new YanError(
-        SHIFT_MISSING,
-        `no such shift: ${sid} in task ${want} - ${ref.dir} does not exist`,
-      );
+      throw new ShiftError('missing', `no such shift: ${sid} in task ${want} - ${ref.dir} does not exist`);
     }
     return ref;
   }
@@ -102,14 +115,11 @@ export function shiftResolve(sid: string, task = ''): ShiftRef {
   const hits = ids.filter((id) => existsSync(join(tasksDir, id, 'shifts', sid)));
 
   if (hits.length === 0) {
-    throw new YanError(
-      SHIFT_MISSING,
-      `no such shift: ${sid} - nothing matches ${tasksDir}/*/shifts/${sid}`,
-    );
+    throw new ShiftError('missing', `no such shift: ${sid} - nothing matches ${tasksDir}/*/shifts/${sid}`);
   }
   if (hits.length > 1) {
-    throw usageError(
-      SHIFT_AMBIGUOUS,
+    throw new ShiftError(
+      'ambiguous',
       `shift id '${sid}' exists in more than one task - name the task, for example --task <id>\n${hits
         .map((h) => `  ${h}`)
         .join('\n')}`,
@@ -126,8 +136,8 @@ export function shiftResolve(sid: string, task = ''): ShiftRef {
  * a task say so themselves. Guessing would be worse than not knowing.
  */
 export function shiftResolveDir(dir: string): ShiftRef {
-  if (!dir) throw usageError(SHIFT_USAGE, 'a shift directory is required');
-  if (!existsSync(dir)) throw new YanError(SHIFT_MISSING, `no such directory: ${dir}`);
+  if (!dir) throw ShiftError.usage('a shift directory is required');
+  if (!existsSync(dir)) throw new ShiftError('missing', `no such directory: ${dir}`);
   const abs = normalizePath(resolvePath(dir));
   const parent = dirname(abs);
   const task = basename(parent) === 'shifts' ? basename(dirname(parent)) : '';
@@ -304,9 +314,9 @@ export function shiftEventCount(ref: ShiftRef): number {
  * writes into the same file are three chances to end up with half a line.
  */
 export function shiftEventAppend(ref: ShiftRef, state: string, note = ''): void {
-  if (!state) throw usageError(SHIFT_USAGE, 'an event needs a state');
+  if (!state) throw ShiftError.usage('an event needs a state');
   if (`${state}${note}`.includes('\n')) {
-    throw usageError(SHIFT_USAGE, 'an event is one line - a newline would forge a second event');
+    throw ShiftError.usage('an event is one line - a newline would forge a second event');
   }
   mkdirSync(ref.run, { recursive: true });
 

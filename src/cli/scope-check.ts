@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { Command } from 'commander';
-import { YanError } from '../util/error.js';
+import { CommandError } from './support/errors.js';
 import { diffNameOnly, git, gitOk, statusPorcelain } from '../util/git.js';
 import { findUnit, readTask, taskExists } from '../store/task.js';
 import { shiftMetaTree, shiftMetaUnit, shiftResolve } from '../store/shift.js';
@@ -57,20 +57,18 @@ export const command = new Command('scope-check')
   .action(
     action('scope-check', (sid: string | undefined, options: { task?: string; json?: boolean }) => {
       if (sid === undefined || sid === '') {
-        throw new YanError('scope_usage', 'a shift id is required', { exitCode: 2 });
+        throw new CommandError('scope', 'usage', 'a shift id is required', { exitCode: 2 });
       }
       const ref = shiftResolve(sid, options.task ?? '');
       const unit = shiftMetaUnit(ref) ?? '';
       const tree = shiftMetaTree(ref);
 
       if (tree === undefined) {
-        throw new YanError(
-          'scope_no_tree',
-          `run/meta.json for ${sid} records no tree - there is no working tree to diff`,
+        throw new CommandError('scope', 'no_tree', `run/meta.json for ${sid} records no tree - there is no working tree to diff`,
         );
       }
       if (!existsSync(tree)) {
-        throw new YanError('scope_no_tree', `the tree recorded for ${sid} is not there: ${tree}`);
+        throw new CommandError('scope', 'no_tree', `the tree recorded for ${sid} is not there: ${tree}`);
       }
 
       // `scope` belongs to the unit in task.json, so a shift whose meta names no

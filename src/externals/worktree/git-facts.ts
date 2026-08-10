@@ -1,6 +1,5 @@
-import { YanError } from '../../util/error.js';
 import * as git from '../../util/git.js';
-import { WORKTREE_FAILED } from './errors.js';
+import { WorktreeError } from './errors.js';
 import { pathKey } from './layout.js';
 
 /**
@@ -36,8 +35,8 @@ export function baseRef(clone: string, base: string): string {
     return `origin/${base}`;
   }
   if (git.gitOk(clone, ['rev-parse', '--verify', '--quiet', `${base}^{commit}`])) return base;
-  throw new YanError(
-    WORKTREE_FAILED,
+  throw new WorktreeError(
+    'failed',
     `cannot resolve the base '${base}' in ${clone} - fetch it first, or pass a base that exists`,
   );
 }

@@ -1,4 +1,4 @@
-import { usageError } from '../../util/error.js';
+import { CommandError } from './errors.js';
 
 /**
  * The soft/hard rule, expressed once instead of per command
@@ -49,13 +49,16 @@ export function isTty(): boolean {
   return process.stdin.isTTY === true;
 }
 
-export const MISSING_OPTIONS = 'missing_options';
-
 function refuse(missing: readonly OptionSpec[]): never {
   const flags = missing.map((m) => `  ${m.flag} <value>   ${m.describe}`).join('\n');
-  throw usageError(
-    MISSING_OPTIONS,
+  throw new CommandError(
+    'missing',
+    'options',
     `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`,
+    // Exit 2: not enough was passed, which is the caller's mistake. The code
+    // stays `missing_options` rather than `<command>_usage` because it is the
+    // one usage failure that is not about a particular command.
+    { exitCode: 2 },
   );
 }
 

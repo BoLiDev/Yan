@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { YanError, usageError } from '../util/error.js';
+import { YanError, type YanErrorOptions } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { editJson, initJson, readJson } from '../util/json.js';
 import { normalizePath } from '../util/paths.js';
-import { logInit } from './log.js';
+import { Log } from '../records/log/index.js';
 
 /**
  * Reading and writing `tasks/<id>/task.json`. The TypeScript half of
@@ -74,9 +74,27 @@ export interface Task {
   [key: string]: unknown;
 }
 
-export const TASK_USAGE = 'task_usage';
-export const TASK_MISSING = 'task_missing';
-export const TASK_EXISTS = 'task_exists';
+const CODES = {
+  usage: 'task_usage',
+  missing: 'task_missing',
+  exists: 'task_exists',
+} as const;
+
+export type TaskErrorKind = keyof typeof CODES;
+
+/** What reading or writing a task can fail with. */
+export class TaskError extends YanError {
+  public static readonly codes = CODES;
+
+  public constructor(kind: TaskErrorKind, message: string, options?: YanErrorOptions) {
+    super(CODES[kind], message, options);
+  }
+
+  /** The caller passed something impossible. Exit 2. */
+  public static usage(message: string): TaskError {
+    return new TaskError('usage', message, { exitCode: 2 });
+  }
+}
 
 function home(): string {
   return yanHome();
@@ -88,9 +106,7 @@ export function isTaskId(id: string): boolean {
 
 function requireId(id: string): string {
   if (!isTaskId(id)) {
-    throw usageError(
-      TASK_USAGE,
-      `invalid task id: '${id}' - use letters, digits, dot, dash or underscore`,
+    throw TaskError.usage(`invalid task id: '${id}' - use letters, digits, dot, dash or underscore`,
     );
   }
   return id;
@@ -120,7 +136,7 @@ export function taskExists(id: string): boolean {
 function requireTaskFile(id: string): string {
   const f = taskFile(id);
   if (!existsSync(f)) {
-    throw new YanError(TASK_MISSING, `no such task: ${id} - expected ${f}`);
+    throw new TaskError('missing', `no such task: ${id} - expected ${f}`);
   }
   return f;
 }
@@ -210,7 +226,7 @@ export function findUnit(task: Task, name: string): Unit | undefined {
 
 export function requireUnit(task: Task, name: string): Unit {
   const u = findUnit(task, name);
-  if (u === undefined) throw new YanError(TASK_MISSING, `no such unit: ${name}`);
+  if (u === undefined) throw new TaskError('missing', `no such unit: ${name}`);
   return u;
 }
 
@@ -241,7 +257,7 @@ export function taskContainerName(id: string): string {
  */
 export function taskInit(id: string, title: string): void {
   requireId(id);
-  if (title === '') throw usageError(TASK_USAGE, 'a task needs a title');
+  if (title === '') throw TaskError.usage('a task needs a title');
 
   const dir = taskDir(id);
   mkdirSync(dir, { recursive: true });
@@ -257,7 +273,7 @@ export function taskInit(id: string, title: string): void {
   const brief = join(dir, 'brief.md');
   if (!existsSync(brief)) writeFileSync(brief, `# ${id} ${title}\n\n`);
 
-  logInit(id, title);
+  new Log(id).init(title);
 }
 
 // --- writing ----------------------------------------------------------------
@@ -276,7 +292,7 @@ function editUnit(id: string, unitName: string, edit: (unit: Record<string, unkn
   editTask(id, (task) => {
     const units = Array.isArray(task.units) ? task.units : [];
     const unit = units.map(asRecord).find((u) => u.name === unitName);
-    if (unit === undefined) throw new YanError(TASK_MISSING, `no such unit: ${unitName}`);
+    if (unit === undefined) throw new TaskError('missing', `no such unit: ${unitName}`);
     edit(unit);
   });
 }
@@ -308,17 +324,17 @@ export function unitAdd(
   options: UnitAddOptions = {},
 ): void {
   if (!name || !repo || !target) {
-    throw usageError(TASK_USAGE, 'a unit needs a name, a repo and an explicit target');
+    throw TaskError.usage('a unit needs a name, a repo and an explicit target');
   }
   const mode = options.mode ?? 'mr';
   if (!(MODES as readonly string[]).includes(mode)) {
-    throw usageError(TASK_USAGE, `invalid mode '${mode}' - one of: ${MODES.join(' ')}`);
+    throw TaskError.usage(`invalid mode '${mode}' - one of: ${MODES.join(' ')}`);
   }
 
   editTask(id, (task) => {
     const units = Array.isArray(task.units) ? task.units : [];
     if (units.map(asRecord).some((u) => u.name === name)) {
-      throw new YanError(TASK_EXISTS, `unit already exists: ${name}`);
+      throw new TaskError('exists', `unit already exists: ${name}`);
     }
     // Key order is the shell implementation's, so the two halves write the same
     // bytes for the same unit.
@@ -342,7 +358,7 @@ export type ScalarField = 'branch' | 'target' | 'mode' | 'mr';
 /** The ONLY writer of the four current scalars. It never touches history[]. */
 export function unitSet(id: string, unitName: string, field: ScalarField, value: string): void {
   if (field === 'mode' && !(MODES as readonly string[]).includes(value)) {
-    throw usageError(TASK_USAGE, `invalid mode '${value}' - one of: ${MODES.join(' ')}`);
+    throw TaskError.usage(`invalid mode '${value}' - one of: ${MODES.join(' ')}`);
   }
   editUnit(id, unitName, (unit) => {
     unit[field] = value;
@@ -379,10 +395,10 @@ function buildHistoryEntry(
   mr?: string | null,
 ): HistoryEntry {
   if (!branch || !target || !end) {
-    throw usageError(TASK_USAGE, 'a history entry needs at least branch, target and end');
+    throw TaskError.usage('a history entry needs at least branch, target and end');
   }
   if (!(ENDS as readonly string[]).includes(end)) {
-    throw usageError(TASK_USAGE, `invalid end '${end}' - one of: ${ENDS.join(' ')}`);
+    throw TaskError.usage(`invalid end '${end}' - one of: ${ENDS.join(' ')}`);
   }
   const when = at === '' ? new Date().toISOString().slice(0, 10) : at;
   // Exactly the five fields of branching.md §6.4, and `mr` only when there is
@@ -427,7 +443,7 @@ export function unitRotate(
   at = '',
 ): void {
   if (!newBranch) {
-    throw usageError(TASK_USAGE, 'rotating a unit needs the new branch name');
+    throw TaskError.usage('rotating a unit needs the new branch name');
   }
   editUnit(id, unitName, (unit) => {
     const entry = buildHistoryEntry(

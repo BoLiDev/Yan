@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { YanError } from '../../util/error.js';
+import { TerminalError } from './errors.js';
 
 /**
  * Talking to Herdr. The socket/CLI transport and the error mapping, and the
@@ -24,10 +24,6 @@ import { YanError } from '../../util/error.js';
  * vocabulary here and nowhere else (architecture.md §4.3 rule 1).
  */
 
-export const TERM_UNREACHABLE = 'term_unreachable';
-export const TERM_NOT_FOUND = 'term_not_found';
-export const TERM_REFUSED = 'term_refused';
-export const TERM_BUG = 'term_bug';
 
 export interface HerdrResult {
   readonly code: number;
@@ -93,15 +89,13 @@ export function herdrCall(args: readonly string[], what: string): unknown {
 }
 
 /** Map a Herdr failure onto yan's vocabulary. Nothing else may do this. */
-export function mapError(result: HerdrResult, what: string): YanError {
+export function mapError(result: HerdrResult, what: string): TerminalError {
   if (result.code === 2) {
     // A CLI syntax error is a bug in yan, never a runtime condition.
-    return new YanError(TERM_BUG, `herdr refused the command shape (${what}): ${result.stderr.trim()}`, {
-      exitCode: 2,
-    });
+    return TerminalError.bug(`herdr refused the command shape (${what}): ${result.stderr.trim()}`);
   }
   if (result.code === 127) {
-    return new YanError(TERM_UNREACHABLE, `cannot reach herdr (${what}): ${result.stderr.trim()}`);
+    return new TerminalError('unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
   }
 
   const code = herdrErrorCode(result.stderr);
@@ -110,11 +104,11 @@ export function mapError(result: HerdrResult, what: string): YanError {
     case 'pane_not_found':
     case 'workspace_not_found':
     case 'tab_not_found':
-      return new YanError(TERM_NOT_FOUND, `${what}: ${code}`);
+      return new TerminalError('notFound', `${what}: ${code}`);
     case undefined:
       // rc 1 with no structured error is a transport problem, not a verdict.
-      return new YanError(TERM_UNREACHABLE, `cannot reach herdr (${what}): ${result.stderr.trim()}`);
+      return new TerminalError('unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
     default:
-      return new YanError(TERM_REFUSED, `${what}: ${code}`);
+      return new TerminalError('refused', `${what}: ${code}`);
   }
 }

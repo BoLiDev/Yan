@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname } from 'node:path';
-import { YanError } from './error.js';
+import { YanError, type YanErrorOptions } from './error.js';
 
 /**
  * The one locking primitive in yan. The TypeScript half of `bin/lib-lock.sh`.
@@ -27,7 +27,18 @@ import { YanError } from './error.js';
  * concurrency-safe against one repository even when the slot allocation is.
  */
 
-export const LOCK_TIMEOUT = 'lock_timeout';
+const CODES = { timeout: 'lock_timeout' } as const;
+
+export type LockErrorKind = keyof typeof CODES;
+
+/** What waiting for a lock can fail with. */
+export class LockError extends YanError {
+  public static readonly codes = CODES;
+
+  public constructor(kind: LockErrorKind, message: string, options?: YanErrorOptions) {
+    super(CODES[kind], message, options);
+  }
+}
 
 interface LockRecord {
   pid: number;
@@ -126,8 +137,8 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
     }
     if (Date.now() >= deadline) {
       const record = readRecord(file);
-      throw new YanError(
-        LOCK_TIMEOUT,
+      throw new LockError(
+        'timeout',
         `timed out after ${timeoutSeconds}s waiting for ${file}` +
           (record === undefined ? '' : ` (held by pid ${record.pid} on ${record.host})`),
       );

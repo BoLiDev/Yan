@@ -1,7 +1,6 @@
-import { YanError } from '../../util/error.js';
 import { runCli, type CliInvocation, type CliResult } from './client.js';
 import { hostFor, readConfig } from './config.js';
-import { REMOTE_GIT_FAILED, REMOTE_GIT_USAGE } from './errors.js';
+import { RemoteGitError } from './errors.js';
 import { githubProvider } from './github.js';
 import { gitlabProvider } from './gitlab.js';
 import type { Provider } from './provider.js';
@@ -16,7 +15,6 @@ import {
   type MrState,
 } from './types.js';
 import { bodyText, checkDir, only, requireMr, unreachable } from './validate.js';
-import { usageError } from '../../util/error.js';
 
 /** How a CLI is actually run. Replaceable so a test needs no module mocking. */
 export type CliRunner = (invocation: CliInvocation) => CliResult;
@@ -54,7 +52,7 @@ export interface RemoteGitOptions {
  * Exit behaviour: the two QUERY verbs always return a member of their closed
  * set, including when the host cannot be reached — that is reported as
  * `unknown` / `pending` plus a note on stderr, so a caller branches on the
- * value and never has to catch. The two ACTION verbs throw a `YanError` when
+ * value and never has to catch. The two ACTION verbs throw a `RemoteGitError` when
  * they did not work.
  */
 export class RemoteGit {
@@ -78,18 +76,14 @@ export class RemoteGit {
     only(options, ['repo', 'dir', 'source', 'target', 'title', 'body', 'bodyFile', 'draft']);
     const cwd = checkDir(options);
     if (!options.source || !options.target) {
-      throw usageError(
-        REMOTE_GIT_USAGE,
-        'source and target are both required - a merge request always says where it comes from and where it goes',
+      throw RemoteGitError.usage('source and target are both required - a merge request always says where it comes from and where it goes',
       );
     }
-    if (!options.title) throw usageError(REMOTE_GIT_USAGE, 'title is required');
+    if (!options.title) throw RemoteGitError.usage('title is required');
 
     const result = this.invoke(this.provider.createArgs(options, bodyText(options)), cwd);
     if (result.code !== 0) {
-      throw new YanError(
-        REMOTE_GIT_FAILED,
-        `could not open the merge request - ${result.stderr.trim().replace(/\n/g, ' ')}`,
+      throw new RemoteGitError('failed', `could not open the merge request - ${result.stderr.trim().replace(/\n/g, ' ')}`,
       );
     }
     return this.provider.createdUrl(result);
@@ -118,18 +112,14 @@ export class RemoteGit {
     const mr = requireMr(options);
     const strategy = options.strategy ?? 'merge';
     if (!['merge', 'squash', 'rebase'].includes(strategy)) {
-      throw usageError(
-        REMOTE_GIT_USAGE,
-        `unknown merge strategy '${strategy}' - use merge, squash or rebase`,
+      throw RemoteGitError.usage(`unknown merge strategy '${strategy}' - use merge, squash or rebase`,
       );
     }
 
     const args = this.provider.mergeArgs(mr, options.repo, strategy, options.deleteSource === true);
     const result = this.invoke(args, checkDir(options));
     if (result.code !== 0) {
-      throw new YanError(
-        REMOTE_GIT_FAILED,
-        `could not merge ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`,
+      throw new RemoteGitError('failed', `could not merge ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`,
       );
     }
   }

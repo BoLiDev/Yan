@@ -1,6 +1,5 @@
-import { YanError } from '../../util/error.js';
 import type { CliResult } from './client.js';
-import { REMOTE_GIT_USAGE } from './errors.js';
+import { RemoteGitError } from './errors.js';
 import type { Provider } from './provider.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
 import { extractUrl } from './validate.js';
@@ -110,9 +109,7 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
   }
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
-    throw new YanError(
-      REMOTE_GIT_USAGE,
-      `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
+    throw new RemoteGitError('usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
       { exitCode: 2 },
     );
   }

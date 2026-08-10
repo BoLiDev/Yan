@@ -32,7 +32,7 @@
 
 export { Terminal } from './terminal.js';
 export { herdrHealth } from './health.js';
-export { TERM_BUG, TERM_NOT_FOUND, TERM_REFUSED, TERM_UNREACHABLE } from './client.js';
+export { TerminalError } from './errors.js';
 export { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION } from './schema.js';
 export { AGENT_STATUS as AGENT_STATUS_VALUES } from './schema.js';
 export type {

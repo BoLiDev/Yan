@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { YanError } from '../util/error.js';
+import { CommandError } from './support/errors.js';
 import { yanHome } from '../util/home.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
 import { isTaskId, taskDir, taskExists, taskFile, taskList } from '../store/task.js';
@@ -212,7 +212,7 @@ export const command = new Command('ls')
 
       if (!isTaskId(id) || !taskExists(id)) {
         const where = isTaskId(id) ? taskFile(id) : `${id}/task.json`;
-        throw new YanError('task_missing', `no such task: ${id} - ${where} does not exist`);
+        throw new CommandError('task', 'missing', `no such task: ${id} - ${where} does not exist`);
       }
 
       const json = taskDetailJson(id);
