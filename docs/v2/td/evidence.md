@@ -170,13 +170,13 @@ Everything in this section is **design input, not measurement**. It comes from `
 
 | Capability | Status | Where it is relied on |
 | --- | --- | --- |
-| `events.subscribe` — `EventsSubscribeParams`, `EventEnvelope`, `Subscription` | schema only | [supervision.md §2](supervision.md#2-the-shape-of-yan-wait) — **the largest subtraction in V2 depends on it** |
-| `SubscriptionEventKind` = `pane.output_matched`, `pane.agent_status_changed`, `pane.scroll_changed` | schema only | supervision.md §3 |
-| `EventKind` — 26 kinds incl. `pane_exited`, `pane_agent_detected` | schema only | supervision.md §3 |
-| `agent wait --until <state> --timeout` | help text only | supervision.md §2 |
-| `blocked` firing on real Claude / Codex approval UIs | **not observed** | terminal.md §6, supervision.md §3 |
-| `done` vs `idle` seen-semantics | documented in `--skill`, not exercised | supervision.md §3 |
-| `--kind codex` | not tried | the Codex binding |
+| `events.subscribe` — `EventsSubscribeParams`, `EventEnvelope`, `Subscription` | ~~schema only~~ **exercised, [§11](#11-the-phase-5-event-spike)** | [supervision.md §2](supervision.md#2-the-shape-of-yan-wait) — **the largest subtraction in V2 depends on it** |
+| `SubscriptionEventKind` = `pane.output_matched`, `pane.agent_status_changed`, `pane.scroll_changed` | ~~schema only~~ **exercised, [§11.2](#112-what-a-subscription-can-and-cannot-carry)** | supervision.md §3 |
+| `EventKind` — 26 kinds incl. `pane_exited`, `pane_agent_detected` | **not deliverable — [§11.2](#112-what-a-subscription-can-and-cannot-carry)** | supervision.md §3 |
+| `agent wait --until <state> --timeout` | ~~help text only~~ **exercised, [§11.6](#116-agent-wait---until)** | supervision.md §2 |
+| `blocked` firing on real Claude / Codex approval UIs | **partly — [§11.3](#113-which-prompts-herdr-recognises)** | terminal.md §6, supervision.md §3 |
+| `done` vs `idle` seen-semantics | **exercised, [§11.3](#113-which-prompts-herdr-recognises)** | supervision.md §3 |
+| `--kind codex` | **tried, and it did not work — [§11.7](#117-agent-start---kind-codex)** | the Codex binding |
 | `agent explain` | not tried | possible `yan doctor` aid |
 | `--remote <ssh-target>` | not tried | out of V2 scope |
 | Herdr on Linux / WSL | not tried | [conventions](../plan/conventions.md) claims two platforms |
@@ -201,3 +201,167 @@ Measured on the MVP tree at `be1984a`, for judging progress and for knowing what
 | `ui/` (Node, kept) | 557 lines |
 | biggest files | `lib-forge.sh` 861 · `lib-term.sh` 710 · `yan-shift-new.sh` 621 · `lib-pool.sh` 602 · `lib-task.sh` 546 |
 | supervision | `yan-wait.sh` 372 + `lib-watch.sh` 365 + `lib-lock.sh` 221 |
+
+---
+
+## 11. The Phase 5 event spike
+
+> Run 2026-08-10 against the same build as the rest of this document — `herdr 0.8.0-preview.2026-08-04-d78e3d3b5126`, protocol 19, `schema_version` 1 — inside a live Herdr session on Windows 11 / Git Bash. `herdr integration status` reported `claude: current (v7)` and `codex: current (v7)`, which is the precondition [supervision.md §6](supervision.md#6-what-must-be-proven-first) sets.
+>
+> This section answers the five questions in supervision.md §6. It is the gate for Phase 6.
+
+### 11.1 There is no CLI for `events.subscribe`; the transport is a named pipe
+
+`herdr api` has exactly two subcommands, `snapshot` and `schema`. `events.subscribe` and `events.wait` exist in the **request** schema and have no CLI verb, so a subscriber has to speak the socket protocol itself.
+
+On Windows that socket is not what its name suggests. `%APPDATA%\herdr\herdr.sock` is a **hint file** whose whole content is `<server-pid>:<nanos>`; connecting to it as a path gives `ENOTSOCK`, and the number in it is not a TCP port either (`ECONNREFUSED`). The real endpoint is a **named pipe whose name is that path**:
+
+```
+\\.\pipe\C:\Users\…\AppData\Roaming\herdr\herdr.sock
+```
+
+Newline-delimited JSON in both directions, `{id, method, params}` out and `{id, result}` / `{id, error}` / `{event, data}` back:
+
+```
+-> {"id":"spike:sub","method":"events.subscribe","params":{"subscriptions":[{"type":"pane.agent_status_changed","pane_id":"wF:p2"}]}}
+<- {"id":"spike:sub","result":{"type":"subscription_started"}}
+<- {"event":"pane.agent_status_changed","data":{"agent":"claude","agent_status":"working","pane_id":"wF:p2","workspace_id":"wF"}}
+```
+
+**Consequence:** the terminal seam's CLI transport does not cover supervision. `yan wait` needs a second, socket-level client, and on Windows it must know the pipe-name rule. That is one more module than [supervision.md §2](supervision.md#2-the-shape-of-yan-wait) implies, and it is the first thing Phase 6 has to build.
+
+### 11.2 What a subscription can and cannot carry
+
+Every `SubscriptionEventKind` is **pane-scoped and requires `pane_id`**; a subscription without one is refused with `invalid_request: missing field pane_id`. So `yan wait` subscribes once per live shift pane, exactly as supervision.md §2 says.
+
+The important negative:
+
+| wanted by supervision.md §3 | available? |
+| --- | --- |
+| `agent_status → blocked` / `done` / `idle` / `working` | **yes**, `pane.agent_status_changed` |
+| `pane_exited` → `died: <sid>` | **no** |
+
+`pane_exited` is in `EventKind` (the *event* schema, 26 kinds) but not in `SubscriptionEventKind` (3 kinds). The other route does not work either — `events.wait` accepts the shape and the server refuses it:
+
+```
+-> {"method":"events.wait","params":{"match_event":{"event":"pane_exited","pane_id":"wF:p3"},"timeout_ms":30000}}
+<- {"error":{"code":"unsupported_event_wait_match","message":"events.wait currently supports pane agent status matches"}}
+```
+
+Same answer for `pane_closed`. The schema advertises 19 `EventMatch` variants; the server implements one family.
+
+**Consequence:** "the agent died and cannot say so" has **no push channel at all**. It stays a poll of `termAgentAlive`, which is what [supervision.md §1](supervision.md#1-what-was-inferred-and-what-is-now-known) row 2 already keeps as the fallback — but the row's promise of an *event* is not deliverable on this build.
+
+### 11.3 Which prompts Herdr recognises
+
+Driven against a real Claude Code in an unfocused pane, one prompt at a time, reading `agent get` and the subscription together. This is the answer to the question supervision.md §6 calls "the critical one".
+
+| what was on screen | `agent_status` | woke `yan`? |
+| --- | --- | --- |
+| tool permission — *"Do you want to create spike-marker.txt?"* | **`blocked`** | yes, correctly |
+| tool permission — *"Bash command … This command requires approval"* | **`blocked`** | yes, correctly |
+| interactive question / select — *"What should `--quiet` suppress? 1/2/3"* | **`blocked`** | yes, correctly |
+| **plan approval — *"Claude has written up a plan and is ready to execute. Would you like to proceed?"*** | **`done`** | yes, but for the wrong reason |
+| the `/` menu, opened and left open | `idle` | no |
+
+Three of the four blocking UIs are recognised. The plan approval is **not**, and `agent explain` says why:
+
+```
+state: idle
+rule: osc_title_idle (region=osc_title priority=250)
+evidence: "✳ Plan quiet flag for bin/yan"
+```
+
+No screen rule matched the plan-approval box, so Herdr fell back to the terminal title at priority 250 and called it idle. This is precisely the false negative [sources.md §4.2](sources.md#42-an-unlearned-prompt-shows-as-idle-not-blocked) predicts.
+
+**Two things stop that from being fatal, and both matter to Phase 6.**
+
+1. The miss landed on **`done`**, not on silence, because the pane was unseen — and supervision.md §3 already maps `done` to a wake. `yan` is still woken; it is woken with `done: <sid>` instead of `blocked: <sid>` and finds the real state when it reads the pane. A missed `blocked` degrades the *reason*, not the *wake*.
+2. The `/` menu reporting `idle` is arguably right rather than wrong: nobody is waiting on the agent, `user` opened it. It is listed for completeness, not as a defect.
+
+**`done` vs `idle` behaved exactly as [terminal.md §6](terminal.md#6-agent-lifecycle-states) describes.** `agent explain` reported `state: idle` at the same moment `agent get` reported `done`, which is the seen/unseen wrapper over one underlying state, observed rather than assumed.
+
+### 11.4 A subscription survives, and reaches a hook's environment
+
+- **Unfocused panes:** every event above came from a pane that was never focused. Confirmed.
+- **A hook's environment:** the subscriber was started with `env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SOCKET_PATH`. It found the socket itself from `%APPDATA%` and received every event. This extends [§1](#1-environment-independence) from the CLI to the socket.
+- **Duration:** one subscription held **420 s** across nine state changes, including a `blocked` that sat unanswered for ~50 s, and closed cleanly only when the spike ended it. **Multi-hour was not measured** — that is a wall-clock cost this spike did not pay, and it remains the one liveness claim in supervision.md §6 q1 that rests on a shorter observation than the question asks for.
+- **Server restart under a subscription: NOT TESTED.** The only way to test it is `herdr server stop`, which stops `user`'s whole session and every process in it ([conventions §6](../plan/conventions.md#6-working-with-herdr-from-a-test-or-a-script)). Phase 6 must therefore treat "the subscription ended" as a state it handles rather than one it has seen: reconnect, re-subscribe from `run/meta.json`, and take a snapshot read on the way back in.
+
+### 11.5 The window between dispatch and subscription
+
+`agent start` returned in **3.1 s** with `interactive_ready: true`, and the first `agent_status` event for that pane arrived **13.6 s** after the subscription was established — i.e. the agent's own readiness, not a delivery delay.
+
+The window is real but it is small and it is one-sided: a subscription established *before* `agent start` (which is the order `yan shift new` can always use) misses nothing. **A post-subscribe snapshot read is still needed**, for the different case supervision.md §6 q4 is really about — `yan wait` starting up while shifts are already running. `agent wait` is a state check rather than an edge trigger and confirms it: with the agent already `done`, `agent wait --until done` returned in **35 ms**.
+
+**Recommendation:** subscribe first, then read `agent get` once per live pane, then block. The snapshot costs one call per shift and removes the whole class.
+
+### 11.6 `agent wait --until`
+
+Exercised for the single-shift case, both ways:
+
+```
+$ herdr agent wait yanspike --until done --timeout 5000     # already done
+{"result":{"agent":{…"agent_status":"done"…}}}              real 0m0.035s
+
+$ herdr agent wait yanspike --until blocked --timeout 3000  # not blocked
+{"error":{"code":"timeout","message":"timed out waiting for agent status"}}   real 0m3.081s
+```
+
+Note the second one: **a timeout is an `error` with `code: timeout`**, not a distinguishable exit status. A caller must map that code rather than treat rc 1 as failure — which is what the terminal seam's error mapping is for.
+
+### 11.7 `agent start --kind codex`
+
+Two findings, and the second is a real hazard.
+
+**`codex` is now on `PATH`** (`~/AppData/Local/Programs/OpenAI/Codex/bin/codex`), so [§8](#8-integration-status)'s closing note is out of date and the question as posed — does `--kind codex` work when codex is *not* on `PATH` — could not be asked on this machine.
+
+**`agent start --kind codex` reported success for an agent that was not running.**
+
+```
+$ herdr agent start yanspikecodex --kind codex --pane wF:p3 --timeout 90000
+{"result":{"agent":{"agent":"codex","agent_status":"idle","interactive_ready":true,…},"argv":["codex"]}}   real 0m3.085s
+```
+
+The pane's own scrollback tells a different story:
+
+```
+PS C:\workspace\project\Yan> & codex
+PS C:\workspace\project\Yan>
+```
+
+`codex` was launched and exited immediately, printing nothing, leaving a bare PowerShell prompt — and Herdr's screen detection matched *that* and called it interactive-ready. `agent get` then reported `agent_not_found` a minute later, and `agent prompt` had meanwhile typed the prompt text **into PowerShell**, which tried to run it as a command.
+
+Three consequences, all binding on Phase 6 and Phase 7:
+
+1. **`agent start` returning success is not proof the agent is up.** [terminal.md §2](terminal.md#2-the-seven-functions) reads it as one; for Codex on Windows it is not. A dispatch has to confirm afterwards — `agent get` by name, or `termAgentAlive` — before it treats the shift as started.
+2. **`agent prompt` into a pane whose agent has died types into a shell.** That is the reason `yan` must never send to a pane it has not just confirmed alive.
+3. No `agent_session` was reported for the codex agent, although `integration status` says `codex: current (v7)`. Absence is normal ([terminal.md §7](terminal.md#7-two-operational-facts-that-constrain-the-design)) — but it means the codex integration bought nothing observable here.
+
+Whether codex fails because the pane's shell is PowerShell, because of the 24-row split geometry, or for a reason of its own was not established. It is the first thing to settle before the Codex binding is relied on.
+
+### 11.8 Should `yan` report state itself? No.
+
+`pane report-agent --state` is public API and its `--state` values are `idle | working | blocked | unknown` — **there is no `done`**, so a reporter could not express the one state that means "unseen work finished" in the first place.
+
+Measured both ways, on a pane whose real state was known:
+
+| | |
+| --- | --- |
+| pane genuinely `blocked`; reported `working` | `agent get` still said **`blocked`** |
+| pane genuinely `done`; reported `blocked`, polled 8× over 3 s | `agent get` said **`done`** every time |
+| after `pane release-agent` | unchanged |
+
+Every call returned rc 0 and empty stdout — a mutating command succeeding silently, per [§4](#4-display-metadata) — and **nothing changed**. Herdr's own screen detection stayed the authority throughout; `agent explain` kept naming the manifest rule it had matched.
+
+**Recommendation: leave detection alone.** Do not build `yan report` on top of `pane report-agent`. On this build an outside process reporting through the documented CLI shape does not claim authority and does not suppress detection, so the risk terminal.md §6 raised — that reporting only at `yan report` moments would leave `yan` blinder than letting Herdr guess — cannot arise, and the feature buys nothing. Re-check after a Herdr upgrade; this is a preview build and the API is documented as if it should work.
+
+### 11.9 The gate
+
+`events.subscribe` **holds up**, with three corrections to the design it carries:
+
+1. it needs a socket client, not the CLI, and on Windows a named-pipe name rule ([§11.1](#111-there-is-no-cli-for-eventssubscribe-the-transport-is-a-named-pipe));
+2. it cannot carry `pane_exited`, so "the agent died" stays a poll ([§11.2](#112-what-a-subscription-can-and-cannot-carry));
+3. `blocked` covers three of the four prompts that matter and misses plan approval, which arrives as `done` and still wakes `yan` ([§11.3](#113-which-prompts-herdr-recognises)).
+
+None of those is the failure supervision.md §6 defined as the gate's failure condition, so **Phase 6 proceeds on subscription rather than on the `agent list` polling fallback** — with the pane-liveness poll kept, and with `run/signal` kept, which §11.3 makes more important rather than less.
