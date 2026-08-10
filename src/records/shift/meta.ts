@@ -42,6 +42,9 @@ export function readMeta(run: string): ShiftMeta {
     agentId: first('pane', 'pane_id', 'window', 'window_id', 'agent_id', 'term_id'),
     mr: first('mr', 'mr_url'),
     agentSession: first('agent_session', 'session_id'),
+    clone: first('clone'),
+    leaseId: first('lease_id', 'leaseId'),
+    container: first('container'),
   });
 }
 

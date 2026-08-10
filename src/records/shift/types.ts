@@ -20,4 +20,10 @@ export interface ShiftMeta {
   readonly mr?: string;
   /** The agent CLI's own session id, when its integration reported one. */
   readonly agentSession?: string;
+  /** The main clone the leased tree came from, so the pool can be asked about it. */
+  readonly clone?: string;
+  /** The lease `tree get` granted. Conditional return compares it. */
+  readonly leaseId?: string;
+  /** The terminal container the pane lives in. Display only; never looked up by. */
+  readonly container?: string;
 }
