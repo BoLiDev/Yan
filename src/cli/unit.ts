@@ -3,6 +3,7 @@ import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { repoDir } from './shared/repo.js';
 import { callHook, HookError } from '../externals/conf-hook/index.js';
+import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
 import { branchExists, createBranch, fetch, gitOk } from '../util/git.js';
@@ -136,8 +137,16 @@ function ensureBranch(command: string, clone: string, repo: string, branch: stri
   return `cut from ${baseRef}`;
 }
 
-function collect(value: string, previous: string[]): string[] {
-  return [...previous, value];
+/**
+ * Commander's repeatable-option accumulator.
+ *
+ * `previous` is whatever the option's default was on the first occurrence, and
+ * `unit set --scope` deliberately defaults to `undefined` — "no --scope at all"
+ * has to be distinguishable from "--scope with nothing in it", because the
+ * first changes nothing and the second REPLACES the whole list with empty.
+ */
+function collect(value: string, previous: readonly string[] | undefined): string[] {
+  return [...(previous ?? []), value];
 }
 
 // --- unit add ---------------------------------------------------------------
@@ -261,4 +270,261 @@ never falls back to the built-in default.`,
     }),
   );
 
-export const command = new Command('unit').description("a task's units").addCommand(add);
+// --- unit set ---------------------------------------------------------------
+
+/**
+ * EVERY ONE OF THESE FOUR IS A DECISION, so `user` has to ask for it
+ * (boundaries.md §9.2). That authority lives in AGENTS.md, where the model is
+ * told not to run this on its own initiative. What this command guarantees is
+ * the other half: it never invents a value. Nothing here has a default, and the
+ * one thing that could be guessed — how the round being replaced ended — is
+ * asked of the host, not of the caller.
+ *
+ * `end` is not a flag to be remembered. It is looked up (branching.md §6.4):
+ *
+ *     merged                   → delivered
+ *     closed, or mr was empty  → abandoned
+ *     still open               → NOT OVER. Ask `user` first.
+ *     unreachable              → ask `user`.
+ *
+ * The last two stop the command with RC_ASK_USER. They are the two cases where
+ * a wrong answer gets written into an append-only history and can never be
+ * corrected, so the command refuses to decide and says what to ask. `--end` is
+ * therefore not a way around the lookup; it is the only way `user`'s answer can
+ * reach the history at all. Once the conclusion is written, the host is never
+ * asked about that round again — the history has to explain itself.
+ */
+
+/** Nothing was changed; a person has to answer something first. */
+const RC_ASK_USER = 4;
+
+export interface SetOptions {
+  task?: string;
+  unit?: string;
+  branch?: string | boolean;
+  target?: string;
+  mode?: string;
+  base?: string;
+  end?: string;
+  reason?: string;
+  at?: string;
+  scope?: string[];
+  json?: boolean;
+}
+
+/**
+ * What `unit set` needs from the remote host: how the round being replaced
+ * ended. `RemoteGit` is the real one.
+ *
+ * Separated for the same reason `yan wait` separates its two sources: a test
+ * drives the decision rather than the process, and `open → merged` becomes
+ * reproducible without a network or a stub binary on `PATH`.
+ */
+export type MrStateReader = (mr: string, dir: string) => MrState;
+
+const set = new Command('set')
+  .description("change a unit's branch, target, mode or scope")
+  .option('--task <id>', 'the task the unit belongs to')
+  .option('--unit <name>', 'the unit name')
+  // The value is optional, and that is deliberate: `--branch <name>` is "use
+  // this name", bare `--branch` is "start a new round and let the configured
+  // authority name it". A git branch may not begin with a dash, so Commander's
+  // own optional-value handling gets this right.
+  .option('--branch [name]', 'start a NEW ROUND on that integration branch')
+  .option('--target <branch>', 'where this unit delivers')
+  .option('--mode <mode>', 'scout | branch | mr')
+  .option('--base <ref>', 'what to cut the new branch from when it does not exist')
+  .option('--end <end>', 'delivered | abandoned - how the round being replaced finished')
+  .option('--reason <text>', 'REQUIRED when the round ends as abandoned')
+  .option('--at <date>', 'the retirement date recorded in history[] (default: today)')
+  .option('--scope <path>', 'repeatable; REPLACES the whole scope list', collect, undefined)
+  .option('--json', 'print the unit as it now stands')
+  .addHelpText(
+    'after',
+    `
+usage: yan unit set --task <id> --unit <name> [changes]
+
+  --base defaults to --target when the old round was delivered, and to the OLD
+  BRANCH when it was abandoned, so the abandoned work is not lost
+  (branching.md §6.3).
+
+Every one of these is a decision: \`user\` has to ask for it (boundaries.md §9.2).
+Exit 4 means nothing was changed and \`user\` has to answer something first.`,
+  )
+  .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
+
+/** The command without the process around it: everything that decides is here. */
+export function setUnit(options: SetOptions, readMrState?: MrStateReader): void {
+  const task = options.task ?? '';
+  const unitName = options.unit ?? '';
+  const wantBranch = options.branch !== undefined;
+  const givenBranch = typeof options.branch === 'string' ? options.branch : undefined;
+  const wantScope = options.scope !== undefined;
+
+  if (task === '') throw CommandError.usage('unit_set', '--task is required');
+  if (unitName === '') throw CommandError.usage('unit_set', '--unit is required');
+  if (!wantBranch && !options.target && !options.mode && !wantScope) {
+    throw CommandError.usage('unit_set', 'nothing to change - pass --branch, --target, --mode or --scope');
+  }
+  const end0 = options.end ?? '';
+  if (end0 !== '' && end0 !== 'delivered' && end0 !== 'abandoned') {
+    throw CommandError.usage('unit_set', `--end is 'delivered' or 'abandoned', not '${end0}'`);
+  }
+  if (end0 !== '' && !wantBranch) {
+    throw CommandError.usage('unit_set', '--end only applies to --branch: it says how the round being replaced finished');
+  }
+
+  if (!Task.exists(task)) throw CommandError.usage('unit_set', `no such task: ${task}`);
+  const record = new Task(task);
+  const unit = record.findUnit(unitName);
+  if (unit === undefined) {
+    throw CommandError.usage('unit_set', `no such unit: ${unitName} in ${task}`);
+  }
+
+  const changed: string[] = [];
+
+  if (wantBranch) {
+    const before = unit.read();
+    const clone = repoDir('unit_set', before.repo, 'the unit names it, but there is no clone under repos/');
+    // The round number of whatever is in unit.branch right now is
+    // len(history) + 1. This rotation appends one entry, so the round being
+    // STARTED is len(history) + 2. Getting this wrong is not cosmetic: the
+    // built-in default would hand back the name of the branch being
+    // replaced, which is exactly the collision the round number exists to
+    // prevent — the same branch name cannot be created twice.
+    const retiring = before.history.length + 1;
+    const round = before.history.length + 2;
+
+    if (before.branch === '') {
+      throw new CommandError('unit_set', 'no_branch', "this unit has no current branch to replace - 'yan unit add' should have set one",
+      );
+    }
+
+    let end = end0;
+    let endFrom = '';
+    if (end !== '') {
+      endFrom = 'user';
+    } else if (before.mr === null || before.mr === '') {
+      // No outbound MR was ever opened for this round, so there is nothing
+      // that could have been delivered (branching.md §6.4).
+      end = 'abandoned';
+      endFrom = 'no mr was ever opened';
+    } else {
+      // A host that errors and a host that answers `unknown` mean the same
+      // thing here — we cannot tell how the round ended — so both land in
+      // the same branch below.
+      const ask = readMrState ?? ((mr: string, dir: string) => new RemoteGit().mrState({ mr, dir }));
+      let state: MrState = 'unknown';
+      try {
+        state = ask(before.mr, clone);
+      } catch {
+        state = 'unknown';
+      }
+      if (state === 'merged') {
+        end = 'delivered';
+        endFrom = `the host says ${before.mr} is merged`;
+      } else if (state === 'closed') {
+        end = 'abandoned';
+        endFrom = `the host says ${before.mr} is closed`;
+      } else if (state === 'open') {
+        throw new CommandError('unit_set', 'not_over', `this round is NOT OVER: ${before.mr} is still open on the forge. Ask 'user' first - should it be abandoned, or was replacing the branch a mistake? If it is to be abandoned, re-run with --end abandoned --reason '<why>'. Nothing was changed.`,
+          { exitCode: RC_ASK_USER },
+        );
+      } else {
+        throw new CommandError('unit_set', 'end_unknown', `cannot tell how this round ended: the forge could not be reached, or ${before.mr} no longer exists. Ask 'user' whether it was delivered or abandoned, then re-run with --end <delivered|abandoned> (and --reason for abandoned). Nothing was changed.`,
+          { exitCode: RC_ASK_USER },
+        );
+      }
+    }
+
+    // An abandoned round has to say why (branching.md §6.4). The reason for
+    // a normal rotation is obvious from context — it shipped, or feedback
+    // came in — and the reason for dropping something is exactly the one
+    // that gets forgotten.
+    if (end === 'abandoned' && !options.reason) {
+      throw CommandError.usage('unit_set', `--reason is required when a round is abandoned: log.md has to say why, because that is the one thing nobody remembers six months later. (${endFrom}.) Nothing was changed.`,
+      );
+    }
+
+    const { branch, from: nameFrom } = decideBranchName(
+      'unit_set',
+      givenBranch,
+      {
+        task,
+        task_title: record.title(),
+        unit: unitName,
+        repo: before.repo,
+        target: options.target ?? before.target,
+        scope: before.scope,
+        round,
+      },
+      'the round was not rotated',
+    );
+    if (branch === before.branch) {
+      throw CommandError.usage('unit_set', `the new integration branch is the same as the current one (${branch}) - a round is replaced by a DIFFERENT branch (branching.md §6.3)`,
+      );
+    }
+    checkRefName('unit_set', branch);
+
+    // The base is not a detail. branching.md §6.3: a delivered round is
+    // followed by a branch off `target`, which already contains it; an
+    // abandoned round is followed by a branch off THE OLD BRANCH ITSELF, so
+    // the work that was dropped is still there to pick over.
+    const base =
+      options.base ?? (end === 'abandoned' ? before.branch : (options.target ?? before.target));
+    const how = ensureBranch('yan unit set', clone, before.repo, branch, base);
+
+    unit.rotate(end, branch, options.at ?? '');
+
+    const line =
+      end === 'abandoned'
+        ? `${unitName}  abandoned ${before.branch} → ${branch} (based on ${base}; ${options.reason ?? ''})`
+        : `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`;
+    try {
+      new Log(task).append(line);
+    } catch {
+      process.stderr.write('yan unit set: task.json was updated but log.md was not appended to\n');
+    }
+    changed.push(`round ${retiring} ${end} on ${before.branch}; round ${round} is now ${branch} (${how}, name from ${nameFrom})`,
+    );
+  }
+
+  // The three plain scalars run AFTER the rotation on purpose: the history
+  // entry has to record the target the RETIRED round actually used, not the
+  // one the next round will.
+
+  if (options.target) {
+    const old = unit.read().target;
+    unit.set('target', options.target);
+    try {
+      new Log(task).append(`${unitName}  target ${old} → ${options.target}`);
+    } catch { /* the change is recorded; the narration is not worth failing for */ }
+    changed.push(`target=${options.target}`);
+  }
+
+  if (options.mode) {
+    const old = unit.read().mode;
+    unit.set('mode', options.mode);
+    try {
+      new Log(task).append(`${unitName}  mode ${old} → ${options.mode}`);
+    } catch { /* as above */ }
+    changed.push(`mode=${options.mode}`);
+  }
+
+  if (wantScope) {
+    const scope = options.scope ?? [];
+    unit.setScope(scope);
+    try {
+      new Log(task).append(`${unitName}  scope → ${scope.join(' ')}`);
+    } catch { /* as above */ }
+    changed.push(`scope=${scope.join(' ')}`);
+  }
+
+  if (options.json === true) out(JSON.stringify(unit.read(), null, 2));
+  else out(`${task} ${unitName}  ${changed.join(' ')}`);
+}
+
+export const command = new Command('unit')
+  .description("a task's units")
+  .addCommand(add)
+  .addCommand(set);

@@ -5,8 +5,8 @@
 # Everything here fails on its arguments alone, so no git, no forge and no pool
 # is involved - which is exactly why it belongs in the unit suite.
 #
-# `unit add` moved to TypeScript in Phase 7; its assertions live in
-# tests/integration/unit-add.test.ts (plan/INDEX.md rule 6).
+# `unit add` and `unit set` moved to TypeScript in Phase 7; their assertions
+# live in tests/integration/unit-{add,set}.test.ts (plan/INDEX.md rule 6).
 #
 set -euo pipefail
 
