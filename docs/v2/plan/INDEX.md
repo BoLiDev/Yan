@@ -82,7 +82,8 @@ flowchart LR
   P4 --> P7
   P6 --> P7
   P7 --> P8
-  P8 --> P9
+  P8 --> P85[8.5_Codex]
+  P85 --> P9
 ```
 
 Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — they are four different seams with no edges between them ([td §4.3](../../mvp/td/architecture.md#43-seams)). Phase 5 is a spike whose result can change Phase 6's design.
@@ -98,6 +99,7 @@ Phases **1 / 2 / 3 / 4** are independent after 0 and can run in parallel — the
 | 6 | Supervision | a socket client, `yan wait` on two sources, reconnect; only the pane hash is deleted |
 | 7 | Orchestrators | `shift new/done`, `sync`, `unit`, `session-start`, display metadata |
 | 8 | New entry | bare `yan` select, Clack in `src/ui`, `attach` removed |
+| 8.5 | Codex | repair the binding, or say plainly that V2 is Claude-only |
 | 9 | Retire tmux & bash | delete the tmux seam and every remaining `bin/*.sh` but three stubs |
 
 ---
@@ -283,6 +285,32 @@ So the order matters, and it is: port the two → retire `interop.test.ts` → d
 - Agent-only commands (`report`, `wait`, `drain`, `send`) grew no prompts
 
 **td:** [cli-ux.md](../td/cli-ux.md)
+
+---
+
+### Phase 8.5 — Codex
+
+**Why it exists.** Every other phase moved something. This one pays a debt that has been named in five documents and fixed in none: **the Codex harness binding has never worked**, and `supervision.md` describes it as though it has. Phase 9 is deletion and must not carry an investigation, so the debt is settled here or it is written off here.
+
+**Two independent faults, found together and easy to confuse.**
+
+1. **`.codex/hooks.json` is malformed.** Codex refuses it at startup — `unknown field \`version\`, expected \`description\` or \`hooks\`` — so `SessionStart` has never run `yan session-start` and `Stop` has never run the turn-end guard. Three schema mismatches against the shape codex accepts (which `herdr integration install codex` writes, and which `.claude/settings.json` already uses): a `version` key that does not exist, a missing `hooks[]` nesting level, `command` as an array where a string is wanted, and `timeout_ms` where `timeout` in seconds is wanted.
+2. **A first-run gate.** Codex asks to trust the workspace, and then to review hooks. On an unanswered prompt it exits. That is almost certainly what [evidence §11.7](../td/evidence.md#117-agent-start---kind-codex) recorded: the prompt is an alternate-screen TUI, rows leaving the alternate screen never enter Herdr's host scrollback, so what remained on the host screen — and what Herdr's detection matched as "ready" — was the bare shell prompt underneath.
+
+The gate is **not one-time**. Codex records hook trust by file hash, so a Herdr integration upgrade rewrites `~/.codex/hooks.json`, changes the hash, and re-arms the review prompt — in a dispatched shift's pane, which by rule has no focus and no human.
+
+**Why the existing guards do not settle it.** `startAgent`'s confirmation catches the case where codex has **exited** — which is the one the spike hit. It does not catch codex **parked** on a prompt: Herdr sees an agent there, `agentAlive` says alive, and the brief goes into the dialog. The only thing that catches the parked case is Herdr classifying that prompt as `blocked` — and Codex's prompts have never been enumerated. [evidence §11.3](../td/evidence.md#113-which-prompts-herdr-recognises)'s table is Claude's, all of it.
+
+**Trace**
+- `.codex/hooks.json` is a shape codex parses. Verified by running codex, not by reading the schema
+- `harness-bindings.test.sh` asserts the codex file's **structure**, the way it already does for Claude. Its own comment says it was written when codex was not installed and greps the body instead; that is why this was invisible for eight phases
+- `conf/config.sample.json` does not point a fresh machine at an unverified path. It currently reads `"agents": { "yan": "codex" }`
+- `agent start --kind codex` is tried **in a pool worktree path** — `~/.yan-trees/<repo>-<hash>/<slot>/<repo>`, what a shift actually gets — not only in a trusted repo directory. Trust is recorded per project path; whether it is inherited by subdirectories is the question, and guessing is not answering it
+- Codex's approval prompts are enumerated as §11.3 enumerated Claude's: one at a time, `agent get` read against the subscription, and the ones Herdr reports as something other than `blocked` written down
+- The binding runs once end to end: SessionStart reaches `yan session-start`, the Stop guard blocks and then fails open, and the model-driven `yan wait --seconds N` checkpoint returns 124 on a quiet slice
+- **Either way, the documents agree with reality when this ends.** If Codex works, `evidence.md` gains the run and `orchestration.md §9` loses its open item. If it does not, `supervision.md` stops describing a binding that has never run, `evidence.md` records why, and `yan doctor` says so at the point someone would otherwise find out by dispatching
+
+**This phase is allowed to fail.** "Codex cannot be a shift agent, here is how far we got and what would be needed" is a complete deliverable. What is not acceptable is leaving five documents describing a path nobody has run.
 
 ---
 
