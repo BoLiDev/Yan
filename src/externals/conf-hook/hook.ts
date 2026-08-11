@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { yanHome } from '../../util/home.js';
+import { bashCommand } from '../../util/bash.js';
 import { HookError } from './errors.js';
 
 /**
@@ -106,7 +107,9 @@ export function callHook(name: string, context: unknown): string | undefined {
 
   const r = executable
     ? spawnSync(path, [], { input: `${JSON.stringify(context)}\n`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true })
-    : spawnSync('bash', [path], { input: `${JSON.stringify(context)}\n`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
+    // `bashCommand()` rather than `bash`: on a box with WSL installed a bare
+    // `bash` is the WSL launcher, which cannot open a Windows path at all.
+    : spawnSync(bashCommand(), [path], { input: `${JSON.stringify(context)}\n`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
 
   if (r.error) {
     throw new HookError('refused', `cannot run the '${name}' hook: ${r.error.message}`, { cause: r.error });

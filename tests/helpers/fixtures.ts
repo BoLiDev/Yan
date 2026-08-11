@@ -3,6 +3,9 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } fr
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bashCommand } from '../../src/util/bash.js';
+
+export { bashCommand };
 
 /**
  * The vitest half of `tests/fixtures.sh`.
@@ -248,5 +251,5 @@ export function runYan(
     if (value === undefined) delete merged[key];
     else merged[key] = value;
   }
-  return run('bash', [join(home, 'bin', 'yan'), ...args], { env: merged });
+  return run(bashCommand(), [join(home, 'bin', 'yan'), ...args], { env: merged });
 }

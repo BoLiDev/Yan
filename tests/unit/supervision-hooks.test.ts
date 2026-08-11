@@ -5,7 +5,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { Supervision } from '../../src/records/supervision/index.js';
 import { Task } from '../../src/records/task/index.js';
-import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
+import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
 
 /**
  * `tests/unit/hook-autoarm.test.sh` and `tests/unit/hook-turnend-guard.test.sh`,
@@ -58,7 +58,7 @@ function hook(
   delete env.YAN_HOME;
 
   return new Promise<Run>((resolve, reject) => {
-    const child = spawn('bash', [join(home, 'bin', name), ...args], {
+    const child = spawn(bashCommand(), [join(home, 'bin', name), ...args], {
       env: env as NodeJS.ProcessEnv,
       windowsHide: true,
     });
@@ -387,7 +387,7 @@ describe('the shell stubs', () => {
     // shell body cannot produce a Node stack or the TypeScript wording, so the
     // simplest proof is that the compiled file is what answered.
     const r = spawnSync(
-      'bash',
+      bashCommand(),
       [join(home, 'bin', 'hook-turnend-guard.sh'), '--claude'],
       { encoding: 'utf8', env: { ...process.env, YAN_TASK: 't1' }, input: '', windowsHide: true },
     );
@@ -395,7 +395,7 @@ describe('the shell stubs', () => {
 
     rmSync(join(home, 'dist', 'hooks'), { recursive: true, force: true });
     const fallback = spawnSync(
-      'bash',
+      bashCommand(),
       [join(home, 'bin', 'hook-turnend-guard.sh'), '--claude'],
       { encoding: 'utf8', env: { ...process.env, YAN_TASK: 't1' }, input: '', windowsHide: true },
     );

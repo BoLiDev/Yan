@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome, runYan } from '../../../tests/helpers/fixtures.js';
+import { bashCommand, cleanupTempDirs, fxGit, mkTempDir, mkYanHome, runYan } from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
 import { WorktreeError } from './errors.js';
 import { cloneDir } from './layout.js';
@@ -263,7 +263,7 @@ describe('two concurrent gets never hand out the same tree', () => {
     const race = (branch: string, holder: string): Promise<{ code: number; out: string }> =>
       new Promise((done) => {
         const child = spawn(
-          'bash',
+          bashCommand(),
           [
             join(home, 'bin', 'yan'),
             'tree',

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 
 /**
  * `yan report`, ported from `tests/unit/yan-report.test.sh`.
@@ -99,7 +99,7 @@ describe('a note is required, and it is one line', () => {
     // argv: on Windows a literal newline in an argument is re-split before it
     // reaches the process, which would test the harness and not the command.
     const r = spawnSync(
-      'bash',
+      bashCommand(),
       ['-c', `bash "$1" report done $'two\\nlines' --sid s1 --task t042`, '_', join(home, 'bin', 'yan')],
       { encoding: 'utf8', env: { ...process.env, YAN_HOME: home }, windowsHide: true },
     );
