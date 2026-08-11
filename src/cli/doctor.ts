@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { Command } from 'commander';
 import { yanHome } from '../util/home.js';
@@ -221,6 +222,55 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
   }
 }
 
+/**
+ * Codex's first-run gates, reported where they can still be answered.
+ *
+ * Both were measured against codex-cli 0.147.0 in Phase 8.5, and the second is
+ * the one that matters: codex parks on "Hooks need review" and Herdr classifies
+ * that screen as `idle`, so an unattended shift hangs there and nothing wakes.
+ * A person finding this out by dispatching finds it out hours later.
+ *
+ * The hook-trust half is a real check rather than a leaflet: codex records
+ * trust per hooks file in `[hooks.state]`, keyed by path, so whether yan's own
+ * `.codex/hooks.json` has ever been trusted is answerable from disk.
+ */
+function checkCodex(report: Report, agents: Record<string, unknown>): void {
+  const roles = Object.entries(agents).filter(
+    ([, v]) => typeof v === 'string' && (v.trim().split(/\s+/)[0] ?? '') === 'codex',
+  );
+  if (roles.length === 0) return;
+
+  out('');
+  out('codex');
+
+  const home = process.env.CODEX_HOME ?? join(homedir(), '.codex');
+  let config = '';
+  try {
+    config = readFileSync(join(home, 'config.toml'), 'utf8');
+  } catch {
+    line(report, 'warn', 'codex config', `${join(home, 'config.toml')} is not readable - codex has not been run on this machine yet, so both first-run gates are still armed`,
+    );
+    return;
+  }
+
+  // The key is `<path to the hooks file>:<event>:<n>:<n>`; the path spelling is
+  // codex's, so the test is on the file, not on an exact key.
+  const ours = join(yanHome(), '.codex', 'hooks.json');
+  const trusted = config.toLowerCase().includes(`${ours.toLowerCase().replace(/\//g, '\\')}:`);
+  line(report, trusted ? 'ok' : 'warn', 'hook review',
+    trusted
+      ? `${ours} is recorded as trusted`
+      : `${ours} has never been trusted, so codex will stop on "Hooks need review" and WAIT. Herdr reads that screen as 'idle', not 'blocked', so nothing wakes yan: answer it once in a pane you are watching, or start codex with --dangerously-bypass-hook-trust. It re-arms whenever the file changes`,
+  );
+
+  const shift = roles.some(([role]) => role === 'shift');
+  line(report, shift ? 'warn' : 'ok', 'directory trust',
+    shift
+      ? "agents.shift is codex: the first dispatch into each repository stops on \"Do you trust the contents of this directory?\". Herdr does read that as 'blocked', so yan escalates and you answer once per repository - but --dangerously-bypass-approvals-and-sandbox does NOT cover it"
+      : 'agents.shift is not codex, so no dispatch meets the directory-trust prompt',
+  );
+}
+
 export const command = new Command('doctor')
   .description('check this machine can run yan')
   .action(
@@ -245,6 +295,7 @@ export const command = new Command('doctor')
       out('');
       out('herdr');
       checkHerdr(report, agents);
+      checkCodex(report, agents);
 
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7

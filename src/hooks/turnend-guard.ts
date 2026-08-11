@@ -1,5 +1,8 @@
+import { join } from 'node:path';
 import { GUARD_BUDGET, Supervision } from '../records/supervision/index.js';
 import { Task } from '../records/task/index.js';
+import { yanHome } from '../util/home.js';
+import { normalizePath } from '../util/paths.js';
 
 /**
  * The blocking Stop hook, for both harnesses (supervision.md §5,
@@ -42,9 +45,12 @@ import { Task } from '../records/task/index.js';
  * the normal state, not a fault. Codex may use `stop_hook_active` as a one-shot,
  * because its continuation model does not have Claude's asyncRewake blind spot.
  *
- * UNVERIFIED: the blocking shape here — `{"decision":"block","reason":…}` on
- * stdout with exit 0 — follows the documented Codex hooks contract. The Claude
- * path is exercised end to end; this one is written from the documentation.
+ * The blocking shape — `{"decision":"block","reason":…}` on stdout with exit 0
+ * — is no longer taken from the documentation. Phase 8.5 ran it against
+ * codex-cli 0.147.0: codex honoured the block, continued the turn, the model
+ * acted on the reason, and `run/guard-failures` reached 2 before the turn ended
+ * ([evidence §13](../../docs/v2/td/evidence.md)). What that run also showed is
+ * in the comment on the reason string below.
  *
  * FAIL OPEN ON PURPOSE. The budget is 3 blocked attempts, then the guard lets
  * the turn end with a loud warning. A guard that can wedge a session forever is
@@ -156,16 +162,34 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
 
   const n = sup.guardBump();
   if (n > GUARD_BUDGET) return failOpen(io, n, task);
+  // The command has to be one the model can paste and run, which is narrower
+  // than it looks and was got wrong until a real codex ran this hook.
+  //
+  //   `yan` IS NOT ON PATH inside an agent's pane. Everything else yan writes
+  //   for an agent to run names $YAN_HOME/bin/yan absolutely — a shift's brief
+  //   does — and this line did not. The model dutifully ran `yan drain` and
+  //   got "the term 'yan' is not recognized".
+  //
+  //   AND THE PANE'S SHELL IS POWERSHELL on Windows (terminal.md §7), which
+  //   does not understand `${VAR:-default}`. A default written that way is a
+  //   parse error, not a default, so the number is written out.
+  const yan = normalizePath(join(yanHome(), 'bin', 'yan'));
   io.say(
     JSON.stringify({
       decision: 'block',
       reason:
         `yan guard: task ${task} still has live shifts. Attempt ${n} of ${GUARD_BUDGET}: run ` +
-        `'yan wait --seconds \${YAN_CODEX_CHECKPOINT:-180}' for another checkpoint slice, then 'yan drain', ` +
-        `before ending the turn.`,
+        `'${yan}' wait --seconds ${checkpointSeconds()} for another checkpoint slice, then ` +
+        `'${yan}' drain, before ending the turn.`,
     }),
   );
   return 0;
+}
+
+/** The Codex checkpoint slice, resolved HERE rather than left to a shell. */
+function checkpointSeconds(): number {
+  const configured = Number.parseInt(process.env.YAN_CODEX_CHECKPOINT ?? '', 10);
+  return Number.isInteger(configured) && configured > 0 ? configured : 180;
 }
 
 function failOpen(io: GuardIo, count: number, task: string): number {

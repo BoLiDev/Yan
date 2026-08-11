@@ -337,7 +337,15 @@ describe('the guard on Codex', () => {
     expect(JSON.parse(r.stdout.trim()) as { decision: string }).toMatchObject({
       decision: 'block',
     });
-    expect(r.stdout).toContain('yan wait --seconds');
+    // The command has to be runnable where the model will paste it: `yan` is
+    // not on PATH inside an agent's pane, and the pane's shell on Windows is
+    // PowerShell, which reads `${VAR:-default}` as a parse error rather than a
+    // default. A live codex ran this hook and dutifully reported
+    // "the term 'yan' is not recognized" — so the path is absolute and the
+    // number is resolved here.
+    expect(r.stdout).toContain('wait --seconds 180');
+    expect(r.stdout).toContain(`${home.replace(/\\/g, '/')}/bin/yan`);
+    expect(r.stdout).not.toContain('${');
     expect(sup.guardCount()).toBe(1);
 
     // A healthy watcher does not excuse the model from its checkpoint loop.

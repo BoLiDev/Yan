@@ -122,6 +122,35 @@ describe('a commit identity every leased worktree can see', () => {
   });
 });
 
+describe("codex's first-run gates are reported before a dispatch meets them", () => {
+  it('says nothing when no role is codex', () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
+    expect(doctor().out).not.toContain('hook review');
+  });
+
+  it('names both gates, and which of the two supervision can see', () => {
+    config({ version: 1, agents: { yan: 'codex', shift: 'codex' }, remote_git: { kind: 'github' } });
+    const r = doctor();
+
+    // The one that hangs silently: Herdr reads "Hooks need review" as `idle`,
+    // so nothing wakes. This home has never been trusted by codex, which is the
+    // state every fresh machine is in.
+    expect(r.out).toContain('hook review');
+    expect(r.out).toContain('Hooks need review');
+    expect(r.out).toContain('--dangerously-bypass-hook-trust');
+
+    // And the one that does escalate, so it is reported as the lesser problem.
+    expect(r.out).toContain('directory trust');
+    expect(r.out).toContain('blocked');
+  });
+
+  it('drops the dispatch half when only the main agent is codex', () => {
+    config({ version: 1, agents: { yan: 'codex', shift: 'claude' }, remote_git: { kind: 'github' } });
+    expect(doctor().out).toContain('agents.shift is not codex');
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
+  });
+});
+
 describe('the shipped sample', () => {
   it('is valid and carries what doctor asks for', () => {
     const sample = JSON.parse(

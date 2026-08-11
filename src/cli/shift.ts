@@ -124,11 +124,26 @@ function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): s
     else args.push('--dangerously-skip-permissions');
   } else if (kind === 'codex') {
     if (mode === 'scout') args.push('--sandbox', 'read-only');
-    // UNVERIFIED: codex has never run as a shift agent here — `agent start
-    // --kind codex` reports ready for a codex that has exited and the root
-    // cause is unestablished (orchestration.md §9). `yan doctor` says so rather
-    // than letting it be discovered at dispatch time.
     else args.push('--dangerously-bypass-approvals-and-sandbox');
+    // AND NOTHING ELSE. Phase 8.5 measured two first-run gates in front of a
+    // codex started this way, and neither is answered here:
+    //
+    //   TRUST THE DIRECTORY. Codex resolves a pool worktree to the main clone
+    //   and asks about that. `--dangerously-bypass-approvals-and-sandbox` does
+    //   NOT cover it — measured. There is no flag that does; the only lever is
+    //   a config override. Herdr classifies the dialog as `blocked`
+    //   (rule `trust_directory`), so supervision escalates and `user` answers
+    //   once per repository. That is a gate yan can survive.
+    //
+    //   REVIEW THE HOOKS, when the repository ships `.codex/hooks.json` or the
+    //   global one changed. Herdr classifies THIS one as `idle` — no rule
+    //   matches it — so a shift parks on it in an unfocused pane and nothing
+    //   wakes. `--dangerously-bypass-hook-trust` clears it, and it is not
+    //   passed here on purpose: that flag lets hooks shipped by the TARGET
+    //   REPOSITORY run without review, which is a decision about somebody
+    //   else's code and therefore `user`'s to make, not a dispatch mechanic.
+    //
+    // `yan doctor` reports both at the point they can still be answered.
   }
   return args;
 }
