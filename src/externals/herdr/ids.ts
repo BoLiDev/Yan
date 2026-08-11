@@ -22,10 +22,23 @@ const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
  * Could Herdr have issued this id?
  *
  * The predicate rather than the guard, because a caller has to be able to ask
- * BEFORE subscribing. A shift dispatched by the tmux half carries a `%7`, and a
- * subscription containing one is refused WHOLE — so a watcher that did not
- * filter would lose the subscription for every other shift because of one
- * legacy pane ([evidence §12.1](../../../docs/v2/td/evidence.md)).
+ * BEFORE subscribing: **a subscription naming one pane Herdr does not know is
+ * refused WHOLE**, and the connection closes with it ([evidence
+ * §12.1](../../../docs/v2/td/evidence.md)). One bad id therefore costs every
+ * other shift its subscription, which is why the check is here and not left to
+ * the caller's judgement.
+ *
+ * Its original example — a `%7` left by a shift the tmux half dispatched — went
+ * with tmux in Phase 9. THE CHECK DID NOT, and the reason it outlives the
+ * example is worth stating plainly, because "the thing this guarded against is
+ * gone" is how a guard gets deleted:
+ *
+ *   the ids come off DISK, not from Herdr. `run/meta.json` is long-lived and
+ *   nothing migrates it, so a pane id in a task directory is whatever the yan
+ *   that wrote it believed — including the empty string, which `shift new`
+ *   writes for the window between recording the dispatch and the agent
+ *   starting. A record older than the process reading it is the ordinary case
+ *   here, not the legacy one.
  */
 export function isPaneId(value: string): boolean {
   return PANE_ID.test(value);

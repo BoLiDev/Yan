@@ -512,10 +512,14 @@ describe('a pane herdr has never heard of', () => {
   });
 });
 
-describe('a shift dispatched by the tmux half', () => {
+describe('a shift whose recorded pane id Herdr would not know', () => {
   it('does not cost the other shifts their subscription', async () => {
-    // `%7` is a tmux pane id. A subscription containing one is refused whole,
-    // so it is left out — that shift keeps run/signal, which is all it ever had.
+    // A subscription naming one unknown pane is refused WHOLE, so it is left
+    // out — that shift keeps run/signal and the poll, which is what a shift
+    // with no usable pane had all along. `%7` here is a tmux id, the shape
+    // Phase 9 deleted the producer of; what still produces one is run/meta.json
+    // outliving the yan that wrote it, and the empty string `shift new` records
+    // before the agent starts.
     liveShift('s1', '%7');
     liveShift('s2', 'w1:p3');
     const events = new FakeEvents();

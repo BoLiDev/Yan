@@ -392,10 +392,17 @@ function toWatched(shift: { sid: string; run: string; meta: () => { agentId?: st
 /**
  * The panes a subscription can carry.
  *
- * A shift dispatched by the tmux half carries a `%7`, which Herdr never issued
- * and a subscription is refused whole for — so one legacy pane would cost every
- * other shift its subscription. Those shifts keep `run/signal`, which is all a
- * Herdr-less pane ever had.
+ * A subscription naming one pane Herdr does not know is refused WHOLE, so an id
+ * this watcher cannot vouch for would cost every other shift its subscription
+ * (evidence §12.1). The filter is not about where the bad id came from; it is
+ * about the blast radius of asking.
+ *
+ * Two produce one, and neither is historical. `shift new` records the dispatch
+ * before the agent is running, so `pane` is the empty string for that window;
+ * and `run/meta.json` outlives the process that wrote it, so a shift dispatched
+ * by an older yan carries whatever that yan believed. A filtered shift is not
+ * unwatched — it keeps `run/signal` and the liveness poll, which is what a shift
+ * with no pane had all along.
  */
 function panesOf(live: readonly Watched[]): string[] {
   return live.map((s) => s.pane).filter((pane) => isPaneId(pane));
