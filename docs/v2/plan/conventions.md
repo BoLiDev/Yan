@@ -68,6 +68,7 @@ tests/
 ```
 
 - **`npm test` is the whole suite.** `tests/run.sh`, `tests/assert.sh` and `tests/fixtures.sh` went in Phase 9 with the last `*.test.sh`. The three shell stubs in `bin/` are covered by vitest spawning them, and shellcheck runs from `tests/unit/shell-stubs.test.ts`.
+- **The suite runs one file at a time, and that is a known defect rather than a choice.** `runYan` uses `spawnSync`, so a worker's event loop is blocked for the whole of every CLI invocation; run in parallel, a worker misses vitest's 60s RPC deadline and the run **exits 1 with every test passing**. `vitest.config.ts` carries the measurements and the real fix (an async `runYan`). Until that is done, do not raise the parallelism to make the suite faster — it does not fail differently, it fails dishonestly.
 - **Each test owns its temporary directory** and never touches the checkout's `$YAN_HOME`. The MVP's `mk_yan_home` helper lives in `tests/helpers/fixtures.ts`.
 - **Fixtures pass git identity explicitly** (`-c user.name=… -c user.email=…`) so they work where no global git config exists.
 - **Seams are swapped by import.** No environment-variable indirection and no injection framework. (`YAN_LIB`, which the shell half swapped libraries with, went with the shell half.)
