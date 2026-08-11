@@ -38,7 +38,7 @@ assert_eq stub "$out"
 # sources a library: check the literal form, not just the behaviour.
 capture grep -rn '\. "\${YAN_LIB:-\$YAN_HOME/bin}/' "$YAN_REPO_ROOT/bin"
 assert_eq 0 "$rc" "at least one shipped script must demonstrate the form"
-assert_contains "$out" "hook-turnend-guard.sh"
+assert_contains "$out" "lib-pool.sh"
 
 # Any `. .../lib-*.sh` line in bin/ must use the YAN_LIB form.
 while IFS= read -r line; do
