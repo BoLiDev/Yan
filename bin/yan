@@ -96,10 +96,13 @@ yan_usage() {
 	printf 'written as a space: `yan shift new` and `yan shift-new` are the same.\n'
 }
 
+# Exit 2, the same as Commander's own argument errors and as every other
+# "you called this wrongly" in yan. The two halves have to agree: which one
+# answers an unknown command depends only on whether dist/ has been built.
 yan_unknown() {
 	printf 'yan: unknown command: %s\n\n' "$1" >&2
 	yan_usage >&2
-	exit 1
+	exit 2
 }
 
 # yan_exec_node <original argv...> - hand the whole command line to Commander.

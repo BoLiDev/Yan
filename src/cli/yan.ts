@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { Command } from 'commander';
+import { Command, CommanderError } from 'commander';
 import { queueJson } from './ls.js';
 import { isTty, setPrompter } from './shared/resolve.js';
 import { isYanError } from '../util/error.js';
@@ -123,7 +123,47 @@ export async function buildProgram(home: string): Promise<Command> {
       });
   }
 
+  refuseToExit(program);
   return program;
+}
+
+/**
+ * Commander's own argument errors exit 2, like every other "you called this
+ * wrongly" in yan.
+ *
+ * The exit-code contract is the MVP's and it is what a caller reads: 0 fine, 2
+ * YOU CALLED THIS WRONGLY, 1 it did not work — plus the handful of per-command
+ * codes above that. Commander's default is 1 for everything it rejects, so
+ * until now `yan tree get --nonsense` and `yan tree get` with no `--repo`
+ * disagreed about what the same class of mistake was worth: one was Commander's
+ * refusal, the other was `resolve()`'s.
+ *
+ * Which way, and why THIS way: 2 is the one an agent can act on. A shift
+ * reading `1` learns only that something went wrong and has to parse prose to
+ * find out whether to fix its command line or escalate; `2` says the command
+ * line was wrong before anything happened, and nothing was done. Moving yan's
+ * twenty hand-written usage refusals down to 1 would have made them agree just
+ * as well and thrown that away.
+ *
+ * `exitOverride` is what makes it reachable: without it Commander calls
+ * `process.exit` itself, before `main` has any say. It is applied to every
+ * command in the tree because `addCommand` — which is how every ported
+ * subcommand arrives — does not inherit it.
+ */
+function refuseToExit(command: Command): void {
+  command.exitOverride();
+  for (const sub of command.commands) refuseToExit(sub);
+}
+
+/** `--help` and `--version` are not mistakes: Commander throws for those too. */
+const COMMANDER_INFORMATIONAL = new Set([
+  'commander.help',
+  'commander.helpDisplayed',
+  'commander.version',
+]);
+
+function commanderExitCode(err: CommanderError): number {
+  return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
 /**
@@ -208,6 +248,10 @@ export async function main(argv: readonly string[]): Promise<number> {
     // the whole contract.
     return typeof process.exitCode === 'number' ? process.exitCode : 0;
   } catch (err) {
+    if (err instanceof CommanderError) {
+      // Commander has already written the message and, on an error, the help.
+      return commanderExitCode(err);
+    }
     if (isYanError(err)) {
       process.stderr.write(`yan: ${err.message}\n`);
       return err.exitCode;

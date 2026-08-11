@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { repoRoot } from '../helpers/fixtures.js';
+import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
  * The entry point's two structural rules, which no unit test of a command can
@@ -113,5 +113,34 @@ describe('bin/ holds three prefixes and no others', () => {
     for (const name of readdirSync(join(repoRoot, 'bin'))) {
       expect(/^(yan|yan-.*\.sh|lib-.*\.sh|hook-.*\.sh)$/.test(name), `bin/${name}`).toBe(true);
     }
+  });
+});
+
+describe('one exit code for "you called this wrongly"', () => {
+  // The Phase 8 decision: Commander's own argument errors join yan's, at 2.
+  // A caller reading `1` learns only that something went wrong; `2` says the
+  // command line was wrong before anything happened.
+  let home = '';
+
+  beforeAll(() => {
+    home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
+  });
+  afterAll(cleanupTempDirs);
+
+  it('agrees between an unknown option and a missing one', () => {
+    expect(runYan(home, ['tree', 'get', '--nonsense']).code).toBe(2);
+    expect(runYan(home, ['tree', 'get']).code).toBe(2);
+  });
+
+  it('covers an unknown command, a missing option-argument and an unknown subcommand', () => {
+    expect(runYan(home, ['bogus']).code).toBe(2);
+    expect(runYan(home, ['unit', 'bogus']).code).toBe(2);
+    expect(runYan(home, ['ls', '--json', '--nope']).code).toBe(2);
+  });
+
+  it('and --help and --version are still not mistakes', () => {
+    expect(runYan(home, ['--help']).code).toBe(0);
+    expect(runYan(home, ['--version']).code).toBe(0);
+    expect(runYan(home, ['ls', '--help']).code).toBe(0);
   });
 });
