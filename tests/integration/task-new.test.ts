@@ -38,7 +38,7 @@ const config = `${JSON.stringify(
   {
     version: 1,
     agents: { yan: process.execPath, shift: process.execPath },
-    forge: { kind: 'github' },
+    remote_git: { kind: 'github' },
   },
   null,
   2,

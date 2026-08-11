@@ -90,16 +90,22 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('still reads the legacy `forge` section while the shell half is alive', () => {
-    // bin/lib-forge.sh reads .forge.kind from this same file for the length of
-    // the migration; one config has to serve both halves.
+  it('no longer reads the legacy `forge` section, and says what to rename', () => {
+    // It was read while `bin/lib-forge.sh` was alive: that file read
+    // `.forge.kind` from this same config, so one file had to serve both halves
+    // of the migration. Phase 9 deleted the reader and the fallback went with
+    // it — two spellings of one key outlive their reason by years otherwise,
+    // and the second is always the one somebody edits.
+    //
+    // `forge` is still LOOKED FOR, because the difference between "you have not
+    // configured a host" and "it is under the old name" is the difference
+    // between a puzzle and a one-line fix.
     writeFileSync(
       join(home, 'conf', 'config.json'),
       `${JSON.stringify({ version: 1, forge: { kind: 'github' } }, null, 2)}\n`,
     );
-    nextResult = { code: 0, stdout: '{}', stderr: '' };
-    host().mrState({ mr: '1' });
-    expect(calls[0]?.cli).toBe('gh');
+    expect(() => host().mrState({ mr: '1' })).toThrow(/rename that section to `remote_git`/);
+    expect(calls).toHaveLength(0);
   });
 });
 

@@ -11,7 +11,10 @@ import { repoRoot } from '../../../tests/helpers/fixtures.js';
 /**
  * The assertions of `tests/unit/lib-term-contract.test.sh`, ported to vitest and
  * run against the Herdr seam (terminal.md §8: not the same FILE, the same
- * CONTRACT — the bash original keeps running against tmux until Phase 9).
+ * CONTRACT). The bash original ran against tmux beside this one for five
+ * phases, which is what let the two backends be compared rather than swapped on
+ * faith; Phase 9 deleted it with the backend it tested, and this is what is
+ * left of it.
  *
  * Everything here is true whether or not Herdr is installed, which is what
  * makes it a contract test rather than an integration test: the id rules, the

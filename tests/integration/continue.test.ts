@@ -32,7 +32,7 @@ const config = `${JSON.stringify(
   {
     version: 1,
     agents: { yan: process.execPath, shift: process.execPath },
-    forge: { kind: 'github' },
+    remote_git: { kind: 'github' },
   },
   null,
   2,
@@ -162,7 +162,7 @@ describe('what it refuses', () => {
   it('refuses when the home configures no agents.yan, and names it', () => {
     const other = mkYanHome(join(mkTempDir(), 'home'), {
       withDist: true,
-      config: `${JSON.stringify({ version: 1, agents: { shift: 'claude' }, forge: { kind: 'github' } }, null, 2)}\n`,
+      config: `${JSON.stringify({ version: 1, agents: { shift: 'claude' }, remote_git: { kind: 'github' } }, null, 2)}\n`,
     });
     mkdirSync(join(other, 'tasks', 'tx'), { recursive: true });
     writeFileSync(
