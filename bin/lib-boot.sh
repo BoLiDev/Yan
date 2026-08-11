@@ -4,7 +4,7 @@
 #
 # `bin/yan` itself only checks the two universal dependencies (git, jq) inline,
 # because that runs on every single invocation and has to stay free. Everything
-# that costs a subprocess - the forge CLI, its auth state, the terminal backend,
+# that costs a subprocess - the forge CLI and its auth state,
 # node - lives here and runs only when `yan doctor` asks for it.
 #
 # One rule from delivery.md §8.4: only the CLI selected by forge.kind is
@@ -20,17 +20,6 @@ _boot_warn=0
 _boot_fail=0
 
 boot_have() { command -v "$1" >/dev/null 2>&1; }
-
-# boot_platform - `windows` on Git Bash / MSYS2 / Cygwin, `linux` elsewhere.
-#
-# The distinction is not cosmetic: on Windows a native console program started
-# inside an MSYS2 tmux pane gets no TTY and has to be wrapped in winpty.
-boot_platform() {
-	case "$(uname -s 2>/dev/null)" in
-	MINGW* | MSYS* | CYGWIN*) printf 'windows\n' ;;
-	*) printf 'linux\n' ;;
-	esac
-}
 
 boot_config_path() { printf '%s/conf/config.json\n' "${YAN_HOME:?lib-boot: YAN_HOME is not set}"; }
 
@@ -173,26 +162,6 @@ boot_check_forge() {
 	esac
 }
 
-# boot_check_backend - tmux only in the MVP; herdr fails closed.
-boot_check_backend() {
-	local backend
-	backend=$(boot_config_get '.backend' 'tmux')
-	case $backend in
-	tmux)
-		if boot_have tmux; then
-			boot_report ok "backend (tmux)" "$(command -v tmux)"
-		else
-			boot_report fail "backend (tmux)" "tmux not on PATH - install tmux"
-		fi
-		;;
-	herdr)
-		boot_report fail "backend (herdr)" "herdr is not implemented in the MVP - set backend to tmux in $(boot_config_path)"
-		;;
-	*)
-		boot_report fail "backend" "unknown value '$backend' - the MVP supports tmux only"
-		;;
-	esac
-}
 
 boot_check_agents() {
 	local a which
@@ -208,24 +177,6 @@ boot_check_agents() {
 	done
 }
 
-# boot_check_platform - the Windows-only requirement.
-#
-# A native Windows CLI (claude.exe, codex.exe, gh.exe) launched inside an
-# MSYS2 tmux pane is handed a pipe, not a console. It sees no TTY, silently
-# decides it is non-interactive, and exits. `winpty <cmd>` allocates the
-# pseudo console that makes it behave. Phase 3's spawn path depends on this.
-boot_check_platform() {
-	local platform
-	platform=$(boot_platform)
-	boot_report ok "platform" "$platform ($(uname -s 2>/dev/null || printf 'unknown'))"
-	[ "$platform" = windows ] || return 0
-
-	if boot_have winpty; then
-		boot_report ok "winpty" "$(command -v winpty) - agent CLIs must be spawned as: winpty <cmd>"
-	else
-		boot_report fail "winpty" "not on PATH. On Windows an agent CLI started inside an MSYS2 tmux pane gets no TTY and exits immediately; it must run as 'winpty <cmd>'. Install it with the Git for Windows toolchain (pacman -S winpty)"
-	fi
-}
 
 # boot_doctor - the whole checklist. Non-zero when any hard check failed.
 boot_doctor() {
@@ -245,10 +196,6 @@ boot_doctor() {
 
 	printf '\nforge\n'
 	boot_check_forge
-
-	printf '\nbackend\n'
-	boot_check_backend
-	boot_check_platform
 
 	printf '\n%d ok, %d warn, %d failed\n' "$_boot_ok" "$_boot_warn" "$_boot_fail"
 	if [ "$_boot_fail" -gt 0 ]; then

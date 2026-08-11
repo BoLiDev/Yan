@@ -72,7 +72,6 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
           version: 1,
           agents: { yan: 'claude', shift: 'claude' },
           forge: { kind: 'github' },
-          backend: 'tmux',
         },
         null,
         2,
