@@ -126,9 +126,14 @@ describe('Clack is an ordinary dependency', () => {
 });
 
 describe('bin/ holds three prefixes and no others', () => {
-  it('a subcommand, a library, or a hook', () => {
+  it('a subcommand, a library, or a hook — plus the one node shim', () => {
+    // `yan.mjs` is the npm `bin` target, not a fourth prefix: it is the same
+    // entry point for callers who arrive through PATH rather than through the
+    // absolute `$YAN_HOME/bin/yan` everything else hardcodes.
     for (const name of readdirSync(join(repoRoot, 'bin'))) {
-      expect(/^(yan|yan-.*\.sh|lib-.*\.sh|hook-.*\.sh)$/.test(name), `bin/${name}`).toBe(true);
+      expect(/^(yan|yan\.mjs|yan-.*\.sh|lib-.*\.sh|hook-.*\.sh)$/.test(name), `bin/${name}`).toBe(
+        true,
+      );
     }
   });
 });

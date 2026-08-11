@@ -28,9 +28,17 @@ function shellFiles(): string[] {
 const shellcheck = spawnSync('shellcheck', ['--version'], { encoding: 'utf8', windowsHide: true });
 const available = shellcheck.status === 0;
 
-describe('bin/ holds exactly three files, and each is a stub', () => {
-  it('is `yan`, `hook-autoarm.sh`, `hook-turnend-guard.sh` and nothing else', () => {
-    expect(readdirSync(BIN).sort()).toEqual(['hook-autoarm.sh', 'hook-turnend-guard.sh', 'yan']);
+describe('bin/ holds exactly four files, and each shell one is a stub', () => {
+  it('is `yan`, `yan.mjs`, `hook-autoarm.sh`, `hook-turnend-guard.sh` and nothing else', () => {
+    // `yan.mjs` is the npm `bin` target and the only non-shell file here: npm's
+    // Windows shim cannot drive a bash shebang, so PATH installs come in
+    // through node instead. The three shell files are the stubs below.
+    expect(readdirSync(BIN).sort()).toEqual([
+      'hook-autoarm.sh',
+      'hook-turnend-guard.sh',
+      'yan',
+      'yan.mjs',
+    ]);
   });
 
   it('each of them dispatches and does not decide', () => {
