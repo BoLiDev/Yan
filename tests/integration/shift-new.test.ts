@@ -206,6 +206,45 @@ describe('what the agent was started with', () => {
   });
 });
 
+describe('codex, and the gate yan cannot survive', () => {
+  // Phase 8.5 measured two first-run gates. Herdr calls the trust dialog
+  // `blocked`, so supervision escalates and somebody answers it. It matches no
+  // rule at all against the hook-review prompt and calls it `idle`, so a shift
+  // parks on that one in an unfocused pane and NOTHING EVER WAKES.
+  //
+  // `user` decided to pass the flag that clears it, knowing the cost: hooks
+  // shipped by the target repository then run without review. These assertions
+  // exist so that decision is reversed on purpose rather than by accident —
+  // and it should be reversed the moment Herdr's manifest learns the prompt,
+  // which is one word (`esc to go back`, not `esc to cancel`).
+  it('never parks silently on hook review, in either mode', () => {
+    new Task('t042').addUnit('api', 'monorepo-x', 'master', {
+      branch: 'feat/api',
+      mode: 'mr',
+      scope: ['apps/auth'],
+    });
+    run({ task: 't042', unit: 'api', sid: 's80', briefText: 'go', agent: 'codex' });
+    expect(terminal.startArgs).toContain('--dangerously-bypass-hook-trust');
+    expect(terminal.startArgs).toContain('--dangerously-bypass-approvals-and-sandbox');
+  });
+
+  it('and a scout gets it too, because a scout is just as unattended', () => {
+    new Task('t042').addUnit('look', 'monorepo-x', 'master', {
+      branch: 'feat/look',
+      mode: 'scout',
+      scope: ['apps/auth'],
+    });
+    run({ task: 't042', unit: 'look', sid: 's81', briefText: 'just look', agent: 'codex' });
+    expect(terminal.startArgs).toContain('--dangerously-bypass-hook-trust');
+    // What keeps a scout honest is containment, not a prompt.
+    expect(terminal.startArgs).toContain('--sandbox');
+    expect(terminal.startArgs).toContain('read-only');
+    expect(terminal.startArgs, 'a scout must never be given a free hand').not.toContain(
+      '--dangerously-bypass-approvals-and-sandbox',
+    );
+  });
+});
+
 describe('a scout is the exception', () => {
   it('keeps plan mode and is never given a free hand', () => {
     new Task('t042').addUnit('probe', 'monorepo-x', 'master', {

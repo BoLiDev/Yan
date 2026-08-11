@@ -257,13 +257,27 @@ function checkCodex(report: Report, agents: Record<string, unknown>): void {
   // codex's, so the test is on the file, not on an exact key.
   const ours = join(yanHome(), '.codex', 'hooks.json');
   const trusted = config.toLowerCase().includes(`${ours.toLowerCase().replace(/\//g, '\\')}:`);
-  line(report, trusted ? 'ok' : 'warn', 'hook review',
+  const shift = roles.some(([role]) => role === 'shift');
+  const main = roles.some(([role]) => role !== 'shift');
+
+  // A shift is dispatched with --dangerously-bypass-hook-trust, so it never
+  // meets this gate; the main agent is not, because it runs in a pane `user` is
+  // watching and can answer it. So the same unanswered prompt is a warning for
+  // one role and irrelevant to the other.
+  line(report, trusted || !main ? 'ok' : 'warn', 'hook review',
     trusted
       ? `${ours} is recorded as trusted`
-      : `${ours} has never been trusted, so codex will stop on "Hooks need review" and WAIT. Herdr reads that screen as 'idle', not 'blocked', so nothing wakes yan: answer it once in a pane you are watching, or start codex with --dangerously-bypass-hook-trust. It re-arms whenever the file changes`,
+      : main
+        ? `${ours} has never been trusted, so codex will stop on "Hooks need review" and WAIT. Herdr reads that screen as 'idle', not 'blocked', so nothing wakes yan - answer it once in your own pane. It re-arms whenever the file changes`
+        : 'shifts pass --dangerously-bypass-hook-trust, so no dispatch meets this prompt',
   );
 
-  const shift = roles.some(([role]) => role === 'shift');
+  if (shift) {
+    line(report, 'warn', 'hook trust',
+      "agents.shift is codex, so every shift runs with --dangerously-bypass-hook-trust: hooks shipped BY THE REPOSITORY IT IS WORKING IN run without review. That is deliberate - the alternative is a shift parking silently on a prompt Herdr reports as 'idle' - but it is a standing decision about other people's code, and it should be withdrawn once Herdr's manifest learns the prompt",
+    );
+  }
+
   line(report, shift ? 'warn' : 'ok', 'directory trust',
     shift
       ? "agents.shift is codex: the first dispatch into each repository stops on \"Do you trust the contents of this directory?\". Herdr does read that as 'blocked', so yan escalates and you answer once per repository - but --dangerously-bypass-approvals-and-sandbox does NOT cover it"

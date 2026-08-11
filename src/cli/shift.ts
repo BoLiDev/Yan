@@ -125,25 +125,39 @@ function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): s
   } else if (kind === 'codex') {
     if (mode === 'scout') args.push('--sandbox', 'read-only');
     else args.push('--dangerously-bypass-approvals-and-sandbox');
-    // AND NOTHING ELSE. Phase 8.5 measured two first-run gates in front of a
-    // codex started this way, and neither is answered here:
+
+    // Phase 8.5 measured two first-run gates in front of a codex started this
+    // way. They are not the same kind of problem and they are not handled the
+    // same way.
     //
     //   TRUST THE DIRECTORY. Codex resolves a pool worktree to the main clone
-    //   and asks about that. `--dangerously-bypass-approvals-and-sandbox` does
-    //   NOT cover it — measured. There is no flag that does; the only lever is
-    //   a config override. Herdr classifies the dialog as `blocked`
-    //   (rule `trust_directory`), so supervision escalates and `user` answers
-    //   once per repository. That is a gate yan can survive.
+    //   and asks about that; `--dangerously-bypass-approvals-and-sandbox` does
+    //   NOT cover it, and no flag does. It survives anyway, because Herdr
+    //   classifies the dialog as `blocked` (rule `trust_directory`) —
+    //   supervision escalates and `user` answers once per repository. A gate
+    //   that wakes somebody is a gate yan can live with.
     //
     //   REVIEW THE HOOKS, when the repository ships `.codex/hooks.json` or the
-    //   global one changed. Herdr classifies THIS one as `idle` — no rule
-    //   matches it — so a shift parks on it in an unfocused pane and nothing
-    //   wakes. `--dangerously-bypass-hook-trust` clears it, and it is not
-    //   passed here on purpose: that flag lets hooks shipped by the TARGET
-    //   REPOSITORY run without review, which is a decision about somebody
-    //   else's code and therefore `user`'s to make, not a dispatch mechanic.
+    //   global one changed. Herdr matches NO rule against it and calls it
+    //   `idle`, so a shift parks on it in an unfocused pane and nothing ever
+    //   wakes. That is the one yan cannot survive.
     //
-    // `yan doctor` reports both at the point they can still be answered.
+    // So `--dangerously-bypass-hook-trust` is passed, and `user` decided it
+    // knowing what it costs: hooks shipped by the TARGET REPOSITORY run
+    // without review. This is not a dispatch mechanic dressed up — it is a
+    // standing decision about running other people's code, taken once, here,
+    // where the next person will read it.
+    //
+    // It is passed for `scout` too. The flag is about not parking silently and
+    // a scout is exactly as unattended as any other shift; what keeps a scout
+    // honest is `--sandbox read-only` above, which is containment, where trust
+    // review is only a prompt.
+    //
+    // THE REAL FIX IS UPSTREAM AND IS ONE WORD. Herdr's codex manifest matches
+    // "esc to cancel"; the hook-review footer says "esc to go back". Once that
+    // rule lands, this gate becomes `blocked` like the other one and this flag
+    // should come straight back out.
+    args.push('--dangerously-bypass-hook-trust');
   }
   return args;
 }

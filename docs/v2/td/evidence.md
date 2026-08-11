@@ -496,6 +496,6 @@ The blocking Stop contract for Codex is therefore no longer written from documen
 
 **As a shift agent, not unattended, and not by default.** The trust gate is survivable — Herdr calls it `blocked`, supervision escalates, `user` answers once per repository. The hook-review gate is not: Herdr calls it `idle`, so a shift parks silently and no wake ever comes. It can only be armed by the target repository shipping `.codex/hooks.json` or by the global file changing, which makes it rare and therefore worse — it will not show up in testing and will show up eventually.
 
-`--dangerously-bypass-hook-trust` removes it, and yan does not pass it: the flag lets hooks shipped by the target repository run without review, which is a decision about somebody else's code. It belongs to `user`, in `agents.shift`, where the trailing argv already goes.
+`--dangerously-bypass-hook-trust` removes it, **and `shift new` passes it**. `user` took that decision after the measurement, knowing what it buys and what it costs: a shift that never parks silently, at the price of hooks shipped by the target repository running without review. It is passed for `scout` too — the flag is about not parking, and a scout is exactly as unattended; what contains a scout is `--sandbox read-only`.
 
 What would make this go away without that decision is one line in Herdr's codex manifest — a rule matching `Hooks need review`, or widening `live_strong_blocker` to `esc to go back`. That is an upstream fix, not a yan one, and until it lands `yan doctor` reports the gate instead.

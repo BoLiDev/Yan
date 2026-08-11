@@ -109,7 +109,7 @@ The second is the one that hides. A dispatch throwing between the lease and the 
 
 ## 9. Open
 
-**Codex cannot be an unattended shift agent, and the reason is now known** ([evidence §13](evidence.md#13-measured-in-phase-85-the-codex-binding)). It is not the one this section used to give.
+**Codex can be an unattended shift agent, and only because of a decision `user` took after the measurement** ([evidence §13](evidence.md#13-measured-in-phase-85-the-codex-binding)). It is not the one this section used to give.
 
 The old reading — *"`agent start --kind codex` reports ready for a codex that has exited"* — was one observation ([evidence §11.7](evidence.md#117-agent-start---kind-codex)) generalised too far. Started into a pool worktree, codex does not exit: it **parks**, on one of two first-run gates.
 
@@ -118,6 +118,10 @@ The old reading — *"`agent start --kind codex` reports ready for a codex that 
 | trust the directory | first dispatch into a repository | **`blocked`** | yes — yan escalates, `user` answers once per repo. It is recorded against the main clone, so it covers every pool slot |
 | review the hooks | the repository ships `.codex/hooks.json`, or the global one changed hash | **`idle`**, no rule matched | **no** — the shift parks in an unfocused pane and nothing wakes |
 
-`--dangerously-bypass-approvals-and-sandbox`, which `shift new` already passes, covers neither. `--dangerously-bypass-hook-trust` covers the second, and `yan` does not pass it: that flag lets hooks shipped by the **target repository** run without review, which is a decision about somebody else's code and therefore `user`'s. It belongs in `agents.shift`'s trailing argv, where `user` puts it deliberately or not at all.
+`--dangerously-bypass-approvals-and-sandbox`, which `shift new` already passes, covers neither. `--dangerously-bypass-hook-trust` covers the second, **and `shift new` passes it** — `user`'s decision, taken after the measurement rather than before it.
+
+The trade is stated so that reversing it is a decision too: hooks shipped by the **target repository** run without review, in exchange for a shift that cannot park on a prompt nothing wakes yan for. The first gate is left alone because it does not need this — Herdr reports it as `blocked`, supervision escalates, and somebody answers once per repository. A gate that wakes a person is a gate yan can live with.
+
+**And the real fix is upstream and is one word.** Herdr's codex manifest matches `esc to cancel`; the hook-review footer says `esc to go back`. When that rule lands, the second gate becomes `blocked` like the first and the flag should come straight back out. Two tests in `shift-new.test.ts` pin it so that happens on purpose.
 
 So the position is: **Codex is fine as the main agent** — `yan continue` runs it in a pane `user` is looking at, and both gates are answerable there — and is a shift agent only where `user` has said so. `yan doctor` reports both gates when any role names codex, at the point they can still be answered rather than hours after a dispatch. The clean fix is upstream: one rule in Herdr's codex detection manifest.
