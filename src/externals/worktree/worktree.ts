@@ -7,7 +7,7 @@ import { baseRef, isRegisteredWorktree } from './git-facts.js';
 import { assertReturnable, wipe } from './guard.js';
 import { absolute, cloneDir, leaseFile, leasesDir, lockFile, repoName, slotTree } from './layout.js';
 import { allLeases, newLeaseId, readLease, reclaim, releaseLease, slotOf, writeLease } from './lease.js';
-import type { LeaseGrant, LeaseRow, ReturnExpectation } from './types.js';
+import type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
 
 /**
  * The worktree pool for one main clone (worktree.md §7, architecture.md §4.3).
@@ -20,7 +20,14 @@ import type { LeaseGrant, LeaseRow, ReturnExpectation } from './types.js';
  * WHAT THIS IS NOT. It reports facts and decides nothing: `get` hands out a
  * tree or says the pool is full, and the subcommand decides what that means. It
  * calls `util/git.ts` (a stateless utility — a normal downward dependency) and
- * never another external. There is no force flag anywhere.
+ * never another external.
+ *
+ * `return({force})` is the one exception to "decides nothing", and it is not
+ * one: it decides nothing either, it OBEYS. boundaries.md §9.2 authorises
+ * throwing a tree's changes away when `user` has said so, and this module is
+ * where the guard is, so this is where the way past it has to live. Nothing in
+ * yan may set it on its own initiative — `yan done --force` is the only caller,
+ * and the flag on it is `user`'s answer, not a retry.
  *
  * ---------------------------------------------------------------------------
  * WHY THIS STILL TAKES A LOCK
@@ -107,8 +114,13 @@ export class WorktreePool {
    * `expect` is compared BEFORE anything destructive happens — no reset, no
    * clean, no lease cleared. That is what makes an automatic retry safe. An
    * absent field is not compared.
+   *
+   * `expect.force` skips the orphan-commit guard and NOTHING ELSE. The identity
+   * check above it still runs, because a forced return that goes to the wrong
+   * slot is the one mistake force must not make: `user` authorised throwing
+   * away THIS tree's changes, not somebody else's.
    */
-  public return(target: string, expect: ReturnExpectation = {}): string {
+  public return(target: string, expect: ReturnOptions = {}): string {
     if (!target) {
       throw WorktreeError.usage(
         "which tree? pass the path 'yan tree get' printed, or its slot number",
@@ -147,7 +159,7 @@ export class WorktreePool {
       return tree;
     }
 
-    assertReturnable(tree);
+    if (expect.force !== true) assertReturnable(tree);
     wipe(tree);
     releaseLease(this.dir, slot);
     return tree;

@@ -155,6 +155,56 @@ describe('the orphan-commit guard', () => {
   });
 });
 
+/**
+ * boundaries.md §9.2 does not forbid a force flag, it AUTHORISES one: *forbidden,
+ * unless `user` says the changes can be thrown away.* `yan done --force` is the
+ * only caller, and this is what it buys — recovering a slot the guard has, quite
+ * correctly, refused to release.
+ */
+describe('force is the one door past the guard', () => {
+  it('releases a dirty tree, and destroys exactly the uncommitted work', () => {
+    const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
+    mkdirSync(join(grant.path, 'node_modules', 'dep'), { recursive: true });
+    writeFileSync(join(grant.path, 'node_modules', 'dep', 'index.js'), '// warm\n');
+    writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
+
+    expect(pool().return(grant.path, { force: true })).toBe(grant.path);
+    expect(existsSync(join(grant.path, 'stray.txt')), 'the untracked file is gone').toBe(false);
+    expect(
+      existsSync(join(grant.path, 'node_modules', 'dep', 'index.js')),
+      'and -x is still never passed, so the tree comes back warm',
+    ).toBe(true);
+    expect(existsSync(join(cloneDir(clone), 'leases', '1.json')), 'the slot is free').toBe(false);
+  });
+
+  it('does NOT destroy commits: they stay on the shift branch, reachable by name', async () => {
+    const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
+    writeFileSync(join(grant.path, 'feature.txt'), 'work\n');
+    await fxGit(['add', '.'], grant.path);
+    await fxGit(['commit', '-m', 'work'], grant.path);
+    const head = (await fxGit(['rev-parse', 'HEAD'], grant.path)).stdout.trim();
+
+    expect(pool().return(grant.path, { force: true })).toBe(grant.path);
+
+    // The distinction the help text makes, proved rather than asserted: the
+    // unpushed commit survives in the clone under its branch name. What force
+    // throws away is the working tree, not history.
+    const still = await fxGit(['rev-parse', 'shift/t042-s1'], clone);
+    expect(still.code, still.stderr).toBe(0);
+    expect(still.stdout.trim()).toBe(head);
+  });
+
+  it('still refuses a mismatched identity - force is not a licence for the wrong slot', () => {
+    const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
+    writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
+
+    expect(() => pool().return(grant.path, { force: true, holder: 'someone/else/s9' })).toThrow(
+      /holder does not match/,
+    );
+    expect(existsSync(join(grant.path, 'stray.txt')), 'nothing was touched').toBe(true);
+  });
+});
+
 describe('the conditional return', () => {
   it('refuses a mismatched identity before any destructive step', () => {
     const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');

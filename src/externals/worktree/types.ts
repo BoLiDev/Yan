@@ -37,3 +37,18 @@ export interface ReturnExpectation {
   readonly leaseId?: string;
   readonly holder?: string;
 }
+
+/**
+ * What `return()` takes: the identity check, plus the one way past the
+ * orphan-commit guard.
+ *
+ * `force` is NOT a convenience. boundaries.md §9.2 lists it as an action
+ * `user` has to authorise — *forbidden, unless `user` says the changes can be
+ * thrown away* — which is a different thing from forbidden. So the capability
+ * lives here, where the guard is, and the authority lives in the one command
+ * that can carry `user`'s answer in: `yan done --force`. `yan tree return`
+ * deliberately exposes no flag for it (see `cli/tree.ts`).
+ */
+export interface ReturnOptions extends ReturnExpectation {
+  readonly force?: boolean;
+}

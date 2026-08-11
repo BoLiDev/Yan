@@ -131,8 +131,11 @@ Returning a tree is \`git reset --hard\` plus \`git clean -fd\`, never with -x, 
 gitignored dependencies and build caches survive into the next shift.
 
 A return is refused when the tree has uncommitted changes, or when no remote
-branch contains HEAD: that is the moment the work exists nowhere else. There is
-no way to override it - stop and investigate instead.
+branch contains HEAD: that is the moment the work exists nowhere else. This
+command has no flag to override it - stop and investigate instead.
+
+The one door past it is 'yan done --force', which finishes a whole task and
+carries user's authority for throwing the changes away (boundaries.md 9.2).
 
 The pool lives under ~/.yan-trees (YAN_POOL_ROOT overrides it) and its size is
 pool_size in mem/repos.json, default ${DEFAULT_POOL_SIZE}.`,

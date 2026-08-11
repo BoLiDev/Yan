@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import * as g from '../../src/util/git.js';
 import { GitError } from '../../src/util/git.js';
 import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures.js';
@@ -9,7 +9,7 @@ import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures
  * The port of `tests/unit/lib-git-contract.test.sh`.
  *
  * Phase 0 Trace: "util/git.ts refuses to run without an explicit directory and
- * never uses --force."
+ * never force-pushes."
  */
 
 afterAll(cleanupTempDirs);
@@ -82,10 +82,22 @@ describe('required arguments beyond the directory', () => {
   });
 });
 
-describe('no force flag anywhere in src/', () => {
-  // boundaries.md §9.2 lists force-pushing and forced tree destruction as
-  // forbidden. This is a source-level check on purpose: a runtime test can only
-  // cover the paths it happens to exercise.
+describe('no force flag ever reaches git', () => {
+  // boundaries.md §9.2 forbids `git push --force` outright. This is a
+  // source-level check on purpose: a runtime test can only cover the paths it
+  // happens to exercise, and the one that matters is the one nobody wrote yet.
+  //
+  // IT USED TO BE A SUBSTRING SEARCH OVER ALL OF src/, and that was too blunt
+  // once §9.2's OTHER force line got its command. That line reads *forbidden,
+  // unless `user` says the changes can be thrown away* — an authority, not an
+  // absence — and `yan done --force` is where `user` says it. A check that
+  // cannot tell `yan done`'s Commander option and the prose explaining it from
+  // an argument handed to git would have to be satisfied by hiding the honest
+  // one, which is how a guard stops meaning anything.
+  //
+  // So it is narrowed to exactly what it protects: git is invoked with arrays
+  // of quoted arguments, so a QUOTED force literal is the thing that can reach
+  // it. Prose may name the flag; an argument list may not contain it.
   function allSources(dir: string): string[] {
     const out: string[] = [];
     for (const entry of readdirSync(dir)) {
@@ -96,11 +108,27 @@ describe('no force flag anywhere in src/', () => {
     return out;
   }
 
-  it('src/ contains no force flag', () => {
-    const offenders = allSources(join(repoRoot, 'src')).filter((f) =>
-      readFileSync(f, 'utf8').includes(`--${'force'}`),
-    );
-    expect(offenders).toEqual([]);
+  const FORCE = `--${'force'}`;
+
+  it('util/git.ts, the only module that spawns git, does not name it at all', () => {
+    expect(readFileSync(join(repoRoot, 'src', 'util', 'git.ts'), 'utf8')).not.toContain(FORCE);
+  });
+
+  it('no quoted force literal appears in src/, except yan done\'s own option', () => {
+    // A whole quoted token — `'--force'`, `'--force-with-lease'`, `'--force=x'`
+    // — is what an argument list holds. `--force:` inside a sentence is not one.
+    const quoted = new RegExp(`(['"\`])${FORCE}(-with-lease|=[^'"\`]*)?\\1`);
+    const offenders = allSources(join(repoRoot, 'src')).filter((f) => {
+      // Comments may name what is forbidden; code may not run it.
+      let code = readFileSync(f, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+      // `yan done` declares the flag; that declaration IS the authority, and
+      // Commander is not git.
+      if (f.endsWith(`cli${sep}done.ts`)) code = code.replace(/\.option\([^)]*\)/g, '');
+      return quoted.test(code);
+    });
+    expect(offenders, 'a force flag in an argument list is a force flag reaching git').toEqual([]);
   });
 
   it('git clean is -fd and never -x', () => {

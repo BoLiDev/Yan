@@ -15,7 +15,7 @@ The full list is in [Appendix B](appendix.md#appendix-b-file-system-boundary-for
 | Action | Who does it | Authority |
 | --- | --- | --- |
 | `yan tree get / return` without force | `yan`, `shift` | on its own |
-| `yan tree return --force` | — | forbidden, unless `user` says the changes can be thrown away |
+| forcing a tree back past the orphan-commit guard | `yan` | `user` has to ask for it — the changes are thrown away. V2 spells it `yan done --force`, and `yan tree return` deliberately has no flag for it |
 | open or close a terminal | `yan` | on its own |
 | push a shift branch | `shift` | on its own |
 | push the integration branch, after `yan sync` | `yan` | on its own |

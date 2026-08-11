@@ -560,10 +560,11 @@ with its target and a shift has to reconcile it first.`,
  *    nowhere else. Deleting the remote shift branch also removes its
  *    remote-tracking ref — which worktrees share with the main clone — so after
  *    a squash merge, deleting first makes that list empty and the guard
- *    refuses. The slot is then stranded with no way to recover it, since there
- *    is deliberately no forcing flag anywhere. Return first and the copy test
- *    always passes; delete last and the work is in the integration branch by
- *    then.
+ *    refuses. The slot is then stranded, and the only way back is `yan done
+ *    --force`, which finishes the whole task and needs `user` to authorise
+ *    throwing the changes away — a heavy price for getting two lines in the
+ *    wrong order. Return first and the copy test always passes; delete last and
+ *    the work is in the integration branch by then.
  *
  * Everything the teardown needs is read out of `run/meta.json` BEFORE `run/` is
  * deleted, because deleting it is step four and the tree path, the lease id and

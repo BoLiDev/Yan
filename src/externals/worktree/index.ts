@@ -27,4 +27,4 @@ export { WorktreePool } from './worktree.js';
 // code. That distinction is `WorktreeError.codes.full`, so the class is part of
 // the surface rather than something a caller matches a message against.
 export { WorktreeError } from './errors.js';
-export type { Lease, LeaseGrant, LeaseRow, ReturnExpectation } from './types.js';
+export type { Lease, LeaseGrant, LeaseRow, ReturnExpectation, ReturnOptions } from './types.js';

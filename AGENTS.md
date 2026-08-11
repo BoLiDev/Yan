@@ -39,6 +39,7 @@ yan shift done <sid>               clock a shift out once its MR has merged
 yan scope-check <sid>              which changed paths fall outside scope
 yan mr --task --unit               open the outbound MR (integration branch → target)
 yan land --task --user-asked       merge the outbound MR into target
+yan done [<id>] [--force]          mark the task done and give its trees back
 yan tree get | return | status     the worktree pool
 yan wait [--seconds N] · yan drain supervision
 yan open <id>                      the task directory or its artifacts
@@ -57,7 +58,8 @@ Inside your own branches and this machine, act on your own. Anything that touche
 | lease and return trees, open and close terminals                | `yan unit set` — changing `branch`, `target`, `mode` or `scope` is a decision |
 | dispatch shifts; merge a shift's MR into the integration branch | `yan land` — merging the outbound MR into `target`                            |
 | push the integration branch via `yan sync`                      | commenting on an MR, or mentioning anyone: it interrupts colleagues           |
-| `yan mr` — opening the outbound MR is reversible                | `yan tree return --force`, if it would throw work away                        |
+| `yan mr` — opening the outbound MR is reversible                | `yan done --force` — it kills live shifts and throws uncommitted work away    |
+| `yan done` without `--force` — it refuses rather than destroys  |                                                                               |
 
 
 Never `git push --force`. Never delete a branch that has not merged. When something in
