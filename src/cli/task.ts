@@ -3,6 +3,7 @@ import { basename, join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
+import { isTty } from './shared/resolve.js';
 import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit } from './unit.js';
 import { Log } from '../records/log/index.js';
@@ -273,6 +274,40 @@ interface NewFlags {
   json?: boolean;
 }
 
+/**
+ * The soft path: with values missing and a person at the keyboard, walk the
+ * create prompts (cli-ux.md §3, §6).
+ *
+ * `resolve()` is not what asks here, and the difference is the point. The
+ * generic helper fills in missing SCALARS; creating a task means detecting a
+ * monorepo, offering its packages, and turning selections into units — a flow
+ * rather than a list of options, so it has its own prompts and its own module.
+ *
+ * A HALF-SPECIFIED UNIT IS NOT ROUTED HERE. The wizard collects a whole task
+ * from the top, so it would silently drop `--repo` flags that were typed, and
+ * losing what `user` already said is worse than saying what is missing: that
+ * case falls through to `createTask`'s refusal.
+ */
+async function askWhenMissing(flags: NewFlags, units: readonly UnitSpec[]): Promise<TaskNewOptions> {
+  const given: TaskNewOptions = { ...flags, units };
+  if (units.length > 0 || missingForTaskNew(given).length === 0 || !isTty()) return given;
+
+  const { askTaskNew } = await import('../ui/prompts.js');
+  const answers = await askTaskNew(yanHome(), { title: flags.title, description: flags.description });
+  return {
+    ...flags,
+    title: answers.title,
+    description: answers.description,
+    units: answers.units.map((u) => ({
+      repo: u.repo,
+      unit: u.unit,
+      target: u.target,
+      scope: [...u.scope],
+      needs: [],
+    })),
+  };
+}
+
 export function buildTaskCommand(): Command {
   const builder = new UnitBuilder();
   const opens = (value: string): string => {
@@ -332,8 +367,8 @@ refuses and names the flags, so nothing ever hangs waiting for an answer that
 is not coming.`,
     )
     .action(
-      action('yan task new', (flags: NewFlags) => {
-        const created = createTask({ ...flags, units: builder.units });
+      action('yan task new', async (flags: NewFlags) => {
+        const created = createTask(await askWhenMissing(flags, builder.units));
 
         // The enter step, which is `yan continue` itself and not a copy of it.
         // Two phases: the record first, because it has to be printable before

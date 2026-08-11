@@ -6,6 +6,8 @@ import { action, out } from './shared/action.js';
 import { agentFor, configPath } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
+import { queueJson } from './ls.js';
+import { isTty } from './shared/resolve.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
@@ -26,9 +28,12 @@ import { claim, isStale, owner, release } from '../util/lock.js';
  *
  * So the container half is gone. This command starts the main agent IN THE PANE
  * IT WAS TYPED IN, as a child process with this process's stdin, stdout and
- * stderr — which are the pane. Nothing is created, nothing is focused, and
- * there is nothing to attach to, which is why `attach` has left the vocabulary
- * entirely.
+ * stderr — which are the pane. Nothing is created and nothing is focused.
+ *
+ * The MVP's third verb went with it. When there is no session of our own to
+ * join, "create or join the container" is not a step any more — we are already
+ * inside — so the word has left the vocabulary entirely, along with the three
+ * `tmux` calls that implemented it. They have no replacement.
  *
  * ---------------------------------------------------------------------------
  * ONE YAN PER TASK, AND WHAT NOW ANSWERS IT
@@ -92,9 +97,9 @@ export interface Entered {
   /** The pane this yan is in, or empty when it is not running under Herdr. */
   readonly pane: string;
   readonly workspace: string;
+  /** False means a live yan already holds this task and nothing was started. */
   readonly started: boolean;
-  readonly attached: boolean;
-  /** Where the live yan is, when this one refused to become a second. */
+  /** Where that live yan is, when this one refused to become a second. */
   readonly where: string;
 }
 
@@ -229,7 +234,6 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
           pane,
           workspace: '',
           started: false,
-          attached: true,
           where,
         },
       };
@@ -258,7 +262,6 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       pane,
       workspace: workspace ?? '',
       started: true,
-      attached: false,
       where: '',
     },
     run: () => {
@@ -280,11 +283,37 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
 }
 
 /**
+ * The soft path: with no id and a person at the keyboard, select among the
+ * INCOMPLETE tasks (cli-ux.md §3).
+ *
+ * The list is `yan ls`'s own scan, so there is one owner for "which tasks are
+ * there". Without a TTY there is nobody to answer, so this returns the empty
+ * string and `enterTask` refuses with the flag to pass — that order matters,
+ * because a prompt reached by a hook, a script or an agent is a hang.
+ */
+async function chooseWhenMissing(given: string): Promise<string> {
+  if (given !== '' || !isTty()) return given;
+
+  const queue = queueJson() as {
+    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
+  };
+  const live = queue.tasks.filter((t) => !t.complete);
+  if (live.length === 0) {
+    throw CommandError.usage('continue', "there are no incomplete tasks to continue - 'yan task new' starts one");
+  }
+
+  const { chooseTask } = await import('../ui/prompts.js');
+  return chooseTask(
+    live.map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts })),
+  );
+}
+
+/**
  * What entering looks like to a person, in one place because `yan task new`
  * ends by entering and must not print a second version of it.
  */
 export function renderEntered(record: Entered): void {
-  if (record.attached) {
+  if (!record.started) {
     out(`yan is already running on task ${record.task} - a second yan on the same task is refused`);
     out(`live     ${record.where === '' ? '(the holder left no pane id)' : record.where}`);
     return;
@@ -306,7 +335,7 @@ usage: yan continue <task-id> [--agent <cli>] [--json]
        yan continue --task <task-id> [--agent <cli>] [--json]
 
 Starts the main agent in THIS pane. No workspace is created and there is
-nothing to attach to: yan joins the multiplexer \`user\` is already in.
+nothing to join: yan is already in the multiplexer \`user\` is already in.
 
 A second yan on the same task is refused: when one is already running this
 says where it is rather than spawning a duplicate.
@@ -319,7 +348,10 @@ Without a terminal it refuses: pass --task <id>.`,
       if (positional !== undefined && positional !== '' && options.task !== undefined && options.task !== '') {
         throw CommandError.usage('continue', 'only one task id may be given');
       }
-      const session = enterTask({ ...options, task: options.task ?? positional ?? '' });
+      const session = enterTask({
+        ...options,
+        task: await chooseWhenMissing(options.task ?? positional ?? ''),
+      });
       const { record } = session;
 
       if (options.json === true) out(JSON.stringify(record));

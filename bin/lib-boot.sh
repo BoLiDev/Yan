@@ -15,19 +15,6 @@ if [ -n "${_YAN_LIB_BOOT_SOURCED:-}" ]; then
 fi
 _YAN_LIB_BOOT_SOURCED=1
 
-# The soft path's own checks (node, the pinned @clack/prompts) reuse the code
-# that launches it, so "where is node?" has one answer rather than two that can
-# drift apart.
-#
-# Sourced only when there is a home to find it in. Unlike a subcommand, this
-# library is deliberately usable on its own - a test may source it with no
-# $YAN_HOME at all, and `boot_config_path` is written to say so rather than to
-# crash - while `yan doctor`, the only caller of boot_doctor, always has one.
-if [ -n "${YAN_LIB:-}" ] || [ -n "${YAN_HOME:-}" ]; then
-	# shellcheck source=bin/lib-ui.sh
-	. "${YAN_LIB:-$YAN_HOME/bin}/lib-ui.sh"
-fi
-
 _boot_ok=0
 _boot_warn=0
 _boot_fail=0
@@ -76,10 +63,15 @@ boot_config_get() {
 	fi
 }
 
-# boot_check_core - git and jq. Also used inline (open-coded) by bin/yan.
+# boot_check_core - git, jq and node. Also used inline (open-coded) by bin/yan.
+#
+# node moved up here from the old "soft path" section when the prompts stopped
+# being a separate Node island: it is the runtime every subcommand is compiled
+# into, so a machine without it has no yan at all rather than a yan that cannot
+# ask questions. WARN would be the wrong word for that.
 boot_check_core() {
 	local c
-	for c in git jq; do
+	for c in git jq node; do
 		if boot_have "$c"; then
 			boot_report ok "$c" "$(command -v "$c")"
 		else
@@ -235,46 +227,6 @@ boot_check_platform() {
 	fi
 }
 
-# boot_check_soft_path - node and the pinned @clack/prompts install.
-#
-# Both are WARN, never FAIL, and the reason is the split in cli-ux.md §2: the
-# soft path is for `user`, and everything an agent runs is shell. A machine
-# with no node at all can still carry a task from `yan task new --title ...`
-# to the outbound MR; it just cannot be asked questions. Failing here would
-# make node a hard dependency of a tool that deliberately does not have one.
-#
-# The message has to name the fix, because node_modules/ is gitignored and so
-# "not installed yet" is the ordinary state of a fresh clone - the soft path
-# must say `run the install`, never hand `user` a module-resolution stack
-# trace (cli-ux.md §2).
-boot_check_soft_path() {
-	local node ui version
-	if ! command -v ui_node >/dev/null 2>&1; then
-		boot_report warn "soft path" "not checked - lib-ui.sh was not loaded (no YAN_HOME when this library was sourced)"
-		return 0
-	fi
-	ui=$(ui_dir)
-
-	if node=$(ui_node); then
-		version=$("$node" --version 2>/dev/null || printf 'present')
-		if [ "$node" = "$(command -v node 2>/dev/null || printf '%s' "$node")" ]; then
-			boot_report ok "node" "$version ($node)"
-		else
-			boot_report warn "node" "$version at $node, but NOT on PATH - export YAN_NODE, or source nvm before running yan"
-		fi
-	else
-		boot_report warn "node" "not on PATH - only the ui/ soft path needs it. Without it, prompts are skipped and every command needs its flags"
-	fi
-
-	if [ ! -f "$ui/soft-path.mjs" ]; then
-		boot_report warn "soft path" "$ui/soft-path.mjs is missing - the interactive prompts are not installed"
-	elif ui_clack_dir >/dev/null 2>&1; then
-		boot_report ok "@clack/prompts" "$(ui_clack_dir)"
-	else
-		boot_report warn "@clack/prompts" "not installed - $(ui_install_hint)"
-	fi
-}
-
 # boot_doctor - the whole checklist. Non-zero when any hard check failed.
 boot_doctor() {
 	_boot_ok=0
@@ -297,9 +249,6 @@ boot_doctor() {
 	printf '\nbackend\n'
 	boot_check_backend
 	boot_check_platform
-
-	printf '\nsoft path (ui/, for `user` only)\n'
-	boot_check_soft_path
 
 	printf '\n%d ok, %d warn, %d failed\n' "$_boot_ok" "$_boot_warn" "$_boot_fail"
 	if [ "$_boot_fail" -gt 0 ]; then

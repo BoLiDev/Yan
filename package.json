@@ -16,6 +16,7 @@
     "test": "npm run build && vitest run"
   },
   "dependencies": {
+    "@clack/prompts": "1.7.0",
     "commander": "14.0.2"
   },
   "devDependencies": {

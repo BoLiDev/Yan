@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
+import { queueJson } from './ls.js';
+import { isTty, setPrompter } from './shared/resolve.js';
 import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
 
@@ -124,20 +126,81 @@ export async function buildProgram(home: string): Promise<Command> {
   return program;
 }
 
+/**
+ * Bare `yan` on a terminal (cli-ux.md §2).
+ *
+ *     › create new task
+ *       t042  unify the auth header          2 shifts live
+ *       t041  gateway retry budget           idle
+ *
+ * DERIVED, NEVER STORED: the list is the same scan `yan ls` already does over
+ * `tasks/*​/task.json`, so there is no menu configuration file and nothing that
+ * can disagree with the directory. If `yan ls` can render it, the select can
+ * offer it.
+ *
+ * The choice becomes a command line and re-enters the same program, which is
+ * why this is a few lines: choosing a task IS `yan continue --task <id>`, and
+ * choosing to create IS `yan task new` with nothing filled in, which then walks
+ * its own prompts.
+ */
+export interface EntryChoice {
+  readonly id: string;
+  readonly title: string;
+  readonly units: number;
+  readonly shifts: number;
+}
+
+/** The rows of that select, separated from the drawing of it so a test can see them. */
+export function liveTaskChoices(): EntryChoice[] {
+  const queue = queueJson() as {
+    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
+  };
+  return queue.tasks
+    .filter((t) => !t.complete)
+    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
+}
+
+async function chooseEntryPoint(): Promise<string[]> {
+  const { chooseEntry, CREATE_NEW } = await import('../ui/prompts.js');
+  const chosen = await chooseEntry(liveTaskChoices());
+  return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', '--task', chosen];
+}
+
+/**
+ * The soft path, installed rather than imported (runtime.md §2–3).
+ *
+ * `resolve()` calls this only when stdin is a TTY and a required value is
+ * missing, so the dynamic import is what keeps Clack off every other path —
+ * including every path a hook takes.
+ */
+function installPrompter(): void {
+  setPrompter(async (missing) => {
+    const { askFor } = await import('../ui/prompts.js');
+    return askFor(missing);
+  });
+}
+
 export async function main(argv: readonly string[]): Promise<number> {
   const home = yanHome();
   const found = subcommands(home);
   const program = await buildProgram(home);
+  installPrompter();
 
-  // Bare `yan` prints the list and exits 0: it is not an unknown command, so it
-  // is not an error. (Phase 8 replaces this with the select — cli-ux.md.)
-  if (argv.length === 0) {
-    program.outputHelp();
-    return 0;
-  }
+  let words = [...argv];
 
   try {
-    await program.parseAsync([...joinTwoWordCommand(argv, found.all)], { from: 'user' });
+    // Bare `yan` with a person at the keyboard is the select. Without a TTY it
+    // prints usage and exits 0, unchanged, so scripts and agents see no
+    // difference — and it is not an unknown command, so it is not an error.
+    if (words.length === 0) {
+      if (!isTty()) {
+        program.outputHelp();
+        return 0;
+      }
+      words = await chooseEntryPoint();
+    }
+
+    await program.parseAsync([...joinTwoWordCommand(words, found.all)], { from: 'user' });
     // A subcommand that ended with a status of its own keeps it. `yan wait` is
     // the first: 124 for a quiet slice, 3 for nothing left to supervise, 4 for
     // "somebody else is already on duty" — none of them an error, so none of

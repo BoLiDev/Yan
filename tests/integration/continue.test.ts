@@ -89,12 +89,10 @@ describe('the hard path: the main agent starts in this pane', () => {
       task: string;
       agent: string;
       started: boolean;
-      attached: boolean;
       pane: string;
     };
     expect(seen.task).toBe('t042');
     expect(seen.started).toBe(true);
-    expect(seen.attached).toBe(false);
     expect(seen.agent).toBe(process.execPath);
     // Not inside Herdr in this run, and that is not a failure.
     expect(seen.pane).toBe('');
@@ -250,7 +248,7 @@ describe('the enter step itself, with the terminal and the harness injected', ()
   it('starts nothing at all when a live yan already holds the task', async () => {
     liveLock('t042', 'yan t042 pane=w9:p9');
     const { started, calls, session } = await enter('t042', 'w7:p2');
-    expect(session.record.attached).toBe(true);
+    expect(session.record.started).toBe(false);
     expect(session.record.where).toContain('w9:p9');
     // No run half, so there is nothing that could start a duplicate — and the
     // workspace was not relabelled by a command that changed nothing.
