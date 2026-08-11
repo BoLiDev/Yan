@@ -109,6 +109,8 @@ Starting a new round is one atomic operation: work out `end` → append the curr
 
 `target` has no default value, and `yan unit add` requires it explicitly. The way `user` actually works, a big release means the team keeps one shared branch for a while and everyone merges into it, while quiet periods mean everyone merges into master. There is no safe default.
 
+The soft path may **prefill** it, which is a different thing. `yan task new`'s prompt puts the remote's own default branch — `refs/remotes/origin/HEAD`, or `ls-remote --symref` when the clone does not have it — in the box, where `user` reads it and either agrees or types over it. What §6.4 forbids is yan deciding on its own; a value someone is looking at when they press Enter is still their answer. The flag path is unchanged: `--target` is required, and no detection makes it optional there, because a command running without a terminal has nobody to disagree with it.
+
 `needs` records the landing order, and `yan land` topologically sorts by it. The same repository may appear in several units: the sub-applications of the team's monorepo are worked on separately, and you cannot change two applications on the same branch. So one `unit` is one sub-application is one branch is one tree.
 
 ## 6.5 Who names branches

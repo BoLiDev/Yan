@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as g from '../../src/util/git.js';
 import { GitError } from '../../src/util/git.js';
-import { cleanupTempDirs, mkTempDir, repoRoot } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures.js';
 
 /**
  * The port of `tests/unit/lib-git-contract.test.sh`.
@@ -132,5 +132,53 @@ describe('push actively refuses a force flag handed to it', () => {
     // which then fails for its own reasons in an empty directory.
     const tmp = mkTempDir();
     expect(g.push(tmp, ['origin', 'main']).code).not.toBe(0);
+  });
+});
+
+describe('the default branch is asked for, never assumed', () => {
+  it('reads what the clone already knows, without touching the network', async () => {
+    // `git clone` writes refs/remotes/origin/HEAD, so the ordinary case costs
+    // nothing. The branch is deliberately NOT main or master: a detection that
+    // works only for the two names everyone hardcodes has detected nothing.
+    const bare = join(mkTempDir(), 'origin.git');
+    await fxGit(['init', '--bare', '--initial-branch=release/24.10', bare]);
+
+    const seed = mkTempDir('yan-seed-');
+    await fxGit(['init', '--initial-branch=release/24.10', '.'], seed);
+    writeFileSync(join(seed, 'README.md'), 'fixture\n');
+    await fxGit(['add', '.'], seed);
+    await fxGit(['commit', '-m', 'initial'], seed);
+    await fxGit(['remote', 'add', 'origin', bare], seed);
+    await fxGit(['push', '-u', 'origin', 'release/24.10'], seed);
+
+    const clone = join(mkTempDir(), 'clone');
+    await fxGit(['clone', bare, clone]);
+    expect(g.defaultBranch(clone)).toBe('release/24.10');
+  });
+
+  it('falls back to asking the remote when the clone has no origin/HEAD', async () => {
+    const bare = join(mkTempDir(), 'origin.git');
+    await fxGit(['init', '--bare', '--initial-branch=trunk', bare]);
+    const seed = mkTempDir('yan-seed-');
+    await fxGit(['init', '--initial-branch=trunk', '.'], seed);
+    writeFileSync(join(seed, 'README.md'), 'fixture\n');
+    await fxGit(['add', '.'], seed);
+    await fxGit(['commit', '-m', 'initial'], seed);
+    await fxGit(['remote', 'add', 'origin', bare], seed);
+    await fxGit(['push', '-u', 'origin', 'trunk'], seed);
+
+    const clone = join(mkTempDir(), 'clone');
+    await fxGit(['clone', bare, clone]);
+    // Exactly the state a --single-branch clone or a hand-added remote leaves.
+    await fxGit(['symbolic-ref', '--delete', 'refs/remotes/origin/HEAD'], clone);
+    expect(g.defaultBranch(clone)).toBe('trunk');
+  });
+
+  it('says it does not know rather than picking something', async () => {
+    // No remote at all: the prompt gets an empty box, which is where the whole
+    // question started. `undefined` is an answer, not a failure.
+    const lonely = mkTempDir();
+    await fxGit(['init', '--initial-branch=main', '.'], lonely);
+    expect(g.defaultBranch(lonely)).toBeUndefined();
   });
 });

@@ -73,11 +73,14 @@ function requireArg(value: string | undefined, message: string): string {
 }
 
 /** Run git and hand back the result. Never throws on a non-zero git status. */
-export function git(dir: string, args: readonly string[]): GitResult {
+export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): GitResult {
   const d = requireDir(dir);
   const r = spawnSync('git', ['-C', d, ...args], {
     encoding: 'utf8',
     windowsHide: true,
+    // Only for the handful of calls that touch the network. A timed-out git
+    // comes back as a non-zero result like any other failure, never a hang.
+    ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
   });
   if (r.error) {
     throw new GitError('failed', `cannot run git: ${r.error.message}`, { cause: r.error });
@@ -136,6 +139,44 @@ export function revParse(dir: string, args: readonly string[]): string {
 
 export function diffNameOnly(dir: string, args: readonly string[] = []): string[] {
   return gitLines(dir, ['diff', '--name-only', ...args]);
+}
+
+/**
+ * The branch the remote itself calls its default, or `undefined`.
+ *
+ * This is a SUGGESTION and nothing more. `target` is still `user`'s answer
+ * (branching.md §6.4: a release period and a quiet period have different ones),
+ * so the only legitimate use of this is to fill in a prompt that a person then
+ * reads and confirms. Nothing that runs without a terminal may call it to
+ * invent a target for itself.
+ *
+ * Two ways to ask, cheapest first:
+ *
+ *   1. `refs/remotes/<remote>/HEAD`, which `git clone` writes and
+ *      `git remote set-head` refreshes. No network, always right if present,
+ *      and absent often enough — a clone made with `--single-branch`, a remote
+ *      added by hand — that it cannot be the only way.
+ *   2. `ls-remote --symref`, which asks the remote. This is the answer GitHub
+ *      and GitLab give for their own default branch, whatever it is called, so
+ *      nothing here needs a list of likely names.
+ *
+ * Both are allowed to fail. A remote that is unreachable, slow, or wants
+ * credentials nobody is there to type produces `undefined`, and the caller asks
+ * its question with an empty box — which is exactly where this started.
+ */
+export function defaultBranch(dir: string, remote = 'origin'): string | undefined {
+  const local = git(dir, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
+  if (local.code === 0) {
+    const name = local.stdout.trim().replace(`refs/remotes/${remote}/`, '');
+    if (name !== '') return name;
+  }
+
+  const asked = git(dir, ['ls-remote', '--symref', remote, 'HEAD'], { timeoutMs: 3000 });
+  if (asked.code !== 0) return undefined;
+  // `ref: refs/heads/main\tHEAD`, ahead of the ordinary sha lines.
+  const match = /^ref:\s+refs\/heads\/(.+?)\s+HEAD$/m.exec(asked.stdout);
+  const name = match?.[1]?.trim();
+  return name === undefined || name === '' ? undefined : name;
 }
 
 /** Remote branches that contain HEAD. Used by the pool's orphan-commit guard. */
