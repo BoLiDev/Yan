@@ -20,15 +20,28 @@ import { YanError, type YanErrorOptions } from './error.js';
  * alone than steal one that is still held. Only locks taken on THIS machine are
  * reclaimed, because a pid from another host means nothing here.
  *
- * Two callers, and there must never be a third without a reason written down:
- * the worktree pool, and supervision's single-flight. See `src/externals/worktree/`
- * for why the pool needs one at all — the short version is that
- * `git worktree add` writes the shared clone's `.git/config`, so it is not
- * concurrency-safe against one repository even when the slot allocation is.
+ * Three callers, and there must never be a fourth without a reason written
+ * down:
  *
- * Those two want different shapes of the same lock, which is why there are two
- * entry points and not two schemes: the pool wraps a body (`withLock`), and
- * supervision holds the lock across an asynchronous loop (`claim` / `release`).
+ *   1. THE WORKTREE POOL, per clone. See `src/externals/worktree/` for why it
+ *      needs one at all — the short version is that `git worktree add` writes
+ *      the shared clone's `.git/config`, so it is not concurrency-safe against
+ *      one repository even when the slot allocation is.
+ *   2. SUPERVISION'S SINGLE FLIGHT. Under Claude every Stop can fire autoarm,
+ *      and without it several watchers start.
+ *   3. `yan continue`'S PER-TASK ENTER LOCK, which is new in Phase 8 and is not
+ *      the same kind of thing as the other two. They serialise a critical
+ *      section; this one IS THE ANSWER to a question — is a yan already running
+ *      on this task? The MVP could not use a lock for that, because the process
+ *      holding it exited long before the agent did. V2's `yan continue` lives
+ *      exactly as long as the main agent it started, so the file's own pid is
+ *      the fact, and `pidAlive` makes a killed yan's lock reclaimable rather
+ *      than permanent.
+ *
+ * They want two shapes of the same lock, which is why there are two entry
+ * points and not two schemes: the pool wraps a body (`withLock`), while
+ * supervision and `continue` hold it across something long (`claim` /
+ * `release`).
  */
 
 const CODES = { timeout: 'lock_timeout' } as const;
