@@ -4,32 +4,27 @@
 # design principle 4).
 #
 # ---------------------------------------------------------------------------
-# DUAL DISPATCH, FOR THE LENGTH OF THE MIGRATION
+# THIS FILE IS A STUB, AND THAT IS ALL IT IS
 # ---------------------------------------------------------------------------
 #
-# V2 moves `bin/` to TypeScript one command at a time (plan/INDEX.md §2). What
-# makes that safe is that `yan` holds no in-memory state: every subcommand
-# rebuilds its picture from task.json, run/meta.json, log.md, git and the forge,
-# so the interop boundary between the two halves is the file system, and both
-# halves read it equally well.
+# yan is `dist/cli/yan.js`. What is left here is the three things that have to
+# happen before node can be handed the command line, and it stays a shell script
+# for one reason: `$YAN_HOME/bin/yan` is the path in .claude/settings.json, in
+# .codex/hooks.json, in every shift's brief and in AGENTS.md, and a path that
+# has been true since the MVP is not worth breaking to save an exec.
 #
-#   yan <cmd>  ->  dist/cli/<cmd>.js   when that command has been ported
-#              ->  bin/yan-<cmd>.sh    otherwise
+#   1  find $YAN_HOME
+#   2  check the two hard dependencies
+#   3  exec the compiled root, with the ORIGINAL words
 #
-# One command moves at a time and a half-migrated tree is fully working. A tree
-# with no dist/ at all - a fresh clone, or a test fixture that copied bin/ and
-# nothing else - is also fully working, on the shell half alone.
-#
-# Dispatch stays DERIVED, never tabulated. Given `yan foo bar` this script looks
-# for a `foo-bar` subcommand first and `foo` second, in either half. There is
-# deliberately no `case` list of subcommands in this file: later phases add
-# commands in parallel and a central list would make every one of those pull
-# requests conflict here. It is also design principle 1 - do not store state you
-# can derive; the file system already knows which subcommands exist.
+# It used to be a dispatcher: `yan <cmd>` preferred `dist/cli/<cmd>.js` and fell
+# back to `bin/yan-<cmd>.sh`, deriving both halves from a glob so that no phase
+# had to edit a table here. That was the whole strangler (plan/INDEX.md §2), and
+# it is over - Phase 8 removed the last shell command, so the fallback branch
+# could only ever have found nothing. What it also carried, a hand-written usage
+# text, is Commander's now and cannot drift from the real flags.
 #
 set -euo pipefail
-
-YAN_VERSION="0.1.0"
 
 yan_die() {
 	printf 'yan: %s\n' "$1" >&2
@@ -58,86 +53,6 @@ else
 fi
 export YAN_HOME
 
-# The compiled root. Absent in a tree that has never been built, which is an
-# ordinary state and not an error: everything falls back to the shell half.
-YAN_ROOT_JS=$YAN_HOME/dist/cli/yan.js
-
-# The subcommand list is a glob of what is on disk, never a literal list, and
-# it spans both halves so the help output never shrinks as a command moves.
-yan_subcommands() {
-	local f name
-	(
-		shopt -s nullglob
-		for f in "$YAN_HOME"/bin/yan-*.sh; do
-			name=${f##*/}
-			name=${name#yan-}
-			printf '%s\n' "${name%.sh}"
-		done
-		for f in "$YAN_HOME"/dist/cli/*.js; do
-			name=${f##*/}
-			name=${name%.js}
-			if [ "$name" != yan ]; then
-				printf '%s\n' "$name"
-			fi
-		done
-	) | LC_ALL=C sort -u
-}
-
-yan_usage() {
-	local c
-	printf 'yan %s\n\n' "$YAN_VERSION"
-	printf 'usage: yan <command> [args...]\n\n'
-	printf 'commands:\n'
-	while IFS= read -r c; do
-		printf '  %s\n' "$c"
-	done < <(yan_subcommands)
-	printf '\n'
-	printf 'Names come from dist/cli/*.js and bin/yan-*.sh. A hyphen may also be\n'
-	printf 'written as a space: `yan shift new` and `yan shift-new` are the same.\n'
-}
-
-# Exit 2, the same as Commander's own argument errors and as every other
-# "you called this wrongly" in yan. The two halves have to agree: which one
-# answers an unknown command depends only on whether dist/ has been built.
-yan_unknown() {
-	printf 'yan: unknown command: %s\n\n' "$1" >&2
-	yan_usage >&2
-	exit 2
-}
-
-# yan_exec_node <original argv...> - hand the whole command line to Commander.
-#
-# The compiled root re-parses from the beginning, so the ORIGINAL words are
-# passed, not the ones this script has already shifted off.
-yan_exec_node() {
-	exec node "$YAN_ROOT_JS" "$@"
-}
-
-if [ $# -eq 0 ]; then
-	if [ -f "$YAN_ROOT_JS" ]; then
-		yan_exec_node
-	fi
-	yan_usage
-	exit 0
-fi
-
-case $1 in
--h | --help | help)
-	if [ -f "$YAN_ROOT_JS" ]; then
-		yan_exec_node "$@"
-	fi
-	yan_usage
-	exit 0
-	;;
--V | --version)
-	if [ -f "$YAN_ROOT_JS" ]; then
-		yan_exec_node "$@"
-	fi
-	printf 'yan %s\n' "$YAN_VERSION"
-	exit 0
-	;;
-esac
-
 # The two universal hard dependencies, checked inline so this stays cheap.
 # `jq` is gone with the shell that needed it, and `node` has taken its place:
 # yan starts Claude or Codex in a pane, so the machine has node anyway, and the
@@ -150,46 +65,8 @@ for _yan_dep in git node; do
 done
 unset _yan_dep
 
-yan_argv=("$@")
+YAN_ROOT_JS=$YAN_HOME/dist/cli/yan.js
+[ -f "$YAN_ROOT_JS" ] ||
+	yan_die "$YAN_ROOT_JS is missing - run 'npm run build' in $YAN_HOME"
 
-yan_cmd=$1
-shift
-
-case $yan_cmd in
-'' | -* | *[!A-Za-z0-9_-]*) yan_unknown "$yan_cmd" ;;
-esac
-
-# yan_has <name> - is there an implementation of this subcommand, in either half?
-yan_has() {
-	[ -f "$YAN_HOME/dist/cli/$1.js" ] || [ -f "$YAN_HOME/bin/yan-$1.sh" ]
-}
-
-yan_name=
-yan_word2=${1:-}
-case $yan_word2 in
-'' | -* | *[!A-Za-z0-9_-]*) ;;
-*)
-	if yan_has "$yan_cmd-$yan_word2"; then
-		yan_name=$yan_cmd-$yan_word2
-		shift
-	fi
-	;;
-esac
-
-if [ -z "$yan_name" ] && yan_has "$yan_cmd"; then
-	yan_name=$yan_cmd
-fi
-
-[ -n "$yan_name" ] || yan_unknown "$yan_cmd"
-
-# The ported half wins wherever both exist: that is what "one command moves at a
-# time" means, and it is the only way a phase's work actually takes effect.
-if [ -f "$YAN_HOME/dist/cli/$yan_name.js" ]; then
-	yan_exec_node "${yan_argv[@]}"
-fi
-
-yan_target=$YAN_HOME/bin/yan-$yan_name.sh
-if [ -x "$yan_target" ]; then
-	exec "$yan_target" "$@"
-fi
-exec bash "$yan_target" "$@"
+exec node "$YAN_ROOT_JS" "$@"

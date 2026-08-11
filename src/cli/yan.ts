@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
@@ -11,8 +10,8 @@ import { yanHome, subcommands } from '../util/home.js';
  * The Commander root (runtime.md §3).
  *
  * `bin/yan` reaches this file, and this file is the *only* place that composes
- * subcommands. Three things it buys, all of them things the shell dispatcher
- * could not do:
+ * subcommands. Three things it buys, all of them things the shell dispatcher it
+ * replaced could not do:
  *
  *   - `yan --help` is generated rather than hand-maintained, so it cannot drift
  *     from the real flags;
@@ -20,18 +19,14 @@ import { yanHome, subcommands } from '../util/home.js';
  *     `bin/yan` had to play (rewriting a space into a hyphen);
  *   - flags are declared once instead of parsed by hand twenty times.
  *
- * During the migration the command list has two halves. A ported command is a
- * `dist/cli/<name>.js` exporting a `command`; an unported one is a
- * `bin/yan-<name>.sh`. Both are DISCOVERED, never tabulated — the same rule the
- * shell dispatcher had, and for the same reason: phases land in parallel and a
- * central list would make every one of them conflict in this file. It is also
- * what keeps `bin/yan`'s "is this ported?" test (does `dist/cli/<name>.js`
- * exist) exactly true rather than approximately true.
+ * A command is a `dist/cli/<name>.js` exporting a `command`, and they are
+ * DISCOVERED, never tabulated (`util/home.ts` says why that survived the
+ * migration that first required it).
  *
  * NOTE, and it is the rule most easily broken: **no option anywhere under
  * `src/cli/` is ever declared `.requiredOption()`.** Commander would exit before
  * the soft path could ask. Validation belongs to the action handler, via
- * `support/resolve.ts`.
+ * `shared/resolve.ts`.
  */
 
 export const YAN_VERSION = '0.1.0';
@@ -48,24 +43,6 @@ function hasCommand(mod: unknown): mod is CommandModule {
     'command' in mod &&
     (mod as { command: unknown }).command instanceof Command
   );
-}
-
-/** Run a `bin/yan-*.sh` and inherit its stdio, exit status and all. */
-function runShellSubcommand(home: string, name: string, args: readonly string[]): never {
-  const script = join(home, 'bin', `yan-${name}.sh`);
-  // bash explicitly rather than via the shebang: on Windows the script is not
-  // an executable file as far as CreateProcess is concerned, and Node does not
-  // read shebangs.
-  const r = spawnSync('bash', [script, ...args], {
-    stdio: 'inherit',
-    env: { ...process.env, YAN_HOME: home },
-    windowsHide: true,
-  });
-  if (r.error) {
-    process.stderr.write(`yan: cannot run ${script}: ${r.error.message}\n`);
-    process.exit(1);
-  }
-  process.exit(r.status ?? 1);
 }
 
 /**
@@ -96,31 +73,17 @@ export async function buildProgram(home: string): Promise<Command> {
     .enablePositionalOptions()
     .showHelpAfterError();
 
-  for (const name of found.ported) {
+  for (const name of found) {
     const file = join(home, 'dist', 'cli', `${name}.js`);
     const mod: unknown = await import(pathToFileURL(file).href);
     if (hasCommand(mod)) {
       program.addCommand(mod.command);
     } else {
       // A ported file that exports no command is a bug in the port, not a
-      // runtime condition. Say so and let the shell half answer, if it is
-      // still there.
+      // runtime condition, and there is no second half left that could answer
+      // instead - so it is said loudly and the command is simply absent.
       process.stderr.write(`yan: dist/cli/${name}.js exports no \`command\`\n`);
     }
-  }
-
-  for (const name of found.shell) {
-    if (found.ported.includes(name)) continue;
-    program
-      .command(name)
-      .description(`(shell) bin/yan-${name}.sh`)
-      .allowUnknownOption()
-      .allowExcessArguments()
-      .helpOption(false)
-      .argument('[args...]')
-      .action((args: string[]) => {
-        runShellSubcommand(home, name, args);
-      });
   }
 
   refuseToExit(program);
@@ -240,7 +203,7 @@ export async function main(argv: readonly string[]): Promise<number> {
       words = await chooseEntryPoint();
     }
 
-    await program.parseAsync([...joinTwoWordCommand(words, found.all)], { from: 'user' });
+    await program.parseAsync([...joinTwoWordCommand(words, found)], { from: 'user' });
     // A subcommand that ended with a status of its own keeps it. `yan wait` is
     // the first: 124 for a quiet slice, 3 for nothing left to supervise, 4 for
     // "somebody else is already on duty" — none of them an error, so none of

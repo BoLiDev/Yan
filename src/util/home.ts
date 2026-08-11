@@ -28,21 +28,20 @@ export function yanHome(): string {
 }
 
 /**
- * The subcommands that exist, derived from disk and never tabulated.
+ * The subcommands that exist, DERIVED FROM DISK AND NEVER TABULATED.
  *
- * `bin/yan` has the same rule and the same reason: the implementation phases
- * land in parallel and a central list would make every one of those merge
- * requests conflict in one file. During the migration a name may exist in
- * either half — `dist/cli/<name>.js` (ported) or `bin/yan-<name>.sh` (not yet)
- * — and `yan --help` has to list both, or the help output would shrink every
- * time a command moved.
+ * The rule outlived its first reason. It was written because the
+ * implementation phases landed in parallel and a central list would have made
+ * every one of them conflict in this file — and because during the migration a
+ * name could exist in either half, so `yan --help` had to list both or shrink
+ * every time a command moved. Both of those are over.
+ *
+ * It stays because of what it is: design principle 1, do not store state you
+ * can derive. `dist/cli/` already knows which commands exist; a list here could
+ * only ever be a second answer to that, and the failure of a second answer is
+ * that it disagrees silently — a command that runs but is not in `--help`, or
+ * one announced in `--help` that is not there.
  */
-export interface Subcommands {
-  readonly ported: readonly string[];
-  readonly shell: readonly string[];
-  readonly all: readonly string[];
-}
-
 function namesIn(dir: string, prefix: string, suffix: string, skip: readonly string[]): string[] {
   let entries: string[];
   try {
@@ -60,12 +59,9 @@ function namesIn(dir: string, prefix: string, suffix: string, skip: readonly str
   return names.sort();
 }
 
-export function subcommands(home: string): Subcommands {
+export function subcommands(home: string): string[] {
   // Only the top level of dist/cli/ is subcommands. What every command shares lives
   // one directory down, in src/cli/shared/, precisely so that this stays a
   // derivation and never needs a list of exceptions.
-  const ported = namesIn(join(home, 'dist', 'cli'), '', '.js', ['yan']);
-  const shell = namesIn(join(home, 'bin'), 'yan-', '.sh', []);
-  const all = [...new Set([...ported, ...shell])].sort();
-  return { ported, shell, all };
+  return namesIn(join(home, 'dist', 'cli'), '', '.js', ['yan']);
 }
