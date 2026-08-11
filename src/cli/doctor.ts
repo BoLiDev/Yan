@@ -127,6 +127,18 @@ function checkRequired(report: Report): void {
   checkGitIdentity(report);
 }
 
+/** Whether `yan` is on PATH so you can run it from any directory. */
+function checkYanOnPath(report: Report): void {
+  const home = yanHome();
+  const found = which('yan');
+  if (found === undefined) {
+    line(report, 'warn', 'yan on PATH',
+      `not found - run 'npm link' in ${home}, then open a new terminal`);
+    return;
+  }
+  line(report, 'ok', 'yan on PATH', found);
+}
+
 function checkConfig(report: Report): { agents: Record<string, unknown> } {
   const path = configPath();
   const parsed = readJsonIfPresent(path);
@@ -297,6 +309,7 @@ export const command = new Command('doctor')
       out('');
       out('required');
       checkRequired(report);
+      checkYanOnPath(report);
 
       out('');
       out('configuration');

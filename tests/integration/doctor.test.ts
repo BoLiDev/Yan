@@ -59,7 +59,7 @@ beforeAll(() => {
 describe('the checklist', () => {
   it('reports git, node, the config and the agents', async () => {
     const r = await doctor();
-    for (const needle of ['yan doctor', 'YAN_HOME', 'git', 'node', 'conf/config.json', 'agents.yan', 'agents.shift']) {
+    for (const needle of ['yan doctor', 'YAN_HOME', 'git', 'node', 'yan on PATH', 'conf/config.json', 'agents.yan', 'agents.shift']) {
       expect(r.out, needle).toContain(needle);
     }
   });
