@@ -38,12 +38,12 @@ let bare = '';
 let work = '';
 let poolRoot = '';
 
-function yan(args: readonly string[]) {
-  return runYan(home, args, { YAN_POOL_ROOT: poolRoot });
+async function yan(args: readonly string[]) {
+  return await runYan(home, args, { YAN_POOL_ROOT: poolRoot });
 }
 
-function leases(): number {
-  const r = yan(['tree', 'status', '--repo', 'demo', '--json']);
+async function leases(): Promise<number> {
+  const r = await yan(['tree', 'status', '--repo', 'demo', '--json']);
   return (JSON.parse(r.stdout) as unknown[]).length;
 }
 
@@ -51,9 +51,9 @@ beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = join(tmp, 'trees');
-  bare = mkBareRemote(join(tmp, 'remote.git'));
-  clone = mkClone(bare, join(home, 'repos', 'demo'));
-  work = mkClone(bare, join(tmp, 'work'));
+  bare = await mkBareRemote(join(tmp, 'remote.git'));
+  clone = await mkClone(bare, join(home, 'repos', 'demo'));
+  work = await mkClone(bare, join(tmp, 'work'));
 
   writeFileSync(
     join(home, 'mem', 'repos.json'),
@@ -68,50 +68,50 @@ beforeAll(async () => {
   else process.env.YAN_HOME = previous;
 
   for (const [name, branch] of [['auth', 'feat/auth'], ['proto', 'feat/proto']]) {
-    const r = yan(['unit', 'add', '--task', 't1', '--unit', name, '--repo', 'demo', '--target', 'main', '--branch', branch]);
+    const r = await yan(['unit', 'add', '--task', 't1', '--unit', name, '--repo', 'demo', '--target', 'main', '--branch', branch]);
     expect(r.code, r.out).toBe(0);
   }
 
   // Both integration branches get a commit of their own and are published, so
   // the sync below is a real three-way merge and not a fast-forward.
   for (const b of ['feat/auth', 'feat/proto']) {
-    fxGit(['checkout', '-b', b, 'origin/main'], work);
-    mkCommit(work, `${b.replace('feat/', '')}.txt`, `work on ${b}`);
-    fxGit(['push', '-u', 'origin', b], work);
-    fxGit(['checkout', 'main'], work);
+    await fxGit(['checkout', '-b', b, 'origin/main'], work);
+    await mkCommit(work, `${b.replace('feat/', '')}.txt`, `work on ${b}`);
+    await fxGit(['push', '-u', 'origin', b], work);
+    await fxGit(['checkout', 'main'], work);
   }
 
   // Target moves on.
-  mkCommit(work, 'shared.txt', 'one\ntwo\nthree', 'add shared.txt');
-  fxGit(['push', 'origin', 'main'], work);
+  await mkCommit(work, 'shared.txt', 'one\ntwo\nthree', 'add shared.txt');
+  await fxGit(['push', 'origin', 'main'], work);
 });
 
 describe('lease → fetch → merge → push → return', () => {
-  it('catches the integration branch up with its target and pushes it', () => {
-    expect(leases()).toBe(0);
+  it('catches the integration branch up with its target and pushes it', async () => {
+    expect(await leases()).toBe(0);
 
-    const r = yan(['sync', '--task', 't1', '--unit', 'auth']);
+    const r = await yan(['sync', '--task', 't1', '--unit', 'auth']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('caught up with origin/main');
 
     // It merged: the integration branch on the REMOTE now has target's file as
     // well as its own, so the push really happened.
-    fxGit(['fetch', 'origin'], work);
-    expect(fxGit(['cat-file', '-e', 'origin/feat/auth:shared.txt'], work).code).toBe(0);
-    expect(fxGit(['cat-file', '-e', 'origin/feat/auth:auth.txt'], work).code).toBe(0);
+    await fxGit(['fetch', 'origin'], work);
+    expect((await fxGit(['cat-file', '-e', 'origin/feat/auth:shared.txt'], work)).code).toBe(0);
+    expect((await fxGit(['cat-file', '-e', 'origin/feat/auth:auth.txt'], work)).code).toBe(0);
 
-    expect(leases(), 'sync leases a tree only for as long as it is working').toBe(0);
+    expect(await leases(), 'sync leases a tree only for as long as it is working').toBe(0);
   });
 
-  it('is a no-op the second time, and still returns the tree', () => {
-    const r = yan(['sync', '--task', 't1', '--unit', 'auth']);
+  it('is a no-op the second time, and still returns the tree', async () => {
+    const r = await yan(['sync', '--task', 't1', '--unit', 'auth']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('already up to date');
-    expect(leases()).toBe(0);
+    expect(await leases()).toBe(0);
   });
 
-  it('reports a --json shape `shift new` can read', () => {
-    const r = yan(['sync', '--task', 't1', '--unit', 'auth', '--json']);
+  it('reports a --json shape `shift new` can read', async () => {
+    const r = await yan(['sync', '--task', 't1', '--unit', 'auth', '--json']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).not.toContain('\r');
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
@@ -125,23 +125,23 @@ describe('lease → fetch → merge → push → return', () => {
 describe('a genuine conflict, and the script leaves at once', () => {
   let before = '';
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // feat/proto and main both rewrite the same line of shared.txt. There is no
     // mechanical answer, so this is exactly the case that must be handed over.
-    fxGit(['checkout', 'feat/proto'], work);
-    fxGit(['merge', 'origin/main', '--no-edit'], work);
-    mkCommit(work, 'shared.txt', 'one\nTWO FROM THE UNIT\nthree', 'the unit rewrites line two');
-    fxGit(['push', 'origin', 'feat/proto'], work);
+    await fxGit(['checkout', 'feat/proto'], work);
+    await fxGit(['merge', 'origin/main', '--no-edit'], work);
+    await mkCommit(work, 'shared.txt', 'one\nTWO FROM THE UNIT\nthree', 'the unit rewrites line two');
+    await fxGit(['push', 'origin', 'feat/proto'], work);
 
-    fxGit(['checkout', 'main'], work);
-    mkCommit(work, 'shared.txt', 'one\nTWO FROM TARGET\nthree', 'target rewrites line two');
-    fxGit(['push', 'origin', 'main'], work);
+    await fxGit(['checkout', 'main'], work);
+    await mkCommit(work, 'shared.txt', 'one\nTWO FROM TARGET\nthree', 'target rewrites line two');
+    await fxGit(['push', 'origin', 'main'], work);
 
-    before = fxGit(['-C', bare, 'rev-parse', 'feat/proto']).stdout.trim();
+    before = (await fxGit(['-C', bare, 'rev-parse', 'feat/proto'])).stdout.trim();
   });
 
-  it('exits 5, names the conflicting paths, and hands off to a shift', () => {
-    const r = yan(['sync', '--task', 't1', '--unit', 'proto']);
+  it('exits 5, names the conflicting paths, and hands off to a shift', async () => {
+    const r = await yan(['sync', '--task', 't1', '--unit', 'proto']);
     expect(r.code, 'a conflict has its own exit code, so a caller can tell it from a broken sync').toBe(5);
     expect(r.out).toContain('conflict');
     expect(r.out, 'the conflicting paths are named, so the hand-off is useful').toContain('shared.txt');
@@ -149,42 +149,42 @@ describe('a genuine conflict, and the script leaves at once', () => {
     expect(r.out, "git's own merge output is not what the caller is told").not.toContain('CONFLICT (content)');
   });
 
-  it('pushed nothing and gave the tree back, so a conflict cannot wedge the pool', () => {
-    expect(fxGit(['-C', bare, 'rev-parse', 'feat/proto']).stdout.trim()).toBe(before);
-    expect(leases(), 'the tree is returned even on the conflict path').toBe(0);
+  it('pushed nothing and gave the tree back, so a conflict cannot wedge the pool', async () => {
+    expect((await fxGit(['-C', bare, 'rev-parse', 'feat/proto'])).stdout.trim()).toBe(before);
+    expect(await leases(), 'the tree is returned even on the conflict path').toBe(0);
 
-    const r = yan(['sync', '--task', 't1', '--unit', 'auth']);
+    const r = await yan(['sync', '--task', 't1', '--unit', 'auth']);
     expect(r.code, r.out).toBe(0);
-    expect(leases()).toBe(0);
+    expect(await leases()).toBe(0);
   });
 });
 
 describe('the pool-full trap', () => {
-  it('says the pool is full, not that sync failed', () => {
+  it('says the pool is full, not that sync failed', async () => {
     // pool_size is 2 here, so two leases are enough to fill it.
-    expect(yan(['tree', 'get', '--repo', 'demo', '--base', 'main', '--branch', 'yan/t1-x-s1', '--holder', 't1/x/s1']).code).toBe(0);
-    expect(yan(['tree', 'get', '--repo', 'demo', '--base', 'main', '--branch', 'yan/t1-x-s2', '--holder', 't1/x/s2']).code).toBe(0);
-    expect(leases()).toBe(2);
+    expect((await yan(['tree', 'get', '--repo', 'demo', '--base', 'main', '--branch', 'yan/t1-x-s1', '--holder', 't1/x/s1'])).code).toBe(0);
+    expect((await yan(['tree', 'get', '--repo', 'demo', '--base', 'main', '--branch', 'yan/t1-x-s2', '--holder', 't1/x/s2'])).code).toBe(0);
+    expect(await leases()).toBe(2);
 
-    const r = yan(['sync', '--task', 't1', '--unit', 'auth']);
+    const r = await yan(['sync', '--task', 't1', '--unit', 'auth']);
     expect(r.code, 'a full pool has its own exit code').toBe(3);
     expect(r.out).toContain('pool is full');
     expect(r.out).toContain('cannot start a new shift');
     expect(r.out, 'THE trap: the reader must not go looking for a synchronisation problem').not.toContain('sync failed');
     expect(r.out, 'it says where to look instead').toContain('yan tree status');
 
-    yan(['tree', 'return', '--repo', 'demo', '--slot', '1']);
-    yan(['tree', 'return', '--repo', 'demo', '--slot', '2']);
+    await yan(['tree', 'return', '--repo', 'demo', '--slot', '1']);
+    await yan(['tree', 'return', '--repo', 'demo', '--slot', '2']);
   });
 });
 
 describe('what it refuses before it touches anything', () => {
   it('needs a task, a unit, and a strategy it understands', async () => {
-    expect(yan(['sync', '--task', 't1']).out).toContain('--unit is required');
-    const bad = yan(['sync', '--task', 't1', '--unit', 'auth', '--strategy', 'squash']);
+    expect((await yan(['sync', '--task', 't1'])).out).toContain('--unit is required');
+    const bad = await yan(['sync', '--task', 't1', '--unit', 'auth', '--strategy', 'squash']);
     expect(bad.code, 'sync rebases or merges; nothing else').toBe(2);
     expect(bad.out).toContain('merge');
-    expect(yan(['sync', '--task', 'nope', '--unit', 'auth']).out).toContain('no such task');
+    expect((await yan(['sync', '--task', 'nope', '--unit', 'auth'])).out).toContain('no such task');
   });
 
   it('refuses a unit with no integration branch', async () => {
@@ -195,7 +195,7 @@ describe('what it refuses before it touches anything', () => {
     if (previous === undefined) delete process.env.YAN_HOME;
     else process.env.YAN_HOME = previous;
 
-    const r = yan(['sync', '--task', 't1', '--unit', 'nobranch']);
+    const r = await yan(['sync', '--task', 't1', '--unit', 'nobranch']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('no integration branch yet');
   });

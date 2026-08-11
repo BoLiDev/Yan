@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome, runYan } from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
 import { WorktreeError } from './errors.js';
 import { cloneDir } from './layout.js';
@@ -43,28 +43,8 @@ function pool(): WorktreePool {
   return new WorktreePool(clone);
 }
 
-function fxGit(args: readonly string[], cwd: string) {
-  const r = spawnSync(
-    'git',
-    [
-      '-c',
-      'user.name=yan tests',
-      '-c',
-      'user.email=yan-tests@localhost',
-      '-c',
-      'init.defaultBranch=main',
-      '-c',
-      'commit.gpgsign=false',
-      '-c',
-      'protocol.file.allow=always',
-      ...args,
-    ],
-    { cwd, encoding: 'utf8', windowsHide: true },
-  );
-  return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
-}
 
-beforeEach(() => {
+beforeEach(async () => {
   previousHome = process.env.YAN_HOME;
   previousPool = process.env.YAN_POOL_ROOT;
   home = mkYanHome(mkTempDir(), { withDist: true });
@@ -76,22 +56,22 @@ beforeEach(() => {
   // A repository whose integration branch exists only on the remote, which is
   // the ordinary case for a freshly cloned repo.
   const bare = join(mkTempDir(), 'origin.git');
-  fxGit(['init', '--bare', '--initial-branch=main', bare], home);
+  await fxGit(['init', '--bare', '--initial-branch=main', bare], home);
   const seed = mkTempDir('yan-seed-');
-  fxGit(['init', '--initial-branch=main', '.'], seed);
+  await fxGit(['init', '--initial-branch=main', '.'], seed);
   writeFileSync(join(seed, 'README.md'), 'fixture\n');
   writeFileSync(join(seed, '.gitignore'), 'node_modules/\n');
-  fxGit(['add', '.'], seed);
-  fxGit(['commit', '-m', 'initial'], seed);
-  fxGit(['remote', 'add', 'origin', bare], seed);
-  fxGit(['push', '-u', 'origin', 'main'], seed);
-  fxGit(['checkout', '-b', 'integ'], seed);
-  fxGit(['push', '-u', 'origin', 'integ'], seed);
+  await fxGit(['add', '.'], seed);
+  await fxGit(['commit', '-m', 'initial'], seed);
+  await fxGit(['remote', 'add', 'origin', bare], seed);
+  await fxGit(['push', '-u', 'origin', 'main'], seed);
+  await fxGit(['checkout', '-b', 'integ'], seed);
+  await fxGit(['push', '-u', 'origin', 'integ'], seed);
 
   clone = join(home, 'repos', 'demo');
-  fxGit(['clone', bare, clone], home);
-  fxGit(['config', 'user.name', 'yan tests'], clone);
-  fxGit(['config', 'user.email', 'yan-tests@localhost'], clone);
+  await fxGit(['clone', bare, clone], home);
+  await fxGit(['config', 'user.name', 'yan tests'], clone);
+  await fxGit(['config', 'user.email', 'yan-tests@localhost'], clone);
 });
 
 afterEach(() => {
@@ -109,7 +89,7 @@ describe('the constructor', () => {
 });
 
 describe('get', () => {
-  it('leases a tree, cuts the shift branch, and reports the grant', () => {
+  it('leases a tree, cuts the shift branch, and reports the grant', async () => {
     const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
 
     expect(Object.keys(grant).sort()).toEqual(['holder', 'lease_id', 'path']);
@@ -119,7 +99,7 @@ describe('get', () => {
 
     // The tree is on a real branch, never detached: shift branches have to be
     // pushed and turned into MRs.
-    expect(fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], grant.path).stdout.trim()).toBe(
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], grant.path)).stdout.trim()).toBe(
       'shift/t042-s1',
     );
 
@@ -133,7 +113,7 @@ describe('get', () => {
 
     // git knows the tree by its OWN spelling of the path; the comparison has to
     // normalise before it can compare (conventions §3).
-    const listed = fxGit(['worktree', 'list', '--porcelain'], clone).stdout;
+    const listed = (await fxGit(['worktree', 'list', '--porcelain'], clone)).stdout;
     const registered = listed
       .split(/\r?\n/)
       .filter((l) => l.startsWith('worktree '))
@@ -164,11 +144,11 @@ describe('the orphan-commit guard', () => {
     expect(existsSync(join(cloneDir(clone), 'leases', '1.json'))).toBe(true);
   });
 
-  it('refuses a committed but unpushed HEAD', () => {
+  it('refuses a committed but unpushed HEAD', async () => {
     const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
     writeFileSync(join(grant.path, 'feature.txt'), 'work\n');
-    fxGit(['add', '.'], grant.path);
-    fxGit(['commit', '-m', 'work'], grant.path);
+    await fxGit(['add', '.'], grant.path);
+    await fxGit(['commit', '-m', 'work'], grant.path);
 
     expect(() => pool().return(grant.path)).toThrow(/no remote branch contains HEAD/);
     expect(existsSync(join(grant.path, 'feature.txt'))).toBe(true);
@@ -211,14 +191,14 @@ describe('the conditional return', () => {
 });
 
 describe('return keeps the tree warm', () => {
-  it('reset --hard + clean -fd, never -x', () => {
+  it('reset --hard + clean -fd, never -x', async () => {
     const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
     mkdirSync(join(grant.path, 'node_modules', 'dep'), { recursive: true });
     writeFileSync(join(grant.path, 'node_modules', 'dep', 'index.js'), '// warm\n');
     writeFileSync(join(grant.path, 'feature.txt'), 'work\n');
-    fxGit(['add', '.'], grant.path);
-    fxGit(['commit', '-m', 'work'], grant.path);
-    expect(fxGit(['push', 'origin', 'shift/t042-s1'], grant.path).code).toBe(0);
+    await fxGit(['add', '.'], grant.path);
+    await fxGit(['commit', '-m', 'work'], grant.path);
+    expect((await fxGit(['push', 'origin', 'shift/t042-s1'], grant.path)).code).toBe(0);
 
     expect(pool().return(grant.path, { leaseId: grant.lease_id, holder: grant.holder })).toBe(
       grant.path,
@@ -326,37 +306,34 @@ describe('two concurrent gets never hand out the same tree', () => {
 });
 
 describe('yan tree, the command layer', () => {
+  // The shared helper, bound to this file's home and pool. It was a local copy
+  // on spawnSync until the suite went parallel again.
   function yan(args: readonly string[]) {
-    const r = spawnSync('bash', [join(home, 'bin', 'yan'), 'tree', ...args], {
-      encoding: 'utf8',
-      env: { ...process.env, YAN_HOME: home, YAN_POOL_ROOT: poolRoot },
-      windowsHide: true,
-    });
-    return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+    return runYan(home, ['tree', ...args], { YAN_POOL_ROOT: poolRoot });
   }
 
-  it('reads pool_size from mem/repos.json, which this module must not read', () => {
+  it('reads pool_size from mem/repos.json, which this module must not read', async () => {
     writeFileSync(
       join(home, 'mem', 'repos.json'),
       `${JSON.stringify({ version: 1, demo: { url: 'x', mode_default: 'mr', pool_size: 1 } }, null, 2)}\n`,
     );
-    expect(yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1']).code).toBe(0);
-    const full = yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's2', '--holder', 't/u/2']);
+    expect((await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1'])).code).toBe(0);
+    const full = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's2', '--holder', 't/u/2']);
     expect(full.code).not.toBe(0);
     expect(full.stderr).toContain('pool is full');
-    expect(yan(['status', '--repo', 'demo']).stdout).toContain('1 of 1 trees leased');
+    expect((await yan(['status', '--repo', 'demo'])).stdout).toContain('1 of 1 trees leased');
   });
 
-  it('exits 3 on a refused conditional return, and 2 when called wrongly', () => {
-    const got = yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1', '--json']);
+  it('exits 3 on a refused conditional return, and 2 when called wrongly', async () => {
+    const got = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1', '--json']);
     expect(got.code, got.stderr).toBe(0);
     const grant = JSON.parse(got.stdout) as { path: string };
 
-    const refused = yan(['return', '--repo', 'demo', '--path', grant.path, '--if-lease-id', 'nope']);
+    const refused = await yan(['return', '--repo', 'demo', '--path', grant.path, '--if-lease-id', 'nope']);
     expect(refused.code).toBe(3);
 
-    expect(yan(['get', '--repo', 'demo', '--base', 'integ']).code).toBe(2);
-    expect(yan(['return', '--repo', 'demo']).code).toBe(2);
-    expect(yan(['status', '--repo', 'nosuchrepo']).code).toBe(2);
+    expect((await yan(['get', '--repo', 'demo', '--base', 'integ'])).code).toBe(2);
+    expect((await yan(['return', '--repo', 'demo'])).code).toBe(2);
+    expect((await yan(['status', '--repo', 'nosuchrepo'])).code).toBe(2);
   });
 });

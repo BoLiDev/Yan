@@ -87,16 +87,16 @@ function assertUntouched(): void {
   expect(readFileSync(taskFile(), 'utf8'), 'a refusal must leave task.json exactly as it was').toBe(snapshot);
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  clone = mkClone(mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'demo'));
+  clone = await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'demo'));
 
   previousHome = process.env.YAN_HOME;
   process.env.YAN_HOME = home;
   Task.create('t1', 'a demo task');
   for (const name of ['auth', 'proto']) {
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', name, '--repo', 'demo', '--target', 'main']);
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', name, '--repo', 'demo', '--target', 'main']);
     expect(r.code, r.out).toBe(0);
   }
   expect(unitField('auth', 'branch')).toBe('yan/t1-auth-r1');
@@ -112,21 +112,21 @@ afterAll(() => {
 });
 
 describe('what it refuses before it touches anything', () => {
-  it('changes nothing unless asked, and names the missing identifiers', () => {
-    const r = runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth']);
+  it('changes nothing unless asked, and names the missing identifiers', async () => {
+    const r = await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('nothing to change');
-    expect(runYan(home, ['unit', 'set', '--unit', 'auth', '--branch', 'x']).out).toContain('--task is required');
+    expect((await runYan(home, ['unit', 'set', '--unit', 'auth', '--branch', 'x'])).out).toContain('--task is required');
   });
 
-  it("takes 'delivered' or 'abandoned' for --end; the host's own words never leak in", () => {
-    const r = runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth', '--end', 'merged', '--branch', 'x']);
+  it("takes 'delivered' or 'abandoned' for --end; the host's own words never leak in", async () => {
+    const r = await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth', '--end', 'merged', '--branch', 'x']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('delivered');
   });
 
-  it('refuses --end without --branch: it says how the round being replaced finished', () => {
-    const r = runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth', '--end', 'delivered', '--target', 'main']);
+  it('refuses --end without --branch: it says how the round being replaced finished', async () => {
+    const r = await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth', '--end', 'delivered', '--target', 'main']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('only applies to --branch');
   });
@@ -168,9 +168,9 @@ describe('a round with no MR was never delivered, and it has to say why', () => 
     expect(hostAsked).toBe(0);
   });
 
-  it("cuts the abandoned round's successor from the OLD branch, so the work is still reachable", () => {
-    expect(fxGit(['-C', clone, 'rev-parse', 'feat/auth-r2']).stdout.trim()).toBe(
-      fxGit(['-C', clone, 'rev-parse', 'yan/t1-auth-r1']).stdout.trim(),
+  it("cuts the abandoned round's successor from the OLD branch, so the work is still reachable", async () => {
+    expect((await fxGit(['-C', clone, 'rev-parse', 'feat/auth-r2'])).stdout.trim()).toBe(
+      (await fxGit(['-C', clone, 'rev-parse', 'yan/t1-auth-r1'])).stdout.trim(),
     );
   });
 
@@ -183,7 +183,7 @@ describe('a round with no MR was never delivered, and it has to say why', () => 
 });
 
 describe('an open MR is not an ending, and yan refuses to decide', () => {
-  it('exits 4, changes nothing, and creates no branch', () => {
+  it('exits 4, changes nothing, and creates no branch', async () => {
     new Task('t1').unit('auth').set('mr', MR);
     snap();
     hostSays = 'open';
@@ -194,7 +194,7 @@ describe('an open MR is not an ending, and yan refuses to decide', () => {
     expect(r.message).toContain("Ask 'user'");
     expect(r.message).toContain('Nothing was changed');
     assertUntouched();
-    expect(fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', 'refs/heads/feat/auth-r3']).code).not.toBe(0);
+    expect((await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', 'refs/heads/feat/auth-r3'])).code).not.toBe(0);
   });
 
   it("takes `user`'s answer through --end, and still demands a reason", () => {
@@ -240,7 +240,7 @@ describe('an unreachable host is also a question, not a guess', () => {
 });
 
 describe('merged means delivered', () => {
-  it('starts the next round from target, which already contains the old one', () => {
+  it('starts the next round from target, which already contains the old one', async () => {
     hostSays = 'merged';
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r4', at: '2026-08-27' });
     expect(r.code, r.message).toBe(0);
@@ -249,8 +249,8 @@ describe('merged means delivered', () => {
     expect(h[2].end).toBe('delivered');
     expect(h[2].at).toBe('2026-08-27');
     expect(unitField('auth', 'branch')).toBe('feat/auth-r4');
-    expect(fxGit(['-C', clone, 'rev-parse', 'feat/auth-r4']).stdout.trim()).toBe(
-      fxGit(['-C', clone, 'rev-parse', 'origin/main']).stdout.trim(),
+    expect((await fxGit(['-C', clone, 'rev-parse', 'feat/auth-r4'])).stdout.trim()).toBe(
+      (await fxGit(['-C', clone, 'rev-parse', 'origin/main'])).stdout.trim(),
     );
     expect(readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8')).toContain(
       'auth  delivered feat/auth-r3 → feat/auth-r4',
@@ -300,16 +300,16 @@ describe("the built-in default carries the NEXT round's number", () => {
 });
 
 describe('the three plain scalars, each of them a decision', () => {
-  it('sets target, mode and scope, and refuses a mode outside the closed set', () => {
-    expect(runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--target', 'release/8']).code).toBe(0);
+  it('sets target, mode and scope, and refuses a mode outside the closed set', async () => {
+    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--target', 'release/8'])).code).toBe(0);
     expect(unitField('proto', 'target')).toBe('release/8');
 
-    expect(runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--mode', 'branch']).code).toBe(0);
+    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--mode', 'branch'])).code).toBe(0);
     expect(unitField('proto', 'mode')).toBe('branch');
 
-    expect(runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--mode', 'sideways']).code).not.toBe(0);
+    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--mode', 'sideways'])).code).not.toBe(0);
 
-    expect(runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--scope', 'libs/proto', '--scope', 'libs/shared']).code).toBe(0);
+    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--scope', 'libs/proto', '--scope', 'libs/shared'])).code).toBe(0);
     expect(unitField('proto', 'scope')).toEqual(['libs/proto', 'libs/shared']);
   });
 });

@@ -47,8 +47,8 @@ function unitCount(task: string): number {
   return doc.units.length;
 }
 
-function hasBranch(branch: string): boolean {
-  return fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).code === 0;
+async function hasBranch(branch: string): Promise<boolean> {
+  return (await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`])).code === 0;
 }
 
 function writeHook(body: string): void {
@@ -62,8 +62,8 @@ function writeHook(body: string): void {
 beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  bare = mkBareRemote(join(tmp, 'remote.git'));
-  clone = mkClone(bare, join(home, 'repos', 'demo'));
+  bare = await mkBareRemote(join(tmp, 'remote.git'));
+  clone = await mkClone(bare, join(home, 'repos', 'demo'));
 
   const previous = process.env.YAN_HOME;
   process.env.YAN_HOME = home;
@@ -74,58 +74,58 @@ beforeAll(async () => {
 });
 
 describe('target is never defaulted', () => {
-  it('refuses an add with no --target, and writes nothing', () => {
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo']);
+  it('refuses an add with no --target, and writes nothing', async () => {
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('--target is required');
     expect(r.out).toContain('no safe default');
     expect(unitCount('t1')).toBe(0);
   });
 
-  it('names the other missing arguments too', () => {
-    expect(runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main']).out).toContain('--task is required');
-    expect(runYan(home, ['unit', 'add', '--task', 't1', '--repo', 'demo', '--target', 'main']).out).toContain('--unit is required');
-    expect(runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'a', '--target', 'main']).out).toContain('--repo is required');
+  it('names the other missing arguments too', async () => {
+    expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main'])).out).toContain('--task is required');
+    expect((await runYan(home, ['unit', 'add', '--task', 't1', '--repo', 'demo', '--target', 'main'])).out).toContain('--unit is required');
+    expect((await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'a', '--target', 'main'])).out).toContain('--repo is required');
   });
 
-  it('refuses an unknown option and an unknown task', () => {
-    expect(runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'a', '--repo', 'demo', '--target', 'main', '--bogus']).code).not.toBe(0);
-    const r = runYan(home, ['unit', 'add', '--task', 'nope', '--unit', 'a', '--repo', 'demo', '--target', 'main']);
+  it('refuses an unknown option and an unknown task', async () => {
+    expect((await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'a', '--repo', 'demo', '--target', 'main', '--bogus'])).code).not.toBe(0);
+    const r = await runYan(home, ['unit', 'add', '--task', 'nope', '--unit', 'a', '--repo', 'demo', '--target', 'main']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('no such task');
   });
 });
 
 describe('with no hook installed, the built-in default applies', () => {
-  it('cuts yan/<task>-<unit>-r1 from the target', () => {
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo', '--target', 'main', '--scope', 'apps/auth']);
+  it('cuts yan/<task>-<unit>-r1 from the target', async () => {
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo', '--target', 'main', '--scope', 'apps/auth']);
     expect(r.code, r.out).toBe(0);
     expect(unitField('t1', 'auth', 'branch')).toBe('yan/t1-auth-r1');
     expect(unitField('t1', 'auth', 'target')).toBe('main');
     expect(unitField('t1', 'auth', 'scope')).toEqual(['apps/auth']);
-    expect(hasBranch('yan/t1-auth-r1')).toBe(true);
-    expect(fxGit(['-C', clone, 'rev-parse', 'yan/t1-auth-r1']).stdout.trim()).toBe(
-      fxGit(['-C', clone, 'rev-parse', 'origin/main']).stdout.trim(),
+    expect(await hasBranch('yan/t1-auth-r1')).toBe(true);
+    expect((await fxGit(['-C', clone, 'rev-parse', 'yan/t1-auth-r1'])).stdout.trim()).toBe(
+      (await fxGit(['-C', clone, 'rev-parse', 'origin/main'])).stdout.trim(),
     );
   });
 
-  it('never checks the main clone out (boundaries.md §9.1)', () => {
-    expect(fxGit(['-C', clone, 'rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim()).toBe('main');
-    expect(fxGit(['-C', clone, 'status', '--porcelain']).stdout.trim()).toBe('');
+  it('never checks the main clone out (boundaries.md §9.1)', async () => {
+    expect((await fxGit(['-C', clone, 'rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()).toBe('main');
+    expect((await fxGit(['-C', clone, 'status', '--porcelain'])).stdout.trim()).toBe('');
   });
 
-  it('refuses a second unit of the same name', () => {
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo', '--target', 'main']);
+  it('refuses a second unit of the same name', async () => {
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo', '--target', 'main']);
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('already exists');
   });
 });
 
 describe('the hook refuses, so nothing happens', () => {
-  it('stops, reports the hook\'s own words, and creates no branch', () => {
+  it('stops, reports the hook\'s own words, and creates no branch', async () => {
     writeHook('printf "AUTH-123 has no branch yet; ask the release manager\\n" >&2; exit 1');
 
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('refused');
     expect(r.out).toContain('ask the release manager');
@@ -133,49 +133,49 @@ describe('the hook refuses, so nothing happens', () => {
     expect(unitField('t1', 'api', 'branch')).toBe('');
     expect(unitCount('t1')).toBe(1);
     // THE regression: yan must not quietly fall back to its built-in default.
-    expect(hasBranch('yan/t1-api-r1')).toBe(false);
+    expect(await hasBranch('yan/t1-api-r1')).toBe(false);
   });
 });
 
 describe('a hook that answers owns the name', () => {
-  it('uses the last line as is, whatever shape it has', () => {
+  it('uses the last line as is, whatever shape it has', async () => {
     writeHook('printf "looked up the ticket...\\n"; printf "team/AUTH-123_integration\\n"');
 
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
     expect(r.code, r.out).toBe(0);
     expect(unitField('t1', 'api', 'branch')).toBe('team/AUTH-123_integration');
-    expect(hasBranch('team/AUTH-123_integration')).toBe(true);
+    expect(await hasBranch('team/AUTH-123_integration')).toBe(true);
   });
 
-  it('is not asked at all when --branch was given', () => {
+  it('is not asked at all when --branch was given', async () => {
     writeHook('exit 1');
 
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'docs', '--repo', 'demo', '--target', 'main', '--branch', 'spike/docs']);
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'docs', '--repo', 'demo', '--target', 'main', '--branch', 'spike/docs']);
     expect(r.code, r.out).toBe(0);
     expect(unitField('t1', 'docs', 'branch')).toBe('spike/docs');
-    expect(hasBranch('spike/docs')).toBe(true);
+    expect(await hasBranch('spike/docs')).toBe(true);
 
     rmSync(join(home, 'conf', 'hooks', 'branch-name'));
   });
 });
 
 describe('making the branch exist', () => {
-  it('adopts a branch that is already on the remote rather than re-cutting it', () => {
-    fxGit(['-C', clone, 'push', 'origin', 'main:already/there']);
-    fxGit(['-C', clone, 'update-ref', '-d', 'refs/remotes/origin/already/there']);
-    expect(hasBranch('already/there')).toBe(false);
+  it('adopts a branch that is already on the remote rather than re-cutting it', async () => {
+    await fxGit(['-C', clone, 'push', 'origin', 'main:already/there']);
+    await fxGit(['-C', clone, 'update-ref', '-d', 'refs/remotes/origin/already/there']);
+    expect(await hasBranch('already/there')).toBe(false);
 
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'legacy', '--repo', 'demo', '--target', 'main', '--branch', 'already/there']);
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'legacy', '--repo', 'demo', '--target', 'main', '--branch', 'already/there']);
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain('adopted');
-    expect(hasBranch('already/there')).toBe(true);
-    expect(fxGit(['-C', clone, 'rev-parse', 'already/there']).stdout.trim()).toBe(
-      fxGit(['-C', bare, 'rev-parse', 'already/there']).stdout.trim(),
+    expect(await hasBranch('already/there')).toBe(true);
+    expect((await fxGit(['-C', clone, 'rev-parse', 'already/there'])).stdout.trim()).toBe(
+      (await fxGit(['-C', bare, 'rev-parse', 'already/there'])).stdout.trim(),
     );
   });
 
-  it('refuses a base that does not exist rather than inventing one', () => {
-    const r = runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'ghost', '--repo', 'demo', '--target', 'no/such/branch']);
+  it('refuses a base that does not exist rather than inventing one', async () => {
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'ghost', '--repo', 'demo', '--target', 'no/such/branch']);
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('cannot resolve the base');
     expect(unitField('t1', 'ghost', 'branch')).toBe('');

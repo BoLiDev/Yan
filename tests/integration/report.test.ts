@@ -45,10 +45,10 @@ beforeAll(async () => {
 });
 
 describe('one command, both effects', () => {
-  it('appends the event and touches the wake marker', () => {
+  it('appends the event and touches the wake marker', async () => {
     expect(existsSync(join(run, 'status'))).toBe(false);
 
-    const r = runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/1', '--sid', 's1', '--task', 't042']);
+    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/1', '--sid', 's1', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(existsSync(join(run, 'status')), 'the event was appended').toBe(true);
     expect(existsSync(join(run, 'signal')), 'the wake marker was touched by the same command').toBe(true);
@@ -60,9 +60,9 @@ describe('one command, both effects', () => {
     expect(first).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
   });
 
-  it('re-touches the wake marker on every report, not only the first', () => {
+  it('re-touches the wake marker on every report, not only the first', async () => {
     rmSync(join(run, 'signal'));
-    const r = runYan(home, ['report', 'blocked', 'waiting for a credential', '--sid', 's1', '--task', 't042']);
+    const r = await runYan(home, ['report', 'blocked', 'waiting for a credential', '--sid', 's1', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(existsSync(join(run, 'signal')), 'signal is written again on the next report').toBe(true);
     expect(lines(join(run, 'status')), 'run/status is appended, never replaced').toBe(2);
@@ -71,18 +71,18 @@ describe('one command, both effects', () => {
 });
 
 describe('exactly five states', () => {
-  it('accepts the other three', () => {
+  it('accepts the other three', async () => {
     for (const state of ['started', 'needs-decision', 'conflict']) {
-      const r = runYan(home, ['report', state, `note for ${state}`, '--sid', 's1', '--task', 't042']);
+      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's1', '--task', 't042']);
       expect(r.code, `${state} must be accepted: ${r.out}`).toBe(0);
     }
     expect(lines(join(run, 'status')), 'all five allowed states were accepted').toBe(5);
   });
 
-  it('refuses a sixth word loudly, and writes nothing at all', () => {
+  it('refuses a sixth word loudly, and writes nothing at all', async () => {
     const before = status();
     for (const bad of ['progress', 'DONE', 'finished', 'failed', 'stuck', 'note', '']) {
-      const r = runYan(home, ['report', bad, 'a note', '--sid', 's1', '--task', 't042']);
+      const r = await runYan(home, ['report', bad, 'a note', '--sid', 's1', '--task', 't042']);
       expect(r.code, `'${bad}' is not one of the five and must be refused loudly`).toBe(2);
       expect(r.out, 'the refusal names the whole allowed set').toContain('started done blocked needs-decision conflict');
     }
@@ -91,9 +91,9 @@ describe('exactly five states', () => {
 });
 
 describe('a note is required, and it is one line', () => {
-  it('refuses a state with no note, and a note with a newline in it', () => {
+  it('refuses a state with no note, and a note with a newline in it', async () => {
     const before = status();
-    expect(runYan(home, ['report', 'done', '--sid', 's1', '--task', 't042']).code).toBe(2);
+    expect((await runYan(home, ['report', 'done', '--sid', 's1', '--task', 't042'])).code).toBe(2);
 
     // The newline is built inside bash rather than passed through spawnSync's
     // argv: on Windows a literal newline in an argument is re-split before it
@@ -110,24 +110,24 @@ describe('a note is required, and it is one line', () => {
 });
 
 describe('who is reporting: the spawn environment, not an argument', () => {
-  it('reads all three spellings', () => {
+  it('reads all three spellings', async () => {
     const shiftDir = join(home, 'tasks', 't042', 'shifts', 's1');
-    expect(runYan(home, ['report', 'done', 'via YAN_SHIFT_DIR'], { YAN_SHIFT_DIR: shiftDir }).code).toBe(0);
+    expect((await runYan(home, ['report', 'done', 'via YAN_SHIFT_DIR'], { YAN_SHIFT_DIR: shiftDir })).code).toBe(0);
     expect(lines(join(run, 'status'))).toBe(6);
 
-    expect(runYan(home, ['report', 'done', 'via YAN_TASK_DIR as the shift dir'], { YAN_TASK_DIR: shiftDir }).code).toBe(0);
+    expect((await runYan(home, ['report', 'done', 'via YAN_TASK_DIR as the shift dir'], { YAN_TASK_DIR: shiftDir })).code).toBe(0);
     expect(
-      runYan(home, ['report', 'done', 'via YAN_TASK_DIR plus YAN_SID'], {
+      (await runYan(home, ['report', 'done', 'via YAN_TASK_DIR plus YAN_SID'], {
         YAN_TASK_DIR: join(home, 'tasks', 't042'),
         YAN_SID: 's1',
-      }).code,
+      })).code,
     ).toBe(0);
-    expect(runYan(home, ['report', 'done', 'via ids only'], { YAN_TASK: 't042', YAN_SID: 's1' }).code).toBe(0);
+    expect((await runYan(home, ['report', 'done', 'via ids only'], { YAN_TASK: 't042', YAN_SID: 's1' })).code).toBe(0);
     expect(lines(join(run, 'status'))).toBe(9);
   });
 
-  it('says so rather than guessing when nothing identifies the shift', () => {
-    const r = runYan(home, ['report', 'done', 'nobody knows who I am'], {
+  it('says so rather than guessing when nothing identifies the shift', async () => {
+    const r = await runYan(home, ['report', 'done', 'nobody knows who I am'], {
       YAN_SHIFT_DIR: '',
       YAN_TASK_DIR: '',
       YAN_TASK: '',
@@ -137,8 +137,8 @@ describe('who is reporting: the spawn environment, not an argument', () => {
     expect(r.out).toContain('YAN_SHIFT_DIR');
   });
 
-  it('refuses an id that exists under two tasks rather than guessing at it', () => {
-    const r = runYan(home, ['report', 'done', 'ambiguous'], {
+  it('refuses an id that exists under two tasks rather than guessing at it', async () => {
+    const r = await runYan(home, ['report', 'done', 'ambiguous'], {
       YAN_SID: 's1',
       YAN_TASK: '',
       YAN_TASK_DIR: '',

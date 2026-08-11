@@ -141,9 +141,9 @@ describe('run/ gone means clocked out', () => {
 });
 
 describe('through bin/yan', () => {
-  it('renders the human view without surfacing the newest event', () => {
+  it('renders the human view without surfacing the newest event', async () => {
     meta({ unit: 'auth', branch: 'yan/t042/s1', agent: 'claude' });
-    const r = runYan(home, ['state', 's1', '--task', 't042']);
+    const r = await runYan(home, ['state', 's1', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('state      unknown');
     expect(r.stdout).not.toContain(TRAP_NOTE);
@@ -151,9 +151,9 @@ describe('through bin/yan', () => {
     expect(r.stdout).toContain('EVENTS, not the state');
   });
 
-  it('reports the same derivation as JSON', () => {
+  it('reports the same derivation as JSON', async () => {
     meta({ unit: 'auth' });
-    const r = runYan(home, ['state', 's1', '--task', 't042', '--json']);
+    const r = await runYan(home, ['state', 's1', '--task', 't042', '--json']);
     expect(r.code, r.out).toBe(0);
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
     expect(parsed.state).toBe('unknown');
@@ -161,10 +161,10 @@ describe('through bin/yan', () => {
     expect(parsed.terminal).toBe('unknown');
   });
 
-  it('refuses a missing id, both output flags at once, and an unknown shift', () => {
-    expect(runYan(home, ['state']).code, 'a shift id is required').toBe(2);
-    const both = runYan(home, ['state', 's1', '--json', '--verdict', '--task', 't042']);
+  it('refuses a missing id, both output flags at once, and an unknown shift', async () => {
+    expect((await runYan(home, ['state'])).code, 'a shift id is required').toBe(2);
+    const both = await runYan(home, ['state', 's1', '--json', '--verdict', '--task', 't042']);
     expect(both.code, '--json and --verdict are alternatives').toBe(2);
-    expect(runYan(home, ['state', 'nosuchshift', '--task', 't042']).code).toBe(1);
+    expect((await runYan(home, ['state', 'nosuchshift', '--task', 't042'])).code).toBe(1);
   });
 });

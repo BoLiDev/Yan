@@ -108,10 +108,10 @@ describe('one short line only', () => {
 });
 
 describe('the pane id comes from meta.json, and it is an id', () => {
-  it('refuses a label rather than looking a shift up by one', () => {
+  it('refuses a label rather than looking a shift up by one', async () => {
     // The seam is what enforces this; the command must not work around it.
     meta({ agent: 'claude', pane: 's3-auth' });
-    const real = runYan(home, ['send', 's3', 'hello', '--task', 't042']);
+    const real = await runYan(home, ['send', 's3', 'hello', '--task', 't042']);
     expect(real.code).not.toBe(0);
     expect(real.out, 'a label is not a source of truth').toContain('never a label');
   });
@@ -150,21 +150,21 @@ describe('a shift that has clocked out has no terminal', () => {
 });
 
 describe('usage', () => {
-  it('needs a shift id and a line, and an unknown shift is an error', () => {
-    expect(runYan(home, ['send']).code).toBe(2);
-    expect(runYan(home, ['send', 's3', '--task', 't042']).code, 'a line is required').toBe(2);
-    expect(runYan(home, ['send', 'nosuchshift', 'hello', '--task', 't042']).code).toBe(1);
+  it('needs a shift id and a line, and an unknown shift is an error', async () => {
+    expect((await runYan(home, ['send'])).code).toBe(2);
+    expect((await runYan(home, ['send', 's3', '--task', 't042'])).code, 'a line is required').toBe(2);
+    expect((await runYan(home, ['send', 'nosuchshift', 'hello', '--task', 't042'])).code).toBe(1);
   });
 
-  it('no longer offers --enter or --no-enter', () => {
+  it('no longer offers --enter or --no-enter', async () => {
     // Herdr's `agent prompt` submits text and Enter in one call, so the two-step
     // has nothing left to do. A flag that silently did nothing would be worse
     // than one that is gone.
     // The help TEXT still names them, to say they are gone. What must not
     // exist is the option itself.
-    const options = /Options:\n([\s\S]*?)\n\n/.exec(runYan(home, ['send', '--help']).out)?.[1] ?? '';
+    const options = /Options:\n([\s\S]*?)\n\n/.exec((await runYan(home, ['send', '--help'])).out)?.[1] ?? '';
     expect(options).not.toContain('--no-enter');
     expect(options).not.toContain('--enter');
-    expect(runYan(home, ['send', 's3', '--enter', '--task', 't042']).code).not.toBe(0);
+    expect((await runYan(home, ['send', 's3', '--enter', '--task', 't042'])).code).not.toBe(0);
   });
 });

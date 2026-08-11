@@ -294,9 +294,9 @@ describe('a teardown that stopped at the tree return can be finished', () => {
 });
 
 describe('usage', () => {
-  it('needs a shift id, and is reachable as `yan shift done`', () => {
+  it('needs a shift id, and is reachable as `yan shift done`', async () => {
     expect(run('').code).toBe(2);
-    const r = runYan(home, ['shift', 'done', '--task', 't042']);
+    const r = await runYan(home, ['shift', 'done', '--task', 't042']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('a shift id is required');
   });

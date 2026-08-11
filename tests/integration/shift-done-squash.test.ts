@@ -57,12 +57,12 @@ function deps(says: MrState = 'merged'): DoneDeps {
 }
 
 /** A shift as `yan shift new` leaves one: a leased tree on its own pushed branch. */
-function dispatch(sid: string): string {
+async function dispatch(sid: string): Promise<string> {
   const branch = `yan/t042-auth-${sid}`;
   const grant = new WorktreePool(clone).get(4, 'feat/auth', branch, `t042/auth/${sid}`);
 
-  mkCommit(grant.path, join('apps', 'auth', `${sid}.txt`), `work from ${sid}`, `${sid}: parse the header`);
-  fxGit(['-C', grant.path, 'push', '-u', 'origin', branch]);
+  await mkCommit(grant.path, join('apps', 'auth', `${sid}.txt`), `work from ${sid}`, `${sid}: parse the header`);
+  await fxGit(['-C', grant.path, 'push', '-u', 'origin', branch]);
 
   const run = join(home, 'tasks', 't042', 'shifts', sid, 'run');
   mkdirSync(run, { recursive: true });
@@ -83,25 +83,25 @@ function dispatch(sid: string): string {
  * a NEW commit and the branch's own HEAD is nowhere in the integration
  * branch's history.
  */
-function squashMerge(branch: string): void {
-  const scratch = mkClone(bare, join(mkTempDir(), 'scratch'));
-  fxGit(['-C', scratch, 'checkout', 'feat/auth']);
-  fxGit(['-C', scratch, 'merge', '--squash', `origin/${branch}`]);
-  fxGit(['-C', scratch, 'commit', '-m', `squash ${branch}`]);
-  fxGit(['-C', scratch, 'push', 'origin', 'feat/auth']);
+async function squashMerge(branch: string): Promise<void> {
+  const scratch = await mkClone(bare, join(mkTempDir(), 'scratch'));
+  await fxGit(['-C', scratch, 'checkout', 'feat/auth']);
+  await fxGit(['-C', scratch, 'merge', '--squash', `origin/${branch}`]);
+  await fxGit(['-C', scratch, 'commit', '-m', `squash ${branch}`]);
+  await fxGit(['-C', scratch, 'push', 'origin', 'feat/auth']);
   rmSync(scratch, { recursive: true, force: true });
-  fxGit(['-C', clone, 'fetch', '--prune', 'origin']);
+  await fxGit(['-C', clone, 'fetch', '--prune', 'origin']);
 }
 
-function remoteHas(branch: string): boolean {
-  return fxGit(['-C', clone, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`]).stdout.trim() !== '';
+async function remoteHas(branch: string): Promise<boolean> {
+  return (await fxGit(['-C', clone, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`])).stdout.trim() !== '';
 }
 
 function heldBy(holder: string): string {
   return new WorktreePool(clone).status().find((l) => l.holder === holder)?.path ?? '';
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = join(tmp, 'trees');
@@ -110,13 +110,13 @@ beforeAll(() => {
   process.env.YAN_HOME = home;
   process.env.YAN_POOL_ROOT = poolRoot;
 
-  bare = mkBareRemote(join(tmp, 'remote.git'));
-  clone = mkClone(bare, join(home, 'repos', 'widget'));
+  bare = await mkBareRemote(join(tmp, 'remote.git'));
+  clone = await mkClone(bare, join(home, 'repos', 'widget'));
 
   // The integration branch this round works on.
-  fxGit(['-C', clone, 'checkout', '-b', 'feat/auth']);
-  fxGit(['-C', clone, 'push', '-u', 'origin', 'feat/auth']);
-  fxGit(['-C', clone, 'checkout', 'main']);
+  await fxGit(['-C', clone, 'checkout', '-b', 'feat/auth']);
+  await fxGit(['-C', clone, 'push', '-u', 'origin', 'feat/auth']);
+  await fxGit(['-C', clone, 'checkout', 'main']);
 
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'widget', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
@@ -132,44 +132,44 @@ afterAll(() => {
 describe('a squash-merged shift clocks out', () => {
   let tree = '';
 
-  beforeAll(() => {
-    tree = dispatch('s1');
-    squashMerge('yan/t042-auth-s1');
+  beforeAll(async () => {
+    tree = await dispatch('s1');
+    await squashMerge('yan/t042-auth-s1');
   });
 
-  it('is exactly the case where ancestry would say the wrong thing', () => {
-    expect(remoteHas('yan/t042-auth-s1')).toBe(true);
+  it('is exactly the case where ancestry would say the wrong thing', async () => {
+    expect(await remoteHas('yan/t042-auth-s1')).toBe(true);
     expect(
-      fxGit(['-C', tree, 'merge-base', '--is-ancestor', 'HEAD', 'origin/feat/auth']).code,
+      (await fxGit(['-C', tree, 'merge-base', '--is-ancestor', 'HEAD', 'origin/feat/auth'])).code,
       'after a squash merge the integration branch does NOT contain the shift HEAD',
     ).not.toBe(0);
     // But the work did land: the file is on the integration branch.
-    expect(fxGit(['-C', clone, 'show', 'origin/feat/auth:apps/auth/s1.txt']).stdout).toContain('work from s1');
+    expect((await fxGit(['-C', clone, 'show', 'origin/feat/auth:apps/auth/s1.txt'])).stdout).toContain('work from s1');
   });
 
-  it('clocks out anyway, because it asked the host', () => {
+  it('clocks out anyway, because it asked the host', async () => {
     clockOut('s1', {}, deps());
 
     expect(existsSync(join(home, 'tasks', 't042', 'shifts', 's1', 'run')), 'run/ is gone').toBe(false);
     expect(existsSync(join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md'))).toBe(true);
 
     expect(heldBy('t042/auth/s1'), 'the slot is free again').toBe('');
-    expect(fxGit(['-C', tree, 'status', '--porcelain']).stdout.trim(), 'the tree was reset and cleaned').toBe('');
-    expect(remoteHas('yan/t042-auth-s1'), 'the merged shift branch is deleted on origin - last').toBe(false);
+    expect((await fxGit(['-C', tree, 'status', '--porcelain'])).stdout.trim(), 'the tree was reset and cleaned').toBe('');
+    expect(await remoteHas('yan/t042-auth-s1'), 'the merged shift branch is deleted on origin - last').toBe(false);
   });
 });
 
 describe('the control: the same situation in the WRONG order', () => {
-  it('strands the slot, which is why the branch is deleted last', () => {
-    const tree = dispatch('s2');
-    squashMerge('yan/t042-auth-s2');
+  it('strands the slot, which is why the branch is deleted last', async () => {
+    const tree = await dispatch('s2');
+    await squashMerge('yan/t042-auth-s2');
 
     // This is the step that must not come first.
-    fxGit(['-C', clone, 'push', 'origin', '--delete', 'yan/t042-auth-s2']);
-    fxGit(['-C', clone, 'fetch', '--prune', 'origin']);
+    await fxGit(['-C', clone, 'push', 'origin', '--delete', 'yan/t042-auth-s2']);
+    await fxGit(['-C', clone, 'fetch', '--prune', 'origin']);
 
     expect(
-      fxGit(['-C', tree, 'branch', '-r', '--contains', 'HEAD']).stdout.trim(),
+      (await fxGit(['-C', tree, 'branch', '-r', '--contains', 'HEAD'])).stdout.trim(),
       'deleting the branch takes the remote-tracking ref with it, and a worktree shares refs with its clone',
     ).toBe('');
 
@@ -185,23 +185,23 @@ describe('the control: the same situation in the WRONG order', () => {
     expect(heldBy('t042/auth/s2'), 'and the slot stays taken').not.toBe('');
 
     // Put it back the only way that is left, so the fixture tears down cleanly.
-    fxGit(['-C', tree, 'push', '-u', 'origin', 'yan/t042-auth-s2']);
+    await fxGit(['-C', tree, 'push', '-u', 'origin', 'yan/t042-auth-s2']);
     new WorktreePool(clone).return(tree);
   });
 });
 
 describe('an interrupted teardown can be finished', () => {
-  it('derives which shift it was from the pool, and says what it is doing', () => {
+  it('derives which shift it was from the pool, and says what it is doing', async () => {
     // The documented order deletes run/ (step 4) BEFORE returning the tree
     // (step 5). So a return that refuses - or a kill, or a sleeping laptop -
     // leaves run/ gone, the tree still leased and the remote branch still
     // there, with nothing left in $YAN_HOME to say which shift they belonged
     // to. Observed for real: the tree came back dirty because the install step
     // the brief mandates had generated an untracked file.
-    const tree = dispatch('s5');
-    fxGit(['-C', tree, 'commit', '--allow-empty', '-m', 'work for s5']);
-    fxGit(['-C', tree, 'push', 'origin', 'yan/t042-auth-s5']);
-    squashMerge('yan/t042-auth-s5');
+    const tree = await dispatch('s5');
+    await fxGit(['-C', tree, 'commit', '--allow-empty', '-m', 'work for s5']);
+    await fxGit(['-C', tree, 'push', 'origin', 'yan/t042-auth-s5']);
+    await squashMerge('yan/t042-auth-s5');
 
     // Make the tree dirty, exactly as a generated lockfile does.
     writeFileSync(join(tree, 'leftover.txt'), 'generated\n');
@@ -218,7 +218,7 @@ describe('an interrupted teardown can be finished', () => {
     // The half-torn-down state: run/ gone, tree still leased, branch still there.
     expect(existsSync(join(home, 'tasks', 't042', 'shifts', 's5', 'run')), 'run/ was already deleted').toBe(false);
     expect(heldBy('t042/auth/s5'), 'the tree is still leased').not.toBe('');
-    expect(remoteHas('yan/t042-auth-s5')).toBe(true);
+    expect(await remoteHas('yan/t042-auth-s5')).toBe(true);
 
     // Now resolve what made it refuse, as an operator would, and re-run.
     rmSync(join(tree, 'leftover.txt'));
@@ -226,6 +226,6 @@ describe('an interrupted teardown can be finished', () => {
     expect(result.tree_returned).toBe(true);
 
     expect(heldBy('t042/auth/s5'), 'the tree is back in the pool').toBe('');
-    expect(remoteHas('yan/t042-auth-s5'), 'and only now is the remote branch gone').toBe(false);
+    expect(await remoteHas('yan/t042-auth-s5'), 'and only now is the remote branch gone').toBe(false);
   });
 });

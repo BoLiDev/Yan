@@ -46,8 +46,8 @@ const config = `${JSON.stringify(
  * workspace of whoever is running it. The pane-aware half is exercised below
  * with an injected terminal instead, where the ids are the test's own.
  */
-function yan(args: readonly string[], env: Record<string, string> = {}) {
-  return runYan(home, args, { HERDR_PANE_ID: '', ...env });
+async function yan(args: readonly string[], env: Record<string, string> = {}) {
+  return await runYan(home, args, { HERDR_PANE_ID: '', ...env });
 }
 
 function lockOf(task: string): string {
@@ -82,8 +82,8 @@ beforeAll(async () => {
 });
 
 describe('the hard path: the main agent starts in this pane', () => {
-  it('reports what it started, and gives the lock back when the agent exits', () => {
-    const r = yan(['continue', '--task', 't042', '--json']);
+  it('reports what it started, and gives the lock back when the agent exits', async () => {
+    const r = await yan(['continue', '--task', 't042', '--json']);
     expect(r.code, r.out).toBe(0);
     const seen = JSON.parse(r.stdout) as {
       task: string;
@@ -102,40 +102,40 @@ describe('the hard path: the main agent starts in this pane', () => {
     expect(existsSync(lockOf('t042'))).toBe(false);
   });
 
-  it('takes the positional form too', () => {
-    const r = yan(['continue', 't042']);
+  it('takes the positional form too', async () => {
+    const r = await yan(['continue', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('starting in this pane');
   });
 });
 
 describe('a second yan on the same task', () => {
-  it('is refused, and says where the live one is', () => {
+  it('is refused, and says where the live one is', async () => {
     liveLock('t042', 'yan t042 pane=w9:p9');
 
-    const r = yan(['continue', '--task', 't042']);
+    const r = await yan(['continue', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('a second yan on the same task is refused');
     expect(r.stdout).toContain('w9:p9');
     expect(r.stdout).not.toContain('starting in this pane');
   });
 
-  it('does not refuse a yan on a DIFFERENT task: the lock is per task', () => {
-    const r = yan(['continue', '--task', 't099']);
+  it('does not refuse a yan on a DIFFERENT task: the lock is per task', async () => {
+    const r = await yan(['continue', '--task', 't099']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('starting in this pane');
 
     rmSync(lockOf('t042'));
   });
 
-  it('reclaims a lock left behind by a process that is gone', () => {
+  it('reclaims a lock left behind by a process that is gone', async () => {
     // pid 1 is not this yan on this host, and nothing in the tree says the
     // holder is alive. An obeyed stale lock would wedge the task for good.
     writeFileSync(
       lockOf('t042'),
       `${JSON.stringify({ pid: 999999, host: hostname(), at: 1, identity: 'yan t042' })}\n`,
     );
-    const r = yan(['continue', '--task', 't042']);
+    const r = await yan(['continue', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('starting in this pane');
     expect(existsSync(lockOf('t042'))).toBe(false);
@@ -143,23 +143,23 @@ describe('a second yan on the same task', () => {
 });
 
 describe('what it refuses', () => {
-  it('names the flag when there is no id and no terminal to ask in', () => {
-    const r = yan(['continue']);
+  it('names the flag when there is no id and no terminal to ask in', async () => {
+    const r = await yan(['continue']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('--task');
     expect(r.out).toContain('yan ls');
   });
 
-  it('refuses an unknown task and two ids', () => {
-    expect(yan(['continue', '--task', 'nosuchtask']).code).toBe(2);
-    expect(yan(['continue', '--task', 'nosuchtask']).out).toContain('no such task');
+  it('refuses an unknown task and two ids', async () => {
+    expect((await yan(['continue', '--task', 'nosuchtask'])).code).toBe(2);
+    expect((await yan(['continue', '--task', 'nosuchtask'])).out).toContain('no such task');
 
-    const two = yan(['continue', 't042', '--task', 't099']);
+    const two = await yan(['continue', 't042', '--task', 't099']);
     expect(two.code).toBe(2);
     expect(two.out).toContain('only one task id');
   });
 
-  it('refuses when the home configures no agents.yan, and names it', () => {
+  it('refuses when the home configures no agents.yan, and names it', async () => {
     const other = mkYanHome(join(mkTempDir(), 'home'), {
       withDist: true,
       config: `${JSON.stringify({ version: 1, agents: { shift: 'claude' }, remote_git: { kind: 'github' } }, null, 2)}\n`,
@@ -170,7 +170,7 @@ describe('what it refuses', () => {
       `${JSON.stringify({ version: 1, id: 'tx', title: 'x', complete: false, units: [] })}\n`,
     );
 
-    const r = runYan(other, ['continue', '--task', 'tx'], { HERDR_PANE_ID: '' });
+    const r = await runYan(other, ['continue', '--task', 'tx'], { HERDR_PANE_ID: '' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('agents.yan');
     expect(existsSync(join(other, 'tasks', 'tx', '.enter.lock'))).toBe(false);

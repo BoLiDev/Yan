@@ -407,9 +407,9 @@ describe('usage', () => {
     expect(r.message).toContain('no such unit');
   });
 
-  it('is reachable as `yan shift new` through the dispatcher', () => {
+  it('is reachable as `yan shift new` through the dispatcher', async () => {
     writeFileSync(join(home, 'conf', 'config.json'), readFileSync(join(home, 'conf', 'config.json'), 'utf8'));
-    const r = runYan(home, ['shift', 'new', '--task', 't042']);
+    const r = await runYan(home, ['shift', 'new', '--task', 't042']);
     expect(r.out).toContain('--unit is required');
   });
 });

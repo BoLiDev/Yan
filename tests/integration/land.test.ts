@@ -95,8 +95,8 @@ describe('without `user` asking, nothing happens at all', () => {
     expect(host.stateCalls, 'the host is not even asked a question').toEqual([]);
   });
 
-  it('is not softened by a terminal, because no prompt can supply it', () => {
-    const r = runYan(home, ['land', '--task', 't042']);
+  it('is not softened by a terminal, because no prompt can supply it', async () => {
+    const r = await runYan(home, ['land', '--task', 't042']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('--user-asked');
   });
@@ -198,9 +198,9 @@ describe('nothing to land', () => {
 });
 
 describe('usage errors', () => {
-  it('needs a task and a strategy it understands', () => {
-    expect(runYan(home, ['land', '--user-asked']).out).toContain('--task is required');
-    const bad = runYan(home, ['land', '--task', 't042', '--user-asked', '--strategy', 'nonsense']);
+  it('needs a task and a strategy it understands', async () => {
+    expect((await runYan(home, ['land', '--user-asked'])).out).toContain('--task is required');
+    const bad = await runYan(home, ['land', '--task', 't042', '--user-asked', '--strategy', 'nonsense']);
     expect(bad.code).toBe(2);
     expect(bad.out).toContain('--strategy');
   });

@@ -36,8 +36,8 @@ function config(body: Record<string, unknown>): void {
 }
 
 /** Doctor, with git pointed at configuration files this test owns. */
-function doctor(env: Record<string, string> = {}) {
-  return runYan(home, ['doctor'], env);
+async function doctor(env: Record<string, string> = {}) {
+  return await runYan(home, ['doctor'], env);
 }
 
 let emptyGlobal = '';
@@ -57,15 +57,15 @@ beforeAll(() => {
 });
 
 describe('the checklist', () => {
-  it('reports git, node, the config and the agents', () => {
-    const r = doctor();
+  it('reports git, node, the config and the agents', async () => {
+    const r = await doctor();
     for (const needle of ['yan doctor', 'YAN_HOME', 'git', 'node', 'conf/config.json', 'agents.yan', 'agents.shift']) {
       expect(r.out, needle).toContain(needle);
     }
   });
 
-  it('names none of the three checks that went with the tmux runtime', () => {
-    const r = doctor();
+  it('names none of the three checks that went with the tmux runtime', async () => {
+    const r = await doctor();
     for (const gone of ['winpty', 'backend', 'tmux']) {
       expect(r.out, gone).not.toContain(gone);
     }
@@ -73,35 +73,35 @@ describe('the checklist', () => {
 });
 
 describe('only the CLI the configured kind names', () => {
-  it('checks gh for github, and never mentions glab', () => {
+  it('checks gh for github, and never mentions glab', async () => {
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
-    const r = doctor();
+    const r = await doctor();
     expect(r.out).toContain('remote host (gh)');
     expect(r.out, 'only the CLI selected by the kind may be checked').not.toContain('glab');
   });
 
-  it('checks glab for gitlab, and never mentions gh on its own', () => {
+  it('checks glab for gitlab, and never mentions gh on its own', async () => {
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'gitlab', host: 'gitlab.example.invalid' } });
-    expect(doctor().out).toContain('remote host (glab)');
+    expect((await doctor()).out).toContain('remote host (glab)');
   });
 
-  it('fails on a kind it does not support, and on none at all', () => {
+  it('fails on a kind it does not support, and on none at all', async () => {
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'bitbucket' } });
-    let r = doctor();
+    let r = await doctor();
     expect(r.code).toBe(1);
     expect(r.out).toContain('bitbucket');
 
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' } });
-    r = doctor();
+    r = await doctor();
     expect(r.code).toBe(1);
     expect(r.out).toContain('kind is not set');
   });
 });
 
 describe('a missing configuration is reported, not a crash', () => {
-  it('says which file and what to copy', () => {
+  it('says which file and what to copy', async () => {
     rmSync(join(home, 'conf', 'config.json'));
-    const r = doctor();
+    const r = await doctor();
     expect(r.code).toBe(1);
     expect(r.out).toContain('conf/config.sample.json');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
@@ -109,28 +109,28 @@ describe('a missing configuration is reported, not a crash', () => {
 });
 
 describe('a commit identity every leased worktree can see', () => {
-  it('is a failure when there is no global one, and says why', () => {
-    const r = doctor({ GIT_CONFIG_GLOBAL: emptyGlobal, GIT_CONFIG_SYSTEM: emptySystem });
+  it('is a failure when there is no global one, and says why', async () => {
+    const r = await doctor({ GIT_CONFIG_GLOBAL: emptyGlobal, GIT_CONFIG_SYSTEM: emptySystem });
     expect(r.code, 'a missing commit identity is a failure, not a warning').toBe(1);
     expect(r.out).toContain('git identity');
     expect(r.out).toContain('leased worktree');
   });
 
-  it('is satisfied by a global one', () => {
-    const r = doctor({ GIT_CONFIG_GLOBAL: goodGlobal, GIT_CONFIG_SYSTEM: emptySystem });
+  it('is satisfied by a global one', async () => {
+    const r = await doctor({ GIT_CONFIG_GLOBAL: goodGlobal, GIT_CONFIG_SYSTEM: emptySystem });
     expect(r.out).toContain('Test Person <test@example.invalid>');
   });
 });
 
 describe("codex's first-run gates are reported before a dispatch meets them", () => {
-  it('says nothing when no role is codex', () => {
+  it('says nothing when no role is codex', async () => {
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
-    expect(doctor().out).not.toContain('hook review');
+    expect((await doctor()).out).not.toContain('hook review');
   });
 
-  it('names both gates, and which of the two supervision can see', () => {
+  it('names both gates, and which of the two supervision can see', async () => {
     config({ version: 1, agents: { yan: 'codex', shift: 'codex' }, remote_git: { kind: 'github' } });
-    const r = doctor();
+    const r = await doctor();
 
     // The one that hangs silently: Herdr reads "Hooks need review" as `idle`,
     // so nothing wakes. This home has never been trusted by codex, which is the
@@ -144,9 +144,9 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
     expect(r.out).toContain('blocked');
   });
 
-  it('drops the dispatch half when only the main agent is codex', () => {
+  it('drops the dispatch half when only the main agent is codex', async () => {
     config({ version: 1, agents: { yan: 'codex', shift: 'claude' }, remote_git: { kind: 'github' } });
-    expect(doctor().out).toContain('agents.shift is not codex');
+    expect((await doctor()).out).toContain('agents.shift is not codex');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 });

@@ -45,8 +45,8 @@ beforeAll(async () => {
 });
 
 describe('without a TTY', () => {
-  it('prints usage and exits 0: it is not an unknown command, so it is not an error', () => {
-    const r = runYan(home, []);
+  it('prints usage and exits 0: it is not an unknown command, so it is not an error', async () => {
+    const r = await runYan(home, []);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('Usage: yan');
     expect(r.stdout).toContain('continue');
@@ -68,7 +68,7 @@ describe('the rows the select offers', () => {
 
       // …and they really are the same numbers `yan ls --json` reports, rather
       // than a second count that can drift from it.
-      const ls = JSON.parse(runYan(home, ['ls', '--json']).stdout) as {
+      const ls = JSON.parse((await runYan(home, ['ls', '--json'])).stdout) as {
         tasks: { id: string; shifts: number }[];
       };
       expect(ls.tasks.find((t) => t.id === 't001')?.shifts).toBe(rows[0]?.shifts);

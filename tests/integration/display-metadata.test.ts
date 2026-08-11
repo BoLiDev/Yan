@@ -43,12 +43,12 @@ function liveShift(sid: string, container: string): void {
   writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, container, pane: 'w1:p2' })}\n`);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   process.env.YAN_HOME = home;
-  mkClone(mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
+  await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
 
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'monorepo-x', 'main', { branch: 'main' });
@@ -125,8 +125,8 @@ describe('every metadata call goes through the one door that cannot throw', () =
 });
 
 describe('`target` is never defaulted by any command', () => {
-  it('is required outright by `unit add`', () => {
-    const r = runYan(home, ['unit', 'add', '--task', 't042', '--unit', 'x', '--repo', 'monorepo-x']);
+  it('is required outright by `unit add`', async () => {
+    const r = await runYan(home, ['unit', 'add', '--task', 't042', '--unit', 'x', '--repo', 'monorepo-x']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('never guessed');
   });

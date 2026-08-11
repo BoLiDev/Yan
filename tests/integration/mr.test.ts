@@ -63,17 +63,17 @@ function unitMr(task: string, unit: string): unknown {
   return doc.units.find((u) => u.name === unit)?.mr;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   process.env.YAN_HOME = home;
 
-  bare = mkBareRemote(join(tmp, 'remote.git'));
-  clone = mkClone(bare, join(home, 'repos', 'monorepo-x'));
+  bare = await mkBareRemote(join(tmp, 'remote.git'));
+  clone = await mkClone(bare, join(home, 'repos', 'monorepo-x'));
   // Only feat/auth is published; feat/later deliberately is not.
-  fxGit(['-C', clone, 'push', 'origin', 'main:feat/auth']);
-  fxGit(['-C', clone, 'push', 'origin', 'main:master']);
+  await fxGit(['-C', clone, 'push', 'origin', 'main:feat/auth']);
+  await fxGit(['-C', clone, 'push', 'origin', 'main:master']);
 
   Task.create('t042', 'unify the auth header');
   const t = new Task('t042');
@@ -172,12 +172,12 @@ describe('a host that refuses records nothing', () => {
 });
 
 describe('usage errors', () => {
-  it('names what is missing, and refuses two ways of giving a body', () => {
-    expect(runYan(home, ['mr', '--task', 't042']).out).toContain('--unit is required');
-    expect(runYan(home, ['mr', '--task', 'nosuch', '--unit', 'auth']).out).toContain('no such task');
-    expect(runYan(home, ['mr', '--task', 't042', '--unit', 'nosuch']).out).toContain('no such unit');
+  it('names what is missing, and refuses two ways of giving a body', async () => {
+    expect((await runYan(home, ['mr', '--task', 't042'])).out).toContain('--unit is required');
+    expect((await runYan(home, ['mr', '--task', 'nosuch', '--unit', 'auth'])).out).toContain('no such task');
+    expect((await runYan(home, ['mr', '--task', 't042', '--unit', 'nosuch'])).out).toContain('no such unit');
 
-    const both = runYan(home, ['mr', '--task', 't042', '--unit', 'auth', '--body', 'a', '--body-file', 'b']);
+    const both = await runYan(home, ['mr', '--task', 't042', '--unit', 'auth', '--body', 'a', '--body-file', 'b']);
     expect(both.code).toBe(2);
     expect(both.out).toContain('alternatives');
   });

@@ -33,8 +33,8 @@ interface Detail {
   shifts: { sid: string; unit: string; branch: string; tree: string }[];
 }
 
-function json<T>(args: readonly string[]): T {
-  const r = runYan(home, args);
+async function json<T>(args: readonly string[]): Promise<T> {
+  const r = await runYan(home, args);
   expect(r.code, r.out).toBe(0);
   return JSON.parse(r.stdout) as T;
 }
@@ -58,8 +58,8 @@ beforeAll(async () => {
   const { Task } = await import('../../src/records/task/index.js');
 
   // An empty home answers before anything exists.
-  expect(runYan(home, ['ls']).stdout).toContain('no tasks');
-  expect(json<Queue>(['ls', '--json']).tasks).toHaveLength(0);
+  expect((await runYan(home, ['ls'])).stdout).toContain('no tasks');
+  expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(0);
 
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
@@ -91,16 +91,16 @@ beforeAll(async () => {
 });
 
 describe('the queue', () => {
-  it('renders every task, its state, and the scopes its units restrict', () => {
-    const r = runYan(home, ['ls']);
+  it('renders every task, its state, and the scopes its units restrict', async () => {
+    const r = await runYan(home, ['ls']);
     expect(r.code, r.out).toBe(0);
     for (const needle of ['t042', 't007', 'unify the auth header', 'apps/auth', 'apps/gateway', 'src/client', 'SCOPE', 'open', 'done']) {
       expect(r.stdout, needle).toContain(needle);
     }
   });
 
-  it('reports the same facts as --json', () => {
-    const q = json<Queue>(['ls', '--json']);
+  it('reports the same facts as --json', async () => {
+    const q = await json<Queue>(['ls', '--json']);
     expect(q.version).toBe(1);
     expect(q.tasks).toHaveLength(2);
     const t042 = q.tasks.find((t) => t.id === 't042');
@@ -121,23 +121,23 @@ describe('the queue', () => {
     if (previous === undefined) delete process.env.YAN_HOME;
     else process.env.YAN_HOME = previous;
 
-    expect(json<Queue>(['ls', '--json']).tasks).toHaveLength(3);
+    expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(3);
     rmSync(join(home, 'tasks', 't900'), { recursive: true, force: true });
-    expect(json<Queue>(['ls', '--json']).tasks).toHaveLength(2);
+    expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(2);
   });
 });
 
 describe('one task: its units and its live shifts', () => {
-  it('renders the branches, the targets and the worktree', () => {
-    const r = runYan(home, ['ls', 't042']);
+  it('renders the branches, the targets and the worktree', async () => {
+    const r = await runYan(home, ['ls', 't042']);
     expect(r.code, r.out).toBe(0);
     for (const needle of ['unify the auth header', 'feat/auth', 'feat/gw', 'master', 'apps/auth', 'yan/t042-auth-s3', treePath]) {
       expect(r.stdout, needle).toContain(needle);
     }
   });
 
-  it('lists only the shift whose run/ is still there', () => {
-    const d = json<Detail>(['ls', 't042', '--json']);
+  it('lists only the shift whose run/ is still there', async () => {
+    const d = await json<Detail>(['ls', 't042', '--json']);
     expect(d.units).toHaveLength(2);
     expect(d.shifts).toHaveLength(1);
     expect(d.shifts[0]?.sid).toBe('s3');
@@ -150,18 +150,18 @@ describe('one task: its units and its live shifts', () => {
     expect(gateway?.needs).toEqual(['auth']);
   });
 
-  it('says so when a task has no live shift', () => {
-    expect(runYan(home, ['ls', 't007']).stdout).toContain('(none)');
+  it('says so when a task has no live shift', async () => {
+    expect((await runYan(home, ['ls', 't007'])).stdout).toContain('(none)');
   });
 });
 
 describe('nothing is stored', () => {
-  it('creates not one file anywhere under $YAN_HOME', () => {
+  it('creates not one file anywhere under $YAN_HOME', async () => {
     const before = snapshot(home);
-    runYan(home, ['ls']);
-    runYan(home, ['ls', '--json']);
-    runYan(home, ['ls', 't042']);
-    runYan(home, ['ls', 't042', '--json']);
+    await runYan(home, ['ls']);
+    await runYan(home, ['ls', '--json']);
+    await runYan(home, ['ls', 't042']);
+    await runYan(home, ['ls', 't042', '--json']);
     expect(snapshot(home)).toEqual(before);
   });
 
@@ -173,12 +173,12 @@ describe('nothing is stored', () => {
 });
 
 describe('errors', () => {
-  it('refuses an unknown task, two ids and an unknown option', () => {
-    const missing = runYan(home, ['ls', 'nosuchtask']);
+  it('refuses an unknown task, two ids and an unknown option', async () => {
+    const missing = await runYan(home, ['ls', 'nosuchtask']);
     expect(missing.code).not.toBe(0);
     expect(missing.out).toContain('no such task');
 
-    expect(runYan(home, ['ls', 't042', 't007']).code).not.toBe(0);
-    expect(runYan(home, ['ls', '--nope']).code).toBe(2);
+    expect((await runYan(home, ['ls', 't042', 't007'])).code).not.toBe(0);
+    expect((await runYan(home, ['ls', '--nope'])).code).toBe(2);
   });
 });

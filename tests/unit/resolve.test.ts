@@ -65,7 +65,7 @@ describe('resolve', () => {
       unit: 'auth',
     });
     expect(prompter).toHaveBeenCalledTimes(1);
-    expect(prompter.mock.calls[0]?.[0]).toEqual([SPEC[1]]);
+    expect((prompter.mock.calls[0] as unknown[] | undefined)?.[0]).toEqual([SPEC[1]]);
   });
 
   it('never prompts without a TTY, even when a prompter is installed', async () => {

@@ -115,7 +115,7 @@ describe('Clack is an ordinary dependency', () => {
    * real terminal and stays untested.
    */
   it('the prompts really resolve at run time, which only a dynamic import can get wrong', async () => {
-    const prompts = (await import('../../dist/ui/prompts.js')) as Record<string, unknown>;
+    const prompts = (await import('../../dist/ui/prompts.js' as string)) as Record<string, unknown>;
     for (const name of ['askFor', 'chooseEntry', 'chooseTask', 'askTaskNew', 'CREATE_NEW']) {
       expect(prompts[name], name).toBeDefined();
     }
@@ -144,20 +144,20 @@ describe('one exit code for "you called this wrongly"', () => {
   });
   afterAll(cleanupTempDirs);
 
-  it('agrees between an unknown option and a missing one', () => {
-    expect(runYan(home, ['tree', 'get', '--nonsense']).code).toBe(2);
-    expect(runYan(home, ['tree', 'get']).code).toBe(2);
+  it('agrees between an unknown option and a missing one', async () => {
+    expect((await runYan(home, ['tree', 'get', '--nonsense'])).code).toBe(2);
+    expect((await runYan(home, ['tree', 'get'])).code).toBe(2);
   });
 
-  it('covers an unknown command, a missing option-argument and an unknown subcommand', () => {
-    expect(runYan(home, ['bogus']).code).toBe(2);
-    expect(runYan(home, ['unit', 'bogus']).code).toBe(2);
-    expect(runYan(home, ['ls', '--json', '--nope']).code).toBe(2);
+  it('covers an unknown command, a missing option-argument and an unknown subcommand', async () => {
+    expect((await runYan(home, ['bogus'])).code).toBe(2);
+    expect((await runYan(home, ['unit', 'bogus'])).code).toBe(2);
+    expect((await runYan(home, ['ls', '--json', '--nope'])).code).toBe(2);
   });
 
-  it('and --help and --version are still not mistakes', () => {
-    expect(runYan(home, ['--help']).code).toBe(0);
-    expect(runYan(home, ['--version']).code).toBe(0);
-    expect(runYan(home, ['ls', '--help']).code).toBe(0);
+  it('and --help and --version are still not mistakes', async () => {
+    expect((await runYan(home, ['--help'])).code).toBe(0);
+    expect((await runYan(home, ['--version'])).code).toBe(0);
+    expect((await runYan(home, ['ls', '--help'])).code).toBe(0);
   });
 });

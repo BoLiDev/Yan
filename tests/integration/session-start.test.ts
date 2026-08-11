@@ -142,23 +142,23 @@ describe('the rebuild', () => {
 });
 
 describe('it writes nothing, anywhere', () => {
-  it('leaves $YAN_HOME byte-for-byte identical, on every path', () => {
+  it('leaves $YAN_HOME byte-for-byte identical, on every path', async () => {
     const before = snapshot();
 
-    expect(runYan(home, ['session-start', '--task', 't042']).code).toBe(0);
+    expect((await runYan(home, ['session-start', '--task', 't042'])).code).toBe(0);
     expect(snapshot(), 'session-start must not create or change a single file').toBe(before);
 
-    expect(runYan(home, ['session-start', '--task', 't042', '--json']).code).toBe(0);
+    expect((await runYan(home, ['session-start', '--task', 't042', '--json'])).code).toBe(0);
     expect(snapshot(), 'nor on the --json path').toBe(before);
 
-    expect(runYan(home, ['session-start', '--all']).code).toBe(0);
+    expect((await runYan(home, ['session-start', '--all'])).code).toBe(0);
     expect(snapshot()).toBe(before);
   });
 });
 
 describe('through bin/yan', () => {
-  it('renders the task, its unit and its shifts', () => {
-    const r = runYan(home, ['session-start', '--task', 't042']);
+  it('renders the task, its unit and its shifts', async () => {
+    const r = await runYan(home, ['session-start', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('t042  unify the auth header');
     expect(r.stdout).toContain('unit auth');
@@ -167,8 +167,8 @@ describe('through bin/yan', () => {
     expect(r.stdout, 's1 is reported, and reported as finished').toContain('clocked out');
   });
 
-  it('reports every task when no id is given', () => {
-    const r = runYan(home, ['session-start', '--all']);
+  it('reports every task when no id is given', async () => {
+    const r = await runYan(home, ['session-start', '--all']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('t042');
     expect(r.stdout).toContain('t099');
@@ -178,8 +178,8 @@ describe('through bin/yan', () => {
     ).toContain('no shift has ever been dispatched');
   });
 
-  it('is machine readable, with the same derivation', () => {
-    const r = runYan(home, ['session-start', '--task', 't042', '--json']);
+  it('is machine readable, with the same derivation', async () => {
+    const r = await runYan(home, ['session-start', '--task', 't042', '--json']);
     expect(r.code, r.out).toBe(0);
     const picture = JSON.parse(r.stdout) as { tasks: { id: string; shifts: { sid: string; live: boolean }[] }[] };
     expect(picture.tasks[0].id).toBe('t042');
@@ -187,8 +187,8 @@ describe('through bin/yan', () => {
     expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')?.live).toBe(false);
   });
 
-  it('refuses a task that does not exist', () => {
-    const r = runYan(home, ['session-start', '--task', 'nosuchtask']);
+  it('refuses a task that does not exist', async () => {
+    const r = await runYan(home, ['session-start', '--task', 'nosuchtask']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('no such task');
   });
@@ -224,15 +224,15 @@ describe('a source that will not answer costs one fact, never the command', () =
 });
 
 describe('a half-written meta.json is one lost fact, never a crash', () => {
-  it('survives a file that is not JSON', () => {
+  it('survives a file that is not JSON', async () => {
     writeFileSync(join(run, 'meta.json'), 'not json at all\n');
-    const r = runYan(home, ['session-start', '--task', 't042']);
+    const r = await runYan(home, ['session-start', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('shift s2');
   });
 
-  it('survives a missing file', () => {
+  it('survives a missing file', async () => {
     rmSync(join(run, 'meta.json'));
-    expect(runYan(home, ['session-start', '--task', 't042']).code).toBe(0);
+    expect((await runYan(home, ['session-start', '--task', 't042'])).code).toBe(0);
   });
 });
