@@ -12,6 +12,8 @@
   },
   "scripts": {
     "build": "npm run lint:boundaries && tsc -p tsconfig.json",
+    "link": "npm link",
+    "setup": "node scripts/setup.mjs",
     "lint:boundaries": "node scripts/check-module-boundaries.mjs",
     "types:herdr": "node scripts/generate-herdr-types.mjs",
     "types:herdr:check": "node scripts/generate-herdr-types.mjs --check",

@@ -11,11 +11,22 @@ and nothing else.
 ## Getting started
 
 ```sh
+npm run setup                                 # install, build, link, config, doctor
+# or step by step:
 npm install
 npm run build
+npm link                                      # once: put `yan` on PATH
 cp conf/config.sample.json conf/config.json   # then edit it
-bin/yan doctor                                # checks everything below
+yan doctor                                    # checks everything below
 ```
+
+`npm run setup` runs all of that in order. It copies `conf/config.sample.json` only when
+`conf/config.json` is missing, and finishes with `yan doctor`. Pass `--skip-doctor` if you
+want to edit the config first.
+
+After `npm link`, you can run `yan` from any directory — it resolves `$YAN_HOME` to
+this checkout, the same as `bin/yan doctor` from here. Re-run `npm link` after moving
+the clone. Hooks and briefs that hardcode `$YAN_HOME/bin/yan` keep working unchanged.
 
 `yan doctor` is the fastest way to find out whether this machine can run `yan`. It checks
 `git`, `node`, a **global** git identity (a shift commits in a leased worktree, which sees
