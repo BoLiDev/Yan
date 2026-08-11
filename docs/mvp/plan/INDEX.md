@@ -1,6 +1,8 @@
 # MVP implementation plan
 
 > Design lives in [`../td/`](../td/INDEX.md). This folder is the delivery cut: what we build first, in which order, and how each slice stays reviewable.
+>
+> **THIS PLAN IS FINISHED AND ITS OUTPUT HAS BEEN REPLACED.** It delivered the MVP; V2 then ported that MVP to TypeScript and Herdr and deleted the bash it describes ([`../../v2/plan/INDEX.md`](../../v2/plan/INDEX.md)). It is kept because the phase entries carry the reasoning for decisions V2 inherited rather than re-made — not as a description of any tree that exists. Every file path in it is historical.
 
 ---
 

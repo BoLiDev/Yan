@@ -163,14 +163,14 @@ It arrives via the same lifecycle-hook integration as the state machine: per [`/
 
 ---
 
-## 8. Retiring tmux
+## 8. Retiring tmux — done, in Phase 9
 
-tmux is not deleted when the Herdr implementation is written. It is deleted when the Herdr implementation **passes the same assertions** ([runtime.md §6](runtime.md#6-tests)).
+tmux was not deleted when the Herdr implementation was written. It was deleted when the Herdr implementation **passed the same assertions** ([runtime.md §6](runtime.md#6-tests)).
 
-Not the same *file*: `tests/unit/lib-term-contract.test.sh` is bash and cannot exercise a TypeScript module. Its assertions are ported to vitest and run against Herdr, while the bash original keeps running against tmux until Phase 9. What is shared is the contract, not the runner — and that is the whole point of having written the contract down.
+Not the same *file*: `tests/unit/lib-term-contract.test.sh` was bash and could not exercise a TypeScript module. Its assertions were ported to vitest and run against Herdr, while the bash original kept running against tmux for five phases. What was shared is the contract, not the runner — and that is the whole point of having written the contract down separately from either implementation. Keeping both alive cost nothing, because the seam was two-backend by construction, and it was the only way to tell a Herdr implementation that is correct from one that merely runs.
 
-Keeping both alive costs nothing during the migration — the seam is already two-backend by construction — and it is the only way to tell a Herdr implementation that is correct from one that merely runs.
+**What went, in one commit each:** `lib-term.sh` and its four tests; the `backend` config key and the fail-closed branches that chose between the two; and the `winpty` check, whose reason had already disappeared ([evidence §3](evidence.md#3-native-tty-winpty)).
 
-**The two backends do not interact.** `term_container_create` makes a *detached* tmux session (`lib-term.sh:301`), so tmux-backed shifts live on the tmux server and are invisible to Herdr — there is nothing for Herdr to misread. The one way to create a nested pane is for a person to type `tmux attach` inside a Herdr pane, which is a habit rather than a code path — nothing in `yan` has ever run it. (The shell `yan-continue.sh` printed it as a suggestion; that file went with Phase 8, and the TypeScript `continue` does not mention tmux at all.) It is noted in [conventions §6](../plan/conventions.md#6-working-with-herdr-from-a-test-or-a-script) and nowhere else. Once Herdr is green on the ported contract test, the tmux implementation, the `backend` config key, and its fail-closed branches in `lib-boot`, `lib-term` and `yan-state` all go in one commit.
+**What tmux left behind, and why it did not go too.** Two guards were written with tmux as their example — `isPaneId` in `externals/herdr/ids.ts` and `panesOf` in `cli/wait.ts`, both filtering pane ids a subscription may name. Their stated reason was "a shift dispatched by the tmux half carries a `%7`", and after Phase 9 there is no tmux half. Both were kept and re-argued in their own terms, because a guard whose reason has been deleted is a guard the next person removes: the ids come off DISK, `run/meta.json` is long-lived and nothing migrates it, and `shift new` records the empty string for the window between a dispatch and its agent starting. The mechanism they protect is unchanged — a subscription naming one unknown pane is refused whole, so one bad id costs every other shift its subscription ([evidence §12.1](evidence.md#121-an-unknown-pane_id-in-a-subscription-closes-the-connection)).
 
 The seam itself stays. It is seven functions, it cost almost nothing, and it is the reason this pivot is a phase rather than a rewrite.

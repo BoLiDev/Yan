@@ -80,7 +80,9 @@ It also sets a precondition on the Phase 5 spike: install the integration first,
 
 *"Screen detection fails if agents run inside tmux launched within Herdr panes."*
 
-Recorded for completeness, and deliberately **not** treated as a V2 design constraint — V2 has no tmux, so the configuration cannot arise. It is reachable during the migration by exactly one route: a person typing `tmux attach` inside a Herdr pane to look at tmux-backed shifts. `yan` itself never creates it (the tmux container is detached and invisible to Herdr; `yan continue` prints the attach command rather than running it). One bullet in [conventions §6](../plan/conventions.md#6-working-with-herdr-from-a-test-or-a-script) is the whole treatment it gets.
+Recorded for completeness, and never a V2 design constraint — V2 has no tmux, so the configuration cannot arise. While both backends existed it was reachable by exactly one route, a person typing `tmux attach` inside a Herdr pane to look at tmux-backed shifts, and `yan` never created it: the tmux container was detached and invisible to Herdr. Phase 9 deleted the last tmux, so the route is closed and the one bullet [conventions §6](../plan/conventions.md#6-working-with-herdr-from-a-test-or-a-script) carried about it went with it.
+
+It is kept here rather than deleted because this section is the record of **what only the website says**, and a fact that stops applying to us does not stop being a fact about Herdr. If yan ever grows a reason to run something inside a pane's shell, this is the constraint that was already known.
 
 ---
 

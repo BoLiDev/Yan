@@ -1,6 +1,6 @@
 # V2 implementation conventions
 
-> Replaces [`../../mvp/plan/conventions.md`](../../mvp/plan/conventions.md) once Phase 0 lands. Read it before starting any phase.
+> Replaces [`../../mvp/plan/conventions.md`](../../mvp/plan/conventions.md), which is history as of Phase 9: every runtime it describes is gone. Read this one before starting any work.
 > Sections §2.2 (no `flock`) and §2.3 (`jq.exe` CRLF) of the MVP conventions are **retired, not ported** — they described bash-and-`jq` problems that no longer exist. §2.1 (`winpty`) is retired by [evidence §3](../td/evidence.md#3-native-tty-winpty). §2.4 (path normalisation) survives in a reduced form, in §3 below.
 
 ---
@@ -67,9 +67,10 @@ tests/
   fixtures/        unchanged — the forge JSON fixtures are ported as-is
 ```
 
-- **Each test owns its temporary directory** and never touches the checkout's `$YAN_HOME`. The MVP's `mk_yan_home` helper is ported.
+- **`npm test` is the whole suite.** `tests/run.sh`, `tests/assert.sh` and `tests/fixtures.sh` went in Phase 9 with the last `*.test.sh`. The three shell stubs in `bin/` are covered by vitest spawning them, and shellcheck runs from `tests/unit/shell-stubs.test.ts`.
+- **Each test owns its temporary directory** and never touches the checkout's `$YAN_HOME`. The MVP's `mk_yan_home` helper lives in `tests/helpers/fixtures.ts`.
 - **Fixtures pass git identity explicitly** (`-c user.name=… -c user.email=…`) so they work where no global git config exists.
-- **Seams are swapped by import, not by `YAN_LIB`.** No environment-variable indirection and no injection framework.
+- **Seams are swapped by import.** No environment-variable indirection and no injection framework. (`YAN_LIB`, which the shell half swapped libraries with, went with the shell half.)
 - **An e2e test that needs Herdr skips loudly when Herdr is missing** — it never silently passes.
 - **Never assert on a Herdr message string.** Assert on `error.code`. Messages are a preview build's prose.
 
@@ -89,7 +90,7 @@ To which V2 adds four. **This is the whole list — eight, numbered here and now
 7. a `done` wake never tears down a shift whose merge request has not merged ([orchestration.md §4](../td/orchestration.md#4-done-is-not-a-verdict))
 8. a `shift new` that fails after leasing returns the tree ([orchestration.md §2](../td/orchestration.md#2-starting-a-shift-is-now-five-steps-and-the-fifth-is-new))
 
-All eight have live tests as of Phase 7.
+All eight have live tests, and all eight are vitest — which is what let Phase 9 delete the bash suite around them without one of them going red.
 
 ---
 
@@ -102,7 +103,6 @@ Which Herdr resource is authoritative for what — and how to re-verify after an
 - **Only close what you created.** This applies to `yan`, to tests, and to whoever is debugging.
 - **Experiments that need isolation use a named session** (`herdr --session <name>`), never the default one.
 - **Mutating commands succeed silently** — rc 0, empty stdout. Do not treat empty output as failure ([evidence §4](../td/evidence.md#4-display-metadata)).
-- **During the migration, do not `tmux attach` from inside a Herdr pane.** Herdr's screen detection misreads an agent running inside a nested tmux ([`/docs/agents/`](https://herdr.dev/docs/agents/)). This is a habit, not a code path — tmux-backed shifts run in a *detached* session that Herdr never sees — but it is reachable while both backends exist, and it stops being possible after Phase 9.
 - **Do not assume an installed integration means authoritative state.** For Claude Code and Codex it does not: their v7 integrations report session identity only, so `agent_status` is a screen match either way ([sources.md §4.1](../td/sources.md#41-detection-has-two-mechanisms-and-yans-agents-get-the-weaker-one)). Install them anyway — that is the configuration `yan` runs in — but never write a test or a doc that treats `blocked` as a guaranteed signal.
 
 ---

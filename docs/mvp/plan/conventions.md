@@ -1,6 +1,8 @@
 # Implementation conventions
 
-> For the Phase 1–9 agents. Phase 0 established these; every later phase follows them so that parallel phases merge without conflict. Design rationale stays in [`../td/`](../td/INDEX.md); this file is only *how we write it*.
+> For the MVP's Phase 1–9 agents. Phase 0 established these; every later phase followed them so that parallel phases merged without conflict. Design rationale stays in [`../td/`](../td/INDEX.md); this file is only *how we write it*.
+>
+> **SUPERSEDED BY [`../../v2/plan/conventions.md`](../../v2/plan/conventions.md), which is the one to read.** Everything below is about writing bash, and there is none left to write. Three of its hard-won sections were retired rather than ported and the reasons are worth knowing: §2.1 `winpty` (a native process in a Herdr pane gets a real console), §2.2 no `flock` and §2.3 `jq.exe` CRLF (both problems of the shell-and-`jq` runtime). §2.4, path normalisation, is the one that survived — in reduced form, as V2 conventions §3.
 
 ## 1. Two supported runtimes
 

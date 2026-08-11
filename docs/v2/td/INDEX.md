@@ -12,7 +12,7 @@ The MVP works. It carried a real task from create to outbound merge request on t
 | --- | --- | --- | --- |
 | language | bash, 11,317 lines across 38 files in `bin/` | TypeScript, with shell only where a file must literally be a shell script | the maintainer is a TypeScript developer, and most of `bin/` is not shell-shaped work ([runtime.md](runtime.md)) |
 | CLI structure | hand-written flag parsers, 20 of them | Commander | 20 parsers is 20 chances to disagree about `--task` ([runtime.md §3](runtime.md#3-commander)) |
-| multiplexer | tmux; `backend: herdr` fails closed | Herdr only; tmux retired once the contract test passes on Herdr | Herdr understands agents; tmux understands processes ([terminal.md](terminal.md)) |
+| multiplexer | tmux; `backend: herdr` fails closed | Herdr only. tmux, and the `backend` key that chose between them, were deleted in Phase 9 once the contract test was green on Herdr | Herdr understands agents; tmux understands processes ([terminal.md](terminal.md)) |
 | supervision | three sources, one of them a pane-content hash | Herdr's agent lifecycle states plus its event stream | the hash was a heuristic standing in for a fact Herdr already has ([supervision.md](supervision.md)) |
 | entry | `yan task new` creates the container and puts `user` inside it | `user` is *already* inside Herdr; bare `yan` opens a select | stop wrapping the tool the user lives in ([cli-ux.md](cli-ux.md)) |
 | worktrees | `yan` owns the pool | unchanged — `yan` still owns it; Herdr is told what to *display* | authority and presentation are different things ([display.md](display.md)) |
@@ -60,6 +60,8 @@ Most of V2's value is subtraction — **with one exception, and it is the one th
 | the tmux implementation of the seam | most of `lib-term.sh` (710) | after, not before, Herdr passes the contract test |
 
 Nothing in this table may be deleted speculatively. Each row is a Trace bullet in [`../plan/INDEX.md`](../plan/INDEX.md).
+
+**All of it is done as of Phase 9**, and two rows did not land the way they were written. The supervision row is the one this table already corrects above. The other is the last: `lib-term.sh` went whole rather than "most of", because the two rows above it — `winpty` and `_term_quote_cmd` — were parts of the same file and there was nothing left to keep once Herdr passed the contract. `bin/` now holds three stubs, and the only shell left in the repository is those three files.
 
 ---
 

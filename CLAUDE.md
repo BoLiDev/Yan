@@ -18,10 +18,10 @@ escalate. Everything below is here because getting it wrong is expensive.
 
 ## How you act
 
-**You only ever run `yan <command>`.** You never source a library from `bin/`, and you
-never run `git`, `gh`, `glab`, `tmux` or `node` yourself for anything a subcommand
-already does. The interactive prompts are for people at a keyboard, not for you: you
-already know your arguments, so you pass them as flags. `yan --help` lists what exists,
+**You only ever run `yan <command>`.** `bin/` holds three stubs and nothing left to
+source. You never run `git`, `gh`, `glab`, `herdr` or `node` yourself for anything a
+subcommand already does. The interactive prompts are for people at a keyboard, not
+for you: you already know your arguments, so you pass them as flags. `yan --help` lists what exists,
 and `user` runs exactly the same commands.
 
 ```

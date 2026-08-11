@@ -4,45 +4,60 @@ A work orchestration system for one person: you describe something that needs do
 breaks it into pieces that can be handed out, each piece goes to a single-use sub-agent
 working in an isolated git worktree, and the result is delivered as a merge request.
 
-Status: **MVP implemented**. The whole hard path runs on tmux against GitHub, on both
-Git Bash (Windows) and Linux. Herdr is design-complete and deliberately not built.
+Status: **V2 implemented**. TypeScript on [Herdr](https://herdr.dev), on Git Bash (Windows)
+and Linux. The MVP's bash-and-tmux runtime has been deleted; `bin/` holds three shell stubs
+and nothing else.
 
 ## Getting started
 
 ```sh
+npm install
+npm run build
 cp conf/config.sample.json conf/config.json   # then edit it
-(cd ui && npm install)                        # the human soft path only
 bin/yan doctor                                # checks everything below
 ```
 
 `yan doctor` is the fastest way to find out whether this machine can run `yan`. It checks
-`git` and `jq`, a **global** git identity (a shift commits in a leased worktree, which
-sees only the global config), the one forge CLI `forge.kind` selects, `tmux`, `winpty`
-on Windows, and Node for the soft path.
+`git`, `node`, a **global** git identity (a shift commits in a leased worktree, which sees
+only the global config), the one remote-host CLI `remote_git.kind` selects, and Herdr —
+its version against the generated types, and the integration for each agent kind you have
+configured.
 
-Then: `yan repo-add <url>` → `yan task new` → you are inside the task.
+Then: `yan repo-add <url>` → type `yan` → you are inside the task.
 
 | Runtime | Notes |
 | --- | --- |
-| Git Bash (Windows) | needs `tmux` (MSYS2 build) and `winpty`; a native agent CLI in an MSYS2 pane gets no TTY without it |
-| Linux / WSL | nothing special |
+| Git Bash (Windows) | nothing special; `node` is on `PATH` |
+| Linux / WSL | `node` is usually nvm's, which a non-interactive shell does not see — source it, or point `agents.*` at an absolute path |
 
-Tests: `tests/run.sh` (`--fast` for the stub level, `--e2e` for the ones that touch a
-real forge or a real agent CLI).
+Codex works as the main agent. As a **shift** agent it is only usable where you have said
+so: its first-run hook-review prompt is one Herdr does not classify as blocked, so a shift
+would park on it silently. `yan doctor` says this at the point it can still be answered;
+the measurements are in [docs/v2/td/evidence.md §13](docs/v2/td/evidence.md).
+
+Tests: `npm test`. That is the whole suite — unit, integration, and the e2e tests that
+skip loudly when Herdr or a real forge is absent.
 
 ## Where to start reading
 
-The backbone of the MVP technical design is [docs/mvp/td/INDEX.md](docs/mvp/td/INDEX.md). It walks through
-the system one part at a time, and the details of each part live in a separate document
-under `docs/mvp/td/`.
+**[docs/v2/td/INDEX.md](docs/v2/td/INDEX.md)** is the current design: what V2 changed, what
+it deliberately did not, and what was deleted. Each section links to the document that
+argues one part in full — the terminal seam, supervision, orchestration, display, the CLI
+UX, and the evidence every claim rests on.
 
-The other documents, listed by the question they answer:
+**[docs/mvp/td/INDEX.md](docs/mvp/td/INDEX.md)** is still the backbone, and still wins any
+argument about *design*: the principles, the glossary, the storage criteria, the branch
+model, the forge layer, the authority table. Read its mechanisms as history — where it says
+tmux, bash or `jq`, V2 says Herdr and TypeScript.
 
 | Question | Document |
 | --- | --- |
+| What the current runtime is, and why | [docs/v2/td/INDEX.md](docs/v2/td/INDEX.md) |
 | Why is it designed this way, and what is each part responsible for | [docs/mvp/td/INDEX.md](docs/mvp/td/INDEX.md) |
 | The full argument for one part (memory, agents, supervision, branching, worktrees, delivery, boundaries, scope) | the matching file under `docs/mvp/td/`; every section of INDEX ends with a link |
-| Where the code goes, what may call what, and how it is tested | [docs/mvp/td/architecture.md](docs/mvp/td/architecture.md) |
+| Where the code goes, what may call what, and how it is tested | [docs/v2/td/runtime.md](docs/v2/td/runtime.md), and [docs/mvp/td/architecture.md](docs/mvp/td/architecture.md) for the layering it inherited |
+| How each claim about Herdr was measured | [docs/v2/td/evidence.md](docs/v2/td/evidence.md) |
+| How the port was cut into phases | [docs/v2/plan/INDEX.md](docs/v2/plan/INDEX.md) |
 
 ## Conventions
 
