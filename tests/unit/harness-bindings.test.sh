@@ -1,19 +1,35 @@
 #!/usr/bin/env bash
 #
-# Phase 8 Trace bullets 2 and 3: what each harness is actually told to run.
+# What each harness is actually told to run.
 #
 #   Claude   SessionStart -> `yan session-start`
 #            Stop         -> hook-autoarm.sh, asyncRewake, a long timeout
 #            Stop         -> hook-turnend-guard.sh --claude, blocking
 #   Codex    SessionStart -> `yan session-start`
-#            Stop         -> hook-turnend-guard.sh --codex
+#            Stop         -> the turn-end guard, --codex
 #            and NO autoarm: Codex parses `async` but does not run
 #            asynchronous command hooks, so it cannot hold a multi-hour watcher
 #
-# The Codex file is written from the documented shape and has NOT been run
-# against a real codex - it is not installed on the machine this was written
-# on. This test says what the file claims, which is the part that can be
-# checked here; that it is the right shape is stated as unverified in the PR.
+# ---------------------------------------------------------------------------
+# WHY THE CODEX HALF IS NOW STRUCTURAL
+# ---------------------------------------------------------------------------
+#
+# It used to grep the file's body, and said so: "the Codex file is written from
+# the documented shape and has NOT been run against a real codex - it is not
+# installed on the machine this was written on." A body grep passes on a file
+# codex refuses to parse, which is exactly what happened - for eight phases the
+# checked-in file was rejected at startup with
+#
+#   unknown field `version`, expected `description` or `hooks`
+#
+# and nothing noticed, because `session-start` and `--codex` were both present
+# in the text. So this asserts the SHAPE codex parses, the same way the Claude
+# half does: the nesting level, the string-valued `command`, `timeout` in
+# seconds, and the absence of the keys codex rejects.
+#
+# The shape is not derived from documentation. It is the one `herdr integration
+# install codex` writes to ~/.codex/hooks.json, which is also the one
+# .claude/settings.json uses, and it was confirmed by running codex.
 #
 set -euo pipefail
 
@@ -57,20 +73,64 @@ guard=$(printf '%s\n' "$stop" | grep 'hook-turnend-guard' || true)
 assert_contains "$guard" '--claude'
 assert_not_contains "$guard" '|true|' 'the guard blocks; it is not an async hook'
 
-# --- Codex ------------------------------------------------------------------
+# --- Codex: the shape codex parses ------------------------------------------
+#
+# Three keys codex REJECTS the whole file for. Each one was in the checked-in
+# file, and each one is the sort of thing a body grep cannot see.
 
-body=$(tr -d '\r' <"$codex")
-assert_contains "$body" 'session-start'
-assert_contains "$body" 'hook-turnend-guard.sh'
-assert_contains "$body" '--codex'
+assert_eq null "$(jqr "$codex" '.version')" \
+	'there is no top-level `version`: codex refuses the file for it'
+assert_eq 0 "$(jqr "$codex" '[.. | objects | select(has("timeout_ms"))] | length')" \
+	'`timeout` in seconds, never `timeout_ms`'
+assert_eq 0 "$(jqr "$codex" '[.hooks[][].hooks[] | select(.command | type != "string")] | length')" \
+	'`command` is a string; an array is refused'
+
+# The nesting level Claude also has: event -> matcher group -> hooks[].
+assert_eq 1 "$(jqr "$codex" '.hooks.SessionStart | length')"
+assert_eq 1 "$(jqr "$codex" '.hooks.SessionStart[].hooks | length')"
+assert_eq 1 "$(jqr "$codex" '.hooks.Stop | length')"
+assert_eq 1 "$(jqr "$codex" '.hooks.Stop[].hooks | length')" \
+	'Codex registers exactly one Stop hook - the guard, and no autoarm'
+
+# --- Codex: what those hooks run --------------------------------------------
+
+for event in SessionStart Stop; do
+	assert_eq command "$(jqr "$codex" ".hooks.${event}[].hooks[].type")"
+	t=$(jqr "$codex" ".hooks.${event}[].hooks[].timeout")
+	assert_eq 1 "$((t > 0 && t <= 3600))" \
+		"$event's timeout is a number of SECONDS, so it has to look like one: got $t"
+done
+
+start=$(jqr "$codex" '.hooks.SessionStart[].hooks[].command')
+assert_contains "$start" 'session-start'
+assert_not_contains "$start" 'wait' \
+	'SessionStart is seconds-scale; it does NOT run yan wait --seconds'
+
+stopcmd=$(jqr "$codex" '.hooks.Stop[].hooks[].command')
+assert_contains "$stopcmd" 'turnend-guard'
+assert_contains "$stopcmd" '--codex'
+
+# NO SHELL, and this is the measured part rather than a style choice. Codex
+# hands the command string to the platform shell, which on Windows is
+# PowerShell - and on the Windows PATH `bash` resolves to the WSL launcher
+# (WindowsApps\bash.exe) while `sh` does not resolve at all. A hook that names
+# either would reach the wrong interpreter or none. `node` is unambiguous, and
+# yan already requires it.
+assert_eq 0 "$(jqr "$codex" '[.hooks[][].hooks[].command | select(startswith("node ") | not)] | length')" \
+	'every codex hook command starts the interpreter directly: no shell in between'
+for cmd in "$start" "$stopcmd"; do
+	assert_not_contains "$cmd" '$' 'no shell expansion: codex would hand it to PowerShell'
+	assert_not_contains "$cmd" '%' 'no cmd.exe expansion either'
+	assert_contains "$cmd" './dist/' \
+		'cwd-relative, because yan starts the main agent with cwd=$YAN_HOME'
+done
 
 # The one thing that must not be there.
+body=$(tr -d '\r' <"$codex")
 assert_not_contains "$body" 'hook-autoarm' \
 	'Codex has no autoarm: it cannot hold a multi-hour watcher'
 assert_not_contains "$body" 'asyncRewake'
 assert_not_contains "$body" 'yan wait' \
 	'the Codex checkpoint loop is the model, not a hook'
-
-assert_eq 'command' "$(jqr "$codex" '.hooks.Stop[].type')"
 
 printf 'ok\n'
