@@ -49,10 +49,11 @@ Herdr accepts native paths for `--cwd` and returns them with backslashes. Normal
 
 `lib-lock.sh` used `mkdir` because Git Bash has no `flock` and `noclobber` is not reliably atomic on MSYS2 filesystems. In Node the primitive is `fs.open(path, 'wx')` — atomic exclusive create on both platforms — plus `fs.rename` for atomic replace. **Do not port the `mkdir` scheme and do not invent a second one.**
 
-**There are two locks, and there must never be a third without its reason written down.**
+**There are three locks, and there must never be a fourth without its reason written down.**
 
 1. `yan wait`'s single-flight ([supervision.md §4](../td/supervision.md#4-what-survives-from-the-mvp)) — under Claude every Stop can fire autoarm, and without it several watchers start.
 2. The worktree pool's, per clone. This one is not the obvious kind: exclusive create already serialises slot allocation, but `git worktree add` writes the *shared* clone's `.git/config`, and two of them collide on git's own config lock. The reasoning is in `externals/worktree/worktree.ts`, at length, because it is the sort of thing someone deletes on a tidy-up.
+3. `tasks/<id>/.enter.lock` — one `yan` per task ([td §5.2](../../mvp/td/agents.md#52-one-yan-per-task)). A different kind of thing from the other two: they are held for the length of an operation, this one for the length of a session, and its **pid is the fact** rather than an implementation detail. `yan continue` spawns the agent and waits rather than `exec`ing, so the lock holder is the running `yan`, which is what lets `continue` answer "there is already one, it is in that pane" — Herdr cannot answer it ([cli-ux.md §3](../td/cli-ux.md#3-yan-continue-gets-smaller)).
 
 ---
 

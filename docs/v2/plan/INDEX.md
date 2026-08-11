@@ -270,6 +270,8 @@ So the order matters, and it is: port the two → retire `interop.test.ts` → d
 
 **Trace**
 - `bin/yan-*.sh` is empty of commands; `tests/run.sh` is down to the `lib-*` and tmux scripts
+- **`yan doctor` is a whole command.** It was half of one — the TypeScript side ran the Herdr section and delegated the rest of the checklist to `bin/yan-doctor.sh` — so emptying `bin/` is a port here, not a delete. It ends listing git, node, herdr and the configured forge CLI, and not `jq` / `tmux` / `winpty`
+- **`bin/hook-autoarm.sh` becomes the stub.** Its shell body armed supervision by running `bin/yan wait`; once `yan-wait.sh` is gone that body can only report that it armed nothing, which is worse than not being there. It reaches the shape Phase 9 describes one phase early, and for a reason rather than as tidying
 - `interop.test.ts` is deleted, not adapted — there is no longer a bash side for it to compare with
 - **Commander's own argument errors exit 2, like every other "you called this wrongly".** Today an unknown option or a missing option-argument exits 1, because that is Commander's default and Phase 0 inherited it — so `yan tree get --nonsense` and `yan tree get` (no `--repo`) disagree about what the same class of mistake is worth. The CLI layer is open in this phase; this is where it gets settled
 - `yan` with a TTY shows create-new-task plus live tasks, derived from the same scan `yan ls` uses; without a TTY it prints usage and exits 0
@@ -293,7 +295,7 @@ The three stubs keep their behaviour — dual dispatch, the node check — and k
 **Trace**
 - `grep -ri tmux bin/ src/` returns nothing but history
 - `bin/` contains exactly `yan`, `hook-autoarm.sh`, `hook-turnend-guard.sh`, and each is a few lines
-- `yan doctor` lists: git, node, herdr, the forge CLI selected by `forge.kind`. Not `jq`, not `tmux`, not `winpty`
+- *(`yan doctor`'s checklist — git, node, herdr, the configured forge CLI, and no `jq` / `tmux` / `winpty` — was earned in Phase 8, not here. `doctor` was half a command: its TypeScript half delegated the rest of the checklist to `bin/yan-doctor.sh`, so emptying `bin/` meant porting the remainder rather than deleting it.)*
 - The full vitest suite is green on Git Bash and on WSL/Linux
 - [`conventions.md`](conventions.md), `AGENTS.md`, `CLAUDE.md` and the MVP docs' stale claims are updated in this phase, not left for later
 

@@ -56,7 +56,11 @@ Derived, never stored — the same scan `yan ls` already does over `tasks/*/task
 | `yan continue` | the select from §2 | refused: pass `--task <id>` |
 | `yan continue --task <id>` | start `yan` for that task in the current pane | same, no prompt |
 
-Two semantics carry over unchanged and must be re-tested after the rewrite, because both are easy to lose: **a second `yan` on the same task is still refused** ([td §5.2](../../mvp/td/agents.md#52-one-yan-per-task)), and if a `yan` for that task is already alive somewhere, `continue` says where it is rather than spawning a duplicate. Herdr makes the second one easy — `agent list` reports every live agent with its pane id.
+Two semantics carry over unchanged and must be re-tested after the rewrite, because both are easy to lose: **a second `yan` on the same task is still refused** ([td §5.2](../../mvp/td/agents.md#52-one-yan-per-task)), and if a `yan` for that task is already alive somewhere, `continue` says where it is rather than spawning a duplicate.
+
+**Herdr cannot answer the second one, and this document said it could.** `agent list` does report every live agent with its pane id — but an agent Herdr recognised by matching the screen has `name: null`, and nothing in the listing says which *task* an agent belongs to. Only an agent started through `agent start` carries a name, and that needs a pane already at an interactive prompt, which the pane running `yan continue` is not.
+
+So the fact lives where it always did: **the per-task lock**, `tasks/<id>/.enter.lock`. V2's `yan continue` does not `exec` — it spawns the agent as a child, holds this pane's stdio, and waits — so the lock's own pid is the running `yan`, and `pidAlive` makes a killed one's lock reclaimable rather than permanent. The lock records the pane, which is how `continue` says *where* the live one is.
 
 The three `tmux attach` calls in `yan-continue.sh` have no replacement. They are deleted, not ported.
 

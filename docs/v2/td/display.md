@@ -71,11 +71,15 @@ That is the line the MVP already drew between facts, state, and decisions ([td �
 | --- | --- |
 | Moment | Call | Owner |
 | --- | --- | --- |
-| `yan continue` / `yan task new` starts the main agent | workspace tokens for the task and its current unit | Phase 8 |
+| `yan continue` / `yan task new` starts the main agent | workspace tokens: the task always, `unit` and `branch` **only when the task has exactly one unit** | `yan continue` |
 | `yan unit set --branch` starts a new round | workspace tokens rewritten — **if the workspace can be identified**, see below | Phase 7 |
 | `yan shift new` splits the pane | pane title and `display_agent` for the new shift | Phase 7 |
 | `yan shift done` | pane title cleared before the pane is closed | Phase 7 |
-| task complete, or `yan` exits | `--clear-token` for every token it set | **unowned** until Phase 8 |
+| task complete, or `yan` exits | `--clear-token` for every token it set | `yan continue` |
+
+**Naming one unit would be false about the others.** A task with two units has two branches and two targets, and a token that names one of them is not a summary — it is a claim that the other does not exist. So the unit and branch tokens appear only when there is exactly one unit; the task token always does, because that one is true regardless.
+
+**"`yan` exits" means the main agent process `yan continue` started has terminated.** It is a `finally` around the wait, so it covers a normal exit, `/exit`, and a signal that reaches the pane. It deliberately does **not** cover `kill -9`: the only way to cover that is a TTL, and a TTL short enough to expire after a crash is short enough to expire during a session that legitimately runs all afternoon. Stale tokens name their task and the next `yan continue` overwrites them — a wrong label for an hour is cheaper than a right one that vanishes mid-session.
 
 **Which workspace?** There are exactly two ways to know, and one of them is unusable here: `workspace create` returns the id but *creates*, so a relabel must never call it; and a live shift's `run/meta.json` records the container it was dispatched into. So `unit set --branch` derives the workspace from a live shift of that unit and **silently does nothing when there is none** — a task with no shift running has no workspace to label, and inventing one would be worse than an unlabelled tab.
 
