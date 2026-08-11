@@ -183,7 +183,7 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     readonly detail: string;
   }
 
-  async function enter(task: string, pane: string) {
+  async function enter(task: string, pane: string, agent?: string) {
     const calls: Call[] = [];
     const started: { cli: string; argv: readonly string[]; cwd: string; env: Record<string, string> }[] = [];
     const previousHome = process.env.YAN_HOME;
@@ -193,7 +193,7 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     try {
       const { enterTask } = await import('../../src/cli/continue.js');
       const session = enterTask(
-        { task },
+        agent === undefined ? { task } : { task, agent },
         {
           terminal: {
             workspaceOfPane: (p: string) => (p === '' ? undefined : p.split(':')[0]),
@@ -243,6 +243,24 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     expect(started[0]?.cwd).toBe(home);
     expect(started[0]?.env.YAN_TASK).toBe('t042');
     expect(started[0]?.env.YAN_HOME).toBe(home);
+  });
+
+  it('gives the main agent the same permission flags a shift gets', async () => {
+    // The main agent is unattended for exactly as long as it matters: between
+    // one turn and the next, with `yan wait` armed by the Stop hook. A prompt
+    // raised there stalls the thing that was supposed to notice.
+    const claude = await enter('t042', '', 'claude');
+    claude.session.run?.();
+    expect(claude.started[0]?.argv).toContain('--dangerously-skip-permissions');
+    // The clones still come first, and the flag did not displace them.
+    expect(claude.started[0]?.argv.filter((a) => a === '--add-dir')).toHaveLength(2);
+
+    const codex = await enter('t042', '', 'codex');
+    codex.session.run?.();
+    expect(codex.started[0]?.argv).toEqual([
+      '--dangerously-bypass-approvals-and-sandbox',
+      '--dangerously-bypass-hook-trust',
+    ]);
   });
 
   it('starts nothing at all when a live yan already holds the task', async () => {

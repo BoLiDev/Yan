@@ -146,16 +146,48 @@ const startMain: StartMain = (cli, argv, options) =>
 /**
  * The harness mapping table (delivery.md §8.3: a small table, not an
  * abstraction layer). yan itself runs on Claude Code or Codex and nothing else,
- * so it has exactly two rows — and only one of them has anything to say.
+ * so it has exactly two rows.
  *
  * Each extra directory is a clone this task actually touches; anything not
  * listed is invisible to it (agents.md §5.2). The working directory is
  * `$YAN_HOME`, because yan runs things in `bin/` and reads `mem/`.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE MAIN AGENT GETS THE SAME PERMISSION FLAGS AS A SHIFT
+ * ---------------------------------------------------------------------------
+ *
+ * The argument for a shift is that nobody is watching it (see `shift.ts`). The
+ * main agent looks like the opposite case — it is `user`'s own pane, and `user`
+ * is sitting in front of it — and that is why this row was empty. It was wrong
+ * for a reason the shift argument does not cover.
+ *
+ * `yan` is not only what `user` types at. The Stop hook arms `yan wait`, and
+ * between one turn and the next this agent drains a wake file, syncs a branch,
+ * dispatches, and clocks a shift out with nobody looking at the pane. A prompt
+ * raised in that window stops the same way a shift's does, except that what has
+ * stalled is the thing that was supposed to notice.
+ *
+ * What it may do is unchanged either way: `$YAN_HOME` plus the clones listed
+ * below, the same directories it was already given. The prompt was never the
+ * boundary — `repos/<repo>/` being read-only, work happening in leased trees,
+ * and branch protection on the host are (boundaries.md §9).
+ *
+ * Codex was worse than empty. `if (kind !== 'claude') return []` gave it no
+ * sandbox flag and no hook-trust flag, so the two first-run gates Phase 8.5
+ * measured in front of a shift's codex sit in front of the main agent too — and
+ * the hook-review gate is the one Herdr reads as `idle`, so nothing wakes.
+ * There is no `scout` here to keep read-only: the main agent is `mr` by nature.
  */
 function harnessArgs(agent: string, addDirs: readonly string[]): string[] {
   const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
-  if (kind !== 'claude') return [];
-  return addDirs.flatMap((d) => ['--add-dir', d]);
+  const args: string[] = [];
+  if (kind === 'claude') {
+    for (const d of addDirs) args.push('--add-dir', d);
+    args.push('--dangerously-skip-permissions');
+  } else if (kind === 'codex') {
+    args.push('--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust');
+  }
+  return args;
 }
 
 /** The clones this task's yan may see, in unit order and without repeats. */
