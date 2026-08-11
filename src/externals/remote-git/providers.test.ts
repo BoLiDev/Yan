@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as github from './github.js';
 import * as gitlab from './gitlab.js';
 import { CI_STATES, MR_STATES, gateCiState, gateMrState } from './types.js';
+import type { CiState, MrState } from './types.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
@@ -182,43 +182,60 @@ describe('every fixture lands inside the closed set', () => {
   });
 });
 
-describe('every fixture replays to the same verdict as the bash implementation', () => {
-  // The Trace bullet, taken literally: source `bin/lib-forge.sh`, run its four
-  // mappers over the same files, and compare. This is the assertion that makes
-  // "we ported it" checkable rather than asserted — and it is why the two
-  // implementations may live side by side until Phase 9 without drifting.
-  const script = `
-    set -eu
-    . "$1/bin/lib-forge.sh"
-    for f in "$1"/tests/fixtures/forge/*/*.json "$1"/tests/fixtures/forge/*/*.txt; do
-      [ -f "$f" ] || continue
-      body=$(cat -- "$f")
-      printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "\${f#"$1/tests/fixtures/forge/"}" \\
-        "$(_forge_github_map_mr_state "$body")" \\
-        "$(_forge_github_map_ci_state "$body")" \\
-        "$(_forge_gitlab_map_mr_state "$body")" \\
-        "$(_forge_gitlab_map_ci_state "$body")"
-    done
-  `;
+/**
+ * The verdict every fixture produced, all four mappers, frozen.
+ *
+ * Phase 2's Trace bullet was "every fixture replays to the same verdict as the
+ * bash implementation", and until Phase 9 this block proved it the literal way:
+ * source `bin/lib-forge.sh`, run its four mappers over the same files, compare.
+ * That is what let two implementations of 861 lines of JSON mapping live side by
+ * side without drifting.
+ *
+ * Phase 9 deleted the bash half, so the comparison has no second side left. The
+ * ASSERTION IS KEPT ANYWAY, with the reference frozen rather than re-derived:
+ * this table is the exact output of that script on its last run, and it is the
+ * only place the every-fixture-times-four-mappers guarantee lives. The named
+ * tests above are spot checks with reasons; this is the sweep.
+ *
+ * A row that has to change is a behaviour change, and should be argued for in
+ * the commit that changes it — which is the same thing the bash comparison
+ * demanded, minus the bash.
+ */
+const RECORDED: readonly [string, MrState, CiState, MrState, CiState][] = [
+  ['github/ci-checks-green.json', 'unknown', 'green', 'unknown', 'none'],
+  ['github/ci-checks-mixed-red.json', 'unknown', 'red', 'unknown', 'none'],
+  ['github/ci-checks-running.json', 'unknown', 'pending', 'unknown', 'none'],
+  ['github/ci-none.json', 'unknown', 'none', 'unknown', 'none'],
+  ['github/ci-red-beats-pending.json', 'unknown', 'red', 'unknown', 'none'],
+  ['github/ci-status-green.json', 'unknown', 'green', 'unknown', 'none'],
+  ['github/ci-status-pending.json', 'unknown', 'pending', 'unknown', 'none'],
+  ['github/ci-status-red.json', 'unknown', 'red', 'unknown', 'none'],
+  ['github/mr-closed-unmerged.json', 'closed', 'pending', 'closed', 'none'],
+  ['github/mr-merged-mergecommit.json', 'merged', 'pending', 'merged', 'none'],
+  ['github/mr-merged-squash-branch-deleted.json', 'merged', 'pending', 'merged', 'none'],
+  ['github/mr-open.json', 'open', 'pending', 'unknown', 'none'],
+  ['gitlab/ci-canceled.json', 'unknown', 'pending', 'open', 'red'],
+  ['gitlab/ci-failed.json', 'unknown', 'pending', 'open', 'red'],
+  ['gitlab/ci-legacy-pipeline-field.json', 'unknown', 'pending', 'open', 'green'],
+  ['gitlab/ci-no-pipeline.json', 'unknown', 'pending', 'open', 'none'],
+  ['gitlab/ci-pending-created.json', 'unknown', 'pending', 'open', 'pending'],
+  ['gitlab/ci-skipped.json', 'unknown', 'pending', 'open', 'none'],
+  ['gitlab/mr-closed.json', 'closed', 'pending', 'closed', 'none'],
+  ['gitlab/mr-locked.json', 'unknown', 'pending', 'open', 'pending'],
+  ['gitlab/mr-merged.json', 'merged', 'pending', 'merged', 'green'],
+  ['gitlab/mr-opened.json', 'unknown', 'pending', 'open', 'pending'],
+  ['gitlab/mr-state-unknown-to-yan.json', 'unknown', 'pending', 'unknown', 'none'],
+  ['github/mr-api-error.stderr.txt', 'unknown', 'pending', 'unknown', 'pending'],
+  ['github/mr-api-error.stdout.txt', 'unknown', 'pending', 'unknown', 'pending'],
+];
 
-  const spawned = spawnSync('bash', ['-c', script, 'bash', repoRoot], {
-    encoding: 'utf8',
-    windowsHide: true,
+describe('every fixture, all four mappers, against the recorded verdicts', () => {
+  it('covers every fixture on disk, so the table cannot quietly shrink', () => {
+    expect(RECORDED.map((r) => r[0]).sort()).toEqual([...everyFixture()].sort());
   });
 
-  const rows = (spawned.stdout ?? '')
-    .split(/\r?\n/)
-    .filter((l) => l !== '')
-    .map((l) => l.split('\t'));
-
-  it('ran the bash mappers at all', () => {
-    expect(spawned.status, spawned.stderr).toBe(0);
-    // If this shrinks, the loop above silently stopped matching files.
-    expect(rows.length).toBe(everyFixture().length);
-  });
-
-  it.each(rows)('%s', (name, ghMr, ghCi, glMr, glCi) => {
-    const body = fx(name as string);
+  it.each(RECORDED)('%s', (name, ghMr, ghCi, glMr, glCi) => {
+    const body = fx(name);
     expect(github.mapMrState(body), `${name} github mr`).toBe(ghMr);
     expect(github.mapCiState(body), `${name} github ci`).toBe(ghCi);
     expect(gitlab.mapMrState(body), `${name} gitlab mr`).toBe(glMr);
