@@ -62,9 +62,14 @@ export const command = new Command('open')
 
       out(dir);
 
+      // Setting the variable at all is the decision, even to the empty string:
+      // `YAN_OPENER=` means "open with nothing", which is how a test — or a
+      // headless machine — says the path above is the whole answer. Falling
+      // through to the platform opener because '' is falsy would spawn a real
+      // window on every run and never close it.
       const override = process.env.YAN_OPENER;
-      if (override) {
-        openWith(override, dir);
+      if (override !== undefined) {
+        if (override !== '') openWith(override, dir);
         return;
       }
 
