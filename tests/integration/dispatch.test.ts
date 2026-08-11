@@ -1,8 +1,14 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
+import {
+  cleanupTempDirs,
+  mkTempDir,
+  mkYanHome,
+  repoRoot,
+  runYan,
+  type RunResult,
+} from '../helpers/fixtures.js';
 
 /**
  * `bin/yan`, which since Phase 9 is a stub and nothing else: find `$YAN_HOME`,
@@ -25,28 +31,26 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixt
 
 afterAll(cleanupTempDirs);
 
-function yan(home: string, args: readonly string[]): { code: number; out: string } {
-  // YAN_HOME is unset on purpose: the stub must resolve it from its own
-  // location, which is how a copied fixture home stays self-contained.
-  const env = { ...process.env };
-  delete env.YAN_HOME;
-  const r = spawnSync('bash', [join(home, 'bin', 'yan'), ...args], {
-    encoding: 'utf8',
-    env,
-    windowsHide: true,
-  });
-  return { code: r.status ?? 1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+/**
+ * YAN_HOME is unset on purpose: the stub must resolve it from its own location,
+ * which is how a copied fixture home stays self-contained. That is the whole
+ * difference from `runYan`, and it is an argument rather than a second copy of
+ * the helper — a local `spawnSync` here would block the worker exactly the way
+ * `tests/helpers/fixtures.ts` explains at length.
+ */
+function yan(home: string, args: readonly string[]): Promise<RunResult> {
+  return runYan(home, args, { YAN_HOME: undefined });
 }
 
 describe('in a tree that has never been built', () => {
   const home = mkYanHome(mkTempDir());
 
-  it('refuses every invocation, loudly, and names the fix', () => {
+  it('refuses every invocation, loudly, and names the fix', async () => {
     // There is no half-migrated state left to be usable in, so the honest
     // answer to a missing dist/ is one sentence rather than a usage screen
     // listing nothing.
     for (const args of [[], ['--help'], ['ls'], ['bogus']]) {
-      const r = yan(home, args);
+      const r = await yan(home, args);
       expect(r.code, args.join(' ')).not.toBe(0);
       expect(r.out).toContain('npm run build');
     }
@@ -60,8 +64,8 @@ describe('in a built tree', () => {
     expect(existsSync(join(home, 'dist', 'cli', 'yan.js'))).toBe(true);
   });
 
-  it('generates help from Commander, listing what is on disk', () => {
-    const r = yan(home, ['--help']);
+  it('generates help from Commander, listing what is on disk', async () => {
+    const r = await yan(home, ['--help']);
     expect(r.code).toBe(0);
     expect(r.out).toContain('Usage: yan');
     for (const name of ['doctor', 'ls', 'session-start', 'shift', 'wait']) {
@@ -69,14 +73,14 @@ describe('in a built tree', () => {
     }
   });
 
-  it('reports a version', () => {
-    const r = yan(home, ['--version']);
+  it('reports a version', async () => {
+    const r = await yan(home, ['--version']);
     expect(r.code).toBe(0);
     expect(r.out).toContain('yan ');
   });
 
-  it('exports YAN_HOME to the command, pointing at this home', () => {
-    const r = yan(home, ['doctor']);
+  it('exports YAN_HOME to the command, pointing at this home', async () => {
+    const r = await yan(home, ['doctor']);
     // `doctor`'s first line is the home it resolved, which is the one thing
     // only the stub could have got wrong. Compared on the last segment: bash
     // says /tmp/yan-test-X and Node says C:\Users\…\Temp\yan-test-X, and that
@@ -84,7 +88,7 @@ describe('in a built tree', () => {
     expect(r.out).toContain(basename(home));
   });
 
-  it('lists a command the moment its file appears, with no table to edit', () => {
+  it('lists a command the moment its file appears, with no table to edit', async () => {
     const file = join(home, 'dist', 'cli', 'conjured.js');
     writeFileSync(
       file,
@@ -96,21 +100,21 @@ describe('in a built tree', () => {
         '',
       ].join('\n'),
     );
-    expect(yan(home, ['--help']).out).toContain('conjured');
-    expect(yan(home, ['conjured']).out).toContain('conjured-half');
+    expect((await yan(home, ['--help'])).out).toContain('conjured');
+    expect((await yan(home, ['conjured'])).out).toContain('conjured-half');
 
     rmSync(file);
-    expect(yan(home, ['--help']).out).not.toContain('conjured');
-    expect(yan(home, ['conjured']).code).toBe(2);
+    expect((await yan(home, ['--help'])).out).not.toContain('conjured');
+    expect((await yan(home, ['conjured'])).code).toBe(2);
   });
 
-  it('reaches a two-word command by either spelling', () => {
+  it('reaches a two-word command by either spelling', async () => {
     // `yan shift new` and `yan shift-new` are the same place. Commander cannot
     // see two words as one name, so the rewrite happens once before parsing —
     // and only when the hyphenated name exists, so `yan ls t042` is untouched.
     mkdirSync(join(home, 'tasks'), { recursive: true });
-    expect(yan(home, ['shift', 'new', '--help']).out).toContain('dispatch a shift');
-    expect(yan(home, ['unit', 'add', '--help']).out).toContain('--target');
+    expect((await yan(home, ['shift', 'new', '--help'])).out).toContain('dispatch a shift');
+    expect((await yan(home, ['unit', 'add', '--help'])).out).toContain('--target');
   });
 });
 

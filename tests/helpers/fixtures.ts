@@ -228,13 +228,25 @@ export async function mkCommit(dir: string, rel: string, body: string, message?:
   await fxGit(['commit', '-m', message ?? `add ${rel}`], dir);
 }
 
-/** Run `bin/yan` in a fixture home, exactly the way a person or an agent does. */
+/**
+ * Run `bin/yan` in a fixture home, exactly the way a person or an agent does.
+ *
+ * A variable set to `undefined` is UNSET rather than set to the empty string,
+ * which is the only way to ask for the one case the stub cares about most: no
+ * `$YAN_HOME` at all, so it has to resolve one from its own location. Without
+ * it a caller has to build the environment itself, and building it means
+ * spawning the child itself — which is how a second, synchronous `run bin/yan`
+ * appears in a test file and blocks the worker again.
+ */
 export function runYan(
   home: string,
   args: readonly string[],
-  env: Record<string, string> = {},
+  env: Record<string, string | undefined> = {},
 ): Promise<RunResult> {
-  return run('bash', [join(home, 'bin', 'yan'), ...args], {
-    env: { ...process.env, YAN_HOME: home, ...env },
-  });
+  const merged: NodeJS.ProcessEnv = { ...process.env, YAN_HOME: home };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete merged[key];
+    else merged[key] = value;
+  }
+  return run('bash', [join(home, 'bin', 'yan'), ...args], { env: merged });
 }
