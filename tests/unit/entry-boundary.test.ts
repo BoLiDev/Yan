@@ -106,6 +106,23 @@ describe('Clack is an ordinary dependency', () => {
     }
     expect(read('src', 'ui', 'prompts.ts')).toContain("from '@clack/prompts'");
   });
+
+  /**
+   * The three callers reach `src/ui/` through `await import(...)`, so a wrong
+   * path there compiles, passes every test, and fails only in front of a person
+   * at a keyboard — which is the one place nothing is watching. Loading the
+   * compiled module is the cheap half of that risk; drawing a prompt needs a
+   * real terminal and stays untested.
+   */
+  it('the prompts really resolve at run time, which only a dynamic import can get wrong', async () => {
+    const prompts = (await import('../../dist/ui/prompts.js')) as Record<string, unknown>;
+    for (const name of ['askFor', 'chooseEntry', 'chooseTask', 'askTaskNew', 'CREATE_NEW']) {
+      expect(prompts[name], name).toBeDefined();
+    }
+    for (const source of ['yan.ts', 'continue.ts', 'task.ts']) {
+      expect(read('src', 'cli', source), source).toContain("await import('../ui/prompts.js')");
+    }
+  });
 });
 
 describe('bin/ holds three prefixes and no others', () => {
