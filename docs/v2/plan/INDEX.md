@@ -312,6 +312,8 @@ The gate is **not one-time**. Codex records hook trust by file hash, so a Herdr 
 
 **This phase is allowed to fail.** "Codex cannot be a shift agent, here is how far we got and what would be needed" is a complete deliverable. What is not acceptable is leaving five documents describing a path nobody has run.
 
+*(Landed. Two of this entry's own claims were measured wrong and are corrected in [evidence §13](../td/evidence.md#13-measured-in-phase-85-the-codex-binding): codex does **not** exit on an unanswered prompt — it parks, which is why the guards do not catch it — and the first-run gate was **not** what [evidence §11.7](../td/evidence.md#117-agent-start---kind-codex) recorded, since that exit did not reproduce. The verdict is split rather than yes/no: Codex is fine as the main agent and is an unattended shift agent only where `user` has passed `--dangerously-bypass-hook-trust` in `agents.shift`.)*
+
 ---
 
 ### Phase 9 — Retire tmux and bash

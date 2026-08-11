@@ -109,4 +109,15 @@ The second is the one that hides. A dispatch throwing between the lease and the 
 
 ## 9. Open
 
-**Codex cannot currently be a shift agent.** `agent start --kind codex` reports ready for a codex that has exited, and the root cause is unestablished ([evidence §11.7](evidence.md#117-agent-start---kind-codex)). This does not block Phase 7 — `agents.shift` naming `claude` works — but it does mean the Codex path is unexercised end to end, and `yan doctor` should say so rather than let it be discovered at dispatch time.
+**Codex cannot be an unattended shift agent, and the reason is now known** ([evidence §13](evidence.md#13-measured-in-phase-85-the-codex-binding)). It is not the one this section used to give.
+
+The old reading — *"`agent start --kind codex` reports ready for a codex that has exited"* — was one observation ([evidence §11.7](evidence.md#117-agent-start---kind-codex)) generalised too far. Started into a pool worktree, codex does not exit: it **parks**, on one of two first-run gates.
+
+| gate | armed when | Herdr says | survivable? |
+| --- | --- | --- | --- |
+| trust the directory | first dispatch into a repository | **`blocked`** | yes — yan escalates, `user` answers once per repo. It is recorded against the main clone, so it covers every pool slot |
+| review the hooks | the repository ships `.codex/hooks.json`, or the global one changed hash | **`idle`**, no rule matched | **no** — the shift parks in an unfocused pane and nothing wakes |
+
+`--dangerously-bypass-approvals-and-sandbox`, which `shift new` already passes, covers neither. `--dangerously-bypass-hook-trust` covers the second, and `yan` does not pass it: that flag lets hooks shipped by the **target repository** run without review, which is a decision about somebody else's code and therefore `user`'s. It belongs in `agents.shift`'s trailing argv, where `user` puts it deliberately or not at all.
+
+So the position is: **Codex is fine as the main agent** — `yan continue` runs it in a pane `user` is looking at, and both gates are answerable there — and is a shift agent only where `user` has said so. `yan doctor` reports both gates when any role names codex, at the point they can still be answered rather than hours after a dispatch. The clean fix is upstream: one rule in Herdr's codex detection manifest.

@@ -340,6 +340,8 @@ Three consequences, all binding on Phase 6 and Phase 7:
 
 Whether codex fails because the pane's shell is PowerShell, because of the 24-row split geometry, or for a reason of its own was not established. It is the first thing to settle before the Codex binding is relied on.
 
+> **Phase 8.5, partly.** The exit was **not reproduced**: started the same way into a pool worktree, codex stays up and parks on a first-run prompt ([§13.4](#134-the-two-first-run-gates-in-a-pool-worktree)). So this section's own observation stands as recorded and its *generalisation* does not — "codex exits" became the accepted reading of the Codex path in [orchestration.md §9](orchestration.md) on one sighting, and the failure that actually blocks a shift is a different one. Consequence 1 below is unaffected and, if anything, stronger: `agent start` reporting ready is not proof the agent is **working**, whether it left or never started.
+
 ### 11.8 Should `yan` report state itself? No.
 
 `pane report-agent --state` is public API and its `--state` values are `idle | working | blocked | unknown` — **there is no `done`**, so a reporter could not express the one state that means "unseen work finished" in the first place.
@@ -393,3 +395,107 @@ The valid pane in the same request loses its subscription too, because the subsc
 
 Confirmed end to end, outside the spike: `defaultEndpoint()` resolved
 `%APPDATA%\herdr\herdr.sock` to `\.\pipe\C:\Users\…\AppData\Roaming\herdr\herdr.sock`, connected, subscribed to a live pane and received `subscription_started`, with no `HERDR_*` variable set by the caller. [§11.1](#111-there-is-no-cli-for-eventssubscribe-the-transport-is-a-named-pipe) holds.
+
+---
+
+## 13. Measured in Phase 8.5: the Codex binding
+
+Against `codex-cli 0.147.0` and `herdr 0.8.0-preview` with the codex detection manifest `2026.08.09.1`. Phase 8.5 exists because the Codex binding had been described in five documents and never run; this section is what running it found.
+
+### 13.1 `.codex/hooks.json` was refused, and had been for eight phases
+
+```
+$ codex exec --sandbox read-only "reply with the single word OK"
+warning: failed to parse hooks config C:\workspace\project\Yan\.codex\hooks.json:
+         unknown field `version`, expected `description` or `hooks` at line 2 column 11
+hook: SessionStart
+hook: SessionStart Completed
+```
+
+**Note the wording: codex WARNS and carries on.** It does not refuse to start. The one `SessionStart` that ran was Herdr's own, from `~/.codex/hooks.json`; yan's never ran at all, so `yan session-start` was never called and the turn-end guard was never called. Nothing was ever going to be noisy about it.
+
+The accepted shape is the one `herdr integration install codex` writes, which is also `.claude/settings.json`'s: `hooks` → event → **matcher group** → `hooks[]` → `{type, command: <string>, timeout: <seconds>}`. Four mismatches, all schema: a top-level `version`, the missing group level, `command` as an array, `timeout_ms`.
+
+**A fifth was not schema and would have bitten next.** The command read `${CODEX_PROJECT_DIR:-.}/bin/yan`. There is no `CODEX_PROJECT_DIR` — not in the binary's strings, not in a hook's environment.
+
+### 13.2 What a hook command actually runs in
+
+Measured by putting three spellings of one variable into a hook command and reading back which survived:
+
+```
+"command": "node …/probe.mjs $YAN_HOME %YAN_HOME% $env:YAN_HOME"
+→ argv ["…", "%YAN_HOME%"]           parent process: powershell.exe
+```
+
+| | |
+| --- | --- |
+| the shell | **PowerShell** on Windows: `$YAN_HOME` and `$CODEX_PROJECT_DIR` were consumed as undefined PS variables, `%YAN_HOME%` survived literally, `$env:YAN_HOME` expanded |
+| cwd | the project root |
+| environment | inherited from the codex process — `YAN_HOME`, `HERDR_PANE_ID` and the rest were all present |
+
+**And `bash` is not a safe word to write.** On the plain Windows PATH `bash` resolves to `C:\Users\…\AppData\Local\Microsoft\WindowsApps\bash.exe` — the **WSL launcher** — and `sh` does not resolve at all. Which one a hook gets therefore depends on how codex was started: launched from Git Bash it inherits a PATH where `bash` is MINGW64's; launched by `agent start` into a Herdr pane it does not. A `bash -c '…'` form also failed to survive PowerShell's native-argument quoting, where a bare `bash <script>` did.
+
+So yan's codex hooks name `node` and address `dist/` relative to cwd. There is no shell in between, `node` is unambiguous on both runtimes, and yan already requires it.
+
+### 13.3 Which of Codex's prompts Herdr recognises
+
+The counterpart of [§11.3](#113-which-prompts-herdr-recognises), which was all Claude. Driven one prompt at a time in an unfocused pane, `agent get` and `agent explain` read together.
+
+| what was on screen | `agent_status` | rule | woke `yan`? |
+| --- | --- | --- | --- |
+| **trust — *"Do you trust the contents of this directory?"*** | **`blocked`** | `trust_directory` (950) | yes, correctly |
+| command approval — *"Would you like to run the following command?"* | **`blocked`** | `osc_title_blocked` (1100) | yes, correctly |
+| **hook review — *"Hooks need review · 2 hooks are new or changed"*** | **`idle`** | **none** — `default_known_agent_idle_fallback` | **no** |
+
+The hook-review miss has two causes and both are worth knowing, because either alone would be enough:
+
+1. it appears **before** codex sets the `Action Required` OSC title that `osc_title_blocked` matches — during it `pane get` reports no `terminal_title` at all;
+2. its footer reads *"press enter to confirm or esc to **go back**"*, while `live_strong_blocker` matches *"press enter to confirm or esc to **cancel**"*. One word.
+
+**This miss is strictly worse than Claude's.** §11.3's plan-approval miss landed on `done`, which supervision.md §3 already maps to a wake — the reason was degraded, not the wake. This one lands on `idle`, which is not actionable at all, so a shift parks in an unfocused pane and nothing ever wakes.
+
+### 13.4 The two first-run gates, in a pool worktree
+
+`agent start --kind codex` into `~/.yan-trees/yan-e2e-sandbox-fb72217b/1/yan-e2e-sandbox` — the path a shift actually gets, not a trusted repo directory.
+
+**It did not exit.** `agent start` reported `interactive_ready: true`, and a minute later `agent get` still found the agent: codex was **parked on the trust dialog**, which is a different failure from the one [§11.7](#117-agent-start---kind-codex) recorded and rules out that section's guess about alternate-screen rows. What §11.7 saw was codex exiting; what a pool worktree produces is codex waiting.
+
+```
+> You are in C:\Users\libod\.yan-trees\yan-e2e-sandbox-fb72217b\1\yan-e2e-sandbox
+  Note: You are in a subdirectory of a Git project. Trusting will apply to the
+        repository root: C:\workspace\project\Yan\repos\yan-e2e-sandbox
+  Do you trust the contents of this directory? …
+```
+
+Three things follow, and the first is the answer to the question the phase asked:
+
+1. **Trust is NOT inherited by subdirectories.** `[projects.'c:\users\libod'] trust_level = "trusted"` was already recorded, and `~/.yan-trees` is underneath it; the prompt appeared anyway.
+2. **It is recorded against the git root, which for a pool worktree is the MAIN CLONE.** Answering wrote `[projects.'c:\workspace\project\yan\repos\yan-e2e-sandbox']`. So one answer covers every slot of that repository, for good — and codex will read that clone's project-local config, which yan otherwise only ever fetches into.
+3. **`--dangerously-bypass-approvals-and-sandbox` does not cover it.** Measured: started with exactly the argv `yan shift new` passes, codex still parked on the trust dialog. No flag covers it; only a config override could.
+
+The second gate is [§13.3](#133-which-of-codexs-prompts-herdr-recognises)'s hook review. `--dangerously-bypass-hook-trust` clears it — measured, codex reached its prompt in `$YAN_HOME` with the review skipped. Codex records hook trust **by file and hash** (`[hooks.state.'…\hooks.json:session_start:0:0'] trusted_hash = "sha256:…"`), so a Herdr integration upgrade that rewrites `~/.codex/hooks.json` re-arms it.
+
+### 13.5 The binding, run once end to end
+
+With the file fixed and `--dangerously-bypass-hook-trust`, against a fixture `$YAN_HOME` holding one live shift:
+
+| | |
+| --- | --- |
+| `SessionStart` | `hook: SessionStart Completed` — `yan session-start` really ran and rebuilt the picture |
+| `Stop` | `hook: Stop` → **codex honoured `{"decision":"block"}` and continued the turn** |
+| the budget | `run/guard-failures` reached **2**, so the guard blocked twice and would have failed open at 3 |
+| the checkpoint | `yan wait --seconds 5` exited **124** on a quiet slice with a shift still live |
+
+The blocking Stop contract for Codex is therefore no longer written from documentation.
+
+**One defect the run exposed.** The guard's reason told the model to run bare `yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180}`. `yan` is not on `PATH` in an agent's pane, and the pane's shell is PowerShell, which reads `${VAR:-default}` as a parse error rather than a default. The model dutifully ran `yan drain` and reported *"The term 'yan' is not recognized"*. Everything else yan writes for an agent to run names `$YAN_HOME/bin/yan` absolutely — a shift's brief already did — and this one line did not.
+
+### 13.6 Can Codex be a shift agent?
+
+**As the main agent, yes.** `yan continue --agent codex` runs in a pane `user` is looking at, so both gates are answerable by the person sitting there, once.
+
+**As a shift agent, not unattended, and not by default.** The trust gate is survivable — Herdr calls it `blocked`, supervision escalates, `user` answers once per repository. The hook-review gate is not: Herdr calls it `idle`, so a shift parks silently and no wake ever comes. It can only be armed by the target repository shipping `.codex/hooks.json` or by the global file changing, which makes it rare and therefore worse — it will not show up in testing and will show up eventually.
+
+`--dangerously-bypass-hook-trust` removes it, and yan does not pass it: the flag lets hooks shipped by the target repository run without review, which is a decision about somebody else's code. It belongs to `user`, in `agents.shift`, where the trailing argv already goes.
+
+What would make this go away without that decision is one line in Herdr's codex manifest — a rule matching `Hooks need review`, or widening `live_strong_blocker` to `esc to go back`. That is an upstream fix, not a yan one, and until it lands `yan doctor` reports the gate instead.
