@@ -114,6 +114,27 @@ function nextSid(task: string): string {
  *
  * scout is the exception and keeps its read-only mode: its whole contract is
  * that it does not change code, so it must not be handed a free hand.
+ *
+ * The obvious worry about that exception is that it smuggles the prompt back in
+ * — a scout that has to run `grep` to answer anything would park on the first
+ * one, in the same pane, for the same reason. Measured against a real `claude`
+ * rather than reasoned about:
+ *
+ *   read-only command   `cat` ran, returned its output, asked nobody
+ *   writing command     refused as NOT_ALLOWED, quoting plan mode's own "you
+ *                       MUST NOT ... run any non-readonly tools", and CARRIED
+ *                       ON — the file was not created and nothing waited
+ *
+ * That last part is what matters here. Plan mode's refusal is an instruction
+ * the model follows, not a dialog somebody has to dismiss, so a scout reports
+ * and escalates where an unflagged shift would hang. Codex's `--sandbox
+ * read-only` reaches the same place by containment instead of instruction:
+ * commands run, writes fail. Same capability, different strength, and neither
+ * one stops in front of a question.
+ *
+ * The cost is real and is the reason to remember this: NEITHER scout can run a
+ * build or a test suite, because both write. A scout whose report needs one is
+ * a scout that needs a different mode, not a wider flag.
  */
 function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): string[] {
   const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
