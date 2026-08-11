@@ -1,18 +1,25 @@
 {
-  "version": 1,
   "hooks": {
     "SessionStart": [
       {
-        "type": "command",
-        "command": ["bash", "-c", "exec \"${CODEX_PROJECT_DIR:-.}/bin/yan\" session-start"],
-        "timeout_ms": 120000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./dist/cli/yan.js session-start",
+            "timeout": 120
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "type": "command",
-        "command": ["bash", "-c", "exec \"${CODEX_PROJECT_DIR:-.}/bin/hook-turnend-guard.sh\" --codex"],
-        "timeout_ms": 30000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./dist/hooks/turnend-guard.js --codex",
+            "timeout": 30
+          }
+        ]
       }
     ]
   }

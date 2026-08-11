@@ -23,3 +23,7 @@ repos/*
 # Scratch git worktrees used when several agents work on the checkout at once.
 # .claude itself stays tracked: settings.json is a deliverable (architecture.md §3).
 .claude/worktrees/
+
+# Build output. The dual dispatcher falls back to the shell half when it is
+# absent, so a fresh clone works before it is ever built.
+dist/
