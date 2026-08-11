@@ -19,27 +19,33 @@ mk_yan_home "$home"
 YAN=$home/bin/yan
 
 # --- unknown subcommand ----------------------------------------------------
+#
+# Exit 2, the same code Commander's own argument errors use: which half answers
+# depends only on whether dist/ has been built, so the two have to agree.
 
 assert_fail bash "$YAN" bogus
 capture bash "$YAN" bogus
-assert_ne 0 "$rc" "unknown subcommand must exit non-zero"
+assert_eq 2 "$rc" "an unknown subcommand is a usage error"
 assert_contains "$out" "unknown command: bogus"
-assert_contains "$out" "doctor" "help must list the subcommands actually on disk"
 
 # --- explicit help forms ---------------------------------------------------
+#
+# There is nothing to list in this fixture, and that is the point rather than
+# an omission: since Phase 8 every command has a TypeScript twin, so a tree
+# that has never been built has no subcommands at all. What is asserted here is
+# the shape; the derived list is asserted below, against files this test makes.
 
 for form in -h --help help; do
 	capture bash "$YAN" "$form"
 	assert_eq 0 "$rc" "'yan $form' must exit 0"
-	assert_contains "$out" "doctor"
 	assert_contains "$out" "usage: yan"
 done
 
-# Bare `yan` prints the same list. It is not an unknown command, so it is not
+# Bare `yan` prints the same thing. It is not an unknown command, so it is not
 # an error.
 capture bash "$YAN"
 assert_eq 0 "$rc"
-assert_contains "$out" "doctor"
+assert_contains "$out" "usage: yan"
 
 # --- version ---------------------------------------------------------------
 
@@ -100,8 +106,13 @@ capture env YAN_HOME="$home" bash "$YAN_REPO_ROOT/bin/yan" --help
 assert_eq 0 "$rc"
 
 # ...and ignored when it is not, falling back to the script's own location.
+cat >"$home/bin/yan-where.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'YAN_HOME  %s\n' "${YAN_HOME:-unset}"
+EOF
+chmod +x "$home/bin/yan-where.sh"
 mkdir -p "$tmp/not-a-home"
-capture env YAN_HOME="$tmp/not-a-home" bash "$YAN" doctor
+capture env YAN_HOME="$tmp/not-a-home" bash "$YAN" where
 assert_contains "$out" "YAN_HOME  $home"
 
 printf 'ok\n'

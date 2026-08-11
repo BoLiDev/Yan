@@ -1,0 +1,135 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+
+/**
+ * `yan doctor`, ported from `tests/unit/yan-doctor.test.sh`.
+ *
+ * Phase 8 is where doctor stops being half a command: it checked Herdr in
+ * TypeScript and shelled out to `bin/yan-doctor.sh` for the rest, and this
+ * phase empties `bin/` of commands. So the checklist moved here, minus three
+ * rows that were checks on a runtime yan no longer has - `jq`, `backend`,
+ * `winpty`. Those are not ported and not replaced; they are gone.
+ *
+ * What is kept, because each one caught something real:
+ *
+ *   ONLY THE CLI THE CONFIGURED KIND NAMES is checked, never both. A machine
+ *   that delivers to GitHub has no reason to install `glab`, and reporting its
+ *   absence trains people to ignore doctor.
+ *
+ *   THE COMMIT IDENTITY IS A FAILURE, NOT A WARNING. Every shift commits in a
+ *   leased worktree, which sees only the global config - so an identity that
+ *   lives in a repository's own .git/config reads as healthy from inside the
+ *   checkout and is invisible where it is needed. `git commit` then fails after
+ *   the work is done.
+ *
+ * Nothing here touches the network.
+ */
+
+afterAll(cleanupTempDirs);
+
+let home = '';
+
+function config(body: Record<string, unknown>): void {
+  writeFileSync(join(home, 'conf', 'config.json'), `${JSON.stringify(body, null, 2)}\n`);
+}
+
+/** Doctor, with git pointed at configuration files this test owns. */
+function doctor(env: Record<string, string> = {}) {
+  return runYan(home, ['doctor'], env);
+}
+
+let emptyGlobal = '';
+let emptySystem = '';
+let goodGlobal = '';
+
+beforeAll(() => {
+  const tmp = mkTempDir();
+  home = mkYanHome(join(tmp, 'home'), { withDist: true });
+
+  emptyGlobal = join(tmp, 'empty-global');
+  emptySystem = join(tmp, 'empty-system');
+  goodGlobal = join(tmp, 'good-global');
+  writeFileSync(emptyGlobal, '');
+  writeFileSync(emptySystem, '');
+  writeFileSync(goodGlobal, '[user]\n\tname = Test Person\n\temail = test@example.invalid\n');
+});
+
+describe('the checklist', () => {
+  it('reports git, node, the config and the agents', () => {
+    const r = doctor();
+    for (const needle of ['yan doctor', 'YAN_HOME', 'git', 'node', 'conf/config.json', 'agents.yan', 'agents.shift']) {
+      expect(r.out, needle).toContain(needle);
+    }
+  });
+
+  it('names none of the three checks that went with the tmux runtime', () => {
+    const r = doctor();
+    for (const gone of ['winpty', 'backend', 'tmux']) {
+      expect(r.out, gone).not.toContain(gone);
+    }
+  });
+});
+
+describe('only the CLI the configured kind names', () => {
+  it('checks gh for github, and never mentions glab', () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
+    const r = doctor();
+    expect(r.out).toContain('remote host (gh)');
+    expect(r.out, 'only the CLI selected by the kind may be checked').not.toContain('glab');
+  });
+
+  it('checks glab for gitlab, and never mentions gh on its own', () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'gitlab', host: 'gitlab.example.invalid' } });
+    expect(doctor().out).toContain('remote host (glab)');
+  });
+
+  it('fails on a kind it does not support, and on none at all', () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'bitbucket' } });
+    let r = doctor();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('bitbucket');
+
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' } });
+    r = doctor();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('kind is not set');
+  });
+});
+
+describe('a missing configuration is reported, not a crash', () => {
+  it('says which file and what to copy', () => {
+    rmSync(join(home, 'conf', 'config.json'));
+    const r = doctor();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('conf/config.sample.json');
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
+  });
+});
+
+describe('a commit identity every leased worktree can see', () => {
+  it('is a failure when there is no global one, and says why', () => {
+    const r = doctor({ GIT_CONFIG_GLOBAL: emptyGlobal, GIT_CONFIG_SYSTEM: emptySystem });
+    expect(r.code, 'a missing commit identity is a failure, not a warning').toBe(1);
+    expect(r.out).toContain('git identity');
+    expect(r.out).toContain('leased worktree');
+  });
+
+  it('is satisfied by a global one', () => {
+    const r = doctor({ GIT_CONFIG_GLOBAL: goodGlobal, GIT_CONFIG_SYSTEM: emptySystem });
+    expect(r.out).toContain('Test Person <test@example.invalid>');
+  });
+});
+
+describe('the shipped sample', () => {
+  it('is valid and carries what doctor asks for', () => {
+    const sample = JSON.parse(
+      readFileSync(join(repoRoot, 'conf', 'config.sample.json'), 'utf8'),
+    ) as { version: number; agents?: Record<string, string>; forge?: { kind?: string }; remote_git?: { kind?: string } };
+    expect(sample.version).toBe(1);
+    expect(sample.agents?.yan).toBeTruthy();
+    expect(sample.agents?.shift).toBeTruthy();
+    expect(sample.remote_git?.kind ?? sample.forge?.kind).toBeTruthy();
+  });
+});

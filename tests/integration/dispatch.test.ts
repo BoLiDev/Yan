@@ -41,27 +41,41 @@ function addShellCommand(home: string, name: string, body: string): void {
 describe('bin/yan, in a tree that has never been built', () => {
   const home = mkYanHome(mkTempDir());
 
-  it('prints the derived command list and exits 0', () => {
+  /**
+   * SINCE PHASE 8 THERE IS NOTHING TO LIST HERE, and that is the accepted cost
+   * of rule 6 rather than a regression: every command has a TypeScript twin
+   * now, so its shell one is gone and an unbuilt tree has no commands at all.
+   * `npm test` builds first, the fallback existed so a half-migrated tree
+   * stayed usable, and a loud "no such command" beats falling back to an
+   * implementation nobody has maintained for three phases.
+   *
+   * What the fixture still proves is the MECHANISM: dispatch is a glob over
+   * what is on disk and never a table, which is why the commands below are
+   * conjured up rather than named.
+   */
+  it('prints usage and exits 0, with nothing on disk to list', () => {
     for (const form of ['--help', '-h', 'help']) {
       const r = yan(home, [form]);
       expect(r.code, form).toBe(0);
       expect(r.out).toContain('usage: yan');
-      expect(r.out).toContain('doctor');
     }
     const bare = yan(home, []);
     expect(bare.code).toBe(0);
-    expect(bare.out).toContain('doctor');
+    expect(bare.out).toContain('usage: yan');
   });
 
-  it('refuses an unknown command', () => {
+  it('refuses an unknown command, with the same exit code Commander uses', () => {
     const r = yan(home, ['bogus']);
-    expect(r.code).not.toBe(0);
+    expect(r.code).toBe(2);
     expect(r.out).toContain('unknown command: bogus');
   });
 
   it('dispatches one-word and two-word commands to the shell half', () => {
     addShellCommand(home, 'fake', `printf 'one-word|%s|home=%s\\n' "$*" "\${YAN_HOME:-unset}"`);
     addShellCommand(home, 'fake-sub', `printf 'two-word|%s\\n' "$*"`);
+
+    // …and now the glob has something to find, so the help lists it.
+    expect(yan(home, ['--help']).out).toContain('fake-sub');
 
     expect(yan(home, ['fake', 'sub', 'alpha', 'beta']).out).toContain('two-word|alpha beta');
     expect(yan(home, ['fake-sub', 'alpha']).out).toContain('two-word|alpha');

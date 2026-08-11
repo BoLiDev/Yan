@@ -1,19 +1,34 @@
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { statSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 import { Command } from 'commander';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
+import { configuredCli } from '../externals/remote-git/index.js';
+import { isYanError } from '../util/error.js';
 import { action, out } from './shared/action.js';
+import { configPath } from './shared/config.js';
 
 /**
- * `yan doctor` — the checklist, plus the Herdr section this phase earns.
+ * `yan doctor` — can this machine run yan?
  *
- * The rest of doctor is still shell, so this command RUNS THE SHELL ONE FIRST
- * and appends to it. That is the strangler applied inside a single command:
- * every existing check keeps running, unchanged, while the part this phase owns
- * is written where it belongs. Phase 9 deletes the delegation along with
- * `bin/yan-doctor.sh`.
+ * Until this phase the command was half of one: the TypeScript half checked
+ * Herdr and shelled out to `bin/yan-doctor.sh` for everything else. Phase 8
+ * empties `bin/` of commands, so the rest of the checklist arrives here — and
+ * three of its rows do not, because they are checks on a runtime yan no longer
+ * has:
+ *
+ *   jq       retired with the shell that needed it (plan/conventions.md §2)
+ *   backend  there is one terminal, and it is Herdr; the `backend` config key
+ *            and its fail-closed branches are Phase 9's to remove
+ *   winpty   a native process in a Herdr pane gets a real console
+ *            (evidence.md §3), so the whole reason for it is gone
+ *
+ * ONE RULE WORTH RESTATING, because it is the one a tidy-up breaks: only the
+ * CLI named by the configured host kind is checked, never both. A machine that
+ * delivers to GitHub has no reason to install `glab`, and reporting its absence
+ * as a problem trains people to ignore doctor.
  */
 
 interface Report {
@@ -28,78 +43,208 @@ function line(report: Report, state: 'ok' | 'warn' | 'fail', name: string, detai
   out(`  ${mark}  ${name.padEnd(16)}${detail}`);
 }
 
-/** The agent kinds this machine's config names, e.g. { yan: 'claude', shift: 'claude' }. */
-function configuredAgentKinds(): string[] {
-  const config = readJsonIfPresent(join(yanHome(), 'conf', 'config.json'));
-  if (typeof config !== 'object' || config === null) return [];
-  const agents = (config as Record<string, unknown>).agents;
-  if (typeof agents !== 'object' || agents === null) return [];
-  const kinds = Object.values(agents as Record<string, unknown>)
-    .filter((v): v is string => typeof v === 'string' && v !== '')
-    // The value may carry trailing argv (`claude --dangerously-…`); the kind is
-    // the first word.
-    .map((v) => v.trim().split(/\s+/)[0] as string);
-  return [...new Set(kinds)].sort();
+/**
+ * Where a command is, or `undefined`.
+ *
+ * `command -v`'s job, done without a shell — doctor runs on both runtimes and
+ * must not need one of them to answer. `PATHEXT` is why this is not one line:
+ * on Windows `gh` is `gh.exe` and `claude` is often `claude.cmd`.
+ */
+function which(command: string): string | undefined {
+  if (command.includes('/') || command.includes('\\')) {
+    try {
+      return statSync(command).isFile() ? command : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  const exts =
+    process.platform === 'win32'
+      ? ['', ...(process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';')]
+      : [''];
+  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+    if (dir === '') continue;
+    for (const ext of exts) {
+      const candidate = join(dir, `${command}${ext}`);
+      try {
+        if (statSync(candidate).isFile()) return candidate;
+      } catch { /* next candidate */ }
+    }
+  }
+  return undefined;
+}
+
+function gitConfig(scope: '--global' | '--system', key: string): string {
+  const r = spawnSync('git', ['config', scope, key], { encoding: 'utf8', windowsHide: true });
+  return r.status === 0 ? (r.stdout ?? '').trim() : '';
+}
+
+/**
+ * A commit identity every leased worktree can see.
+ *
+ * Every shift commits, and it commits in a worktree under `~/.yan-trees` —
+ * not in this checkout and not in the main clone. An identity that lives only
+ * in a repository's own `.git/config` is therefore invisible where it is
+ * needed, and `git commit` fails with "Please tell me who you are" after the
+ * work is already done.
+ *
+ * Found on the machine yan was built on: Git Bash had no global identity at
+ * all, while the checkout had a local one — which reads as perfectly healthy
+ * from inside the checkout. So this asks `--global` and `--system`
+ * deliberately, and never the repository.
+ *
+ * yan does not fix it: writing git config is `user`'s decision. Doctor reports
+ * it and says what to run.
+ */
+function checkGitIdentity(report: Report): void {
+  const name = gitConfig('--global', 'user.name') || gitConfig('--system', 'user.name');
+  const email = gitConfig('--global', 'user.email') || gitConfig('--system', 'user.email');
+  if (name !== '' && email !== '') {
+    line(report, 'ok', 'git identity', `${name} <${email}>`);
+    return;
+  }
+  line(report, 'fail', 'git identity',
+    "no global user.name/user.email - every shift commits in a leased worktree, which sees only the global config, so its commit would fail after the work is done. Run: git config --global user.name '<you>' && git config --global user.email '<you@example.com>'",
+  );
+}
+
+function checkRequired(report: Report): void {
+  const git = which('git');
+  if (git === undefined) line(report, 'fail', 'git', 'not on PATH - install git and retry');
+  else line(report, 'ok', 'git', git);
+
+  // node cannot be missing here — it is running this — so what is worth
+  // reporting is WHICH one, and whether the same one is on PATH for the hooks
+  // and the panes that will look for it by name.
+  const onPath = which('node');
+  line(report, onPath === undefined ? 'warn' : 'ok', 'node',
+    onPath === undefined
+      ? `${process.version} at ${process.execPath}, but 'node' is not on PATH - the Stop hooks and any pane that starts yan by name will not find it`
+      : `${process.version} (${onPath})`,
+  );
+
+  checkGitIdentity(report);
+}
+
+function checkConfig(report: Report): { agents: Record<string, unknown> } {
+  const path = configPath();
+  const parsed = readJsonIfPresent(path);
+  if (parsed === undefined) {
+    line(report, 'fail', 'conf/config.json', `missing or not valid JSON - copy conf/config.sample.json to ${path}`);
+    return { agents: {} };
+  }
+  line(report, 'ok', 'conf/config.json', path);
+
+  const root = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
+  const agents = (typeof root.agents === 'object' && root.agents !== null ? root.agents : {}) as Record<string, unknown>;
+  for (const role of ['yan', 'shift']) {
+    const value = agents[role];
+    if (typeof value !== 'string' || value === '') {
+      line(report, 'fail', `agents.${role}`, `not set in ${path}`);
+      continue;
+    }
+    // The value may carry trailing argv; the executable is the first word.
+    const cli = value.trim().split(/\s+/)[0] as string;
+    const found = which(cli);
+    if (found === undefined) line(report, 'warn', `agents.${role}`, `'${value}' is not on PATH yet`);
+    else line(report, 'ok', `agents.${role}`, `${value} (${found})`);
+  }
+  return { agents };
+}
+
+/** ONLY the CLI the configured kind names. Never both. */
+function checkRemoteHost(report: Report): void {
+  let cli: 'gh' | 'glab';
+  try {
+    cli = configuredCli();
+  } catch (err) {
+    line(report, 'fail', 'remote host', isYanError(err) ? err.message : String(err));
+    return;
+  }
+
+  const found = which(cli);
+  if (found === undefined) {
+    line(report, 'fail', `remote host (${cli})`,
+      cli === 'gh'
+        ? 'gh not on PATH - install the GitHub CLI (https://cli.github.com)'
+        : 'glab not on PATH - install the GitLab CLI (https://gitlab.com/gitlab-org/cli)',
+    );
+    return;
+  }
+  // Presence, and not whether it is logged in. Asking `glab auth status`
+  // reaches the network, and doctor has to answer on a train; a host that
+  // refuses us is reported by the command that actually needed it.
+  line(report, 'ok', `remote host (${cli})`, found);
+}
+
+function checkHerdr(report: Report, agents: Record<string, unknown>): void {
+  const version = herdrHealth();
+  if (version === undefined) {
+    line(report, 'fail', 'herdr', "not answering - install it, or start it, then run 'yan doctor'");
+  } else {
+    line(report, 'ok', 'herdr', version.version);
+    // A version check, and only a version check. Herdr ships on a preview
+    // channel with no API stability promise, so the generated types are pinned
+    // to a protocol and this is where drift is noticed (runtime.md §4,
+    // sources.md §2).
+    const drift =
+      version.protocol !== HERDR_PROTOCOL || version.schemaVersion !== HERDR_SCHEMA_VERSION;
+    line(report, drift ? 'warn' : 'ok', 'protocol',
+      drift
+        ? `installed ${version.protocol}/${version.schemaVersion}, types generated against ${HERDR_PROTOCOL}/${HERDR_SCHEMA_VERSION} - re-run scripts/generate-herdr-types.mjs and re-check docs/v2/td/evidence.md §9`
+        : `${version.protocol}, schema ${version.schemaVersion} - matches the generated types`,
+    );
+  }
+
+  // Empty when herdr did not answer at all; the failure is already reported
+  // above, and every kind then reads as "no integration installed".
+  const installed = version?.integrations ?? {};
+  const kinds = [
+    ...new Set(
+      Object.values(agents)
+        .filter((v): v is string => typeof v === 'string' && v !== '')
+        .map((v) => v.trim().split(/\s+/)[0] as string),
+    ),
+  ].sort();
+  if (kinds.length === 0) {
+    line(report, 'warn', 'integrations', 'conf/config.json names no agents');
+  }
+  for (const kind of kinds) {
+    const state = installed[kind];
+    if (state === undefined) {
+      line(report, 'warn', kind,
+        `no herdr integration installed - 'herdr integration install ${kind}' records the agent's session id`,
+      );
+    } else {
+      line(report, 'ok', kind, `integration ${state}`);
+    }
+  }
 }
 
 export const command = new Command('doctor')
   .description('check this machine can run yan')
   .action(
     action('doctor', () => {
-      const home = yanHome();
-
-      // Everything that has not been ported yet, unchanged.
-      spawnSync('bash', [join(home, 'bin', 'yan-doctor.sh')], {
-        stdio: 'inherit',
-        env: { ...process.env, YAN_HOME: home },
-        windowsHide: true,
-      });
-
       const report: Report = { ok: 0, warn: 0, fail: 0 };
+
+      out('yan doctor');
+      out(`  YAN_HOME  ${yanHome()}`);
+
+      out('');
+      out('required');
+      checkRequired(report);
+
+      out('');
+      out('configuration');
+      const { agents } = checkConfig(report);
+
+      out('');
+      out('remote host');
+      checkRemoteHost(report);
+
       out('');
       out('herdr');
-
-      const version = herdrHealth();
-      if (version === undefined) {
-        line(report, 'fail', 'herdr', "not answering - install it, or start it, then run 'yan doctor'");
-      } else {
-        line(report, 'ok', 'herdr', version.version);
-        // A version check, and only a version check. Herdr ships on a preview
-        // channel with no API stability promise, so the generated types are
-        // pinned to a protocol and this is where drift is noticed
-        // (runtime.md §4, sources.md §2).
-        const drift =
-          version.protocol !== HERDR_PROTOCOL || version.schemaVersion !== HERDR_SCHEMA_VERSION;
-        line(
-          report,
-          drift ? 'warn' : 'ok',
-          'protocol',
-          drift
-            ? `installed ${version.protocol}/${version.schemaVersion}, types generated against ${HERDR_PROTOCOL}/${HERDR_SCHEMA_VERSION} - re-run scripts/generate-herdr-types.mjs and re-check docs/v2/td/evidence.md §9`
-            : `${version.protocol}, schema ${version.schemaVersion} - matches the generated types`,
-        );
-      }
-
-      // Empty when herdr did not answer at all; the failure is already reported
-      // above, and every kind then reads as "no integration installed".
-      const installed = version?.integrations ?? {};
-      const kinds = configuredAgentKinds();
-      if (kinds.length === 0) {
-        line(report, 'warn', 'integrations', 'conf/config.json names no agents');
-      }
-      for (const kind of kinds) {
-        const state = installed[kind];
-        if (state === undefined) {
-          line(
-            report,
-            'warn',
-            kind,
-            `no herdr integration installed - 'herdr integration install ${kind}' records the agent's session id`,
-          );
-        } else {
-          line(report, 'ok', kind, `integration ${state}`);
-        }
-      }
+      checkHerdr(report, agents);
 
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7
@@ -113,7 +258,7 @@ export const command = new Command('doctor')
       out('        the pair (docs/v2/td/terminal.md §6).');
 
       out('');
-      out(`herdr checks: ${report.ok} ok, ${report.warn} warn, ${report.fail} fail`);
+      out(`${report.ok} ok, ${report.warn} warn, ${report.fail} failed`);
       if (report.fail > 0) process.exitCode = 1;
     }),
   );
