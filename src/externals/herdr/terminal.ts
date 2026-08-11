@@ -1,7 +1,7 @@
 import { TerminalError } from './errors.js';
 import { nativePath } from '../../util/paths.js';
 import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
-import { paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
+import { isPaneId, paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { agentSessionOf, asRecord, statusOf, str } from './parse.js';
 import type {
   StartAgentOptions,
@@ -280,6 +280,32 @@ export class Terminal {
     const paneResult = this.run(['pane', 'get', pane]);
     if (paneResult.code === 0) return 'dead';
     return mapError(paneResult, 'pane get').code === TerminalError.codes.notFound ? 'dead' : 'unknown';
+  }
+
+  /**
+   * Which workspace a pane belongs to, or `undefined` when Herdr cannot say.
+   *
+   * The id looks like `w1:p1` and the workspace looks like its prefix, which is
+   * exactly the reason this is a call and not a substring: ids are opaque
+   * (terminal.md §3), and a pane that `user` has moved carries a prefix that
+   * was true when it was created. Herdr is asked.
+   *
+   * `undefined` rather than a throw, because the caller — `yan continue`,
+   * working out which workspace to label — is not doing anything that may fail
+   * for a display detail. A yan running outside Herdr altogether lands here too
+   * and gets the same answer.
+   */
+  public workspaceOfPane(pane: string): string | undefined {
+    if (!isPaneId(pane)) return undefined;
+    const result = this.run(['pane', 'get', pane]);
+    if (result.code !== 0) return undefined;
+    try {
+      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
+      const id = str(asRecord(body.pane).workspace_id) || str(body.workspace_id);
+      return id === '' ? undefined : id;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

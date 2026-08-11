@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -7,7 +7,6 @@ import {
   mkBareRemote,
   mkTempDir,
   mkYanHome,
-  repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
 
@@ -25,29 +24,34 @@ import {
  *   step is `yan continue` itself rather than a second copy of it.
  *
  * Real git against local bare remotes, because `yan unit add` really cuts the
- * integration branches. The terminal is the stand-in that records calls.
+ * integration branches. The main agent is `process.execPath`, which reads an
+ * empty stdin and exits 0 — a real spawn, so "it entered" stays an observation.
+ * `HERDR_PANE_ID` is cleared for the same reason as in `continue.test.ts`: the
+ * runner really is inside a Herdr pane and the suite must not relabel it.
  */
 
 afterAll(cleanupTempDirs);
 
 let home = '';
-let calls = '';
 
-function detail(id: string): {
-  title: string;
-  units: Array<Record<string, unknown>>;
-} {
-  const r = runYan(home, ['ls', id, '--json']);
-  expect(r.code, r.out).toBe(0);
-  return JSON.parse(r.stdout) as { title: string; units: Array<Record<string, unknown>> };
+const config = `${JSON.stringify(
+  {
+    version: 1,
+    agents: { yan: process.execPath, shift: process.execPath },
+    forge: { kind: 'github' },
+  },
+  null,
+  2,
+)}\n`;
+
+function yan(args: readonly string[]) {
+  return runYan(home, args, { HERDR_PANE_ID: '' });
 }
 
-function callLog(): string {
-  try {
-    return readFileSync(join(calls, 'calls'), 'utf8');
-  } catch {
-    return '';
-  }
+function detail(id: string): { title: string; units: Array<Record<string, unknown>> } {
+  const r = yan(['ls', id, '--json']);
+  expect(r.code, r.out).toBe(0);
+  return JSON.parse(r.stdout) as { title: string; units: Array<Record<string, unknown>> };
 }
 
 function hasBranch(repo: string, branch: string): boolean {
@@ -58,34 +62,26 @@ function hasBranch(repo: string, branch: string): boolean {
 
 beforeAll(() => {
   const tmp = mkTempDir();
-  home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  calls = join(tmp, 'calls');
-  // The enter step really runs, so the terminal it reaches is the recording
-  // stand-in rather than a multiplexer.
-  cpSync(join(repoRoot, 'tests', 'stub', 'lib-term.sh'), join(home, 'bin', 'lib-term.sh'));
+  home = mkYanHome(join(tmp, 'home'), { withDist: true, config });
 
   mkBareRemote(join(tmp, 'mono.git'));
   mkBareRemote(join(tmp, 'proto.git'));
-  expect(runYan(home, ['repo-add', join(tmp, 'mono.git'), '--name', 'monorepo-x']).code).toBe(0);
-  expect(runYan(home, ['repo-add', join(tmp, 'proto.git'), '--name', 'proto']).code).toBe(0);
+  expect(yan(['repo-add', join(tmp, 'mono.git'), '--name', 'monorepo-x']).code).toBe(0);
+  expect(yan(['repo-add', join(tmp, 'proto.git'), '--name', 'proto']).code).toBe(0);
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'auth'), { recursive: true });
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'admin'), { recursive: true });
 });
 
 describe('three units across two repositories, in one order-sensitive run', () => {
-  it('creates the task, its brief, its units and its branches', () => {
-    const r = runYan(
-      home,
-      [
-        'task', 'new',
-        '--title', 'unify the auth header',
-        '--description', 'the same header, everywhere',
-        '--repo', 'monorepo-x', '--scope', 'apps/auth', '--target', 'main',
-        '--repo', 'monorepo-x', '--scope', 'apps/admin', '--target', 'main',
-        '--repo', 'proto', '--target', 'main', '--needs', 'auth',
-      ],
-      { YAN_STUB_TERM_DIR: calls },
-    );
+  it('creates the task, its brief, its units and its branches, and enters it', () => {
+    const r = yan([
+      'task', 'new',
+      '--title', 'unify the auth header',
+      '--description', 'the same header, everywhere',
+      '--repo', 'monorepo-x', '--scope', 'apps/auth', '--target', 'main',
+      '--repo', 'monorepo-x', '--scope', 'apps/admin', '--target', 'main',
+      '--repo', 'proto', '--target', 'main', '--needs', 'auth',
+    ]);
     expect(r.code, r.out).toBe(0);
 
     // The id is t042-shaped: a plain sequence number, because it also goes into
@@ -112,40 +108,29 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(hasBranch('monorepo-x', 'yan/t001-auth-r1')).toBe(true);
     expect(hasBranch('monorepo-x', 'yan/t001-admin-r1')).toBe(true);
     expect(hasBranch('proto', 'yan/t001-proto-r1')).toBe(true);
-  });
 
-  it('ends with the main agent running, through `yan continue` and not a copy of it', () => {
-    const log = callLog();
-    expect(log).toContain('container_create name=t001 unify the auth header');
-    const start = log.split('\n').find((l) => l.startsWith('agent_start ')) ?? '';
-    expect(start).toContain('label=yan');
-    expect(start).toContain('YAN_TASK=t001');
+    // …and create ended by starting the main agent in this pane, which is
+    // `yan continue` itself and not a second copy of it.
+    expect(r.stdout).toContain('starting in this pane');
+    // The enter step's per-task lock is held for exactly as long as the agent.
+    expect(existsSync(join(home, 'tasks', 't001', '.enter.lock'))).toBe(false);
   });
 });
 
 describe('the id', () => {
   it('counts on from the highest number on disk, and takes an explicit one as given', () => {
-    expect(
-      runYan(home, ['task', 'new', '--title', 'something else', '--repo', 'proto', '--target', 'main'],
-        { YAN_STUB_TERM_DIR: calls }).code,
-    ).toBe(0);
+    expect(yan(['task', 'new', '--title', 'something else', '--repo', 'proto', '--target', 'main']).code).toBe(0);
     expect(existsSync(join(home, 'tasks', 't002', 'task.json'))).toBe(true);
 
-    expect(
-      runYan(home, ['task', 'new', '--id', 't042', '--title', 'the readable title lives here', '--repo', 'proto', '--target', 'main'],
-        { YAN_STUB_TERM_DIR: calls }).code,
-    ).toBe(0);
+    expect(yan(['task', 'new', '--id', 't042', '--title', 'the readable title lives here', '--repo', 'proto', '--target', 'main']).code).toBe(0);
     expect(existsSync(join(home, 'tasks', 't042', 'task.json'))).toBe(true);
 
-    expect(
-      runYan(home, ['task', 'new', '--title', 'after t042', '--repo', 'proto', '--target', 'main'],
-        { YAN_STUB_TERM_DIR: calls }).code,
-    ).toBe(0);
+    expect(yan(['task', 'new', '--title', 'after t042', '--repo', 'proto', '--target', 'main']).code).toBe(0);
     expect(existsSync(join(home, 'tasks', 't043', 'task.json'))).toBe(true);
   });
 
   it('refuses an id that is already taken, before anything is written', () => {
-    const r = runYan(home, ['task', 'new', '--id', 't042', '--title', 'again', '--repo', 'proto', '--target', 'main']);
+    const r = yan(['task', 'new', '--id', 't042', '--title', 'again', '--repo', 'proto', '--target', 'main']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('already exists');
   });
@@ -153,36 +138,39 @@ describe('the id', () => {
 
 describe('--json still enters; it only changes how the result is printed', () => {
   it('reports the task, its units, and the enter record', () => {
-    const r = runYan(home, ['task', 'new', '--title', 'as json', '--repo', 'proto', '--target', 'main', '--json'],
-      { YAN_STUB_TERM_DIR: calls });
+    const r = yan(['task', 'new', '--title', 'as json', '--repo', 'proto', '--target', 'main', '--json']);
     expect(r.code, r.out).toBe(0);
     const seen = JSON.parse(r.stdout) as {
       task: string;
       units: string[];
-      entered: { started: boolean } | null;
+      entered: { started: boolean; task: string };
     };
     expect(seen.task).toBe('t044');
     expect(seen.units).toEqual(['proto']);
-    expect(seen.entered?.started).toBe(true);
+    // The record is printed BEFORE the pane is handed over, which is the whole
+    // reason entering is two phases: a record that only arrived once the agent
+    // had finished would arrive hours late or never.
+    expect(seen.entered.started).toBe(true);
+    expect(seen.entered.task).toBe('t044');
   });
 });
 
 describe('what it refuses, and never guesses', () => {
   it('names every unit that has no --target, by repo', () => {
-    const r = runYan(home, ['task', 'new', '--title', 'no target', '--repo', 'proto']);
+    const r = yan(['task', 'new', '--title', 'no target', '--repo', 'proto']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('--target is required for --repo proto');
     expect(r.out).toContain('never guesses');
   });
 
   it('refuses a unit flag with no --repo before it', () => {
-    const r = runYan(home, ['task', 'new', '--title', 'orphan', '--scope', 'apps/auth', '--repo', 'proto', '--target', 'main']);
+    const r = yan(['task', 'new', '--title', 'orphan', '--scope', 'apps/auth', '--repo', 'proto', '--target', 'main']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('has to come after a --repo');
   });
 
   it('refuses with no title and no repo, and names the flags, because there is no TTY here', () => {
-    const r = runYan(home, ['task', 'new']);
+    const r = yan(['task', 'new']);
     expect(r.code).toBe(2);
     expect(r.out).toContain('--title');
     expect(r.out).toContain('--repo');

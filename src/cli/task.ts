@@ -1,9 +1,9 @@
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
+import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit } from './unit.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
@@ -146,32 +146,6 @@ export interface TaskNewResult {
   readonly units: readonly string[];
   readonly dir: string;
 }
-
-/**
- * The enter step, as a replaceable dependency.
- *
- * It is `yan continue` and nothing else. `capture` is only about how the output
- * is handled: `--json` needs the enter record back, the human path wants the
- * agent to inherit this terminal — because the pane `user` typed in is where
- * the main agent is about to run.
- */
-export type Enter = (args: readonly string[], capture: boolean) => { code: number; json?: unknown };
-
-const enterViaYan: Enter = (args, capture) => {
-  const r = spawnSync(process.execPath, [join(yanHome(), 'dist', 'cli', 'yan.js'), ...args], {
-    stdio: capture ? ['inherit', 'pipe', 'inherit'] : 'inherit',
-    encoding: 'utf8',
-    env: { ...process.env, YAN_HOME: yanHome() },
-    windowsHide: true,
-  });
-  const code = r.status ?? 1;
-  if (!capture || code !== 0) return { code };
-  try {
-    return { code, json: JSON.parse(r.stdout ?? '') as unknown };
-  } catch {
-    return { code };
-  }
-};
 
 export interface TaskNewDeps {
   readonly add?: typeof addTaskUnit;
@@ -361,37 +335,32 @@ is not coming.`,
       action('yan task new', (flags: NewFlags) => {
         const created = createTask({ ...flags, units: builder.units });
 
-        const enterArgs = ['continue', '--task', created.task];
-        if (flags.agent !== undefined && flags.agent !== '') enterArgs.push('--agent', flags.agent);
-        if (flags.json === true) enterArgs.push('--json');
+        // The enter step, which is `yan continue` itself and not a copy of it.
+        // Two phases: the record first, because it has to be printable before
+        // the pane is handed to the main agent, and the blocking half after.
+        const session = enterTask({ task: created.task, agent: flags.agent });
 
         if (flags.json === true) {
-          const entered = enterViaYan(enterArgs, true);
-          if (entered.code !== 0) throw enterFailed(created.task);
           out(JSON.stringify({
             version: 1,
             task: created.task,
             title: created.title,
             units: created.units,
-            entered: entered.json ?? null,
+            entered: session.record,
           }));
-          return;
+        } else {
+          out(`task ${created.task}  ${created.title}`);
+          out(`units    ${created.units.join(' ')}`);
+          out(`dir      ${created.dir}`);
+          out('');
+          renderEntered(session.record);
         }
 
-        out(`task ${created.task}  ${created.title}`);
-        out(`units    ${created.units.join(' ')}`);
-        out(`dir      ${created.dir}`);
-        out('');
-        if (enterViaYan(enterArgs, false).code !== 0) throw enterFailed(created.task);
+        if (session.run !== undefined) process.exitCode = session.run();
       }),
     );
 
   return new Command('task').description('tasks').addCommand(newTask);
-}
-
-function enterFailed(id: string): CommandError {
-  return new CommandError('task_new', 'enter_failed', `task ${id} and its units exist, but entering it failed (see the message above) - run 'yan continue --task ${id}'`,
-  );
 }
 
 export const command = buildTaskCommand();

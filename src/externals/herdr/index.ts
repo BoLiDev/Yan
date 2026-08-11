@@ -19,7 +19,9 @@
  *     .read(pane, lines?, source?)   → string
  *     .agentAlive(pane)              → alive|dead|unknown
  *     .reconcile(name, recordedPane) → string?
+ *     .workspaceOfPane(pane)         → string?      which workspace to label
  *     .close(pane) · .list(container?)
+ *     .setWorkspaceTokens · .clearWorkspaceTokens · .setPaneTitle · .clearPaneTitle
  *
  *   new TerminalEvents(options?)              the socket transport
  *     .open() · .subscribe(panes) · .reconnect(panes?)
