@@ -4,13 +4,12 @@ import { dirname } from 'node:path';
 import { YanError, type YanErrorOptions } from './error.js';
 
 /**
- * The one locking primitive in yan. The TypeScript half of `bin/lib-lock.sh`.
+ * The one locking primitive in yan.
  *
- * plan/conventions.md §4: `lib-lock.sh` used `mkdir` because Git Bash has no
- * `flock` and `noclobber` is not reliably atomic on MSYS2 filesystems. In Node
- * the primitive is `fs.open(path, 'wx')` — an atomic exclusive create on both
- * platforms — so the lock is a FILE, and the owner's identity is its contents
- * rather than three files inside a directory.
+ * The lock is a FILE, taken with `fs.open(path, 'wx')` — an atomic exclusive
+ * create on both platforms — and the owner's identity is its contents. `flock`
+ * is not available under Git Bash and `noclobber` is not reliably atomic on
+ * MSYS2 filesystems, so neither is an option here.
  *
  *   {"pid": 1234, "host": "…", "at": 1786342616}
  *
@@ -29,14 +28,12 @@ import { YanError, type YanErrorOptions } from './error.js';
  *      one repository even when the slot allocation is.
  *   2. SUPERVISION'S SINGLE FLIGHT. Under Claude every Stop can fire autoarm,
  *      and without it several watchers start.
- *   3. `yan continue`'S PER-TASK ENTER LOCK, which is new in Phase 8 and is not
- *      the same kind of thing as the other two. They serialise a critical
- *      section; this one IS THE ANSWER to a question — is a yan already running
- *      on this task? The MVP could not use a lock for that, because the process
- *      holding it exited long before the agent did. V2's `yan continue` lives
- *      exactly as long as the main agent it started, so the file's own pid is
- *      the fact, and `pidAlive` makes a killed yan's lock reclaimable rather
- *      than permanent.
+ *   3. `yan continue`'S PER-TASK ENTER LOCK, which is not the same kind of thing
+ *      as the other two. They serialise a critical section; this one IS THE
+ *      ANSWER to a question — is a yan already running on this task? That only
+ *      works because `yan continue` lives exactly as long as the main agent it
+ *      started, so the file's own pid is the fact. `pidAlive` is what keeps a
+ *      killed yan's lock reclaimable rather than permanent.
  *
  * They want two shapes of the same lock, which is why there are two entry
  * points and not two schemes: the pool wraps a body (`withLock`), while
@@ -67,7 +64,7 @@ interface LockRecord {
    * A lock file records who holds it and cannot know why. `tasks/<id>/run/wait.lock`
    * and `tasks/<id>/.enter.lock` are two live locks in the same tree with nothing
    * to do with each other, so supervision has to be able to ask "is this a
-   * WATCHER's lock" and not merely "is a lock there" (supervision.md §5).
+   * WATCHER's lock" rather than merely "is a lock there".
    */
   identity?: string;
 }
@@ -120,12 +117,11 @@ export function pidAlive(pid: number): boolean {
 /**
  * True when a DIRECTORY sits at the lock path.
  *
- * That is `bin/lib-lock.sh`'s scheme, and for the length of the migration both
- * halves are on disk. The two are not compatible and are not meant to be
- * (conventions §4 says port neither scheme onto the other), but a TypeScript
- * caller that finds the shell half's lock must read it as "somebody holds this"
- * and leave it alone — never as a stale file to reclaim, which would mean
- * `rm`-ing a directory another process is standing in.
+ * The other lock scheme: a directory rather than a file. Nothing here writes
+ * one, and the two are not compatible. What matters is that a caller finding
+ * one reads it as "somebody holds this" and leaves it alone — treating it as a
+ * stale file to reclaim would mean `rm`-ing a directory another process is
+ * standing in.
  */
 function isShellLock(file: string): boolean {
   try {

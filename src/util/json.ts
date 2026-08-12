@@ -14,16 +14,16 @@ import { dirname, join } from 'node:path';
 import { YanError, type YanErrorOptions } from './error.js';
 
 /**
- * Read and write JSON. The TypeScript half of `bin/lib-json.sh`.
+ * Read and write JSON: stateless, and the only place in the code base that
+ * replaces a JSON file.
  *
- * Stateless, and the only place in the code base that replaces a JSON file.
- * The three invariants are the MVP's, unchanged (td INDEX.md §2):
+ * Three invariants:
  *
  *   1. every write goes through a temporary file in the SAME directory as the
  *      target and is then renamed into place, so the rename stays inside one
  *      filesystem and a reader never sees a half-written file;
- *   2. every object written carries a `version` field — the one hook left for
- *      a future schema migration;
+ *   2. every object written carries a `version` field, the one hook left for a
+ *      future schema change;
  *   3. invalid content is refused before the target is touched, so a failed
  *      write always leaves the previous content intact.
  *
@@ -67,10 +67,9 @@ function serialize(value: unknown): string {
   if (text === undefined) {
     throw new JsonError('invalid', 'refusing to write a value that is not JSON');
   }
-  // Two-space indent and a trailing newline is jq's default pretty printing, so
-  // a file written by the TypeScript half is byte-identical to one written by
-  // the shell half. That equality is the whole interop story of the migration
-  // (plan/INDEX.md §2).
+  // Two-space indent and a trailing newline: these files are versioned in the
+  // vault, so the formatting has to be stable or every write shows up as a
+  // whole-file diff.
   return `${text}\n`;
 }
 
@@ -105,8 +104,8 @@ function atomicWrite(file: string, value: unknown, versionFallback = 1): void {
   const tmp = join(dir, `.yan-json.${process.pid}.${tmpCounter}.tmp`);
 
   try {
-    // 'wx' is an atomic exclusive create — the primitive plan/conventions.md §4
-    // says to use instead of porting the MVP's mkdir lock scheme.
+    // 'wx' is an atomic exclusive create on both platforms, so two writers
+    // cannot pick the same temporary name.
     const fd = openSync(tmp, 'wx', 0o644);
     try {
       writeSync(fd, text);

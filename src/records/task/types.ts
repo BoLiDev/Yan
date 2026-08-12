@@ -14,13 +14,11 @@ export type Mode = (typeof MODES)[number];
 /**
  * How a round ended.
  *
- * Two of these are new, and they are here because the old pair forced a guess.
- * A rotation used to REFUSE when the forge could not be reached or the
- * outbound MR was still open, on the grounds that a wrong answer written into
- * an append-only history can never be corrected. That reasoning is sound and
- * the conclusion was wrong: 'unknown' is not a wrong answer, it is the
- * accurate one, and yan says so everywhere else ("where we cannot tell, we say
- * so, and we never round a guess up to a fact" - session-start.ts).
+ * There are four rather than two because history is append-only: an entry
+ * written wrongly can never be corrected, so a rotation must never have to
+ * GUESS how a round ended. `unused` and `unknown` are what keep it from
+ * having to — the alternative is refusing to rotate whenever the forge is
+ * unreachable, which strands the round instead.
  *
  *   delivered  the outbound MR merged
  *   abandoned  the MR was closed, or there was work here and it was dropped
@@ -32,7 +30,7 @@ export type Mode = (typeof MODES)[number];
 export const ENDS = ['delivered', 'abandoned', 'unused', 'unknown'] as const;
 export type HistoryEnd = (typeof ENDS)[number];
 
-/** Exactly the five fields of branching.md §6.4; `mr` only when there was one. */
+/** One archived round. `mr` is present only when the round opened one. */
 export interface HistoryEntry {
   branch: string;
   target: string;

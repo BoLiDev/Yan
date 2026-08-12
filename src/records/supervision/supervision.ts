@@ -8,42 +8,34 @@ import { beaconAge, readBeacon, writeBeacon, type WatcherState } from './beacon.
 
 /**
  * `tasks/<id>/run/` — the four files supervision keeps, and the predicates that
- * read them (supervision.md §4, §5).
+ * read them.
  *
- * THIS IS NOT A LAYER OVER THE WAIT SOURCES. Nothing here polls anything and
- * nothing here decides anything: the sources live inside `yan wait`, which
- * architecture.md §5.1 names as the command most likely to grow fat. What is
- * here is one of yan's own formats, so that `yan wait`, the Stop autoarm and
- * the turn-end guard cannot drift about where the files are or about what
- * "the watcher is healthy" means. Three private copies of that predicate is
- * exactly how a guard and a watcher end up disagreeing about who is on duty.
+ * THIS IS NOT A LAYER OVER THE WAIT SOURCES. Nothing here polls and nothing
+ * here decides; the sources live in `yan wait`. What is here is the FORMAT, so
+ * that `yan wait`, the Stop autoarm and the turn-end guard cannot drift about
+ * where the files are or about what "the watcher is healthy" means. Three
+ * private copies of that predicate is exactly how a guard and a watcher end up
+ * disagreeing about who is on duty.
  *
- *   run/wake            the reason, from "wait exited" to the model's next
- *                       turn. `yan wait` writes it, `yan drain` clears it
- *   run/wait.lock       the single-flight lock (util/lock.ts — one scheme,
- *                       never a second one, conventions §4)
- *   run/beacon          attendance for the WATCHER (beacon.ts says why it
- *                       survived Phase 6)
+ *   run/wake            the reason, carried from "wait exited" to the model's
+ *                       next turn. `yan wait` writes it, `yan drain` clears it
+ *   run/wait.lock       the single-flight lock, on util/lock.ts's scheme and
+ *                       never a second one
+ *   run/beacon          attendance for the watcher; see beacon.ts
  *   run/guard-failures  the turn-end guard's own count, because Claude's
  *                       `stop_hook_active` cannot be trusted as a one-shot
  *
- * Supervision is per-yan and a yan is per-task (agents.md §5.2), so all four
- * belong to the task — which is also where `yan drain` already looks.
+ * All four belong to the TASK, because supervision is per-yan and a yan is
+ * per-task — which is also where `yan drain` already looks.
  */
 
-/**
- * How old the beacon may be before the watcher stops counting as healthy.
- *
- * `$YAN_WATCH_BEACON_MAX` overrides it, as it did in the shell half — the two
- * are on disk together for the length of the migration and a machine that tuned
- * one must not end up with the other on a different number.
- */
+/** How old the beacon may be before the watcher stops counting as healthy. */
 function beaconMaxSeconds(): number {
   const configured = Number(process.env.YAN_WATCH_BEACON_MAX ?? '');
   return Number.isFinite(configured) && configured > 0 ? configured : 300;
 }
 
-/** What the guard may block before it fails open (supervision.md §5). */
+/** What the turn-end guard may block before it gives up and fails open. */
 export const GUARD_BUDGET = 3;
 
 export class Supervision {
@@ -93,9 +85,9 @@ export class Supervision {
     this.ensureRun();
     if (claim(this.lock, this.identity())) return true;
     // A lock left behind by a process that is gone is reclaimed, not obeyed: a
-    // machine that lost power mid-watch is not a machine that needs a manual
-    // `rm`. `isStale` refuses to say that about the shell half's lock
-    // directory, so this can never delete one somebody is standing in.
+    // machine that lost power mid-watch should not need a manual `rm`.
+    // `isStale` only ever says yes about a lock FILE whose owner is gone, so
+    // this cannot delete a directory-shaped lock somebody is standing in.
     if (!isStale(this.lock)) return false;
     release(this.lock);
     return claim(this.lock, this.identity());
@@ -275,12 +267,12 @@ export class Supervision {
   }
 
   /**
-   * The identity of a lock taken by `bin/lib-lock.sh`, which is a directory
-   * holding `pid` and `identity` files.
+   * The identity of a DIRECTORY-shaped lock: a directory holding `pid` and
+   * `identity` files, rather than the single file `util/lock.ts` writes.
    *
-   * Read, never written. For the length of the migration a shell `yan wait` and
-   * a TypeScript guard can meet on the same task, and a guard that could not
-   * see the shell half's watcher would block every turn while one was on duty.
+   * Read, never written. Nothing in this repository takes a lock this way any
+   * more; what it buys is that a guard meeting one does not conclude "no
+   * watcher is on duty" and block every turn.
    */
   private shellLockIdentity(): string | undefined {
     return this.readShellLockFile('identity');

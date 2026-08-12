@@ -3,16 +3,10 @@ import { asString, editUnitIn, readDocument } from './document.js';
 import { ENDS, MODES, type HistoryEnd, type HistoryEntry, type ScalarField, type UnitData } from './types.js';
 
 /**
- * One `unit` of a task — one delivery channel, one integration branch, one
- * outbound merge request (glossary).
+ * One `unit` of a task: one delivery channel, one integration branch, one
+ * outbound merge request.
  *
- * It exists as a class because seven functions used to thread the same two
- * identifiers — which task, which unit — through every call. Two identifiers
- * travelling together through seven signatures is an object that had not been
- * written; the domain always said so (`a task has one or more units`), only the
- * code did not.
- *
- * Its state is IDENTITY, not data: the task's file and this unit's name. Every
+ * Its state is IDENTITY, not data — the task's file and this unit's name. Every
  * method re-reads, because another process may have written in between and a
  * cached document would be a lie with a long half-life.
  */
@@ -61,8 +55,9 @@ export class Unit {
   /**
    * How many rounds this unit has delivered or abandoned.
    *
-   * branching.md §6.5: the built-in integration branch name carries r<n> where
-   * n is length(history) + 1, so the round number needs no storage.
+   * The generated integration branch name carries r<n>, where n is
+   * length(history) + 1 — so the round number is derived and never stored, and
+   * cannot disagree with the history it is counting.
    */
   public rounds(): number {
     return this.read().history.length;
@@ -92,10 +87,10 @@ export class Unit {
 
   /**
    * Start a new round: archive the current branch/target/mr into history[],
-   * then overwrite the branch and clear mr — in ONE tmp → mv
-   * (architecture.md §5.1).
+   * then overwrite the branch and clear mr — in ONE tmp → mv, because a crash
+   * between the archive and the overwrite would lose the round it was in.
    *
-   * Deciding `end` is `yan unit set`'s business, not this record's.
+   * Deciding `end` is the caller's business, not this record's.
    */
   public rotate(end: string, newBranch: string, at = ''): void {
     if (!newBranch) throw TaskError.usage('rotating a unit needs the new branch name');

@@ -1,11 +1,10 @@
 import { sep } from 'node:path';
 
 /**
- * Path normalisation, in one place (plan/conventions.md §3).
+ * Path normalisation, in one place.
  *
- * Node removes most of the MVP's `cygpath` problem but not all of it: on
- * Windows `git` and `herdr` both report native paths (`C:\…` or `C:/…`) while a
- * path `yan` built may be POSIX (`/c/…`) if it came out of a Git Bash
+ * On Windows `git` and `herdr` both report native paths (`C:\…` or `C:/…`),
+ * while a path yan built may be POSIX (`/c/…`) if it came out of a Git Bash
  * environment variable. Any comparison between a path we built and a path an
  * external tool printed has to normalise first, and this is the only module
  * allowed to know that.

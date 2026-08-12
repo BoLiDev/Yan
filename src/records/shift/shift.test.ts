@@ -151,7 +151,7 @@ describe('reporting', () => {
   });
 
   it('offers no way to read the last line', () => {
-    // Every line is an event, not the current state (agents.md §5.4). A
+    // Every line is an event, not the current state. A
     // `last()` would be read as "the state" within a week, so it does not exist
     // and this is the alarm if it ever does.
     const surface = Object.getOwnPropertyNames(Shift.prototype);

@@ -11,11 +11,12 @@ import { ShiftError } from './errors.js';
  *      crash without damaging what is already there, and a JSON array cannot do
  *      that.
  *
- *   2. EVERY LINE IS AN EVENT, NOT THE CURRENT STATE (agents.md §5.4). There is
- *      deliberately NO function here that reads the last line. A `last()` would
- *      be read as "the state" within a week, and `yan state` derives the state
- *      from the live sources instead. Counting is offered; interpreting the
- *      newest line is not.
+ *   2. EVERY LINE IS AN EVENT, NOT THE CURRENT STATE. There is deliberately NO
+ *      function here that reads the last line: a shift that reported `done` an
+ *      hour ago and then died has `done` as its last line, and so has one whose
+ *      work has since landed. `yan state` derives the state from the live
+ *      sources instead. Counting is offered; interpreting the newest line is
+ *      not.
  */
 
 export function statusFile(run: string): string {
@@ -47,12 +48,14 @@ export function countEvents(run: string): number {
 /**
  * The merge request URL the shift reported, if any.
  *
- * delivery.md §8.2 gives `mr` mode the final state `done: mr <url>`, so the URL
- * reaches yan through the note of a `done` event. This does NOT break invariant
- * 2: the verdict "has it merged?" still comes from the host and only from the
- * host. What is read here is a FACT the shift recorded — an address — which is
- * exactly what an event log is for. The last URL wins because a shift that
- * reopened its MR reported the newer one later.
+ * A shift in `mr` mode ends by reporting `done: mr <url>`, so the address
+ * reaches yan through the note on a `done` event.
+ *
+ * Reading a line back does NOT break invariant 2. The verdict — has it merged —
+ * still comes from the forge and only from the forge; what is read here is an
+ * ADDRESS the shift recorded, which is exactly what an event log is for. The
+ * last URL wins, because a shift that reopened its MR reported the newer one
+ * later.
  */
 export function reportedMr(run: string): string | undefined {
   const file = statusFile(run);

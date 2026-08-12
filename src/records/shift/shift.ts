@@ -53,8 +53,9 @@ export class Shift {
   /**
    * True while `run/` still exists.
    *
-   * `run/` is the only throwaway layer and clocking out deletes it whole
-   * (td INDEX.md §3), so its presence IS the fact. Nothing mirrors it.
+   * `run/` is the only throwaway layer, and clocking out deletes it whole — so
+   * its presence IS the fact, and nothing mirrors it into a field that could
+   * then disagree.
    */
   public isLive(): boolean {
     return existsSync(this.run);
@@ -88,8 +89,9 @@ export class Shift {
    * Find an existing shift by id.
    *
    * Derived by scanning, never read from an index: `tasks/*​/shifts/<sid>` IS
-   * the registry (design principle 1). `$YAN_TASK` narrows the search when it
-   * is set, which is the normal case — a yan is task-scoped (agents.md §5.2).
+   * the registry, so there is no second list to fall out of step with it.
+   * `$YAN_TASK` narrows the search when it is set, which is the normal case
+   * because a yan handles one task.
    *
    * An id that exists under two tasks is refused rather than guessed at.
    */

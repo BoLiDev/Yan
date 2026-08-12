@@ -15,10 +15,10 @@ import { YanError, type YanErrorOptions } from './error.js';
  *      non-directory argument, so "forgot to pass the directory" fails loudly
  *      instead of operating on whatever happened to be the current directory.
  *
- *   2. This module never passes one of git's force flags. boundaries.md §9.2
- *      lists force-pushing and forced tree destruction as forbidden, so there
- *      is nowhere here for such a flag to hide; `push` actively refuses one if
- *      a caller tries to smuggle it through.
+ *   2. This module never passes one of git's force flags. Force-pushing
+ *      rewrites history colleagues have already pulled, and there is nowhere
+ *      here for such a flag to hide; `push` actively refuses one if a caller
+ *      tries to smuggle it through.
  *      (The flag's literal spelling is assembled from two pieces below, so that
  *      a grep of src/ for it finds nothing. Please keep it that way;
  *      tests/unit/util-git.test.ts greps for it.)
@@ -144,11 +144,11 @@ export function diffNameOnly(dir: string, args: readonly string[] = []): string[
 /**
  * The branch the remote itself calls its default, or `undefined`.
  *
- * This is a SUGGESTION and nothing more. `target` is still `user`'s answer
- * (branching.md §6.4: a release period and a quiet period have different ones),
- * so the only legitimate use of this is to fill in a prompt that a person then
- * reads and confirms. Nothing that runs without a terminal may call it to
- * invent a target for itself.
+ * This is a SUGGESTION and nothing more. `target` remains `user`'s answer,
+ * because a release period and a quiet period have different ones and the
+ * remote's default cannot tell you which you are in. The only legitimate use is
+ * to prefill a prompt a person then reads and confirms; nothing running without
+ * a terminal may call this to invent a target for itself.
  *
  * Two ways to ask, cheapest first:
  *
@@ -224,11 +224,11 @@ export function isForceFlag(arg: string): boolean {
   return arg === '-f' || arg === FORCE || arg.startsWith(`${FORCE}-`) || arg.startsWith(`${FORCE}=`);
 }
 
-/** Refuses a force flag rather than passing it on (boundaries.md §9.2). */
+/** Refuses a force flag rather than passing it on. */
 export function push(dir: string, args: readonly string[] = []): GitResult {
   for (const a of args) {
     if (isForceFlag(a)) {
-      throw new GitError('forceRefused', 'refusing to force-push: it is forbidden (boundaries.md §9.2)',
+      throw new GitError('forceRefused', 'refusing to force-push: it rewrites history other people have already pulled',
         { exitCode: 2 },
       );
     }
@@ -237,9 +237,9 @@ export function push(dir: string, args: readonly string[] = []): GitResult {
 }
 
 /**
- * Callers must have checked that the branch is merged; deleting an unmerged
- * branch is forbidden (boundaries.md §9.2) and that judgement is not this
- * module's business.
+ * Callers must have checked that the branch is merged. Deleting an unmerged
+ * branch destroys the only copy of the work on it, and that judgement is not
+ * this module's to make.
  */
 export function deleteRemoteBranch(dir: string, remote: string, branch: string): GitResult {
   requireArg(remote, 'a remote is required');
@@ -279,10 +279,10 @@ export function resetHard(dir: string, ref = 'HEAD'): GitResult {
 }
 
 /**
- * `-fd` and NEVER `-x`. The pool's whole reason to exist is warm reuse:
- * gitignored node_modules, build caches and the like must survive a tree being
- * returned (worktree.md §7). Adding -x here silently turns every lease into a
- * cold install and nothing fails loudly when it happens.
+ * `-fd` and NEVER `-x`. The worktree pool exists for warm reuse, so gitignored
+ * node_modules and build caches have to survive a tree being returned. Adding
+ * `-x` here would silently turn every lease into a cold install, and nothing
+ * would fail loudly when it happened.
  */
 export function cleanFd(dir: string): GitResult {
   return git(dir, ['clean', '-fd']);
@@ -314,7 +314,7 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
 // forbidden is touching its WORKING TREE — checkout, merge, rebase, reset,
 // clean — because since V3 that clone is `user`'s own working copy, and a tool
 // that moves you off your branch while you are thinking is a tool you stop
-// trusting (boundaries.md §9.1, v3 td repos.md §3).
+// trusting.
 //
 // Writing refs and objects is not that, and yan already did it: cutting an
 // integration branch is `git branch`, a ref write in the main clone. These

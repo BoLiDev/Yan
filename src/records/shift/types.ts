@@ -1,10 +1,10 @@
 /**
  * `run/meta.json`, read as one typed value.
  *
- * Every field is optional, and that is invariant 3 expressed in the type: a
- * missing file, a missing key, a half-written file or a key this phase has
- * never heard of must never crash a reader. "I do not know" is a legal answer
- * for all of them.
+ * EVERY FIELD IS OPTIONAL, which is deliberate rather than lax. This file is
+ * written by the shift while yan is reading it, so a missing file, a missing
+ * key or a half-written one must cost a caller one fact and never a crash.
+ * "I do not know" is a legal answer for all of them.
  */
 export interface ShiftMeta {
   readonly unit?: string;
@@ -12,9 +12,9 @@ export interface ShiftMeta {
   readonly tree?: string;
   readonly agent?: string;
   /**
-   * The terminal id the seam printed. A pane id is preferred over a window id
-   * because it is the more precise of the two. NEVER a label: a label is not a
-   * source of truth (agents.md §5.7 practice 1, terminal.md §3).
+   * The terminal id the seam printed — a pane id for preference, being the more
+   * precise of the two. NEVER a label: a label can be renamed, and is cleared
+   * outright when an agent exits, which is when yan most needs to identify it.
    */
   readonly agentId?: string;
   readonly mr?: string;

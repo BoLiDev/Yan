@@ -10,18 +10,16 @@ import { Unit } from './unit.js';
 import { MODES, type AddUnitOptions, type TaskData } from './types.js';
 
 /**
- * One `tasks/<id>/` — the decisions yan has made about a task
- * (architecture.md §4.2).
+ * One `tasks/<id>/` — the DECISIONS yan has made about a task, and only those.
  *
- * What is stored here is exactly the third row of the storage criteria
- * (td INDEX.md §2): DECISIONS. Facts live in git and are never mirrored; state
- * is looked up on the host when needed. `task.json` holds what neither of them
- * knows — which branch a unit is on, where it is meant to go, how far it may
- * reach, and whether `user` has declared the task finished.
+ * Facts live in git and are never mirrored here; live state is looked up on the
+ * forge when it is needed. What is left, and what this file holds, is what
+ * neither of them knows: which branch a unit is on, where it is meant to go,
+ * how far it may reach, and whether `user` has called the task finished.
  *
- * The state this class holds is IDENTITY: which task. Not the document — every
- * method re-reads, because the shell half is still writing the same file and a
- * cached parse would go stale without saying so.
+ * The state this class holds is IDENTITY — which task — and never the document.
+ * Every method re-reads, because other processes write this file while yan is
+ * running and a cached parse would be a lie with a long half-life.
  */
 export class Task {
   public readonly id: string;
@@ -70,7 +68,7 @@ export class Task {
   /**
    * The name of this task's terminal container.
    *
-   * One container per task (agents.md §5.7), and every caller has to reach the
+   * One container per task, and every caller has to reach the
    * SAME one, so the derivation lives here next to the task's other naming. The
    * name is for humans; nothing is ever looked up by it.
    */
@@ -103,10 +101,14 @@ export class Task {
   }
 
   /**
-   * `target` is required and never defaulted, because branching.md §6.4 says
-   * there is no safe default for it. `mode` defaults to `mr` (delivery.md
-   * §8.2); a caller that wants the repository's tuned `mode_default` passes it,
-   * since reading mem/repos.json is `yan repo-add`'s side of the fence.
+   * `target` is required and never defaulted: during a release the team merges
+   * into a shared branch, in quiet weeks into the default one, and there is no
+   * way to tell which from here. Guessing it wrong aims a merge request at the
+   * wrong branch.
+   *
+   * `mode` defaults to `mr`. A caller that wants the repository's tuned
+   * `mode_default` passes it in, because reading mem/repos.json is on the other
+   * side of this record's fence.
    */
   public addUnit(name: string, repo: string, target: string, options: AddUnitOptions = {}): Unit {
     if (!name || !repo || !target) {
@@ -177,8 +179,8 @@ export class Task {
   /**
    * Every task id on disk.
    *
-   * Derived by scanning, never read from a list: there is no backlog file
-   * (td INDEX.md §3), which removes the single most bug-prone thing there is.
+   * Derived by scanning, never read from a list. There is no backlog file, and
+   * so no second place for a task to exist in but not really.
    */
   public static list(): string[] {
     const dir = tasksDir();

@@ -5,7 +5,7 @@ import { normalizePath } from '../../util/paths.js';
 import { LogError } from './errors.js';
 
 /**
- * One task's `log.md` — the narrative layer (memory.md §4.2).
+ * One task's `log.md` — the narrative layer.
  *
  * This class is deliberately tiny, and that is the point. It is not hiding
  * complexity; it exists so that ONE invariant has exactly one enforcement

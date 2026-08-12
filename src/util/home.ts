@@ -3,12 +3,14 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Where `$YAN_HOME` is. Same rule as `bin/yan`, so the two halves of the
- * migration can never disagree about it (runtime.md §2: `$YAN_HOME` is still
- * this clone).
+ * Where `$YAN_HOME` is — this clone, the one holding the code.
  *
- *   an exported YAN_HOME wins — but only when it really is a yan home;
+ *   an exported YAN_HOME wins, but only when it really is a yan home;
  *   otherwise it is derived from this file's own location.
+ *
+ * The env var is CHECKED rather than trusted because it is easy to inherit a
+ * stale one from a shell that was opened in a different clone, and a yan home
+ * pointing at the wrong tree fails in ways that look like anything but that.
  */
 
 function looksLikeHome(dir: string): boolean {
@@ -30,17 +32,11 @@ export function yanHome(): string {
 /**
  * The subcommands that exist, DERIVED FROM DISK AND NEVER TABULATED.
  *
- * The rule outlived its first reason. It was written because the
- * implementation phases landed in parallel and a central list would have made
- * every one of them conflict in this file — and because during the migration a
- * name could exist in either half, so `yan --help` had to list both or shrink
- * every time a command moved. Both of those are over.
- *
- * It stays because of what it is: design principle 1, do not store state you
- * can derive. `dist/cli/` already knows which commands exist; a list here could
- * only ever be a second answer to that, and the failure of a second answer is
- * that it disagrees silently — a command that runs but is not in `--help`, or
- * one announced in `--help` that is not there.
+ * `dist/cli/` already knows which commands exist, so a list here could only be
+ * a second answer to the same question — and a second answer fails silently:
+ * a command that runs but is missing from `--help`, or one announced in
+ * `--help` that is not there. Adding a command is adding a file, and that is
+ * the whole registration step.
  */
 function namesIn(dir: string, prefix: string, suffix: string, skip: readonly string[]): string[] {
   let entries: string[];

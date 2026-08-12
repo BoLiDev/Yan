@@ -5,7 +5,7 @@ import { editJson, initJson, readJsonIfPresent } from './json.js';
 import { normalizePath } from './paths.js';
 
 /**
- * The machine layer (v3 td INDEX.md §2).
+ * The machine layer.
  *
  * Three layers hold yan's state and this is the smallest of them: what is true
  * about THIS DISK and would be wrong on any other. Which vault is active, where

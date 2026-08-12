@@ -11,10 +11,10 @@
  *
  * What the base is still for, and why it exists at all:
  *
- *   1. OURS VERSUS THEIRS. `isYanError(e)` is the boundary predicate. A Herdr
- *      or `gh` error object must never propagate (plan/conventions.md §2), so
- *      there has to be one question that separates a condition yan anticipated
- *      from a crash it did not.
+ *   1. OURS VERSUS THEIRS. `isYanError(e)` is the boundary predicate. A Herdr or
+ *      `gh` error object must never propagate to a caller, so there has to be
+ *      one question separating a condition yan anticipated from a crash it did
+ *      not.
  *   2. ONE EXIT MAPPING. `src/cli/shared/action.ts` turns any of these into a
  *      process exit code. Without a shared base that would be one `instanceof`
  *      per module, forever out of date.
@@ -32,9 +32,9 @@ export abstract class YanError extends Error {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.code = code;
-    // 2 means "you called this wrongly" everywhere in the MVP shell; 1 means
-    // "yan tried and refused or failed". Keeping the split is what lets a
-    // caller tell a bug from a runtime condition.
+    // 2 means "you called this wrongly"; 1 means "yan tried, and refused or
+    // failed". Keeping the split is what lets a caller tell a bug in its own
+    // command line from a runtime condition it should react to.
     this.exitCode = options?.exitCode ?? 1;
   }
 }

@@ -6,12 +6,12 @@ import { activeVaultName, machineConfigPath, vaultPathOf } from './machine.js';
 import { normalizePath } from './paths.js';
 
 /**
- * Where a context's assets are (v3 td vault.md).
+ * Where a context's assets are.
  *
- * `$YAN_HOME` used to answer three questions — where the code is, where the
- * tasks are, where this machine's state is. This module owns the second one.
  * A **vault** is one context's task assets in a git repository you own: home
- * and work are two vaults, a second machine opens the same one.
+ * and work are two vaults, and a second machine opens the same one. This module
+ * answers only "where are the tasks" — not where the code is, and not where
+ * this machine's own state lives.
  *
  * Resolution mirrors `yanHome()` deliberately, because a rule that is the same
  * in both places is a rule nobody has to look up:
@@ -170,7 +170,7 @@ export function localReposPath(): string {
 
 /**
  * `skills/` — standing instructions, in prose, about what yan may do itself
- * here (v3 td vault.md).
+ * here.
  *
  * NOT executables, and deliberately not: the machinery for running one would
  * be larger than the thing it runs. A skill is a few paragraphs saying "in

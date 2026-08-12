@@ -114,9 +114,8 @@ describe('is anybody on duty', () => {
     expect(sup.healthy()).toBe(false);
     expect(sup.healthy(400)).toBe(true);
 
-    // $YAN_WATCH_BEACON_MAX moves it, as it did in the shell half: both are on
-    // disk together, and a machine that tuned one must not find the other on a
-    // different number.
+    // $YAN_WATCH_BEACON_MAX moves the threshold, so a machine whose shifts are
+    // slow to report can widen it without editing code.
     process.env.YAN_WATCH_BEACON_MAX = '400';
     try {
       expect(sup.healthy()).toBe(true);
@@ -158,9 +157,9 @@ describe('is anybody on duty', () => {
     expect(sup.why()).toContain('424242');
   });
 
-  it("reads the shell half's lock, so the two halves can meet on one task", () => {
-    // For the length of the migration a bash `yan wait` and a TypeScript guard
-    // can be on the same task. lib-lock.sh takes a DIRECTORY.
+  it('reads a directory-shaped lock, so a guard meeting one does not call the task unwatched', () => {
+    // The other lock shape: a directory holding pid and identity, rather than
+    // the single file util/lock.ts writes.
     clearAll();
     mkdirSync(sup.lock, { recursive: true });
     writeFileSync(join(sup.lock, 'pid'), `${process.pid}\n`);
@@ -210,9 +209,9 @@ describe('the beacon', () => {
     expect(sup.beaconAgeSeconds()).toBeLessThan(5);
   });
 
-  it("keeps the shell half's three fields readable, with state as a fourth", () => {
-    // bin/lib-watch.sh reads fields 1 and 2 by position for as long as both
-    // halves are on disk.
+  it('keeps the first three fields positional, with state appended as a fourth', () => {
+    // Anything reading this file splits on spaces and takes fields by position,
+    // so `state` goes last: adding it must not shift the three before it.
     sup.touchBeacon('reconnecting');
     const [at, pid, task, state] = readFileSync(sup.beacon, 'utf8').trim().split(' ');
     expect(/^\d+$/.test(at ?? '')).toBe(true);

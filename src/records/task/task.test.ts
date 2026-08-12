@@ -88,7 +88,7 @@ describe('units', () => {
     );
   });
 
-  it('writes the unit shape branching.md §6.4 specifies, in that key order', () => {
+  it('writes the five unit fields in a fixed key order', () => {
     seed();
     const raw = JSON.parse(readFileSync(new Task('t042').file, 'utf8')) as {
       units: Record<string, unknown>[];
