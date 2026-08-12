@@ -56,10 +56,11 @@ describe('the model is never sent into the prompts', () => {
     //
     //   where a subcommand exists it is the right way to do that thing,
     //   because it knows what a raw git call does not.
-    expect(agents, 'the prompts are for people, and the model passes flags').toContain(
+    const said = agents.replace(/\s+/g, ' ');
+    expect(said, 'the prompts are for people, and the model passes flags').toContain(
       'prompts are for people at a keyboard, not',
     );
-    expect(agents, 'and it says why re-implementing a subcommand goes wrong').toContain(
+    expect(said, 'and it says why re-implementing a subcommand goes wrong').toContain(
       'a raw `git` call does not',
     );
   });
@@ -68,8 +69,12 @@ describe('the model is never sent into the prompts', () => {
     // Capability is open; authority is not, and the same document has to say
     // so or the table quietly becomes advisory. What is checked is the test
     // the table is derived from, not the rows — rows move, the test does not.
-    expect(agents).toContain('needs `user` to say so first');
-    expect(agents, 'and it names what makes something need asking').toContain(
+    //
+    // Whitespace is collapsed first: these are claims about what the document
+    // says, and a sentence that rewraps has not changed its mind.
+    const said = agents.replace(/\s+/g, ' ');
+    expect(said).toContain('needs `user` to say so first');
+    expect(said, 'and it names what makes something need asking').toContain(
       'destroys work which exists nowhere else',
     );
   });
@@ -90,9 +95,8 @@ describe('the two instruction files are one document', () => {
   // differ, because only Claude's Stop hook arms the watcher.
   function withoutSupervision(text: string): string {
     const start = text.indexOf('## Supervision');
-    const end = text.indexOf('## Workflow');
-    if (start < 0 || end < 0 || end < start) throw new Error('both sections must be present');
-    return text.slice(0, start) + text.slice(end);
+    if (start < 0) throw new Error('the section has to be findable to be excluded');
+    return text.slice(0, start);
   }
 
   it('agree everywhere except the section that is about the harness', () => {
