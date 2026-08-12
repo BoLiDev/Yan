@@ -16,10 +16,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
  *   command, a record field or the model's instructions is how the concept
  *   comes back.
  *
- * This file replaces `tests/unit/soft-path-boundary.test.sh`, which asserted
- * the same rules about a soft path that lived in `ui/` and was launched from
- * `bin/lib-ui.sh`. Both are gone: Clack is an ordinary dependency now. What is
- * kept is every assertion that was about the rule rather than about the shell.
+ * It also holds the rule that keeps the two instruction files one document.
  */
 
 function read(...parts: string[]): string {
@@ -68,11 +65,13 @@ describe('the model is never sent into the prompts', () => {
   });
 
   it('and does not let "you may run things" read as "you may decide things"', () => {
-    // The loosening is about capability. Authority is a different question and
-    // the same document has to say so, or the table below it quietly becomes
-    // advisory.
-    expect(agents).toContain('Being able to run a command is not');
-    expect(agents, 'and that a shift is still how work is offloaded').toContain('A shift is still how work gets offloaded');
+    // Capability is open; authority is not, and the same document has to say
+    // so or the table quietly becomes advisory. What is checked is the test
+    // the table is derived from, not the rows — rows move, the test does not.
+    expect(agents).toContain('needs `user` to say so first');
+    expect(agents, 'and it names what makes something need asking').toContain(
+      'destroys work which exists nowhere else',
+    );
   });
 
   it('and still carries the authority rules and the Codex checkpoint', () => {
@@ -80,6 +79,29 @@ describe('the model is never sent into the prompts', () => {
     expect(agents).toContain('yan land');
     expect(agents).toContain('mentioning anyone');
     expect(agents).toContain('yan wait --seconds');
+  });
+});
+
+describe('the two instruction files are one document', () => {
+  // Claude reads CLAUDE.md and Codex reads AGENTS.md, so the same guidance has
+  // to exist twice. Maintained by hand they drift — and they drift silently,
+  // because nobody reads both. Everything outside "## Supervision" is compared
+  // byte for byte; that section is the one place the two harnesses genuinely
+  // differ, because only Claude's Stop hook arms the watcher.
+  function withoutSupervision(text: string): string {
+    const start = text.indexOf('## Supervision');
+    const end = text.indexOf('## Workflow');
+    if (start < 0 || end < 0 || end < start) throw new Error('both sections must be present');
+    return text.slice(0, start) + text.slice(end);
+  }
+
+  it('agree everywhere except the section that is about the harness', () => {
+    expect(withoutSupervision(read('CLAUDE.md'))).toBe(withoutSupervision(read('AGENTS.md')));
+  });
+
+  it('and each says how its own supervision is driven', () => {
+    expect(read('CLAUDE.md'), 'Claude is armed by the Stop hook').toContain('The Stop hook arms');
+    expect(read('AGENTS.md'), 'Codex runs the loop itself').toContain('yan wait --seconds');
   });
 });
 
