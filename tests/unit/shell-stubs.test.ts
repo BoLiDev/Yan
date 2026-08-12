@@ -16,7 +16,7 @@ import { repoRoot } from '../helpers/fixtures.js';
  * spawn.
  *
  * It skips loudly when shellcheck is absent rather than passing quietly, which
- * is the same rule the Herdr e2e test follows (plan/conventions.md §5).
+ * is the same rule the Herdr e2e test follows.
  */
 
 const BIN = join(repoRoot, 'bin');
@@ -53,7 +53,7 @@ describe('bin/ holds exactly four files, and each shell one is a stub', () => {
   });
 
   it('sources no shell library: there are none left to source', () => {
-    // Prose may still say which library a stub used to reach for; code may not.
+    // Prose may name a library; code may not reach for one.
     for (const name of shellFiles()) {
       const code = readFileSync(join(BIN, name), 'utf8')
         .split('\n')

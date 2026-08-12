@@ -7,11 +7,10 @@ import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
 
 /**
- * The Commander root (runtime.md §3).
+ * The Commander root.
  *
- * `bin/yan` reaches this file, and this file is the *only* place that composes
- * subcommands. Three things it buys, all of them things the shell dispatcher it
- * replaced could not do:
+ * `bin/yan` reaches this file, and this file is the only place that composes
+ * subcommands. Three things that buys:
  *
  *   - `yan --help` is generated rather than hand-maintained, so it cannot drift
  *     from the real flags;
@@ -48,9 +47,8 @@ function hasCommand(mod: unknown): mod is CommandModule {
 /**
  * `yan shift new` and `yan shift-new` must reach the same place.
  *
- * The shell dispatcher did this by rewriting the space into a hyphen before
- * looking for a file. Commander cannot see two words as one command name, so
- * the same rewrite happens here, once, before parsing — and only when the
+ * Commander cannot see two words as one command name, so the space is
+ * rewritten into a hyphen here, once, before parsing — and only when the
  * hyphenated name actually exists, so a real `yan ls t042` is untouched.
  */
 export function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
@@ -130,7 +128,7 @@ function commanderExitCode(err: CommanderError): number {
 }
 
 /**
- * Bare `yan` on a terminal (cli-ux.md §2).
+ * Bare `yan` on a terminal.
  *
  *     › create new task
  *       t042  unify the auth header          2 shifts live
@@ -172,7 +170,7 @@ async function chooseEntryPoint(): Promise<string[]> {
 }
 
 /**
- * The soft path, installed rather than imported (runtime.md §2–3).
+ * The soft path, installed rather than imported.
  *
  * `resolve()` calls this only when stdin is a TTY and a required value is
  * missing, so the dynamic import is what keeps Clack off every other path —

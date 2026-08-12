@@ -5,7 +5,7 @@ import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome, registerRepo } from '../h
 import { scan } from '../../src/cli/repo.js';
 
 /**
- * `yan repo add`'s scan (v3 td repos.md §4).
+ * `yan repo add`'s scan.
  *
  * The interactive half cannot be driven from a test — there is no terminal —
  * but the interesting half is not interactive: which directories are offered,

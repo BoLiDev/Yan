@@ -12,10 +12,10 @@ import {
 } from '../helpers/fixtures.js';
 
 /**
- * `yan continue`, ported from `tests/unit/yan-continue.test.sh`.
+ * `yan continue`.
  *
  * Two of its assertions carry over unchanged and are the easiest in the command
- * to lose in a rewrite (cli-ux.md §3):
+ * to lose in a rewrite:
  *
  *   A second yan on the same task is refused, and the lock is per task, not per
  *   home — two yans on two different tasks is ordinary working practice.
@@ -24,7 +24,7 @@ import {
  *
  * And two are new, because V2's entry is: the main agent starts in the calling
  * pane, no container is created, and the workspace tokens this command set are
- * withdrawn when the agent exits (display.md §4, last row).
+ * withdrawn when the agent exits.
  *
  * The main agent is `process.execPath` — a real spawn of a real executable that
  * reads an empty stdin and exits 0. Nothing here needs a harness installed, and
@@ -76,7 +76,7 @@ beforeAll(async () => {
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
   mkdirSync(join(home, 'repos', 'proto'), { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
   registerRepo(home, 'proto', join(home, 'repos', 'proto'));
@@ -234,7 +234,7 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     const { calls, session } = await enter('t042', 'w7:p2');
     expect(calls.map((c) => c.what)).toEqual(['set']);
     // Two units, so there is no single current one to name: the tab says which
-    // task this is and claims nothing about a branch (display.md §4).
+    // task this is and claims nothing about a branch.
     expect(calls[0]?.detail).toBe('w7 {"task":"t042"}');
 
     expect(session.run).toBeDefined();

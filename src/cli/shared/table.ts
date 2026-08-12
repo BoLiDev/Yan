@@ -1,6 +1,5 @@
 /**
- * Column alignment for the human renderings, ported from `yan-ls.sh`'s
- * `table()`.
+ * Column alignment for the human renderings.
  *
  * Rows are tab-separated, the first row is the header, and the last column is
  * never padded — trailing spaces at end of line are noise in a terminal and in

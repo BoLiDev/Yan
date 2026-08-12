@@ -3,7 +3,7 @@ import { basename, join } from 'node:path';
 
 /**
  * Everything the prompts work out before they ask anything, and everything they
- * assemble after the last answer (cli-ux.md §6, td cli-ux.md §3 and §5).
+ * assemble after the last answer.
  *
  * Not one line of this module prompts, spawns, or writes. It is pure on
  * purpose: the interesting parts of the soft path — which packages a monorepo
@@ -25,10 +25,10 @@ export interface RegisteredRepo {
 }
 
 /*
- * `readRepos` used to be here, reading `mem/repos.json` and assuming every
+ * `readRepos` does not live here. Reading `mem/repos.json` assumes every
  * clone sat under `$YAN_HOME/repos/<name>`. Both halves of that are gone: the
  * registry lives in the vault and a clone is wherever this machine says it is
- * (v3 td repos.md). Resolving it needs the command layer, which is where the
+ * Resolving it needs the command layer, which is where the
  * caller now does it — `ui/` is given the answer rather than looking it up,
  * which is what "not one line of this module prompts, spawns, or writes"
  * always meant.
@@ -63,7 +63,7 @@ function childDirs(root: string, rel: string): string[] {
 /**
  * `pnpm-workspace.yaml`, read the cheap way.
  *
- * cli-ux.md §5 asks for workspace package directories "when cheap to read", and
+ * Workspace package directories are offered when they are cheap to read, and
  * a YAML parser is not cheap: this picks up the `- 'packages/*'` list items and
  * nothing else. A pattern it cannot understand is skipped, which costs a false
  * negative at worst — and false negatives are acceptable there, because
@@ -96,7 +96,7 @@ export interface Monorepo {
 }
 
 /**
- * Best-effort monorepo detection (cli-ux.md §5).
+ * Best-effort monorepo detection.
  *
  * Never authoritative: it only decides which list to show, and "the whole
  * repository" is always one of the choices, so a wrong guess costs a keystroke.
@@ -167,7 +167,7 @@ export interface Choice {
 /**
  * The scope menu for one repository.
  *
- * The escape is always there: cli-ux.md §5 accepts a noisy list only as long as
+ * The escape is always there: a noisy list is acceptable only as long as
  * "the whole repository" remains one of the choices.
  */
 export function scopeChoices(detection: Monorepo): Choice[] {
@@ -203,7 +203,7 @@ export interface PlannedUnit {
 }
 
 /**
- * Selections become units (cli-ux.md §5, branching.md §6.4/§6.7).
+ * Selections become units.
  *
  *   one selected package  → one unit, scope = that path
  *   several packages      → several units in the same run, one per package;

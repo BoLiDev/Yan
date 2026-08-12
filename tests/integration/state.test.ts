@@ -8,7 +8,7 @@ import type { Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan state`, ported from `tests/unit/yan-state.test.sh` and the state half of
+ * `yan state`, and the state half of
  * `tests/integration/yan-send-state.test.sh`.
  *
  * Every line in run/status is an event, and `yan state` does not treat the last
@@ -105,7 +105,7 @@ describe('the live sources decide, never the newest event', () => {
     mrState = 'unknown';
     const facts = stateOf('s1', 't042', deps());
     expect(facts.state).toBe('unknown');
-    // orchestration.md §6: `unknown` is not `dead`. Rounding it that way is how
+    // `unknown` is not `dead`. Rounding it that way is how
     // work gets deleted.
     expect(facts.state).not.toBe('dead');
   });

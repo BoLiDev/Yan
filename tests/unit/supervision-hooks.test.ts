@@ -12,7 +12,7 @@ import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '..
  * ported to the TypeScript hooks.
  *
  * They are driven through `bin/hook-*.sh`, not through the compiled files
- * directly, because the shell stub is part of what Phase 6 delivers: the
+ * directly, because the shell stub is part of the contract: the
  * harness registration still names a `.sh`, and the stub has to reach the
  * compiled hook when there is one and the shell body when there is not.
  *
@@ -257,7 +257,7 @@ describe('the guard on Claude', () => {
   });
 
   it('lets a watcher that is mid-reconnect through', async () => {
-    // supervision.md §5, decided in Phase 6: a reconnect gap is not a fault.
+    // A reconnect gap is not a fault.
     // The watcher is still going round its loop and its liveness poll never
     // went through the socket in the first place.
     liveShift('s1');

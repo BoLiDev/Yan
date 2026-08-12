@@ -5,7 +5,7 @@ import { Supervision } from '../records/supervision/index.js';
 import { action, out } from './shared/action.js';
 
 /**
- * `yan drain` — read the wake file and clear it (supervision.md).
+ * `yan drain` — read the wake file and clear it.
  *
  * The first thing the model does after being woken. `yan wait` exits when
  * something actionable happened and writes the reason down; the wake file is
@@ -21,7 +21,7 @@ import { action, out } from './shared/action.js';
  * drains after a quiet timeout too, so "nothing to report" must not look like a
  * failure.
  *
- * Whose wake file. Supervision is per-yan and a yan is per-task (agents.md
+ * Whose wake file. Supervision is per-yan and a yan is per-task (see
  * §5.2), so the file belongs to the task, not to any one shift:
  * `tasks/<id>/run/wake`, beside the guard's own `run/guard-failures`.
  * `$YAN_WAKE_FILE` overrides the path entirely.

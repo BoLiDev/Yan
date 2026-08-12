@@ -14,16 +14,10 @@ import { repoRoot } from '../helpers/fixtures.js';
  *            and no autoarm: Codex parses `async` but does not run asynchronous
  *            command hooks, so it cannot hold a multi-hour watcher
  *
- * Ported from `tests/unit/harness-bindings.test.sh` in Phase 9, unchanged in
- * substance — the two settings files are the one subject of a bash test that
- * outlives bash. Only the runner moved.
- *
  * Why the codex half is structural.
  *
- * It used to grep the file's body, and said so: "the Codex file is written from
- * the documented shape and has not been run against a real codex." A body grep
- * passes on a file codex refuses to parse, which is exactly what happened — for
- * eight phases the checked-in file was rejected at startup with
+ * A grep over the file's body passes on a file codex refuses to PARSE, and that
+ * is not hypothetical: the checked-in file was rejected at startup with
  *
  *   unknown field `version`, expected `description` or `hooks`
  *
@@ -32,7 +26,7 @@ import { repoRoot } from '../helpers/fixtures.js';
  * string-valued `command`, `timeout` in seconds, and the absence of the keys
  * codex rejects. The shape is not derived from documentation — it is the one
  * `herdr integration install codex` writes, and it was confirmed by running
- * codex (evidence.md §13.1).
+ * codex.
  */
 
 function settings(...parts: string[]): Record<string, unknown> {
@@ -123,7 +117,7 @@ describe('Codex: what those hooks run', () => {
   });
 
   it('starts the interpreter directly, because the shell it would get is not knowable', () => {
-    // measured, not a style choice (evidence.md §13.2). Codex hands the command
+    // measured, not a style choice. Codex hands the command
     // string to the platform shell, which on Windows is PowerShell — and on the
     // plain Windows PATH `bash` resolves to the WSL launcher while `sh` does not
     // resolve at all. A hook naming either reaches the wrong interpreter or

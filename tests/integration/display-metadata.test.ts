@@ -17,10 +17,10 @@ import { setUnit, type Labeller } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
- * The display-metadata calls from display.md §4, and the two Phase 7 Trace
+ * The display-metadata calls, and the two
  * bullets that span every command rather than belonging to one.
  *
- *   "Workspace tokens and pane titles are set at the moments in display.md §4,
+ *   "Workspace tokens and pane titles are set at the right moments,
  *    cleared on teardown, and a metadata failure logs one line without
  *    aborting the operation."
  *
@@ -59,7 +59,7 @@ beforeEach(async () => {
   process.env.YAN_HOME = home;
   await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 

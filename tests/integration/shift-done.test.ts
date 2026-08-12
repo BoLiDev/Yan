@@ -17,7 +17,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  * `yan shift done`, ported from `tests/unit/yan-shift-done-order.test.sh` and
  * `tests/integration/yan-shift-done-squash.test.sh`.
  *
- * Phase 7 Trace: "`shift done` order: MR merged → `outcome` → `rm -rf run/` →
+ * What is under test: "`shift done` order: MR merged → `outcome` → `rm -rf run/` →
  * return the tree → then delete the remote branch." It is the kind of
  * regression that never fails loudly: get it backwards and everything still
  * looks like it worked, right up until a squash-merged shift strands a pool
@@ -28,8 +28,8 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  * witness: the stand-in records whether run/ still existed when the tree came
  * back.
  *
- * And Phase 7's own fifth regression: a `done` wake never tears down a shift
- * whose MR has not merged (orchestration.md §4). Plan approval arrives as
+ * And A further fifth regression: a `done` wake never tears down a shift
+ * whose MR has not merged. Plan approval arrives as
  * `done`, so a shift parked on one looks exactly like a shift that finished.
  */
 
@@ -130,7 +130,7 @@ beforeEach(() => {
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
@@ -164,7 +164,7 @@ describe('an unmerged merge request stops everything', () => {
   });
 
   it('is what makes a `done` wake safe', () => {
-    // orchestration.md §4: plan approval arrives as `done`, so a shift parked
+    // Plan approval arrives as `done`, so a shift parked
     // on one looks exactly like a shift that finished — and what follows
     // "finished" is destructive. `done` is a reason to look, never a verdict.
     const runDir = dispatched('s1');
@@ -254,7 +254,7 @@ describe('a failed return stops before the branch is deleted', () => {
 
 describe("the MR url reaches yan through the shift's own report", () => {
   it('is the only channel carrying the address back', () => {
-    // delivery.md §8.2 makes `done: mr <url>` the deliverable in mr mode. The
+    // `done: mr <url>` is the deliverable in mr mode. The
     // shift opens its own merge request, so nothing else records the address.
     // The host still decides whether it merged; the note only supplies what to
     // ask about.

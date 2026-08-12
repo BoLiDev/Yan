@@ -10,7 +10,7 @@ import {
 } from '../helpers/fixtures.js';
 
 /**
- * Bare `yan` (cli-ux.md §2).
+ * Bare `yan`.
  *
  * | `yan` with a TTY    | the select                                 |
  * | `yan` without a TTY | usage, exit 0 — unchanged, so scripts and agents see no difference |
@@ -30,7 +30,7 @@ beforeAll(async () => {
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
   mkdirSync(join(home, 'repos', 'demo'), { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'demo', join(home, 'repos', 'demo'));
 

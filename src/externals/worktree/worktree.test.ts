@@ -24,7 +24,7 @@ import { WorktreePool } from './index.js';
  * from `index.ts`. A test in `tests/` could only see them by widening the
  * public surface, which is how the surface got wide in the first place.
  *
- * Phase 3 Trace:
+ * What is under test:
  *   - return uses `reset --hard` + `clean -fd` and never -x; gitignored
  *     directories survive a round trip
  *   - the orphan-commit guard refuses to return a tree holding uncommitted or
@@ -81,7 +81,7 @@ beforeEach(async () => {
   await fxGit(['config', 'user.name', 'yan tests'], clone);
   await fxGit(['config', 'user.email', 'yan-tests@localhost'], clone);
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 });
@@ -139,7 +139,7 @@ describe('get', () => {
     );
 
     // The layout is <pool root>/<repo>-<hash>/<slot>/<repo>, and the leases
-    // live in the pool's own root, never under $YAN_HOME (td INDEX.md §3).
+    // live in the pool's own root, never under $YAN_HOME.
     const dir = cloneDir(clone);
     expect(grant.path).toContain('/1/demo');
     expect(grant.path.startsWith(`${dir}/`)).toBe(true);
@@ -147,7 +147,7 @@ describe('get', () => {
     expect(grant.path.toLowerCase()).not.toContain(normalizePath(home).toLowerCase());
 
     // git knows the tree by its own spelling of the path; the comparison has to
-    // normalise before it can compare (conventions §3).
+    // normalise before it can compare.
     const listed = (await fxGit(['worktree', 'list', '--porcelain'], clone)).stdout;
     const registered = listed
       .split(/\r?\n/)
@@ -191,7 +191,7 @@ describe('the orphan-commit guard', () => {
 });
 
 /**
- * boundaries.md §9.2 does not forbid a force flag, it authorises one: *forbidden,
+ * A force flag is not forbidden, it is authorised: forbidden,
  * unless `user` says the changes can be thrown away.* `yan done --force` is the
  * only caller, and this is what it buys — recovering a slot the guard has, quite
  * correctly, refused to release.
@@ -399,7 +399,7 @@ describe('yan tree, the command layer', () => {
 
   it('reads pool_size from the vault registry, which this module must not read', async () => {
     // Tuning lives on the portable half: it follows the repository between
-    // machines, unlike the path beside it (v3 td repos.md §2).
+    // machines, unlike the path beside it.
     registerRepo(home, 'demo', clone, { url: 'x', pool_size: 1 });
     expect((await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1'])).code).toBe(0);
     const full = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's2', '--holder', 't/u/2']);

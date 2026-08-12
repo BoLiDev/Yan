@@ -15,7 +15,7 @@ import {
  * `yan task new`, ported from `tests/integration/yan-task-new.test.sh` and
  * `tests/unit/yan-task-new-args.test.sh`.
  *
- * Phase 8 ports the last two commands that had no TypeScript twin. What the
+ * What the
  * bash test proved and this one has to keep proving:
  *
  *   Create ends with `user` inside the task. Create is not "mkdir plus an empty
@@ -72,7 +72,7 @@ beforeAll(async () => {
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'auth'), { recursive: true });
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'admin'), { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   for (const name of ['monorepo-x', 'proto']) registerRepo(home, name, join(home, 'repos', name));
 });

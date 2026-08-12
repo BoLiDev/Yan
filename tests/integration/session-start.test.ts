@@ -15,12 +15,12 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
 import type { LeaseRow } from '../../src/externals/worktree/index.js';
 
 /**
- * `yan session-start`, ported from `tests/unit/yan-session-start.test.sh`.
+ * `yan session-start`.
  *
- * Phase 7 Trace: "session-start rebuilds from disk + Herdr + pool + forge with
+ * What is under test: "session-start rebuilds from disk + Herdr + pool + forge with
  * no durable `yan` state."
  *
- * The second half is the one worth a test. agents.md §5.1 says yan holds no
+ * The second half is the one worth a test: yan holds no
  * persistent running state, and that is the whole reason a restart is a
  * non-event; the moment this command writes a cache, a session file or a
  * "last seen" timestamp, that stops being true and something exists that can
@@ -86,7 +86,7 @@ beforeEach(() => {
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', clone);
 
@@ -248,7 +248,7 @@ describe('a half-written meta.json is one lost fact, never a crash', () => {
 });
 
 /**
- * Skills: standing instructions in prose (v3 td vault.md).
+ * Skills: standing instructions in prose.
  *
  * The mechanism is deliberately the whole of it — session-start is the
  * SessionStart hook, so what it prints is what the session starts knowing.

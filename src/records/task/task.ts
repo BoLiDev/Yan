@@ -31,7 +31,7 @@ export class Task {
       throw TaskError.usage(`invalid task id: '${id}' - use letters, digits, dot, dash or underscore`);
     }
     this.id = id;
-    // Paths yan prints or stores are normalised (conventions §3): forward
+    // Paths yan prints or stores are normalised: forward
     // slashes on both platforms, so `yan ls`'s `dir` line and a `tree` recorded
     // in run/meta.json read the same on Git Bash and on Linux.
     this.dir = normalizePath(taskDir(id));

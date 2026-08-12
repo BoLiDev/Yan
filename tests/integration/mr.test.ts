@@ -16,9 +16,9 @@ import { Task } from '../../src/records/task/index.js';
 import type { MrCreateOptions } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan mr`, ported from `tests/unit/yan-mr.test.sh`.
+ * `yan mr`.
  *
- * boundaries.md §9.2 puts this row in the "on its own" column, because opening
+ * This one sits in the "on its own" column, because opening
  * a merge request is reversible: it can be closed and nothing outside `user`'s
  * own branches has changed. Its sibling row — merging that MR into `target` —
  * is `yan land`, and `user` has to ask. Two rows, two files; the split is the
@@ -73,7 +73,7 @@ beforeEach(async () => {
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'monorepo-x'));
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', clone, { url: bare });
   // Only feat/auth is published; feat/later deliberately is not.

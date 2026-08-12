@@ -14,7 +14,7 @@ import { CommandError } from './shared/errors.js';
 import { action, out } from './shared/action.js';
 
 /**
- * `yan wait` — the watcher (supervision.md §2, architecture.md §5.1).
+ * `yan wait` — the watcher.
  *
  * One command, two shapes, and a pure observer.
  *
@@ -47,7 +47,7 @@ import { action, out } from './shared/action.js';
  *
  * The liveness poll is a poll for a reason, not an oversight: `pane_exited` is
  * in Herdr's event schema but not in its subscription schema, and `events.wait`
- * refuses it too (evidence §11.2). "The agent died" has no push channel on this
+ * refuses it too. "The agent died" has no push channel on this
  * build, so it stays a poll for as long as that is true.
  *
  * There is deliberately no fourth source. yan does not poll pull requests or
@@ -200,7 +200,7 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
    * Only panes herdr currently lists are asked about, and that is not caution:
    * a subscription naming a pane the server does not know is not refused with
    * an error — **the server closes the connection**, taking every other pane's
-   * subscription with it (evidence §12.1). A stale pane id in `run/meta.json`
+   * subscription with it. A stale pane id in `run/meta.json`
    * would otherwise cost the whole watcher its event stream, once per turn,
    * for ever. The snapshot is what says which panes are real.
    */
@@ -218,8 +218,7 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
     // subscribe, then snapshot, then block. The last snapshot is what closes
     // the window for a `yan wait` starting up over shifts that are already
     // running: a subscription is an edge trigger, so a shift that went
-    // `blocked` before anybody was listening would never be reported
-    // (evidence §11.5).
+    // `blocked` before anybody was listening would never be reported.
     let state: WatcherState = 'polling';
     try {
       await events.open();
@@ -239,7 +238,7 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
       const live = sup.liveShifts().map(toWatched);
       for (const event of arrived.splice(0)) status.set(event.pane, event.status);
       // Without a subscription the status has to be asked for. Same facts, one
-      // poll late (the Phase 5 gate's fallback), and never a content hash.
+      // poll late, and never from a content hash.
       if (state !== 'subscribed') snapshot(terminal, status);
 
       const found = look(sup, terminal, live, status);
@@ -310,7 +309,7 @@ interface Found {
 /**
  * What the sources say, in the order a stronger fact beats a weaker one.
  *
- * The mapping is supervision.md §3, complete:
+ * The mapping, complete:
  *
  *   blocked  → escalate: the shift is sitting on an approval or a question
  *   done     → wake, and look. never a verdict — see below
@@ -357,7 +356,7 @@ function look(
     }
     if (seen === 'done') {
       // Done is a reason to look, never a verdict. The plan-approval prompt
-      // arrives as `done` because no screen rule matches it (evidence §11.3),
+      // arrives as `done` because no screen rule matches it,
       // so a shift parked on a plan approval looks exactly like a shift that
       // has finished — and clocking out is destructive. Rule 3 is the objective
       // condition, and this sentence is here because this is where it would be
@@ -396,7 +395,7 @@ function toWatched(shift: { sid: string; run: string; meta: () => { agentId?: st
  *
  * A subscription naming one pane Herdr does not know is refused whole, so an id
  * this watcher cannot vouch for would cost every other shift its subscription
- * (evidence §12.1). The filter is not about where the bad id came from; it is
+ * The filter is not about where the bad id came from; it is
  * about the blast radius of asking.
  *
  * Two produce one, and neither is historical. `shift new` records the dispatch

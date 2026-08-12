@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { isInside, normalizePath, samePath } from '../../src/util/paths.js';
 
 /**
- * plan/conventions.md §3: any comparison between a path we built and a path an
+ * Any comparison between a path we built and a path an
  * external tool printed must normalise first, and a single `normalizePath()`
- * owns it. This is the reduced survivor of mvp conventions §2.4.
+ * owns it.
  */
 
 const windows = process.platform === 'win32';

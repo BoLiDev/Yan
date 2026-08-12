@@ -13,7 +13,6 @@ import { spawnSync } from 'node:child_process';
  *
  * This file is the module's only edge to the outside world, which is what lets
  * a test replace it by import rather than by an environment-variable trick
- * (plan/conventions.md §5).
  */
 
 export interface CliResult {

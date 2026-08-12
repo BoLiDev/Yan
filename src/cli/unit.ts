@@ -142,7 +142,7 @@ function ensureBranch(command: string, clone: string, repo: string, branch: stri
   if (branchExists(clone, branch)) return 'adopted the existing local branch';
 
   if (remoteRef(clone, branch) !== '') {
-    // "The branch already exists on the remote → check it out" (boundaries.md
+    // "The branch already exists on the remote → check it out" (see
     // §10), done the only way a main clone allows: a ref, never a checkout.
     if (createBranch(clone, branch, `origin/${branch}`).code !== 0) {
       throw new CommandError(command, 'branch_failed', `cannot create a local ref for the existing remote branch '${branch}'`,
@@ -384,7 +384,7 @@ const add = new Command('add')
 usage: yan unit add --task <id> --unit <name> --repo <repo> --target <branch>
 
   --target  REQUIRED, and never defaulted: which branch this unit's work is
-            ultimately delivered into. There is no safe default (branching.md
+            ultimately delivered into. There is no safe default (a
             §6.4) - during a release the team merges into a shared branch, in
             quiet periods into master.
   --branch  omit it and the built-in default applies: yan/<task>-<unit>-r<n>,

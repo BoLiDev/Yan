@@ -6,7 +6,6 @@ import { action, out } from './shared/action.js';
 
 /**
  * `yan tree get | return | status` — the entry point to the worktree pool
- * (worktree.md §7, architecture.md §5.1).
  *
  * The pool is part of yan, not a separate binary and not a wrapper around an
  * outside tool. This file is the thin command layer: it resolves which
@@ -135,7 +134,7 @@ branch contains HEAD: that is the moment the work exists nowhere else. This
 command has no flag to override it - stop and investigate instead.
 
 The one door past it is 'yan done --force', which finishes a whole task and
-carries user's authority for throwing the changes away (boundaries.md 9.2).
+carries user's authority for throwing the changes away.
 
 The pool lives under ~/.yan-trees (YAN_POOL_ROOT overrides it) and its size is
 pool_size in mem/repos.json, default ${DEFAULT_POOL_SIZE}.`,

@@ -2,7 +2,6 @@ import { CommandError } from './errors.js';
 
 /**
  * The soft/hard rule, expressed once instead of per command
- * (runtime.md §3, cli-ux.md §1).
  *
  *   soft   stdin is a tty  and  a required value is missing  → prompt
  *   hard   every required flag is present, or there is no TTY → no prompts.
@@ -31,7 +30,7 @@ export type Prompter = (missing: readonly OptionSpec[]) => Promise<Record<string
 
 // The prompter is *installed*, never imported here: `src/ui/` is Clack and
 // people, and a seam or a store must never be able to reach it
-// (runtime.md §2). Phase 8 installs it from src/cli/yan.ts; until then the
+// Installed from src/cli/yan.ts rather than imported here, so that the
 // soft path simply does not exist and every caller takes the hard one.
 let installedPrompter: Prompter | undefined;
 

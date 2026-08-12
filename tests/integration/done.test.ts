@@ -22,7 +22,7 @@ import { WorktreeError, type LeaseRow, type ReturnOptions } from '../../src/exte
  *      tree is touched and before `complete` is set; a tree the pool's
  *      orphan-commit guard will not take back leaves the task open.
  *   2. `--force` is `user`'s answer, not a retry. It is the only thing in yan
- *      that reaches past that guard (boundaries.md §9.2), so nothing else may
+ *      that reaches past that guard, so nothing else may
  *      grow a way to do it — `yan tree return` in particular must stay flagless.
  *
  * The pool is a stand-in here so the order and the authority can be asserted
@@ -121,7 +121,7 @@ beforeEach(() => {
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
@@ -219,7 +219,7 @@ describe('--force is user\'s answer, and it is the whole authority', () => {
   });
 
   it('is the only place in yan that forces a return', () => {
-    // The one line of boundaries.md §9.2 this file holds. If a second command
+    // The one authority this file holds. If a second command
     // learns to force a tree back, `user` has stopped being the one who
     // decides — and it is the kind of edit nothing else would notice. Comments
     // may name what is forbidden; code may not run it.
@@ -273,7 +273,7 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   });
 
   it('refuses without a terminal rather than hanging on a prompt it cannot show', async () => {
-    // The half of the soft/hard rule that matters (cli-ux.md §1): an agent, a
+    // The half of the soft/hard rule that matters: an agent, a
     // hook or a script that reached the multi-select would wait forever.
     const none = await yan(['done'], { YAN_TASK: undefined });
     expect(none.code).toBe(2);

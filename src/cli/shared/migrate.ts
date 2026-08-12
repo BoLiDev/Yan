@@ -12,7 +12,7 @@ import { CommandError } from './errors.js';
  * one command's implementation rather than a command of its own.
  *
  * `yan vault init --from-home` — the one thing that still reads the pre-V3
- * layout, and the last thing that ever will (v3 td migration.md).
+ * layout, and the last thing that ever will.
  *
  * It is a command rather than a page of instructions for one reason beyond
  * convenience: **it is the test.** V3's whole claim is that the three layers
@@ -263,7 +263,7 @@ export function stillOnlyInHome(plan: MigrationPlan): string[] {
   return missing;
 }
 
-/** What the old home no longer needs, once the new one has been checked. */
+/** What the old home can give up, once the new one has been checked. */
 export function dropHome(plan: MigrationPlan): void {
   for (const rel of ['tasks', 'mem', 'repos', join('conf', 'config.json'), join('conf', 'hooks')]) {
     rmSync(join(plan.home, rel), { recursive: true, force: true });
@@ -271,7 +271,7 @@ export function dropHome(plan: MigrationPlan): void {
   writeJson(join(plan.home, '.migrated.json'), {
     version: 1,
     vault: plan.vault,
-    note: 'the data that used to live here is in the vault above',
+    note: 'this data lives in the vault above',
   });
   out(`vault init: removed tasks/, mem/, repos/ and conf/config.json from ${plan.home}`);
 }

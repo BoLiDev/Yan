@@ -13,8 +13,7 @@ import { existsSync } from 'node:fs';
  *
  * This command does not read the last line of run/status. Not ever.
  *
- * agents.md §5.4: *every line in run/status is an event, not the current
- * state.* A shift that reported `done` and then died has `done` as its last
+ * Every line in run/status is an event, not the current state. A shift that reported `done` and then died has `done` as its last
  * line; so has a shift that reported `done` an hour ago and is still waiting
  * for its merge request to be reviewed; so has a shift whose work has since
  * landed. The last line is the most recent thing that happened, and reading it
@@ -41,7 +40,7 @@ import { existsSync } from 'node:fs';
  *                rounded up to something more comfortable.
  *
  * `unknown` is not `dead`, and this command must not round it that way
- * (orchestration.md §6). `unknown` means yan could not find out, and clocking a
+ * `unknown` means yan could not find out, and clocking a
  * shift out on "could not find out" is how work gets deleted. The two-call
  * derivation that separates them lives in the seam; nothing here re-implements
  * it.

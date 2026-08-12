@@ -9,8 +9,7 @@ import { defaultEndpoint, endpointFor, herdrSocketPath } from './socket.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
- * The socket client, against a real server speaking the protocol the Phase 5
- * spike recorded (evidence §11.1).
+ * The socket client, against a real server speaking Herdr's protocol.
  *
  * It is a real `net` server on a real endpoint — a named pipe on Windows, a
  * unix socket elsewhere — because the thing most likely to be wrong here is the
@@ -139,7 +138,7 @@ async function until(check: () => boolean, what: string): Promise<void> {
 
 describe('the Windows pipe-name rule', () => {
   it('turns the .sock path into a pipe name, and leaves other platforms alone', () => {
-    // evidence §11.1: `%APPDATA%\herdr\herdr.sock` is a hint file, not a
+    // `%APPDATA%\herdr\herdr.sock` is a hint file, not a
     // socket. The endpoint is a named pipe whose name is that path.
     expect(endpointFor('C:\\Users\\x\\AppData\\Roaming\\herdr\\herdr.sock', 'win32')).toBe(
       '\\\\.\\pipe\\C:\\Users\\x\\AppData\\Roaming\\herdr\\herdr.sock',
@@ -301,7 +300,7 @@ describe('what arrives on a subscription', () => {
 
 describe('a subscription that ends', () => {
   it('is reported, and reconnecting subscribes again', async () => {
-    // supervision.md §2: reconnect is not optional. The spike never saw a Herdr
+    // Reconnect is not optional. Nothing has ever observed a Herdr
     // restart under a subscriber, so the path is tested by ending the
     // connection under it rather than by hoping.
     const herdr = await fakeHerdr();
@@ -364,7 +363,7 @@ describe('the module cannot move the user or close anything', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('never spells focus, close or stop as a herdr verb', () => {
-    // conventions §5, regressions 5 and 6, applied to the second module that
+    // The same two regressions, applied to the second module that
     // talks to Herdr: focusing marks a tab seen and turns the `done` yan is
     // waiting for into an `idle` it ignores.
     expect(source).not.toContain('agent focus');

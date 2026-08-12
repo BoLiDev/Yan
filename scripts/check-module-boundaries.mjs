@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 //
-// The dependency graph from td architecture.md §2, enforced by lint rather than
-// by discipline (runtime.md §2).
+// The dependency graph, enforced by lint rather than
+// by discipline.
 //
 // Three rules, and all three exist because the failure they prevent is silent:
 //
@@ -15,10 +15,10 @@
 //   2. No sideways edges, between externals. No module under src/externals/<a>/ imports
 //      src/externals/<b>/. An external maps one outside authority into yan's
 //      vocabulary; one that reaches into another has started making decisions,
-//      which is the one thing they exist not to do (td §4.3).
+//      which is the one thing they exist not to do.
 //
 //   3. Prompts stay in the CLI. Nothing under src/ imports src/ui/ except
-//      src/cli/. `ui/` is Clack and people (cli-ux.md §2). A store or an
+//      src/cli/. `ui/` is Clack and people. A store or an
 //      external that can prompt is one that can hang a hook forever with
 //      nobody there to answer it.
 //

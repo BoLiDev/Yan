@@ -4,15 +4,13 @@ import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
- * `yan doctor`, ported from `tests/unit/yan-doctor.test.sh`.
+ * `yan doctor`.
  *
- * Phase 8 is where doctor stops being half a command: it checked Herdr in
- * TypeScript and shelled out to `bin/yan-doctor.sh` for the rest, and this
- * phase empties `bin/` of commands. So the checklist moved here, minus three
- * rows that were checks on a runtime yan no longer has - `jq`, `backend`,
- * `winpty`. Those are not ported and not replaced; they are gone.
+ * The whole checklist runs in one place, and there are no rows for `jq`,
+ * `backend` or `winpty`: nothing shells out, there is one terminal, and a
+ * native process in a Herdr pane already gets a real console.
  *
- * What is kept, because each one caught something real:
+ * What is checked, because each row caught something real:
  *
  *   Only the CLI the configured kind names is checked, never both. A machine
  *   that delivers to GitHub has no reason to install `glab`, and reporting its

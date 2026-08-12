@@ -8,14 +8,11 @@ import type { CiState, MrState } from './types.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
- * The port of `tests/unit/lib-forge-map.test.sh`.
+ * What is under test: `MrState` is one of {merged, closed, open, unknown} and
+ * `CiState` one of {green, red, pending, none}, for every fixture under
+ * tests/fixtures/forge/.
  *
- * Phase 2 Trace: "forge_mr_state ∈ {merged, closed, open, unknown};
- * forge_ci_state ∈ {green, red, pending, none}" and "every fixture under
- * tests/fixtures/forge/ replays to the same verdict as the bash
- * implementation".
- *
- * These are the highest-value tests in the phase. The mapping from a forge's
+ * These are the highest-value tests here. The mapping from a forge's
  * raw JSON to yan's vocabulary is where a wrong confident answer would come
  * from, so every case below is driven by a payload that a real CLI really
  * printed (GitHub) or by a shape taken from the published API documentation
@@ -185,17 +182,11 @@ describe('every fixture lands inside the closed set', () => {
 /**
  * The verdict every fixture produced, all four mappers, frozen.
  *
- * Phase 2's Trace bullet was "every fixture replays to the same verdict as the
- * bash implementation", and until Phase 9 this block proved it the literal way:
- * source `bin/lib-forge.sh`, run its four mappers over the same files, compare.
- * That is what let two implementations of 861 lines of JSON mapping live side by
- * side without drifting.
- *
- * Phase 9 deleted the bash half, so the comparison has no second side left. The
- * Assertion is kept anyway, with the reference frozen rather than re-derived:
- * this table is the exact output of that script on its last run, and it is the
- * only place the every-fixture-times-four-mappers guarantee lives. The named
- * tests above are spot checks with reasons; this is the sweep.
+ * The reference is frozen rather than re-derived, and that is the point: this
+ * table is what the four mappers produce over every fixture, written down, so a
+ * change to any of them shows up as a diff here rather than as a quietly
+ * different verdict. The named tests above are spot checks with reasons; this
+ * is the sweep.
  *
  * A row that has to change is a behaviour change, and should be argued for in
  * the commit that changes it — which is the same thing the bash comparison

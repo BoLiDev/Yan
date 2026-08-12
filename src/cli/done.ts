@@ -28,7 +28,7 @@ import { Task } from '../records/task/index.js';
  *
  * The second half is the reason it is one command and not two. A finished task
  * whose trees are still leased is a pool that shrinks by a slot per task, and
- * the pool refuses rather than grows when it is full (worktree.md §7). Marking
+ * the pool refuses rather than grows when it is full. Marking
  * done and giving the trees back are the same event, so they are the same
  * command, and it is not possible to do the first and forget the second.
  *
@@ -55,7 +55,7 @@ import { Task } from '../records/task/index.js';
  *
  * `--force` is not a retry and not a confirmation prompt. It is the same thing
  * `yan land --user-asked` is: the flag that carries `user`'s answer in, for the
- * one line of boundaries.md §9.2 that names it —
+ * the one rule that names it —
  *
  *     yan tree return --force   forbidden, unless `user` says the changes
  *                               can be thrown away
@@ -80,7 +80,7 @@ import { Task } from '../records/task/index.js';
  * three tasks are done at once. A single select would mean running the command
  * three times against a list that shrinks under you.
  *
- * The order of resolution is the ordinary soft/hard rule (cli-ux.md §1) with
+ * The order of resolution is the ordinary soft/hard rule with
  * `$YAN_TASK` in its usual place:
  *
  *   an explicit <task-id> or --task    always wins
@@ -208,7 +208,7 @@ function heldBy(task: string, deps: DoneDeps): Held[] {
  * The pane comes out of `run/meta.json` before the directory goes, for the same
  * reason `yan shift done` reads its teardown fields first: afterwards nothing
  * records where the agent was. The pane is closed and never the container —
- * a container's lifetime belongs to `user` (agents.md §5.7).
+ * a container's lifetime belongs to `user`.
  *
  * `outcome.md`, `status` and the brief are long-lived and are not touched. A
  * shift that was killed still has to be readable afterwards, and what it
@@ -326,7 +326,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
 }
 
 /**
- * Which tasks this invocation is about (cli-ux.md §1).
+ * Which tasks this invocation is about.
  *
  * The list is `yan ls`'s own scan, so there is one owner for "which tasks are
  * there" and the prompt cannot offer something the queue does not show.
@@ -419,7 +419,7 @@ Without --force this refuses rather than destroys:
           HEAD. Trees that did come back stay returned; the task is not
           marked done.
 
---force is user's answer to boundaries.md 9.2, not a retry: live shifts are
+--force is user's answer, not a retry: live shifts are
 killed and every tree is wiped past the orphan-commit guard. It destroys
 uncommitted changes and untracked files. It does NOT destroy commits - those
 stay on the shift branch in the clone, unpushed and reachable by name.

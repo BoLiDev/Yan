@@ -5,7 +5,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
 
 /**
  * The entry point's two structural rules, which no unit test of a command can
- * reach (cli-ux.md §2, §4; architecture.md §2).
+ * reach.
  *
  *   Prompts are for people. Agents already know their arguments, so the
  *   commands only they run must never grow one — a prompt reached by a hook, a
@@ -48,7 +48,7 @@ describe('the model is never sent into the prompts', () => {
   it('and still says the two things it has to', () => {
     // The rule these guard changed shape, and the guarantee did not.
     //
-    // AGENTS.md used to say "you only ever run `yan <command>`", which stopped
+    // The instructions once said "you only ever run `yan <command>`", which stopped
     // the model reaching for the human prompts and, in the same sentence,
     // stopped it grepping a file. The second half made yan stupid, so the rule
     // is soft now — `yan` is the toolkit, judgement is the agent's — and what
@@ -84,7 +84,7 @@ describe('the model is never sent into the prompts', () => {
 });
 
 describe('agent-only commands grew no prompts', () => {
-  // cli-ux.md §4: atomic commands used only by agents stay flag-only.
+  // Atomic commands used only by agents stay flag-only.
   for (const name of ['report', 'wait', 'drain', 'send']) {
     it(`yan ${name} neither resolves nor imports the prompts`, () => {
       const source = read('src', 'cli', `${name}.ts`);
@@ -118,7 +118,7 @@ describe('Clack is an ordinary dependency', () => {
   });
 
   it('is imported like any other package, with no discovery around it', () => {
-    // The mvp looked for node in three places and launched a separate Node
+    // Looking for node in three places and launching a separate Node
     // island. Node is the runtime now, so the dance has nowhere left to live:
     // bin/ is where it was, and this is an import.
     const shell = readdirSync(join(repoRoot, 'bin'))
@@ -162,7 +162,7 @@ describe('bin/ holds three prefixes and no others', () => {
 });
 
 describe('one exit code for "you called this wrongly"', () => {
-  // The Phase 8 decision: Commander's own argument errors join yan's, at 2.
+  // Commander's own argument errors join yan's, at 2.
   // A caller reading `1` learns only that something went wrong; `2` says the
   // command line was wrong before anything happened.
   let home = '';

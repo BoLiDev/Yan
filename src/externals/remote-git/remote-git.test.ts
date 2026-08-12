@@ -90,12 +90,9 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('no longer reads the legacy `forge` section, and says what to rename', () => {
-    // It was read while `bin/lib-forge.sh` was alive: that file read
-    // `.forge.kind` from this same config, so one file had to serve both halves
-    // of the migration. Phase 9 deleted the reader and the fallback went with
-    // it — two spellings of one key outlive their reason by years otherwise,
-    // and the second is always the one somebody edits.
+  it('reads only the current config section, and says what to rename', () => {
+    // There is one spelling of the key, deliberately: two of them outlive their
+    // reason by years, and the second is always the one somebody edits.
     //
     // `forge` is still looked for, because the difference between "you have not
     // configured a host" and "it is under the old name" is the difference
@@ -235,7 +232,7 @@ describe('mergeMr', () => {
     configure({ kind: 'github' });
     host().mergeMr({ mr: 'https://github.com/o/r/pull/1' });
     expect(calls[0]?.args).toEqual(['pr', 'merge', 'https://github.com/o/r/pull/1', '--merge']);
-    // worktree.md §7: `yan shift done` returns the tree and then deletes the
+    // `yan shift done` returns the tree and then deletes the
     // remote branch, so a host that deleted it during the merge would take that
     // step away.
     expect(calls[0]?.args).not.toContain('--delete-branch');

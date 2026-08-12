@@ -23,7 +23,7 @@ import { CommandError } from './shared/errors.js';
 import { resolve } from './shared/resolve.js';
 
 /**
- * `yan vault …` — the context a session works in (v3 td vault.md).
+ * `yan vault …` — the context a session works in.
  *
  * This is the only command that may run without a vault, and the only one that
  * writes `~/.yan/config.json`. Both follow from what it is: the thing you run
@@ -79,10 +79,8 @@ function today(): string {
 /**
  * The skeleton, from `templates/vault/` in the mechanics.
  *
- * All of it, including `config.json`. There used to be a second copy of that
- * one in `conf/config.sample.json` and a step here to fetch it; `conf/` held
- * nothing but templates once the real config moved into the vault, so it is
- * gone and the template is the sample.
+ * All of it, including `config.json`: the template is the sample, so there is
+ * one file to keep current rather than two that drift.
  */
 function layDownSkeleton(dir: string, name: string): void {
   const template = join(yanHome(), 'templates', 'vault');
@@ -336,7 +334,7 @@ const useCommand = new Command('use')
   .action(action('vault_use', (name: string | undefined) => { useVault(name); }));
 
 /**
- * `yan vault pull` and `yan vault push` (v3 td vault.md §5).
+ * `yan vault pull` and `yan vault push`.
  *
  * Two commands, deliberately not one, and neither of them called `sync`: the
  * word says which way the data moved, and here that is the whole question.

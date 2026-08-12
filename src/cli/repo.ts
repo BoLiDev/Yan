@@ -13,7 +13,7 @@ import { isTty } from './shared/resolve.js';
 
 /**
  * `yan repo add | link | ls` — which repositories this context knows about,
- * and where they are on this machine (v3 td repos.md).
+ * and where they are on this machine.
  *
  * This command is the only writer of the registry, both halves. Nothing else
  * may create, edit or delete `repos.json` or `.local/repos.json`: one owner per
@@ -36,8 +36,8 @@ import { isTty } from './shared/resolve.js';
  *     something a tool should do to a directory it did not create.
  */
 
-const MODE_DEFAULT = 'mr'; // delivery.md §8.2
-const POOL_SIZE = 8; // worktree.md §7
+const MODE_DEFAULT = 'mr';
+const POOL_SIZE = 8;
 
 /**
  * Handles both spellings a forge hands out:
@@ -55,7 +55,7 @@ export function repoNameFromUrl(url: string): string {
  * Two URLs naming the same repository.
  *
  * A local path we built and a local path git printed back can differ in
- * spelling on Windows, so those go through `normalizePath` (conventions §3).
+ * spelling on Windows, so those go through `normalizePath`.
  * Remote URLs (`git@…`, `https://…`) have no such problem and are compared
  * verbatim.
  */

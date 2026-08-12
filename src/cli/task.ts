@@ -61,7 +61,7 @@ import { withLock } from '../util/lock.js';
  * path is no prefix at all, and an empty scope means the unit restricts
  * nothing.
  *
- * `--target` is required for every unit and is never defaulted (branching.md
+ * `--target` is required for every unit and is never defaulted (see
  * §6.4): during a release the team merges into a shared branch, in quiet
  * periods into master, and a tool that guessed would be wrong about half the
  * time, silently, until the outbound MR.
@@ -291,7 +291,7 @@ async function askWhenMissing(flags: NewFlags, units: readonly UnitSpec[]): Prom
 
   const { askTaskNew } = await import('../ui/prompts.js');
   // The wizard is handed the repositories rather than looking them up: where a
-  // clone is on this machine is a command-layer question now (repos.md §2), and
+  // clone is on this machine is a command-layer question now, and
   // `ui/` reads no registry of its own.
   const answers = await askTaskNew(
     registry()
@@ -363,7 +363,7 @@ starts in this pane. There is no separate start step.
 The unit flags are order sensitive: each --repo opens a unit, and the flags
 after it belong to that unit until the next --repo.
 
-  --target  REQUIRED for every unit, and never guessed (branching.md §6.4).
+  --target  Required for every unit, and never guessed.
   --scope   repeatable; omit it and the unit's scope is the repo root.
   --id      the task id; allocated as the next free t<NNN> when omitted.
 

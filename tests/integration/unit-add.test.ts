@@ -16,7 +16,7 @@ import {
  * `yan unit add`, ported from `tests/integration/yan-unit-add.test.sh` and
  * `tests/unit/yan-unit-args.test.sh`.
  *
- * Phase 7 Trace: "`unit add` stops when the `branch-create` hook exits non-zero
+ * What is under test: "`unit add` stops when the `branch-create` hook exits non-zero
  * and never falls back to a default."
  *
  * That half is the one worth a real repository. The failure it guards against
@@ -96,7 +96,7 @@ beforeAll(async () => {
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'demo', clone, { url: bare });
 
@@ -144,7 +144,7 @@ describe('with no hook installed, the built-in default applies', () => {
     );
   });
 
-  it('never checks the main clone out (boundaries.md §9.1)', async () => {
+  it('never checks the main clone out', async () => {
     expect((await fxGit(['-C', clone, 'rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()).toBe('main');
     expect((await fxGit(['-C', clone, 'status', '--porcelain'])).stdout.trim()).toBe('');
   });

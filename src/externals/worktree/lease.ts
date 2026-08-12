@@ -37,7 +37,7 @@ export function allLeases(dir: string): Lease[] {
 }
 
 /**
- * Drop leases whose tree no longer exists.
+ * Drop leases whose tree is gone.
  *
  * Only that case. A lease whose owning process died is not reclaimed, however
  * dead it looks: the tree may still hold work, and "nothing is running but this

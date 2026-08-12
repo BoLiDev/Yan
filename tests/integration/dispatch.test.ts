@@ -11,22 +11,19 @@ import {
 } from '../helpers/fixtures.js';
 
 /**
- * `bin/yan`, which since Phase 9 is a stub and nothing else: find `$YAN_HOME`,
- * check git and node, exec `dist/cli/yan.js`.
+ * `bin/yan`, which is a stub and nothing else: find `$YAN_HOME`, check git and
+ * node, exec `dist/cli/yan.js`.
  *
  * It is shell, so it is tested by running it, from bash, in a throwaway
  * `$YAN_HOME` — and it stays shell because `$YAN_HOME/bin/yan` is the path in
  * `.claude/settings.json`, `.codex/hooks.json`, every shift's brief and
- * `AGENTS.md`. This file is what Phase 9 meant by "the three stubs keep being
+ * the instruction files. This file is what is meant by "the three stubs keep being
  * tested, from vitest": a whole bash framework is not needed to cover fifteen
  * lines.
  *
- * What went, and why the tests for it went with it. `bin/yan` used to prefer
- * `dist/cli/<cmd>.js` and fall back to `bin/yan-<cmd>.sh`, both derived from a
- * glob. That was the strangler (plan/INDEX.md §2) and Phase 8 removed the last
- * shell command, so the fallback branch could only ever find nothing. A test
- * that conjures up a `bin/yan-fake.sh` to prove the fallback still works is a
- * test that keeps a dead branch alive.
+ * There is no per-command dispatch to test: the stub execs one file. A test
+ * that conjures up a `bin/yan-fake.sh` to prove some fallback works would be
+ * keeping a branch alive that nothing else has.
  */
 
 afterAll(cleanupTempDirs);
@@ -136,7 +133,7 @@ describe('the inline dependency check', () => {
   });
 
   it('is short enough to read in one sitting', () => {
-    // Phase 9's own words: "each is a few lines". The number is not sacred; a
+    // A further words: "each is a few lines". The number is not sacred; a
     // stub that has grown back into a dispatcher is what this notices.
     const code = source
       .split('\n')

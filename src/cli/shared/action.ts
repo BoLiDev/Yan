@@ -2,7 +2,7 @@ import { isYanError } from '../../util/error.js';
 
 /**
  * Wrap a subcommand body so that a `YanError` becomes the message and exit code
- * a person (or an agent reading stderr) already expects from the shell half:
+ * a person, or an agent reading stderr, can act on:
  *
  *   ls: no such task: t042
  *

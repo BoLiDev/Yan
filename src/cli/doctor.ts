@@ -18,17 +18,10 @@ import { registry } from './shared/repo.js';
 /**
  * `yan doctor` — can this machine run yan?
  *
- * Until this phase the command was half of one: the TypeScript half checked
- * Herdr and shelled out to `bin/yan-doctor.sh` for everything else. Phase 8
- * empties `bin/` of commands, so the rest of the checklist arrives here — and
- * three of its rows do not, because they are checks on a runtime yan no longer
- * has:
- *
- *   jq       retired with the shell that needed it (plan/conventions.md §2)
- *   backend  there is one terminal, and it is Herdr; the `backend` config key
- *            and its fail-closed branches are Phase 9's to remove
- *   winpty   a native process in a Herdr pane gets a real console
- *            (evidence.md §3), so the whole reason for it is gone
+ * What it does not check is as deliberate as what it does. There is no `jq`
+ * row, because nothing shells out to it; no `backend` row, because there is one
+ * terminal and it is Herdr; and no `winpty` row, because a native process in a
+ * Herdr pane already gets a real console.
  *
  * One rule worth restating, because it is the one a tidy-up breaks: only the
  * CLI named by the configured host kind is checked, never both. A machine that
@@ -132,7 +125,7 @@ function checkRequired(report: Report): void {
 }
 
 /**
- * The vault this machine works in (v3 td cli.md §3).
+ * The vault this machine works in.
  *
  * "Registered but not resolving" is the row that earns its place: it is the
  * normal state of a fresh install and of a vault whose directory moved, and it
@@ -263,13 +256,12 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
     line(report, 'ok', 'herdr', version.version);
     // A version check, and only a version check. Herdr ships on a preview
     // channel with no API stability promise, so the generated types are pinned
-    // to a protocol and this is where drift is noticed (runtime.md §4,
-    // sources.md §2).
+    // to a protocol and this is where drift is noticed.
     const drift =
       version.protocol !== HERDR_PROTOCOL || version.schemaVersion !== HERDR_SCHEMA_VERSION;
     line(report, drift ? 'warn' : 'ok', 'protocol',
       drift
-        ? `installed ${version.protocol}/${version.schemaVersion}, types generated against ${HERDR_PROTOCOL}/${HERDR_SCHEMA_VERSION} - re-run scripts/generate-herdr-types.mjs and re-check docs/v2/td/evidence.md §9`
+        ? `installed ${version.protocol}/${version.schemaVersion}, types generated against ${HERDR_PROTOCOL}/${HERDR_SCHEMA_VERSION} - re-run scripts/generate-herdr-types.mjs`
         : `${version.protocol}, schema ${version.schemaVersion} - matches the generated types`,
     );
   }
@@ -302,8 +294,8 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
 /**
  * Codex's first-run gates, reported where they can still be answered.
  *
- * Both were measured against codex-cli 0.147.0 in Phase 8.5, and the second is
- * the one that matters: codex parks on "Hooks need review" and Herdr classifies
+ * Both were measured against codex-cli 0.147.0, and the second is the one that
+ * matters: codex parks on "Hooks need review" and Herdr classifies
  * that screen as `idle`, so an unattended shift hangs there and nothing wakes.
  * A person finding this out by dispatching finds it out hours later.
  *
@@ -397,12 +389,10 @@ export const command = new Command('doctor')
       // installed" is exactly wrong for the two agents yan dispatches: at v7
       // the Claude and Codex integrations report session identity only and
       // never push state, so `blocked` and `done` are screen matches either way
-      // (sources.md §4.1, evidence.md §8).
       out('');
       out('  note  an installed integration records the agent session id. It does not');
       out('        make agent state authoritative: for claude and codex, Herdr classifies');
       out('        state by matching the screen, so `run/signal` stays the other half of');
-      out('        the pair (docs/v2/td/terminal.md §6).');
 
       out('');
       out(`${report.ok} ok, ${report.warn} warn, ${report.fail} failed`);

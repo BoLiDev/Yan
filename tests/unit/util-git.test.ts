@@ -8,7 +8,7 @@ import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures
 /**
  * The port of `tests/unit/lib-git-contract.test.sh`.
  *
- * Phase 0 Trace: "util/git.ts refuses to run without an explicit directory and
+ * What is under test: "util/git.ts refuses to run without an explicit directory and
  * never force-pushes."
  */
 
@@ -83,11 +83,11 @@ describe('required arguments beyond the directory', () => {
 });
 
 describe('no force flag ever reaches git', () => {
-  // boundaries.md §9.2 forbids `git push --force` outright. This is a
+  // `git push --force` is refused outright. This is a
   // source-level check on purpose: a runtime test can only cover the paths it
   // happens to exercise, and the one that matters is the one nobody wrote yet.
   //
-  // It used to be a substring search over all of src/, and that was too blunt
+  // A substring search over all of src/ would be too blunt
   // once §9.2's other force line got its command. That line reads *forbidden,
   // unless `user` says the changes can be thrown away* — an authority, not an
   // absence — and `yan done --force` is where `user` says it. A check that

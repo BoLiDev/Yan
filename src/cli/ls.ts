@@ -12,7 +12,7 @@ import { dash, renderTable } from './shared/table.js';
  * `yan ls [<id>] [--json]` — the queue, and the deeper view of one task.
  *
  * This command stores nothing. There is no backlog file and there must never be
- * one (td INDEX.md §3): the queue is a view produced by scanning
+ * one: the queue is a view produced by scanning
  * `tasks/*​/task.json` every single time it is asked for. That is design
  * principle 1 — do not store state you can derive — and it removes the most
  * bug-prone thing in the system, a second list that can disagree with the
@@ -45,7 +45,7 @@ interface ShiftRow {
  * The live shifts of one task.
  *
  * "Live" means `run/` still exists: `run/` is the only throwaway layer and a
- * shift clocking out deletes it whole (td INDEX.md §3), so its presence is the
+ * shift clocking out deletes it whole, so its presence is the
  * fact. A `meta.json` that cannot be parsed is skipped rather than fatal — the
  * file may be half-written at the moment we look (lib-shift invariant 3).
  */

@@ -2,7 +2,7 @@ import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
 
 /**
- * Telling Herdr what it is looking at (display.md §4).
+ * Telling Herdr what it is looking at.
  *
  * These calls are never fatal
  *
@@ -13,7 +13,7 @@ import { Task } from '../../records/task/index.js';
  *
  * So every call goes through here, and here swallows the failure into one line
  * on stderr. An orchestrator that will not dispatch a shift because a title did
- * not stick is a worse orchestrator (orchestration.md §3), and the way to make
+ * not stick is a worse orchestrator, and the way to make
  * sure nobody writes that by accident is to give the calls one door that cannot
  * throw.
  */
@@ -43,14 +43,14 @@ export function containerOf(task: string): string | undefined {
   return undefined;
 }
 
-/** The tokens display.md §2 defines, in one place so the two writers agree. */
+/** The token names, in one place so the two writers cannot disagree. */
 export function unitTokens(task: string, unit: string, branch: string): Record<string, string> {
   return { task, unit, branch };
 }
 
 /**
  * The same tokens for a whole task, which is what `yan continue` knows at the
- * moment it labels the workspace (display.md §4, first row).
+ * moment it labels the workspace.
  *
  * "The task and its current unit" has an answer only when there is one unit. A
  * task with three units delivers three branches into three targets, and naming

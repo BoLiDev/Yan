@@ -8,10 +8,9 @@ import type { AgentStatus, AgentStatusEvent } from '../../src/externals/herdr/in
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
 
 /**
- * `tests/unit/yan-wait-sources.test.sh` and `yan-wait-single-flight.test.sh`,
- * ported to the two sources Phase 6 leaves: `run/signal` and Herdr's event
- * stream — plus the liveness poll, which stays because `pane_exited` cannot be
- * subscribed to (evidence §11.2).
+ * The watcher's two push sources — `run/signal` and Herdr's event stream —
+ * plus the liveness poll, which is a poll because `pane_exited` cannot be
+ * subscribed to.
  *
  * Nothing here sleeps for a checkpoint. Every interval is injected, the
  * terminal is a fake that answers from a map, and the event stream is a fake
@@ -116,7 +115,7 @@ describe('the sources are enumerable, and the fourth is still refused', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('names the pane-content hash nowhere', () => {
-    // supervision.md §1 row 3: the hash is deleted. Herdr observes the
+    // No content hash. Herdr observes the
     // condition it stood in for, from outside.
     expect(WAIT_SOURCES).toEqual(['signal', 'agent-status', 'agent-alive']);
     expect(source).not.toContain('cksum');
@@ -130,7 +129,7 @@ describe('the sources are enumerable, and the fourth is still refused', () => {
   });
 
   it('never focuses a pane', () => {
-    // conventions §5, regression 5: focusing marks the tab seen, which turns
+    // Focusing marks the tab seen, which turns
     // the `done` this command is waiting for into an `idle` it ignores.
     expect(source).not.toContain('focus');
   });
@@ -172,7 +171,7 @@ describe('source 2: what herdr reports about the agent', () => {
   });
 
   it('wakes on done — and tears nothing down, because done is not a verdict', async () => {
-    // evidence §11.3: plan approval arrives as `done`. A shift parked on a plan
+    // Plan approval arrives as `done`. A shift parked on a plan
     // approval therefore looks exactly like a shift that has finished, and
     // clocking out is destructive. Rule 3 is the objective condition.
     const run = liveShift('s1');
@@ -216,7 +215,7 @@ describe('source 2: what herdr reports about the agent', () => {
   });
 
   it('takes a snapshot after subscribing, so a shift already blocked is not missed', async () => {
-    // The window supervision.md §2 closes: a subscription is an edge trigger,
+    // The window this closes: a subscription is an edge trigger,
     // so a `yan wait` starting up over shifts that are already running would
     // never hear about a block that happened before it was listening.
     liveShift('s1');
@@ -342,7 +341,7 @@ describe('a subscription that ends', () => {
 
     const result = await watcher;
     // The fact still arrives — one poll late, on `agent list`, which is the
-    // Phase 5 gate's fallback and still facts rather than a content hash.
+    // The fallback path, and still facts rather than a content hash.
     expect(result.code).toBe(0);
     expect(result.reason).toContain('blocked: s1');
     expect(notes.join('\n')).toContain('still watching, on the poll');
@@ -493,7 +492,7 @@ describe('a shift with no recorded pane', () => {
 
 describe('a pane herdr has never heard of', () => {
   it('is never subscribed to, because asking closes the whole connection', async () => {
-    // evidence §12.1, measured against a real herdr: a subscription naming an
+    // Measured against a real herdr: a subscription naming an
     // unknown pane is not refused with an error — the server drops the
     // connection, taking every other pane's subscription with it. A stale id in
     // run/meta.json would otherwise cost the watcher its event stream once per
@@ -517,7 +516,7 @@ describe('a shift whose recorded pane id Herdr would not know', () => {
     // A subscription naming one unknown pane is refused whole, so it is left
     // out — that shift keeps run/signal and the poll, which is what a shift
     // with no usable pane had all along. `%7` here is a tmux id, the shape
-    // Phase 9 deleted the producer of; what still produces one is run/meta.json
+    // Nothing produces one deliberately; what produces one is run/meta.json
     // outliving the yan that wrote it, and the empty string `shift new` records
     // before the agent starts.
     liveShift('s1', '%7');

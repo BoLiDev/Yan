@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
- * Phase 1's other read-only ported commands: `open`, `drain` and `repo`. They
+ * The read-only commands: `open`, `drain` and `repo`. They
  * are exercised through `bin/yan`, so what is under test is the whole path a
  * person or an agent actually takes.
  */
@@ -125,7 +125,7 @@ describe('yan repo add', () => {
     return bare;
   }
 
-  /** The portable half. A path never appears in it (v3 td repos.md §2). */
+  /** The portable half. A path never appears in it. */
   function portable(): Record<string, { url?: string; mode_default?: string; pool_size?: number }> {
     return JSON.parse(readFileSync(join(home, 'repos.json'), 'utf8')) as Record<
       string,

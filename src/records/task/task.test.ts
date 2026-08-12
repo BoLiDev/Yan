@@ -6,10 +6,8 @@ import type { TaskData, UnitData } from './index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 
 /**
- * The port of `tests/unit/lib-task.test.sh`.
- *
- * Phase 1 Trace: "history[] stays append-only; the four current scalars stay
- * separate from it."
+ * The two claims under test: history[] stays append-only, and the four current
+ * scalars stay separate from it.
  */
 
 /**

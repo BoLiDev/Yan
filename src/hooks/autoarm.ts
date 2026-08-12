@@ -6,7 +6,7 @@ import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
 
 /**
- * Claude's Stop autoarm (supervision.md §4, architecture.md §6).
+ * Claude's Stop autoarm.
  *
  * Registered in `.claude/settings.json` with `asyncRewake: true` and a long
  * timeout. not registered for Codex, which parses `async` but does not run

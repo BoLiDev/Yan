@@ -4,7 +4,7 @@ import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.j
 /**
  * What differs between GitHub and GitLab, and nothing else.
  *
- * The five differences delivery.md §8.4 names — argument shapes, terminology,
+ * The five differences between the two hosts — argument shapes, terminology,
  * JSON shapes, authentication, and the CI model itself — all land on this
  * interface. `RemoteGit` implements each verb once against it, so there is no
  * `if (kind === 'github')` anywhere above this line.

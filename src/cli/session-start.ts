@@ -15,7 +15,7 @@ import { pullVault, type PullResult } from './vault.js';
 import { samePath } from '../util/paths.js';
 
 /**
- * `yan session-start` — the full rebuild (agents.md §5.1). Registered as the
+ * `yan session-start` — the full rebuild. Registered as the
  * SessionStart hook for both harnesses.
  *
  * A restart is a non-event, and this command is why.
@@ -271,7 +271,7 @@ export function frontMatter(fileName: string, text: string): { name: string; des
 }
 
 /**
- * The standing instructions for this environment (v3 td vault.md).
+ * The standing instructions for this environment.
  *
  * A skill is prose, not an executable. `<vault>/skills/*.md` says what yan may
  * do itself here — check a build, run a script, look something up — instead of
@@ -410,7 +410,7 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       const id = options.all === true ? '' : (options.task ?? positional ?? process.env.YAN_TASK ?? '');
 
       // The vault is caught up before the picture is rebuilt, so a session that
-      // starts on the laptop starts with the desktop's work in it (vault.md §5).
+      // starts on the laptop starts with the desktop's work in it.
       //
       // Never fatal, and `--json` stays machine readable: a missing network, a
       // dirty vault or a conflict costs one warning line on stderr and the

@@ -13,9 +13,9 @@ import { Task } from '../../src/records/task/index.js';
 import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan land`, ported from `tests/unit/yan-land.test.sh`.
+ * `yan land`.
  *
- * boundaries.md §9.2 is the whole reason `yan mr` and `yan land` are two files:
+ * Authority is the whole reason `yan mr` and `yan land` are two files:
  *
  *   open the outbound MR    yan, on its own - opening one is reversible
  *   merge it into target    `user` has to ask for it
@@ -74,7 +74,7 @@ beforeEach(() => {
   process.env.YAN_HOME = home;
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 

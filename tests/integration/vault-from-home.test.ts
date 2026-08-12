@@ -13,7 +13,7 @@ import {
 } from '../helpers/fixtures.js';
 
 /**
- * `yan vault init --from-home` (v3 td migration.md).
+ * `yan vault init --from-home`.
  *
  * The migration is a command because it is the test: V3 claims the three
  * layers separate cleanly, and moving real tasks, a real registry, a real

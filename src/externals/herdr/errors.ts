@@ -46,9 +46,8 @@ export class TerminalError extends YanError {
  * on `invalid_request` or `unsupported_event_wait_match`.
  *
  * `closed` is the one that carries a design decision. A subscription that ends
- * is not a failure of yan and not a reason to stop watching — the Phase 5 spike
- * never got to see a Herdr restart happen under a subscriber (evidence §11.4),
- * so it is treated as a state that arrives rather than one that surprises. It
+ * is not a failure of yan and not a reason to stop watching, so it is treated
+ * as a state that arrives rather than one that surprises. It
  * is separate from `unreachable` because the recovery differs: `closed` means
  * reconnect, `unreachable` means there is nothing there to reconnect to.
  */

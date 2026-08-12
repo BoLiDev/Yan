@@ -5,8 +5,7 @@ import { yanHome } from '../util/home.js';
 import { normalizePath } from '../util/paths.js';
 
 /**
- * The blocking Stop hook, for both harnesses (supervision.md §5,
- * architecture.md §6).
+ * The blocking Stop hook, for both harnesses.
  *
  * One file, two harnesses, because the question is the same one — "may this
  * turn end while shifts are still live?" — and only the evidence differs.
@@ -37,7 +36,7 @@ import { normalizePath } from '../util/paths.js';
  *   that is deliberate: `yan wait` reconnects and re-subscribes when Herdr's
  *   event stream drops, and a guard that read those seconds as "nobody on duty"
  *   would block a turn over a watcher that is working exactly as designed
- *   (supervision.md §5, `records/supervision/beacon.ts`).
+ *   (see `records/supervision/beacon.ts`).
  *
  * codex. The primary predicate is remaining supervision responsibility, not
  * Claude's "autoarm lock plus fresh beacon". There is no autoarm on Codex and
@@ -46,10 +45,10 @@ import { normalizePath } from '../util/paths.js';
  * because its continuation model does not have Claude's asyncRewake blind spot.
  *
  * The blocking shape — `{"decision":"block","reason":…}` on stdout with exit 0
- * — is no longer taken from the documentation. Phase 8.5 ran it against
+ * — is measured rather than taken from documentation. Run against
  * codex-cli 0.147.0: codex honoured the block, continued the turn, the model
  * acted on the reason, and `run/guard-failures` reached 2 before the turn ended
- * ([evidence §13](../../docs/v2/td/evidence.md)). What that run also showed is
+ * What that run also showed is
  * in the comment on the reason string below.
  *
  * Fail open on purpose. The budget is 3 blocked attempts, then the guard lets
@@ -122,7 +121,7 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
 
     // Polled in tenths rather than slept through in one go, so a turn that ends
     // with a healthy watcher pays a few milliseconds instead of the whole
-    // budget. The window is the 800 ms supervision.md fixes; how often we look
+    // budget. The window is 800 ms; how often we look
     // inside it is ours.
     const settleMs = Number(process.env.YAN_GUARD_SETTLE ?? '0.8') * 1000;
     for (let waited = 0; waited < settleMs; waited += SETTLE_STEP_MS) {
@@ -170,7 +169,7 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
   //   does — and this line did not. The model dutifully ran `yan drain` and
   //   got "the term 'yan' is not recognized".
   //
-  //   And the pane's shell is powershell on Windows (terminal.md §7), which
+  //   And the pane's shell is powershell on Windows, which
   //   does not understand `${VAR:-default}`. A default written that way is a
   //   parse error, not a default, so the number is written out.
   const yan = normalizePath(join(yanHome(), 'bin', 'yan'));

@@ -13,15 +13,15 @@ import { Task } from '../../src/records/task/index.js';
 import { WorktreeError, type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
 
 /**
- * `yan shift new`, ported from `tests/unit/yan-shift-new.test.sh`.
+ * `yan shift new`.
  *
- * Phase 7 Trace: "`shift new` asserts the sub-agent's cwd is not a main clone
+ * What is under test: "`shift new` asserts the sub-agent's cwd is not a main clone
  * and refuses otherwise" — one of the four mvp ordering regressions, and the
  * one whose failure hides completely: everything looks like it worked. So the
  * pool is programmed to hand out the main clone and this command has to refuse,
  * not warn, and give the tree back on its way out.
  *
- * And Phase 7's own sixth: "a `shift new` that fails after leasing returns the
+ * And A further sixth: "a `shift new` that fails after leasing returns the
  * tree." Every failure after step 2 is checked for that, not only the assertion.
  *
  * The order is checked, not assumed: every step appends to one call log, so
@@ -122,7 +122,7 @@ beforeEach(() => {
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
@@ -150,7 +150,7 @@ describe('the order', () => {
   it('leases, then makes the container, then starts the agent', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'parse the header' });
     expect(r.code, r.message).toBe(0);
-    // No sync. It used to run first, so that the shift branch came off a head
+    // No sync. Running one first would mean the shift branch came off a head
     // that had just caught up with target — but a shift's MR goes into the
     // integration branch, and target only matters at the outbound MR. The sync
     // was buying a property nothing downstream needed and charging a fetch, a
@@ -212,7 +212,7 @@ describe('what the agent was started with', () => {
 });
 
 describe('codex, and the gate yan cannot survive', () => {
-  // Phase 8.5 measured two first-run gates. Herdr calls the trust dialog
+  // Two first-run gates were measured here. Herdr calls the trust dialog
   // `blocked`, so supervision escalates and somebody answers it. It matches no
   // rule at all against the hook-review prompt and calls it `idle`, so a shift
   // parks on that one in an unfocused pane and nothing ever wakes.
@@ -363,7 +363,7 @@ describe('THE ASSERTION: the working directory is never the main clone', () => {
 
 describe('a shift new that fails after leasing returns the tree', () => {
   it('does so on every failing path, not only the assertion', () => {
-    // Phase 7's own regression 6 (orchestration.md §2): the tree is already
+    // A further regression 6: the tree is already
     // leased, and a dispatch that throws after step 2 must return it or the
     // pool leaks a slot on every failed attempt.
     terminal.startAgent = () => {

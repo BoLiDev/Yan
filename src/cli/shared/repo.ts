@@ -9,7 +9,7 @@ import { CommandError } from './errors.js';
 export const DEFAULT_POOL_SIZE = 8;
 
 /**
- * The registry, in two halves (v3 td repos.md §2).
+ * The registry, in two halves.
  *
  *   <vault>/repos.json          url, mode_default, pool_size   — tracked
  *   <vault>/.local/repos.json   path                           — this machine
@@ -105,9 +105,9 @@ function isDir(path: string): boolean {
  * path to a clone has always worked and is how a one-off is done.
  *
  * The main clone is read-only: the only write allowed inside it is `git fetch`
- * (boundaries.md §9.1). That rule did not change when the clone became one
+ * That rule did not change when the clone became one
  * `user` also works in; what changed is that a branch checked out there cannot
- * also be leased (repos.md §3), which the pool reports by name.
+ * also be leased, which the pool reports by name.
  */
 export function repoDir(command: string, name: string, hint?: string): string {
   const entry = lookup(name);

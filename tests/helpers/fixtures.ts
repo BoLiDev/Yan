@@ -10,7 +10,7 @@ export { bashCommand };
 /**
  * The vitest half of `tests/fixtures.sh`.
  *
- * plan/conventions.md §5: each test owns its temporary directory and never
+ * Each test owns its temporary directory and never
  * touches the checkout's own `$YAN_HOME`. `mk_yan_home` is ported here with the
  * same shape, so a test can build a complete standalone home and drop extra
  * subcommands into it.
@@ -145,7 +145,7 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
     mkdirSync(join(dest, d), { recursive: true });
   }
 
-  // The fixture home is also a vault, at the same path (v3 td vault.md).
+  // The fixture home is also a vault, at the same path.
   //
   // Two roots that happen to coincide, which is a thing V3 allows and does not
   // encourage: every existing test asserts about `<home>/tasks/...`, and those
@@ -215,9 +215,9 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
 }
 
 /**
- * Register a clone in both halves of the registry (v3 td repos.md §2).
+ * Register a clone in both halves of the registry.
  *
- * Tests put their clones under `<home>/repos/<name>` and used to rely on
+ * Tests put their clones under `<home>/repos/<name>`, and cannot rely on
  * `repoDir()` finding them there by convention. There is no convention any
  * more: a repository is where `.local/repos.json` says it is. The path the
  * tests use does not change — only the reason yan can find it.
@@ -257,7 +257,7 @@ export function registerRepo(
  *
  * Everything goes through `fxGit`, which pins an identity and the default
  * branch name with `git -c`, so these helpers work on a machine with no global
- * git config at all (conventions §5). Nothing here touches the network.
+ * git config at all. Nothing here touches the network.
  */
 export function fxGit(args: readonly string[], cwd?: string): Promise<RunResult> {
   return run(

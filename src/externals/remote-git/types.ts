@@ -2,12 +2,12 @@
  * The vocabulary a caller of this module sees. It never learns whether the
  * repository lives on GitHub or on GitLab.
  *
- * Return values are a closed set defined by yan (delivery.md §8.4). Every path
+ * Return values are a closed set defined by yan. Every path
  * out of `mrState` goes through `gateMrState` and every path out of `ciState`
  * through `gateCiState`, so a fifth value cannot slip in even by accident — and
- * now the compiler says so too (plan/conventions.md §2).
+ * now the compiler says so too.
  *
- * The four values of `MrState` exist because branching.md §6.4 needs exactly
+ * The four values of `MrState` exist because rotating a round needs exactly
  * those four to decide a round's `end`: merged → delivered, closed → abandoned,
  * open → the round is not over, unknown → ask user.
  *

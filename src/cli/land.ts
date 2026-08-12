@@ -30,7 +30,7 @@ import { normalizePath } from '../util/paths.js';
  * reversible. This one is not: after it, `target` contains the work and
  * colleagues are looking at it.
  *
- * So the authority is stated twice. In AGENTS.md, where the model is told not
+ * So the authority is stated twice. In the instructions the model reads, where it is told not
  * to reach for this on its own initiative; and here, as `--user-asked`, which
  * is not a confirmation prompt and not a forcing switch. It is the flag that
  * carries `user`'s answer in, exactly as `yan unit set --end` carries it into
@@ -219,7 +219,7 @@ export function land(
       );
     }
     if (state !== 'open') {
-      throw new CommandError('land', 'unknown_state', `cannot tell what state unit ${name}'s merge request ${mr} is in - the forge could not be reached, or it no longer exists. Stopping here so that nothing lands out of 'needs' order`,
+      throw new CommandError('land', 'unknown_state', `cannot tell what state unit ${name}'s merge request ${mr} is in - the forge could not be reached, or the merge request has been deleted. Stopping here so that nothing lands out of 'needs' order`,
       );
     }
 

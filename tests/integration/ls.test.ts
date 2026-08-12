@@ -4,15 +4,10 @@ import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 
 /**
- * `yan ls`, ported from `tests/unit/yan-ls.test.sh`.
+ * `yan ls`.
  *
- * Phase 1 delivered the command and Phase 8 is where its test finally follows
- * it: until now the ported `ls` was covered only by `interop.test.ts`, which
- * compared it against the shell half byte for byte. That comparison went with
- * the shell half, so the assertions it stood in for are written out here.
- *
- * The one that matters most is the last: `yan ls` stores nothing. There is no
- * backlog file and there must never be one (td INDEX.md §3) - the queue is a
+ * The assertion that matters most is the last: `yan ls` stores nothing. There is no
+ * backlog file and there must never be one - the queue is a
  * view produced by scanning `tasks/*​/task.json` every time it is asked for. It
  * is asserted the only way that really proves it: list everything under
  * `$YAN_HOME` before and after, and require the two to be identical.

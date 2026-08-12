@@ -10,11 +10,8 @@ import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
  * The assertions of `tests/unit/lib-term-contract.test.sh`, ported to vitest and
- * run against the Herdr seam (terminal.md §8: not the same file, the same
- * contract). The bash original ran against tmux beside this one for five
- * phases, which is what let the two backends be compared rather than swapped on
- * faith; Phase 9 deleted it with the backend it tested, and this is what is
- * left of it.
+ * run against the Herdr seam (not the same file, the same
+ * contract).
  *
  * Everything here is true whether or not Herdr is installed, which is what
  * makes it a contract test rather than an integration test: the id rules, the
@@ -131,7 +128,7 @@ describe('the seam cannot close what yan did not create', () => {
   it('never spells workspace close or tab close', () => {
     // Container lifetime belongs to `user`. The two verbs that would take it
     // away are simply not written anywhere in the seam, and this is the grep
-    // that keeps it that way (conventions §5, regression 6).
+    // that keeps it that way.
     expect(source).not.toMatch(/'workspace',\s*'close'/);
     expect(source).not.toMatch(/'tab',\s*'close'/);
     expect(source).not.toContain('server stop');
@@ -147,9 +144,9 @@ describe('yan never calls agent focus on a shift pane', () => {
   const source = seamSource();
 
   it('the string is absent from the seam', () => {
-    // conventions §5, regression 5. Focusing marks the tab seen, which turns
+    // Focusing marks the tab seen, which turns
     // the `done` yan was about to be woken by into an `idle` it will ignore
-    // (supervision.md §3). This is the assertion that keeps it out.
+    // This is the assertion that keeps it out.
     expect(source).not.toMatch(/'agent',\s*'focus'/);
     expect(source).not.toContain('agent focus');
     expect(source).not.toMatch(/'workspace',\s*'focus'/);
@@ -171,7 +168,7 @@ describe('the deletions this phase earns are real', () => {
 
   it('--current is never passed', () => {
     // It resolves through HERDR_PANE_ID, and a hook may be handed a sanitised
-    // environment (terminal.md §3).
+    // environment.
     expect(source).not.toContain("'--current'");
   });
 
@@ -261,7 +258,7 @@ describe('an agent that is not really there', () => {
 
   /**
    * A herdr that answers `pane split` and `agent start` happily, reports the
-   * agent ready — and then has no agent in that pane. That is evidence.md
+   * agent ready — and then has no agent in that pane. That is
    * §11.7: codex exited at once and Herdr matched the bare shell prompt it left
    * behind.
    */

@@ -3,7 +3,7 @@ import { resolve, setPrompter } from '../../src/cli/shared/resolve.js';
 import { CommandError } from '../../src/cli/shared/errors.js';
 
 /**
- * The soft/hard rule (runtime.md §3, cli-ux.md §1). The half that matters is
+ * The soft/hard rule. The half that matters is
  * the refusal: an agent, a hook or a script that reached a prompt would hang
  * forever with nobody to answer it, so "there is no TTY" is checked before "a
  * value is missing" and always wins.
@@ -49,7 +49,7 @@ describe('resolve', () => {
   });
 
   it('refuses with a TTY when no prompter is installed', async () => {
-    // Phase 0 ships no src/ui/. Until Phase 8 installs Clack there is no soft
+    // With no src/ui/ installed there is no soft
     // path at all, and "no prompter" must refuse rather than hang.
     setTty(true);
     await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);

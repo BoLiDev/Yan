@@ -20,7 +20,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  * `yan unit set`, ported from `tests/integration/yan-unit-set.test.sh` and
  * `tests/unit/yan-unit-args.test.sh`.
  *
- * Phase 7 Trace: "`unit set --branch` archives the old round into `history[]`
+ * What is under test: "`unit set --branch` archives the old round into `history[]`
  * atomically."
  *
  * Two things are pinned here, and they pull in opposite directions.
@@ -96,7 +96,7 @@ beforeAll(async () => {
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'demo', clone);
 
@@ -151,7 +151,7 @@ describe('a round with nothing on it is replaced without an interrogation', () =
       branch: 'yan/t1-auth-r1',
       target: 'main',
       at: '2026-08-25',
-      // not 'abandoned'. Calling it that used to demand a written reason, so
+      // not 'abandoned'. Calling it that would demand a written reason, so
       // the cheapest and commonest move — "this branch has nothing on it, give
       // me another" — was the one that cost the most typing.
       end: 'unused',

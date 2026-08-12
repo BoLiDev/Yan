@@ -5,7 +5,7 @@ import { CommandError } from './shared/errors.js';
 import { Shift } from '../records/shift/index.js';
 
 /**
- * `yan report <state> "<note>"` — the shift → yan channel (agents.md §5.4).
+ * `yan report <state> "<note>"` — the shift → yan channel.
  *
  * This is a command rather than two sentences in the brief for one reason, and
  * §5.4 states it plainly: Do not count on an agent remembering step two.
@@ -16,11 +16,11 @@ import { Shift } from '../records/shift/index.js';
  *
  * It is the only command a shift needs, and it stays inside the shift's write
  * boundary: it
- * touches `run/status` and `run/signal` and nothing else (boundaries.md §9.3).
+ * touches `run/status` and `run/signal` and nothing else.
  *
- * It also matters more than it did. Under Herdr it is no longer only the
+ * It is not only the
  * shift's courtesy channel — it is the half of supervision that does not depend
- * on Herdr recognising a screen (supervision.md §1). A shift that says it is
+ * on Herdr recognising a screen. A shift that says it is
  * blocked is believed whether or not any manifest matched.
  *
  * The five allowed states, and where they come from.
@@ -45,7 +45,7 @@ import { Shift } from '../records/shift/index.js';
  *                   arrives. Herdr's `agent start` confirmation narrowed the gap
  *                   this was covering but did not close it: the spike found
  *                   `interactive_ready: true` for an agent that had already
- *                   exited (evidence §11.7).
+ *                   exited.
  *
  * Everything else is refused loudly. A sixth word would quietly become a sixth
  * meaning nobody handles.

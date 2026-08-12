@@ -7,12 +7,12 @@ import { repoRoot } from '../helpers/fixtures.js';
 /**
  * The seven functions against a real Herdr session.
  *
- * Phase 4 Trace: "term_container_create / term_agent_start / term_list /
+ * What is under test: "term_container_create / term_agent_start / term_list /
  * term_agent_close round-trip against a real Herdr session", and
  * "term_agent_start is two steps … and returns only when Herdr reports the
  * agent interactive-ready".
  *
- * conventions §6, and they are not negotiable here:
+ * Two rules, and they are not negotiable here:
  *   - never `herdr server stop`;
  *   - never run bare `herdr` (it launches or attaches the tui and hangs a
  *     non-interactive caller);
@@ -56,7 +56,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
 
     // 2/7 — two steps: split with cwd and env, then start the agent into it.
     // It returns only once Herdr reports the agent interactive-ready, which is
-    // what deleted the mvp's send-keys-and-hope start confirmation.
+    // what makes a start confirmation possible at all.
     const started = new Terminal().startAgent({
       container: container.workspace,
       name: 'yane2e',
@@ -70,7 +70,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     expect(started.pane).not.toBe(container.pane);
     expect([...term.AGENT_STATUS]).toContain(started.status);
     // agent_session arrives from the integration's SessionStart hook. Its
-    // absence is normal, not an error (terminal.md §7) — so this only asserts
+    // absence is normal, not an error — so this only asserts
     // the shape when it is there.
     if (started.agent_session !== undefined) {
       expect(started.agent_session).toMatch(/^[0-9a-f-]{8,}$/);
@@ -87,7 +87,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     expect(mine?.kind).toBe('claude');
 
     // 4/7 — reading does not mark the tab seen, which is why yan reads instead
-    // of focusing (supervision.md §3).
+    // of focusing.
     const screen = new Terminal().read(started.pane, 20);
     expect(typeof screen).toBe('string');
 
@@ -100,7 +100,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
   });
 
   it('carries argv through without a shell in between', () => {
-    // evidence.md §2: `--append-system-prompt "a b"` survives intact, which is
+    // `--append-system-prompt "a b"` survives intact, which is
     // what deleted `_term_quote_cmd`.
     const container = new Terminal().createContainer('yan-e2e-argv', repoRoot);
     const previous = created;

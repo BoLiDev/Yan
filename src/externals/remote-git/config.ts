@@ -21,11 +21,8 @@ function configPath(): string {
 /**
  * The section is `remote_git`, and `forge` is read only to say what to rename.
  *
- * The fallback was not politeness: `bin/lib-forge.sh` read `.forge.kind` from
- * this same file, so a machine part-way through the migration had one config
- * both halves had to understand. Phase 9 deleted that reader, and the fallback
- * went with it — two spellings of one key outlive the reason for them by years
- * otherwise, and the second is always the one somebody edits.
+ * There is exactly one spelling of the key. Two spellings outlive the reason
+ * for them by years, and the second is always the one somebody edits.
  *
  * `forge` is still looked for, because the difference between "you have not
  * configured a host" and "your host is configured under the old name" is the

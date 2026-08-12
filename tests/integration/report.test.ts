@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 
 /**
- * `yan report`, ported from `tests/unit/yan-report.test.sh`.
+ * `yan report`.
  *
  * It accepts only the five allowed states, and it appends `run/status` and
  * touches `run/signal` in one go. "In one go" is the reason the command exists
- * at all (agents.md §5.4: do not count on an agent remembering step two), so it
+ * at all — do not count on an agent remembering step two — so it
  * is asserted the only way that means anything: one invocation, then both
  * effects checked.
  */

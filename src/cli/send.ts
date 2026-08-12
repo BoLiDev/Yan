@@ -5,7 +5,7 @@ import { Terminal } from '../externals/herdr/index.js';
 import { Shift } from '../records/shift/index.js';
 
 /**
- * `yan send <sid> "<line>"` — yan → shift, while it is running (agents.md §5.4).
+ * `yan send <sid> "<line>"` — yan → shift, while it is running.
  *
  * One short line. The long contract was written once, into
  * `shifts/<sid>/brief.md`, and anything long that comes up afterwards goes into
@@ -20,16 +20,16 @@ import { Shift } from '../records/shift/index.js';
  * painting their input box, so the two-call version needs a retry and a flag to
  * drive it. Herdr's `agent prompt` submits text and Enter together, honouring
  * the pane's live bracketed-paste mode, so there is nothing to retry and `--enter` /
- * `--no-enter` go with it (orchestration.md §5).
+ * `--no-enter` go with it.
  *
  * What replaces it is a different guard, and it is the one that now matters:
  * Nothing is sent to a pane without a live agent. A prompt to a pane whose
  * agent has died is typed into whatever shell is there, which then tries to run
- * it as a command (evidence §11.7). The seam refuses; this command reports it.
+ * it as a command. The seam refuses; this command reports it.
  * A dead shift is a `died:` wake, not a retry.
  *
  * The pane id comes from `run/meta.json`, never a label — a label is not a
- * source of truth (agents.md §5.7 practice 1).
+ * source of truth: it can be renamed, and is cleared when the agent exits.
  */
 
 /**

@@ -22,7 +22,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  *
  * When the internal merge request is squash-merged, the integration branch does
  * not contain the shift branch's HEAD. Two things follow, and both are in
- * worktree.md §7:
+ * The rule under test:
  *
  *   1. An ancestry check would answer "not merged" about work that landed an
  *      hour ago. This test asserts that ancestry really does say no here, and
@@ -114,7 +114,7 @@ beforeAll(async () => {
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'widget'));
   // A clone is where the registry says it is now, not where a convention put
-  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // it. The path does not change; only the reason yan
   // can find it.
   registerRepo(home, 'widget', clone, { url: bare });
 
@@ -184,7 +184,7 @@ describe('the control: the same situation in the WRONG order', () => {
     } catch (err) {
       refused = err instanceof Error ? err.message : String(err);
     }
-    expect(refused, 'the orphan-commit guard refuses, exactly as worktree.md §7 says it would').toContain(
+    expect(refused, 'the orphan-commit guard refuses rather than destroy the commits').toContain(
       'no remote branch contains HEAD',
     );
     expect(heldBy('t042/auth/s2'), 'and the slot stays taken').not.toBe('');

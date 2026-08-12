@@ -6,13 +6,12 @@ import { sendLine, type Prompter } from '../../src/cli/send.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
- * `yan send`, ported from `tests/unit/yan-send.test.sh` and the send half of
+ * `yan send`, and the send half of
  * `tests/integration/yan-send-state.test.sh`.
  *
- * The mvp's assertions were about a two-step: type the text, then press Enter,
- * retryable separately. Herdr's `agent prompt` does both in one call, so that
- * split and its `--enter` / `--no-enter` flags are gone (orchestration.md §5)
- * and what is pinned instead is the guard that replaced them:
+ * Herdr's `agent prompt` submits text and Enter in one call, so there is no
+ * two-step to retry and no `--enter` / `--no-enter` to test. What is pinned
+ * instead is the guard:
  *
  *   Nothing is sent to a pane without a live agent.
  *
@@ -127,7 +126,7 @@ describe('the pane id comes from meta.json, and it is an id', () => {
 
 describe('a pane with no live agent', () => {
   it('is refused by the seam, and the refusal reaches the caller', () => {
-    // evidence §11.7: a prompt to a pane whose agent has died is typed into
+    // A prompt to a pane whose agent has died is typed into
     // whatever shell is there, which then tries to run it as a command. A dead
     // shift is a `died:` wake, not a retry.
     terminal.refuse = Object.assign(new Error('no live agent in w1:p7 - refusing to send'), {

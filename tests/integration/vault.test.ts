@@ -13,7 +13,6 @@ import {
 
 /**
  * `yan vault` — the three layers, and the resolution rules between them
- * (v3 td vault.md, plan Phase 1).
  *
  * The whole point of this phase is that a machine can hold two contexts and
  * never mix them, so the tests that matter are about *which* vault answers:
@@ -68,7 +67,7 @@ describe('vault init', () => {
     });
     expect(r.code).toBe(0);
 
-    // The layout, as vault.md §2 declares it.
+    // The layout.
     for (const rel of ['vault.json', 'config.json', 'repos.json', '.gitignore', 'README.md', 'tasks', 'mem/learnings']) {
       expect(existsSync(join(dir, rel)), rel).toBe(true);
     }

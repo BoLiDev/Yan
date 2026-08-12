@@ -16,7 +16,7 @@ import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
 /**
  * The port of `tests/unit/lib-json.test.sh`.
  *
- * Phase 0 Trace: "JSON writes still go tmp → mv and every file still carries
+ * What is under test: "JSON writes still go tmp → mv and every file still carries
  * `version`; lib-json's tests pass against util/json.ts."
  *
  * Every assertion below has a counterpart in the bash file, except the two

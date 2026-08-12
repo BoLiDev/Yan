@@ -25,7 +25,7 @@ export interface RemoteGitOptions {
 }
 
 /**
- * The remote git host — GitHub or GitLab (delivery.md §8.4, architecture.md
+ * The remote git host — GitHub or GitLab (see
  * §4.3).
  *
  * Everything that opens, queries or merges a merge request, and everything that
@@ -69,7 +69,7 @@ export class RemoteGit {
 
   /**
    * Open a merge request and return its URL. That URL is the reference the
-   * other three verbs take, and the value branching.md §6.4 stores as
+   * other three verbs take, and the value a unit stores as
    * `unit.mr`.
    */
   public createMr(options: MrCreateOptions): string {
@@ -102,7 +102,7 @@ export class RemoteGit {
   }
 
   /**
-   * Merge now. `deleteSource` is off by default on purpose: worktree.md §7
+   * Merge now. `deleteSource` is off by default on purpose:
    * fixes the order of `yan shift done` as return the tree, then delete the
    * remote branch, and a host that deleted it during the merge would take that
    * step away.
