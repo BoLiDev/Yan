@@ -212,9 +212,49 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
 
 
 export interface Skill {
-  /** Where it came from, for yan to cite when it acts on one. */
-  readonly source: string;
-  readonly text: string;
+  /** Relative to the directory it was found in, so it can be opened. */
+  readonly path: string;
+  /** The `# heading`, or the file name when there is none. */
+  readonly name: string;
+  /** The first paragraph, on one line. */
+  readonly description: string;
+}
+
+/** How much of the first paragraph is worth carrying in an index. */
+const DESCRIPTION_LIMIT = 200;
+
+/**
+ * The name and the one-line description of a skill, from the file itself.
+ *
+ * NO FRONT MATTER, and that is a decision rather than an omission. A skill is
+ * prose; making prose carry a `name:` and a `description:` before it is allowed
+ * to be prose is ceremony, and the heading plus the opening sentence is what
+ * anybody writes anyway. A file with neither still gets an entry, under its own
+ * name — a skill that is hard to summarise is not a skill yan should ignore.
+ */
+export function summarise(fileName: string, text: string): { name: string; description: string } {
+  const lines = text.split(/\r?\n/);
+  const headingAt = lines.findIndex((l) => /^#\s+\S/.test(l));
+  const name = headingAt >= 0 ? (lines[headingAt] as string).replace(/^#\s+/, '').trim() : fileName;
+
+  // The first paragraph after the heading, flattened. Blank lines separate
+  // paragraphs; a second heading ends the search, because prose under a
+  // different heading is about something else.
+  const body: string[] = [];
+  for (const raw of lines.slice(headingAt + 1)) {
+    const line = raw.trim();
+    if (line.startsWith('#')) break;
+    if (line === '') {
+      if (body.length > 0) break;
+      continue;
+    }
+    body.push(line);
+  }
+  let description = body.join(' ').replace(/\s+/g, ' ').trim();
+  if (description.length > DESCRIPTION_LIMIT) {
+    description = `${description.slice(0, DESCRIPTION_LIMIT - 1).trimEnd()}…`;
+  }
+  return { name, description };
 }
 
 /**
@@ -223,17 +263,14 @@ export interface Skill {
  * A skill is PROSE, not an executable. `<vault>/skills/*.md` says what yan may
  * do itself here — check a build, run a script, look something up — instead of
  * dispatching a shift for it, and `~/.yan/skills/*.md` says the same for things
- * that are about this box rather than this context.
+ * about this box rather than this context.
  *
- * They are read HERE because session-start is the SessionStart hook for both
- * harnesses: what it prints is what the main agent starts the session knowing.
- * There is no `yan skill run`, no lease, no argv contract — the machinery for
- * running one would be larger than the thing it runs.
- *
- * WHY THIS DOES NOT WEAKEN THE AUTHORITY TABLE. The table's right-hand column
- * is "only when `user` asks". A skill IS `user` asking — in advance, in
- * writing, in a file only they can put there. What it cannot do is make yan
- * forget to say what it did: acting on a skill means naming it.
+ * WHAT SESSION-START CARRIES IS AN INDEX, NOT THE TEXT. Session-start is the
+ * SessionStart hook, so everything it prints is in front of the agent for the
+ * whole session whether it is relevant or not; a handful of skills printed in
+ * full would be a standing tax on the context window paid mostly for nothing.
+ * A path, a name and a sentence is enough to know whether to open the file, and
+ * opening a file is something yan is good at.
  */
 function readSkillsFrom(dir: string, label: string): Skill[] {
   let names: string[];
@@ -250,7 +287,8 @@ function readSkillsFrom(dir: string, label: string): Skill[] {
     } catch {
       continue;
     }
-    if (text !== '') found.push({ source: `${label}/${name}`, text });
+    if (text === '') continue;
+    found.push({ path: `${label}/${name}`, ...summarise(name, text) });
   }
   return found;
 }
@@ -306,25 +344,30 @@ function render(picture: Picture, pulled: PullResult): void {
 }
 
 /**
- * The skills, verbatim, at the END of the rebuild.
+ * The skills, as an INDEX, at the end of the rebuild.
  *
- * Last on purpose. The picture above is facts about right now; this is
- * standing instruction, and it is the part that should still be in view when
- * the session gets going.
+ * A path, a name and a sentence each — never the text. Session-start is the
+ * SessionStart hook, so anything printed here sits in the context for the whole
+ * session whether it is relevant or not; a few skills in full would be a
+ * standing tax paid mostly for nothing. Deciding whether to open a file is what
+ * an index is for, and opening one is cheap.
+ *
+ * Last on purpose: the picture above is facts about right now, and this is
+ * standing instruction, which is what should still be in view when the session
+ * gets going.
  */
 function renderSkills(skills: readonly Skill[]): void {
   if (skills.length === 0) return;
   out('');
   out('--- what you may do yourself here -----------------------------------------');
   out('');
-  out("Standing instructions from `user`, in their own words. They are the opt-in:");
-  out('where one of these covers what is being asked, do it yourself rather than');
-  out('dispatching a shift — and say which one you are acting on.');
+  out("Standing instructions from `user` about this environment. Where one covers");
+  out('what is being asked, READ IT and do the thing yourself rather than');
+  out('dispatching a shift — and say which one you acted on.');
+  out('');
   for (const skill of skills) {
-    out('');
-    out(`## ${skill.source}`);
-    out('');
-    out(skill.text);
+    out(`  ${skill.path}`);
+    out(`      ${skill.name}${skill.description === '' ? '' : ` — ${skill.description}`}`);
   }
 }
 

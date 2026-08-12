@@ -3,7 +3,6 @@ import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { containerOf, display, unitTokens } from './shared/display.js';
 import { repoDir } from './shared/repo.js';
-import { callHook, HookError } from '../externals/conf-hook/index.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
@@ -56,74 +55,34 @@ import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTr
  * and that is where ownership is looked up afterwards.
  */
 
-/**
- * What a `branch-create` hook is told.
- *
- * JSON on stdin rather than argv, so a field can be added later without
- * breaking a hook somebody installed a year ago — the contract's one asymmetry
- * that has to survive: read what you need, ignore the rest.
- */
+/** What the built-in name is made of. */
 interface BranchNameContext {
   readonly task: string;
-  readonly task_title: string;
   readonly unit: string;
-  readonly repo: string;
-  /**
-   * WHERE that repository is on this machine.
-   *
-   * Needed because the hook CREATES the branch now: the registry name alone
-   * was enough to pick a name, and is not enough to run git. It is passed
-   * rather than looked up, because where a clone lives is the machine layer's
-   * answer and a hook has no business reading the vault's `.local/`.
-   */
-  readonly repo_dir: string;
-  readonly target: string;
-  readonly scope: readonly string[];
   readonly round: number;
 }
 
-type NameSource = 'user' | 'hook' | 'default';
+type NameSource = 'user' | 'default';
 
 /**
  * The hook is asked only when yan would otherwise have to invent a name. A name
  * `user` typed is already `user`'s decision, and the hook is one way of
  * supplying that decision, not a second owner of it (§6.5).
  */
-/** The hook that creates an integration branch. One name, used everywhere. */
-export const BRANCH_HOOK = 'branch-create';
-
 function decideBranchName(
-  command: string,
   given: string | undefined,
   context: BranchNameContext,
-  refusalHint: string,
 ): { branch: string; from: NameSource; raw?: string } {
   if (given !== undefined && given !== '') {
+    // Whatever spelling it arrived in. `--branch` is routinely a paste of
+    // something a company tool printed, and `refs/heads/x` is a name.
     return { branch: normalizeBranchName(given), from: 'user', raw: given };
   }
-
-  let answered: string | undefined;
-  try {
-    answered = callHook(BRANCH_HOOK, context);
-  } catch (err) {
-    if (err instanceof HookError) {
-      // THE ONE RULE THESE COMMANDS EXIST TO HOLD. The hook refused, so we
-      // stop. Falling back here would create a branch the team's own tooling
-      // has just rejected (boundaries.md §10). The hook's own words come with
-      // it — a refusal is an answer, and "exit 3" is not one.
-      throw new CommandError(command, 'hook_refused', `${err.message}\n${refusalHint}. Ask 'user' how this unit's integration branch should be named, then pass it with --branch; yan does not fall back to its built-in default when an outside authority has said no`,
-      );
-    }
-    throw err;
-  }
-  if (answered !== undefined) {
-    // Whatever spelling the tool printed, as a branch name.
-    return { branch: normalizeBranchName(answered), from: 'hook', raw: answered };
-  }
-  // No outside authority is configured. That is not an error; it is the
-  // ordinary case, and the built-in default applies.
+  // Nobody said, so the built-in applies. That is the ordinary case and not a
+  // fallback from anything.
   return { branch: `yan/${context.task}-${context.unit}-r${context.round}`, from: 'default' };
 }
+
 
 /**
  * What a tool printed, as a branch name.
@@ -208,34 +167,6 @@ function ensureBranch(command: string, clone: string, repo: string, branch: stri
   return `cut from ${baseRef}`;
 }
 
-/**
- * A branch the hook says it created has to actually be there.
- *
- * Taking the hook's word for it is the failure this exists to stop: yan would
- * write a name into `task.json`, and the first thing to notice would be the
- * worktree pool, two commands later, with an error about a ref that has
- * nothing to do with a hook.
- *
- * A fetch first, because a company tool that opens branches through an API
- * creates them on the REMOTE — there is nothing local to see until we look.
- */
-function verifyBranch(command: string, clone: string, repo: string, branch: string): string {
-  if (fetch(clone).code !== 0) {
-    process.stderr.write(`${command}: could not fetch ${repo} - looking only at the refs already in the clone\n`);
-  }
-  if (branchExists(clone, branch)) return 'created by the hook (local)';
-  if (remoteRef(clone, branch) !== '') {
-    // It exists on the remote: give the clone a local ref for it. A ref, never
-    // a checkout — the working tree in there is `user`'s (boundaries.md §9.1).
-    if (createBranch(clone, branch, `origin/${branch}`).code !== 0) {
-      throw new CommandError(command, 'branch_failed', `the hook created '${branch}' on the remote, but a local ref for it could not be made in ${clone}`,
-      );
-    }
-    return 'created by the hook (on the remote)';
-  }
-  throw new CommandError(command, 'branch_missing', `the ${BRANCH_HOOK} hook printed '${branch}', but no such branch exists in ${repo} - the hook is supposed to CREATE the branch and report what it called it. Nothing was recorded.`,
-  );
-}
 
 
 export interface Inherited {
@@ -406,31 +337,14 @@ export function addTaskUnit(options: AddOptions): AddResult {
   // — but the expression is written the same way here and in `unit set`,
   // because that is the rule and not a coincidence.
   const round = 1;
-  const { branch, from, raw } = decideBranchName(
-    'unit_add',
-    options.branch,
-    {
-      task,
-      task_title: record.title(),
-      unit,
-      repo,
-      repo_dir: clone,
-      target,
-      scope: options.scope,
-      round,
-    },
-    'no unit was added',
-  );
+  const { branch, from, raw } = decideBranchName(options.branch, { task, unit, round });
   checkRefName('unit_add', branch, raw);
 
   // WHO CREATES depends on where the name came from. A `branch-create` hook has
   // already opened the branch — in a ticket system, on the forge, wherever the
   // team's tooling does it — so yan checks that it is really there instead of
   // cutting a second one over the top.
-  const how =
-    from === 'hook'
-      ? verifyBranch('yan unit add', clone, repo, branch)
-      : ensureBranch('yan unit add', clone, repo, branch, options.base ?? target);
+  const how = ensureBranch('yan unit add', clone, repo, branch, options.base ?? target);
 
   try {
     record.addUnit(unit, repo, target, {
@@ -474,13 +388,14 @@ usage: yan unit add --task <id> --unit <name> --repo <repo> --target <branch>
             ultimately delivered into. There is no safe default (branching.md
             §6.4) - during a release the team merges into a shared branch, in
             quiet periods into master.
-  --branch  omit it and yan asks <vault>/hooks/branch-create; with no hook installed
-            the built-in default is yan/<task>-<unit>-r<n>. A name that was
-            given, or that the hook returned, is used exactly as it stands.
+  --branch  omit it and the built-in default applies: yan/<task>-<unit>-r<n>,
+            cut from --base (which defaults to --target). Give one and it is
+            used as it stands - refs/heads/x, origin/x and a quoted name all
+            arrive as x, so pasting what another tool printed is fine. A branch
+            that already exists is adopted rather than re-cut.
 
-If the branch-create hook exits non-zero, this command stops and reports it in
-the hook's own words. It
-never falls back to the built-in default.`,
+A team whose branches come from somewhere else says so in a skill
+(<vault>/skills/), and passes what its tooling printed to --branch.`,
   )
   .action(
     action('yan unit add', (options: AddOptions) => {
@@ -674,21 +589,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
 
 
-    const { branch, from: nameFrom, raw } = decideBranchName(
-      'unit_set',
-      givenBranch,
-      {
-        task,
-        task_title: record.title(),
-        unit: unitName,
-        repo: before.repo,
-        repo_dir: clone,
-        target: options.target ?? before.target,
-        scope: before.scope,
-        round,
-      },
-      'the round was not rotated',
-    );
+    const { branch, from: nameFrom, raw } = decideBranchName(givenBranch, { task, unit: unitName, round });
     if (branch === before.branch) {
       throw CommandError.usage('unit_set', `the new integration branch is the same as the current one (${branch}) - a round is replaced by a DIFFERENT branch (branching.md §6.3)`,
       );
@@ -708,10 +609,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     // commits rather than a naming rule.
     const base =
       options.base ?? (end === 'abandoned' ? before.branch : (options.target ?? before.target));
-    const how =
-      nameFrom === 'hook'
-        ? verifyBranch('yan unit set', clone, before.repo, branch)
-        : ensureBranch('yan unit set', clone, before.repo, branch, base);
+    const how = ensureBranch('yan unit set', clone, before.repo, branch, base);
 
     unit.rotate(end, branch, options.at ?? '');
 

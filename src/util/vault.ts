@@ -168,11 +168,6 @@ export function localReposPath(): string {
   return join(vaultDir(), '.local', 'repos.json');
 }
 
-/** `hooks/<name>` — the outside-authority seam's executables. */
-export function hooksDir(): string {
-  return join(vaultDir(), 'hooks');
-}
-
 /**
  * `skills/` — standing instructions, in prose, about what yan may do itself
  * here (v3 td vault.md).

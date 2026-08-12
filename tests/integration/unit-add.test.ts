@@ -156,76 +156,39 @@ describe('with no hook installed, the built-in default applies', () => {
   });
 });
 
-describe('the hook refuses, so nothing happens', () => {
-  it('stops, reports the hook\'s own words, and creates no branch', async () => {
-    writeHook('printf "AUTH-123 has no branch yet; ask the release manager\\n" >&2; exit 1');
-
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
-    expect(r.code).not.toBe(0);
-    expect(r.out).toContain('refused');
-    expect(r.out).toContain('ask the release manager');
-
-    expect(unitField('t1', 'api', 'branch')).toBe('');
-    expect(unitCount('t1')).toBe(1);
-    // THE regression: yan must not quietly fall back to its built-in default.
-    expect(await hasBranch('yan/t1-api-r1')).toBe(false);
-  });
-});
-
-describe('a hook that CREATES the branch owns it', () => {
-  it('takes the branch the hook made, whatever spelling it reports', async () => {
-    // Reports `refs/heads/…`, which is what real tooling prints half the time.
-    writeHook(
-      'dir=$(printf "%s" "$ctx" | node -e "let s=\'\';process.stdin.on(\'data\',c=>s+=c).on(\'end\',()=>process.stdout.write(JSON.parse(s).repo_dir))")\n' +
-        'printf "looked up the ticket...\\n"\n' +
-        'git -C "$dir" branch team/AUTH-123_integration origin/main\n' +
-        'printf "refs/heads/team/AUTH-123_integration\\n"',
-    );
-
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
-    expect(r.code, r.out).toBe(0);
-    expect(unitField('t1', 'api', 'branch'), 'the refs/heads/ spelling is normalised away').toBe('team/AUTH-123_integration');
-    expect(await hasBranch('team/AUTH-123_integration')).toBe(true);
-    removeHooks();
+describe('a name of your own, however it is spelled', () => {
+  /**
+   * THE HOOK THIS REPLACED. `branch-create` was an executable with a JSON
+   * contract, an exit-code protocol and an interpreter table, and it existed so
+   * a team's tooling could name and open the branch. In practice that process
+   * is a couple of sentences, so it is a SKILL now — prose in
+   * `<vault>/skills/`, read into the session — and the mechanism it uses is the
+   * flag that was always there: run the tool, pass what it printed to
+   * `--branch`.
+   *
+   * Which makes these the tests that matter: whatever a company tool prints has
+   * to arrive as a branch name, and an existing branch has to be adopted rather
+   * than fought over.
+   */
+  it('takes refs/heads/, origin/, quotes and a stray CR as the same name', async () => {
+    for (const [given, expected, unit] of [
+      ['refs/heads/team/AUTH-123', 'team/AUTH-123', 'spelled-ref'],
+      ['origin/team/AUTH-124', 'team/AUTH-124', 'spelled-origin'],
+      ['"team/AUTH-125"', 'team/AUTH-125', 'spelled-quoted'],
+    ] as const) {
+      const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', unit, '--repo', 'demo', '--target', 'main', '--branch', given]);
+      expect(r.code, r.out).toBe(0);
+      expect(unitField('t1', unit, 'branch'), given).toBe(expected);
+      expect(await hasBranch(expected)).toBe(true);
+    }
   });
 
-  it('refuses when the hook names a branch it did not create, and records nothing', async () => {
-    // THE REGRESSION THIS EXISTS FOR: taking the hook's word for it would write
-    // a name into task.json whose first symptom appears in the worktree pool.
-    writeHook('printf "team/never-made\\n"');
-
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'ghost', '--repo', 'demo', '--target', 'main']);
-    expect(r.code).not.toBe(0);
-    expect(r.out).toContain('no such branch exists');
-    expect(unitField('t1', 'ghost', 'branch')).toBe('');
-    removeHooks();
-  });
-
-  it('finds a branch the hook created on the REMOTE only', async () => {
-    writeJsHook(
-      "git('fetch', 'origin', '--quiet');\n" +
-        "git('push', 'origin', 'origin/main:refs/heads/team/made-remotely');\n" +
-        "git('update-ref', '-d', 'refs/remotes/origin/team/made-remotely');\n" +
-        "process.stdout.write('team/made-remotely\\n');",
-    );
-
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'remote', '--repo', 'demo', '--target', 'main']);
-    expect(r.code, r.out).toBe(0);
-    expect(r.out, 'a JavaScript hook runs under node, extension and all').toContain('hook');
-    expect(unitField('t1', 'remote', 'branch')).toBe('team/made-remotely');
-    expect(await hasBranch('team/made-remotely')).toBe(true);
-    removeHooks();
-  });
-
-  it('is not asked at all when --branch was given', async () => {
-    writeHook('exit 1');
-
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'docs', '--repo', 'demo', '--target', 'main', '--branch', 'spike/docs']);
-    expect(r.code, r.out).toBe(0);
-    expect(unitField('t1', 'docs', 'branch')).toBe('spike/docs');
-    expect(await hasBranch('spike/docs')).toBe(true);
-
-    removeHooks();
+  it('refuses a name no normalisation can rescue, and quotes what was given', async () => {
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'bad', '--repo', 'demo', '--target', 'main', '--branch', 'refs/heads/']);
+    expect(r.code).toBe(2);
+    expect(r.out).toContain('not usable as a git ref');
+    expect(r.out, 'the raw text, or the reader hunts for a name their tool never printed').toContain('refs/heads/');
+    expect(unitField('t1', 'bad', 'branch')).toBe('');
   });
 });
 
@@ -256,7 +219,10 @@ describe('the log tells the story', () => {
   it('records the branch, and where its name came from', () => {
     const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
     expect(log).toContain('auth  unit added on yan/t1-auth-r1');
-    expect(log).toContain('name from hook');
+    // Two sources now, not three: `--branch` or the built-in. A team whose
+    // branches come from elsewhere says so in a skill and passes the result to
+    // --branch, which is the `user` case.
+    expect(log).toContain('name from default');
     expect(log).toContain('name from user');
   });
 });

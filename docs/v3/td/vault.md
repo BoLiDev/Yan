@@ -33,8 +33,7 @@ A vault is *not* a workspace and not a worktree — those words are taken, and t
   mem/
     user.md                judgements about a person, written only when asked
     learnings/             yan may write these on its own
-  skills/                  prose: what yan may do itself here, read at session start
-  hooks/                   your executables for the outside-authority seam
+  skills/                  prose: what yan may do itself here. Indexed at session start
   .local/                  ← gitignored, whole directory (machine layer)
     repos.json             name → this machine's clone path
   .gitignore
@@ -69,7 +68,11 @@ The vault's `.gitignore` ships in the template and is the only place this list l
 
 ### `skills/`: what yan may do itself here
 
-A skill is **prose**, and that is the whole design. `<vault>/skills/*.md` holds a few paragraphs from `user` saying which small things yan may do on its own initiative in this environment; `yan session-start` reads them and prints them, and since session-start IS the SessionStart hook for both harnesses, printing them is loading them. There is no `yan skill run`, no argv contract and no lease — the machinery for running one would be larger than the thing it runs.
+A skill is **prose**, and that is the whole design. `<vault>/skills/*.md` holds a few paragraphs from `user` saying which small things yan may do on its own initiative in this environment. There is no `yan skill run`, no argv contract and no lease — the machinery for running one would be larger than the thing it runs.
+
+`yan session-start` carries an **index**, not the text: a path, the `# heading` as the name, and the first paragraph as the description. Session-start is the SessionStart hook, so everything it prints sits in the context for the whole session whether it turns out to be relevant or not, and a handful of skills in full would be a standing tax paid mostly for nothing. A sentence each is enough to decide whether to open the file, and opening a file is something yan is good at.
+
+There is no front matter and that is a decision rather than an omission: making prose declare a `name:` before it is allowed to be prose is ceremony, and a heading followed by an opening sentence is what anybody writes anyway. A file with neither still gets an entry, under its own name.
 
 It exists because yan otherwise has only two speeds. Its default is that work goes to a shift: a single-use sub-agent, its own leased worktree, a merge request. That is right for implementing a feature and absurd for *check whether this still builds* or *find where this is called*. The middle ground was missing, and its absence pushed `user` into dispatching shifts for things a shift is far too heavy for.
 
@@ -82,15 +85,15 @@ They live in the vault for the same reason the hooks do: what yan may do itself 
 
 A skill is deliberately NOT the place to authorise the two things that need `user` every time — touching `target`, and anything a colleague will see. Those live in the authority table, where they are visible; moving one of them into a prose file would hide a real decision inside a paragraph.
 
-### Why `hooks/` is in here at all
+### What happened to `hooks/`
 
-Two things in yan are called hooks and they point in opposite directions. `bin/hook-*.sh` with `.claude/settings.json` and `.codex/hooks.json` are the **harness calling yan** — the Stop hook that arms `yan wait`, the SessionStart hook that rebuilds the picture. Those are how the code wires itself into an agent CLI, they are the same for everyone, and they never leave the mechanics clone.
+It is gone, and a skill does its job. Worth recording, because the seam it removed was a real design element and something replaced it rather than nothing.
 
-`<vault>/hooks/` is the other direction: **yan calling you**, the outside-authority seam of [boundaries.md §10](../../mvp/td/boundaries.md), with one hook so far — `branch-create`, which `yan unit add` asks to CREATE the integration branch and then verifies.
+`<vault>/hooks/branch-create` was an executable yan ran to have a team's tooling name and open an integration branch: JSON on stdin, one line of stdout, a non-zero exit meaning STOP and never fall back. Around that grew an interpreter table (so `.mjs` worked on Windows, where the executable bit does not survive a copy), stderr capture, a `repo_dir` field, name normalisation, a sample, and a module — `externals/conf-hook` — whose whole purpose was to be the one door that executes a user's file.
 
-It belongs to the vault because what it encodes is *the context's rule, not yan's behaviour*. A company repository that requires `feat/<ticket>`, or `hotfix/*` during a release, has a rule that is true at work, meaningless at home, and still true on your second work machine. That is the home/work line exactly — not a property of the code, and not a property of a disk.
+What it encoded, in the one case that existed, was two sentences: *run this tool, pass what it prints to `--branch`*. So it is a skill now, and the mechanism it uses is the flag that was always there. `externals/conf-hook` went with it — it had exactly one caller — and so did the executable-arriving-over-`git pull` question, which no longer arises: a skill is read, never run.
 
-**The consequence, stated rather than discovered:** `conf/hooks/` was gitignored and local-only; `<vault>/hooks/` is tracked and pushed, so a hook now *travels* — an executable arriving over `git pull` and then run by yan. In a private vault that is the point of the move rather than a hazard, but it is a change in the trust story and it is worth knowing before the first hook is installed. Somebody who would rather not sync executables puts them in the machine layer instead, and re-installs them per machine.
+**The one thing genuinely lost** is that the refusal was a MECHANISM. A hook exiting non-zero made it impossible for yan to invent a name afterwards; a skill saying "if the tool refuses, stop and tell me" is a rule yan follows. That is the same trade skills make everywhere — see the authority note above — and it is the trade being made deliberately, not an oversight.
 
 ---
 

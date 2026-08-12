@@ -271,15 +271,39 @@ describe('skills reach the session', () => {
     expect(r.stdout).not.toContain('what you may do yourself here');
   });
 
-  it('prints them verbatim, and names where each came from', async () => {
+  it('indexes them: the path, the heading, and the first paragraph', async () => {
     mkdirSync(vaultSkills(), { recursive: true });
-    writeFileSync(join(vaultSkills(), 'build.md'), '# Checking the build\n\nYou may run npm test yourself.\n');
+    writeFileSync(
+      join(vaultSkills(), 'build.md'),
+      [
+        '# Checking the build',
+        '',
+        'You may run npm test yourself.',
+        '',
+        'But do not fix what it finds: a fix is work, and work goes to a shift.',
+        '',
+      ].join('\n'),
+    );
 
     const r = await runYan(home, ['session-start']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('what you may do yourself here');
-    expect(r.stdout).toContain('## skills/build.md');
-    expect(r.stdout, 'verbatim: it is user speaking, not yan paraphrasing').toContain('You may run npm test yourself.');
+    expect(r.stdout).toContain('skills/build.md');
+    expect(r.stdout, 'the heading is the name').toContain('Checking the build');
+    expect(r.stdout, 'the first paragraph is the description').toContain('You may run npm test yourself.');
+    // AN INDEX, NOT THE TEXT. session-start is the SessionStart hook, so
+    // anything printed here is a standing cost on the context for the whole
+    // session — the rest of the file is read when it turns out to matter.
+    expect(r.stdout, 'the body is not carried').not.toContain('work goes to a shift');
+  });
+
+  it('falls back to the file name when there is no heading', async () => {
+    mkdirSync(vaultSkills(), { recursive: true });
+    writeFileSync(join(vaultSkills(), 'no-heading.md'), 'just a paragraph, no title\n');
+
+    const r = await runYan(home, ['session-start']);
+    expect(r.stdout).toContain('no-heading.md');
+    expect(r.stdout).toContain('just a paragraph, no title');
   });
 
   it('takes the vault first and the machine after, each labelled', async () => {
