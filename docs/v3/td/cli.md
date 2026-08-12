@@ -38,6 +38,8 @@ The old spelling is not kept as an alias. It has one user, this repository's own
 
 **Bare `yan`** (the select) puts the active vault in its header. Two contexts on one machine means "which one am I in" is a question you can be silently wrong about, and the answer costs one line.
 
+**Every list a person picks from is searchable.** The entry select, `yan done`'s batch, `yan continue`, `yan repo add`'s scan, and both lists in `yan task new` — the repositories, then that repository's packages — are `autocomplete` and `autocompleteMultiselect` rather than `select` and `multiselect`. The lists are neither fixed nor small: a monorepo offers dozens of packages, and a working vault accumulates repositories and tasks. Which end of that range you are at is not something the code gets to decide, and a search box nobody types into behaves exactly like the select it replaced — so the choice is made once, for all of them.
+
 **`yan doctor`** gains four rows:
 
 ```

@@ -166,3 +166,35 @@ describe('one exit code for "you called this wrongly"', () => {
     expect((await runYan(home, ['ls', '--help'])).code).toBe(0);
   });
 });
+
+/**
+ * Every list a person picks from is searchable.
+ *
+ * Testable only as source text: drawing a prompt needs a real terminal, and
+ * what is worth guarding is not the drawing but the CHOICE — that nobody adds
+ * a sixth list later with a plain `select` because it happened to be the
+ * import already in the file. The lists grow (a monorepo's packages, a vault's
+ * repositories and tasks) and an unfilterable list of forty is miserable in a
+ * way that is nobody's fault by the time it happens.
+ */
+describe('the soft path filters', () => {
+  it('imports no plain select or multiselect from clack', () => {
+    const source = readFileSync(join(repoRoot, 'src', 'ui', 'prompts.ts'), 'utf8');
+    const imports = /^import \{([^}]*)\} from '@clack\/prompts';/m.exec(source)?.[1] ?? '';
+    const named = imports.split(',').map((n) => n.trim());
+
+    expect(named, 'a searchable single-choice list').toContain('autocomplete');
+    expect(named, 'a searchable multiple-choice list').toContain('autocompleteMultiselect');
+    expect(named, 'the unfilterable one').not.toContain('select');
+    expect(named, 'and its multiple-choice twin').not.toContain('multiselect');
+  });
+
+  it('gives every one of them a placeholder, so it looks like what it is', () => {
+    const source = readFileSync(join(repoRoot, 'src', 'ui', 'prompts.ts'), 'utf8');
+    const lists = source.match(/await autocomplete(?:Multiselect)?\(\{[\s\S]*?\n {2,6}\}\)/g) ?? [];
+    expect(lists.length, 'the entry, done, continue, repo add, task new repos and its scopes').toBe(6);
+    for (const list of lists) {
+      expect(list, 'a search box nobody knows is a search box is a select').toContain('placeholder');
+    }
+  });
+});
