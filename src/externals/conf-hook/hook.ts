@@ -6,11 +6,12 @@ import { bashCommand } from '../../util/bash.js';
 import { HookError } from './errors.js';
 
 /**
- * The calling protocol for `conf/hooks/` — the TypeScript half of
+ * The calling protocol for the hooks directory — the TypeScript half of
  * `bin/lib-hook.sh` (boundaries.md §10, architecture.md §4.3).
  *
- * THIS IS THE ONLY PLACE ALLOWED TO EXECUTE ANYTHING UNDER conf/. That is the
- * whole reason it is a module of its own: `conf/` holds `user`'s local choices,
+ * THIS IS THE ONLY PLACE ALLOWED TO EXECUTE ANYTHING IN THAT DIRECTORY. That is
+ * the whole reason it is a module of its own: `<vault>/hooks/` holds `user`'s own
+ * executables,
  * it is gitignored, it is not part of yan, and there has to be exactly one door
  * through which yan asks it a question.
  *
@@ -45,7 +46,7 @@ function hookNameOk(name: string): void {
     throw HookError.usage(`invalid hook name: '${name}' - use letters, digits, dot, dash or underscore`,
     );
   }
-  // The seam is the only door into conf/, so it is also the only place that can
+  // The seam is the only door into the hooks directory, so it is also the only place that can
   // stop a caller walking out of it: `../../bin/rm-everything` is refused here
   // rather than trusted anywhere downstream.
   if (name.startsWith('.')) {
@@ -93,7 +94,7 @@ export function callHook(name: string, context: unknown): string | undefined {
   const path = hookPath(name);
   if (!existsSync(path)) return undefined;
 
-  // Executable bit: on this checkout core.filemode is false and conf/ is
+  // Executable bit: on this checkout core.filemode is false and the hooks directory is
   // gitignored, so a hook copied in by hand on Windows routinely has no
   // executable bit at all. Running it through bash then is not a fallback for
   // a broken hook, it is the normal Windows case — and a hook that IS

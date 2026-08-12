@@ -103,7 +103,7 @@ describe('a missing configuration is reported, not a crash', () => {
     rmSync(join(home, 'config.json'));
     const r = await doctor();
     expect(r.code).toBe(1);
-    expect(r.out).toContain('conf/config.sample.json');
+    expect(r.out).toContain('templates/vault/config.json');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 });
@@ -151,10 +151,12 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
   });
 });
 
-describe('the shipped sample', () => {
+// The template a vault is born with IS the sample: conf/ held nothing else
+// once the real config moved into the vault, so it is gone.
+describe('the shipped template config', () => {
   it('is valid and carries what doctor asks for', () => {
     const sample = JSON.parse(
-      readFileSync(join(repoRoot, 'conf', 'config.sample.json'), 'utf8'),
+      readFileSync(join(repoRoot, 'templates', 'vault', 'config.json'), 'utf8'),
     ) as { version: number; agents?: Record<string, string>; forge?: { kind?: string }; remote_git?: { kind?: string } };
     expect(sample.version).toBe(1);
     expect(sample.agents?.yan).toBeTruthy();

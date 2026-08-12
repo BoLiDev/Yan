@@ -208,7 +208,7 @@ function checkConfig(report: Report): { agents: Record<string, unknown> } {
   const path = configPath();
   const parsed = readJsonIfPresent(path);
   if (parsed === undefined) {
-    line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.* and remote_git.* live; copy conf/config.sample.json to ${path}`);
+    line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.* and remote_git.* live; copy templates/vault/config.json to ${path}`);
     return { agents: {} };
   }
   line(report, 'ok', 'config.json', path);

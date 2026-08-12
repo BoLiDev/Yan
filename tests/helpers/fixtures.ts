@@ -135,7 +135,7 @@ export interface YanHomeOptions {
 }
 
 /**
- * The runtime skeleton plus a valid conf/config.json.
+ * The runtime skeleton plus a valid config.json.
  *
  * `bin/` is copied in from the repository so the result is a complete,
  * standalone `$YAN_HOME`. `dist/` is copied only when asked for: a home without
@@ -162,10 +162,9 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
   );
 
   cpSync(join(repoRoot, 'bin'), join(dest, 'bin'), { recursive: true });
-  // `yan vault init` lays down `templates/vault/` and copies the config sample,
-  // so a fixture home without them is not a complete mechanics clone.
+  // `yan vault init` lays the vault skeleton down from templates/, so a fixture
+  // home without it is not a complete mechanics clone.
   cpSync(join(repoRoot, 'templates'), join(dest, 'templates'), { recursive: true });
-  cpSync(join(repoRoot, 'conf', 'config.sample.json'), join(dest, 'conf', 'config.sample.json'));
   if (options.withDist === true) {
     cpSync(join(repoRoot, 'dist'), join(dest, 'dist'), { recursive: true });
     cpSync(join(repoRoot, 'package.json'), join(dest, 'package.json'));

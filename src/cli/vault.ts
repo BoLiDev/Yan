@@ -79,9 +79,10 @@ function today(): string {
 /**
  * The skeleton, from `templates/vault/` in the mechanics.
  *
- * `config.json` is NOT in the template: it is copied from
- * `conf/config.sample.json`, so the sample a person edits and the file a vault
- * starts life with cannot drift apart.
+ * All of it, including `config.json`. There used to be a second copy of that
+ * one in `conf/config.sample.json` and a step here to fetch it; `conf/` held
+ * nothing but templates once the real config moved into the vault, so it is
+ * gone and the template is the sample.
  */
 function layDownSkeleton(dir: string, name: string): void {
   const template = join(yanHome(), 'templates', 'vault');
@@ -92,11 +93,6 @@ function layDownSkeleton(dir: string, name: string): void {
   cpSync(template, dir, { recursive: true });
 
   writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: today() });
-
-  const sample = join(yanHome(), 'conf', 'config.sample.json');
-  if (existsSync(sample) && !existsSync(join(dir, 'config.json'))) {
-    cpSync(sample, join(dir, 'config.json'));
-  }
 
   writeFileSync(
     join(dir, 'README.md'),

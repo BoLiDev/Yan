@@ -276,7 +276,7 @@ usage: yan unit add --task <id> --unit <name> --repo <repo> --target <branch>
             ultimately delivered into. There is no safe default (branching.md
             §6.4) - during a release the team merges into a shared branch, in
             quiet periods into master.
-  --branch  omit it and yan asks conf/hooks/branch-name; with no hook installed
+  --branch  omit it and yan asks <vault>/hooks/branch-name; with no hook installed
             the built-in default is yan/<task>-<unit>-r<n>. A name that was
             given, or that the hook returned, is used exactly as it stands.
 

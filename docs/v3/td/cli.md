@@ -41,7 +41,7 @@ The old spelling is not kept as an alias. It has one user, this repository's own
 **`yan doctor`** gains four rows:
 
 ```
-vault        personal → C:/workspace/project/yan-vault-personal  (or FAIL: none registered)
+vault        personal → C:/workspace/project/yan-vault  (or FAIL: none registered)
 vault remote origin reachable, N commits ahead / behind
 repos        4 registered, 3 linked on this machine       (WARN, naming the missing)
 clone_root   C:/workspace/project                          (WARN if missing)

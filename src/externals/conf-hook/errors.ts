@@ -9,7 +9,7 @@ const CODES = {
 export type HookErrorKind = keyof typeof CODES;
 
 /**
- * Something a `conf/hooks/` hook did, or refused to do.
+ * Something a `<vault>/hooks/` hook did, or refused to do.
  *
  * `refused` is the one a caller has to catch by name: it means the team's own
  * tooling said no, and the caller must stop rather than fall back to a default

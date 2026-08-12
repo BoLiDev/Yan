@@ -3,7 +3,7 @@ import { vaultConfigPath } from '../../util/vault.js';
 import { readJsonIfPresent } from '../../util/json.js';
 
 /**
- * The bits of `conf/config.json` the command layer reads.
+ * The bits of the vault's `config.json` the command layer reads.
  *
  * `remote_git` is NOT one of them: that section has exactly one reader, inside
  * `externals/remote-git`, so that no subcommand ever branches on the host kind.

@@ -25,9 +25,9 @@ The state on this machine today, and its destination:
 | `repos/poe-tools/` (a clone) | `clone_root/poe-tools` — i.e. `C:/workspace/project/poe-tools` | see §3 |
 | `~/.yan-trees/*` | stays | the pool is machine state and already lives outside the home |
 
-`conf/config.sample.json`, `conf/hooks.sample/` and `templates/vault/` stay in the mechanics. They are templates, not choices.
+`conf/` does not survive the move at all. Once the real config and the real hooks are in the vault, everything left in it — `config.sample.json` and `hooks.sample/` — is a template, so both go under `templates/`: the sample config becomes `templates/vault/config.json` (the file a new vault is born with, so the sample and the real starting point cannot drift), and the example hook becomes `templates/hooks.sample/branch-name`.
 
-Defaults for this machine: vault name `personal`, path `C:/workspace/project/yan-vault-personal`, `clone_root` `C:/workspace/project` — the mechanics clone's own parent, so both the vault and the registered clones end up as siblings of `yan` rather than hidden inside it.
+Defaults for this machine: vault name `personal`, path `C:/workspace/project/yan-vault`, `clone_root` `C:/workspace/project` — the mechanics clone's own parent, so both the vault and the registered clones end up as siblings of `yan` rather than hidden inside it.
 
 ---
 

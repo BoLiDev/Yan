@@ -84,15 +84,13 @@ Same shape as `yanHome()`: an exported override wins, but only when it validates
 { "version": 1,
   "active": "personal",
   "clone_root": "C:/workspace/project",
-  "vaults": { "personal": "C:/workspace/project/yan-vault-personal",
+  "vaults": { "personal": "C:/workspace/project/yan-vault",
               "work":     "D:/work/yan-vault" } }
 ```
 
 `clone_root` is here rather than in the vault because it is a fact about this disk. It is where `yan repo add <url>` clones into.
 
 When a vault directory moves, `yan vault link <name> <path>` is what updates it — the exact dual of `yan repo link`, and it exists for the same reason: this file has one owner, and editing it by hand works right up until it is the thing that is wrong.
-
-When a vault directory moves,  is what updates it — the exact dual of , and it exists for the same reason: this file has one owner, and editing it by hand works right up until it is the thing that is wrong.
 
 ---
 
@@ -105,7 +103,7 @@ yan vault init <name> --remote <url> [--path <dir>]
 ```
 
 1. Refuse early if `<name>` is already registered, or `<dir>` exists and is not empty.
-2. Copy `templates/vault/` from the mechanics into `<dir>` — the skeleton above, with an empty `tasks/`, an empty `mem/learnings/`, the `.gitignore`, and a `config.json` derived from `conf/config.sample.json`.
+2. Copy `templates/vault/` from the mechanics into `<dir>` — the skeleton above, with an empty `tasks/`, an empty `mem/learnings/`, the `.gitignore`, and `config.json`. There is no separate sample to copy from: the template IS the sample.
 3. `git init`, commit, `git remote add origin <url>`, `git push -u origin main`.
 4. Register it in `~/.yan/config.json` and make it active.
 

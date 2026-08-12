@@ -5,7 +5,7 @@ import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';
 
 /**
- * This file is the ONLY reader of `conf/config.json`'s remote-git section.
+ * This file is the ONLY reader of the vault config's remote-git section.
  * Subcommands never branch on the host kind.
  */
 
@@ -43,7 +43,7 @@ function section(parsed: unknown): Record<string, unknown> | 'legacy' | undefine
 export function readConfig(): RemoteGitConfig {
   const path = configPath();
   if (!existsSync(path)) {
-    throw RemoteGitError.config(`no configuration at ${path} - copy conf/config.sample.json there and set remote_git.kind`,
+    throw RemoteGitError.config(`no configuration at ${path} - copy templates/vault/config.json there and set remote_git.kind`,
     );
   }
   let parsed: unknown;
