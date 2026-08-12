@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { WAIT_SOURCES, watch, type EventSource, type StatusReader } from '../../src/cli/wait.js';
 import { Supervision } from '../../src/records/supervision/index.js';
 import { Task } from '../../src/records/task/index.js';
+import { readPulse } from '../../src/records/shift/index.js';
 import type { AgentStatus, AgentStatusEvent } from '../../src/externals/herdr/index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
 
@@ -27,7 +28,9 @@ let sup: Supervision;
 class FakeTerminal implements StatusReader {
   public readonly status = new Map<string, AgentStatus>();
   public readonly alive = new Map<string, 'alive' | 'dead' | 'unknown'>();
+  public readonly text = new Map<string, string>();
   public lists = 0;
+  public reads = 0;
 
   public list(): { pane: string; status: AgentStatus }[] {
     this.lists += 1;
@@ -36,6 +39,11 @@ class FakeTerminal implements StatusReader {
 
   public agentAlive(pane: string): 'alive' | 'dead' | 'unknown' {
     return this.alive.get(pane) ?? 'alive';
+  }
+
+  public read(pane: string): string {
+    this.reads += 1;
+    return this.text.get(pane) ?? '';
   }
 }
 
@@ -114,12 +122,22 @@ describe('the sources are enumerable, and the fourth is still refused', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
-  it('names the pane-content hash nowhere', () => {
-    // No content hash. Herdr observes the
-    // condition it stood in for, from outside.
+  it('never wakes on what the terminal says, only on what herdr and the shift do', () => {
+    // The pulse is a content digest, and this command writes one — but it is
+    // deliberately not a source. Waking on it would answer the wrong question:
+    // an agent that is thinking is not moving, and one printing a spinner is.
+    //
+    // So the assertion is about `look`, which is where every wake reason is
+    // decided, rather than about the file: the pulse may be sampled anywhere,
+    // and may be consulted nowhere that returns a reason.
     expect(WAIT_SOURCES).toEqual(['signal', 'agent-status', 'agent-alive']);
     expect(source).not.toContain('cksum');
-    expect(source).not.toContain('hash');
+
+    const look = /function look\([\s\S]*?\n\}/.exec(source)?.[0];
+    expect(look, 'the wake decision has to be findable to be checked').toBeDefined();
+    for (const word of ['pulse', 'Pulse', 'digest', 'hash']) {
+      expect(look, `no wake reason may be derived from the ${word}`).not.toContain(word);
+    }
   });
 
   it('cannot reach the forge, so no source can poll CI', () => {
@@ -152,6 +170,93 @@ describe('source 1: run/signal', () => {
     expect(result.reason).toContain('signal: s1');
     expect(readFileSync(sup.wake, 'utf8')).toContain('signal: s1');
     expect(existsSync(join(run, 'signal'))).toBe(false);
+  });
+});
+
+describe('the pulse: telling a long silence from a stuck one', () => {
+  // Sampled by the watcher, never by `yan state`. If the reading were taken at
+  // the moment somebody asked, the answer would be "nothing changed between
+  // your two calls" — the more anxious the caller, the more stuck the shift
+  // would look.
+  it('records a digest of the terminal, and never the terminal', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.text.set('w1:p2', 'installing express@4.18.2\nand a secret nobody should have to hold\n');
+
+    await watch({ task: 't1', seconds: 0.3, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+
+    const pulse = readPulse(run);
+    expect(pulse, 'the watcher took a reading').toBeDefined();
+    expect(terminal.reads).toBeGreaterThan(0);
+
+    const onDisk = readFileSync(join(run, 'pulse'), 'utf8');
+    expect(onDisk, 'a digest crosses the boundary, not the transcript').not.toContain('express');
+    expect(onDisk).not.toContain('secret');
+    expect(onDisk.trim().split(' ')).toHaveLength(3);
+  });
+
+  /** Age the last reading so the sampler's throttle lets the next one through. */
+  function ageLastReading(run: string, bySeconds: number): void {
+    const pulse = readPulse(run);
+    if (pulse === undefined) throw new Error('there is no reading to age');
+    writeFileSync(join(run, 'pulse'), `${pulse.changed - bySeconds} ${pulse.seen - bySeconds} ${pulse.hash}\n`);
+  }
+
+  it('holds `changed` still while the terminal is, and moves it when it moves', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.text.set('w1:p2', 'resolving dependencies');
+
+    await watch({ task: 't1', seconds: 0.3, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    const first = readPulse(run);
+    expect(first).toBeDefined();
+
+    // Same screen a minute later: the shift is quiet, so `changed` must not
+    // creep forward. If it did, a twenty-minute stall would look permanently
+    // fresh and the signal would be worthless.
+    ageLastReading(run, 60);
+    const stale = readPulse(run);
+    await watch({ task: 't1', seconds: 0.3, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    const second = readPulse(run);
+    expect(second?.changed).toBe(stale?.changed);
+    expect(second?.seen, 'but the reading itself is fresh').toBeGreaterThan(stale?.seen ?? 0);
+
+    // A different screen: now it moves.
+    ageLastReading(run, 60);
+    terminal.text.set('w1:p2', 'resolving dependencies\ncompiling');
+    await watch({ task: 't1', seconds: 0.3, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    const third = readPulse(run);
+    expect(third?.hash).not.toBe(second?.hash);
+    expect(third?.changed).toBeGreaterThan(second?.changed ?? 0);
+  });
+
+  it('does not read a pane on every turn of the loop', async () => {
+    // Reading is a process spawn per shift. The loop turns every few seconds
+    // and the signal is measured in minutes, so a sampler that ignored that
+    // would triple what watching costs for nothing.
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.text.set('w1:p2', 'working');
+
+    await watch({ task: 't1', seconds: 0.5, intervalSeconds: 0.02, terminal, events: new FakeEvents() });
+
+    expect(terminal.lists, 'the loop really did turn many times').toBeGreaterThan(5);
+    expect(terminal.reads, 'and read the pane once').toBe(1);
+    expect(readPulse(run)).toBeDefined();
+  });
+
+  it('does not stop watching when a terminal cannot be read', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.read = () => {
+      throw new Error('herdr is not answering');
+    };
+    writeFileSync(join(run, 'signal'), '');
+
+    const result = await watch({ task: 't1', seconds: 5, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+
+    expect(result.code, 'a missing pulse costs one fact, not the watch').toBe(0);
+    expect(result.reason).toContain('signal: s1');
   });
 });
 

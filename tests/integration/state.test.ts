@@ -148,7 +148,7 @@ describe('through bin/yan', () => {
     expect(r.stdout).toContain('state      unknown');
     expect(r.stdout).not.toContain(TRAP_NOTE);
     expect(r.stdout).toContain('events     3');
-    expect(r.stdout).toContain('EVENTS, not the state');
+    expect(r.stdout).toContain('events, not the state');
   });
 
   it('reports the same derivation as JSON', async () => {
@@ -166,5 +166,59 @@ describe('through bin/yan', () => {
     const both = await runYan(home, ['state', 's1', '--json', '--verdict', '--task', 't042']);
     expect(both.code, '--json and --verdict are alternatives').toBe(2);
     expect((await runYan(home, ['state', 'nosuchshift', '--task', 't042'])).code).toBe(1);
+  });
+});
+
+describe('the pulse says whether the terminal is moving', () => {
+  function pulse(changedAgo: number, seenAgo: number): void {
+    const now = Math.floor(Date.now() / 1000);
+    writeFileSync(join(run, 'pulse'), `${now - changedAgo} ${now - seenAgo} deadbeefdeadbeef\n`);
+  }
+
+  it('says nothing at all when no watcher has taken a reading', async () => {
+    // The failure this prevents: silence read as stillness. With nobody
+    // sampling, "unchanged" is a fact about the watcher, not about the shift.
+    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('pulse      unsampled');
+    expect(r.stdout).toContain('yan wait');
+  });
+
+  it('and says so again when the last reading is too old to be about the shift', async () => {
+    pulse(600, 600);
+    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    expect(r.stdout).toContain('pulse      unsampled');
+    expect(r.stdout, 'and how stale it is, so the reason is visible').toContain('last read');
+  });
+
+  it('reports movement, with how long ago', async () => {
+    pulse(2, 0);
+    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    expect(r.stdout).toContain('pulse      moving');
+  });
+
+  it('reports stillness as a duration, and never as a verdict', async () => {
+    pulse(380, 0);
+    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    expect(r.stdout).toContain('pulse      still');
+    expect(r.stdout).toMatch(/6m\d\ds/);
+    // An install is still for minutes and so is a model thinking, so the line
+    // reports a duration and says outright that it is not a verdict. Calling
+    // this 'stuck' would be the same mistake as rounding `unknown` to `dead`.
+    expect(r.stdout).toContain('not the same as stuck');
+    expect(r.stdout).not.toMatch(/^pulse\s+stuck/m);
+  });
+
+  it('carries the numbers into the JSON, so nothing has to parse the prose', async () => {
+    pulse(380, 1);
+    const r = await runYan(home, ['state', 's1', '--task', 't042', '--json']);
+    const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
+    expect(parsed.motion).toBe('still');
+    // Ranges, not equalities: spawning the command costs a second or two of
+    // wall clock, and pinning these to the number the fixture wrote would make
+    // the test fail on a slow machine rather than on a real change.
+    expect(parsed.still_for as number).toBeGreaterThanOrEqual(375);
+    expect(parsed.still_for as number).toBeLessThanOrEqual(385);
+    expect(parsed.sampled_ago as number).toBeLessThanOrEqual(10);
   });
 });

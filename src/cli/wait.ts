@@ -2,6 +2,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { Supervision, type WatcherState } from '../records/supervision/index.js';
+import { readPulse, writePulse } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { Terminal } from '../externals/herdr/index.js';
 import {
@@ -39,11 +40,12 @@ import { action, out } from './shared/action.js';
  *                                           anything
  *   agent-alive   termAgentAlive = dead     the agent died and cannot say so
  *
- * There is deliberately no fourth source watching the pane's CONTENT. Hashing
- * the last N lines and waking on a change looks attractive and answers the
- * wrong question: an agent that is thinking is not moving, and an agent that is
- * printing a spinner is. Herdr recognises an approval or a question directly,
- * which is what such a hash would be standing in for, and does it better.
+ * This command also samples each shift's terminal into `run/pulse`, and that is
+ * not a fourth source. A digest of the last few lines is a poor thing to WAKE
+ * on — an agent that is thinking is not moving, and one printing a spinner is —
+ * so nothing here ever decides anything from it. It is recorded for `yan state`
+ * to report, because a long silence and a stuck shift look identical from
+ * outside and only the pulse tells them apart.
  *
  * The liveness poll is a poll for a reason, not an oversight: `pane_exited` is
  * in Herdr's event schema but not in its subscription schema, and `events.wait`
@@ -83,10 +85,35 @@ export const WAIT_SOURCES = ['signal', 'agent-status', 'agent-alive'] as const;
 const DEFAULT_INTERVAL_SECONDS = 5;
 const DEFAULT_CHECKPOINT_SECONDS = 180;
 
-/** What `yan wait` needs from the terminal: a status snapshot and a liveness verdict. */
+/**
+ * How many lines of a pane the pulse digests.
+ *
+ * Enough that a change shows up, few enough that reading it every turn is
+ * cheap. The tail is where the movement is: an agent that has scrolled past its
+ * own output is still working, and one whose last forty lines are identical to
+ * the last forty lines a minute ago is not visibly doing anything.
+ */
+const PULSE_LINES = 40;
+
+/**
+ * How often a pane is actually read.
+ *
+ * Reading is a process spawn per shift, and the loop turns every few seconds,
+ * so sampling every turn would triple what this command costs a laptop for a
+ * signal that is measured in minutes. Fifteen seconds is well inside the
+ * freshness window `yan state` requires and well outside the loop's.
+ *
+ * The throttle reads the pulse file rather than keeping a timer, so it is right
+ * across a watcher that died and restarted — which is exactly when a private
+ * timer would resample everything at once.
+ */
+const PULSE_EVERY_SECONDS = 15;
+
+/** What `yan wait` needs from the terminal: a status snapshot, a liveness verdict, and the pane's text. */
 export interface StatusReader {
   list(container?: string): readonly { readonly pane: string; readonly status: AgentStatus }[];
   agentAlive(pane: string): 'alive' | 'dead' | 'unknown';
+  read(pane: string, lines?: number): string;
 }
 
 /** What `yan wait` needs from the event stream. `TerminalEvents` is the real one. */
@@ -236,6 +263,10 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
       sup.touchBeacon(state);
 
       const live = sup.liveShifts().map(toWatched);
+      // Sampled here rather than in `yan state` on purpose: the watcher is
+      // already awake on a timer, so the reading is about the shift instead of
+      // about how often somebody asked. See records/shift/pulse.ts.
+      takePulses(terminal, live);
       for (const event of arrived.splice(0)) status.set(event.pane, event.status);
       // Without a subscription the status has to be asked for. Same facts, one
       // poll late, and never from a content hash.
@@ -372,6 +403,28 @@ function look(
 }
 
 /** One `agent list` for every live pane's status. The snapshot, and the poll. */
+/**
+ * Digest every live shift's terminal.
+ *
+ * Never fatal and never noisy. A terminal yan cannot read is one fact missing
+ * from `yan state`, not a reason to stop watching, and the next turn asks
+ * again — so a failure here is swallowed per shift rather than per turn.
+ */
+function takePulses(terminal: StatusReader, live: readonly Watched[]): void {
+  const now = Date.now();
+  const seconds = Math.floor(now / 1000);
+  for (const shift of live) {
+    if (shift.pane === '') continue;
+    const previous = readPulse(shift.run);
+    if (previous !== undefined && seconds - previous.seen < PULSE_EVERY_SECONDS) continue;
+    try {
+      writePulse(shift.run, terminal.read(shift.pane, PULSE_LINES), now);
+    } catch {
+      continue;
+    }
+  }
+}
+
 function snapshot(terminal: StatusReader, into: Map<string, AgentStatus>): void {
   let listed: readonly { readonly pane: string; readonly status: AgentStatus }[];
   try {

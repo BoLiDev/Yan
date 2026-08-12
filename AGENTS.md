@@ -187,6 +187,26 @@ Two things about them:
 A skill is prose in `<vault>/skills/*.md`. You never write one — it is `user` describing
 their own environment, and yan editing it would be yan rewriting its own instructions.
 
+### Reading a shift that has gone quiet
+
+`yan state <sid>` carries a **pulse**: whether that shift's terminal is moving. It is
+what tells a long silence from a stuck one, and nothing else can — an agent installing
+dependencies, an agent thinking hard, and an agent parked on a dialog look identical
+from outside.
+
+Three things worth knowing about it:
+
+- **`still` is a duration, not a verdict.** An install is still for minutes and so is a
+  model working through a hard question. What makes twenty minutes of stillness
+  worrying is what you asked it to do, and only you know that.
+- **`unsampled` means nobody is looking**, not that the shift is quiet. The reading is
+  taken by `yan wait`, so with no watcher running there is nothing to report and it
+  says so rather than guessing.
+- **You get a digest, never the transcript.** The point of a shift is that its
+  implementation stays out of your context, and a pulse that printed the pane would
+  hand back exactly what was being kept away. When you really need to know what a
+  shift is doing, ask it: `yan send`.
+
 ### Deciding whether to escalate
 
 Wake `user` for: a `blocked` or `needs-decision` report, a dead or stuck shift, red CI

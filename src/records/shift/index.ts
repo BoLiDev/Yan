@@ -9,8 +9,14 @@
  *
  * `Shift.fromEnv()` is how a shift finds itself, which is why `yan report`
  * takes no id: asking a shift to repeat its own is one more thing to get wrong.
+ *
+ * `run/pulse` is the one thing here nobody reports: a digest of the shift's
+ * terminal, sampled from outside, so that a long silence can be told from a
+ * stuck one. See `pulse.ts` for why it is a digest and why only `yan wait`
+ * takes it.
  */
 
 export { Shift } from './shift.js';
 export { ShiftError } from './errors.js';
+export { readPulse, writePulse, type Pulse } from './pulse.js';
 export type { ShiftMeta } from './types.js';
