@@ -10,6 +10,7 @@ import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { vaultDir } from '../util/vault.js';
+import { pullVault, type PullResult } from './vault.js';
 import { samePath } from '../util/paths.js';
 
 /**
@@ -208,9 +209,10 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
   return { version: 1, home: vaultDir(), tasks };
 }
 
-function render(picture: Picture): void {
+function render(picture: Picture, pulled: PullResult): void {
   out('yan session-start');
-  out(`  home     ${picture.home}`);
+  out(`  vault    ${picture.home}`);
+  out(`  sync     ${pulled.ok ? pulled.message : `WARN ${pulled.message}`}`);
   out(`  tasks    ${picture.tasks.length}`);
   if (picture.tasks.length === 0) {
     out('');
@@ -268,6 +270,20 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       }
       const id = options.all === true ? '' : (options.task ?? positional ?? process.env.YAN_TASK ?? '');
 
+      // The vault is caught up BEFORE the picture is rebuilt, so a session that
+      // starts on the laptop starts with the desktop's work in it (vault.md §5).
+      //
+      // Never fatal, and `--json` stays machine readable: a missing network, a
+      // dirty vault or a conflict costs one warning line on stderr and the
+      // session continues on local state. A session-start that refused because a
+      // remote was unreachable would be a worse tool than one that never synced.
+      const pulled = pullVault();
+      if (options.json === true && !pulled.ok) {
+        // `--json` stays machine readable: the warning goes to stderr, which
+        // nothing parses, and the exit code is unchanged.
+        process.stderr.write(`yan session-start: vault pull: ${pulled.message}\n`);
+      }
+
       if (id !== '') {
         if (!Task.exists(id)) throw CommandError.usage('session_start', `no such task: ${id}`);
       }
@@ -277,6 +293,6 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
         out(JSON.stringify(picture));
         return;
       }
-      render(picture);
+      render(picture, pulled);
     }),
   );

@@ -47,6 +47,8 @@ yan mr --task --unit               open the outbound MR (integration branch → 
 yan land --task --user-asked       merge the outbound MR into target
 yan done [<id>] [--force]          mark the task done and give its trees back
 yan tree get | return | status     the worktree pool
+yan repo add | link | ls           the repositories this context knows about
+yan vault pull | push | ls | where the task assets, and which context they are
 yan wait [--seconds N] · yan drain supervision
 yan open <id>                      the task directory or its artifacts
 ```
@@ -63,6 +65,8 @@ Inside your own branches and this machine, act on your own. Anything that touche
 | push the integration branch via `yan sync` | commenting on an MR, or mentioning anyone: it interrupts colleagues |
 | `yan mr` — opening the outbound MR is reversible | `yan done --force` — it kills live shifts and throws uncommitted work away |
 | `yan done` without `--force` — it refuses rather than destroys | |
+| `yan vault pull` — it only reads | `yan vault push` — it writes the task assets to a remote |
+| `yan repo add` / `link` — registering a clone is reversible | `yan vault init` / `clone` / `use` — which context you are in is a decision |
 
 Never `git push --force`. Never delete a branch that has not merged. When something in
 the right-hand column is what the situation needs, say so plainly and wait — do not do
@@ -144,10 +148,15 @@ notification first, then return to what `user` was talking about.
    derived: `yan state <sid>`. Reading the last line as "where things stand" is wrong.
 3. **A shift clocks out when its merge request has merged into the integration branch** —
    not when it says it is finished. That is objective, and it is the only condition.
-4. **Never work in a main clone.** `repos/<repo>/` is read-only; the only write allowed
-   there is `git fetch`. Code changes happen in leased worktrees.
+4. **Never work in a main clone.** A registered clone is read-only; the only write allowed
+   there is `git fetch`. Code changes happen in leased worktrees. That clone is
+   `user`'s own working copy now rather than a private one of yours, so it may be on any
+   branch: when the pool says one is already checked out there, say so and wait. Never
+   move a clone you do not own.
 5. **Artifacts go in `$YAN_TASK_DIR/artifacts/`**, never inside a worktree — a tree is
-   wiped when it is returned.
+   wiped when it is returned. `$YAN_TASK_DIR` is inside the **vault** — a git
+   repository of its own, so the assets are versioned and pushed, and the mechanics clone
+   holds no task data at all.
 6. **Progress goes in `log.md`, one line per event.** It is append-only. `task.json` holds
    decisions; anything git or the forge already knows is not copied into it.
 7. **`target` is never guessed.** No command defaults it and neither do you. Ask.

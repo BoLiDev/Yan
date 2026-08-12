@@ -1,7 +1,8 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
-import { git } from '../util/git.js';
+import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../util/git.js';
+import { isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
 import {
@@ -297,6 +298,127 @@ const useCommand = new Command('use')
   .action(action('vault_use', (name: string | undefined) => { useVault(name); }));
 
 /**
+ * `yan vault pull` and `yan vault push` (v3 td vault.md §5).
+ *
+ * Two commands, deliberately not one, and NOT called `sync`: `yan sync`
+ * already means "bring a unit's integration branch up to date with its
+ * target", and a `yan vault sync` beside it would be a collision in the only
+ * place it matters, which is a tired person's memory.
+ *
+ * Pull is automatic (session-start runs it) and push is not, because push
+ * writes to a remote and that is `user`'s call — and because auto-committing
+ * every `log.md` append would produce a history nobody can read.
+ */
+export interface PullResult {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
+/**
+ * Never throws. Session-start calls it, and a session that refuses to start
+ * because a remote is unreachable is a worse tool than one that does not sync.
+ */
+export function pullVault(): PullResult {
+  let dir: string;
+  try {
+    dir = vaultDir();
+  } catch (err) {
+    return { ok: false, message: isYanError(err) ? err.message : String(err) };
+  }
+
+  if (remoteUrl(dir) === undefined) {
+    return { ok: false, message: 'this vault has no origin, so there is nothing to pull from' };
+  }
+  const dirty = statusPorcelain(dir).trim();
+  if (dirty !== '') {
+    // Refused rather than attempted: a half-finished rebase in a directory the
+    // reader does not think of as a repository is a bad place to be left.
+    return {
+      ok: false,
+      message: `the vault has uncommitted changes, so it was not rebased - 'yan vault push' first, or commit them by hand:\n${dirty.split(/\r?\n/).slice(0, 10).map((l) => `    ${l}`).join('\n')}`,
+    };
+  }
+
+  const fetched = fetch(dir);
+  if (fetched.code !== 0) {
+    return { ok: false, message: `could not reach ${remoteUrl(dir) ?? 'origin'}: ${fetched.stderr.trim()}` };
+  }
+  const branch = currentBranch(dir);
+  if (!gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) {
+    return { ok: false, message: `origin has no ${branch} yet - 'yan vault push' publishes it` };
+  }
+
+  const before = revParse(dir, ['HEAD']);
+  const rebased = rebase(dir, [`origin/${branch}`]);
+  if (rebased.code !== 0) {
+    git(dir, ['rebase', '--abort']);
+    return { ok: false, message: `rebasing onto origin/${branch} conflicts - open ${dir} and sort it out; nothing was changed` };
+  }
+  const after = revParse(dir, ['HEAD']);
+  return {
+    ok: true,
+    message: before === after ? `already up to date with origin/${branch}` : `caught up with origin/${branch}`,
+  };
+}
+
+const pullCommand = new Command('pull')
+  .description('fetch and rebase the vault onto its remote')
+  .action(
+    action('vault_pull', () => {
+      const result = pullVault();
+      out(`vault pull: ${result.message}`);
+      if (!result.ok) process.exitCode = 1;
+    }),
+  );
+
+/**
+ * A commit message from what changed, when nobody supplied one.
+ *
+ * Task ids rather than file names: "t103, t104" is what a person scanning the
+ * vault's history is looking for, and the file names underneath are all
+ * task.json and log.md.
+ */
+export function pushMessage(changed: readonly string[]): string {
+  const tasks = [...new Set(changed.map((p) => /^tasks\/([^/]+)\//.exec(p)?.[1]).filter((id): id is string => id !== undefined))].sort();
+  const others = changed.filter((p) => !p.startsWith('tasks/')).length;
+  if (tasks.length === 0) return `vault: ${changed.length} file(s)`;
+  const head = tasks.length > 4 ? `${tasks.slice(0, 4).join(', ')} and ${tasks.length - 4} more` : tasks.join(', ');
+  return others > 0 ? `${head}, and ${others} other file(s)` : head;
+}
+
+const pushCommand = new Command('push')
+  .description('commit everything in the vault and push it')
+  .option('-m, --message <text>', 'the commit message, instead of one derived from what changed')
+  .action(
+    action('vault_push', (options: { message?: string }) => {
+      const dir = vaultDir();
+      if (remoteUrl(dir) === undefined) {
+        throw new CommandError('vault', 'no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
+      }
+
+      // --untracked-files=all: without it git reports a new directory as ONE
+      // entry, so a brand-new task would be 'committed 1 change(s)' however
+      // much is in it, and the derived message would be counting directories.
+      const changed = statusPorcelain(dir, ['--untracked-files=all'])
+        .split(/\r?\n/)
+        .map((l) => l.slice(3).trim())
+        .filter((p) => p !== '');
+
+      if (changed.length > 0) {
+        gitOrThrow(dir, ['add', '-A'], 'staging the vault');
+        gitOrThrow(dir, ['commit', '-m', options.message ?? pushMessage(changed)], 'committing the vault');
+        out(`vault push: committed ${changed.length} change(s)`);
+      } else {
+        out('vault push: nothing to commit');
+      }
+
+      const branch = currentBranch(dir);
+      gitOrThrow(dir, ['push', '-u', 'origin', branch], 'pushing the vault');
+      out(`vault push: ${branch} → ${remoteUrl(dir) ?? 'origin'}`);
+    }),
+  );
+
+/**
  * `yan vault drop-home` — step 7 of the migration, as its own command.
  *
  * The migration is deliberately additive: `--from-home` copies, and the old
@@ -347,4 +469,6 @@ export const command = new Command('vault')
   .addCommand(lsVaults)
   .addCommand(useCommand)
   .addCommand(dropHomeCommand)
+  .addCommand(pullCommand)
+  .addCommand(pushCommand)
   .addCommand(whereCommand);

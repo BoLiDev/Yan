@@ -414,7 +414,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
   if (wantBranch) {
     const before = unit.read();
-    const clone = repoDir('unit_set', before.repo, 'the unit names it, but there is no clone under repos/');
+    const clone = repoDir('unit_set', before.repo, 'the unit names it, but nothing on this machine says where it is');
     // The round number of whatever is in unit.branch right now is
     // len(history) + 1. This rotation appends one entry, so the round being
     // STARTED is len(history) + 2. Getting this wrong is not cosmetic: the

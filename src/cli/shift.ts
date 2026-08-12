@@ -303,7 +303,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     );
   }
 
-  const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but there is no clone under repos/');
+  const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
 
   const sid = options.sid !== undefined && options.sid !== '' ? options.sid : nextSid(task);
   const shift = new Shift(task, sid);

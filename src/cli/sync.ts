@@ -107,7 +107,7 @@ export function sync(options: SyncOptions): SyncResult {
     throw CommandError.usage('sync', `unit ${unitName} has no target - 'yan unit set --target' sets one`);
   }
 
-  const { clone, key } = repoTarget('sync', data.repo, 'the unit names it, but there is no clone under repos/');
+  const { clone, key } = repoTarget('sync', data.repo, 'the unit names it, but nothing on this machine says where it is');
   const pool = new WorktreePool(clone);
   const holder = `${task}/${unitName}/sync`;
 

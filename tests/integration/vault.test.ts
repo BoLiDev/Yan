@@ -159,6 +159,71 @@ describe('resolution', () => {
   });
 });
 
+describe('pull and push', () => {
+  /** Two machines on one vault: the pair `yan vault pull` exists for. */
+  async function twoMachines(name: string): Promise<{ a: string; b: string; env: Record<string, string | undefined> }> {
+    const bare = await mkEmptyRemote(join(tmp, `${name}.git`));
+    const env = { ...isolated(name), ...identity };
+    const a = join(tmp, 'vaults', `${name}-a`);
+    await runYan(home, ['vault', 'init', name, '--remote', bare, '--path', a], env);
+
+    const second = { ...isolated(`${name}-b`), ...identity };
+    const b = join(tmp, 'vaults', `${name}-b`);
+    await runYan(home, ['vault', 'clone', bare, '--path', b], second);
+    return { a, b, env: second };
+  }
+
+  it('push commits what changed under a message made of task ids, and pull brings it to the other machine', async () => {
+    const { a, b, env } = await twoMachines('shared-work');
+    const onA = { ...isolated('shared-work'), ...identity };
+
+    mkdirSync(join(a, 'tasks', 't042'), { recursive: true });
+    writeFileSync(join(a, 'tasks', 't042', 'task.json'), '{"version":1,"id":"t042","title":"x","complete":false,"units":[]}\n');
+    writeFileSync(join(a, 'tasks', 't042', 'log.md'), '# t042\n');
+
+    const pushed = await runYan(home, ['vault', 'push'], { ...onA, YAN_VAULT: a });
+    expect(pushed.code, pushed.out).toBe(0);
+    expect(pushed.stdout).toContain('committed 2 change(s)');
+
+    const subject = (await fxGit(['-C', a, 'log', '-1', '--pretty=%s'])).stdout.trim();
+    expect(subject, 'the ids are what a person scans the history for').toBe('t042');
+
+    const pulled = await runYan(home, ['vault', 'pull'], { ...env, YAN_VAULT: b });
+    expect(pulled.code, pulled.out).toBe(0);
+    expect(pulled.stdout).toContain('caught up');
+    expect(existsSync(join(b, 'tasks', 't042', 'task.json'))).toBe(true);
+
+    // Twice is a no-op, and says so rather than inventing a commit.
+    const again = await runYan(home, ['vault', 'pull'], { ...env, YAN_VAULT: b });
+    expect(again.stdout).toContain('already up to date');
+  });
+
+  it('refuses to rebase a dirty vault, and names what is dirty', async () => {
+    const { b, env } = await twoMachines('dirty');
+    writeFileSync(join(b, 'tasks', 'scratch.md'), 'half-written\n');
+
+    const r = await runYan(home, ['vault', 'pull'], { ...env, YAN_VAULT: b });
+    expect(r.code).not.toBe(0);
+    expect(r.stdout).toContain('uncommitted changes');
+    expect(r.stdout, 'which file, so the reader does not have to go looking').toContain('scratch.md');
+  });
+
+  it('session-start pulls first, and a pull that cannot happen costs one line, not the session', async () => {
+    const { b, env } = await twoMachines('at-startup');
+
+    const fine = await runYan(home, ['session-start'], { ...env, YAN_VAULT: b });
+    expect(fine.code, fine.out).toBe(0);
+    expect(fine.stdout).toContain('vault    ');
+    expect(fine.stdout).toContain('sync     ');
+
+    // The train case: the remote is simply gone.
+    await fxGit(['-C', b, 'remote', 'set-url', 'origin', join(tmp, 'nowhere.git')]);
+    const offline = await runYan(home, ['session-start'], { ...env, YAN_VAULT: b });
+    expect(offline.code, 'a session that refuses to start because a remote is down is a worse tool').toBe(0);
+    expect(offline.stdout).toContain('WARN');
+  });
+});
+
 describe('clone, ls and use', () => {
   it('clones a vault, takes its own name, and warns that no repository is linked yet', async () => {
     const bare = await mkEmptyRemote(join(tmp, 'shared.git'));

@@ -122,7 +122,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     );
   }
 
-  const clone = repoDir('mr', data.repo, `register it with 'yan repo-add'`);
+  const clone = repoDir('mr', data.repo, `register it with 'yan repo add'`);
 
   // The branch has to be on the remote before a merge request can point at it.
   // Pushing it is `yan sync`'s step and stays there (branching.md §6.3), so

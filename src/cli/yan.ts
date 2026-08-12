@@ -165,7 +165,9 @@ export function liveTaskChoices(): EntryChoice[] {
 
 async function chooseEntryPoint(): Promise<string[]> {
   const { chooseEntry, CREATE_NEW } = await import('../ui/prompts.js');
-  const chosen = await chooseEntry(liveTaskChoices());
+  const { readVaultJson, vaultDirIfAny } = await import('../util/vault.js');
+  const dir = vaultDirIfAny();
+  const chosen = await chooseEntry(liveTaskChoices(), dir === undefined ? '' : readVaultJson(dir).name);
   return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', '--task', chosen];
 }
 

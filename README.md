@@ -4,25 +4,42 @@ A work orchestration system for one person: you describe something that needs do
 breaks it into pieces that can be handed out, each piece goes to a single-use sub-agent
 working in an isolated git worktree, and the result is delivered as a merge request.
 
-Status: **V2 implemented**. TypeScript on [Herdr](https://herdr.dev), on Git Bash (Windows)
+Status: **V3 implemented**. TypeScript on [Herdr](https://herdr.dev), on Git Bash (Windows)
 and Linux. The MVP's bash-and-tmux runtime has been deleted; `bin/` holds three shell stubs
 and nothing else.
+
+**This repository is code.** Tasks, briefs, logs, outcomes, memory and the repository
+registry live in a **vault**: a git repository of your own, one per context — personal
+projects at home on GitHub, work on an internal GitLab — versioned and carried between
+machines. Nothing private is kept here, which is what makes this clone shareable with a
+colleague who will point it at their own vault ([docs/v3/td/INDEX.md](docs/v3/td/INDEX.md)).
 
 ## Getting started
 
 ```sh
-npm run setup                                 # install, build, link, config, doctor
+npm run setup                          # install, build, link, doctor
 # or step by step:
 npm install
 npm run build
-npm link                                      # once: put `yan` on PATH
-cp conf/config.sample.json conf/config.json   # then edit it
-yan doctor                                    # checks everything below
+npm link                               # once: put `yan` on PATH
+yan doctor                             # checks everything below
+
+# then, once: somewhere to keep tasks. Create an EMPTY repository on your
+# forge first — that click is yours, not yan's.
+yan vault init personal --remote git@github.com:you/yan-vault-personal.git
 ```
 
-`npm run setup` runs all of that in order. It copies `conf/config.sample.json` only when
-`conf/config.json` is missing, and finishes with `yan doctor`. Pass `--skip-doctor` if you
-want to edit the config first.
+`npm run setup` runs the first block in order and finishes with `yan doctor`. Pass
+`--skip-doctor` to stop before it. It does not create a vault: which forge you deliver to
+is a decision, and a bootstrap script guessing it is exactly the guess V3 exists to stop.
+
+On a second machine, or at the office, the same clone joins a different context:
+
+```sh
+yan vault clone git@github.com:you/yan-vault-personal.git   # a vault that exists
+yan use work                                                # switch between them
+cd ~/code && yan repo add                                   # say where clones are here
+```
 
 After `npm link`, you can run `yan` from any directory — it resolves `$YAN_HOME` to
 this checkout, the same as `bin/yan doctor` from here. Re-run `npm link` after moving
@@ -34,7 +51,8 @@ only the global config), the one remote-host CLI `remote_git.kind` selects, and 
 its version against the generated types, and the integration for each agent kind you have
 configured.
 
-Then: `yan repo-add <url>` → type `yan` → you are inside the task.
+Then: `yan repo add` in the directory holding your clones (or `yan repo add <url>` to
+clone one) → type `yan` → you are inside the task.
 
 | Runtime | Notes |
 | --- | --- |
@@ -51,7 +69,11 @@ skip loudly when Herdr or a real forge is absent.
 
 ## Where to start reading
 
-**[docs/v2/td/INDEX.md](docs/v2/td/INDEX.md)** is the current design: what V2 changed, what
+**[docs/v3/td/INDEX.md](docs/v3/td/INDEX.md)** is the newest layer: the three places yan's
+state lives (code, vault, machine), why `$YAN_HOME` stopped being all three, and how a
+machine carries two contexts without mixing them.
+
+**[docs/v2/td/INDEX.md](docs/v2/td/INDEX.md)** is the runtime design: what V2 changed, what
 it deliberately did not, and what was deleted. Each section links to the document that
 argues one part in full — the terminal seam, supervision, orchestration, display, the CLI
 UX, and the evidence every claim rests on.
@@ -63,12 +85,14 @@ tmux, bash or `jq`, V2 says Herdr and TypeScript.
 
 | Question | Document |
 | --- | --- |
+| Where tasks are kept, and how two contexts stay apart | [docs/v3/td/INDEX.md](docs/v3/td/INDEX.md) |
 | What the current runtime is, and why | [docs/v2/td/INDEX.md](docs/v2/td/INDEX.md) |
 | Why is it designed this way, and what is each part responsible for | [docs/mvp/td/INDEX.md](docs/mvp/td/INDEX.md) |
 | The full argument for one part (memory, agents, supervision, branching, worktrees, delivery, boundaries, scope) | the matching file under `docs/mvp/td/`; every section of INDEX ends with a link |
 | Where the code goes, what may call what, and how it is tested | [docs/v2/td/runtime.md](docs/v2/td/runtime.md), and [docs/mvp/td/architecture.md](docs/mvp/td/architecture.md) for the layering it inherited |
 | How each claim about Herdr was measured | [docs/v2/td/evidence.md](docs/v2/td/evidence.md) |
 | How the port was cut into phases | [docs/v2/plan/INDEX.md](docs/v2/plan/INDEX.md) |
+| How V3 was cut into phases, and what the migration found | [docs/v3/plan/INDEX.md](docs/v3/plan/INDEX.md), [docs/v3/td/migration.md](docs/v3/td/migration.md) |
 
 ## Conventions
 

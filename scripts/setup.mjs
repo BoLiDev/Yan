@@ -3,13 +3,14 @@
 // First-time (or fresh-clone) bootstrap. Runs before `yan` is on PATH, so it
 // stays a plain node script rather than a subcommand.
 //
-//   npm run setup              install, build, link, copy config, doctor
+//   npm run setup              install, build, link, doctor
 //   npm run setup -- --skip-doctor   stop before doctor
 //
 // Exit 0 on success, non-zero on the first step that failed.
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,20 +40,15 @@ step('npm install', () => npm(['install']));
 step('npm run build', () => npm(['run', 'build']));
 step('npm link', () => npm(['link']));
 
-const config = join(repoRoot, 'conf', 'config.json');
-const sample = join(repoRoot, 'conf', 'config.sample.json');
-step('conf/config.json', () => {
-  if (existsSync(config)) {
-    process.stdout.write(`  ${config} already exists — left unchanged\n`);
-    return;
-  }
-  if (!existsSync(sample)) {
-    process.stderr.write(`yan setup: missing ${sample}\n`);
-    process.exit(1);
-  }
-  copyFileSync(sample, config);
-  process.stdout.write(`  copied ${sample}\n`);
-});
+// The config used to be copied into conf/ here. It is not a machine-level file
+// any more: `agents.*` and `remote_git.*` follow the CONTEXT — GitHub at home,
+// an internal GitLab at work — so they live in the vault, and `yan vault init`
+// lays one down from the same sample (docs/v3/td/vault.md §2).
+//
+// Setup does not create a vault. Which forge you deliver to is a decision, and
+// a bootstrap script guessing it is exactly the guess V3 exists to stop.
+const machineConfig = join(homedir(), '.yan', 'config.json');
+const hasVault = existsSync(machineConfig);
 
 if (!skipDoctor) {
   const yan = join(repoRoot, 'dist', 'cli', 'yan.js');
@@ -63,10 +59,21 @@ if (!skipDoctor) {
 }
 
 process.stdout.write('\nSetup complete.\n');
-if (existsSync(config) && !skipDoctor) {
-  process.stdout.write('Edit conf/config.json if needed, then run yan from any directory.\n');
-} else if (!skipDoctor) {
-  process.stdout.write('Run yan doctor after editing conf/config.json.\n');
+if (hasVault) {
+  process.stdout.write('A vault is already registered on this machine — `yan vault ls` shows which.\n');
 } else {
-  process.stdout.write('Run yan doctor when you are ready.\n');
+  process.stdout.write(
+    [
+      '',
+      'One thing left: yan has nowhere to keep tasks yet. Create an empty',
+      'repository on your forge, then:',
+      '',
+      '    yan vault init personal --remote <that repository>',
+      '',
+      'or, on a machine that should join a vault you already have:',
+      '',
+      '    yan vault clone <that repository>',
+      '',
+    ].join('\n'),
+  );
 }
