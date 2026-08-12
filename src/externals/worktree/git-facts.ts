@@ -25,15 +25,9 @@ export function isRegisteredWorktree(clone: string, path: string): boolean {
 /**
  * Which working tree has `branch` checked out, if any.
  *
- * This became worth answering when the main clone stopped being yan's private
- * one (v3 td repos.md §3). Under `$YAN_HOME/repos/` nobody ever checked
- * anything out there, so "a branch cannot be checked out twice" was
- * structurally unreachable; now the registered clone is the one `user` works
- * in, and it is an ordinary Tuesday.
- *
- * `git worktree list --porcelain` lists the main clone first, so this finds it
- * as readily as it finds a leased tree — which is the point: the answer a
- * person needs is the directory to go and switch.
+ * The main clone counts and is listed first, which is the point: the registered
+ * clone is one `user` works in, so it holds branches like any other tree, and
+ * the answer a caller needs is the directory to go and look at.
  */
 export function worktreeHolding(clone: string, branch: string): string | undefined {
   let porcelain: string;

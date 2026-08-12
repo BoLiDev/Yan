@@ -2,7 +2,7 @@
 //
 // Source: `herdr api schema --json`. Re-run the generator after a Herdr
 // upgrade; `yan doctor` compares the two stamps below against the installed
-// binary and says so when they have drifted (runtime.md §4, sources.md §2).
+// binary and says so when they have drifted.
 
 export const HERDR_PROTOCOL = 19;
 export const HERDR_SCHEMA_VERSION = 1;

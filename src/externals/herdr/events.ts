@@ -6,13 +6,12 @@ import { AGENT_STATUS } from './schema.js';
 import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './types.js';
 
 /**
- * Herdr's event stream, over the socket (supervision.md §2, evidence §11.1).
+ * Herdr's event stream, over the socket.
  *
- * `herdr api` has exactly two subcommands, `snapshot` and `schema`.
- * `events.subscribe` exists in the request schema and has NO CLI VERB AT ALL,
- * so the terminal seam's CLI transport does not reach it and this module speaks
- * the wire protocol itself. That is the whole reason a second module exists for
- * one outside authority.
+ * WHY THIS SPEAKS THE WIRE PROTOCOL instead of going through the CLI like
+ * everything else: `herdr api` has exactly two subcommands, `snapshot` and
+ * `schema`. `events.subscribe` exists in the request schema and has no CLI verb
+ * at all, so there is nothing to shell out to.
  *
  * Newline-delimited JSON in both directions:
  *
@@ -22,25 +21,25 @@ import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './typ
  *   <- {"event":"pane.agent_status_changed","data":{"agent":"claude",
  *        "agent_status":"working","pane_id":"w1:p2","workspace_id":"w1"}}
  *
- * Three rules this module holds, and the first two are the terminal seam's:
+ * Three rules this module holds:
  *
  *   1. RECORD THE ID, NEVER THE LABEL. Subscriptions are per pane id; a pane
  *      that has moved is reconciled by whoever owns the bookkeeping, not here.
  *
  *   2. IT CANNOT MOVE THE USER OR CLOSE ANYTHING. This client sends exactly one
- *      method. There is no `focus`, no `close`, no `stop` — a subscriber that
- *      could focus a pane would mark it seen and turn the `done` yan is waiting
- *      for into an `idle` it ignores (supervision.md §3).
+ *      method — there is no `focus`, no `close`, no `stop`. A subscriber that
+ *      could focus a pane would mark it seen, turning the `done` yan is waiting
+ *      for into an `idle` it ignores.
  *
  *   3. IT NEVER DECIDES. A status arrives as a fact with a pane id on it.
- *      Whether `blocked` is worth waking anybody is `yan wait`'s judgement, and
- *      `done` in particular is a reason to look and never a verdict.
+ *      Whether `blocked` is worth waking anybody is the caller's judgement, and
+ *      `done` in particular is a reason to look, never a verdict.
  *
- * RECONNECTION IS THE CALLER'S PACING. `reconnect()` is offered; no hidden
- * retry loop is. The Phase 5 spike held one subscription for 420 s and never
- * saw a server restart (evidence §11.4), so "the subscription ended" is handled
- * as a state that can arrive at any time — but how often to try again, and what
- * to re-read before doing so, is supervision's decision and not this module's.
+ * RECONNECTION IS THE CALLER'S PACING. `reconnect()` is offered; a hidden retry
+ * loop is not. A subscription ending is treated as a state that can arrive at
+ * any time, but how soon to try again — and what to re-read before doing so, in
+ * case something happened while the stream was down — is a supervision decision
+ * this module has no way to make well.
  */
 
 const SUBSCRIBABLE = 'pane.agent_status_changed';

@@ -26,9 +26,9 @@ export interface LeaseGrant {
 /**
  * One row of `status()`.
  *
- * Deliberately not a `Lease`: `version` is a storage detail and `pid` is not a
- * fact about the tree — a lease whose owning process died is still held
- * (worktree.md §7), so reporting the pid invites the wrong conclusion.
+ * Deliberately not a `Lease`: `version` is a storage detail, and `pid` is not a
+ * fact about the tree at all. A lease whose owning process died is still held,
+ * so showing the pid invites the reader to conclude the opposite.
  */
 export type LeaseRow = Omit<Lease, 'version' | 'pid'>;
 
@@ -42,12 +42,10 @@ export interface ReturnExpectation {
  * What `return()` takes: the identity check, plus the one way past the
  * orphan-commit guard.
  *
- * `force` is NOT a convenience. boundaries.md §9.2 lists it as an action
- * `user` has to authorise — *forbidden, unless `user` says the changes can be
- * thrown away* — which is a different thing from forbidden. So the capability
- * lives here, where the guard is, and the authority lives in the one command
- * that can carry `user`'s answer in: `yan done --force`. `yan tree return`
- * deliberately exposes no flag for it (see `cli/tree.ts`).
+ * `force` is not a convenience. The capability lives here, where the guard is;
+ * the authority to use it lives in the single command that can carry `user`'s
+ * consent, `yan done --force`. `yan tree return` exposes no flag for it, which
+ * is why that command looks oddly incomplete next to this type.
  */
 export interface ReturnOptions extends ReturnExpectation {
   readonly force?: boolean;

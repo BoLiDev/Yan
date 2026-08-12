@@ -1,33 +1,18 @@
 /**
- * `tasks/<id>/task.json` — one of yan's three records (architecture.md §4.2).
+ * `tasks/<id>/task.json`.
  *
- * What this module provides, in full:
+ * Three properties of the shape, none of them visible from the signatures:
  *
- *   new Task(id)
- *     .id .dir .file            where it is
- *     .exists() .read()         the document, read leniently
- *     .title() .isComplete() .setComplete(v)
- *     .containerName()          the terminal container's human name
- *     .units() .unit(name) .findUnit(name)
- *     .addUnit(name, repo, target, options?) → Unit
- *
- *   Task.isId(id) · Task.create(id, title) · Task.list()
- *     The three questions that have no task to ask them of yet.
- *
- *   unit.read() · .set(field, value) · .setScope() · .setNeeds()
- *   unit.rounds() · .appendHistory(…) · .rotate(end, newBranch, at?)
- *
- * What the shape is protecting:
- *
- *   1. `history[]` IS APPEND-ONLY. No method here takes a history index. The
- *      only writer builds `old + [entry]`, so every existing entry survives by
+ *   1. `history[]` IS APPEND-ONLY. No method takes a history index, and the
+ *      only writer builds `old + [entry]` — so every existing entry survives by
  *      construction rather than by care.
  *   2. THE FOUR CURRENT SCALARS ARE NOT THE LAST HISTORY ENTRY. branch, target,
- *      mode and mr are fields of the unit; "current is history[-1]" is
- *      explicitly rejected by branching.md §6.4.
+ *      mode and mr are fields of the unit in their own right. Deriving them
+ *      from `history[-1]` looks equivalent and is not: a unit has current
+ *      values before it has any history at all.
  *   3. STARTING A NEW ROUND IS ONE OPERATION. `rotate` archives and overwrites
- *      in a single tmp → mv, because a task that crashed between the two would
- *      have lost the round it was in.
+ *      in a single tmp → mv, because a crash between the two would lose the
+ *      round it was in.
  */
 
 export { Task } from './task.js';

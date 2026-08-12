@@ -2,26 +2,26 @@ import { spawnSync } from 'node:child_process';
 import { TerminalError } from './errors.js';
 
 /**
- * Talking to Herdr. The socket/CLI transport and the error mapping, and the
- * only module in yan that names the `herdr` executable.
+ * The `herdr` executable, and the only module in yan that names it.
  *
- * The CLI is the transport. It does not require `HERDR_ENV`,
- * `HERDR_SOCKET_PATH` or `HERDR_PANE_ID` to be set — with all three stripped,
- * `herdr pane list` still answers, finding the default socket itself
- * (evidence.md §1). **That is what makes the hook path safe**, and it must be
- * re-verified whenever Herdr is upgraded.
+ * IT NEEDS NO ENVIRONMENT. With `HERDR_ENV`, `HERDR_SOCKET_PATH` and
+ * `HERDR_PANE_ID` all stripped, `herdr pane list` still answers — it finds the
+ * default socket itself. That is what makes yan safe to call from a hook, which
+ * may be handed a sanitised environment, and it is worth re-checking whenever
+ * Herdr is upgraded.
  *
- * Responses are JSON on stdout. Errors are JSON on STDERR with a stable `code`:
+ * The wire contract:
  *
  *   {"error":{"code":"agent_not_found","message":"…"},"id":"cli:agent:get"}
  *
- *   exit 0   success (some mutating commands succeed silently with no stdout
- *            at all — do not treat empty output as failure, evidence.md §4)
- *   exit 1   server error — parse error.code
- *   exit 2   CLI syntax error — a bug in yan, never a runtime condition
+ *   exit 0   success. Some mutating commands succeed with NO STDOUT AT ALL, so
+ *            an empty body is not a failure
+ *   exit 1   server error, with that JSON on stderr — parse error.code
+ *   exit 2   the command shape was wrong: a bug in yan, never a condition
  *
- * No Herdr `error.code` escapes this seam: it is mapped into yan's own
- * vocabulary here and nowhere else (architecture.md §4.3 rule 1).
+ * No Herdr `error.code` escapes this file. Mapping them into yan's own
+ * vocabulary here is what keeps every caller from having to know two
+ * spellings of the same failure.
  */
 
 
@@ -47,9 +47,10 @@ export function herdrErrorCode(stderr: string): string | undefined {
 }
 
 /**
- * Run a herdr command. Never throws for a Herdr-level failure — the caller
- * decides what a failure means, because "agent_not_found" is an answer in one
- * place and a problem in another (§5's two-step derivation is the reason).
+ * Run a herdr command. Never throws for a Herdr-level failure: the caller
+ * decides what one means, because `agent_not_found` is a problem to one caller
+ * and the answer itself to another — it is how `agentAlive` tells a dead agent
+ * from a live one.
  */
 export function runHerdr(args: readonly string[]): HerdrResult {
   const spawned = spawnSync('herdr', [...args], {

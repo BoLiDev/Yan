@@ -2,29 +2,18 @@ import * as git from '../../util/git.js';
 import { WorktreeError } from './errors.js';
 
 /**
- * The orphan-commit guard.
+ * The orphan-commit guard: returning a tree destroys what is in it, so would
+ * returning this one lose anything?
  *
- * Returning a tree destroys what is in it, so there is exactly one question:
- * would that lose anything? Two git commands answer it (worktree.md §7).
+ * A refusal here means stop and investigate. There is exactly one way past it —
+ * `yan done --force`, which reaches `WorktreePool.return({force})` carrying
+ * `user`'s answer that the work can be thrown away. `yan tree return` exposes
+ * no such flag, deliberately. Who may decide to override is not this function's
+ * question, but note that some caller must be able to: without a door at all, a
+ * tree that comes back dirty strands its pool slot permanently.
  *
- * NOTHING IN YAN MAY OVERRIDE THIS ON ITS OWN INITIATIVE, and for a long time
- * this comment said there was no override at all. That was a misreading of
- * boundaries.md §9.2, which does not forbid a force flag — it says
- *
- *     yan tree return --force   forbidden, unless `user` says the changes
- *                               can be thrown away
- *
- * which makes it an AUTHORITY, not an absence. The difference cost a real
- * stranded pool slot: a tree came back dirty, this refused exactly as it
- * should, and there was then no way at all to recover the slot.
- *
- * So the override exists and it is exactly one door wide: `yan done --force`,
- * whose flag carries `user`'s answer, reaching `WorktreePool.return({force})`.
- * `yan tree return` still has no flag. To this function a refusal still means
- * stop and investigate; who may decide otherwise is not its question.
- *
- * Note what it does NOT test: whether the work has landed. That is a stronger
- * and different question, and it belongs to `yan shift done`, not here.
+ * What it does NOT test is whether the work has LANDED. That is a stronger and
+ * different question, and it belongs to `yan shift done`.
  */
 export function assertReturnable(tree: string): void {
   if (git.statusPorcelain(tree).trim() !== '') {
@@ -51,11 +40,11 @@ export function assertReturnable(tree: string): void {
 /**
  * Reset and clean a tree back to a reusable state.
  *
- * `-fd` and NEVER `-x`. `-x` would delete the gitignored node_modules and build
- * caches too, which turns every lease back into a cold install and nothing
- * fails loudly when it happens. That is why the clean goes through
- * `util/git.ts`'s `cleanFd`, which hardcodes the flags, instead of being
- * spelled out here.
+ * `-fd` and NEVER `-x`: `-x` would take the gitignored node_modules and build
+ * caches with it, turning every lease back into a cold install, and nothing
+ * fails loudly when that happens. The flags are not spelled out here for that
+ * reason — the clean goes through `util/git.ts`'s `cleanFd`, which hardcodes
+ * them where a well-meaning edit will not find them.
  */
 export function wipe(tree: string): void {
   if (git.resetHard(tree).code !== 0) throw new WorktreeError('failed', `cannot reset ${tree}`);

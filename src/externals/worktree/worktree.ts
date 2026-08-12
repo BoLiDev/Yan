@@ -10,55 +10,42 @@ import { allLeases, newLeaseId, readLease, reclaim, releaseLease, slotOf, writeL
 import type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
 
 /**
- * The worktree pool for one main clone (worktree.md §7, architecture.md §4.3).
+ * The worktree pool for one main clone.
  *
- * The pool exists for exactly one reason: warm reuse. On a large monorepo a
- * handful of trees stay ready, and whichever one you lease needs no cold
- * install. Everything else — leases, backpressure, the orphan-commit guard —
- * is the price of that one property.
+ * The pool exists for one reason: warm reuse. On a large monorepo a handful of
+ * trees stay ready, so whichever one you lease needs no cold install.
+ * Everything else here — leases, backpressure, the orphan-commit guard — is the
+ * price of that single property.
  *
- * WHAT THIS IS NOT. It reports facts and decides nothing: `get` hands out a
- * tree or says the pool is full, and the subcommand decides what that means. It
- * calls `util/git.ts` (a stateless utility — a normal downward dependency) and
- * never another external.
- *
- * `return({force})` is the one exception to "decides nothing", and it is not
- * one: it decides nothing either, it OBEYS. boundaries.md §9.2 authorises
- * throwing a tree's changes away when `user` has said so, and this module is
- * where the guard is, so this is where the way past it has to live. Nothing in
- * yan may set it on its own initiative — `yan done --force` is the only caller,
- * and the flag on it is `user`'s answer, not a retry.
+ * It reports facts and decides nothing. `get` hands out a tree or says the pool
+ * is full; what that means is the caller's problem.
  *
  * ---------------------------------------------------------------------------
- * WHY THIS STILL TAKES A LOCK
+ * WHY `get` TAKES A LOCK, WHEN AN ATOMIC CREATE LOOKS LIKE ENOUGH
  * ---------------------------------------------------------------------------
  *
- * plan/conventions.md §4 says the only remaining lock should be `yan wait`'s
- * single-flight. That is not achievable here, and the reason is worth recording
- * because it is not the obvious one.
+ * Slot allocation alone needs no lock: `fs.open(leaseFile, 'wx')` is an atomic
+ * exclusive create on both platforms, so two racers cannot claim one slot.
  *
- * Slot allocation on its own needs no lock: `fs.open(leaseFile, 'wx')` is an
- * atomic exclusive create on both platforms, so two racers cannot claim the
- * same slot. That was tried first. It is **not sufficient**, because the work a
- * lease protects is not only the slot — `git worktree add` writes the SHARED
- * clone's `.git/config` to record the upstream branch, and two of them against
- * one repository collide on git's own config lock:
+ * It is still not sufficient, because the slot is not the only shared thing.
+ * `git worktree add` writes the SHARED clone's `.git/config` to record the
+ * upstream branch, and two of those against one repository collide on git's own
+ * config lock:
  *
  *   error: could not lock config file .git/config: File exists
  *
- * So the critical section is "one git worktree operation per clone at a time".
- * `return` and `status` take no lock: a return is identified by the lease it
- * releases and touches only that tree, and status should never block on whoever
- * is busy creating a worktree.
+ * So the critical section is "one git worktree operation per clone at a time",
+ * not "one slot allocation at a time".
+ *
+ * `return` and `status` take no lock, deliberately: a return is identified by
+ * the lease it releases and touches only that one tree, and status must never
+ * block behind whoever is busy creating a worktree.
  */
 export class WorktreePool {
   private readonly clone: string;
   private readonly dir: string;
 
-  /**
-   * @param clone the main clone this pool serves. Validated once, here, rather
-   *   than at the top of all three methods.
-   */
+  /** @param clone the main clone this pool serves. Validated once, here. */
   public constructor(clone: string) {
     if (!clone) throw WorktreeError.usage('a main clone directory is required');
     let isDir = false;
@@ -76,9 +63,9 @@ export class WorktreePool {
   /**
    * Lease a tree and cut `branch` from `base` in it.
    *
-   * The pool size is passed in rather than read here: it lives in
-   * mem/repos.json, which is yan's own bookkeeping, and this module does not
-   * read (or write) that.
+   * The pool size is a parameter rather than something this reads, because it
+   * lives in mem/repos.json — yan's own bookkeeping, which this module is not
+   * allowed to know about.
    */
   public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
     if (!Number.isInteger(size) || size <= 0) {
@@ -108,17 +95,16 @@ export class WorktreePool {
   }
 
   /**
-   * Reset and clean a tree, then release its lease. Returns the path it
-   * returned.
+   * Reset and clean a tree, then release its lease. Returns the path.
    *
    * `expect` is compared BEFORE anything destructive happens — no reset, no
-   * clean, no lease cleared. That is what makes an automatic retry safe. An
+   * clean, no lease cleared — which is what makes an automatic retry safe. An
    * absent field is not compared.
    *
    * `expect.force` skips the orphan-commit guard and NOTHING ELSE. The identity
-   * check above it still runs, because a forced return that goes to the wrong
-   * slot is the one mistake force must not make: `user` authorised throwing
-   * away THIS tree's changes, not somebody else's.
+   * check still runs: a forced return that lands on the wrong slot is the one
+   * mistake force must not make, because the consent it carries was to discard
+   * THIS tree's changes, not somebody else's.
    */
   public return(target: string, expect: ReturnOptions = {}): string {
     if (!target) {
@@ -189,8 +175,8 @@ export class WorktreePool {
 
     const slot = this.pickSlot(size, name);
     if (slot === undefined) {
-      // Backpressure. A full pool fails instead of growing: an extra tree would
-      // be a cold one, which is the same as having no pool (worktree.md §7).
+      // Backpressure: a full pool fails instead of growing. An extra tree would
+      // be a cold one, and a cold tree is the same as having no pool at all.
       throw new WorktreeError(
         'full',
         `the pool is full - all ${size} trees are leased, cannot start a new shift. 'yan tree status' shows who holds them; raise pool_size in mem/repos.json only if this machine can afford another tree`,
@@ -207,10 +193,7 @@ export class WorktreePool {
     return { path: tree, lease_id: leaseId, holder };
   }
 
-  /**
-   * A slot that already holds a tree first: that is warm reuse. Only if none is
-   * free do we take an empty one.
-   */
+  /** A slot that already holds a tree wins — that is the warm reuse. An empty slot is the fallback. */
   private pickSlot(size: number, name: string): number | undefined {
     const cold: number[] = [];
     for (let n = 1; n <= size; n += 1) {
@@ -260,14 +243,14 @@ export class WorktreePool {
   }
 
   /**
-   * The one refusal a person meets because the main clone is now their own.
+   * Turn git's "already used by worktree at …" into the sentence that says what
+   * to do about it.
    *
-   * git says "already used by worktree at …" and then a path, which is
-   * accurate and easy to read past. What it does not say is that the fix is
-   * one command in a directory the reader is probably sitting in. The pool
-   * does not switch that clone for anyone: it is `user`'s working tree, and a
-   * tool that moves you off your branch to get on with its own work is a tool
-   * you stop trusting.
+   * git's own message is accurate and easy to read past; what it leaves out is
+   * that the branch is very likely checked out in the clone the reader is
+   * sitting in, and that the fix is one command there. The pool will not run
+   * that command on their behalf: a tool that moves you off your branch to get
+   * on with its own work is one you stop trusting.
    */
   private reportOccupied(branch: string, stderr: string): void {
     if (!/already (used by worktree|checked out)/i.test(stderr)) return;
@@ -279,9 +262,10 @@ export class WorktreePool {
   }
 
   /**
-   * The tree must end up on a real branch. treehouse keeps a detached HEAD and
-   * calls it a feature; yan's shift branches have to be pushed and turned into
-   * MRs, so a detached HEAD here is a bug, not a state (worktree.md §7).
+   * The tree must end up on a real branch, never a detached HEAD. A shift's work
+   * has to be pushed and turned into a merge request, so a detached HEAD is not
+   * a state this can hand out and hope about — it is a bug that would surface
+   * hours later, at the push.
    */
   private assertOnBranch(tree: string, branch: string): void {
     let current = '';

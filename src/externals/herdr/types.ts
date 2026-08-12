@@ -4,8 +4,8 @@ import type { AgentStatus } from './schema.js';
  * The vocabulary a caller of this module sees.
  *
  * `AgentStatus` is re-exported from the generated schema rather than restated
- * here: it is Herdr's own closed set, and copying it would let the copy drift
- * from what the binary actually sends.
+ * here: it is Herdr's own closed set, and a copy would drift from what the
+ * installed binary actually sends.
  */
 
 export type { AgentStatus } from './schema.js';
@@ -32,9 +32,9 @@ export interface StartedAgent {
 
 export interface ListedAgent {
   /**
-   * The name `agent start` was given. Empty for an agent `user` started by
-   * hand: Herdr's `name` is null unless yan (or another automation) named it,
-   * which is one more reason the pane id is what gets recorded.
+   * The name `agent start` was given. EMPTY for an agent `user` started by
+   * hand — Herdr leaves `name` null unless some automation set it — so this
+   * cannot be used to find an agent, only to recognise one yan started.
    */
   readonly name: string;
   readonly pane: string;
@@ -73,10 +73,10 @@ export interface HerdrHealth {
 /**
  * One `pane.agent_status_changed` off the socket.
  *
- * This is the only event kind yan subscribes to. `pane_exited` is in Herdr's
- * `EventKind` but not in `SubscriptionEventKind`, and `events.wait` refuses it
- * — so "the agent died" has no push channel at all, which is why the liveness
- * poll survives (supervision.md §2).
+ * The only event kind yan subscribes to, and not by preference: `pane_exited`
+ * is in Herdr's `EventKind` but not in `SubscriptionEventKind`, and
+ * `events.wait` refuses it too. "The agent died" therefore has no push channel
+ * at all, which is why supervision still polls for liveness.
  */
 export interface AgentStatusEvent {
   readonly pane: string;

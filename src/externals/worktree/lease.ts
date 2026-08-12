@@ -39,9 +39,9 @@ export function allLeases(dir: string): Lease[] {
 /**
  * Drop leases whose tree no longer exists.
  *
- * Only that case. A lease whose owning process died is NOT reclaimed: the tree
- * may still hold work, and "no process is running but this tree is still taken"
- * is precisely what a lease is for (worktree.md §7).
+ * Only that case. A lease whose owning PROCESS died is not reclaimed, however
+ * dead it looks: the tree may still hold work, and "nothing is running but this
+ * tree is still taken" is precisely the state a lease exists to record.
  */
 export function reclaim(dir: string): void {
   let names: string[];
@@ -62,12 +62,7 @@ export function newLeaseId(): string {
   return randomBytes(8).toString('hex');
 }
 
-/**
- * Write the record for a freshly leased slot.
- *
- * The same shape and key order as the shell implementation writes, so both
- * halves can read each other's leases for the length of the migration.
- */
+/** Write the record for a freshly leased slot. */
 export function writeLease(
   dir: string,
   slot: number,

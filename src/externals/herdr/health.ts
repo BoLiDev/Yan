@@ -9,9 +9,10 @@ import type { HerdrHealth } from './types.js';
  * asks it precisely when the terminal may not be usable at all — constructing
  * something first would be the wrong shape.
  *
- * `yan doctor` compares the two stamps with the ones in `schema.ts`. That is a
- * version check and only a version check: it is never worded as "supervision is
- * authoritative", because for Claude and Codex it is not (terminal.md §6).
+ * `yan doctor` compares the two stamps against the ones in `schema.ts`. That is
+ * a version check and NOTHING MORE: a matching protocol says the wire shapes
+ * agree, not that Herdr's view of an agent is authoritative — for Claude and
+ * Codex it is not, and wording it that way in `doctor` output would mislead.
  */
 export function herdrHealth(): HerdrHealth | undefined {
   const version = runHerdr(['--version']);

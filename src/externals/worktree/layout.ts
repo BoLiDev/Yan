@@ -6,14 +6,14 @@ import { normalizePath } from '../../util/paths.js';
 import { WorktreeError } from './errors.js';
 
 /**
- * Where the pool keeps things (td INDEX.md §3):
+ * Where the pool keeps things:
  *
  *   <pool root>/<repo>-<hash>/
- *     leases/<slot>.json     the runtime records — they belong to the pool,
- *                            NOT to a task, so they never live under $YAN_HOME
+ *     leases/<slot>.json     runtime records. They belong to the pool, not to
+ *                            a task, so they never live under $YAN_HOME
  *     <slot>/<repo>/         the tree itself
  *
- * The pool root is ~/.yan-trees by default and $YAN_POOL_ROOT overrides it.
+ * The pool root is ~/.yan-trees, overridden by $YAN_POOL_ROOT.
  */
 
 export function absolute(path: string): string {
