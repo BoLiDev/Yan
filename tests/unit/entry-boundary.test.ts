@@ -46,10 +46,33 @@ describe('the model is never sent into the prompts', () => {
   });
 
   it('and still says the two things it has to', () => {
-    // Design principle 4 as an instruction, and then `node` by name — because
-    // "I could just run the prompts myself" is the mistake this exists to stop.
-    expect(agents).toContain('only ever run `yan <command>`');
-    expect(agents).toContain('or `node` yourself');
+    // THE RULE THESE GUARD CHANGED SHAPE, AND THE GUARANTEE DID NOT.
+    //
+    // AGENTS.md used to say "you only ever run `yan <command>`", which stopped
+    // the model reaching for the human prompts and, in the same sentence,
+    // stopped it grepping a file. The second half made yan stupid, so the rule
+    // is soft now — `yan` is the toolkit, judgement is the agent's — and what
+    // has to survive is the part that was never about capability:
+    //
+    //   the prompts are for people. An agent knows its arguments and passes
+    //   them; a prompt reached by an agent is a hang with nobody to answer it;
+    //
+    //   where a subcommand exists it is the right way to do that thing,
+    //   because it knows what a raw git call does not.
+    expect(agents, 'the prompts are for people, and the model passes flags').toContain(
+      'prompts are for people at a keyboard, not',
+    );
+    expect(agents, 'and it says why re-implementing a subcommand goes wrong').toContain(
+      'a raw `git` call does not',
+    );
+  });
+
+  it('and does not let "you may run things" read as "you may decide things"', () => {
+    // The loosening is about capability. Authority is a different question and
+    // the same document has to say so, or the table below it quietly becomes
+    // advisory.
+    expect(agents).toContain('Being able to run a command is not');
+    expect(agents, 'and what still goes to a shift').toContain('Work that lands still goes to a shift');
   });
 
   it('and still carries the authority rules and the Codex checkpoint', () => {
