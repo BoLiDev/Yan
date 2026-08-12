@@ -1,0 +1,16 @@
+# What a vault does NOT keep (v3 td vault.md §2).
+#
+# Two kinds of thing, and the rule for both fits on one line: `run/` is
+# throwaway, and machine-local facts are wrong on any other machine.
+
+# The machine layer. Clone paths on this disk, and nothing that survives a move.
+.local/
+
+# Throwaway runtime. A shift's run/ holds Herdr pane ids, which would look
+# authoritative on a machine where those panes do not exist; a task's run/ holds
+# the wait lock and the beacon.
+tasks/*/run/
+tasks/*/shifts/*/run/
+tasks/*/.enter.lock
+
+.DS_Store

@@ -3,8 +3,11 @@ import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { Command } from 'commander';
+import { gitOut, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
+import { activeVaultName, cloneRoot, machineConfigPath } from '../util/machine.js';
+import { VAULT_VERSION, readVaultJson, vaultDirIfAny } from '../util/vault.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
 import { configuredCli } from '../externals/remote-git/index.js';
 import { isYanError } from '../util/error.js';
@@ -125,6 +128,51 @@ function checkRequired(report: Report): void {
   );
 
   checkGitIdentity(report);
+}
+
+/**
+ * The vault this machine works in (v3 td cli.md §3).
+ *
+ * "Registered but not resolving" is the row that earns its place: it is the
+ * normal state of a fresh install and of a vault whose directory moved, and it
+ * is the state in which every other command fails with a message about
+ * something else.
+ *
+ * The remote row is deliberately LOCAL-ONLY — `origin/main` as the last fetch
+ * left it. Doctor has to answer on a train, and a check that reaches the
+ * network is one people learn to skip.
+ */
+function checkVault(report: Report): void {
+  const dir = vaultDirIfAny();
+  if (dir === undefined) {
+    const active = activeVaultName();
+    line(report, 'fail', 'vault',
+      active === undefined
+        ? `none registered in ${machineConfigPath()} - 'yan vault init <name> --remote <url>', or 'yan vault clone <url>'`
+        : `'${active}' is active but does not resolve to a vault - 'yan vault ls' shows what is registered`,
+    );
+  } else {
+    const identity = readVaultJson(dir);
+    line(report, identity.version > VAULT_VERSION ? 'fail' : 'ok', 'vault',
+      identity.version > VAULT_VERSION
+        ? `${dir} was written by a newer yan (vault.json version ${identity.version}) - update this clone`
+        : `${identity.name === '' ? '(unnamed)' : identity.name} → ${dir}`,
+    );
+
+    const origin = remoteUrl(dir);
+    if (origin === undefined) {
+      line(report, 'warn', 'vault remote', 'no origin - this vault is local only, so nothing is backed up');
+    } else {
+      const counts = gitOut(dir, ['rev-list', '--left-right', '--count', 'origin/main...HEAD']).trim();
+      const [behind = '?', ahead = '?'] = counts.split(/\s+/);
+      line(report, 'ok', 'vault remote', `${origin}  ${ahead} ahead / ${behind} behind, as of the last fetch`);
+    }
+  }
+
+  const root = cloneRoot();
+  line(report, root === undefined ? 'warn' : 'ok', 'clone_root',
+    root ?? `unset in ${machineConfigPath()} - 'yan repo add <url>' has nowhere to clone into`,
+  );
 }
 
 /** Whether `yan` is on PATH so you can run it from any directory. */
@@ -310,6 +358,10 @@ export const command = new Command('doctor')
       out('required');
       checkRequired(report);
       checkYanOnPath(report);
+
+      out('');
+      out('vault');
+      checkVault(report);
 
       out('');
       out('configuration');

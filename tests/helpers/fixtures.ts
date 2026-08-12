@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -138,11 +138,29 @@ export interface YanHomeOptions {
  * refuses loudly rather than falling back to something that is not there.
  */
 export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
-  for (const d of ['mem/learnings', 'tasks', 'repos', 'conf']) {
+  for (const d of ['mem/learnings', 'tasks', 'repos', 'conf', 'hooks', '.local']) {
     mkdirSync(join(dest, d), { recursive: true });
   }
 
+  // The fixture home is ALSO a vault, at the same path (v3 td vault.md).
+  //
+  // Two roots that happen to coincide, which is a thing V3 allows and does not
+  // encourage: every existing test asserts about `<home>/tasks/...`, and those
+  // assertions are about yan's behaviour rather than about the layout, so
+  // pointing `$YAN_VAULT` at the same directory keeps them meaningful. What it
+  // does NOT do is let a test pass by accident on the old resolution — `runYan`
+  // exports `$YAN_VAULT` explicitly, so a command that still reached for
+  // `$YAN_HOME/tasks` would be reaching for a path nothing set.
+  writeFileSync(
+    join(dest, 'vault.json'),
+    `${JSON.stringify({ version: 1, name: 'fixture', created: '2026-01-01' }, null, 2)}\n`,
+  );
+
   cpSync(join(repoRoot, 'bin'), join(dest, 'bin'), { recursive: true });
+  // `yan vault init` lays down `templates/vault/` and copies the config sample,
+  // so a fixture home without them is not a complete mechanics clone.
+  cpSync(join(repoRoot, 'templates'), join(dest, 'templates'), { recursive: true });
+  cpSync(join(repoRoot, 'conf', 'config.sample.json'), join(dest, 'conf', 'config.sample.json'));
   if (options.withDist === true) {
     cpSync(join(repoRoot, 'dist'), join(dest, 'dist'), { recursive: true });
     cpSync(join(repoRoot, 'package.json'), join(dest, 'package.json'));
@@ -169,7 +187,47 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
       )}\n`,
   );
   writeFileSync(join(dest, 'mem', 'repos.json'), '{\n  "version": 1\n}\n');
+  writeFileSync(join(dest, 'repos.json'), '{\n  "version": 1\n}\n');
+  writeFileSync(join(dest, '.local', 'repos.json'), '{\n  "version": 1\n}\n');
   return dest;
+}
+
+/**
+ * Register a clone in both halves of the registry (v3 td repos.md §2).
+ *
+ * Tests put their clones under `<home>/repos/<name>` and used to rely on
+ * `repoDir()` finding them there by convention. There is no convention any
+ * more: a repository is where `.local/repos.json` says it is. The path the
+ * tests use does not change — only the reason yan can find it.
+ */
+export function registerRepo(
+  vault: string,
+  name: string,
+  dir: string,
+  entry: { url?: string; mode_default?: string; pool_size?: number } = {},
+): void {
+  const portable = join(vault, 'repos.json');
+  const local = join(vault, '.local', 'repos.json');
+  const read = (file: string): Record<string, unknown> => {
+    try {
+      return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    } catch {
+      return { version: 1 };
+    }
+  };
+
+  const reg = read(portable);
+  reg[name] = {
+    url: entry.url ?? `file://${dir}`,
+    mode_default: entry.mode_default ?? 'mr',
+    pool_size: entry.pool_size ?? 8,
+  };
+  writeFileSync(portable, `${JSON.stringify(reg, null, 2)}\n`);
+
+  mkdirSync(join(vault, '.local'), { recursive: true });
+  const loc = read(local);
+  loc[name] = { path: dir.replace(/\\/g, '/') };
+  writeFileSync(local, `${JSON.stringify(loc, null, 2)}\n`);
 }
 
 /**
@@ -194,6 +252,13 @@ export function fxGit(args: readonly string[], cwd?: string): Promise<RunResult>
     ],
     { cwd },
   );
+}
+
+/** A bare repo with nothing in it — what a forge hands you after "New repository". */
+export async function mkEmptyRemote(bare: string): Promise<string> {
+  mkdirSync(bare, { recursive: true });
+  await fxGit(['init', '--bare', '--initial-branch=main', bare]);
+  return bare;
 }
 
 /** A bare repo with one commit on `main`. */
@@ -246,7 +311,16 @@ export function runYan(
   args: readonly string[],
   env: Record<string, string | undefined> = {},
 ): Promise<RunResult> {
-  const merged: NodeJS.ProcessEnv = { ...process.env, YAN_HOME: home };
+  // The vault and the machine layer are isolated for EVERY test, not only the
+  // ones that care. A test that read the real `~/.yan` would pass or fail on
+  // the developer's own registrations, which is the one failure a suite must
+  // never have — and `doctor` reads it, so this is not hypothetical.
+  const merged: NodeJS.ProcessEnv = {
+    ...process.env,
+    YAN_HOME: home,
+    YAN_VAULT: home,
+    YAN_MACHINE_DIR: join(home, '.machine'),
+  };
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete merged[key];
     else merged[key] = value;
