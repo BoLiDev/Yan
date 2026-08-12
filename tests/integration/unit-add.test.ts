@@ -16,7 +16,7 @@ import {
  * `yan unit add`, ported from `tests/integration/yan-unit-add.test.sh` and
  * `tests/unit/yan-unit-args.test.sh`.
  *
- * Phase 7 Trace: "`unit add` stops when the `branch-name` hook exits non-zero
+ * Phase 7 Trace: "`unit add` stops when the `branch-create` hook exits non-zero
  * and never falls back to a default."
  *
  * That half is the one worth a real repository. The failure it guards against
@@ -52,12 +52,42 @@ async function hasBranch(branch: string): Promise<boolean> {
   return (await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`])).code === 0;
 }
 
+/** A shell `branch-create` hook. `$ctx` holds the JSON yan sent on stdin. */
 function writeHook(body: string): void {
   const dir = join(home, 'hooks');
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, 'branch-name');
-  writeFileSync(file, `#!/usr/bin/env bash\n${body}\n`);
+  const file = join(dir, 'branch-create');
+  writeFileSync(file, `#!/usr/bin/env bash\nctx=$(cat)\n${body}\n`);
   chmodSync(file, 0o755);
+}
+
+/**
+ * The same hook in JavaScript, which is the shape a person actually writes.
+ *
+ * It carries the .mjs extension deliberately: that is how yan knows to run it
+ * with node. Without the extension a non-executable file goes to bash, which
+ * is right on Windows for a shell hook and nonsense for this one.
+ */
+function writeJsHook(body: string): void {
+  const dir = join(home, 'hooks');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'branch-create.mjs'),
+    [
+      "import { execFileSync } from 'node:child_process';",
+      "import { readFileSync } from 'node:fs';",
+      "const ctx = JSON.parse(readFileSync(0, 'utf8'));",
+      "const git = (...a) => execFileSync('git', a, { cwd: ctx.repo_dir, encoding: 'utf8' });",
+      body,
+      '',
+    ].join('\n'),
+  );
+}
+
+function removeHooks(): void {
+  for (const name of ['branch-create', 'branch-create.mjs']) {
+    rmSync(join(home, 'hooks', name), { force: true });
+  }
 }
 
 beforeAll(async () => {
@@ -142,14 +172,49 @@ describe('the hook refuses, so nothing happens', () => {
   });
 });
 
-describe('a hook that answers owns the name', () => {
-  it('uses the last line as is, whatever shape it has', async () => {
-    writeHook('printf "looked up the ticket...\\n"; printf "team/AUTH-123_integration\\n"');
+describe('a hook that CREATES the branch owns it', () => {
+  it('takes the branch the hook made, whatever spelling it reports', async () => {
+    // Reports `refs/heads/…`, which is what real tooling prints half the time.
+    writeHook(
+      'dir=$(printf "%s" "$ctx" | node -e "let s=\'\';process.stdin.on(\'data\',c=>s+=c).on(\'end\',()=>process.stdout.write(JSON.parse(s).repo_dir))")\n' +
+        'printf "looked up the ticket...\\n"\n' +
+        'git -C "$dir" branch team/AUTH-123_integration origin/main\n' +
+        'printf "refs/heads/team/AUTH-123_integration\\n"',
+    );
 
     const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'api', '--repo', 'demo', '--target', 'main']);
     expect(r.code, r.out).toBe(0);
-    expect(unitField('t1', 'api', 'branch')).toBe('team/AUTH-123_integration');
+    expect(unitField('t1', 'api', 'branch'), 'the refs/heads/ spelling is normalised away').toBe('team/AUTH-123_integration');
     expect(await hasBranch('team/AUTH-123_integration')).toBe(true);
+    removeHooks();
+  });
+
+  it('refuses when the hook names a branch it did not create, and records nothing', async () => {
+    // THE REGRESSION THIS EXISTS FOR: taking the hook's word for it would write
+    // a name into task.json whose first symptom appears in the worktree pool.
+    writeHook('printf "team/never-made\\n"');
+
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'ghost', '--repo', 'demo', '--target', 'main']);
+    expect(r.code).not.toBe(0);
+    expect(r.out).toContain('no such branch exists');
+    expect(unitField('t1', 'ghost', 'branch')).toBe('');
+    removeHooks();
+  });
+
+  it('finds a branch the hook created on the REMOTE only', async () => {
+    writeJsHook(
+      "git('fetch', 'origin', '--quiet');\n" +
+        "git('push', 'origin', 'origin/main:refs/heads/team/made-remotely');\n" +
+        "git('update-ref', '-d', 'refs/remotes/origin/team/made-remotely');\n" +
+        "process.stdout.write('team/made-remotely\\n');",
+    );
+
+    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'remote', '--repo', 'demo', '--target', 'main']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.out, 'a JavaScript hook runs under node, extension and all').toContain('hook');
+    expect(unitField('t1', 'remote', 'branch')).toBe('team/made-remotely');
+    expect(await hasBranch('team/made-remotely')).toBe(true);
+    removeHooks();
   });
 
   it('is not asked at all when --branch was given', async () => {
@@ -160,7 +225,7 @@ describe('a hook that answers owns the name', () => {
     expect(unitField('t1', 'docs', 'branch')).toBe('spike/docs');
     expect(await hasBranch('spike/docs')).toBe(true);
 
-    rmSync(join(home, 'hooks', 'branch-name'));
+    removeHooks();
   });
 });
 

@@ -20,5 +20,5 @@
  * hooks the agent harnesses run.
  */
 
-export { callHook, hookExists, hookPath } from './hook.js';
+export { callHook, hookExists, hookPath, resolveHook } from './hook.js';
 export { HookError } from './errors.js';
