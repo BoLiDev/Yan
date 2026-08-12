@@ -145,10 +145,10 @@ describe('`target` is never defaulted by any command', () => {
   });
 
   it('is never invented by the commands that read it', () => {
-    // The other four readers - sync, mr, land, shift new - take it from the
+    // The other three readers - mr, land, shift new - take it from the
     // unit and refuse when it is empty. None of them may fall back to main,
     // master, or the current branch.
-    for (const file of ['sync.ts', 'mr.ts', 'land.ts', 'shift.ts', 'unit.ts']) {
+    for (const file of ['mr.ts', 'land.ts', 'shift.ts', 'unit.ts']) {
       const source = readFileSync(join(repoRoot, 'src', 'cli', file), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/(^|[^:])\/\/.*$/gm, '$1');

@@ -63,8 +63,8 @@ import { withLock } from '../util/lock.js';
  *
  * `--scope` is repeatable within a unit; leaving it out means the unit's scope
  * is the repo root, which is the empty list — the prefix that matches every
- * path is no prefix at all, and `yan scope-check` already reads an empty scope
- * as "this unit restricts nothing".
+ * path is no prefix at all, and an empty scope means the unit restricts
+ * nothing.
  *
  * `--target` is required for EVERY unit and is never defaulted (branching.md
  * §6.4): during a release the team merges into a shared branch, in quiet

@@ -27,7 +27,7 @@ import type { MrCreateOptions } from '../../src/externals/remote-git/index.js';
  * The host is a recording stand-in, so nothing here reaches the network. git is
  * real: the only git this command may run is the question "is the integration
  * branch on the remote yet", and that is worth proving as much as the MR itself
- * — pushing it is `yan sync`'s step and must not be duplicated here.
+ * — pushing it is a separate act and must not be duplicated here.
  */
 
 afterAll(cleanupTempDirs);
@@ -123,9 +123,9 @@ describe('it opens the MR and records the URL', () => {
   });
 
   it('never pushes: the only git question it asks is whether the branch is on the remote', () => {
-    // The proof is negative and structural — pushing the integration branch is
-    // `yan sync`'s step (branching.md §6.3) and giving that write two owners is
-    // exactly the kind of thing that does not fail loudly.
+    // The proof is negative and structural — publishing the integration branch
+    // is a separate judgement, and a command that did it silently on the way to
+    // opening an MR is exactly the kind of thing that does not fail loudly.
     const source = readFileSync(join(process.cwd(), 'src', 'cli', 'mr.ts'), 'utf8');
     expect(source).not.toContain('push(');
     expect(source).toContain('remoteBranchExists');
@@ -157,11 +157,11 @@ describe('mode decides whether an MR is even the deliverable', () => {
 });
 
 describe('the branch has to be on the remote first', () => {
-  it('says so, points at yan sync, and records nothing', () => {
+  it('says so, says how to fix it, and records nothing', () => {
     const r = open({ task: 't043', unit: 'auth' });
     expect(r.code).not.toBe(0);
     expect(r.message).toContain('not on the remote yet');
-    expect(r.message).toContain('yan sync');
+    expect(r.message).toContain('git push -u origin');
     expect(unitMr('t043', 'auth'), 'and nothing was recorded').toBeNull();
     expect(created).toEqual([]);
   });

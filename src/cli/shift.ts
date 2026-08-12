@@ -40,8 +40,8 @@ import { vaultDir } from '../util/vault.js';
  * lease before it exits, or the pool leaks a slot on every failed dispatch
  * (orchestration.md §2). That is a `finally`, not a list of exit paths.
  *
- * SYNC NO LONGER RUNS FIRST, and the removal is worth its own paragraph because
- * this command used to open with it.
+ * CATCHING UP WITH `target` IS NOT PART OF DISPATCHING, and this is worth its
+ * own paragraph because this command used to open with it.
  *
  * The argument for it was that a shift branch should come off a head that had
  * just caught up with `target`, so conflicts stayed in one place. But a shift's
@@ -53,10 +53,10 @@ import { vaultDir } from '../util/vault.js';
  * block a dispatch that had nothing to do with target. It could also move the
  * integration branch under a shift that was already running.
  *
- * `yan sync` is still there and still does exactly what it says. It is run when
- * catching up is the thing you actually want — before `yan mr`, or when you
- * deliberately want a shift to start from a caught-up base — rather than as a
- * toll on dispatching.
+ * There is no longer a command for it either. Catching up is `git fetch` and
+ * `git merge`, run when catching up is the thing yan actually wants — before
+ * `yan mr`, or when this round has drifted far enough behind target to be worth
+ * finding out about now.
  *
  * THE SHIFT BRANCH NAME IS ALWAYS OURS: `yan/<task>-<unit>-<sid>`. It is never
  * derived from the integration branch's name — git itself forbids `feature/X`
@@ -70,8 +70,7 @@ import { vaultDir } from '../util/vault.js';
  * repository.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 the pool is full, 4 the
- * working-directory assertion refused, 1 anything else. (5 was "sync hit a
- * conflict", and nothing here can produce it now that sync does not run.)
+ * working-directory assertion refused, 1 anything else.
  */
 
 const RC_POOL_FULL = 3;
@@ -245,7 +244,11 @@ function briefBody(options: {
       `      ${home}/bin/yan report done "mr <url>"`,
     );
   }
-  lines.push(`- Check your own diff against the scope before landing: ${home}/bin/yan scope-check ${sid}`);
+  lines.push(
+    '- The scope in the table above is where this work belongs. Going outside it is not',
+    "  forbidden, but it is not yours to decide quietly: report it, say what you need and",
+    '  why, and let yan answer.',
+  );
   if (data.mode === 'scout') {
     lines.push('- mode is scout: investigate and write it up. Do not push and do not open a merge request.');
   }

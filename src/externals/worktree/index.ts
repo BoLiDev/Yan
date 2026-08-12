@@ -22,7 +22,7 @@
  */
 
 export { WorktreePool } from './worktree.js';
-// `yan sync` has to tell "the pool is full" from "the lease failed": same
+// A caller has to tell "the pool is full" from "the lease failed": same
 // exception, completely different thing to go and look at, and its own exit
 // code. That distinction is `WorktreeError.codes.full`, so the class is part of
 // the surface rather than something a caller matches a message against.

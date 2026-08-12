@@ -14,8 +14,8 @@ import { Shift } from '../records/shift/index.js';
  * the brief could not enforce: the state is checked against the allowed words,
  * a timestamp is added, and the line is written atomically.
  *
- * It is one of exactly two commands a shift needs (the other is
- * `yan scope-check`), and it stays inside the shift's write boundary: it
+ * It is the ONLY command a shift needs, and it stays inside the shift's write
+ * boundary: it
  * touches `run/status` and `run/signal` and nothing else (boundaries.md §9.3).
  *
  * It also matters more than it did. Under Herdr it is no longer only the

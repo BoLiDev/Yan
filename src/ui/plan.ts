@@ -157,8 +157,7 @@ export function detectMonorepo(repoDir: string): Monorepo {
  * The whole repository is the EMPTY scope, not `"."`.
  *
  * `scope` is a list of path prefixes, and the prefix that matches every path is
- * no prefix at all. `yan scope-check` already reads an empty scope as "this
- * unit restricts nothing".
+ * no prefix at all, so an empty scope means the unit restricts nothing.
  */
 export const WHOLE_REPO = '';
 

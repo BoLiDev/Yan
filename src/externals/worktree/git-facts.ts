@@ -56,8 +56,9 @@ export function worktreeHolding(clone: string, branch: string): string | undefin
  * The ref a new shift branch is cut from.
  *
  * A local branch wins, then origin/<base>, then anything git can resolve. The
- * pool never fetches: keeping the integration branch up to date is `yan sync`'s
- * job, and this module does not decide when to talk to the remote.
+ * pool never fetches: keeping the integration branch up to date belongs to
+ * whoever is running the round, and this module does not decide when to talk
+ * to the remote.
  */
 export function baseRef(clone: string, base: string): string {
   if (git.branchExists(clone, base)) return base;

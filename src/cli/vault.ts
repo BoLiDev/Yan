@@ -338,10 +338,10 @@ const useCommand = new Command('use')
 /**
  * `yan vault pull` and `yan vault push` (v3 td vault.md §5).
  *
- * Two commands, deliberately not one, and NOT called `sync`: `yan sync`
- * already means "bring a unit's integration branch up to date with its
- * target", and a `yan vault sync` beside it would be a collision in the only
- * place it matters, which is a tired person's memory.
+ * Two commands, deliberately not one, and neither of them called `sync`: the
+ * word says which way the data moved, and here that is the whole question.
+ * Pull and push have different authorities, so a single verb hiding both is a
+ * collision in the only place it matters, which is a tired person's memory.
  *
  * Pull is automatic (session-start runs it) and push is not, because push
  * writes to a remote and that is `user`'s call — and because auto-committing

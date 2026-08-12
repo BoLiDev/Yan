@@ -38,9 +38,10 @@ import { remoteBranchExists } from '../util/git.js';
  * WHAT IT DOES NOT DO
  * ---------------------------------------------------------------------------
  *
- *   * it does not push. Pushing the integration branch is `yan sync`'s step,
- *     and duplicating it here would give that write two owners. If the branch
- *     is not on the remote yet, this says so and stops;
+ *   * it does not push. Opening a merge request and deciding that a branch is
+ *     ready to be published are two different judgements, and one command that
+ *     did both would make the second one invisible. If the branch is not on the
+ *     remote yet, this says so and stops;
  *   * it does not comment on anything, and it never mentions anyone
  *     (boundaries.md §9.2: that interrupts colleagues, so `user` has to ask);
  *   * it does not know which host this machine uses. Everything remote goes
@@ -125,10 +126,10 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   const clone = repoDir('mr', data.repo, `register it with 'yan repo add'`);
 
   // The branch has to be on the remote before a merge request can point at it.
-  // Pushing it is `yan sync`'s step and stays there (branching.md §6.3), so
-  // this only checks and reports.
+  // This only checks and reports: pushing is a separate act with its own
+  // moment, and it is not this command's to perform silently.
   if (!remoteBranchExists(clone, data.branch)) {
-    throw new CommandError('mr', 'not_pushed', `${data.branch} is not on the remote yet, so there is nothing to open a merge request from - run 'yan sync --task ${task} --unit ${unitName}' first`,
+    throw new CommandError('mr', 'not_pushed', `${data.branch} is not on the remote yet, so there is nothing to open a merge request from - push it first (git push -u origin ${data.branch})`,
     );
   }
 

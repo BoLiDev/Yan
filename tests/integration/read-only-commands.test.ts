@@ -4,12 +4,9 @@ import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
- * Phase 1's four other ported commands: `open`, `drain`, `scope-check` and
- * `repo`. They are exercised through `bin/yan`, so what is under test is
- * the whole path a person or an agent actually takes — the dispatcher choosing
- * the ported half included.
- *
- * Phase 1 Trace: "scope-check reports and never blocks."
+ * Phase 1's other read-only ported commands: `open`, `drain` and `repo`. They
+ * are exercised through `bin/yan`, so what is under test is the whole path a
+ * person or an agent actually takes.
  */
 
 afterAll(cleanupTempDirs);
@@ -111,75 +108,6 @@ describe('yan drain', () => {
     const r = await yan(['drain'], { YAN_TASK: '' });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain('cannot tell whose wake file');
-  });
-});
-
-describe('yan scope-check', () => {
-  /** A real git worktree with the unit's branch, held by a fake live shift. */
-  async function seedShift(sid: string): Promise<string> {
-    const tree = mkTempDir('yan-tree-');
-    expect((await fxGit(['init', '--initial-branch=feat/auth', '.'], tree)).code).toBe(0);
-    mkdirSync(join(tree, 'apps', 'auth'), { recursive: true });
-    writeFileSync(join(tree, 'apps', 'auth', 'header.ts'), 'export const a = 1;\n');
-    expect((await fxGit(['add', '.'], tree)).code).toBe(0);
-    expect((await fxGit(['commit', '-m', 'seed'], tree)).code).toBe(0);
-
-    const run = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-    mkdirSync(run, { recursive: true });
-    writeFileSync(
-      join(run, 'meta.json'),
-      `${JSON.stringify({ version: 1, unit: 'auth', branch: `yan/${sid}`, tree }, null, 2)}\n`,
-    );
-    return tree;
-  }
-
-  it('reports out-of-scope paths and still exits 0', async () => {
-    const tree = await seedShift('s1');
-    // One edit inside the scope, one outside it.
-    writeFileSync(join(tree, 'apps', 'auth', 'header.ts'), 'export const a = 2;\n');
-    mkdirSync(join(tree, 'apps', 'common'), { recursive: true });
-    writeFileSync(join(tree, 'apps', 'common', 'types.ts'), 'export type T = 1;\n');
-
-    const r = await yan(['scope-check', 's1', '--task', 't042']);
-    expect(r.code, r.stderr).toBe(0); // <- reports, never blocks
-    expect(r.stdout).toContain('out of scope');
-    expect(r.stdout).toContain('apps/common/types.ts');
-    expect(r.stdout).toContain('This is a report, not a refusal.');
-  });
-
-  it('sees an untracked file, which git diff alone would not', async () => {
-    const tree = await seedShift('s2');
-    mkdirSync(join(tree, 'apps', 'other'), { recursive: true });
-    writeFileSync(join(tree, 'apps', 'other', 'stray.ts'), '// stray\n');
-
-    const r = await yan(['scope-check', 's2', '--task', 't042', '--json']);
-    expect(r.code).toBe(0);
-    const json = JSON.parse(r.stdout) as { out_of_scope: string[]; blocked: boolean };
-    expect(json.out_of_scope).toContain('apps/other/stray.ts');
-    expect(json.blocked).toBe(false);
-  });
-
-  it('exits 0 with nothing outside when every change is in scope', async () => {
-    const tree = await seedShift('s3');
-    writeFileSync(join(tree, 'apps', 'auth', 'header.ts'), 'export const a = 3;\n');
-
-    const r = await yan(['scope-check', 's3', '--task', 't042', '--json']);
-    expect(r.code).toBe(0);
-    const json = JSON.parse(r.stdout) as { in_scope: string[]; out_of_scope: string[] };
-    expect(json.out_of_scope).toEqual([]);
-    expect(json.in_scope).toContain('apps/auth/header.ts');
-  });
-
-  it('fails only for reasons that are really failures', async () => {
-    // No such shift, and a shift whose meta records no tree.
-    expect((await yan(['scope-check', 'nosuch', '--task', 't042'])).code).not.toBe(0);
-
-    const run = join(home, 'tasks', 't042', 'shifts', 's9', 'run');
-    mkdirSync(run, { recursive: true });
-    writeFileSync(join(run, 'meta.json'), '{"version":1,"unit":"auth"}\n');
-    const r = await yan(['scope-check', 's9', '--task', 't042']);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toContain('records no tree');
   });
 });
 
