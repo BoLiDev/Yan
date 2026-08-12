@@ -1,7 +1,13 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import {
+  cleanupTempDirs,
+  mkTempDir,
+  mkYanHome,
+  registerRepo,
+  runYan,
+} from '../helpers/fixtures.js';
 import { land, type Host, type LandOptions } from '../../src/cli/land.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-git/index.js';
@@ -67,6 +73,10 @@ beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
   process.env.YAN_HOME = home;
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
   // `web` is declared FIRST and needs `api`, so declaration order and landing
   // order disagree. If the sort did nothing, this test would still pass by

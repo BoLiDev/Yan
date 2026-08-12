@@ -23,6 +23,36 @@ export function isRegisteredWorktree(clone: string, path: string): boolean {
 }
 
 /**
+ * Which working tree has `branch` checked out, if any.
+ *
+ * This became worth answering when the main clone stopped being yan's private
+ * one (v3 td repos.md §3). Under `$YAN_HOME/repos/` nobody ever checked
+ * anything out there, so "a branch cannot be checked out twice" was
+ * structurally unreachable; now the registered clone is the one `user` works
+ * in, and it is an ordinary Tuesday.
+ *
+ * `git worktree list --porcelain` lists the main clone first, so this finds it
+ * as readily as it finds a leased tree — which is the point: the answer a
+ * person needs is the directory to go and switch.
+ */
+export function worktreeHolding(clone: string, branch: string): string | undefined {
+  let porcelain: string;
+  try {
+    porcelain = git.worktreeList(clone);
+  } catch {
+    return undefined;
+  }
+  let path = '';
+  for (const raw of porcelain.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('worktree ')) path = line.slice('worktree '.length);
+    else if (line === `branch refs/heads/${branch}` && path !== '') return path;
+    else if (line === '') path = '';
+  }
+  return undefined;
+}
+
+/**
  * The ref a new shift branch is cut from.
  *
  * A local branch wins, then origin/<base>, then anything git can resolve. The

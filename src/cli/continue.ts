@@ -6,6 +6,7 @@ import { action, out } from './shared/action.js';
 import { agentFor, configPath } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
+import { repoDirIfKnown } from './shared/repo.js';
 import { queueJson } from './ls.js';
 import { isTty } from './shared/resolve.js';
 import { Terminal } from '../externals/herdr/index.js';
@@ -197,8 +198,8 @@ function addDirsFor(task: Task): string[] {
   for (const unit of task.read().units) {
     if (unit.repo === '' || seen.has(unit.repo)) continue;
     seen.add(unit.repo);
-    const clone = join(yanHome(), 'repos', unit.repo);
-    if (existsSync(clone)) dirs.push(clone);
+    const clone = repoDirIfKnown(unit.repo);
+    if (clone !== undefined) dirs.push(clone);
   }
   return dirs;
 }

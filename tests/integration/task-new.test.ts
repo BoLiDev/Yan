@@ -7,6 +7,7 @@ import {
   mkBareRemote,
   mkTempDir,
   mkYanHome,
+  registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
 
@@ -66,10 +67,14 @@ beforeAll(async () => {
 
   await mkBareRemote(join(tmp, 'mono.git'));
   await mkBareRemote(join(tmp, 'proto.git'));
-  expect((await yan(['repo-add', join(tmp, 'mono.git'), '--name', 'monorepo-x'])).code).toBe(0);
-  expect((await yan(['repo-add', join(tmp, 'proto.git'), '--name', 'proto'])).code).toBe(0);
+  expect((await yan(['repo', 'add', join(tmp, 'mono.git'), '--name', 'monorepo-x', '--path', join(home, 'repos')])).code).toBe(0);
+  expect((await yan(['repo', 'add', join(tmp, 'proto.git'), '--name', 'proto', '--path', join(home, 'repos')])).code).toBe(0);
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'auth'), { recursive: true });
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'admin'), { recursive: true });
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  for (const name of ['monorepo-x', 'proto']) registerRepo(home, name, join(home, 'repos', name));
 });
 
 describe('three units across two repositories, in one order-sensitive run', () => {

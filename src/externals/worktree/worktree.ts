@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import * as git from '../../util/git.js';
 import { withLock } from '../../util/lock.js';
 import { WorktreeError } from './errors.js';
-import { baseRef, isRegisteredWorktree } from './git-facts.js';
+import { baseRef, isRegisteredWorktree, worktreeHolding } from './git-facts.js';
 import { assertReturnable, wipe } from './guard.js';
 import { absolute, cloneDir, leaseFile, leasesDir, lockFile, repoName, slotTree } from './layout.js';
 import { allLeases, newLeaseId, readLease, reclaim, releaseLease, slotOf, writeLease } from './lease.js';
@@ -235,6 +235,7 @@ export class WorktreePool {
         ? git.checkout(tree, [branch])
         : git.checkout(tree, ['-b', branch, ref]);
       if (checkout.code !== 0) {
+        this.reportOccupied(branch, checkout.stderr);
         throw new WorktreeError('failed', `cannot put ${tree} on '${branch}': ${checkout.stderr.trim()}`);
       }
       return;
@@ -250,11 +251,31 @@ export class WorktreePool {
       ? git.worktreeAdd(this.clone, [tree, branch])
       : git.worktreeAdd(this.clone, ['-b', branch, tree, ref]);
     if (added.code !== 0) {
+      this.reportOccupied(branch, added.stderr);
       throw new WorktreeError(
         'failed',
         `cannot add a worktree at ${tree} on '${branch}': ${added.stderr.trim()}`,
       );
     }
+  }
+
+  /**
+   * The one refusal a person meets because the main clone is now their own.
+   *
+   * git says "already used by worktree at …" and then a path, which is
+   * accurate and easy to read past. What it does not say is that the fix is
+   * one command in a directory the reader is probably sitting in. The pool
+   * does not switch that clone for anyone: it is `user`'s working tree, and a
+   * tool that moves you off your branch to get on with its own work is a tool
+   * you stop trusting.
+   */
+  private reportOccupied(branch: string, stderr: string): void {
+    if (!/already (used by worktree|checked out)/i.test(stderr)) return;
+    const holder = worktreeHolding(this.clone, branch);
+    throw new WorktreeError(
+      'failed',
+      `'${branch}' is already checked out in ${holder ?? this.clone} - switch that clone to another branch and retry; the pool never moves a clone it does not own`,
+    );
   }
 
   /**

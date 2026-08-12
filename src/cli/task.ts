@@ -3,6 +3,7 @@ import { basename, join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
+import { registry } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
 import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit } from './unit.js';
@@ -293,7 +294,15 @@ async function askWhenMissing(flags: NewFlags, units: readonly UnitSpec[]): Prom
   if (units.length > 0 || missingForTaskNew(given).length === 0 || !isTty()) return given;
 
   const { askTaskNew } = await import('../ui/prompts.js');
-  const answers = await askTaskNew(yanHome(), { title: flags.title, description: flags.description });
+  // The wizard is handed the repositories rather than looking them up: where a
+  // clone is on this machine is a command-layer question now (repos.md §2), and
+  // `ui/` reads no registry of its own.
+  const answers = await askTaskNew(
+    registry()
+      .filter((r) => r.path !== undefined)
+      .map((r) => ({ name: r.name, url: r.url, dir: r.path as string })),
+    { title: flags.title, description: flags.description },
+  );
   return {
     ...flags,
     title: answers.title,

@@ -2,7 +2,16 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readdirSync } from 'node:fs';
-import { cleanupTempDirs, mkBareRemote, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import {
+  cleanupTempDirs,
+  mkBareRemote,
+  mkClone,
+  mkTempDir,
+  mkYanHome,
+  registerRepo,
+  repoRoot,
+  runYan,
+} from '../helpers/fixtures.js';
 import { containerOf } from '../../src/cli/shared/display.js';
 import { setUnit, type Labeller } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
@@ -49,6 +58,10 @@ beforeEach(async () => {
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   process.env.YAN_HOME = home;
   await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'monorepo-x', 'main', { branch: 'main' });

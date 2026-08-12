@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
  * Phase 1's four other ported commands: `open`, `drain`, `scope-check` and
- * `repo-add`. They are exercised through `bin/yan`, so what is under test is
+ * `repo`. They are exercised through `bin/yan`, so what is under test is
  * the whole path a person or an agent actually takes — the dispatcher choosing
  * the ported half included.
  *
@@ -183,7 +183,7 @@ describe('yan scope-check', () => {
   });
 });
 
-describe('yan repo-add', () => {
+describe('yan repo add', () => {
   async function bareRemote(): Promise<string> {
     const bare = join(mkTempDir(), 'origin.git');
     expect((await fxGit(['init', '--bare', '--initial-branch=main', bare], repoRoot)).code).toBe(0);
@@ -197,53 +197,123 @@ describe('yan repo-add', () => {
     return bare;
   }
 
-  it('clones once, registers the defaults, and is idempotent', async () => {
-    const url = await bareRemote();
-    const first = await yan(['repo-add', url, '--name', 'monorepo-x']);
-    expect(first.code, first.stderr).toBe(0);
-    expect(existsSync(join(home, 'repos', 'monorepo-x', '.git'))).toBe(true);
-
-    const registry = JSON.parse(readFileSync(join(home, 'mem', 'repos.json'), 'utf8')) as Record<
+  /** The portable half. A path never appears in it (v3 td repos.md §2). */
+  function portable(): Record<string, { url?: string; mode_default?: string; pool_size?: number }> {
+    return JSON.parse(readFileSync(join(home, 'repos.json'), 'utf8')) as Record<
       string,
-      { mode_default: string; pool_size: number }
+      { url?: string; mode_default?: string; pool_size?: number }
     >;
-    expect(registry['monorepo-x']?.mode_default).toBe('mr');
-    expect(registry['monorepo-x']?.pool_size).toBe(8);
+  }
 
-    const second = await yan(['repo-add', url, '--name', 'monorepo-x']);
+  /** The machine half. Nothing but paths, and never committed. */
+  function local(): Record<string, { path?: string }> {
+    return JSON.parse(readFileSync(join(home, '.local', 'repos.json'), 'utf8')) as Record<
+      string,
+      { path?: string }
+    >;
+  }
+
+  const same = (a: string | undefined, b: string): boolean =>
+    (a ?? '').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
+
+  it('clones once, registers both halves, and is idempotent', async () => {
+    const url = await bareRemote();
+    const into = join(home, 'repos');
+    const first = await yan(['repo', 'add', url, '--name', 'monorepo-x', '--path', into]);
+    expect(first.code, first.stderr).toBe(0);
+    expect(existsSync(join(into, 'monorepo-x', '.git'))).toBe(true);
+
+    expect(portable()['monorepo-x']?.mode_default).toBe('mr');
+    expect(portable()['monorepo-x']?.pool_size).toBe(8);
+    // The split is the whole point: no path on the tracked side.
+    expect(JSON.stringify(portable()['monorepo-x'])).not.toContain('path');
+    expect(local()['monorepo-x']?.path).toBeTruthy();
+
+    const second = await yan(['repo', 'add', url, '--name', 'monorepo-x', '--path', into]);
     expect(second.code).toBe(0);
     expect(second.stdout).toContain('already exists, keeping it (no re-clone)');
   });
 
   it('never clobbers a tuned setting, and an explicit flag does', async () => {
     const url = await bareRemote();
-    await yan(['repo-add', url, '--name', 'r1', '--pool-size', '3', '--mode-default', 'branch']);
-    await yan(['repo-add', url, '--name', 'r1']);
+    const into = join(home, 'repos');
+    await yan(['repo', 'add', url, '--name', 'r1', '--path', into, '--pool-size', '3', '--mode-default', 'branch']);
+    await yan(['repo', 'add', url, '--name', 'r1', '--path', into]);
 
-    const registry = JSON.parse(readFileSync(join(home, 'mem', 'repos.json'), 'utf8')) as Record<
-      string,
-      { mode_default: string; pool_size: number }
-    >;
-    expect(registry.r1?.pool_size).toBe(3);
-    expect(registry.r1?.mode_default).toBe('branch');
+    expect(portable().r1?.pool_size).toBe(3);
+    expect(portable().r1?.mode_default).toBe('branch');
   });
 
   it('refuses a second URL under a name that is already taken', async () => {
     const url = await bareRemote();
-    await yan(['repo-add', url, '--name', 'r1']);
-    const r = await yan(['repo-add', 'https://example.invalid/other.git', '--name', 'r1']);
+    const into = join(home, 'repos');
+    await yan(['repo', 'add', url, '--name', 'r2', '--path', into]);
+    const r = await yan(['repo', 'add', 'https://example.invalid/other.git', '--name', 'r2', '--path', into]);
     expect(r.code).not.toBe(0);
     expect(r.stderr).toContain('already registered');
   });
 
   it('refuses the reserved name and an unusable one', async () => {
-    expect((await yan(['repo-add', 'https://example.invalid/x.git', '--name', 'version'])).code).toBe(2);
-    expect((await yan(['repo-add', 'https://example.invalid/x.git', '--name', 'has space'])).code).toBe(2);
-    expect((await yan(['repo-add'])).code).toBe(2);
+    expect((await yan(['repo', 'add', 'https://example.invalid/x.git', '--name', 'version'])).code).toBe(2);
+    expect((await yan(['repo', 'add', 'https://example.invalid/x.git', '--name', 'has space'])).code).toBe(2);
+  });
+
+  it('with no argument and no terminal, refuses instead of waiting on a prompt', async () => {
+    const r = await yan(['repo', 'add']);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/pass a path or a URL|no git clones directly under/);
+  });
+
+  it('registers a clone that is already on disk, and clones nothing', async () => {
+    const url = await bareRemote();
+    const where = join(mkTempDir('yan-existing-'), 'already-here');
+    await mkClone(url, where);
+
+    const r = await yan(['repo', 'add', where, '--name', 'already']);
+    expect(r.code, r.stderr).toBe(0);
+    expect(same(local().already?.path, where)).toBe(true);
+    expect(portable().already?.url).toBeTruthy();
+  });
+
+  it('links a registered repository to a path here, and refuses one it does not know', async () => {
+    const url = await bareRemote();
+    const moved = join(mkTempDir('yan-moved-'), 'moved');
+    await mkClone(url, moved);
+    await yan(['repo', 'add', moved, '--name', 'movable']);
+
+    const elsewhere = join(mkTempDir('yan-elsewhere-'), 'elsewhere');
+    await mkClone(url, elsewhere);
+    const linked = await yan(['repo', 'link', 'movable', elsewhere]);
+    expect(linked.code, linked.stderr).toBe(0);
+    expect(same(local().movable?.path, elsewhere)).toBe(true);
+
+    const unknown = await yan(['repo', 'link', 'nosuch', elsewhere]);
+    expect(unknown.code).not.toBe(0);
+    expect(unknown.stderr).toContain('not registered');
+  });
+
+  it('lists what is registered, and says which are not linked here', async () => {
+    const url = await bareRemote();
+    const where = join(mkTempDir('yan-listed-'), 'listed');
+    await mkClone(url, where);
+    await yan(['repo', 'add', where, '--name', 'listed']);
+
+    // What a vault that arrived from another machine looks like: registered,
+    // with no path on this disk. It is a normal state, not a broken one.
+    const file = join(home, 'repos.json');
+    const reg = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    reg['from-elsewhere'] = { url: 'git@host:org/from-elsewhere.git', mode_default: 'mr', pool_size: 8 };
+    writeFileSync(file, `${JSON.stringify(reg, null, 2)}\n`);
+
+    const r = await yan(['repo', 'ls']);
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.stdout).toContain('listed');
+    expect(r.stdout).toContain('NOT LINKED');
+    expect(r.stdout).toContain('1 registered but not linked here');
   });
 
   it('derives a name from every URL spelling a forge hands out', async () => {
-    const { repoNameFromUrl } = await import('../../src/cli/repo-add.js');
+    const { repoNameFromUrl } = await import('../../src/cli/repo.js');
     expect(repoNameFromUrl('git@host:org/name.git')).toBe('name');
     expect(repoNameFromUrl('ssh://git@host:22/org/name.git')).toBe('name');
     expect(repoNameFromUrl('https://host/org/name.git')).toBe('name');

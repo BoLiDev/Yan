@@ -127,6 +127,11 @@ export interface YanHomeOptions {
   /** Copy dist/ in as well, so the ported half is reachable from the fixture. */
   readonly withDist?: boolean;
   readonly config?: string;
+  /**
+   * Point the vault and machine environment at this home. Default true; pass
+   * false for a SECOND home built inside a file that is already using one.
+   */
+  readonly activate?: boolean;
 }
 
 /**
@@ -189,6 +194,24 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
   writeFileSync(join(dest, 'mem', 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, '.local', 'repos.json'), '{\n  "version": 1\n}\n');
+
+  // IN-PROCESS TESTS TOO, not only the ones that spawn `bin/yan`.
+  //
+  // Around half the suite imports a command module and calls it directly,
+  // setting `process.env.YAN_HOME` by hand. Those would resolve the vault from
+  // the developer's own `~/.yan` — the exact failure `runYan` isolates against
+  // — so the builder points both new variables at the home it just made.
+  //
+  // A side effect in a builder, which is normally worth avoiding; here the
+  // alternative is three lines repeated in twenty files, one of which would
+  // eventually be forgotten. THE HAZARD IT CREATES IS REAL AND HAS ONE NAME: a
+  // file that builds a SECOND home mid-run steals the first one's vault, and
+  // the failure looks like a missing repository rather than like an env
+  // variable. `activate: false` is for exactly that second home.
+  if (options.activate !== false) {
+    process.env.YAN_VAULT = dest;
+    process.env.YAN_MACHINE_DIR = join(dest, '.machine');
+  }
   return dest;
 }
 

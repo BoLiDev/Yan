@@ -2,7 +2,15 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { bashCommand, cleanupTempDirs, fxGit, mkTempDir, mkYanHome, runYan } from '../../../tests/helpers/fixtures.js';
+import {
+  bashCommand,
+  cleanupTempDirs,
+  fxGit,
+  mkTempDir,
+  mkYanHome,
+  registerRepo,
+  runYan,
+} from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
 import { WorktreeError } from './errors.js';
 import { cloneDir } from './layout.js';
@@ -72,6 +80,10 @@ beforeEach(async () => {
   await fxGit(['clone', bare, clone], home);
   await fxGit(['config', 'user.name', 'yan tests'], clone);
   await fxGit(['config', 'user.email', 'yan-tests@localhost'], clone);
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 });
 
 afterEach(() => {
@@ -85,6 +97,29 @@ describe('the constructor', () => {
   it('refuses a clone that is not a directory, once, instead of on every call', () => {
     expect(() => new WorktreePool('')).toThrow(/main clone directory is required/);
     expect(() => new WorktreePool(join(poolRoot, 'nope'))).toThrow(/not a directory/);
+  });
+});
+
+describe('a branch the main clone is sitting on', () => {
+  /**
+   * The one refusal that only became reachable in V3.
+   *
+   * Under `$YAN_HOME/repos/` the main clone was yan's own and nobody ever
+   * checked anything out in it, so "a branch cannot be checked out twice" could
+   * not happen. The registered clone is now the one `user` works in, and it
+   * happens on an ordinary Tuesday — so the message has to name the branch, the
+   * directory holding it, and the fix, rather than passing git's wording on.
+   */
+  it('names the branch, the directory and the fix, and moves nobody', async () => {
+    // `user` is working on the branch a shift is about to be dispatched onto.
+    await fxGit(['checkout', '-b', 'shift/occupied', 'origin/integ'], clone);
+
+    expect(() => pool().get(2, 'integ', 'shift/occupied', 't042/auth/s1')).toThrow(
+      /already checked out in .*never moves a clone it does not own/s,
+    );
+    // The user's own clone is exactly where they left it.
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], clone)).stdout.trim()).toBe('shift/occupied');
+    await fxGit(['checkout', 'main'], clone);
   });
 });
 
@@ -362,11 +397,10 @@ describe('yan tree, the command layer', () => {
     return runYan(home, ['tree', ...args], { YAN_POOL_ROOT: poolRoot });
   }
 
-  it('reads pool_size from mem/repos.json, which this module must not read', async () => {
-    writeFileSync(
-      join(home, 'mem', 'repos.json'),
-      `${JSON.stringify({ version: 1, demo: { url: 'x', mode_default: 'mr', pool_size: 1 } }, null, 2)}\n`,
-    );
+  it('reads pool_size from the vault registry, which this module must not read', async () => {
+    // Tuning lives on the PORTABLE half: it follows the repository between
+    // machines, unlike the path beside it (v3 td repos.md §2).
+    registerRepo(home, 'demo', clone, { url: 'x', pool_size: 1 });
     expect((await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1'])).code).toBe(0);
     const full = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's2', '--holder', 't/u/2']);
     expect(full.code).not.toBe(0);

@@ -1,7 +1,13 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import {
+  cleanupTempDirs,
+  mkTempDir,
+  mkYanHome,
+  registerRepo,
+  runYan,
+} from '../helpers/fixtures.js';
 import { clockOut, type Closer, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
 import { Task } from '../../src/records/task/index.js';
 import { WorktreeError, type LeaseRow, type ReturnExpectation } from '../../src/externals/worktree/index.js';
@@ -123,6 +129,10 @@ beforeEach(() => {
   process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
   mkdirSync(tree, { recursive: true });
 

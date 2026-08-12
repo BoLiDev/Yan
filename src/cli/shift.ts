@@ -5,7 +5,7 @@ import { action, out } from './shared/action.js';
 import { agentFor, configPath } from './shared/config.js';
 import { display } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
-import { poolSize, repoTarget } from './shared/repo.js';
+import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
 import { sync } from './sync.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
@@ -637,8 +637,8 @@ function resumeFromPool(
 ): { unit: string; clone: string; path: string; branch: string; holder: string; leaseId: string } | undefined {
   if (task === '' || !Task.exists(task)) return undefined;
   for (const unit of new Task(task).read().units) {
-    const clone = normalizePath(join(yanHome(), 'repos', unit.repo));
-    if (!existsSync(clone)) continue;
+    const clone = repoDirIfKnown(unit.repo);
+    if (clone === undefined) continue;
     let leases;
     try {
       leases = (deps.pool?.(clone) ?? new WorktreePool(clone)).status();
@@ -708,8 +708,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   // for a shift dispatched before that key existed.
   if (clone === '' && shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
     const repo = new Task(shift.task).findUnit(unit)?.read().repo ?? '';
-    const guess = normalizePath(join(yanHome(), 'repos', repo));
-    if (repo !== '' && existsSync(guess)) clone = guess;
+    const guess = repo === '' ? undefined : repoDirIfKnown(repo);
+    if (guess !== undefined) clone = guess;
   }
 
   const outcomeFile = join(shift.dir, 'outcome.md');

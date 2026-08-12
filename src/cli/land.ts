@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
+import { repoDirIfKnown } from './shared/repo.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
@@ -200,8 +201,8 @@ export function land(
     const unit = byName.get(name);
     if (unit === undefined) continue;
     const mr = unit.mr ?? '';
-    const clone = normalizePath(join(yanHome(), 'repos', unit.repo));
-    const ref: MrRef = existsSync(clone) ? { mr, dir: clone } : { mr };
+    const clone = repoDirIfKnown(unit.repo);
+    const ref: MrRef = clone === undefined ? { mr } : { mr, dir: clone };
 
     // Ask before merging. Whether it merged is the host's answer and never git
     // ancestry, and the four words it may answer with are exactly the four

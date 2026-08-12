@@ -2,7 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import {
+  cleanupTempDirs,
+  mkTempDir,
+  mkYanHome,
+  registerRepo,
+  repoRoot,
+  runYan,
+} from '../helpers/fixtures.js';
 
 /**
  * `yan continue`, ported from `tests/unit/yan-continue.test.sh`.
@@ -68,6 +75,11 @@ beforeAll(async () => {
   home = mkYanHome(join(tmp, 'home'), { withDist: true, config });
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
   mkdirSync(join(home, 'repos', 'proto'), { recursive: true });
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
+  registerRepo(home, 'proto', join(home, 'repos', 'proto'));
 
   const previous = process.env.YAN_HOME;
   process.env.YAN_HOME = home;
@@ -160,8 +172,11 @@ describe('what it refuses', () => {
   });
 
   it('refuses when the home configures no agents.yan, and names it', async () => {
+    // `activate: false`: this file's own home stays the active vault. Every
+    // call below runs `bin/yan` with an explicit environment anyway.
     const other = mkYanHome(join(mkTempDir(), 'home'), {
       withDist: true,
+      activate: false,
       config: `${JSON.stringify({ version: 1, agents: { shift: 'claude' }, remote_git: { kind: 'github' } }, null, 2)}\n`,
     });
     mkdirSync(join(other, 'tasks', 'tx'), { recursive: true });

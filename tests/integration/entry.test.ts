@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import {
+  cleanupTempDirs,
+  mkTempDir,
+  mkYanHome,
+  registerRepo,
+  runYan,
+} from '../helpers/fixtures.js';
 
 /**
  * Bare `yan` (cli-ux.md §2).
@@ -23,6 +29,10 @@ let home = '';
 beforeAll(async () => {
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
   mkdirSync(join(home, 'repos', 'demo'), { recursive: true });
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'demo', join(home, 'repos', 'demo'));
 
   const previous = process.env.YAN_HOME;
   process.env.YAN_HOME = home;

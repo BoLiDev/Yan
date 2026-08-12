@@ -9,6 +9,7 @@ import {
   mkCommit,
   mkTempDir,
   mkYanHome,
+  registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
 import { repoRoot } from '../helpers/fixtures.js';
@@ -55,10 +56,9 @@ beforeAll(async () => {
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   work = await mkClone(bare, join(tmp, 'work'));
 
-  writeFileSync(
-    join(home, 'mem', 'repos.json'),
-    `${JSON.stringify({ version: 1, demo: { url: bare, mode_default: 'mr', pool_size: 2 } }, null, 2)}\n`,
-  );
+  // Two halves now: the tuned `pool_size` is portable and travels with the
+  // vault, the path is this machine's (v3 td repos.md §2).
+  registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 
   const previous = process.env.YAN_HOME;
   process.env.YAN_HOME = home;

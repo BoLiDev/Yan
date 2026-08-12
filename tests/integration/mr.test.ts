@@ -8,6 +8,7 @@ import {
   mkClone,
   mkTempDir,
   mkYanHome,
+  registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
 import { openMr, type MrOptions } from '../../src/cli/mr.js';
@@ -71,6 +72,10 @@ beforeEach(async () => {
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'monorepo-x'));
+  // A clone is where the registry says it is now, not where a convention put
+  // it (v3 td repos.md §2). The path does not change; only the reason yan
+  // can find it.
+  registerRepo(home, 'monorepo-x', clone, { url: bare });
   // Only feat/auth is published; feat/later deliberately is not.
   await fxGit(['-C', clone, 'push', 'origin', 'main:feat/auth']);
   await fxGit(['-C', clone, 'push', 'origin', 'main:master']);

@@ -27,28 +27,15 @@ export interface RegisteredRepo {
   readonly dir: string;
 }
 
-/** Repositories `user` may involve: `mem/repos.json`, which `yan repo-add` owns. */
-export function readRepos(yanHome: string): RegisteredRepo[] {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(join(yanHome, 'mem', 'repos.json'), 'utf8'));
-  } catch {
-    return [];
-  }
-  if (typeof raw !== 'object' || raw === null) return [];
-  const registry = raw as Record<string, unknown>;
-  return Object.keys(registry)
-    .filter((name) => name !== 'version' && typeof registry[name] === 'object' && registry[name] !== null)
-    .sort()
-    .map((name) => {
-      const entry = registry[name] as Record<string, unknown>;
-      return {
-        name,
-        url: typeof entry.url === 'string' ? entry.url : '',
-        dir: join(yanHome, 'repos', name),
-      };
-    });
-}
+/*
+ * `readRepos` used to be here, reading `mem/repos.json` and assuming every
+ * clone sat under `$YAN_HOME/repos/<name>`. Both halves of that are gone: the
+ * registry lives in the vault and a clone is wherever this machine says it is
+ * (v3 td repos.md). Resolving it needs the command layer, which is where the
+ * caller now does it — `ui/` is given the answer rather than looking it up,
+ * which is what "not one line of this module prompts, spawns, or writes"
+ * always meant.
+ */
 
 const WORKSPACE_MANIFESTS = ['pnpm-workspace.yaml', 'pnpm-workspace.yml', 'lerna.json'];
 const CONVENTIONAL_DIRS = ['packages', 'apps'];
