@@ -72,6 +72,8 @@ const returnTree = new Command('return')
   .option('--slot <n>', 'the slot number instead of the path')
   .option('--if-lease-id <id>', 'refuse unless the lease id matches')
   .option('--if-lease-holder <holder>', 'refuse unless the holder matches')
+  .option('--discard', 'throw away uncommitted or unpushed work in the tree')
+  .option('--user-asked', 'required with --discard: `user` said the work can go')
   .action(
     action(
       'yan tree',
@@ -82,6 +84,8 @@ const returnTree = new Command('return')
           slot?: string;
           ifLeaseId?: string;
           ifLeaseHolder?: string;
+          discard?: boolean;
+          userAsked?: boolean;
         },
       ) => {
         const target = clone(options);
@@ -90,12 +94,25 @@ const returnTree = new Command('return')
           throw CommandError.usage('tree', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
           );
         }
+        // Two flags rather than one, and the second is not a confirmation
+        // prompt: `--discard` says what to do and `--user-asked` says whose
+        // decision it was. A single flag would be indistinguishable from a
+        // retry, which is the shape this must not have — the work it destroys
+        // exists nowhere else.
+        if (options.discard === true && options.userAsked !== true) {
+          throw CommandError.usage('tree', "--discard throws away work that exists nowhere else, so it needs `user`'s word: pass --user-asked once they have given it. Nothing was touched",
+          );
+        }
+        if (options.userAsked === true && options.discard !== true) {
+          throw CommandError.usage('tree', '--user-asked answers --discard, and there is nothing here to answer without it');
+        }
         // The --if-* options are compared before anything destructive happens; a
         // mismatch exits 3 and touches nothing, which is what makes an
         // automatic retry safe.
         const returned = new WorktreePool(target.clone).return(which, {
           leaseId: options.ifLeaseId,
           holder: options.ifLeaseHolder,
+          ...(options.discard === true ? { force: true } : {}),
         });
         out(`returned ${returned}`);
       },
@@ -130,11 +147,13 @@ Returning a tree is \`git reset --hard\` plus \`git clean -fd\`, never with -x, 
 gitignored dependencies and build caches survive into the next shift.
 
 A return is refused when the tree has uncommitted changes, or when no remote
-branch contains HEAD: that is the moment the work exists nowhere else. This
-command has no flag to override it - stop and investigate instead.
+branch contains HEAD: that is the moment the work exists nowhere else. The
+refusal lists what is in the way, and there are two ways past it.
 
-The one door past it is 'yan done --force', which finishes a whole task and
-carries user's authority for throwing the changes away.
+Commit and push what is worth keeping, and return the tree normally. Or, when
+user has said the work can go, '--discard --user-asked'. Two flags because the
+second is not a confirmation prompt: it records whose decision this was, and a
+single flag would look like a retry.
 
 The pool lives under ~/.yan-trees (YAN_POOL_ROOT overrides it) and its size is
 pool_size in mem/repos.json, default ${DEFAULT_POOL_SIZE}.`,

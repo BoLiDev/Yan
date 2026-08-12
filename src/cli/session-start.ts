@@ -11,6 +11,7 @@ import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { skillsDir, vaultDir } from '../util/vault.js';
 import { machineSkillsDir } from '../util/machine.js';
+import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
 import { samePath } from '../util/paths.js';
 
@@ -79,9 +80,23 @@ export interface TaskRow {
   readonly shifts: ShiftRow[];
 }
 
+/**
+ * A repository this context knows about, and where it is on this machine.
+ *
+ * `path` is absent when the vault names the repository but nothing on this
+ * machine has said where its clone is. That is the ordinary state of a freshly
+ * cloned vault, not a fault, and `yan repo link` is what fills it in.
+ */
+export interface RepoRow {
+  readonly name: string;
+  readonly url: string;
+  readonly path?: string;
+}
+
 export interface Picture {
   readonly version: 1;
   readonly home: string;
+  readonly repos: RepoRow[];
   readonly tasks: TaskRow[];
 }
 
@@ -147,6 +162,28 @@ function shiftIds(task: string): string[] {
   }
 }
 
+/**
+ * The clones this context knows about.
+ *
+ * These are printed because yan works in them directly: catching an integration
+ * branch up with its target, reading how something is spelled, checking whether
+ * the build is red. Without the path in hand the first move of any of those is
+ * a lookup, every session.
+ *
+ * A registry that cannot be read costs the paths and nothing else.
+ */
+function knownRepos(): RepoRow[] {
+  try {
+    return registry().map((r) => ({
+      name: r.name,
+      url: r.url,
+      ...(r.path === undefined ? {} : { path: r.path }),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** The whole picture, without the process around it. */
 export function rebuild(ids: readonly string[], sources: Sources = {}): Picture {
   const askPool = poolAsker(sources);
@@ -205,7 +242,7 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
     });
   }
 
-  return { version: 1, home: vaultDir(), tasks };
+  return { version: 1, home: vaultDir(), repos: knownRepos(), tasks };
 }
 
 
@@ -323,6 +360,9 @@ function render(picture: Picture, pulled: PullResult): void {
   out(`  vault    ${picture.home}`);
   out(`  sync     ${pulled.ok ? pulled.message : `WARN ${pulled.message}`}`);
   out(`  tasks    ${picture.tasks.length}`);
+  for (const repo of picture.repos) {
+    out(`  repo     ${repo.name}  ${repo.path ?? `not linked on this machine - 'yan repo link ${repo.name} <path>'`}`);
+  }
   if (picture.tasks.length === 0) {
     out('');
     out(`nothing to rebuild: ${picture.home}/tasks is empty`);
@@ -372,11 +412,11 @@ function render(picture: Picture, pulled: PullResult): void {
 function renderSkills(skills: readonly Skill[]): void {
   if (skills.length === 0) return;
   out('');
-  out('--- what you may do yourself here -----------------------------------------');
+  out('What you may do yourself here.');
   out('');
-  out("Standing instructions from `user` about this environment. Where one covers");
-  out('what is being asked, READ IT and do the thing yourself rather than');
-  out('dispatching a shift — and say which one you acted on.');
+  out('Standing instructions from `user` about this environment. Where one covers');
+  out('what is being asked, read it and do the thing yourself rather than');
+  out('dispatching a shift, and say which one you acted on.');
   out('');
   for (const skill of skills) {
     out(`  ${skill.path}`);

@@ -5,21 +5,29 @@ import { WorktreeError } from './errors.js';
  * The orphan-commit guard: returning a tree destroys what is in it, so would
  * returning this one lose anything?
  *
- * A refusal here means stop and investigate. There is exactly one way past it —
- * `yan done --force`, which reaches `WorktreePool.return({force})` carrying
- * `user`'s answer that the work can be thrown away. `yan tree return` exposes
- * no such flag, deliberately. Who may decide to override is not this function's
- * question, but note that some caller must be able to: without a door at all, a
- * tree that comes back dirty strands its pool slot permanently.
+ * A refusal has to be actionable, because the alternative is a stranded pool
+ * slot. Whoever is holding the tree either finishes the work — commit, push —
+ * or says explicitly that it can go; both routes are named in the message, and
+ * the second one needs `user`'s word, which is why no caller can set `force` on
+ * its own initiative.
  *
- * What it does not test is whether the work has landed. That is a stronger and
- * different question, and it belongs to `yan shift done`.
+ * The refusal therefore lists what is actually in the way. "It has uncommitted
+ * changes" sends the reader back to the tree to run `git status` themselves,
+ * and the paths are the whole question.
+ *
+ * What this does not test is whether the work has LANDED. That is a stronger
+ * and different question, and it belongs to `yan shift done`.
  */
 export function assertReturnable(tree: string): void {
-  if (git.statusPorcelain(tree).trim() !== '') {
+  const dirty = git.statusPorcelain(tree).trim();
+  if (dirty !== '') {
+    const paths = dirty.split(/\r?\n/).map((l) => `  ${l.trim()}`);
+    const shown = paths.length > 12 ? [...paths.slice(0, 12), `  … and ${paths.length - 12} more`] : paths;
     throw new WorktreeError(
       'failed',
-      `refusing to return ${tree}: it has uncommitted changes and returning it would destroy them permanently - commit and push them first`,
+      `refusing to return ${tree}: returning a tree destroys what is in it, and this one is dirty:\n${shown.join('\n')}\n` +
+        'Commit and push what is worth keeping, or discard it deliberately with ' +
+        "'yan tree return --discard --user-asked' once `user` has said so",
     );
   }
 
@@ -32,7 +40,7 @@ export function assertReturnable(tree: string): void {
   if (contained.filter((l) => l.trim() !== '').length === 0) {
     throw new WorktreeError(
       'failed',
-      `refusing to return ${tree}: no remote branch contains HEAD, so these commits exist nowhere else - push the branch first`,
+      `refusing to return ${tree}: no remote branch contains HEAD, so these commits exist nowhere else - push the branch, or discard them deliberately with 'yan tree return --discard --user-asked' once \`user\` has said so`,
     );
   }
 }

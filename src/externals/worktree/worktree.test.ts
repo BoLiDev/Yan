@@ -167,13 +167,17 @@ describe('get', () => {
 });
 
 describe('the orphan-commit guard', () => {
-  it('refuses a tree with uncommitted changes, and changes nothing', () => {
+  it('refuses a dirty tree, names what is in the way, and changes nothing', () => {
     const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
     mkdirSync(join(grant.path, 'node_modules', 'dep'), { recursive: true });
     writeFileSync(join(grant.path, 'node_modules', 'dep', 'index.js'), '// warm\n');
     writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
 
-    expect(() => pool().return(grant.path)).toThrow(/uncommitted changes/);
+    // The paths are the point: a refusal that only says "it is dirty" sends
+    // the reader back to the tree to run git status themselves.
+    expect(() => pool().return(grant.path)).toThrow(/dirty/);
+    expect(() => pool().return(grant.path)).toThrow(/stray\.txt/);
+    expect(() => pool().return(grant.path)).toThrow(/--discard --user-asked/);
     expect(existsSync(join(grant.path, 'stray.txt'))).toBe(true);
     expect(existsSync(join(grant.path, 'node_modules', 'dep', 'index.js'))).toBe(true);
     expect(existsSync(join(cloneDir(clone), 'leases', '1.json'))).toBe(true);
@@ -271,7 +275,7 @@ describe('the conditional return', () => {
     // With a matching identity the guard is what refuses.
     expect(() =>
       pool().return(grant.path, { leaseId: grant.lease_id, holder: grant.holder }),
-    ).toThrow(/uncommitted changes/);
+    ).toThrow(/dirty/);
   });
 });
 
@@ -419,5 +423,34 @@ describe('yan tree, the command layer', () => {
     expect((await yan(['get', '--repo', 'demo', '--base', 'integ'])).code).toBe(2);
     expect((await yan(['return', '--repo', 'demo'])).code).toBe(2);
     expect((await yan(['status', '--repo', 'nosuchrepo'])).code).toBe(2);
+  });
+
+  it('will not discard work without being told `user` said so, and says the slot is still held', async () => {
+    const got = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1', '--json']);
+    expect(got.code, got.stderr).toBe(0);
+    const grant = JSON.parse(got.stdout) as { path: string };
+    writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
+
+    // --discard on its own is the shape a retry would have, and a retry must
+    // never be able to destroy this.
+    const alone = await yan(['return', '--repo', 'demo', '--path', grant.path, '--discard']);
+    expect(alone.code).toBe(2);
+    expect(alone.stderr).toContain('--user-asked');
+    expect(existsSync(join(grant.path, 'stray.txt')), 'and nothing was touched').toBe(true);
+
+    // So is --user-asked with nothing to answer.
+    expect((await yan(['return', '--repo', 'demo', '--path', grant.path, '--user-asked'])).code).toBe(2);
+
+    // The plain refusal names both ways out rather than dead-ending.
+    const refused = await yan(['return', '--repo', 'demo', '--path', grant.path]);
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain('stray.txt');
+    expect(refused.stderr).toContain('--discard --user-asked');
+
+    // Together they release the slot, which is the whole point of the door.
+    const discarded = await yan(['return', '--repo', 'demo', '--path', grant.path, '--discard', '--user-asked']);
+    expect(discarded.code, discarded.stderr).toBe(0);
+    expect(existsSync(join(grant.path, 'stray.txt'))).toBe(false);
+    expect((await yan(['status', '--repo', 'demo'])).stdout).not.toContain('t/u/1');
   });
 });

@@ -218,20 +218,25 @@ describe('--force is user\'s answer, and it is the whole authority', () => {
     expect(existsSync(join(dir, 'outcome.md'))).toBe(true);
   });
 
-  it('is the only place in yan that forces a return', () => {
-    // The one authority this file holds. If a second command
-    // learns to force a tree back, `user` has stopped being the one who
-    // decides — and it is the kind of edit nothing else would notice. Comments
-    // may name what is forbidden; code may not run it.
-    const forcing: string[] = [];
+  it('never forces a return without a flag carrying `user`s word', () => {
+    // Forcing destroys work that exists nowhere else, so the rule is not "one
+    // command may do it" — it is that whoever does it had to be TOLD to. Two
+    // commands qualify: this one, and `yan tree return --discard --user-asked`.
+    // A third that learns to force a tree back without asking is the kind of
+    // edit nothing else would notice, so it is checked structurally: comments
+    // may name what is forbidden, code may not run it.
+    const CONSENTS = /\bforce\b|\buserAsked\b/;
+    const unguarded: string[] = [];
     for (const file of readdirSync(join(process.cwd(), 'src', 'cli'))) {
-      if (!file.endsWith('.ts') || file === 'done.ts') continue;
+      if (!file.endsWith('.ts')) continue;
       const source = readFileSync(join(process.cwd(), 'src', 'cli', file), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/(^|[^:])\/\/.*$/gm, '$1');
-      if (/\.return\s*\([^)]*\bforce\b/s.test(source)) forcing.push(file);
+      if (!/\.return\s*\([^)]*\bforce\b/s.test(source)) continue;
+      // It forces. Then it must read a flag that only `user` can have set.
+      if (!CONSENTS.test(source.replace(/\.return\s*\([^)]*\)/gs, ''))) unguarded.push(file);
     }
-    expect(forcing, 'only yan done may pass force to the pool').toEqual([]);
+    expect(unguarded, 'a command may only force a return on `user`s explicit say-so').toEqual([]);
   });
 });
 

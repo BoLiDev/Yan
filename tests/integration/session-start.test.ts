@@ -268,7 +268,7 @@ describe('skills reach the session', () => {
   it('says nothing at all when there are none', async () => {
     const r = await runYan(home, ['session-start']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout).not.toContain('what you may do yourself here');
+    expect(r.stdout).not.toContain('What you may do yourself here');
   });
 
   it('indexes them by path, name and description from the front matter', async () => {
@@ -290,7 +290,7 @@ describe('skills reach the session', () => {
 
     const r = await runYan(home, ['session-start']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toContain('what you may do yourself here');
+    expect(r.stdout).toContain('What you may do yourself here');
     expect(r.stdout).toContain('skills/build.md');
     expect(r.stdout).toContain('Checking the build');
     expect(r.stdout).toContain('you may run npm test yourself');
