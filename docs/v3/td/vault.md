@@ -66,6 +66,16 @@ Not tracked, and the rule is one line: **`run/` is throwaway, and machine-local 
 
 The vault's `.gitignore` ships in the template and is the only place this list lives.
 
+### Why `hooks/` is in here at all
+
+Two things in yan are called hooks and they point in opposite directions. `bin/hook-*.sh` with `.claude/settings.json` and `.codex/hooks.json` are the **harness calling yan** — the Stop hook that arms `yan wait`, the SessionStart hook that rebuilds the picture. Those are how the code wires itself into an agent CLI, they are the same for everyone, and they never leave the mechanics clone.
+
+`<vault>/hooks/` is the other direction: **yan calling you**, the outside-authority seam of [boundaries.md §10](../../mvp/td/boundaries.md), with one hook so far — `branch-name`, which `yan unit add` asks before it names an integration branch.
+
+It belongs to the vault because what it encodes is *the context's rule, not yan's behaviour*. A company repository that requires `feat/<ticket>`, or `hotfix/*` during a release, has a rule that is true at work, meaningless at home, and still true on your second work machine. That is the home/work line exactly — not a property of the code, and not a property of a disk.
+
+**The consequence, stated rather than discovered:** `conf/hooks/` was gitignored and local-only; `<vault>/hooks/` is tracked and pushed, so a hook now *travels* — an executable arriving over `git pull` and then run by yan. In a private vault that is the point of the move rather than a hazard, but it is a change in the trust story and it is worth knowing before the first hook is installed. Somebody who would rather not sync executables puts them in the machine layer instead, and re-installs them per machine.
+
 ---
 
 ## 3. Finding the active vault
