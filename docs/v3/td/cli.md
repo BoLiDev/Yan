@@ -12,6 +12,7 @@ yan vault clone <url> [--name] [--path]               take one on a new machine
 yan vault ls                                          registered vaults, active first
 yan vault use <name>       (alias: yan use <name>)    switch the active vault
 yan vault where                                       where the active vault is
+yan vault link <name> <path>                          where a vault is on THIS machine
 yan vault drop-home                                   step 7 of a --from-home migration
 yan vault pull                                        fetch + rebase (session-start runs this)
 yan vault push [-m <msg>]                             stage, commit, push
@@ -71,6 +72,6 @@ One new row, on the right.
 | On your own | Only when `user` asks |
 | --- | --- |
 | `yan vault pull` — it reads | **`yan vault push` — it writes to a remote** |
-| `yan repo add` / `link` — registering a clone is reversible bookkeeping | `yan vault init` / `clone` / `use` — which context you are in is a decision, and a wrong one puts a work task in a personal remote |
+| `yan repo add` / `link`, `yan vault link` — saying where something is on this disk is reversible bookkeeping | `yan vault init` / `clone` / `use` — which context you are in is a decision, and a wrong one puts a work task in a personal remote |
 
 The push row is the strict reading of the existing rule (*anything a colleague will see needs `user` to say so first*) applied to a repository that is usually private. It may be too strict, and it is cheap to relax later — the reverse is not.

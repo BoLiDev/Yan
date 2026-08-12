@@ -90,6 +90,10 @@ Same shape as `yanHome()`: an exported override wins, but only when it validates
 
 `clone_root` is here rather than in the vault because it is a fact about this disk. It is where `yan repo add <url>` clones into.
 
+When a vault directory moves, `yan vault link <name> <path>` is what updates it — the exact dual of `yan repo link`, and it exists for the same reason: this file has one owner, and editing it by hand works right up until it is the thing that is wrong.
+
+When a vault directory moves,  is what updates it — the exact dual of , and it exists for the same reason: this file has one owner, and editing it by hand works right up until it is the thing that is wrong.
+
 ---
 
 ## 4. Bootstrap

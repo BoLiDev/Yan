@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -237,6 +237,34 @@ describe('clone, ls and use', () => {
     expect(r.out).toContain('yan repo add');
     expect(machineConfig('machine-b').active).toBe('shared');
     expect(existsSync(join(dir, 'vault.json'))).toBe(true);
+  });
+
+  it('follows a vault that moved on this disk, and refuses a directory that is not one', async () => {
+    const env = { ...isolated('moved'), ...identity };
+    const before = join(tmp, 'vaults', 'before');
+    await runYan(home, ['vault', 'init', 'movable', '--remote', await mkEmptyRemote(join(tmp, 'movable.git')), '--path', before], env);
+
+    const after = join(tmp, 'vaults', 'after');
+    renameSync(before, after);
+
+    // Until it is told, yan is looking at a directory that is not there.
+    const lost = await runYan(home, ['vault', 'where'], env);
+    expect(lost.code).not.toBe(0);
+    expect(lost.out).toContain('not at');
+
+    const linked = await runYan(home, ['vault', 'link', 'movable', after], env);
+    expect(linked.code, linked.out).toBe(0);
+    const found = await runYan(home, ['vault', 'where'], env);
+    expect(found.stdout.trim().replace(/\\/g, '/')).toBe(after.replace(/\\/g, '/'));
+
+    // A path with no vault.json is refused here rather than one command later.
+    const notOne = await runYan(home, ['vault', 'link', 'movable', mkTempDir('yan-not-a-vault-')], env);
+    expect(notOne.code).not.toBe(0);
+    expect(notOne.out).toContain('no vault.json');
+
+    const unknown = await runYan(home, ['vault', 'link', 'nosuch', after], env);
+    expect(unknown.code).not.toBe(0);
+    expect(unknown.out).toContain('no such vault');
   });
 
   it('switches with `yan use`, and refuses a name it does not know', async () => {

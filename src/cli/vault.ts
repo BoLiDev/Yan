@@ -292,6 +292,48 @@ export function useVault(name: string | undefined): void {
   }
 }
 
+/**
+ * `yan vault link <name> <path>` — where a vault is on THIS machine.
+ *
+ * The exact dual of `yan repo link`, and it exists for the same reason: a
+ * directory moves, and the only record of where it was is the machine layer,
+ * which nothing but this command may write (design principle 2, one owner per
+ * piece of information). Editing `~/.yan/config.json` by hand works right up
+ * until it is the thing that is wrong.
+ *
+ * It checks the destination really is a vault first. A registration pointing
+ * at a directory with no `vault.json` produces the same failure as no
+ * registration at all, one command later and with a worse message.
+ */
+const linkCommand = new Command('link')
+  .description('say where a registered vault is on this machine')
+  .argument('[name]')
+  .argument('[path]')
+  .action(
+    action('vault_link', (name: string | undefined, path: string | undefined) => {
+      if (name === undefined || name === '' || path === undefined || path === '') {
+        throw CommandError.usage('vault', "both a name and a path are required: 'yan vault link <name> <path>'");
+      }
+      const known = readMachine().vaults[name];
+      if (known === undefined) {
+        throw new CommandError('vault', 'missing', `no such vault: ${name} - 'yan vault ls' lists them; 'yan vault clone <url>' registers a new one`);
+      }
+      const dir = normalizePath(resolvePath(path));
+      if (!isVault(dir)) {
+        throw new CommandError('vault', 'invalid', `${dir} has no vault.json, so it is not a vault - move the directory first, then link it`);
+      }
+      const found = readVaultJson(dir).name;
+      if (found !== '' && found !== name) {
+        // Not fatal: the registered name is this machine's label and the
+        // vault's own name is what it calls itself. Worth saying out loud,
+        // because the usual cause is linking the wrong directory.
+        out(`vault link: note - ${dir} calls itself '${found}', and it is registered here as '${name}'`);
+      }
+      registerVault(name, dir, readMachine().active === name);
+      out(`vault link: ${name}  ${dir}`);
+    }),
+  );
+
 const useCommand = new Command('use')
   .description('switch the active vault')
   .argument('[name]')
@@ -467,6 +509,7 @@ export const command = new Command('vault')
   .addCommand(initVault)
   .addCommand(cloneVault)
   .addCommand(lsVaults)
+  .addCommand(linkCommand)
   .addCommand(useCommand)
   .addCommand(dropHomeCommand)
   .addCommand(pullCommand)
