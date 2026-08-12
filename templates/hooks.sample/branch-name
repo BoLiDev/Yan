@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 #
-# conf/hooks/branch-name - SAMPLE (td boundaries.md §10).
+# <vault>/hooks/branch-name - SAMPLE (td boundaries.md §10).
 #
-# conf/hooks/ is gitignored, because it holds this machine's and this team's
-# own choices and is not part of yan. So the sample ships one directory over,
-# as conf/hooks.sample/branch-name. To use it:
+# NOT ONE OF THE HOOKS THE AGENT HARNESS RUNS. Those live in the mechanics
+# clone (bin/hook-*.sh, .claude/settings.json) and they call yan. This is the
+# other direction: a hook YAN CALLS, to ask an outside authority a question it
+# must not answer for itself.
 #
-#     mkdir -p "$YAN_HOME/conf/hooks"
-#     cp "$YAN_HOME/conf/hooks.sample/branch-name" "$YAN_HOME/conf/hooks/"
-#     chmod +x "$YAN_HOME/conf/hooks/branch-name"     # optional, see below
+# It lives in the VAULT rather than the code, because what it encodes is your
+# context's rule and not yan's behaviour: a company repository that requires
+# feat/<ticket>, or hotfix/* during a release, has a rule that is true at work
+# and meaningless at home — and that follows you to your other work machine.
+# The vault is versioned and pushed, so unlike the old conf/hooks/ this file
+# TRAVELS. Bear that in mind: it is an executable that arrives over git.
+#
+# To use it:
+#
+#     cp "$YAN_HOME/templates/hooks.sample/branch-name" "$(yan vault where)/hooks/"
+#     chmod +x "$(yan vault where)/hooks/branch-name"     # optional, see below
 #
 # The hook is entirely optional. With no hook installed, `yan unit add` uses
 # its built-in default, yan/<task>-<unit>-r<n> (td branching.md §6.5). Install
@@ -90,6 +99,9 @@ fi
 # name. yan checks out a branch that already exists and cuts one that does
 # not, so both halves of the contract work out the same way:
 #
-#   git -C "$YAN_HOME/repos/$repo" branch "$name" "origin/$target"
+#   git -C "$(yan repo ls | grep "^$repo" | awk '{print $2}')" branch "$name" "origin/$target"
+#
+# ...though a hook that only names a branch needs none of that: where a clone
+# is on this machine is the registry's answer now, not a path you can build.
 
 printf '%s\n' "$name"
