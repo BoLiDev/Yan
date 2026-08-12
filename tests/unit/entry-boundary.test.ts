@@ -72,7 +72,7 @@ describe('the model is never sent into the prompts', () => {
     // the same document has to say so, or the table below it quietly becomes
     // advisory.
     expect(agents).toContain('Being able to run a command is not');
-    expect(agents, 'and what still goes to a shift').toContain('Work that lands still goes to a shift');
+    expect(agents, 'and that a shift is still how work is offloaded').toContain('A shift is still how work gets offloaded');
   });
 
   it('and still carries the authority rules and the Codex checkpoint', () => {

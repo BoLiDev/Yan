@@ -52,7 +52,7 @@ It is a trade between disk space and parallelism. The default is 8 because a too
 
 So setting it to 2 or 3 on a huge monorepo is entirely reasonable, and that is exactly why the setting has to follow the repository.
 
-**One trap that follows from this:** `yan sync` also takes a short lease. If the pool is full, `sync` fails — and it happens to be the first step of `yan shift new`. This is not a deadlock, since a full pool means no new `shift` should be starting anyway. But the error message has to say "the pool is full, cannot start a new `shift`", not "sync failed", otherwise you go looking for a synchronisation problem that does not exist.
+**One trap that follows from this:** `yan sync` also takes a short lease, so a full pool makes it fail. The error message has to say "the pool is full", not "sync failed", or you go looking for a synchronisation problem that does not exist. (This used to matter doubly, because `sync` was the first step of `yan shift new`. V3 removed that step — see [v3 orchestration](../../v2/td/orchestration.md#2-yan-shift-new) — so the two commands now fail the same way for the same reason, independently.)
 
 ## When it is safe to return a tree
 

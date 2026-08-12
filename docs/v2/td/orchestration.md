@@ -22,11 +22,12 @@ The MVP's `shift new` was: sync → lease a tree → write the brief → open a 
 
 | | |
 | --- | --- |
-| 1 | `yan sync` — always first, so the shift branch is cut from a current integration branch |
-| 2 | `new WorktreePool(clone).get(size, base, branch, holder)` — the lease, holder `<task>/<unit>/<sid>` |
-| 3 | write `brief.md` |
-| 4 | `terminal.startAgent({ container, name, kind, cwd: <the leased tree>, env, argv })` |
-| 5 | **confirm, then record** |
+| 1 | `new WorktreePool(clone).get(size, base, branch, holder)` — the lease, holder `<task>/<unit>/<sid>` |
+| 2 | write `brief.md` |
+| 3 | `terminal.startAgent({ container, name, kind, cwd: <the leased tree>, env, argv })` |
+| 4 | **confirm, then record** |
+
+**`yan sync` was step 1 and is not any more** (V3). The argument for it was that the shift branch should come off a head that had just caught up with `target`. But a shift's merge request goes into the *integration* branch — `target` only enters at the outbound MR, which is a different command at a different moment. So the sync bought a property nothing downstream of it needed, and charged a fetch, a merge, a push and a leased tree for it on every dispatch; a conflict against `target` could block a dispatch that had nothing to do with `target`, and the integration branch could move under a shift that was already running. `yan sync` is still the command for catching up, run when catching up is what you want.
 
 Step 4 hides two Herdr facts worth knowing at this level. The pane is split with `--cwd` at the leased tree and `--env` carrying `YAN_TASK` / `YAN_TASK_DIR`, so there is no wrapper script; and everything after `--` reaches the agent as **argv**, so a brief pointer or `--append-system-prompt` needs no quoting ([evidence §2](evidence.md#2-argv-passthrough)).
 

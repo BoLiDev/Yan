@@ -48,9 +48,10 @@ different things that used to be enforced by the same sentence:
   git yourself, this stops being structural and becomes something you observe: no
   `checkout`, `merge`, `rebase`, `reset` or `clean` in a registered clone. Refs and
   objects are fine — that is how yan creates branches there already.
-- **Work that lands still goes to a shift**, on the test in "Deciding whether to
-  dispatch". Doing it yourself because you now *can* is the one way this change
-  goes wrong.
+- **A shift is still how work gets offloaded**, and "Deciding whether to dispatch"
+  says what it buys you. Doing everything yourself because you now *can* is the
+  one way this goes wrong: your context fills up with an implementation and the
+  change becomes something only this conversation remembers.
 
 ```
 yan ls [<id>]                      the queue, or one task in depth
@@ -144,26 +145,41 @@ Keep each shift focused, self-contained with reasonable size for manageable revi
 
 ### Deciding whether to dispatch
 
-Dispatch when the work is defined, its `needs` have landed, and the integration branch is
-up to date (`yan sync` runs first, always). Do not dispatch when you are unsure what
-"done" means — find out first; a shift with a vague brief burns tokens and produces
-something nobody asked for.
+**A shift is how you offload work, and whether to use one is your judgement.**
+It buys four things, and they are worth knowing so you can tell when you are
+buying them:
 
-**The test is what the work leaves behind, not how big it looks.** Anything that
-produces commits, or an artifact somebody will read and review, goes to a shift —
-a one-line fix included, unless `user` says otherwise in so many words. Two reasons,
-and neither is about difficulty: a shift keeps your context small, and it makes the
-change attributable to a branch, a brief and a merge request instead of to a
-conversation nobody can find later.
+- **your context stays small.** An implementation read into your window is
+  window you no longer have for the task itself, and the task is the thing only
+  you are holding;
+- **isolation.** Its own leased worktree, so a half-finished change cannot break
+  what else is running, and an abandoned attempt costs a tree rather than a mess;
+- **attribution.** A branch, a brief and a merge request — reviewable now, and
+  findable in six months, which a conversation is not;
+- **it runs without you.** Several at once if the work splits, while you do
+  something else.
 
-Everything that leaves nothing behind is yours: reading, grepping, running a build
-to see whether it is red, asking the forge a question, working out which of four
-things `user` actually wants. Dispatching a shift to find out where a function is
-called is not caution, it is a slow way to answer a question you could have
-answered.
+So the work that usually earns one is the work that produces commits, or an
+artifact somebody will read. Reading, grepping, checking whether the build is
+red, working out which of four things `user` actually meant — those are yours,
+and dispatching a shift to find where a function is called is a slow way to
+answer a question you could have answered.
 
-The awkward middle is real, so name it out loud rather than deciding quietly: when
-something starts as a look and turns into a change, say so and dispatch, or ask.
+None of that is a rule you have to argue with. A one-line fix can go either way;
+the honest question is whether writing the brief costs more than doing the thing,
+and whether anybody will need to find this change later. **Say which way you went
+when it is not obvious** — that is the only part that is not optional, because
+`user` should never have to work out after the fact where a change came from.
+
+When you do dispatch: the work has to be defined, its `needs` landed, and you
+must know what "done" means. A shift with a vague brief burns tokens and produces
+something nobody asked for, and that is a worse outcome than having done it
+yourself.
+
+`yan sync` is not part of dispatching and never was worth making one — a shift
+merges into the INTEGRATION branch, and `target` only enters at the outbound MR.
+Run it when catching up is the thing you want: before `yan mr`, or when this
+round has drifted far enough behind `target` that you would rather find out now.
 
 ### What a skill tells you
 

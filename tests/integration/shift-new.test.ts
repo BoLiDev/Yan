@@ -92,8 +92,6 @@ class FakeTerminal implements Dispatcher {
 
 let pool: FakePool;
 let terminal: FakeTerminal;
-let syncFails: Error | undefined;
-let syncRan = 0;
 
 function briefState(): string {
   return existsSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md')) ? 'present' : 'absent';
@@ -103,11 +101,6 @@ function deps(): Deps {
   return {
     terminal,
     pool: () => pool,
-    runSync: (task, unit) => {
-      syncRan += 1;
-      calls.push(`sync task=${task} unit=${unit}`);
-      if (syncFails !== undefined) throw syncFails;
-    },
   };
 }
 
@@ -146,8 +139,6 @@ beforeEach(() => {
   pool = new FakePool();
   pool.path = tree;
   terminal = new FakeTerminal();
-  syncFails = undefined;
-  syncRan = 0;
 });
 
 afterEach(() => {
@@ -156,11 +147,15 @@ afterEach(() => {
 });
 
 describe('the order', () => {
-  it('syncs, then leases, then makes the container, then starts the agent', () => {
+  it('leases, then makes the container, then starts the agent', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'parse the header' });
     expect(r.code, r.message).toBe(0);
+    // NO SYNC. It used to run first, so that the shift branch came off a head
+    // that had just caught up with target — but a shift's MR goes into the
+    // INTEGRATION branch, and target only matters at the outbound MR. The sync
+    // was buying a property nothing downstream needed and charging a fetch, a
+    // merge, a push and a leased tree for it on every dispatch.
     expect(calls.map((c) => c.split(' ')[0])).toEqual([
-      'sync',
       'pool_get',
       'container_create',
       'agent_start',
@@ -391,20 +386,14 @@ describe('the pool being full is said as what it is', () => {
   });
 });
 
-describe('sync failing stops the dispatch before anything is leased', () => {
-  it('passes a conflict straight through', () => {
-    syncFails = Object.assign(new Error('conflict'), { exitCode: 5, code: 'sync_conflict' });
-    Object.setPrototypeOf(syncFails, Object.getPrototypeOf(new WorktreeError('failed', 'x')));
-    const r = run({ task: 't042', unit: 'auth', sid: 's9' });
-    expect(r.code, 'a conflict during sync is handed on as a conflict').toBe(5);
-    expect(r.message).toContain('conflicts with');
-    expect(calls.some((c) => c.startsWith('pool_get')), 'nothing is leased when the sync did not finish').toBe(false);
-  });
-
-  it('runs sync exactly once, first', () => {
-    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
-    expect(syncRan).toBe(1);
-    expect(calls[0]).toBe('sync task=t042 unit=auth');
+describe('dispatching does not touch target', () => {
+  it('never syncs, so a branch behind target still dispatches', () => {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(calls.some((c) => c.startsWith('sync')), 'catching up with target is not a toll on dispatching').toBe(false);
+    // And the branch it cut from is the integration branch as it stands, which
+    // is the thing the shift's own merge request will go back into.
+    expect(calls.find((c) => c.startsWith('pool_get'))).toContain('base=feat/auth');
   });
 });
 

@@ -6,7 +6,6 @@ import { agentFor, configPath } from './shared/config.js';
 import { display } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
-import { sync } from './sync.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, WorktreeError, type LeaseGrant } from '../externals/worktree/index.js';
@@ -23,11 +22,10 @@ import { vaultDir } from '../util/vault.js';
 /**
  * `yan shift new` — dispatch a shift (agents.md §5.3, orchestration.md §2).
  *
- *   1  sync the integration branch
- *   2  lease a tree, cutting the shift branch
- *   3  write shifts/<sid>/brief.md
- *   4  ASSERT the sub-agent's working directory is not the main clone
- *   5  start the agent, and CONFIRM it
+ *   1  lease a tree, cutting the shift branch
+ *   2  write shifts/<sid>/brief.md
+ *   3  ASSERT the sub-agent's working directory is not the main clone
+ *   4  start the agent, and CONFIRM it
  *
  * THE ASSERTION IS THE POINT OF THIS FILE. worktree.md §7 states it as an
  * invariant of the pool: *when spawning a sub-agent, assert that its working
@@ -38,17 +36,27 @@ import { vaultDir } from '../util/vault.js';
  * everything looks like it worked. So the check runs before the terminal, it
  * refuses rather than warns, and it gives the tree back on its way out.
  *
- * AND THE TREE IS ALWAYS GIVEN BACK. Every failure after step 2 returns the
+ * AND THE TREE IS ALWAYS GIVEN BACK. Every failure after step 1 returns the
  * lease before it exits, or the pool leaks a slot on every failed dispatch
  * (orchestration.md §2). That is a `finally`, not a list of exit paths.
  *
- * SYNC RUNS FIRST, and it runs by calling `sync()` rather than by copying its
- * steps. Its timing is fixed — before every new shift — so the shift branch
- * comes off a head that has just caught up and conflicts stay in one place. Two
- * of its exit codes pass straight through, because they say something this
- * command cannot improve on: 3 the pool is full, so no new shift can start at
- * all, and 5 the integration branch conflicts with target and a shift has to
- * reconcile it first.
+ * SYNC NO LONGER RUNS FIRST, and the removal is worth its own paragraph because
+ * this command used to open with it.
+ *
+ * The argument for it was that a shift branch should come off a head that had
+ * just caught up with `target`, so conflicts stayed in one place. But a shift's
+ * merge request goes into the INTEGRATION branch, not into target — target only
+ * matters at the outbound MR, which is a different command with a different
+ * moment. So the sync was buying a property nothing downstream of it needed,
+ * and charging for it on every single dispatch: a fetch, a merge and a push,
+ * plus a leased tree to do them in, plus a conflict against target able to
+ * block a dispatch that had nothing to do with target. It could also move the
+ * integration branch under a shift that was already running.
+ *
+ * `yan sync` is still there and still does exactly what it says. It is run when
+ * catching up is the thing you actually want — before `yan mr`, or when you
+ * deliberately want a shift to start from a caught-up base — rather than as a
+ * toll on dispatching.
  *
  * THE SHIFT BRANCH NAME IS ALWAYS OURS: `yan/<task>-<unit>-<sid>`. It is never
  * derived from the integration branch's name — git itself forbids `feature/X`
@@ -62,12 +70,12 @@ import { vaultDir } from '../util/vault.js';
  * repository.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 the pool is full, 4 the
- * working-directory assertion refused, 5 sync hit a conflict, 1 anything else.
+ * working-directory assertion refused, 1 anything else. (5 was "sync hit a
+ * conflict", and nothing here can produce it now that sync does not run.)
  */
 
 const RC_POOL_FULL = 3;
 const RC_MAIN_CLONE = 4;
-const RC_CONFLICT = 5;
 
 /**
  * sid is DERIVED by scanning `shifts/`, never stored in a counter file: the
@@ -272,7 +280,6 @@ export interface Dispatcher {
 export interface Deps {
   readonly terminal?: Dispatcher;
   /** Replaceable so a test can drive `shift new` without a real git remote. */
-  readonly runSync?: (task: string, unit: string) => void;
   readonly pool?: (clone: string) => Pick<WorktreePool, 'get' | 'return'>;
 }
 
@@ -321,26 +328,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     );
   }
 
-  // --- 1. sync --------------------------------------------------------------
-  try {
-    (deps.runSync ?? ((t: string, u: string) => void sync({ task: t, unit: u })))(task, unitName);
-  } catch (err) {
-    if (isYanError(err) && err.exitCode === RC_POOL_FULL) {
-      throw new CommandError('shift_new', 'pool_full', 'the pool is full, cannot start a new shift - a shift has to finish before another can start',
-        { exitCode: RC_POOL_FULL, cause: err },
-      );
-    }
-    if (isYanError(err) && err.exitCode === RC_CONFLICT) {
-      throw new CommandError('shift_new', 'conflict', `${data.branch} conflicts with ${data.target} - dispatch a shift to reconcile them before starting new work`,
-        { exitCode: RC_CONFLICT, cause: err },
-      );
-    }
-    throw new CommandError('shift_new', 'sync_failed', `cannot sync ${data.branch} before dispatching: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
-    );
-  }
-
-  // --- 2. lease a tree, cutting the shift branch ----------------------------
+  // --- 1. lease a tree, cutting the shift branch ----------------------------
   const pool = deps.pool?.(clone) ?? new WorktreePool(clone);
   let grant: LeaseGrant;
   try {
@@ -364,7 +352,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     mkdirSync(shift.dir, { recursive: true });
     mkdirSync(join(taskDir, 'artifacts'), { recursive: true });
 
-    // --- 3. write the work order -------------------------------------------
+    // --- 2. write the work order -------------------------------------------
     const work =
       options.brief !== undefined
         ? readFileSync(options.brief, 'utf8')
@@ -388,7 +376,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work }),
     );
 
-    // --- 4. THE ASSERTION ---------------------------------------------------
+    // --- 3. THE ASSERTION ---------------------------------------------------
     if (isInside(clone, workdir)) {
       process.stderr.write(`yan shift new: the sub-agent would have started in ${workdir}\n`);
       process.stderr.write(`yan shift new: that is the main clone (${clone}), which yan only ever fetches into\n`);
@@ -402,7 +390,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       );
     }
 
-    // --- 5. start the agent, and confirm it ---------------------------------
+    // --- 4. start the agent, and confirm it ---------------------------------
     const terminal = deps.terminal ?? new Terminal();
     const container = terminal.createContainer(record.containerName()).workspace;
 
@@ -773,7 +761,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
       } catch { /* the teardown matters more than its narration */ }
     }
 
-    // --- 4. rm -rf run/ -----------------------------------------------------
+    // --- 3. rm -rf run/ -----------------------------------------------------
     // One directory. Lifetime is expressed by the directory, not by a list of
     // files, which is why nothing here enumerates meta.json / status / signal:
     // a list would eventually miss one.
@@ -789,7 +777,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     if (mr === '') mr = '(recorded in outcome.md)';
   }
 
-  // --- 5. return the tree, BEFORE the branch is deleted ---------------------
+  // --- 4. return the tree, BEFORE the branch is deleted ---------------------
   let returned = '';
   if (tree === '') {
     process.stderr.write(`yan shift done: no worktree recorded for ${shift.label()}, so there is none to return\n`);
