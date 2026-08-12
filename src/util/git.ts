@@ -306,3 +306,59 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
   const r = git(dir, ['remote', 'get-url', remote]);
   return r.code === 0 ? r.stdout.trim() : undefined;
 }
+
+// --- merging without a working tree ----------------------------------------
+//
+// THE CONVENTION THESE EXIST TO RESPECT, stated exactly, because it is
+// routinely remembered wrong: a main clone is not "read-only". What is
+// forbidden is touching its WORKING TREE — checkout, merge, rebase, reset,
+// clean — because since V3 that clone is `user`'s own working copy, and a tool
+// that moves you off your branch while you are thinking is a tool you stop
+// trusting (boundaries.md §9.1, v3 td repos.md §3).
+//
+// Writing refs and objects is not that, and yan already did it: cutting an
+// integration branch is `git branch`, a ref write in the main clone. These
+// three complete the set, so a real three-way merge — carrying an abandoned
+// round forward — can happen in the clone with no checkout, no lease and no
+// worktree at all. `merge-tree --write-tree` (git ≥ 2.38) does the merge into
+// the object store and REPORTS conflicts rather than leaving them anywhere.
+
+/**
+ * A three-way merge of two commits, written to the object store.
+ *
+ * On success `stdout` is the merged tree's OID on its first line. On failure it
+ * is a conflict report — which is an answer and not a malfunction: it means
+ * this one needs a human, or a shift with a real working tree.
+ */
+export function mergeTree(dir: string, ours: string, theirs: string): GitResult {
+  requireArg(ours, 'a branch to merge into is required');
+  requireArg(theirs, 'a branch to merge is required');
+  return git(dir, ['merge-tree', '--write-tree', ours, theirs]);
+}
+
+/** A commit object for an existing tree. `parents` in order: ours first. */
+export function commitTree(
+  dir: string,
+  tree: string,
+  parents: readonly string[],
+  message: string,
+): GitResult {
+  requireArg(tree, 'a tree object is required');
+  const args = ['commit-tree', tree];
+  for (const parent of parents) args.push('-p', parent);
+  args.push('-m', message);
+  return git(dir, args);
+}
+
+/**
+ * Move a ref, refusing if it is not where we last saw it.
+ *
+ * `expect` is not optional politeness: between reading a branch and moving it a
+ * shift may have merged into it. Passing the old value makes the update fail
+ * rather than silently discard whatever arrived in between.
+ */
+export function updateRef(dir: string, ref: string, to: string, expect: string): GitResult {
+  requireArg(ref, 'a ref name is required');
+  requireArg(to, 'a new value is required');
+  return git(dir, ['update-ref', ref, to, expect]);
+}

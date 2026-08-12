@@ -5,6 +5,7 @@ import {
   cleanupTempDirs,
   fxGit,
   mkBareRemote,
+  mkCommit,
   mkClone,
   mkTempDir,
   mkYanHome,
@@ -41,6 +42,7 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let clone = '';
+let bare = '';
 let previousHome: string | undefined;
 
 const MR = 'https://forge.invalid/acme/demo/-/merge_requests/7';
@@ -91,7 +93,8 @@ function assertUntouched(): void {
 beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  clone = await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'demo'));
+  bare = await mkBareRemote(join(tmp, 'remote.git'));
+  clone = await mkClone(bare, join(home, 'repos', 'demo'));
   // A clone is where the registry says it is now, not where a convention put
   // it (v3 td repos.md §2). The path does not change; only the reason yan
   // can find it.
@@ -137,26 +140,9 @@ describe('what it refuses before it touches anything', () => {
   });
 });
 
-describe('a round with no MR was never delivered, and it has to say why', () => {
-  it('refuses to abandon without a reason, and moves nothing', () => {
-    snap();
-    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r2' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('--reason is required');
-    assertUntouched();
-    // The host was never asked: there was no MR to ask about, so there was
-    // nothing that could have been delivered.
-    expect(hostAsked).toBe(0);
-  });
-
-  it('archives the old round with `at`, and the current fields have already moved on', () => {
-    const r = run({
-      task: 't1',
-      unit: 'auth',
-      branch: 'feat/auth-r2',
-      reason: 'the approach was wrong, starting again from the interface',
-      at: '2026-08-25',
-    });
+describe('a round with nothing on it is replaced without an interrogation', () => {
+  it('records it as `unused` and asks for no reason at all', () => {
+    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r2', at: '2026-08-25' });
     expect(r.code, r.message).toBe(0);
 
     const h = history('auth');
@@ -165,107 +151,104 @@ describe('a round with no MR was never delivered, and it has to say why', () => 
       branch: 'yan/t1-auth-r1',
       target: 'main',
       at: '2026-08-25',
-      end: 'abandoned',
+      // NOT 'abandoned'. Calling it that used to demand a written reason, so
+      // the cheapest and commonest move — "this branch has nothing on it, give
+      // me another" — was the one that cost the most typing.
+      end: 'unused',
     });
     expect(h[0].mr, 'a round that never opened an MR stores no mr field').toBeUndefined();
     expect(unitField('auth', 'branch')).toBe('feat/auth-r2');
     expect(unitField('auth', 'mr')).toBe('');
+    // The host was never asked: there was no MR to ask about.
     expect(hostAsked).toBe(0);
   });
 
-  it("cuts the abandoned round's successor from the OLD branch, so the work is still reachable", async () => {
+  it("cuts the successor from the OLD branch, so nothing that was there is lost", async () => {
     expect((await fxGit(['-C', clone, 'rev-parse', 'feat/auth-r2'])).stdout.trim()).toBe(
       (await fxGit(['-C', clone, 'rev-parse', 'yan/t1-auth-r1'])).stdout.trim(),
     );
   });
 
-  it('says why in log.md — the one thing nobody remembers later', () => {
+  it('says in log.md what happened and what was carried', () => {
     const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
-    expect(log).toContain('auth  abandoned yan/t1-auth-r1 → feat/auth-r2');
-    expect(log).toContain('the approach was wrong, starting again from the interface');
-    expect(log).toContain('based on yan/t1-auth-r1');
+    expect(log).toContain('auth  unused yan/t1-auth-r1 → feat/auth-r2');
+    expect(log).toContain('no merge request was ever opened for it');
+    // Nothing to carry: the successor was cut from the branch it replaces.
+    expect(log).toContain('nothing to carry forward');
   });
 });
 
-describe('an open MR is not an ending, and yan refuses to decide', () => {
-  it('exits 4, changes nothing, and creates no branch', async () => {
+describe('an open MR does not block the rotation any more', () => {
+  it('rotates, records the round as `unknown`, and says the MR is still open', async () => {
     new Task('t1').unit('auth').set('mr', MR);
-    snap();
     hostSays = 'open';
 
-    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r3' });
-    expect(r.code, "still open means 'ask user', and that is its own exit code").toBe(4);
-    expect(r.message).toContain('NOT OVER');
-    expect(r.message).toContain("Ask 'user'");
-    expect(r.message).toContain('Nothing was changed');
-    assertUntouched();
-    expect((await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', 'refs/heads/feat/auth-r3'])).code).not.toBe(0);
-  });
-
-  it("takes `user`'s answer through --end, and still demands a reason", () => {
-    snap();
-    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r3', end: 'abandoned' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('--reason is required');
-    assertUntouched();
-    // --end short-circuits the lookup entirely: the answer is already `user`'s.
-    expect(hostAsked).toBe(0);
-  });
-
-  it('stores the MR URL in the history entry', () => {
-    const r = run({
-      task: 't1',
-      unit: 'auth',
-      branch: 'feat/auth-r3',
-      end: 'abandoned',
-      reason: 'user asked to drop it; the ticket was descoped',
-      at: '2026-08-26',
-    });
+    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r3', at: '2026-08-26' });
     expect(r.code, r.message).toBe(0);
 
     const h = history('auth');
     expect(h).toHaveLength(2);
-    expect(h[1].end).toBe('abandoned');
+    // The honest word. Rotating away from an open MR touches nothing a
+    // colleague can see — the MR stays open, the branch stays, nothing is
+    // deleted or force pushed — so what was needed was a loud line, not a veto.
+    expect(h[1].end).toBe('unknown');
     expect(h[1].mr, 'it is awkward to look up once the branch is gone').toBe(MR);
     expect(unitField('auth', 'branch')).toBe('feat/auth-r3');
+    expect((await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', 'refs/heads/feat/auth-r3'])).code).toBe(0);
+
+    const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
+    expect(log).toContain('was still open when the round was replaced');
+  });
+
+  it("still takes `user`'s own answer through --end, and needs no reason for it", () => {
+    new Task('t1').unit('proto').set('mr', MR);
+    hostSays = 'open';
+    const r = run({ task: 't1', unit: 'proto', branch: 'feat/proto-r2', end: 'abandoned' });
+    expect(r.code, r.message).toBe(0);
+    expect(history('proto')[0].end).toBe('abandoned');
+    // --end short-circuits the lookup entirely: the answer is already `user`'s.
+    expect(hostAsked).toBe(0);
   });
 });
 
-describe('an unreachable host is also a question, not a guess', () => {
-  it('exits 4 and changes nothing', () => {
+describe('a host that cannot answer is recorded, not obeyed', () => {
+  it('writes `unknown` and carries on', () => {
     new Task('t1').unit('auth').set('mr', MR);
-    snap();
     hostSays = 'unknown';
 
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r4' });
-    expect(r.code).toBe(4);
-    expect(r.message).toContain('cannot tell how this round ended');
-    assertUntouched();
+    expect(r.code, r.message).toBe(0);
+    const h = history('auth');
+    expect(h[2].end).toBe('unknown');
+    expect(readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8')).toContain(
+      'could not say what became of',
+    );
   });
 });
 
 describe('merged means delivered', () => {
   it('starts the next round from target, which already contains the old one', async () => {
     hostSays = 'merged';
-    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r4', at: '2026-08-27' });
+    new Task('t1').unit('auth').set('mr', MR);
+    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r5', at: '2026-08-27' });
     expect(r.code, r.message).toBe(0);
 
     const h = history('auth');
-    expect(h[2].end).toBe('delivered');
-    expect(h[2].at).toBe('2026-08-27');
-    expect(unitField('auth', 'branch')).toBe('feat/auth-r4');
-    expect((await fxGit(['-C', clone, 'rev-parse', 'feat/auth-r4'])).stdout.trim()).toBe(
+    expect(h[3].end).toBe('delivered');
+    expect(h[3].at).toBe('2026-08-27');
+    expect(unitField('auth', 'branch')).toBe('feat/auth-r5');
+    expect((await fxGit(['-C', clone, 'rev-parse', 'feat/auth-r5'])).stdout.trim()).toBe(
       (await fxGit(['-C', clone, 'rev-parse', 'origin/main'])).stdout.trim(),
     );
     expect(readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8')).toContain(
-      'auth  delivered feat/auth-r3 → feat/auth-r4',
+      'auth  delivered feat/auth-r4 → feat/auth-r5',
     );
   });
 
   it('never asks the host about a round whose conclusion is already written', () => {
     const h = history('auth');
-    expect(h[0].end).toBe('abandoned');
-    expect(h[1].end).toBe('abandoned');
+    expect(h[0].end).toBe('unused');
+    expect(h[1].end).toBe('unknown');
   });
 });
 
@@ -276,11 +259,11 @@ describe('closed means abandoned', () => {
     const r = run({
       task: 't1',
       unit: 'proto',
-      branch: 'feat/proto-r2',
+      branch: 'feat/proto-r3',
       reason: 'the RFC was rejected upstream',
     });
     expect(r.code, r.message).toBe(0);
-    expect(history('proto')[0].end).toBe('abandoned');
+    expect(history('proto')[1].end).toBe('abandoned');
     expect(hostAsked).toBe(1);
   });
 });
@@ -290,7 +273,7 @@ describe("the built-in default carries the NEXT round's number", () => {
     // Off by one and the default would hand back the name of the branch being
     // replaced, which is precisely the collision the round number exists to
     // stop: the same branch name cannot be created twice.
-    expect(history('proto')).toHaveLength(1);
+    expect(history('proto')).toHaveLength(2);
     const r = run({
       task: 't1',
       unit: 'proto',
@@ -298,9 +281,9 @@ describe("the built-in default carries the NEXT round's number", () => {
       reason: 'starting the third round from scratch',
     });
     expect(r.code, r.message).toBe(0);
-    expect(unitField('proto', 'branch'), 'r1 was yan/t1-proto-r1, r2 was feat/proto-r2').toBe('yan/t1-proto-r3');
-    expect(history('proto')).toHaveLength(2);
-    expect(history('proto')[1].branch).toBe('feat/proto-r2');
+    expect(unitField('proto', 'branch'), 'r1 and r2 are already in history, so the default is r3').toBe('yan/t1-proto-r4');
+    expect(history('proto')).toHaveLength(3);
+    expect(history('proto')[2].branch).toBe('feat/proto-r3');
   });
 });
 
@@ -322,7 +305,7 @@ describe('the three plain scalars, each of them a decision', () => {
 describe('the same branch twice is not a new round', () => {
   it('is refused, and moves nothing', () => {
     snap();
-    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r4', end: 'delivered' });
+    const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r5', end: 'delivered' });
     expect(r.code).toBe(2);
     expect(r.message).toContain('same as the current one');
     assertUntouched();
@@ -331,7 +314,83 @@ describe('the same branch twice is not a new round', () => {
 
 describe('history is append-only, and the whole file is still valid', () => {
   it('has never rewritten history[0]', () => {
-    expect(history('auth')).toHaveLength(3);
+    expect(history('auth')).toHaveLength(4);
     expect(history('auth')[0].branch).toBe('yan/t1-auth-r1');
+  });
+});
+
+/**
+ * The step that makes a cheap rotation safe (v3, unit.ts `inheritRound`).
+ *
+ * A round is replaced by a branch cut somewhere else — off target, or wherever
+ * a `branch-create` hook cuts things — so the commits on the old one are not
+ * automatically on the new one. Carrying them forward is yan's own job,
+ * deliberately not the hook's, and it happens IN THE MAIN CLONE with no
+ * worktree: `merge-tree --write-tree` merges into the object store, which is a
+ * ref-and-object write and not the working-tree change the main-clone rule
+ * forbids.
+ */
+describe('the work on the old round is carried forward', () => {
+  let work = '';
+
+  beforeAll(async () => {
+    work = await mkClone(bare, join(mkTempDir('yan-work-'), 'work'));
+    await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'carry', '--repo', 'demo', '--target', 'main']);
+
+    // Real work on the round that is about to be replaced.
+    await fxGit(['checkout', '-b', 'yan/t1-carry-r1', 'origin/main'], work);
+    await mkCommit(work, 'carried.txt', 'work nobody wants to lose');
+    await fxGit(['push', '-u', 'origin', 'yan/t1-carry-r1'], work);
+    await fxGit(['fetch', 'origin'], clone);
+    await fxGit(['branch', '--force', 'yan/t1-carry-r1', 'origin/yan/t1-carry-r1'], clone);
+  });
+
+  it('merges the old branch into the new one, in the main clone, with no worktree', async () => {
+    // The successor is cut from target, which does NOT contain the old work —
+    // exactly the shape a `branch-create` hook produces.
+    const r = run({ task: 't1', unit: 'carry', branch: 'feat/carry-r2', base: 'main' });
+    expect(r.code, r.message).toBe(0);
+
+    const reachable = await fxGit(['-C', clone, 'merge-base', '--is-ancestor', 'yan/t1-carry-r1', 'feat/carry-r2']);
+    expect(reachable.code, 'the abandoned round is an ancestor of its successor now').toBe(0);
+    expect((await fxGit(['-C', clone, 'cat-file', '-e', 'feat/carry-r2:carried.txt'])).code).toBe(0);
+
+    // THE RULE THIS MUST NOT BREAK: the main clone's working tree never moved.
+    expect((await fxGit(['-C', clone, 'rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()).toBe('main');
+    expect((await fxGit(['-C', clone, 'status', '--porcelain'])).stdout.trim()).toBe('');
+
+    expect(readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8')).toContain('carried 1 commit(s)');
+  });
+
+  it('pushes what it carried, so the branch on the remote has it too', async () => {
+    await fxGit(['fetch', 'origin'], work);
+    expect((await fxGit(['-C', bare, 'cat-file', '-e', 'feat/carry-r2:carried.txt'])).code).toBe(0);
+  });
+
+  it('a conflict is reported loudly and does not undo the rotation', async () => {
+    // The SAME file, written differently on target and on the round being
+    // replaced. The successor is cut from target, so the merge has no
+    // mechanical answer and git says so.
+    await fxGit(['checkout', '-b', 'side', 'origin/main'], work);
+    await mkCommit(work, 'clash.txt', 'from the old round');
+    await fxGit(['push', '-u', 'origin', 'side'], work);
+
+    await fxGit(['checkout', 'main'], work);
+    await fxGit(['pull', '--ff-only'], work);
+    await mkCommit(work, 'clash.txt', 'from target');
+    await fxGit(['push', 'origin', 'main'], work);
+
+    await fxGit(['fetch', 'origin'], clone);
+    await fxGit(['branch', '--force', 'side', 'origin/side'], clone);
+    new Task('t1').unit('carry').set('branch', 'side');
+
+    const r = run({ task: 't1', unit: 'carry', branch: 'feat/carry-r3', base: 'main' });
+    expect(r.code, 'a conflict does not fail the rotation: the branch and the history are right').toBe(0);
+    expect(unitField('carry', 'branch')).toBe('feat/carry-r3');
+
+    const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
+    expect(log).toContain('did NOT carry forward');
+    // And the work is still on the branch it was on, reachable by name.
+    expect((await fxGit(['-C', clone, 'cat-file', '-e', 'side:clash.txt'])).code).toBe(0);
   });
 });

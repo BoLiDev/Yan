@@ -8,7 +8,7 @@ import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
-import { branchExists, createBranch, fetch, gitOk } from '../util/git.js';
+import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTree, push, revParse, updateRef } from '../util/git.js';
 
 /**
  * `yan unit add` / `yan unit set` (branching.md §6.3–§6.5, boundaries.md §9.2,
@@ -235,6 +235,98 @@ function verifyBranch(command: string, clone: string, repo: string, branch: stri
   }
   throw new CommandError(command, 'branch_missing', `the ${BRANCH_HOOK} hook printed '${branch}', but no such branch exists in ${repo} - the hook is supposed to CREATE the branch and report what it called it. Nothing was recorded.`,
   );
+}
+
+
+export interface Inherited {
+  /** What happened, in one line, for the caller to print and to log. */
+  readonly said: string;
+  /** True when commits were carried forward and the branch moved. */
+  readonly moved: boolean;
+  /** Paths git could not merge. Non-empty means nobody carried anything. */
+  readonly conflicts: readonly string[];
+}
+
+/**
+ * Carry the round being replaced forward onto the new integration branch.
+ *
+ * WHY THIS IS YAN'S JOB AND NOT THE HOOK'S. A `branch-create` hook cuts where
+ * the team cuts, normally straight off the main branch, and it should not have
+ * to know that yan is in the middle of replacing a round. Not losing commits is
+ * a judgement about work, so it stays here, and it runs AFTER the new branch is
+ * known to exist.
+ *
+ * WHY IT HAPPENS IN THE MAIN CLONE. Because it can: `merge-tree --write-tree`
+ * does a real three-way merge into the object store and hands back a tree, so
+ * the whole operation is ref and object writes with no checkout — which is what
+ * the main-clone rule actually forbids (util/git.ts says this at length). No
+ * lease, no worktree, no tree to return if something throws halfway.
+ *
+ * THREE OUTCOMES, and the middle one is the point:
+ *
+ *   nothing to carry   the old branch has no commit the new one lacks. The
+ *                      ordinary case after a delivered round, since target
+ *                      already contains it
+ *   carried            a merge commit lands on the new branch and is pushed
+ *   conflicts          NOT AN ERROR HERE. The rotation itself already
+ *                      happened and is correct; this says so loudly and names
+ *                      the paths, and the same conflict is waiting for a shift
+ *                      in a real worktree. Refusing to rotate over it would put
+ *                      the strictness back exactly where it was taken out
+ */
+export function inheritRound(clone: string, from: string, to: string): Inherited {
+  if (!branchExists(clone, from) || !branchExists(clone, to)) {
+    return { said: 'nothing was carried forward: one of the two branches is not in this clone', moved: false, conflicts: [] };
+  }
+
+  const ahead = gitLines(clone, ['rev-list', '--count', `${to}..${from}`]).join('').trim();
+  if (ahead === '' || ahead === '0') {
+    return { said: `nothing to carry forward: ${to} already has everything on ${from}`, moved: false, conflicts: [] };
+  }
+
+  const merged = mergeTree(clone, to, from);
+  if (merged.code !== 0) {
+    // git prints the tree, then an "Auto-merging"/conflict section. The paths
+    // are what a person needs; the rest is git talking to itself.
+    const conflicts = [
+      ...new Set(
+        merged.stdout
+          .split(/\r?\n/)
+          .map((l) => /^(?:CONFLICT|Auto-merging)[^)]*\)?\s*(.*)$/.exec(l.trim())?.[1] ?? '')
+          .filter((p) => p !== ''),
+      ),
+    ];
+    return {
+      said: `${ahead} commit(s) on ${from} did NOT carry forward: they conflict with ${to}`,
+      moved: false,
+      conflicts,
+    };
+  }
+
+  const tree = merged.stdout.split(/\r?\n/)[0]?.trim() ?? '';
+  const ours = revParse(clone, [to]);
+  const theirs = revParse(clone, [from]);
+  const commit = commitTree(clone, tree, [ours, theirs], `carry ${from} forward onto ${to}`);
+  if (commit.code !== 0 || commit.stdout.trim() === '') {
+    return { said: `could not commit the carried work: ${commit.stderr.trim()}`, moved: false, conflicts: [] };
+  }
+  const moved = updateRef(clone, `refs/heads/${to}`, commit.stdout.trim(), ours);
+  if (moved.code !== 0) {
+    return { said: `could not move ${to} onto the carried work: ${moved.stderr.trim()}`, moved: false, conflicts: [] };
+  }
+
+  // Pushing is a network write, not a working-tree one, so the main clone is
+  // the right place for it. A push that fails is reported and nothing else:
+  // the commits are safe on the local branch either way.
+  const pushed = push(clone, ['origin', to]);
+  return {
+    said:
+      pushed.code === 0
+        ? `carried ${ahead} commit(s) from ${from} onto ${to}, and pushed`
+        : `carried ${ahead} commit(s) from ${from} onto ${to}, but the push failed: ${pushed.stderr.trim()}`,
+    moved: true,
+    conflicts: [],
+  };
 }
 
 /**
@@ -541,10 +633,14 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     if (end !== '') {
       endFrom = 'user';
     } else if (before.mr === null || before.mr === '') {
-      // No outbound MR was ever opened for this round, so there is nothing
-      // that could have been delivered (branching.md §6.4).
-      end = 'abandoned';
-      endFrom = 'no mr was ever opened';
+      // No outbound MR was ever opened, so nothing was delivered — but calling
+      // that 'abandoned' was the single most expensive mistake in this command.
+      // 'abandoned' demanded a written reason, so the CHEAPEST and commonest
+      // move ("this branch has nothing on it, give me another") was the one
+      // that cost the most typing. Whether there is anything to explain is a
+      // question about COMMITS, not about merge requests, and it is answerable.
+      end = 'unused';
+      endFrom = 'no merge request was ever opened for it';
     } else {
       // A host that errors and a host that answers `unknown` mean the same
       // thing here — we cannot tell how the round ended — so both land in
@@ -563,24 +659,20 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
         end = 'abandoned';
         endFrom = `the host says ${before.mr} is closed`;
       } else if (state === 'open') {
-        throw new CommandError('unit_set', 'not_over', `this round is NOT OVER: ${before.mr} is still open on the forge. Ask 'user' first - should it be abandoned, or was replacing the branch a mistake? If it is to be abandoned, re-run with --end abandoned --reason '<why>'. Nothing was changed.`,
-          { exitCode: RC_ASK_USER },
-        );
+        // NOT A REFUSAL ANY MORE, AND THIS IS THE HEART OF IT. Rotating away
+        // from an open MR touches nothing a colleague can see: the MR stays
+        // open, the branch stays where it is, nothing is deleted or force
+        // pushed, and rotating back undoes it. What was needed was not
+        // permission but a loud line, which is below.
+        end = 'unknown';
+        endFrom = `${before.mr} was still open when the round was replaced`;
       } else {
-        throw new CommandError('unit_set', 'end_unknown', `cannot tell how this round ended: the forge could not be reached, or ${before.mr} no longer exists. Ask 'user' whether it was delivered or abandoned, then re-run with --end <delivered|abandoned> (and --reason for abandoned). Nothing was changed.`,
-          { exitCode: RC_ASK_USER },
-        );
+        end = 'unknown';
+        endFrom = `the forge could not say what became of ${before.mr}`;
       }
     }
 
-    // An abandoned round has to say why (branching.md §6.4). The reason for
-    // a normal rotation is obvious from context — it shipped, or feedback
-    // came in — and the reason for dropping something is exactly the one
-    // that gets forgotten.
-    if (end === 'abandoned' && !options.reason) {
-      throw CommandError.usage('unit_set', `--reason is required when a round is abandoned: log.md has to say why, because that is the one thing nobody remembers six months later. (${endFrom}.) Nothing was changed.`,
-      );
-    }
+
 
     const { branch, from: nameFrom, raw } = decideBranchName(
       'unit_set',
@@ -623,10 +715,27 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
     unit.rotate(end, branch, options.at ?? '');
 
+    // AFTER the rotation is recorded, never before. The branch exists and the
+    // history is correct at this point; carrying commits forward is a separate
+    // question whose failure must not undo a rotation that was right.
+    //
+    // It runs whenever the round being replaced still holds something the new
+    // branch lacks — which is normally nothing after a delivered round, since
+    // target already contains it, and is exactly the work worth saving after an
+    // abandoned or unknown one.
+    const carried = inheritRound(clone, before.branch, branch);
+    out(`yan unit set: ${carried.said}`);
+    if (carried.conflicts.length > 0) {
+      // Loud, and not fatal. The same conflict is waiting in a worktree for
+      // whoever picks it up, which is what a shift is for.
+      out(`yan unit set: conflicting: ${carried.conflicts.join(' ')}`);
+      out(`yan unit set: ${before.branch} still has that work - dispatch a shift to merge it into ${branch}, or leave it`);
+    }
+
     const line =
-      end === 'abandoned'
-        ? `${unitName}  abandoned ${before.branch} → ${branch} (based on ${base}; ${options.reason ?? ''})`
-        : `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`;
+      end === 'delivered'
+        ? `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`
+        : `${unitName}  ${end} ${before.branch} → ${branch} (${endFrom}${options.reason ? `; ${options.reason}` : ''}) — ${carried.said}`;
     try {
       new Log(task).append(line);
     } catch {
