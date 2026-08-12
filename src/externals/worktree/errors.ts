@@ -30,7 +30,7 @@ export class WorktreeError extends YanError {
   }
 
   /**
-   * The identity check refused a return. NOTHING WAS TOUCHED.
+   * The identity check refused a return. Nothing was touched.
    *
    * Exit 3 on purpose: an automatic retry has to tell "someone else holds this
    * tree now" apart from "the return failed", and that distinction is the whole

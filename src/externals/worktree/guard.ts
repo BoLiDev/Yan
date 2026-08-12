@@ -12,7 +12,7 @@ import { WorktreeError } from './errors.js';
  * question, but note that some caller must be able to: without a door at all, a
  * tree that comes back dirty strands its pool slot permanently.
  *
- * What it does NOT test is whether the work has LANDED. That is a stronger and
+ * What it does not test is whether the work has landed. That is a stronger and
  * different question, and it belongs to `yan shift done`.
  */
 export function assertReturnable(tree: string): void {
@@ -40,7 +40,7 @@ export function assertReturnable(tree: string): void {
 /**
  * Reset and clean a tree back to a reusable state.
  *
- * `-fd` and NEVER `-x`: `-x` would take the gitignored node_modules and build
+ * `-fd` and never `-x`: `-x` would take the gitignored node_modules and build
  * caches with it, turning every lease back into a cold install, and nothing
  * fails loudly when that happens. The flags are not spelled out here for that
  * reason — the clean goes through `util/git.ts`'s `cleanFd`, which hardcodes

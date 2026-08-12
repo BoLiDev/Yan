@@ -20,7 +20,7 @@ import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
  * `version`; lib-json's tests pass against util/json.ts."
  *
  * Every assertion below has a counterpart in the bash file, except the two
- * marked NEW, which cover the one thing the shell could not express: a value
+ * marked new, which cover the one thing the shell could not express: a value
  * that is not serialisable at all.
  */
 
@@ -56,7 +56,7 @@ describe('writeJson', () => {
 
   it('writes the temp file beside the target, not in TMPDIR', () => {
     // If the implementation used os.tmpdir() the rename could cross a
-    // filesystem and would no longer be atomic. Pointing TMPDIR at something
+    // filesystem and would no longer be atomic. Pointing tmpdir at something
     // that does not exist proves the template is anchored to the target's own
     // directory.
     const tmp = mkTempDir();

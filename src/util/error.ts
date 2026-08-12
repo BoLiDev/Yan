@@ -1,7 +1,7 @@
 /**
  * The base every error yan throws extends — and that nothing throws directly.
  *
- * It is ABSTRACT on purpose. A single concrete `YanError` would mean every
+ * It is abstract on purpose. A single concrete `YanError` would mean every
  * failure in the system arrives under one name, and a name that fits everything
  * describes nothing: a caller reading `catch (e: YanError)` learns only that
  * something went wrong somewhere. Each module declares its own subclass in its
@@ -11,11 +11,11 @@
  *
  * What the base is still for, and why it exists at all:
  *
- *   1. OURS VERSUS THEIRS. `isYanError(e)` is the boundary predicate. A Herdr or
+ *   1. Ours versus theirs. `isYanError(e)` is the boundary predicate. A Herdr or
  *      `gh` error object must never propagate to a caller, so there has to be
  *      one question separating a condition yan anticipated from a crash it did
  *      not.
- *   2. ONE EXIT MAPPING. `src/cli/shared/action.ts` turns any of these into a
+ *   2. One exit mapping. `src/cli/shared/action.ts` turns any of these into a
  *      process exit code. Without a shared base that would be one `instanceof`
  *      per module, forever out of date.
  *

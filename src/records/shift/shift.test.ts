@@ -10,7 +10,7 @@ import { Shift, ShiftError } from './index.js';
  * arrive in Phase 7, so nothing exercised it and nothing constrained its shape
  * — which is exactly how it ended up with 24 exports of which 3 were used.
  *
- * What is covered here is what exists TODAY: finding a shift, reading its
+ * What is covered here is what exists today: finding a shift, reading its
  * metadata once, and the append that a report is. The Phase 7 behaviours can
  * grow tests with their callers.
  */

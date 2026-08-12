@@ -11,7 +11,7 @@ import type { ShiftMeta } from './types.js';
 /**
  * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory.
  *
- * The state is IDENTITY — which task, which shift, where it lives. Nothing is
+ * The state is identity — which task, which shift, where it lives. Nothing is
  * cached: `run/` is written by the shift itself while yan is reading, so a
  * remembered answer would be a lie with a long half-life.
  *
@@ -54,7 +54,7 @@ export class Shift {
    * True while `run/` still exists.
    *
    * `run/` is the only throwaway layer, and clocking out deletes it whole — so
-   * its presence IS the fact, and nothing mirrors it into a field that could
+   * its presence is the fact, and nothing mirrors it into a field that could
    * then disagree.
    */
   public isLive(): boolean {
@@ -88,7 +88,7 @@ export class Shift {
   /**
    * Find an existing shift by id.
    *
-   * Derived by scanning, never read from an index: `tasks/*​/shifts/<sid>` IS
+   * Derived by scanning, never read from an index: `tasks/*​/shifts/<sid>` is
    * the registry, so there is no second list to fall out of step with it.
    * `$YAN_TASK` narrows the search when it is set, which is the normal case
    * because a yan handles one task.
@@ -157,7 +157,7 @@ export class Shift {
   }
 
   /**
-   * Find the CALLING shift's own directory.
+   * Find the calling shift's own directory.
    *
    * `yan report` takes no <sid>: a shift reports about itself, and asking it to
    * repeat its own id is one more thing to get wrong. So the identity comes

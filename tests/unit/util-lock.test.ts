@@ -9,7 +9,7 @@ import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
 /**
  * The port of `tests/unit/lib-lock.test.sh`.
  *
- * plan/conventions.md §4: the primitive is `fs.open(path, 'wx')`, not the MVP's
+ * plan/conventions.md §4: the primitive is `fs.open(path, 'wx')`, not the mvp's
  * mkdir scheme and not a second invention. Two callers, and they are named in
  * `src/util/lock.ts`.
  */

@@ -8,7 +8,7 @@ import { Log } from './index.js';
  * The port of `tests/unit/lib-log.test.sh`.
  *
  * Phase 1 Trace: "the log cannot rewrite an existing line through its API."
- * That is a claim about the SURFACE, so it is asserted about the surface as
+ * That is a claim about the surface, so it is asserted about the surface as
  * well as about the behaviour — a behavioural test can only cover the calls
  * someone thought to make.
  */

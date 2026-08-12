@@ -15,7 +15,7 @@ import { repoRoot } from '../helpers/fixtures.js';
  * What is not worth having is a bash framework to run it: three files, one
  * spawn.
  *
- * It SKIPS LOUDLY when shellcheck is absent rather than passing quietly, which
+ * It skips loudly when shellcheck is absent rather than passing quietly, which
  * is the same rule the Herdr e2e test follows (plan/conventions.md §5).
  */
 

@@ -20,15 +20,13 @@ import type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
  * It reports facts and decides nothing. `get` hands out a tree or says the pool
  * is full; what that means is the caller's problem.
  *
- * ---------------------------------------------------------------------------
- * WHY `get` TAKES A LOCK, WHEN AN ATOMIC CREATE LOOKS LIKE ENOUGH
- * ---------------------------------------------------------------------------
+ * Why `get` takes a lock, when an atomic create looks like enough.
  *
  * Slot allocation alone needs no lock: `fs.open(leaseFile, 'wx')` is an atomic
  * exclusive create on both platforms, so two racers cannot claim one slot.
  *
  * It is still not sufficient, because the slot is not the only shared thing.
- * `git worktree add` writes the SHARED clone's `.git/config` to record the
+ * `git worktree add` writes the shared clone's `.git/config` to record the
  * upstream branch, and two of those against one repository collide on git's own
  * config lock:
  *
@@ -97,14 +95,14 @@ export class WorktreePool {
   /**
    * Reset and clean a tree, then release its lease. Returns the path.
    *
-   * `expect` is compared BEFORE anything destructive happens — no reset, no
+   * `expect` is compared before anything destructive happens — no reset, no
    * clean, no lease cleared — which is what makes an automatic retry safe. An
    * absent field is not compared.
    *
-   * `expect.force` skips the orphan-commit guard and NOTHING ELSE. The identity
+   * `expect.force` skips the orphan-commit guard and nothing else. The identity
    * check still runs: a forced return that lands on the wrong slot is the one
    * mistake force must not make, because the consent it carries was to discard
-   * THIS tree's changes, not somebody else's.
+   * this tree's changes, not somebody else's.
    */
   public return(target: string, expect: ReturnOptions = {}): string {
     if (!target) {

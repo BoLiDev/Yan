@@ -9,21 +9,19 @@ import { currentBranch, isClean } from '../util/git.js';
 import { existsSync } from 'node:fs';
 
 /**
- * `yan state <sid>` — what is true about a shift RIGHT NOW.
+ * `yan state <sid>` — what is true about a shift right now.
  *
- * ---------------------------------------------------------------------------
- * THIS COMMAND DOES NOT READ THE LAST LINE OF run/status. NOT EVER.
- * ---------------------------------------------------------------------------
+ * This command does not read the last line of run/status. Not ever.
  *
  * agents.md §5.4: *every line in run/status is an event, not the current
  * state.* A shift that reported `done` and then died has `done` as its last
  * line; so has a shift that reported `done` an hour ago and is still waiting
  * for its merge request to be reviewed; so has a shift whose work has since
- * landed. The last line is the most recent thing that HAPPENED, and reading it
+ * landed. The last line is the most recent thing that happened, and reading it
  * as the state is the single mistake this command exists to prevent. The record
  * offers no way to do it: `Shift` has `eventCount()` and no `last()`.
  *
- * The state is DERIVED, every time, from the live sources: `run/meta.json` plus
+ * The state is derived, every time, from the live sources: `run/meta.json` plus
  * the terminal, git and the host.
  *
  * The five verdicts, and the order they are decided in:
@@ -42,7 +40,7 @@ import { existsSync } from 'node:fs';
  *   unknown      nothing above could be established. Said out loud rather than
  *                rounded up to something more comfortable.
  *
- * `unknown` IS NOT `dead`, and this command must not round it that way
+ * `unknown` is not `dead`, and this command must not round it that way
  * (orchestration.md §6). `unknown` means yan could not find out, and clocking a
  * shift out on "could not find out" is how work gets deleted. The two-call
  * derivation that separates them lives in the seam; nothing here re-implements

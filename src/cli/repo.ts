@@ -15,7 +15,7 @@ import { isTty } from './shared/resolve.js';
  * `yan repo add | link | ls` — which repositories this context knows about,
  * and where they are on this machine (v3 td repos.md).
  *
- * THIS COMMAND IS THE ONLY WRITER OF THE REGISTRY, both halves. Nothing else
+ * This command is the only writer of the registry, both halves. Nothing else
  * may create, edit or delete `repos.json` or `.local/repos.json`: one owner per
  * piece of information (design principle 2).
  *
@@ -110,7 +110,7 @@ function writeLocal(name: string, dir: string): void {
 /**
  * A name that is taken by a different repository.
  *
- * Checked BEFORE anything is cloned or written, in every one of the three
+ * Checked before anything is cloned or written, in every one of the three
  * forms. The failure it prevents is a person typing a name they have used
  * before, waiting out a clone, and then being told it was never going to work.
  */
@@ -159,11 +159,11 @@ export interface Candidate {
 /**
  * The children of `dir` that are git clones, and what is wrong with each.
  *
- * ONE LEVEL, NOT RECURSIVE. Recursion means walking into `node_modules` and
+ * One level, not recursive. Recursion means walking into `node_modules` and
  * every vendored checkout to find things nobody wants; `cd` to the right
  * parent first costs nothing.
  *
- * A clone with no `origin` is LISTED AND DISABLED rather than skipped: a
+ * A clone with no `origin` is listed and disabled rather than skipped: a
  * repository with no remote cannot be delivered from, and silently leaving it
  * out looks like a bug in the scan.
  */
@@ -204,7 +204,7 @@ export function scan(dir: string): Candidate[] {
 async function addByScan(dir: string, options: AddOptions): Promise<void> {
   const { mode, pool } = checkFlags(options);
 
-  // No TTY wins over everything else, and it is checked FIRST — the same
+  // No TTY wins over everything else, and it is checked first — the same
   // ordering `resolve()` uses, and for the same reason: a script, a hook or an
   // agent that reached a prompt would wait forever with nobody to answer it,
   // so the refusal has to be about the missing argument rather than about
@@ -278,7 +278,7 @@ function looksLikeUrl(target: string): boolean {
 }
 
 /**
- * A bare repository on this disk is a CLONE SOURCE, not a clone.
+ * A bare repository on this disk is a clone source, not a clone.
  *
  * `git clone /srv/git/thing.git` is an ordinary thing to do, and the argument
  * is a directory that exists — so without this the path branch would claim it

@@ -32,7 +32,7 @@ export interface StartedAgent {
 
 export interface ListedAgent {
   /**
-   * The name `agent start` was given. EMPTY for an agent `user` started by
+   * The name `agent start` was given. empty for an agent `user` started by
    * hand — Herdr leaves `name` null unless some automation set it — so this
    * cannot be used to find an agent, only to recognise one yan started.
    */

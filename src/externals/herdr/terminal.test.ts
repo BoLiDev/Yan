@@ -10,8 +10,8 @@ import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
  * The assertions of `tests/unit/lib-term-contract.test.sh`, ported to vitest and
- * run against the Herdr seam (terminal.md §8: not the same FILE, the same
- * CONTRACT). The bash original ran against tmux beside this one for five
+ * run against the Herdr seam (terminal.md §8: not the same file, the same
+ * contract). The bash original ran against tmux beside this one for five
  * phases, which is what let the two backends be compared rather than swapped on
  * faith; Phase 9 deleted it with the backend it tested, and this is what is
  * left of it.
@@ -27,7 +27,7 @@ const moduleDir = join(repoRoot, 'src', 'externals', 'herdr');
 /**
  * The seam with its comments stripped.
  *
- * The rules below are about what the CODE does, and the comments are where the
+ * The rules below are about what the code does, and the comments are where the
  * reasons live — `winpty` and `agent focus` are both named in prose precisely
  * so the next person does not reintroduce them. Grepping the raw file would
  * make writing that reason down a test failure, which is exactly backwards.
@@ -45,7 +45,7 @@ function seamSource(): string {
 }
 
 describe('ids are used, nothing is located by label alone', () => {
-  // Herdr does enforce that an agent NAME is unique among LIVE agents, which
+  // Herdr does enforce that an agent name is unique among live agents, which
   // tmux never promised - but a name is cleared when the agent exits, so it
   // cannot identify a shift that has died, and identifying dead shifts is
   // exactly what supervision does.
@@ -147,7 +147,7 @@ describe('yan never calls agent focus on a shift pane', () => {
   const source = seamSource();
 
   it('the string is absent from the seam', () => {
-    // conventions §5, regression 5. Focusing marks the tab SEEN, which turns
+    // conventions §5, regression 5. Focusing marks the tab seen, which turns
     // the `done` yan was about to be woken by into an `idle` it will ignore
     // (supervision.md §3). This is the assertion that keeps it out.
     expect(source).not.toMatch(/'agent',\s*'focus'/);

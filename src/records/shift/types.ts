@@ -1,7 +1,7 @@
 /**
  * `run/meta.json`, read as one typed value.
  *
- * EVERY FIELD IS OPTIONAL, which is deliberate rather than lax. This file is
+ * Every field is optional, which is deliberate rather than lax. This file is
  * written by the shift while yan is reading it, so a missing file, a missing
  * key or a half-written one must cost a caller one fact and never a crash.
  * "I do not know" is a legal answer for all of them.
@@ -13,7 +13,7 @@ export interface ShiftMeta {
   readonly agent?: string;
   /**
    * The terminal id the seam printed — a pane id for preference, being the more
-   * precise of the two. NEVER a label: a label can be renamed, and is cleared
+   * precise of the two. never a label: a label can be renamed, and is cleared
    * outright when an agent exits, which is when yan most needs to identify it.
    */
   readonly agentId?: string;

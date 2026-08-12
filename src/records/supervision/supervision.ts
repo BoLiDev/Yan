@@ -10,8 +10,8 @@ import { beaconAge, readBeacon, writeBeacon, type WatcherState } from './beacon.
  * `tasks/<id>/run/` — the four files supervision keeps, and the predicates that
  * read them.
  *
- * THIS IS NOT A LAYER OVER THE WAIT SOURCES. Nothing here polls and nothing
- * here decides; the sources live in `yan wait`. What is here is the FORMAT, so
+ * This is not a layer over the wait sources. Nothing here polls and nothing
+ * here decides; the sources live in `yan wait`. What is here is the format, so
  * that `yan wait`, the Stop autoarm and the turn-end guard cannot drift about
  * where the files are or about what "the watcher is healthy" means. Three
  * private copies of that predicate is exactly how a guard and a watcher end up
@@ -25,7 +25,7 @@ import { beaconAge, readBeacon, writeBeacon, type WatcherState } from './beacon.
  *   run/guard-failures  the turn-end guard's own count, because Claude's
  *                       `stop_hook_active` cannot be trusted as a one-shot
  *
- * All four belong to the TASK, because supervision is per-yan and a yan is
+ * All four belong to the task, because supervision is per-yan and a yan is
  * per-task — which is also where `yan drain` already looks.
  */
 
@@ -86,7 +86,7 @@ export class Supervision {
     if (claim(this.lock, this.identity())) return true;
     // A lock left behind by a process that is gone is reclaimed, not obeyed: a
     // machine that lost power mid-watch should not need a manual `rm`.
-    // `isStale` only ever says yes about a lock FILE whose owner is gone, so
+    // `isStale` only ever says yes about a lock file whose owner is gone, so
     // this cannot delete a directory-shaped lock somebody is standing in.
     if (!isStale(this.lock)) return false;
     release(this.lock);
@@ -98,7 +98,7 @@ export class Supervision {
   }
 
   /**
-   * The lock exists, its owner is alive, and it is a WATCHER's lock.
+   * The lock exists, its owner is alive, and it is a watcher's lock.
    *
    * Deliberately says nothing about the beacon. This is the guard's 800 ms
    * question — "was the lock taken while I waited?" — and a watcher that has
@@ -135,7 +135,7 @@ export class Supervision {
    *   fresh beacon + no/dead/foreign lock  not healthy (a leftover file)
    *
    * A watcher whose subscription has dropped and is being re-established is
-   * HEALTHY. It is still going round the loop, and its liveness poll never went
+   * healthy. It is still going round the loop, and its liveness poll never went
    * through the socket in the first place; blocking a turn for the seconds it
    * takes to reconnect would be the guard inventing a fault (beacon.ts).
    */
@@ -173,7 +173,7 @@ export class Supervision {
   }
 
   /**
-   * One reason, APPENDED.
+   * One reason, appended.
    *
    * Appended rather than overwritten: two shifts can become interesting between
    * one drain and the next, and the second must not erase the first. `yan drain`
@@ -251,7 +251,7 @@ export class Supervision {
   /**
    * How many shifts are still being supervised.
    *
-   * This IS "supervision responsibility": the guard's primary question on
+   * This is "supervision responsibility": the guard's primary question on
    * Codex, and half of it on Claude.
    */
   public liveCount(): number {
@@ -267,7 +267,7 @@ export class Supervision {
   }
 
   /**
-   * The identity of a DIRECTORY-shaped lock: a directory holding `pid` and
+   * The identity of a directory-shaped lock: a directory holding `pid` and
    * `identity` files, rather than the single file `util/lock.ts` writes.
    *
    * Read, never written. Nothing in this repository takes a lock this way any

@@ -16,7 +16,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixt
  * Nothing here sleeps for a checkpoint. Every interval is injected, the
  * terminal is a fake that answers from a map, and the event stream is a fake
  * that can be made to drop mid-watch — which is how the reconnect path is
- * tested by ENDING THE CONNECTION under it rather than by hoping.
+ * tested by ending the connection under it rather than by hoping.
  */
 
 afterAll(cleanupTempDirs);
@@ -116,7 +116,7 @@ describe('the sources are enumerable, and the fourth is still refused', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('names the pane-content hash nowhere', () => {
-    // supervision.md §1 row 3: the hash is DELETED. Herdr observes the
+    // supervision.md §1 row 3: the hash is deleted. Herdr observes the
     // condition it stood in for, from outside.
     expect(WAIT_SOURCES).toEqual(['signal', 'agent-status', 'agent-alive']);
     expect(source).not.toContain('cksum');
@@ -253,7 +253,7 @@ describe('source 3: the liveness poll that has no push channel', () => {
     expect(first.code).toBe(0);
     expect(first.reason).toContain('died: s1');
 
-    // A LEVEL, not an edge: the agent is still dead. With the reason still
+    // A level, not an edge: the agent is still dead. With the reason still
     // sitting undrained, a rearmed watcher must not wake the model again.
     const second = await watch({
       task: 't1',
@@ -514,7 +514,7 @@ describe('a pane herdr has never heard of', () => {
 
 describe('a shift whose recorded pane id Herdr would not know', () => {
   it('does not cost the other shifts their subscription', async () => {
-    // A subscription naming one unknown pane is refused WHOLE, so it is left
+    // A subscription naming one unknown pane is refused whole, so it is left
     // out — that shift keeps run/signal and the poll, which is what a shift
     // with no usable pane had all along. `%7` here is a tmux id, the shape
     // Phase 9 deleted the producer of; what still produces one is run/meta.json

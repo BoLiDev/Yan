@@ -4,10 +4,10 @@ import { TerminalError } from './errors.js';
  * Herdr's identifiers, and the guards that keep a label from being passed where
  * one is required.
  *
- * `w1`, or `w1:p1`. OPAQUE and stable; never reused after close.
+ * `w1`, or `w1:p1`. opaque and stable; never reused after close.
  *
  * Opaque is meant literally, and it is easy to get wrong, because `w1` and
- * `w1:p1` are only the SHAPE: after enough workspaces Herdr hands out `wB` and
+ * `w1:p1` are only the shape: after enough workspaces Herdr hands out `wB` and
  * `wB:p2`. So these guards check the part a caller could confuse with a label —
  * a `w…` prefix, a `:p…` suffix — and nothing about what is inside. Never parse
  * an id, never sort by one, never generate one.
@@ -20,13 +20,13 @@ const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 
 /**
  * Could Herdr have issued this id? A predicate rather than a guard, because
- * callers have to be able to ask BEFORE subscribing.
+ * callers have to be able to ask before subscribing.
  *
- * A SUBSCRIPTION NAMING ONE PANE HERDR DOES NOT KNOW IS REFUSED WHOLE, and the
+ * A subscription naming one pane herdr does not know is refused whole, and the
  * connection closes with it — so a single bad id costs every other shift its
  * subscription. That is too expensive to leave to a caller's judgement.
  *
- * The ids being checked come off DISK, not from Herdr. `run/meta.json` is
+ * The ids being checked come off disk, not from Herdr. `run/meta.json` is
  * long-lived and nothing migrates it, so a pane id in a task directory is
  * whatever the yan that wrote it believed — including the empty string, which
  * `shift new` writes for the window between recording a dispatch and the agent

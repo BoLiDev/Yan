@@ -18,7 +18,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  * `tests/integration/yan-shift-done-squash.test.sh`.
  *
  * Phase 7 Trace: "`shift done` order: MR merged → `outcome` → `rm -rf run/` →
- * return the tree → THEN delete the remote branch." It is the kind of
+ * return the tree → then delete the remote branch." It is the kind of
  * regression that never fails loudly: get it backwards and everything still
  * looks like it worked, right up until a squash-merged shift strands a pool
  * slot.
@@ -287,7 +287,7 @@ describe('a teardown that stopped at the tree return can be finished', () => {
 
     const r = run('s3');
     expect(r.code, r.message).toBe(0);
-    // The host is NOT asked again: that step already ran in the attempt that
+    // The host is not asked again: that step already ran in the attempt that
     // stopped, and its answer went with run/.
     expect(calls.some((c) => c.startsWith('mr_state'))).toBe(false);
     expect(calls.some((c) => c.startsWith('pool_return'))).toBe(true);

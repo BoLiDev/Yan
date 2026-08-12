@@ -3,7 +3,7 @@ import { readJsonIfPresent } from '../../util/json.js';
 import type { ShiftMeta } from './types.js';
 
 /**
- * Reading `run/meta.json`, ONCE, into a typed value.
+ * Reading `run/meta.json`, once, into a typed value.
  *
  * The shape this replaces was six one-line accessors over a shared `get(...keys)`
  * — `unit`, `branch`, `tree`, `agent`, `agentId`, `mr`. That was not only six

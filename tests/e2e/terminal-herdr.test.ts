@@ -5,7 +5,7 @@ import * as term from '../../src/externals/herdr/index.js';
 import { repoRoot } from '../helpers/fixtures.js';
 
 /**
- * The seven functions against a REAL Herdr session.
+ * The seven functions against a real Herdr session.
  *
  * Phase 4 Trace: "term_container_create / term_agent_start / term_list /
  * term_agent_close round-trip against a real Herdr session", and
@@ -14,12 +14,12 @@ import { repoRoot } from '../helpers/fixtures.js';
  *
  * conventions §6, and they are not negotiable here:
  *   - never `herdr server stop`;
- *   - never run bare `herdr` (it launches or attaches the TUI and hangs a
+ *   - never run bare `herdr` (it launches or attaches the tui and hangs a
  *     non-interactive caller);
- *   - ONLY CLOSE WHAT YOU CREATED. This test makes its own workspace and closes
+ *   - only close what you created. This test makes its own workspace and closes
  *     that one, by id, at the end. `user`'s panes are never touched.
  *
- * It skips LOUDLY when Herdr is absent — never silently passing.
+ * It skips loudly when Herdr is absent — never silently passing.
  */
 
 function herdrPresent(): boolean {
@@ -35,7 +35,7 @@ if (!present) {
   );
 }
 
-/** Only ever used to tear down the workspace THIS test created. */
+/** Only ever used to tear down the workspace this test created. */
 let created: string | undefined;
 
 afterAll(() => {
@@ -56,7 +56,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
 
     // 2/7 — two steps: split with cwd and env, then start the agent into it.
     // It returns only once Herdr reports the agent interactive-ready, which is
-    // what deleted the MVP's send-keys-and-hope start confirmation.
+    // what deleted the mvp's send-keys-and-hope start confirmation.
     const started = new Terminal().startAgent({
       container: container.workspace,
       name: 'yane2e',

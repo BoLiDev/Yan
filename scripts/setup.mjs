@@ -41,7 +41,7 @@ step('npm run build', () => npm(['run', 'build']));
 step('npm link', () => npm(['link']));
 
 // The config used to be copied into conf/ here. It is not a machine-level file
-// any more: `agents.*` and `remote_git.*` follow the CONTEXT — GitHub at home,
+// any more: `agents.*` and `remote_git.*` follow the context — GitHub at home,
 // an internal GitLab at work — so they live in the vault, and `yan vault init`
 // lays one down from the same sample (docs/v3/td/vault.md §2).
 //

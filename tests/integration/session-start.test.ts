@@ -253,7 +253,7 @@ describe('a half-written meta.json is one lost fact, never a crash', () => {
  * The mechanism is deliberately the whole of it — session-start is the
  * SessionStart hook, so what it prints is what the session starts knowing.
  * There is nothing to run and nothing to register, which is why these tests
- * are about READING: which files, in which order, and what happens when there
+ * are about reading: which files, in which order, and what happens when there
  * are none.
  */
 describe('skills reach the session', () => {
@@ -294,7 +294,7 @@ describe('skills reach the session', () => {
     expect(r.stdout).toContain('skills/build.md');
     expect(r.stdout).toContain('Checking the build');
     expect(r.stdout).toContain('you may run npm test yourself');
-    // AN INDEX, NOT THE TEXT. session-start is the SessionStart hook, so
+    // An index, not the text. session-start is the SessionStart hook, so
     // anything printed here is a standing cost on the context for the whole
     // session — the body is read when it turns out to matter.
     expect(r.stdout, 'the body is not carried').not.toContain('work goes to a shift');

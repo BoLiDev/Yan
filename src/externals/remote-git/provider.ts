@@ -41,7 +41,7 @@ export interface Provider {
     deleteSource: boolean,
   ): string[];
 
-  /** Both mappers are PURE: no network, no configuration, no module state. */
+  /** Both mappers are pure: no network, no configuration, no module state. */
   mapMrState(payload: string): MrState;
   mapCiState(payload: string): CiState;
 }

@@ -2,7 +2,7 @@
  * The vocabulary a caller of this module sees. It never learns whether the
  * repository lives on GitHub or on GitLab.
  *
- * RETURN VALUES ARE A CLOSED SET DEFINED BY YAN (delivery.md §8.4). Every path
+ * Return values are a closed set defined by yan (delivery.md §8.4). Every path
  * out of `mrState` goes through `gateMrState` and every path out of `ciState`
  * through `gateCiState`, so a fifth value cannot slip in even by accident — and
  * now the compiler says so too (plan/conventions.md §2).

@@ -10,40 +10,35 @@ import { Task } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 
 /**
- * `yan mr` — open the OUTBOUND merge request, integration branch → target
- * (delivery.md §8.2, boundaries.md §9.2, branching.md §6.2/§6.4).
+ * `yan mr` — open the outbound merge request, integration branch → target.
  *
- * ---------------------------------------------------------------------------
- * WHY THIS IS A SEPARATE COMMAND FROM `yan land`
- * ---------------------------------------------------------------------------
+ * Why this is a separate command from `yan land`.
  *
- * Authority, and nothing else. boundaries.md §9.2:
+ * Authority, and nothing else:
  *
  *   open the outbound MR from the integration branch to `target`
- *                                        yan, ON ITS OWN, because opening an
+ *                                        yan, on its own, because opening an
  *                                        MR is reversible
- *   merge the outbound MR into `target`  `user` HAS TO ASK FOR IT
+ *   merge the outbound MR into `target`  `user` has to ask for it
  *
  * Two rows of that table, two files. Splitting them is the whole point: `yan`
  * may run this one without being told, because an MR that should not exist can
  * be closed and nothing outside `user`'s own branches has changed. It may not
  * run `yan land`, because that writes into `target`, which colleagues own.
  *
- * The two levels of review (branching.md §6.2) are why this MR matters: shift
- * branches merge into the integration branch as internal checkpoints nobody
- * outside sees, and THIS is the single MR colleagues review. Its size is the
- * size of the unit.
+ * There are two levels of review, which is why this MR matters: shift branches
+ * merge into the integration branch as internal checkpoints nobody outside
+ * sees, and this is the single merge request colleagues actually review. Its
+ * size is the size of the unit.
  *
- * ---------------------------------------------------------------------------
- * WHAT IT DOES NOT DO
- * ---------------------------------------------------------------------------
+ * What it does not do.
  *
  *   * it does not push. Opening a merge request and deciding that a branch is
  *     ready to be published are two different judgements, and one command that
  *     did both would make the second one invisible. If the branch is not on the
  *     remote yet, this says so and stops;
  *   * it does not comment on anything, and it never mentions anyone
- *     (boundaries.md §9.2: that interrupts colleagues, so `user` has to ask);
+ *     — that interrupts colleagues, so `user` has to ask for it;
  *   * it does not know which host this machine uses. Everything remote goes
  *     through `externals/remote-git`, which is the only module allowed to know.
  *
@@ -92,22 +87,22 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   }
   const data = unit.read();
 
-  // The four refusals. `mode` decides whether an MR is the deliverable at all
-  // (delivery.md §8.2): a `branch` unit delivers a clean local branch and a
-  // `scout` delivers a report. Neither opens a merge request.
+  // The four refusals. `mode` decides whether an MR is the deliverable at all:
+  // a `branch` unit delivers a clean local branch, a `scout` delivers a report,
+  // and neither opens a merge request.
   if (data.mode === 'scout') {
-    throw CommandError.usage('mr', `unit ${unitName} is a scout: it delivers a report and artifacts, and never pushes or opens an MR (delivery.md §8.2). If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
+    throw CommandError.usage('mr', `unit ${unitName} is a scout: it delivers a report and artifacts, and never pushes or opens an MR. If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
     );
   }
   if (data.mode === 'branch') {
-    throw CommandError.usage('mr', `unit ${unitName} is mode 'branch': its deliverable is a clean local branch and it does not open an MR (delivery.md §8.2). If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
+    throw CommandError.usage('mr', `unit ${unitName} is mode 'branch': its deliverable is a clean local branch and it does not open an MR. If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
     );
   }
   if (data.mode !== 'mr') {
     throw CommandError.usage('mr', `unit ${unitName} has an unusable mode '${String(data.mode)}'`);
   }
   if (data.mr !== null && data.mr !== '') {
-    throw CommandError.usage('mr', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR (branching.md §6.4) - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
+    throw CommandError.usage('mr', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
     );
   }
   if (data.branch === '') {
@@ -115,7 +110,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     );
   }
   if (data.target === '') {
-    throw new CommandError('mr', 'no_target', `unit ${unitName} has no target recorded, and yan never guesses one (branching.md §6.4)`,
+    throw new CommandError('mr', 'no_target', `unit ${unitName} has no target recorded, and yan never guesses one`,
     );
   }
   if (data.branch === data.target) {
@@ -206,7 +201,7 @@ usage: yan mr --task <id> --unit <name> [--title <text>]
 Opens the outbound merge request for one unit: its integration branch into its
 target. The URL is recorded in unit.mr.
 
-\`yan\` may do this on its own: opening an MR is reversible (boundaries.md §9.2).
+\`yan\` may do this on its own: opening an MR is reversible.
 Merging it into target is \`yan land\`, and \`user\` has to ask for that.`,
   )
   .action(

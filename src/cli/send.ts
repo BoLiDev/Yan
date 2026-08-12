@@ -13,19 +13,17 @@ import { Shift } from '../records/shift/index.js';
  * agent's prompt is how the terminal ends up with half a paragraph in it and
  * the agent with the other half.
  *
- * ---------------------------------------------------------------------------
- * THE TWO-STEP IS GONE, AND ITS GUARD IS REPLACED
- * ---------------------------------------------------------------------------
+ * Why one call rather than two.
  *
- * The MVP typed the text and pressed Enter as two retryable calls, because tmux
- * `send-keys` could not do both atomically and agent CLIs routinely swallow the
- * first Enter while they are still painting their input box. Herdr's
- * `agent prompt` submits text and Enter in one call, honouring the pane's live
- * bracketed-paste mode, so the split has nothing left to do and `--enter` /
+ * Typing the text and pressing Enter separately is the obvious shape, and it is
+ * wrong here: agent CLIs routinely swallow the first Enter while they are still
+ * painting their input box, so the two-call version needs a retry and a flag to
+ * drive it. Herdr's `agent prompt` submits text and Enter together, honouring
+ * the pane's live bracketed-paste mode, so there is nothing to retry and `--enter` /
  * `--no-enter` go with it (orchestration.md §5).
  *
  * What replaces it is a different guard, and it is the one that now matters:
- * NOTHING IS SENT TO A PANE WITHOUT A LIVE AGENT. A prompt to a pane whose
+ * Nothing is sent to a pane without a live agent. A prompt to a pane whose
  * agent has died is typed into whatever shell is there, which then tries to run
  * it as a command (evidence §11.7). The seam refuses; this command reports it.
  * A dead shift is a `died:` wake, not a retry.
@@ -102,7 +100,7 @@ usage: yan send <sid> "<line>" [--task <id>]
   one short line; anything long goes in a file and only the path is sent.
 
 Herdr's \`agent prompt\` submits the text and the Enter together, so there is no
---enter / --no-enter to retry: the split the MVP needed was a tmux limitation.
+--enter / --no-enter to retry, and no first Enter for the agent to swallow.
 A pane with no live agent is refused rather than typed into.`,
   )
   .action(

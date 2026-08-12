@@ -42,7 +42,7 @@ export function normalizePath(input: string): string {
   // Upper-case the drive letter so `c:/x` and `C:/x` compare equal.
   p = p.replace(/^([a-zA-Z]):/, (_m, d: string) => `${d.toUpperCase()}:`);
 
-  // Collapse duplicate separators, but keep a leading `//` (UNC share).
+  // Collapse duplicate separators, but keep a leading `//` (unc share).
   const unc = p.startsWith('//');
   p = p.replace(/\/{2,}/g, '/');
   if (unc) p = `/${p}`;

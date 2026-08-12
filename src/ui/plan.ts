@@ -2,23 +2,20 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 /**
- * Everything the prompts work out BEFORE they ask anything, and everything they
- * assemble AFTER the last answer (cli-ux.md §6, td cli-ux.md §3 and §5).
+ * Everything the prompts work out before they ask anything, and everything they
+ * assemble after the last answer (cli-ux.md §6, td cli-ux.md §3 and §5).
  *
  * Not one line of this module prompts, spawns, or writes. It is pure on
  * purpose: the interesting parts of the soft path — which packages a monorepo
  * offers, and how selections become units — are then testable without a
  * terminal, which is the one thing a test cannot conjure up.
  *
- * The rule it keeps is unchanged from the MVP's `ui/lib/plan.mjs`, which it
- * replaces: nothing here invents a `target`, nothing here writes `task.json`,
+ * The rule: nothing here invents a `target`, nothing here writes `task.json`,
  * nothing here decides. It produces a list of choices.
  *
- * What HAS gone is the argv assembly. The MVP's soft path ended by running
- * `yan <cmd>` with a full set of flags, because it was a separate Node island
- * outside the shell. Commander and `resolve()` are that join now (cli-ux.md
- * §4): the answers go back into the action handler that asked for them, so
- * there is no second process and no command line to build.
+ * It also assembles no command line. The answers go back into the action
+ * handler that asked for them, so there is no second process and no argv to
+ * build — which is what keeps this file testable without a terminal.
  */
 
 export interface RegisteredRepo {
@@ -101,7 +98,7 @@ export interface Monorepo {
 /**
  * Best-effort monorepo detection (cli-ux.md §5).
  *
- * NEVER AUTHORITATIVE: it only decides which list to show, and "the whole
+ * Never authoritative: it only decides which list to show, and "the whole
  * repository" is always one of the choices, so a wrong guess costs a keystroke.
  */
 export function detectMonorepo(repoDir: string): Monorepo {
@@ -154,7 +151,7 @@ export function detectMonorepo(repoDir: string): Monorepo {
 }
 
 /**
- * The whole repository is the EMPTY scope, not `"."`.
+ * The whole repository is the empty scope, not `"."`.
  *
  * `scope` is a list of path prefixes, and the prefix that matches every path is
  * no prefix at all, so an empty scope means the unit restricts nothing.
@@ -170,7 +167,7 @@ export interface Choice {
 /**
  * The scope menu for one repository.
  *
- * THE ESCAPE IS ALWAYS THERE: cli-ux.md §5 accepts a noisy list only as long as
+ * The escape is always there: cli-ux.md §5 accepts a noisy list only as long as
  * "the whole repository" remains one of the choices.
  */
 export function scopeChoices(detection: Monorepo): Choice[] {

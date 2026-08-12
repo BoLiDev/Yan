@@ -19,7 +19,7 @@ import { YanError, type YanErrorOptions } from './error.js';
  *
  * Three invariants:
  *
- *   1. every write goes through a temporary file in the SAME directory as the
+ *   1. every write goes through a temporary file in the same directory as the
  *      target and is then renamed into place, so the rename stays inside one
  *      filesystem and a reader never sees a half-written file;
  *   2. every object written carries a `version` field, the one hook left for a

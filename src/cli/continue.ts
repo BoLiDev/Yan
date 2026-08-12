@@ -16,64 +16,48 @@ import { yanHome } from '../util/home.js';
 import { claim, isStale, owner, release } from '../util/lock.js';
 
 /**
- * `yan continue --task <id>` — the enter step, and the only one (cli-ux.md §3).
+ * `yan continue --task <id>` — the enter step, and the only one.
  *
- * ---------------------------------------------------------------------------
- * YAN JOINS, IT DOES NOT HOST
- * ---------------------------------------------------------------------------
+ * Yan joins; it does not host.
  *
- * The MVP's enter step created a terminal container and put `user` inside it.
- * Under tmux that was right — nothing else was going to make the session. Under
- * Herdr it is backwards: Herdr *is* the multiplexer, `user` is already standing
- * in it, and a tool that launches its own multiplexer to hold its own session
- * is insisting on its own furniture in someone else's house.
+ * This command starts the main agent in the pane it was typed in, as a child
+ * process sharing this process's stdin, stdout and stderr — which are the pane.
+ * Nothing is created and nothing is focused.
  *
- * So the container half is gone. This command starts the main agent IN THE PANE
- * IT WAS TYPED IN, as a child process with this process's stdin, stdout and
- * stderr — which are the pane. Nothing is created and nothing is focused.
+ * Creating a container to hold the agent is the tempting alternative and it is
+ * backwards: Herdr *is* the multiplexer and `user` is already standing in it,
+ * so a second one is a tool insisting on its own furniture in someone else's
+ * house. There is likewise no "create or join" step — we are already inside.
  *
- * The MVP's third verb went with it. When there is no session of our own to
- * join, "create or join the container" is not a step any more — we are already
- * inside — so the word has left the vocabulary entirely, along with the three
- * `tmux` calls that implemented it. They have no replacement.
+ * One yan per task, and what answers it.
  *
- * ---------------------------------------------------------------------------
- * ONE YAN PER TASK, AND WHAT NOW ANSWERS IT
- * ---------------------------------------------------------------------------
+ * The lock is per task, not per machine. Two yans on two different tasks is
+ * ordinary working practice; only a second yan on the same task is refused,
+ * because a yan sees one task's files and two of them would both be writing
+ * that task's bookkeeping.
  *
- * The rule is unchanged (agents.md §5.2): the lock is per TASK, not per home.
- * Two yans on two different tasks is ordinary working practice. Only a second
- * yan on the same task is refused, because a task-scoped yan sees one task's
- * files and two of them would both be writing that task's bookkeeping.
+ * The lock file's own pid is the fact, which works only because this command
+ * lives exactly as long as the main agent it started. `pidAlive` makes it
+ * self-healing: a yan killed outright leaves a lock whose pid is gone, and the
+ * next `yan continue` reclaims it rather than obeying it.
  *
- * WHAT ANSWERS IT HAS CHANGED, and the reason is worth writing down. The MVP
- * asked the terminal, because a lock could not express "an agent is running" —
- * the process holding it exited long before the agent did. That is no longer
- * true: this command lives exactly as long as the main agent it started, so the
- * lock file's own pid IS the fact, and `pidAlive` makes it self-healing. A yan
- * killed outright leaves a lock whose pid is gone, and the next `yan continue`
- * reclaims it rather than obeying it.
- *
- * Asking Herdr instead does not work here and it is worth saying why, because
- * cli-ux.md §3 suggests it: `agent list` reports every live agent with its pane
- * id, but an agent Herdr detected on screen has no NAME, and nothing in that
- * listing says which task an agent belongs to. Only an agent yan started
- * through `agent start` carries a name, and `agent start` needs a pane sitting
- * at an interactive prompt — which the pane running this command is not.
+ * Asking herdr instead does not work, which is worth knowing because it looks
+ * like the obvious answer. `agent list` reports every live agent with its pane
+ * id, but an agent Herdr detected on screen has no name, and nothing in the
+ * listing says which task an agent belongs to. Only an agent started through
+ * `agent start` carries a name — and `agent start` needs a pane already sitting
+ * at an interactive prompt, which the pane running this command is not.
  *
  * The lock records the pane it was taken in, so a second `yan continue` can say
  * where the live one is instead of spawning a duplicate.
  *
- * ---------------------------------------------------------------------------
- * WHAT "EXITS" MEANS
- * ---------------------------------------------------------------------------
+ * What "exits" means.
  *
- * display.md §4's last row — clear the workspace tokens when the task completes
- * or yan exits — had no owner, because clearing needs someone who knows the
- * workspace's lifetime. That is this command: it sets the tokens before the
- * agent starts and withdraws them in the `finally` of the wait. So "yan exits"
- * means, in practice, THE MAIN AGENT PROCESS THIS COMMAND STARTED HAS
- * TERMINATED — normally, by `/exit`, or by a signal that reaches the whole
+ * The workspace tokens have to be cleared when yan exits, and clearing needs
+ * someone who knows the workspace's lifetime. That is this command: it sets
+ * them before the agent starts and withdraws them in the `finally` of the wait.
+ * So "yan exits" means, in practice, the main agent process this command
+ * Started has terminated — normally, by `/exit`, or by a signal that reaches the whole
  * pane, all of which return from `spawnSync` and run the cleanup.
  *
  * The one case it cannot cover is a yan killed without a chance to run
@@ -128,7 +112,7 @@ export interface EnterDeps {
  * What `enterTask` hands back: the record, and — when an agent is ours to run —
  * the blocking half.
  *
- * Two phases and not one, because the record has to be printable BEFORE the
+ * Two phases and not one, because the record has to be printable before the
  * pane is handed over. `yan task new --json` reads it, and a record that only
  * arrived after the agent had finished would arrive hours late or never.
  */
@@ -146,39 +130,34 @@ const startMain: StartMain = (cli, argv, options) =>
   }).status ?? 1;
 
 /**
- * The harness mapping table (delivery.md §8.3: a small table, not an
- * abstraction layer). yan itself runs on Claude Code or Codex and nothing else,
- * so it has exactly two rows.
+ * The harness mapping table: a table on purpose, not an abstraction layer. yan
+ * itself runs on Claude Code or Codex and nothing else, so it has two rows.
  *
- * Each extra directory is a clone this task actually touches; anything not
- * listed is invisible to it (agents.md §5.2). The working directory is
- * `$YAN_HOME`, because yan runs things in `bin/` and reads `mem/`.
+ * Each extra directory is a clone this task actually touches, and anything not
+ * listed is invisible to the agent. The working directory is `$YAN_HOME`,
+ * because yan runs things in `bin/` and reads `mem/`.
  *
- * ---------------------------------------------------------------------------
- * WHY THE MAIN AGENT GETS THE SAME PERMISSION FLAGS AS A SHIFT
- * ---------------------------------------------------------------------------
+ * Why the main agent gets the same permission flags as a shift.
  *
- * The argument for a shift is that nobody is watching it (see `shift.ts`). The
- * main agent looks like the opposite case — it is `user`'s own pane, and `user`
- * is sitting in front of it — and that is why this row was empty. It was wrong
- * for a reason the shift argument does not cover.
+ * The argument for a shift is that nobody is watching it (see `shift.ts`), and
+ * the main agent looks like the opposite case: it is `user`'s own pane, with
+ * `user` sitting in front of it. That reasoning is what makes leaving this row
+ * empty tempting, and it is wrong.
  *
  * `yan` is not only what `user` types at. The Stop hook arms `yan wait`, and
- * between one turn and the next this agent drains a wake file, syncs a branch,
- * dispatches, and clocks a shift out with nobody looking at the pane. A prompt
- * raised in that window stops the same way a shift's does, except that what has
- * stalled is the thing that was supposed to notice.
+ * between one turn and the next this agent drains a wake file, dispatches, and
+ * clocks a shift out with nobody looking at the pane. A prompt raised in that
+ * window stalls exactly as a shift's does — except that what has stalled is the
+ * thing that was supposed to be doing the noticing.
  *
- * What it may do is unchanged either way: `$YAN_HOME` plus the clones listed
- * below, the same directories it was already given. The prompt was never the
- * boundary — `repos/<repo>/` being read-only, work happening in leased trees,
- * and branch protection on the host are (boundaries.md §9).
+ * The prompt was never the boundary either way. What the agent may reach is
+ * `$YAN_HOME` plus the clones listed below; work happens in leased trees, and
+ * branch protection on the forge is the last line.
  *
- * Codex was worse than empty. `if (kind !== 'claude') return []` gave it no
- * sandbox flag and no hook-trust flag, so the two first-run gates Phase 8.5
- * measured in front of a shift's codex sit in front of the main agent too — and
- * the hook-review gate is the one Herdr reads as `idle`, so nothing wakes.
- * There is no `scout` here to keep read-only: the main agent is `mr` by nature.
+ * Codex needs both flags. Without the sandbox flag and the hook-trust flag it
+ * meets two first-run gates, and the hook-review gate is the one Herdr reads as
+ * `idle` — so nothing wakes and the pane simply sits there. There is no `scout`
+ * row here: the main agent is `mr` by nature.
  */
 function harnessArgs(agent: string, addDirs: readonly string[]): string[] {
   const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
@@ -208,11 +187,11 @@ function addDirsFor(task: Task): string[] {
 /**
  * The pane this command is running in.
  *
- * Herdr injects `HERDR_PANE_ID` into every pane it creates (evidence §1), and
- * this is the one command that may read it: terminal.md §3's rule is that yan
- * never passes `--current`, because a HOOK may be handed a sanitised
- * environment. `yan continue` is never run by a hook — it is the entry a person
- * types — and what it passes onward is an explicit id either way.
+ * Herdr injects `HERDR_PANE_ID` into every pane it creates, and this is the one
+ * command allowed to read it. Everything else works from explicit ids, because
+ * a hook may be handed a sanitised environment and would silently resolve to
+ * the wrong pane. `yan continue` is never run by a hook — it is the entry a
+ * person types — and what it passes onward is an explicit id either way.
  *
  * Empty when yan is not running under Herdr at all, which is not a failure.
  */
@@ -277,7 +256,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
   const terminal = deps.terminal ?? new Terminal();
   const workspace = pane === '' ? undefined : terminal.workspaceOfPane(pane);
   if (workspace !== undefined) {
-    // display.md §4, first row. Never fatal: the work is correct with ugly
+    // Never fatal: the work is correct with ugly
     // labels, and a tool that will not start the main agent because a tab title
     // did not stick is a worse tool.
     display('could not label the workspace', () => {
@@ -302,7 +281,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       try {
         return start(agent, argv, {
           cwd,
-          // The vault is passed EXPLICITLY rather than inherited: the agent
+          // The vault is passed explicitly rather than inherited: the agent
           // outlives the command that started it, and the active vault can be
           // switched underneath it. Which context this session belongs to is
           // settled once, here.
@@ -322,7 +301,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
 
 /**
  * The soft path: with no id and a person at the keyboard, select among the
- * INCOMPLETE tasks (cli-ux.md §3).
+ * incomplete tasks.
  *
  * The list is `yan ls`'s own scan, so there is one owner for "which tasks are
  * there". Without a TTY there is nobody to answer, so this returns the empty

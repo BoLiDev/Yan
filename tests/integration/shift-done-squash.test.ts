@@ -18,7 +18,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
  * `yan shift done` against real git and the real pool, in the one case that
- * actually breaks: A SQUASH MERGE.
+ * actually breaks: A squash merge.
  *
  * When the internal merge request is squash-merged, the integration branch does
  * not contain the shift branch's HEAD. Two things follow, and both are in
@@ -81,7 +81,7 @@ async function dispatch(sid: string): Promise<string> {
 
 /**
  * Land a branch on feat/auth the way a squash merge does: the change arrives as
- * a NEW commit and the branch's own HEAD is nowhere in the integration
+ * a new commit and the branch's own HEAD is nowhere in the integration
  * branch's history.
  */
 async function squashMerge(branch: string): Promise<void> {
@@ -197,7 +197,7 @@ describe('the control: the same situation in the WRONG order', () => {
 
 describe('an interrupted teardown can be finished', () => {
   it('derives which shift it was from the pool, and says what it is doing', async () => {
-    // The documented order deletes run/ (step 4) BEFORE returning the tree
+    // The documented order deletes run/ (step 4) before returning the tree
     // (step 5). So a return that refuses - or a kill, or a sleeping laptop -
     // leaves run/ gone, the tree still leased and the remote branch still
     // there, with nothing left in $YAN_HOME to say which shift they belonged

@@ -8,12 +8,12 @@ import { MODES, type Mode, type TaskData, type UnitData } from './types.js';
  *
  * Two invariants live here and nowhere else:
  *
- *   1. READ LENIENTLY. A missing key, an unexpected key or a half-written array
+ *   1. Read leniently. A missing key, an unexpected key or a half-written array
  *      must never crash a reader. task.json outlives the version of yan that
  *      wrote it, and a task nobody can open is a task nobody can finish.
  *
- *   2. WRITE THROUGH `util/json.ts`, so every write lands tmp → mv and carries
- *      a version field. Key order is PRESERVED on edit rather than rebuilt:
+ *   2. Write through `util/json.ts`, so every write lands tmp → mv and carries
+ *      a version field. Key order is preserved on edit rather than rebuilt:
  *      task.json is versioned in the vault, and a rebuild would turn every
  *      one-field change into a whole-file diff.
  */

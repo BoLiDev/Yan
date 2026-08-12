@@ -87,8 +87,8 @@ describe('no force flag ever reaches git', () => {
   // source-level check on purpose: a runtime test can only cover the paths it
   // happens to exercise, and the one that matters is the one nobody wrote yet.
   //
-  // IT USED TO BE A SUBSTRING SEARCH OVER ALL OF src/, and that was too blunt
-  // once §9.2's OTHER force line got its command. That line reads *forbidden,
+  // It used to be a substring search over all of src/, and that was too blunt
+  // once §9.2's other force line got its command. That line reads *forbidden,
   // unless `user` says the changes can be thrown away* — an authority, not an
   // absence — and `yan done --force` is where `user` says it. A check that
   // cannot tell `yan done`'s Commander option and the prose explaining it from
@@ -96,7 +96,7 @@ describe('no force flag ever reaches git', () => {
   // one, which is how a guard stops meaning anything.
   //
   // So it is narrowed to exactly what it protects: git is invoked with arrays
-  // of quoted arguments, so a QUOTED force literal is the thing that can reach
+  // of quoted arguments, so a quoted force literal is the thing that can reach
   // it. Prose may name the flag; an argument list may not contain it.
   function allSources(dir: string): string[] {
     const out: string[] = [];
@@ -123,7 +123,7 @@ describe('no force flag ever reaches git', () => {
       let code = readFileSync(f, 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/(^|[^:])\/\/.*$/gm, '$1');
-      // `yan done` declares the flag; that declaration IS the authority, and
+      // `yan done` declares the flag; that declaration is the authority, and
       // Commander is not git.
       if (f.endsWith(`cli${sep}done.ts`)) code = code.replace(/\.option\([^)]*\)/g, '');
       return quoted.test(code);
@@ -166,7 +166,7 @@ describe('push actively refuses a force flag handed to it', () => {
 describe('the default branch is asked for, never assumed', () => {
   it('reads what the clone already knows, without touching the network', async () => {
     // `git clone` writes refs/remotes/origin/HEAD, so the ordinary case costs
-    // nothing. The branch is deliberately NOT main or master: a detection that
+    // nothing. The branch is deliberately not main or master: a detection that
     // works only for the two names everyone hardcodes has detected nothing.
     const bare = join(mkTempDir(), 'origin.git');
     await fxGit(['init', '--bare', '--initial-branch=release/24.10', bare]);

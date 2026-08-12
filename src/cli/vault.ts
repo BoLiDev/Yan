@@ -25,7 +25,7 @@ import { resolve } from './shared/resolve.js';
 /**
  * `yan vault …` — the context a session works in (v3 td vault.md).
  *
- * THIS IS THE ONLY COMMAND THAT MAY RUN WITHOUT A VAULT, and the only one that
+ * This is the only command that may run without a vault, and the only one that
  * writes `~/.yan/config.json`. Both follow from what it is: the thing you run
  * before yan has anywhere to put anything.
  *
@@ -166,7 +166,7 @@ const initVault = new Command('init')
         throw new CommandError('vault', 'conflict', `${dir} already exists and is not empty - pass --path, or move it aside`);
       }
 
-      // Both refusals happen BEFORE a single file is written. A remote that
+      // Both refusals happen before a single file is written. A remote that
       // already has commits is the likeliest mistake here — pointing init at
       // the wrong repository — and finding out from a rejected push, after the
       // skeleton is on disk and committed, leaves a half-made vault to clean up
@@ -181,7 +181,7 @@ const initVault = new Command('init')
 
       const root = normalizePath(resolvePath(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
 
-      // Everything the migration could refuse for is refused HERE, before the
+      // Everything the migration could refuse for is refused here, before the
       // skeleton exists — so a refusal leaves nothing behind to clean up.
       const plan = options.fromHome === true ? planMigration(dir, root) : undefined;
       if (plan !== undefined) preflight(plan, leasesFor);
@@ -289,7 +289,7 @@ export function useVault(name: string | undefined): void {
 }
 
 /**
- * `yan vault link <name> <path>` — where a vault is on THIS machine.
+ * `yan vault link <name> <path>` — where a vault is on this machine.
  *
  * The exact dual of `yan repo link`, and it exists for the same reason: a
  * directory moves, and the only record of where it was is the machine layer,
@@ -434,7 +434,7 @@ const pushCommand = new Command('push')
         throw new CommandError('vault', 'no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
       }
 
-      // --untracked-files=all: without it git reports a new directory as ONE
+      // --untracked-files=all: without it git reports a new directory as one
       // entry, so a brand-new task would be 'committed 1 change(s)' however
       // much is in it, and the derived message would be counting directories.
       const changed = statusPorcelain(dir, ['--untracked-files=all'])

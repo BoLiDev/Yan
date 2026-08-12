@@ -7,8 +7,8 @@ import { out } from './action.js';
 import { CommandError } from './errors.js';
 
 /**
- * NOT A SUBCOMMAND, which is why it is under shared/: every top-level file in
- * src/cli/ IS a command (util/home.ts derives the list from disk), and this is
+ * Not a subcommand, which is why it is under shared/: every top-level file in
+ * src/cli/ is a command (util/home.ts derives the list from disk), and this is
  * one command's implementation rather than a command of its own.
  *
  * `yan vault init --from-home` — the one thing that still reads the pre-V3
@@ -48,7 +48,7 @@ function isDir(path: string): boolean {
 /**
  * Something is in the way at a destination.
  *
- * An EMPTY directory is not in the way, and that distinction is not a nicety:
+ * An empty directory is not in the way, and that distinction is not a nicety:
  * the first real run of this migration hit a leftover empty `poe-tools/` beside
  * the mechanics clone and refused, claiming it would merge two clones. There
  * was nothing there to merge.
@@ -106,7 +106,7 @@ export function planMigration(vault: string, cloneRoot: string): MigrationPlan {
  * that record absolute paths, and moving the task directory under a running
  * agent is how you get a shift writing its outcome into a directory nobody
  * reads again. A lease on a clone that is about to move is worse: the pool's
- * directory is keyed by a hash OF THAT PATH, so the tree would be orphaned and
+ * directory is keyed by a hash of that path, so the tree would be orphaned and
  * the work in it unreachable by the pool that made it.
  *
  * The pool is deliberately not rewritten to follow the clone. A tree is a
@@ -149,7 +149,7 @@ export function preflight(plan: MigrationPlan, leasesFor: (clone: string) => num
 /**
  * Copy the data in, move the clones, write both halves.
  *
- * COPY, NOT MOVE, for everything under the old home: until the caller deletes
+ * copy, not move, for everything under the old home: until the caller deletes
  * it, the migration can be undone by deleting the vault. The clones are the one
  * exception — two copies of a repository is not a safe state to leave someone
  * in, and the pool has already been proven empty for each of them.

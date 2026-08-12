@@ -18,9 +18,7 @@ import { samePath } from '../util/paths.js';
  * `yan session-start` — the full rebuild (agents.md §5.1). Registered as the
  * SessionStart hook for both harnesses.
  *
- * ---------------------------------------------------------------------------
- * A RESTART IS A NON-EVENT, AND THIS COMMAND IS WHY
- * ---------------------------------------------------------------------------
+ * A restart is a non-event, and this command is why.
  *
  * yan holds no persistent running state. Every time it starts it rebuilds its
  * picture from scratch:
@@ -31,13 +29,13 @@ import { samePath } from '../util/paths.js';
  * one" cost nothing: there is nothing to hand over and nothing to resume, and
  * therefore nothing that can drift out of sync.
  *
- * SO THIS COMMAND WRITES NOTHING. Not a session file, not a cache of what it
+ * So this command writes nothing. Not a session file, not a cache of what it
  * found, not a "last seen" timestamp. The moment it writes one, a restart stops
  * being a non-event, because there is now a file that can disagree with the
  * world. Its own test asserts that `$YAN_HOME` is byte-for-byte unchanged after
  * it runs.
  *
- * IT ALSO NEVER CRASHES ON A SOURCE THAT WILL NOT ANSWER. There is no Herdr
+ * It also never crashes on a source that will not answer. There is no Herdr
  * server yet on a fresh boot; the pool root may be on a disk that is not
  * mounted; the host may be unreachable on a train. Each of those costs one fact
  * and is reported as `unknown`, exactly as `yan state` and the modules
@@ -115,7 +113,7 @@ function askHost(sources: Sources, mr: string, dir: string): MrReport {
 
 /**
  * The pool is asked once per clone and the answer is remembered for the length
- * of ONE command — a local map, never a file. Caching it on disk is exactly the
+ * of one command — a local map, never a file. Caching it on disk is exactly the
  * thing this command may not do.
  */
 function poolAsker(sources: Sources): (clone: string, tree: string, leaseId: string) => PoolState {
@@ -230,7 +228,7 @@ export interface Skill {
  * ---
  * ```
  *
- * DECLARED RATHER THAN INFERRED. The first cut of this read the `# heading` and
+ * Declared rather than inferred. The first cut of this read the `# heading` and
  * the opening paragraph, on the grounds that prose should not have to fill in a
  * form. It is the wrong trade for the one place this text is used: the index is
  * all yan sees until it decides to open the file, so the description is doing a
@@ -238,7 +236,7 @@ export interface Skill {
  * should be written for it, not harvested from whatever the paragraph happened
  * to open with.
  *
- * A HAND-ROLLED READER, and not a YAML dependency. What is understood is
+ * A hand-rolled reader, and not a YAML dependency. What is understood is
  * `key: value` on one line, optionally quoted, inside the leading `---` fence.
  * Two keys, both strings: a parser for the rest of YAML would be a large answer
  * to a question nobody asked.
@@ -275,12 +273,12 @@ export function frontMatter(fileName: string, text: string): { name: string; des
 /**
  * The standing instructions for this environment (v3 td vault.md).
  *
- * A skill is PROSE, not an executable. `<vault>/skills/*.md` says what yan may
+ * A skill is prose, not an executable. `<vault>/skills/*.md` says what yan may
  * do itself here — check a build, run a script, look something up — instead of
  * dispatching a shift for it, and `~/.yan/skills/*.md` says the same for things
  * about this box rather than this context.
  *
- * WHAT SESSION-START CARRIES IS AN INDEX, NOT THE TEXT. Session-start is the
+ * What session-start carries is an index, not the text. Session-start is the
  * SessionStart hook, so everything it prints is in front of the agent for the
  * whole session whether it is relevant or not; a handful of skills printed in
  * full would be a standing tax on the context window paid mostly for nothing.
@@ -359,7 +357,7 @@ function render(picture: Picture, pulled: PullResult): void {
 }
 
 /**
- * The skills, as an INDEX, at the end of the rebuild.
+ * The skills, as an index, at the end of the rebuild.
  *
  * A path, a name and a sentence each — never the text. Session-start is the
  * SessionStart hook, so anything printed here sits in the context for the whole
@@ -411,7 +409,7 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       }
       const id = options.all === true ? '' : (options.task ?? positional ?? process.env.YAN_TASK ?? '');
 
-      // The vault is caught up BEFORE the picture is rebuilt, so a session that
+      // The vault is caught up before the picture is rebuilt, so a session that
       // starts on the laptop starts with the desktop's work in it (vault.md §5).
       //
       // Never fatal, and `--json` stays machine readable: a missing network, a

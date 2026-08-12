@@ -7,8 +7,8 @@ import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../h
 /**
  * `yan report`, ported from `tests/unit/yan-report.test.sh`.
  *
- * It accepts only the five allowed states, and it appends `run/status` AND
- * touches `run/signal` IN ONE GO. "In one go" is the reason the command exists
+ * It accepts only the five allowed states, and it appends `run/status` and
+ * touches `run/signal` in one go. "In one go" is the reason the command exists
  * at all (agents.md §5.4: do not count on an agent remembering step two), so it
  * is asserted the only way that means anything: one invocation, then both
  * effects checked.

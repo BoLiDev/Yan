@@ -10,7 +10,7 @@ import type { HerdrHealth } from './types.js';
  * something first would be the wrong shape.
  *
  * `yan doctor` compares the two stamps against the ones in `schema.ts`. That is
- * a version check and NOTHING MORE: a matching protocol says the wire shapes
+ * a version check and nothing more: a matching protocol says the wire shapes
  * agree, not that Herdr's view of an agent is authoritative — for Claude and
  * Codex it is not, and wording it that way in `doctor` output would mislead.
  */

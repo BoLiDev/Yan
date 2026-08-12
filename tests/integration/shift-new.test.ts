@@ -16,9 +16,9 @@ import { WorktreeError, type LeaseGrant, type ReturnExpectation } from '../../sr
  * `yan shift new`, ported from `tests/unit/yan-shift-new.test.sh`.
  *
  * Phase 7 Trace: "`shift new` asserts the sub-agent's cwd is not a main clone
- * and REFUSES otherwise" — one of the four MVP ordering regressions, and the
+ * and refuses otherwise" — one of the four mvp ordering regressions, and the
  * one whose failure hides completely: everything looks like it worked. So the
- * pool is programmed to hand out the MAIN CLONE and this command has to refuse,
+ * pool is programmed to hand out the main clone and this command has to refuse,
  * not warn, and give the tree back on its way out.
  *
  * And Phase 7's own sixth: "a `shift new` that fails after leasing returns the
@@ -150,9 +150,9 @@ describe('the order', () => {
   it('leases, then makes the container, then starts the agent', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'parse the header' });
     expect(r.code, r.message).toBe(0);
-    // NO SYNC. It used to run first, so that the shift branch came off a head
+    // No sync. It used to run first, so that the shift branch came off a head
     // that had just caught up with target — but a shift's MR goes into the
-    // INTEGRATION branch, and target only matters at the outbound MR. The sync
+    // integration branch, and target only matters at the outbound MR. The sync
     // was buying a property nothing downstream needed and charging a fetch, a
     // merge, a push and a leased tree for it on every dispatch.
     expect(calls.map((c) => c.split(' ')[0])).toEqual([
@@ -201,7 +201,7 @@ describe('what the agent was started with', () => {
   });
 
   it('lets the shift run unattended, because nobody is watching the pane', () => {
-    // Without this the agent stops on its FIRST tool call waiting for someone to
+    // Without this the agent stops on its first tool call waiting for someone to
     // answer "Do you want to proceed?" - observed against a real dispatch.
     expect(terminal.startArgs).toContain('--dangerously-skip-permissions');
   });
@@ -215,7 +215,7 @@ describe('codex, and the gate yan cannot survive', () => {
   // Phase 8.5 measured two first-run gates. Herdr calls the trust dialog
   // `blocked`, so supervision escalates and somebody answers it. It matches no
   // rule at all against the hook-review prompt and calls it `idle`, so a shift
-  // parks on that one in an unfocused pane and NOTHING EVER WAKES.
+  // parks on that one in an unfocused pane and nothing ever wakes.
   //
   // `user` decided to pass the flag that clears it, knowing the cost: hooks
   // shipped by the target repository then run without review. These assertions

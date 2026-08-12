@@ -25,12 +25,12 @@ import { WorktreePool } from './index.js';
  * public surface, which is how the surface got wide in the first place.
  *
  * Phase 3 Trace:
- *   - return uses `reset --hard` + `clean -fd` and NEVER -x; gitignored
+ *   - return uses `reset --hard` + `clean -fd` and never -x; gitignored
  *     directories survive a round trip
  *   - the orphan-commit guard refuses to return a tree holding uncommitted or
  *     unpushed work
  *   - a full pool is backpressure, not silent growth
- *   - a conditional return refuses a mismatched identity BEFORE any destructive
+ *   - a conditional return refuses a mismatched identity before any destructive
  *     step
  *   - path comparison against git's native output still normalises
  *
@@ -146,7 +146,7 @@ describe('get', () => {
     expect(existsSync(join(dir, 'leases', '1.json'))).toBe(true);
     expect(grant.path.toLowerCase()).not.toContain(normalizePath(home).toLowerCase());
 
-    // git knows the tree by its OWN spelling of the path; the comparison has to
+    // git knows the tree by its own spelling of the path; the comparison has to
     // normalise before it can compare (conventions §3).
     const listed = (await fxGit(['worktree', 'list', '--porcelain'], clone)).stdout;
     const registered = listed
@@ -191,7 +191,7 @@ describe('the orphan-commit guard', () => {
 });
 
 /**
- * boundaries.md §9.2 does not forbid a force flag, it AUTHORISES one: *forbidden,
+ * boundaries.md §9.2 does not forbid a force flag, it authorises one: *forbidden,
  * unless `user` says the changes can be thrown away.* `yan done --force` is the
  * only caller, and this is what it buys — recovering a slot the guard has, quite
  * correctly, refused to release.
@@ -244,7 +244,7 @@ describe('the conditional return', () => {
   it('refuses a mismatched identity before any destructive step', () => {
     const grant = pool().get(2, 'integ', 'shift/t042-s1', 't042/auth/s1');
     // Deliberately dirty: a dirty tree would fail the orphan guard, so a
-    // mismatch code proves the identity check ran FIRST — before the guard,
+    // mismatch code proves the identity check ran first — before the guard,
     // before reset, before clean.
     writeFileSync(join(grant.path, 'stray2.txt'), 'x\n');
 
@@ -398,7 +398,7 @@ describe('yan tree, the command layer', () => {
   }
 
   it('reads pool_size from the vault registry, which this module must not read', async () => {
-    // Tuning lives on the PORTABLE half: it follows the repository between
+    // Tuning lives on the portable half: it follows the repository between
     // machines, unlike the path beside it (v3 td repos.md §2).
     registerRepo(home, 'demo', clone, { url: 'x', pool_size: 1 });
     expect((await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1'])).code).toBe(0);

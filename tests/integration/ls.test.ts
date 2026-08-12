@@ -11,7 +11,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtur
  * compared it against the shell half byte for byte. That comparison went with
  * the shell half, so the assertions it stood in for are written out here.
  *
- * THE ONE THAT MATTERS MOST IS THE LAST: `yan ls` STORES NOTHING. There is no
+ * The one that matters most is the last: `yan ls` stores nothing. There is no
  * backlog file and there must never be one (td INDEX.md §3) - the queue is a
  * view produced by scanning `tasks/*​/task.json` every time it is asked for. It
  * is asserted the only way that really proves it: list everything under

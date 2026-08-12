@@ -17,13 +17,11 @@ import { Task } from '../records/task/index.js';
 /**
  * `yan done [<id>]` — declare a task finished and give its trees back.
  *
- * ---------------------------------------------------------------------------
- * WHY THIS COMMAND EXISTS AT ALL
- * ---------------------------------------------------------------------------
+ * Why this command exists at all.
  *
  * `complete` has been a field of task.json since the first version, `yan ls`
- * has rendered it as `done` vs `open` for just as long, and until now NOTHING
- * COULD SET IT. Every task in the queue was open forever, which is the same as
+ * has rendered it as `done` vs `open` for just as long, and until now nothing
+ * Could set it. Every task in the queue was open forever, which is the same as
  * having no state at all. `yan land` merges the outbound MR and stops there,
  * correctly — landing is about `target`, finishing is about the task — so the
  * last step had no command.
@@ -34,29 +32,25 @@ import { Task } from '../records/task/index.js';
  * done and giving the trees back are the same event, so they are the same
  * command, and it is not possible to do the first and forget the second.
  *
- * ---------------------------------------------------------------------------
- * WHAT IS DERIVED, AND FROM WHERE
- * ---------------------------------------------------------------------------
+ * What is derived, and from where.
  *
- * Which trees belong to this task is asked OF THE POOL, never of `run/`. The
+ * Which trees belong to this task is asked of the pool, never of `run/`. The
  * pool records the holder as `<task>/<unit>/<sid>`, so the leases whose holder
  * starts `<task>/` are the answer — and it is the only answer that is still
  * right after a teardown that stopped halfway, where `run/` is already gone and
  * the tree is still leased. `run/` is consulted for exactly one thing it alone
  * knows: which pane an agent is in.
  *
- * ---------------------------------------------------------------------------
- * THE DEFAULT REFUSES, AND `--force` IS `user`'s ANSWER
- * ---------------------------------------------------------------------------
+ * The default refuses, and `--force` is `user`'s answer.
  *
  * Two refusals, in this order, because the first one is free:
  *
- *   4  a shift is still LIVE. Its agent may be mid-edit; returning the tree
- *      under it destroys work that was never anywhere else. NOTHING IS TOUCHED
+ *   4  a shift is still live. Its agent may be mid-edit; returning the tree
+ *      under it destroys work that was never anywhere else. Nothing is touched
  *      — not the trees, not `complete`.
  *   5  a tree will not come back: uncommitted changes, or no remote branch
  *      contains HEAD. That is the pool's orphan-commit guard and it is right.
- *      The trees that DID come back stay returned; `complete` is not set,
+ *      The trees that did come back stay returned; `complete` is not set,
  *      because a task is not finished while its work exists in one place only.
  *
  * `--force` is not a retry and not a confirmation prompt. It is the same thing
@@ -67,22 +61,21 @@ import { Task } from '../records/task/index.js';
  *                               can be thrown away
  *
  * With it: live shifts are killed (pane closed, `run/` removed), every tree is
- * wiped past the guard, and the task is marked done. `yan` MUST NOT reach for
+ * wiped past the guard, and the task is marked done. `yan` must not reach for
  * this on its own initiative; the flag is the whole authority and there is
  * nowhere else in yan that sets it.
  *
- * WHAT `--force` DOES AND DOES NOT DESTROY, precisely, because "throws work
- * away" is vaguer than the situation deserves: it destroys UNCOMMITTED changes
+ * what `--force` does and does not destroy, precisely, because "throws work
+ * away" is vaguer than the situation deserves: it destroys uncommitted changes
  * and untracked files (`git reset --hard`, `git clean -fd`). Commits are not
  * destroyed — they stay on the shift branch in the clone, unpushed and
  * reachable by name. The message says so, so nobody panics about the wrong
  * thing or relaxes about the right one.
  *
- * ---------------------------------------------------------------------------
- * WITH NO ARGUMENT AND A PERSON AT THE KEYBOARD, IT ASKS — AND ASKS FOR MANY
- * ---------------------------------------------------------------------------
+ * With no argument and a person at the keyboard it asks, and it asks for many
+ * tasks at once.
  *
- * Every other task prompt in yan is a single select. This one is a MULTI-select
+ * Every other task prompt in yan is a single select. This one is a multi-select
  * because finishing is the one thing that arrives in batches: a round lands and
  * three tasks are done at once. A single select would mean running the command
  * three times against a list that shrinks under you.
@@ -93,19 +86,19 @@ import { Task } from '../records/task/index.js';
  *   an explicit <task-id> or --task    always wins
  *   $YAN_TASK                          the task-scoped session's own task
  *   a TTY                              the multi-select
- *   nothing                            REFUSE, and name the flag
+ *   nothing                            refuse, and name the flag
  *
  * The refusal is the half that matters, as everywhere else: an agent, a hook or
  * a script that reached a prompt would hang forever with nobody to answer it,
  * so "there is no TTY" is checked before "ask", and it always wins.
  *
- * ONE TASK IS NOT A DEGENERATE MANY. A single named task takes the path that
+ * One task is not a degenerate many. A single named task takes the path that
  * throws — that is the contract an agent reads, one command one answer, and its
  * exit code says which refusal it hit. Several tasks cannot do that: stopping
  * at the first failure would leave the rest silently untried, so each is
- * attempted, all of them are reported, and the exit code is the FIRST failure's.
+ * attempted, all of them are reported, and the exit code is the first failure's.
  *
- * `--force` is deliberately NOT offered by the prompt. It is `user`'s authority
+ * `--force` is deliberately not offered by the prompt. It is `user`'s authority
  * and it stays something they type; a checkbox in a list is not a decision
  * anyone would remember making.
  *
@@ -170,7 +163,7 @@ interface Held extends LeaseRow {
  * a shift was dispatched leaves a lease in a repository task.json no longer
  * mentions, and that lease is exactly the one that would be stranded.
  *
- * A repository that cannot be resolved is SKIPPED rather than fatal. Its clone
+ * A repository that cannot be resolved is skipped rather than fatal. Its clone
  * being gone is a reason there is no lease to find, not a reason a task cannot
  * be finished.
  */
@@ -212,7 +205,7 @@ function heldBy(task: string, deps: DoneDeps): Held[] {
 /**
  * Close a live shift's pane and delete its `run/`.
  *
- * The pane comes out of `run/meta.json` BEFORE the directory goes, for the same
+ * The pane comes out of `run/meta.json` before the directory goes, for the same
  * reason `yan shift done` reads its teardown fields first: afterwards nothing
  * records where the agent was. The pane is closed and never the container —
  * a container's lifetime belongs to `user` (agents.md §5.7).
@@ -261,7 +254,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
     );
   }
 
-  // --- 2. with --force, kill them, and read the pool AFTER -------------------
+  // --- 2. with --force, kill them, and read the pool after -------------------
   // After, not before: a killed shift's lease is unchanged, but reading the
   // pool last means the two lists cannot disagree about what is still held.
   const terminal = deps.terminal ?? new Terminal();
@@ -291,7 +284,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
 
   // --- 4. and only now, the one decision this command records ----------------
   // A task is not finished while its work exists in one place only, so an
-  // unforced run that could not empty the pool does NOT mark it done. Under
+  // unforced run that could not empty the pool does not mark it done. Under
   // --force it is marked either way: `user` asked for the task to be finished,
   // and a slot that will not release is a separate problem, reported as 5.
   const complete = force || stuck.length === 0;
@@ -448,7 +441,7 @@ yan must not reach for --force on its own initiative.`,
         return;
       }
 
-      // ONE NAMED TASK KEEPS THE THROWING PATH. That is the contract an agent
+      // One named task keeps the throwing path. That is the contract an agent
       // reads — one command, one answer, an exit code that says which refusal
       // it hit — and wrapping it in a report would take that away.
       if (tasks.length === 1) {

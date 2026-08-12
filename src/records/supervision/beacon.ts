@@ -2,21 +2,21 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
- * `tasks/<id>/run/beacon` — attendance for the WATCHER.
+ * `tasks/<id>/run/beacon` — attendance for the watcher.
  *
- * WHY THIS EXISTS WHEN THERE IS ALREADY A LOCK. The question it answers is "is
- * the watcher still going ROUND", and nothing else in `run/` can answer it:
+ * Why this exists when there is already a lock. The question it answers is "is
+ * the watcher still going round", and nothing else in `run/` can answer it:
  *
  *   the lock       proves a process exists. A process that has stopped looping
  *                  still holds its lock, and on Windows the subscription is a
  *                  named pipe another process cannot inspect at all
- *   the wake file  proves something HAPPENED, not that anybody is watching
+ *   the wake file  proves something happened, not that anybody is watching
  *
  * That question is real because `yan wait` is a loop rather than one blocking
  * read: a subscription that can end and be reconnected, plus a liveness poll
  * that exists because `pane_exited` cannot be subscribed to at all.
  *
- * IT IS TOUCHED BY THE LOOP, NOT BY THE SUBSCRIPTION, and that distinction is
+ * It is touched by the loop, not by the subscription, and that distinction is
  * the whole design. A watcher mid-reconnect is still watching — its liveness
  * poll never went through the socket in the first place — so "holds a live
  * subscription" would fail a healthy watcher. "Went round recently" is the

@@ -10,13 +10,13 @@ import { action, out } from './shared/action.js';
 /**
  * `yan open <id> [--artifacts]` — open a task directory, or its artifacts/.
  *
- * `artifacts/` is where a shift writes the things a PERSON looks at — prototype
+ * `artifacts/` is where a shift writes the things a person looks at — prototype
  * pages, screenshots, research data — because they belong to the project but
  * not to the work repository, and the leased worktree gets wiped
  * (memory.md §4.3). There is no index: the directory listing and the file names
  * are enough, so opening the directory is the whole feature.
  *
- * The absolute path is ALWAYS printed, and on a machine with no graphical
+ * The absolute path is always printed, and on a machine with no graphical
  * opener that is the entire result and a perfectly good one. Printing the path
  * is never treated as a failure: this command exits 0 whenever the directory it
  * was asked for exists.

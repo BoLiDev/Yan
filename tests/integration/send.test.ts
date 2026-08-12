@@ -9,12 +9,12 @@ import { Task } from '../../src/records/task/index.js';
  * `yan send`, ported from `tests/unit/yan-send.test.sh` and the send half of
  * `tests/integration/yan-send-state.test.sh`.
  *
- * The MVP's assertions were about a two-step: type the text, then press Enter,
+ * The mvp's assertions were about a two-step: type the text, then press Enter,
  * retryable separately. Herdr's `agent prompt` does both in one call, so that
  * split and its `--enter` / `--no-enter` flags are gone (orchestration.md §5)
  * and what is pinned instead is the guard that replaced them:
  *
- *   NOTHING IS SENT TO A PANE WITHOUT A LIVE AGENT.
+ *   Nothing is sent to a pane without a live agent.
  *
  * A recording stand-in stands where the seam does, so "one call, with exactly
  * this text" is an exact assertion rather than an eyeball on a pane. What the
@@ -160,7 +160,7 @@ describe('usage', () => {
     // Herdr's `agent prompt` submits text and Enter in one call, so the two-step
     // has nothing left to do. A flag that silently did nothing would be worse
     // than one that is gone.
-    // The help TEXT still names them, to say they are gone. What must not
+    // The help text still names them, to say they are gone. What must not
     // exist is the option itself.
     const options = /Options:\n([\s\S]*?)\n\n/.exec((await runYan(home, ['send', '--help'])).out)?.[1] ?? '';
     expect(options).not.toContain('--no-enter');

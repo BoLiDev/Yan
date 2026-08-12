@@ -11,7 +11,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  * `yan state`, ported from `tests/unit/yan-state.test.sh` and the state half of
  * `tests/integration/yan-send-state.test.sh`.
  *
- * Every line in run/status is an EVENT, and `yan state` does NOT treat the last
+ * Every line in run/status is an event, and `yan state` does not treat the last
  * one as the current state. The status file below is built so that its last
  * line is a trap: it says `done`, with a note nobody could produce by accident.
  * Each case then puts the live sources — the terminal and the host — somewhere
@@ -105,7 +105,7 @@ describe('the live sources decide, never the newest event', () => {
     mrState = 'unknown';
     const facts = stateOf('s1', 't042', deps());
     expect(facts.state).toBe('unknown');
-    // orchestration.md §6: `unknown` is NOT `dead`. Rounding it that way is how
+    // orchestration.md §6: `unknown` is not `dead`. Rounding it that way is how
     // work gets deleted.
     expect(facts.state).not.toBe('dead');
   });

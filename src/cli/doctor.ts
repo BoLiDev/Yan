@@ -30,7 +30,7 @@ import { registry } from './shared/repo.js';
  *   winpty   a native process in a Herdr pane gets a real console
  *            (evidence.md §3), so the whole reason for it is gone
  *
- * ONE RULE WORTH RESTATING, because it is the one a tidy-up breaks: only the
+ * One rule worth restating, because it is the one a tidy-up breaks: only the
  * CLI named by the configured host kind is checked, never both. A machine that
  * delivers to GitHub has no reason to install `glab`, and reporting its absence
  * as a problem trains people to ignore doctor.
@@ -119,7 +119,7 @@ function checkRequired(report: Report): void {
   else line(report, 'ok', 'git', git);
 
   // node cannot be missing here — it is running this — so what is worth
-  // reporting is WHICH one, and whether the same one is on PATH for the hooks
+  // reporting is which one, and whether the same one is on PATH for the hooks
   // and the panes that will look for it by name.
   const onPath = which('node');
   line(report, onPath === undefined ? 'warn' : 'ok', 'node',
@@ -139,7 +139,7 @@ function checkRequired(report: Report): void {
  * is the state in which every other command fails with a message about
  * something else.
  *
- * The remote row is deliberately LOCAL-ONLY — `origin/main` as the last fetch
+ * The remote row is deliberately local-only — `origin/main` as the last fetch
  * left it. Doctor has to answer on a train, and a check that reaches the
  * network is one people learn to skip.
  */
@@ -230,7 +230,7 @@ function checkConfig(report: Report): { agents: Record<string, unknown> } {
   return { agents };
 }
 
-/** ONLY the CLI the configured kind names. Never both. */
+/** Only the CLI the configured kind names. Never both. */
 function checkRemoteHost(report: Report): void {
   let cli: 'gh' | 'glab';
   try {
@@ -395,7 +395,7 @@ export const command = new Command('doctor')
 
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7
-      // the Claude and Codex integrations report SESSION IDENTITY ONLY and
+      // the Claude and Codex integrations report session identity only and
       // never push state, so `blocked` and `done` are screen matches either way
       // (sources.md §4.1, evidence.md §8).
       out('');

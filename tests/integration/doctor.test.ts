@@ -14,11 +14,11 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
  *
  * What is kept, because each one caught something real:
  *
- *   ONLY THE CLI THE CONFIGURED KIND NAMES is checked, never both. A machine
+ *   Only the CLI the configured kind names is checked, never both. A machine
  *   that delivers to GitHub has no reason to install `glab`, and reporting its
  *   absence trains people to ignore doctor.
  *
- *   THE COMMIT IDENTITY IS A FAILURE, NOT A WARNING. Every shift commits in a
+ *   The commit identity is a failure, not a warning. Every shift commits in a
  *   leased worktree, which sees only the global config - so an identity that
  *   lives in a repository's own .git/config reads as healthy from inside the
  *   checkout and is invisible where it is needed. `git commit` then fails after
@@ -151,7 +151,7 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
   });
 });
 
-// The template a vault is born with IS the sample: conf/ held nothing else
+// The template a vault is born with is the sample: conf/ held nothing else
 // once the real config moved into the vault, so it is gone.
 describe('the shipped template config', () => {
   it('is valid and carries what doctor asks for', () => {

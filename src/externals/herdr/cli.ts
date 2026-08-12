@@ -4,7 +4,7 @@ import { TerminalError } from './errors.js';
 /**
  * The `herdr` executable, and the only module in yan that names it.
  *
- * IT NEEDS NO ENVIRONMENT. With `HERDR_ENV`, `HERDR_SOCKET_PATH` and
+ * It needs no environment. With `HERDR_ENV`, `HERDR_SOCKET_PATH` and
  * `HERDR_PANE_ID` all stripped, `herdr pane list` still answers — it finds the
  * default socket itself. That is what makes yan safe to call from a hook, which
  * may be handed a sanitised environment, and it is worth re-checking whenever
@@ -14,7 +14,7 @@ import { TerminalError } from './errors.js';
  *
  *   {"error":{"code":"agent_not_found","message":"…"},"id":"cli:agent:get"}
  *
- *   exit 0   success. Some mutating commands succeed with NO STDOUT AT ALL, so
+ *   exit 0   success. Some mutating commands succeed with no stdout at all, so
  *            an empty body is not a failure
  *   exit 1   server error, with that JSON on stderr — parse error.code
  *   exit 2   the command shape was wrong: a bug in yan, never a condition

@@ -1,7 +1,7 @@
 /**
  * The remote git host: GitHub or GitLab behind four verbs.
  *
- * RETURN VALUES ARE A CLOSED SET DEFINED BY YAN, NEVER THE HOST'S OWN WORDS.
+ * Return values are a closed set defined by yan, never the host's own words.
  * `MrState` and `CiState` are yan's vocabulary; a host phrase that leaks past
  * this boundary is one every caller then has to know two spellings of.
  *

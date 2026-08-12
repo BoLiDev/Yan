@@ -20,54 +20,41 @@ import { isInside, normalizePath } from '../util/paths.js';
 import { vaultDir } from '../util/vault.js';
 
 /**
- * `yan shift new` — dispatch a shift (agents.md §5.3, orchestration.md §2).
+ * `yan shift new` — dispatch a shift.
  *
  *   1  lease a tree, cutting the shift branch
  *   2  write shifts/<sid>/brief.md
- *   3  ASSERT the sub-agent's working directory is not the main clone
- *   4  start the agent, and CONFIRM it
+ *   3  assert the sub-agent's working directory is not the main clone
+ *   4  start the agent, and confirm it
  *
- * THE ASSERTION IS THE POINT OF THIS FILE. worktree.md §7 states it as an
- * invariant of the pool: *when spawning a sub-agent, assert that its working
- * directory is not the main clone's path, and refuse to start otherwise.* A
- * main clone under `repos/` is read-only to yan except for `git fetch`; an
- * agent started there would edit, commit and push the one checkout every
- * worktree in the pool is cut from. It is also the failure that hides:
- * everything looks like it worked. So the check runs before the terminal, it
- * refuses rather than warns, and it gives the tree back on its way out.
+ * Step 3 is the point of this file. An agent started in the main clone would
+ * edit, commit and push the one checkout every worktree in the pool is cut
+ * from — and it is the failure that hides, because everything looks like it
+ * worked until the trees start disagreeing. So the check runs before the
+ * terminal is touched, it refuses rather than warns, and it gives the tree back
+ * on its way out.
  *
- * AND THE TREE IS ALWAYS GIVEN BACK. Every failure after step 1 returns the
- * lease before it exits, or the pool leaks a slot on every failed dispatch
- * (orchestration.md §2). That is a `finally`, not a list of exit paths.
+ * And the tree is always given back. Every failure after step 1 releases the
+ * lease before it exits, or the pool leaks a slot on every failed dispatch.
+ * That is a `finally`, not a list of exit paths to keep in step.
  *
- * CATCHING UP WITH `target` IS NOT PART OF DISPATCHING, and this is worth its
- * own paragraph because this command used to open with it.
+ * Catching up with `target` is not part of dispatching, though it looks as if
+ * it should be. A shift's merge request goes into the integration branch;
+ * `target` only enters at the outbound MR, which is a different command at a
+ * different moment. Syncing here would charge every dispatch a fetch, a merge,
+ * a push and a leased tree to do them in — and would let a conflict against
+ * `target` block a dispatch that has nothing to do with `target`. Worse, it
+ * moves the integration branch under shifts that are already running.
  *
- * The argument for it was that a shift branch should come off a head that had
- * just caught up with `target`, so conflicts stayed in one place. But a shift's
- * merge request goes into the INTEGRATION branch, not into target — target only
- * matters at the outbound MR, which is a different command with a different
- * moment. So the sync was buying a property nothing downstream of it needed,
- * and charging for it on every single dispatch: a fetch, a merge and a push,
- * plus a leased tree to do them in, plus a conflict against target able to
- * block a dispatch that had nothing to do with target. It could also move the
- * integration branch under a shift that was already running.
- *
- * There is no longer a command for it either. Catching up is `git fetch` and
- * `git merge`, run when catching up is the thing yan actually wants — before
- * `yan mr`, or when this round has drifted far enough behind target to be worth
- * finding out about now.
- *
- * THE SHIFT BRANCH NAME IS ALWAYS OURS: `yan/<task>-<unit>-<sid>`. It is never
- * derived from the integration branch's name — git itself forbids `feature/X`
+ * The shift branch name is always ours: `yan/<task>-<unit>-<sid>`, never
+ * derived from the integration branch's name. git itself forbids `feature/X`
  * and `feature/X/s1` coexisting, and colleagues should never see our internal
- * branches. It carries no round number either: sid increases and cannot collide
- * across rounds.
+ * branches anyway. It carries no round number either — sid increases and cannot
+ * collide across rounds.
  *
- * WHERE ARTIFACTS GO. `YAN_TASK_DIR` points at `tasks/<id>`, outside the
- * worktree, because the tree is wiped by `yan tree return`: a prototype written
- * inside it is either destroyed or accidentally committed into a work
- * repository.
+ * Where artifacts go. `YAN_TASK_DIR` points at `tasks/<id>`, outside the
+ * worktree, because returning a tree wipes it: a prototype written inside is
+ * either destroyed or accidentally committed into a work repository.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 the pool is full, 4 the
  * working-directory assertion refused, 1 anything else.
@@ -77,8 +64,8 @@ const RC_POOL_FULL = 3;
 const RC_MAIN_CLONE = 4;
 
 /**
- * sid is DERIVED by scanning `shifts/`, never stored in a counter file: the
- * directory IS the registry. It increases and carries no round number, so the
+ * sid is derived by scanning `shifts/`, never stored in a counter file: the
+ * directory is the registry. It increases and carries no round number, so the
  * second round's s7 cannot collide with the first round's s3.
  */
 function nextSid(task: string): string {
@@ -97,15 +84,13 @@ function nextSid(task: string): string {
 }
 
 /**
- * The harness mapping table (delivery.md §8.3 asks for a small table here and
- * says in as many words not to build an abstraction layer for it). Three
- * columns: how this harness is given an extra directory, how it is made
- * read-only for a scout, and HOW IT IS MADE TO RUN UNATTENDED. The working
- * directory is not in the table because the seam sets it with `--cwd`.
+ * The harness mapping table: a table on purpose, rather than an abstraction
+ * layer, because there are three harnesses and each one's flags are arbitrary.
+ * Three columns — how this harness is given an extra directory, how it is made
+ * read-only for a scout, and how it is made to run unattended. The working
+ * directory is not among them because the terminal seam sets it with `--cwd`.
  *
- * ---------------------------------------------------------------------------
- * WHY THE UNATTENDED COLUMN EXISTS
- * ---------------------------------------------------------------------------
+ * Why the unattended column exists
  * A shift runs for hours in a pane with nobody watching it. A harness that asks
  * permission before each tool use does not "run slowly" in that setting — it
  * stops on its first command and waits forever. Observed against a real
@@ -130,8 +115,8 @@ function nextSid(task: string): string {
  *
  *   read-only command   `cat` ran, returned its output, asked nobody
  *   writing command     refused as NOT_ALLOWED, quoting plan mode's own "you
- *                       MUST NOT ... run any non-readonly tools", and CARRIED
- *                       ON — the file was not created and nothing waited
+ *                       Must not ... run any non-readonly tools", and carried
+ *                       on — the file was not created and nothing waited
  *
  * That last part is what matters here. Plan mode's refusal is an instruction
  * the model follows, not a dialog somebody has to dismiss, so a scout reports
@@ -140,7 +125,7 @@ function nextSid(task: string): string {
  * commands run, writes fail. Same capability, different strength, and neither
  * one stops in front of a question.
  *
- * The cost is real and is the reason to remember this: NEITHER scout can run a
+ * The cost is real and is the reason to remember this: neither scout can run a
  * build or a test suite, because both write. A scout whose report needs one is
  * a scout that needs a different mode, not a wider flag.
  */
@@ -155,24 +140,23 @@ function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): s
     if (mode === 'scout') args.push('--sandbox', 'read-only');
     else args.push('--dangerously-bypass-approvals-and-sandbox');
 
-    // Phase 8.5 measured two first-run gates in front of a codex started this
-    // way. They are not the same kind of problem and they are not handled the
-    // same way.
+    // Two first-run gates sit in front of a codex started this way. They are
+    // not the same kind of problem and are not handled the same way.
     //
-    //   TRUST THE DIRECTORY. Codex resolves a pool worktree to the main clone
+    //   Trust the directory. Codex resolves a pool worktree to the main clone
     //   and asks about that; `--dangerously-bypass-approvals-and-sandbox` does
-    //   NOT cover it, and no flag does. It survives anyway, because Herdr
+    //   not cover it, and no flag does. It survives anyway, because Herdr
     //   classifies the dialog as `blocked` (rule `trust_directory`) —
     //   supervision escalates and `user` answers once per repository. A gate
     //   that wakes somebody is a gate yan can live with.
     //
-    //   REVIEW THE HOOKS, when the repository ships `.codex/hooks.json` or the
-    //   global one changed. Herdr matches NO rule against it and calls it
+    //   Review the hooks, when the repository ships `.codex/hooks.json` or the
+    //   global one changed. Herdr matches no rule against it and calls it
     //   `idle`, so a shift parks on it in an unfocused pane and nothing ever
     //   wakes. That is the one yan cannot survive.
     //
     // So `--dangerously-bypass-hook-trust` is passed, and `user` decided it
-    // knowing what it costs: hooks shipped by the TARGET REPOSITORY run
+    // knowing what it costs: hooks shipped by the target repository run
     // without review. This is not a dispatch mechanic dressed up — it is a
     // standing decision about running other people's code, taken once, here,
     // where the next person will read it.
@@ -182,7 +166,7 @@ function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): s
     // honest is `--sandbox read-only` above, which is containment, where trust
     // review is only a prompt.
     //
-    // THE REAL FIX IS UPSTREAM AND IS ONE WORD. Herdr's codex manifest matches
+    // The real fix is upstream and is one word. Herdr's codex manifest matches
     // "esc to cancel"; the hook-review footer says "esc to go back". Once that
     // rule lands, this gate becomes `blocked` like the other one and this flag
     // should come straight back out.
@@ -234,10 +218,9 @@ function briefBody(options: {
     `      ${home}/bin/yan report <started|done|blocked|needs-decision|conflict> "<one line>"`,
   ];
   if (data.mode === 'mr') {
-    // delivery.md §8.2: in mr mode the deliverable is `done: mr <url>`. The
-    // shift opens its own merge request, so this note is the ONLY way the
-    // address reaches yan — `yan shift done` needs it to ask the host whether
-    // the work landed.
+    // In mr mode the deliverable is `done: mr <url>`. The shift opens its own
+    // merge request, so this note is the only way the address reaches yan, and
+    // `yan shift done` cannot ask the forge whether the work landed without it.
     lines.push(
       '  When you are done, the note must carry the merge request URL, because that',
       '  is how yan learns the address to ask the host about:',
@@ -361,8 +344,8 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
         ? readFileSync(options.brief, 'utf8')
         : (options.briefText ?? '(no work order was supplied - ask yan before changing anything)');
 
-    // The sub-agent's working directory is the main scope path inside the
-    // leased tree (delivery.md §8.3).
+    // The sub-agent starts in the first scope path inside the leased tree, so
+    // that its own relative paths line up with the scope it was given.
     let workdir = tree;
     const addDirs: string[] = [];
     if (data.scope.length > 0) {
@@ -379,11 +362,11 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work }),
     );
 
-    // --- 3. THE ASSERTION ---------------------------------------------------
+    // --- 3. The assertion ---------------------------------------------------
     if (isInside(clone, workdir)) {
       process.stderr.write(`yan shift new: the sub-agent would have started in ${workdir}\n`);
       process.stderr.write(`yan shift new: that is the main clone (${clone}), which yan only ever fetches into\n`);
-      throw new CommandError('shift_new', 'main_clone', "refusing to start a shift in the main clone - a shift works only in a leased worktree (worktree.md §7). The tree has been returned; check the pool's configuration before retrying",
+      throw new CommandError('shift_new', 'main_clone', "refusing to start a shift in the main clone - a shift works only in a leased worktree. The tree has been returned; check the pool's configuration before retrying",
         { exitCode: RC_MAIN_CLONE },
       );
     }
@@ -397,10 +380,10 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     const terminal = deps.terminal ?? new Terminal();
     const container = terminal.createContainer(record.containerName()).workspace;
 
-    // run/meta.json is written BEFORE the agent starts, with the pane filled in
+    // run/meta.json is written before the agent starts, with the pane filled in
     // immediately afterwards. The other order would leave a running agent with
     // no record of it, and a running agent nothing has recorded is the one
-    // thing yan cannot rebuild its picture from (agents.md §5.1).
+    // thing yan cannot rebuild its picture from.
     mkdirSync(shift.run, { recursive: true });
     const metaFile = join(shift.run, 'meta.json');
     const meta: Record<string, unknown> = {
@@ -425,9 +408,9 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     };
     writeJson(metaFile, meta);
 
-    // Everything after `--` reaches the agent as argv, so a brief pointer needs
-    // no quoting (evidence §2). agents.md §5.6 requirement 1: a shift harness
-    // accepts an initial prompt at startup, so it can be told to read its brief.
+    // Everything after `--` reaches the agent as argv, so this needs no quoting.
+    // Every supported harness accepts an initial prompt at startup, which is
+    // what lets a shift be pointed at its brief rather than handed one.
     const prompt = `Read ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
     const startedAgent = terminal.startAgent({
       container,
@@ -452,7 +435,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     if (startedAgent.agent_session !== undefined) meta.agent_session = startedAgent.agent_session;
     writeJson(metaFile, meta);
 
-    // Display metadata, at the moment display.md §4 names. Never fatal.
+    // Display metadata. Never fatal: a mislabelled pane is cosmetic.
     display('could not title the shift pane', () => {
       terminal.setPaneTitle(startedAgent.pane, `${sid}-${unitName} · unit=${unitName}`, 'yan:shift');
     });
@@ -495,7 +478,7 @@ usage: yan shift new --task <id> --unit <name>
                      [--brief <file> | --brief-text <text>] [--json]
 
 The shift branch is always yan/<task>-<unit>-<sid> and is never derived from
-the integration branch's name (branching.md §6.5).
+the integration branch's name.
 
 Exit codes: 3 the pool is full, 4 the working directory would have been the
 main clone and the dispatch was refused, 5 the integration branch conflicts
@@ -520,36 +503,34 @@ with its target and a shift has to reconcile it first.`,
 // --- shift done -------------------------------------------------------------
 
 /**
- * `yan shift done` — clock a shift out (agents.md §5.3, worktree.md §7).
+ * `yan shift done` — clock a shift out.
  *
- * ---------------------------------------------------------------------------
- * THE ORDER IS THE WHOLE COMMAND
- * ---------------------------------------------------------------------------
+ * The order is the whole command.
  *
  *   verify the MR is merged
  *     → write outcome.md
  *       → write the log line
  *         → rm -rf run/
- *           → RETURN THE TREE
- *             → THEN delete the remote shift branch
+ *           → return the tree
+ *             → then delete the remote shift branch
  *
  * Two of those arrows are load-bearing, and neither fails loudly when it is got
  * wrong.
  *
- * 1. "MERGED" IS ANSWERED BY THE MR'S STATE, NEVER BY GIT ANCESTRY. If the
- *    internal merge request was SQUASH-merged, the integration branch does not
+ * 1. "merged" is answered by the MR's state, never by git ancestry. If the
+ *    internal merge request was squash-merged, the integration branch does not
  *    contain the shift branch's HEAD at all, so `merge-base --is-ancestor`
  *    would say "not merged" about work that landed an hour ago. The host is the
  *    source of truth; this command asks it and does not look at the shape of
  *    the history.
  *
- *    THIS IS ALSO WHAT MAKES A `done` WAKE SAFE. The spike found plan approval
- *    arriving as `done` (evidence §11.3), so a wake reason is now a
- *    plausible-looking way to skip the check — and what follows "finished" is
- *    destructive. `done` is a reason to look, never a verdict
- *    (orchestration.md §4). Nothing may stand in for this step.
+ *    This is also what makes a `done` wake safe to act on. Herdr reports a
+ *    plan-approval prompt as `done` too, so a wake reason is a
+ *    plausible-looking way to skip the check — and everything after this step
+ *    is destructive. `done` is a reason to look, never a verdict, and nothing
+ *    may stand in for asking the forge.
  *
- * 2. THE TREE GOES BACK BEFORE THE REMOTE BRANCH IS DELETED. The pool's
+ * 2. The tree goes back before the remote branch is deleted. The pool's
  *    orphan-commit guard refuses to return a tree when no remote branch
  *    contains HEAD, because that is exactly the moment the commits exist
  *    nowhere else. Deleting the remote shift branch also removes its
@@ -561,7 +542,7 @@ with its target and a shift has to reconcile it first.`,
  *    wrong order. Return first and the copy test always passes; delete last and
  *    the work is in the integration branch by then.
  *
- * Everything the teardown needs is read out of `run/meta.json` BEFORE `run/` is
+ * Everything the teardown needs is read out of `run/meta.json` before `run/` is
  * deleted, because deleting it is step four and the tree path, the lease id and
  * the branch name all live in there.
  *
@@ -673,10 +654,10 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   let holder = meta.holder ?? '';
   let leaseId = meta.leaseId ?? '';
   let pane = meta.agentId ?? '';
-  // The shift opens its own MR, so the URL reaches us through the note of its
-  // `done` event — delivery.md §8.2's `done: mr <url>`. Without this the hard
-  // path stalls at the last step: the agent does everything right and
-  // `shift done` still has to be told the address by hand.
+  // The shift opens its own MR, so the URL reaches us through the note on its
+  // `done` event. Without reading it back, the whole path stalls at the last
+  // step: the agent does everything right and this still has to be told the
+  // address by hand.
   let mr = options.mr ?? meta.mr ?? shift.reportedMr() ?? '';
 
   let resuming = false;
@@ -725,7 +706,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     const ask = deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
     const state = ask(mr, dir);
     if (state !== 'merged') {
-      throw new CommandError('shift_done', 'not_merged', `${mr} is '${state}', not merged - a shift clocks out when its merge request has been merged into the integration branch, and nothing sooner (agents.md §5.3)`,
+      throw new CommandError('shift_done', 'not_merged', `${mr} is '${state}', not merged - a shift clocks out when its merge request has been merged into the integration branch, and nothing sooner`,
         { exitCode: RC_NOT_MERGED },
       );
     }
@@ -780,7 +761,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     if (mr === '') mr = '(recorded in outcome.md)';
   }
 
-  // --- 4. return the tree, BEFORE the branch is deleted ---------------------
+  // --- 4. return the tree, before the branch is deleted ---------------------
   let returned = '';
   if (tree === '') {
     process.stderr.write(`yan shift done: no worktree recorded for ${shift.label()}, so there is none to return\n`);
@@ -791,7 +772,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     try {
       returned = (deps.pool?.(clone) ?? new WorktreePool(clone)).return(tree, { leaseId, holder });
     } catch (err) {
-      // Deliberately fatal, and deliberately BEFORE the branch is deleted. A
+      // Deliberately fatal, and deliberately before the branch is deleted. A
       // refusal here means the commits may exist nowhere else, and deleting the
       // remote branch next would make that permanent.
       throw new CommandError('shift_done', 'return_refused', `the tree at ${tree} could not be returned, so the remote branch ${branch} has NOT been deleted - investigate before anything else touches it (${err instanceof Error ? err.message : String(err)})`,

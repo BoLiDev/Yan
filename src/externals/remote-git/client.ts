@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 /**
  * The one place a host CLI is actually executed.
  *
- * Host routing lives here. It is NOT authentication: `gh` and `glab` each keep
+ * Host routing lives here. It is not authentication: `gh` and `glab` each keep
  * their own login, and naming the host only tells the CLI which of its own
  * stored credentials to use. A missing login is `yan doctor`'s business.
  *

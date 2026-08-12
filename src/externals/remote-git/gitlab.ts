@@ -5,7 +5,7 @@ import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.j
 import { extractUrl } from './validate.js';
 
 /**
- * GitLab's JSON, mapped into yan's vocabulary. Both mappers are PURE.
+ * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure.
  *
  * These fixtures are documentation-derived rather than captured off the wire
  * (tests/fixtures/forge/PROVENANCE.json says so explicitly), which is exactly
@@ -163,7 +163,7 @@ export const gitlabProvider: Provider = {
   },
 
   /**
-   * `--auto-merge` defaults to TRUE in glab: with a pipeline running it would
+   * `--auto-merge` defaults to true in glab: with a pipeline running it would
    * schedule the merge and report success without merging anything. yan's verb
    * means "merge it now", so the default is turned off here rather than left
    * for every caller to remember.

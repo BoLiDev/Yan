@@ -14,39 +14,34 @@ import { yanHome } from '../util/home.js';
 import { withLock } from '../util/lock.js';
 
 /**
- * `yan task new` — the strong create path (cli-ux.md §6, td cli-ux.md §3).
+ * `yan task new` — the strong create path.
  *
- * ---------------------------------------------------------------------------
- * WHAT "STRONG" MEANS
- * ---------------------------------------------------------------------------
+ * What "strong" means.
  *
  * Create is not "mkdir plus an empty brief". It is:
  *
  *   the contract          title and description, in brief.md
  *   the involved repos    at least one
  *   a concrete scope      including monorepo packages when they were detected
- *   at least one unit     with target, which is NEVER invented
+ *   at least one unit     with target, which is never invented
  *   and `user` inside it  the main agent running
  *
- * THE LAST LINE IS THE ONE PEOPLE DROP. Create ends with `user` already inside
+ * The last line is the one people drop. Create ends with `user` already inside
  * the task; there is no separate start step and no `yan start` in the
  * inventory. That final step is not re-implemented here — it is `yan continue`,
  * the one enter path. Two copies of "is a yan already running, and if not start
  * one" would drift, and the second copy would be the one that forgets the lock.
  *
- * What V2 changes about it is only the mechanics: the MVP created a terminal
- * container and put `user` inside it, and Herdr is already the multiplexer
- * `user` lives in, so the main agent now starts in the pane they typed in
- * (cli-ux.md §1). Nothing above that line moves.
+ * The main agent starts in the pane `user` typed in, rather than in a container
+ * created for it: Herdr is already the multiplexer they live in, so making a
+ * second one would move them somewhere for no reason.
  *
- * ---------------------------------------------------------------------------
- * THE FLAG GRAMMAR IS ORDER SENSITIVE
- * ---------------------------------------------------------------------------
+ * The flag grammar is order sensitive.
  *
  * A task can involve several repositories, and each one can contribute several
  * units, so the unit flags have to group somehow. They group by position:
  *
- *     --repo <name>              OPENS A UNIT
+ *     --repo <name>              opens a unit
  *     --unit --scope --target --mode --needs --branch --base
  *                                belong to the --repo before them
  *
@@ -57,7 +52,7 @@ import { withLock } from '../util/lock.js';
  *
  * Three units, two repositories, and no nesting syntax to learn. Commander
  * cannot express that as a schema, but it does not have to: it calls an
- * option's coercion function IN ARGV ORDER, so the grammar is exactly a
+ * option's coercion function in argv order, so the grammar is exactly a
  * builder driven by those calls. That is `UnitBuilder` below — and it is the
  * whole reason these options declare a coercion function at all.
  *
@@ -66,7 +61,7 @@ import { withLock } from '../util/lock.js';
  * path is no prefix at all, and an empty scope means the unit restricts
  * nothing.
  *
- * `--target` is required for EVERY unit and is never defaulted (branching.md
+ * `--target` is required for every unit and is never defaulted (branching.md
  * §6.4): during a release the team merges into a shared branch, in quiet
  * periods into master, and a tool that guessed would be wrong about half the
  * time, silently, until the outbound MR.
@@ -170,14 +165,14 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
     );
   }
 
-  // Every unit needs a target, and the message has to say WHICH unit. A
-  // half-specified unit is deliberately NOT routed to the prompts: they collect
+  // Every unit needs a target, and the message has to say which unit. A
+  // half-specified unit is deliberately not routed to the prompts: they collect
   // a whole task from the top and would silently drop the --repo flags that
   // were typed, and losing what `user` already said is worse than saying what
   // is missing.
   for (const unit of options.units) {
     if ((unit.target ?? '') === '') {
-      throw CommandError.usage('task_new', `--target is required for --repo ${unit.repo}, and yan never guesses it: say which branch that unit delivers into (branching.md §6.4)`,
+      throw CommandError.usage('task_new', `--target is required for --repo ${unit.repo}, and yan never guesses it: say which branch that unit delivers into`,
       );
     }
   }
@@ -187,7 +182,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
     throw CommandError.usage('task_new', `task ${id} already exists - 'yan ls' lists them`);
   }
 
-  // The next free number is DERIVED by scanning tasks/, never stored in a
+  // The next free number is derived by scanning tasks/, never stored in a
   // counter file — there is no registry in yan. The lock is only around the
   // gap between deriving it and taking it.
   const dir = tasksDir();
@@ -253,9 +248,9 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
 /**
  * The next free `t<NNN>`.
  *
- * Plain numbers in the t042 style: the readable title lives in brief.md and
- * log.md, not in the id, because the id also goes into branch names
- * (branching.md §6.5) and short is worth something there.
+ * Plain numbers in the t042 style. The readable title lives in brief.md and
+ * log.md rather than in the id, because the id also goes into branch names and
+ * short is worth something there.
  */
 function nextId(): string {
   let max = 0;
@@ -278,14 +273,14 @@ interface NewFlags {
 
 /**
  * The soft path: with values missing and a person at the keyboard, walk the
- * create prompts (cli-ux.md §3, §6).
+ * create prompts.
  *
  * `resolve()` is not what asks here, and the difference is the point. The
- * generic helper fills in missing SCALARS; creating a task means detecting a
+ * generic helper fills in missing scalars; creating a task means detecting a
  * monorepo, offering its packages, and turning selections into units — a flow
  * rather than a list of options, so it has its own prompts and its own module.
  *
- * A HALF-SPECIFIED UNIT IS NOT ROUTED HERE. The wizard collects a whole task
+ * A half-specified unit is not routed here. The wizard collects a whole task
  * from the top, so it would silently drop `--repo` flags that were typed, and
  * losing what `user` already said is worse than saying what is missing: that
  * case falls through to `createTask`'s refusal.

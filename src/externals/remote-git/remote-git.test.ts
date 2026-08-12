@@ -16,7 +16,7 @@ import { RemoteGit, configuredCli } from './index.js';
  *     can be smuggled downward either;
  *   - only the CLI named by the configured kind is ever invoked;
  *   - an unreachable host is `unknown` / `pending`, never a crash;
- *   - glab's `--auto-merge` default of TRUE is turned off, or "merge it" would
+ *   - glab's `--auto-merge` default of true is turned off, or "merge it" would
  *     silently become "merge it later".
  */
 
@@ -97,7 +97,7 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
     // it — two spellings of one key outlive their reason by years otherwise,
     // and the second is always the one somebody edits.
     //
-    // `forge` is still LOOKED FOR, because the difference between "you have not
+    // `forge` is still looked for, because the difference between "you have not
     // configured a host" and "it is under the old name" is the difference
     // between a puzzle and a one-line fix.
     writeFileSync(
@@ -235,7 +235,7 @@ describe('mergeMr', () => {
     configure({ kind: 'github' });
     host().mergeMr({ mr: 'https://github.com/o/r/pull/1' });
     expect(calls[0]?.args).toEqual(['pr', 'merge', 'https://github.com/o/r/pull/1', '--merge']);
-    // worktree.md §7: `yan shift done` returns the tree and THEN deletes the
+    // worktree.md §7: `yan shift done` returns the tree and then deletes the
     // remote branch, so a host that deleted it during the merge would take that
     // step away.
     expect(calls[0]?.args).not.toContain('--delete-branch');

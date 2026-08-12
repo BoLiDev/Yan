@@ -8,7 +8,7 @@ import { normalizePath } from './paths.js';
  * The machine layer.
  *
  * Three layers hold yan's state and this is the smallest of them: what is true
- * about THIS DISK and would be wrong on any other. Which vault is active, where
+ * about this disk and would be wrong on any other. Which vault is active, where
  * each one is, and where `yan repo add <url>` clones into. Nothing here is ever
  * committed anywhere, by anyone.
  *
@@ -18,7 +18,7 @@ import { normalizePath } from './paths.js';
  *     "clone_root": "C:/workspace/project",
  *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" } }
  *
- * This module is DATA ACCESS AND NOTHING ELSE — it reads, merges and writes,
+ * This module is data access and nothing else — it reads, merges and writes,
  * and it refuses nothing. Every decision about a missing or broken registration
  * belongs to `util/vault.ts`, which is the layer above it. That split is what
  * keeps the two free of a cycle: vault knows about machine, never the reverse.
@@ -44,7 +44,7 @@ export function machineDir(): string {
 }
 
 /**
- * Standing instructions that are about THIS BOX rather than this context.
+ * Standing instructions that are about this box rather than this context.
  *
  * The vault has the same directory and it is the one to reach for first: what
  * yan may do itself is normally a property of the context. This is for the

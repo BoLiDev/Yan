@@ -17,9 +17,9 @@ import {
  * Two of its assertions carry over unchanged and are the easiest in the command
  * to lose in a rewrite (cli-ux.md §3):
  *
- *   A SECOND YAN ON THE SAME TASK IS REFUSED, and the lock is per TASK, not per
+ *   A second yan on the same task is refused, and the lock is per task, not per
  *   home — two yans on two different tasks is ordinary working practice.
- *   WHEN ONE IS ALREADY ALIVE, `continue` SAYS WHERE IT IS rather than spawning
+ *   When one is already alive, `continue` says where it is rather than spawning
  *   a duplicate.
  *
  * And two are new, because V2's entry is: the main agent starts in the calling
@@ -46,7 +46,7 @@ const config = `${JSON.stringify(
 )}\n`;
 
 /**
- * Every run pretends yan is NOT inside a Herdr pane.
+ * Every run pretends yan is not inside a Herdr pane.
  *
  * `HERDR_PANE_ID` is how this command finds the pane it is in, and the test
  * runner really is inside one — so without this the suite would relabel the

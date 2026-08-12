@@ -8,7 +8,7 @@ import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './typ
 /**
  * Herdr's event stream, over the socket.
  *
- * WHY THIS SPEAKS THE WIRE PROTOCOL instead of going through the CLI like
+ * Why this speaks the wire protocol instead of going through the CLI like
  * everything else: `herdr api` has exactly two subcommands, `snapshot` and
  * `schema`. `events.subscribe` exists in the request schema and has no CLI verb
  * at all, so there is nothing to shell out to.
@@ -23,19 +23,19 @@ import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './typ
  *
  * Three rules this module holds:
  *
- *   1. RECORD THE ID, NEVER THE LABEL. Subscriptions are per pane id; a pane
+ *   1. Record the ID, never the label. Subscriptions are per pane id; a pane
  *      that has moved is reconciled by whoever owns the bookkeeping, not here.
  *
- *   2. IT CANNOT MOVE THE USER OR CLOSE ANYTHING. This client sends exactly one
+ *   2. It cannot move the user or close anything. This client sends exactly one
  *      method — there is no `focus`, no `close`, no `stop`. A subscriber that
  *      could focus a pane would mark it seen, turning the `done` yan is waiting
  *      for into an `idle` it ignores.
  *
- *   3. IT NEVER DECIDES. A status arrives as a fact with a pane id on it.
+ *   3. It never decides. A status arrives as a fact with a pane id on it.
  *      Whether `blocked` is worth waking anybody is the caller's judgement, and
  *      `done` in particular is a reason to look, never a verdict.
  *
- * RECONNECTION IS THE CALLER'S PACING. `reconnect()` is offered; a hidden retry
+ * Reconnection is the caller's pacing. `reconnect()` is offered; a hidden retry
  * loop is not. A subscription ending is treated as a state that can arrive at
  * any time, but how soon to try again — and what to re-read before doing so, in
  * case something happened while the stream was down — is a supervision decision
@@ -149,7 +149,7 @@ export class TerminalEvents {
    * hold in memory before the connection dropped.
    */
   public async reconnect(panes?: readonly string[]): Promise<void> {
-    // Read the set BEFORE closing: `close()` forgets it, which is what makes a
+    // Read the set before closing: `close()` forgets it, which is what makes a
     // deliberate close different from a connection that dropped.
     const restore = panes ?? [...this.panes];
     this.close();

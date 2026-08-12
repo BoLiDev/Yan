@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
  *   an exported YAN_HOME wins, but only when it really is a yan home;
  *   otherwise it is derived from this file's own location.
  *
- * The env var is CHECKED rather than trusted because it is easy to inherit a
+ * The env var is checked rather than trusted because it is easy to inherit a
  * stale one from a shell that was opened in a different clone, and a yan home
  * pointing at the wrong tree fails in ways that look like anything but that.
  */
@@ -30,7 +30,7 @@ export function yanHome(): string {
 }
 
 /**
- * The subcommands that exist, DERIVED FROM DISK AND NEVER TABULATED.
+ * The subcommands that exist, derived from disk and never tabulated.
  *
  * `dist/cli/` already knows which commands exist, so a list here could only be
  * a second answer to the same question — and a second answer fails silently:

@@ -6,8 +6,7 @@ import { isYanError } from '../../util/error.js';
  *
  *   ls: no such task: t042
  *
- * Exit codes are the MVP's, unchanged: 0 fine, 2 you called this wrongly, 1 it
- * did not work. Anything that is not a `YanError` is a bug in `yan` and is left
+ * Exit codes: 0 fine, 2 you called this wrongly, 1 it did not work. Anything that is not a `YanError` is a bug in `yan` and is left
  * to propagate with its stack, because hiding it would make it harder to fix.
  */
 export function action<A extends unknown[]>(

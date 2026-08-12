@@ -8,7 +8,7 @@ import { scan } from '../../src/cli/repo.js';
  * `yan repo add`'s scan (v3 td repos.md §4).
  *
  * The interactive half cannot be driven from a test — there is no terminal —
- * but the interesting half is not interactive: WHICH directories are offered,
+ * but the interesting half is not interactive: which directories are offered,
  * and what is said about the ones that cannot be taken. That is a pure
  * function over a directory, so it is tested as one.
  */

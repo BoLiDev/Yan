@@ -45,7 +45,7 @@ describe('GitHub: merge request state', () => {
   });
 
   it('maps the awkward one: squash-merged, branch deleted', () => {
-    // cli/cli#14103 was SQUASH-merged: its head commit is not an ancestor of
+    // cli/cli#14103 was squash-merged: its head commit is not an ancestor of
     // the base branch, and the head branch has since been deleted. Anything
     // that reasoned from local git ancestry would get this wrong (Rule 1).
     expect(github.mapMrState(fx('github/mr-merged-squash-branch-deleted.json'))).toBe('merged');
@@ -192,7 +192,7 @@ describe('every fixture lands inside the closed set', () => {
  * side without drifting.
  *
  * Phase 9 deleted the bash half, so the comparison has no second side left. The
- * ASSERTION IS KEPT ANYWAY, with the reference frozen rather than re-derived:
+ * Assertion is kept anyway, with the reference frozen rather than re-derived:
  * this table is the exact output of that script on its last run, and it is the
  * only place the every-fixture-times-four-mappers guarantee lives. The named
  * tests above are spot checks with reasons; this is the sweep.

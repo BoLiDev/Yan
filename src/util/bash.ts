@@ -5,9 +5,7 @@ import { dirname, join } from 'node:path';
 /**
  * Which bash to run, on a machine that may have more than one.
  *
- * ---------------------------------------------------------------------------
- * WHY `bash` IS NOT AN ANSWER ON WINDOWS
- * ---------------------------------------------------------------------------
+ * Why `bash` is not an answer on Windows.
  *
  * A developer box with WSL installed has `bash.exe` in
  * `%LOCALAPPDATA%\Microsoft\WindowsApps`, and that directory usually comes

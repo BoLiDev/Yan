@@ -16,7 +16,7 @@ import { normalizePath } from './paths.js';
  * Resolution mirrors `yanHome()` deliberately, because a rule that is the same
  * in both places is a rule nobody has to look up:
  *
- *   $YAN_VAULT             if it is set AND really is a vault
+ *   $YAN_VAULT             if it is set and really is a vault
  *   ~/.yan/config.json     the `active` entry, otherwise
  *   neither                a refusal naming `yan vault init`
  *
@@ -25,7 +25,7 @@ import { normalizePath } from './paths.js';
  * machine can pin a terminal profile to the work vault and never depend on
  * global state.
  *
- * THROWING IS A NORMAL OUTCOME HERE — a fresh install has no vault — so the
+ * Throwing is a normal outcome here — a fresh install has no vault — so the
  * commands that must work without one (`doctor`, `vault init`, `vault clone`,
  * `vault ls`, `--help`) call `vaultDirIfAny()` or nothing at all.
  */
@@ -135,7 +135,7 @@ export function vaultDir(): string {
 }
 
 /*
- * The paths inside a vault, in ONE place.
+ * The paths inside a vault, in one place.
  *
  * Every `join(vaultDir(), 'tasks')` in the code base would otherwise be a place
  * the layout is restated, and the layout is exactly the thing V3 moved.
@@ -172,14 +172,14 @@ export function localReposPath(): string {
  * `skills/` — standing instructions, in prose, about what yan may do itself
  * here.
  *
- * NOT executables, and deliberately not: the machinery for running one would
+ * not executables, and deliberately not: the machinery for running one would
  * be larger than the thing it runs. A skill is a few paragraphs saying "in
  * this environment you may check the build yourself rather than dispatching a
  * shift for it", and `yan session-start` reads them into the session, which is
  * the whole mechanism.
  *
  * In the vault, because what yan may do on its own is a property of the
- * CONTEXT: at work there is a build command and a proxy and a rule about who
+ * context: at work there is a build command and a proxy and a rule about who
  * touches release branches; at home there is none of that. A machine-level
  * directory sits beside it for the things that really are about one box.
  */

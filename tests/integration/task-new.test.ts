@@ -18,7 +18,7 @@ import {
  * Phase 8 ports the last two commands that had no TypeScript twin. What the
  * bash test proved and this one has to keep proving:
  *
- *   CREATE ENDS WITH `user` INSIDE THE TASK. Create is not "mkdir plus an empty
+ *   Create ends with `user` inside the task. Create is not "mkdir plus an empty
  *   brief" — it is the contract, the involved repositories, a concrete scope, at
  *   least one unit, and the main agent running. A create that stopped at
  *   task.json would leave the whole product sentence unfinished, and the enter
@@ -152,7 +152,7 @@ describe('--json still enters; it only changes how the result is printed', () =>
     };
     expect(seen.task).toBe('t044');
     expect(seen.units).toEqual(['proto']);
-    // The record is printed BEFORE the pane is handed over, which is the whole
+    // The record is printed before the pane is handed over, which is the whole
     // reason entering is two phases: a record that only arrived once the agent
     // had finished would arrive hours late or never.
     expect(seen.entered.started).toBe(true);

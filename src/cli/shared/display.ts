@@ -4,9 +4,7 @@ import { Task } from '../../records/task/index.js';
 /**
  * Telling Herdr what it is looking at (display.md §4).
  *
- * ---------------------------------------------------------------------------
- * THESE CALLS ARE NEVER FATAL
- * ---------------------------------------------------------------------------
+ * These calls are never fatal
  *
  * Herdr receives presentation, never truth. `task.json` remains the only record
  * of which unit is on which branch; a token or a title is a copy for human
@@ -29,7 +27,7 @@ export function display(what: string, call: () => void): void {
 }
 
 /**
- * Which workspace this task's panes live in, DERIVED from a live shift's
+ * Which workspace this task's panes live in, derived from a live shift's
  * `run/meta.json` — never created.
  *
  * `createContainer` would make one, and a command that only wants to relabel

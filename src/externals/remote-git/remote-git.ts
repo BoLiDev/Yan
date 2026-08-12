@@ -46,13 +46,13 @@ export interface RemoteGitOptions {
  * one-line pass-throughs, the outside tool's own words leaking out, and the
  * caller still having to know which system it is talking to. The defence is
  * that the interface is written in yan's vocabulary, and that every verb
- * declares the options it takes and REFUSES everything else, so a caller cannot
+ * declares the options it takes and refuses everything else, so a caller cannot
  * smuggle `--admin` or `--auto-merge` through.
  *
- * Exit behaviour: the two QUERY verbs always return a member of their closed
+ * Exit behaviour: the two query verbs always return a member of their closed
  * set, including when the host cannot be reached — that is reported as
  * `unknown` / `pending` plus a note on stderr, so a caller branches on the
- * value and never has to catch. The two ACTION verbs throw a `RemoteGitError` when
+ * value and never has to catch. The two action verbs throw a `RemoteGitError` when
  * they did not work.
  */
 export class RemoteGit {
@@ -103,7 +103,7 @@ export class RemoteGit {
 
   /**
    * Merge now. `deleteSource` is off by default on purpose: worktree.md §7
-   * fixes the order of `yan shift done` as return the tree, THEN delete the
+   * fixes the order of `yan shift done` as return the tree, then delete the
    * remote branch, and a host that deleted it during the merge would take that
    * step away.
    */

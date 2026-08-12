@@ -6,7 +6,7 @@ import { ENDS, MODES, type HistoryEnd, type HistoryEntry, type ScalarField, type
  * One `unit` of a task: one delivery channel, one integration branch, one
  * outbound merge request.
  *
- * Its state is IDENTITY, not data — the task's file and this unit's name. Every
+ * Its state is identity, not data — the task's file and this unit's name. Every
  * method re-reads, because another process may have written in between and a
  * cached document would be a lie with a long half-life.
  */
@@ -30,7 +30,7 @@ export class Unit {
     return found;
   }
 
-  /** The ONLY writer of the four current scalars. It never touches history[]. */
+  /** The only writer of the four current scalars. It never touches history[]. */
   public set(field: ScalarField, value: string): void {
     if (field === 'mode' && !(MODES as readonly string[]).includes(value)) {
       throw TaskError.usage(`invalid mode '${value}' - one of: ${MODES.join(' ')}`);
@@ -67,7 +67,7 @@ export class Unit {
    * The only history writer in the code base.
    *
    * It builds `history + [entry]`, so every existing entry is carried across
-   * untouched BY CONSTRUCTION — there is no index parameter anywhere in this
+   * untouched by construction — there is no index parameter anywhere in this
    * class, which is how "history[] is append-only" is enforced rather than
    * merely intended. Pass an empty string for `at` to mean today.
    */
@@ -87,7 +87,7 @@ export class Unit {
 
   /**
    * Start a new round: archive the current branch/target/mr into history[],
-   * then overwrite the branch and clear mr — in ONE tmp → mv, because a crash
+   * then overwrite the branch and clear mr — in one tmp → mv, because a crash
    * between the archive and the overwrite would lose the round it was in.
    *
    * Deciding `end` is the caller's business, not this record's.

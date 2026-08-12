@@ -7,11 +7,11 @@ import { ShiftError } from './errors.js';
  *
  * Two invariants live here:
  *
- *   1. `run/status` IS APPENDED PLAIN TEXT, never JSON. It has to survive a
+ *   1. `run/status` is appended plain text, never JSON. It has to survive a
  *      crash without damaging what is already there, and a JSON array cannot do
  *      that.
  *
- *   2. EVERY LINE IS AN EVENT, NOT THE CURRENT STATE. There is deliberately NO
+ *   2. Every line is an event, not the current state. There is deliberately no
  *      function here that reads the last line: a shift that reported `done` an
  *      hour ago and then died has `done` as its last line, and so has one whose
  *      work has since landed. `yan state` derives the state from the live
@@ -51,9 +51,9 @@ export function countEvents(run: string): number {
  * A shift in `mr` mode ends by reporting `done: mr <url>`, so the address
  * reaches yan through the note on a `done` event.
  *
- * Reading a line back does NOT break invariant 2. The verdict — has it merged —
+ * Reading a line back does not break invariant 2. The verdict — has it merged —
  * still comes from the forge and only from the forge; what is read here is an
- * ADDRESS the shift recorded, which is exactly what an event log is for. The
+ * address the shift recorded, which is exactly what an event log is for. The
  * last URL wins, because a shift that reopened its MR reported the newer one
  * later.
  */
@@ -73,14 +73,14 @@ export function reportedMr(run: string): string | undefined {
 /**
  * One event, then the wake marker, in that order and in one call.
  *
- * THE ORDER IS NOT ARBITRARY. Signal first would mean a crash in between leaves
+ * The order is not arbitrary. Signal first would mean a crash in between leaves
  * a marker pointing at nothing: yan wakes, finds no new event, clears the
  * signal — and the event that lands afterwards is then never announced to
  * anyone. Event first means a crash in between leaves a recorded event that
  * nobody was woken for, and supervision's other source catches a shift that
  * crashed mid-report.
  *
- * The line is written by ONE append on purpose. A short single write to a file
+ * The line is written by one append on purpose. A short single write to a file
  * opened with O_APPEND is not interleaved with another writer's, whereas three
  * writes into the same file are three chances to end up with half a line.
  */

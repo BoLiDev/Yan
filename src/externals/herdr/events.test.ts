@@ -49,7 +49,7 @@ afterEach(async () => {
 function endpointForTest(): string {
   counter += 1;
   const name = `yan-events-${process.pid}-${counter}`;
-  // The Windows rule is exercised for real here: the address IS a pipe name.
+  // The Windows rule is exercised for real here: the address is a pipe name.
   // The *derivation* of that name from Herdr's `.sock` path is tested purely,
   // below, so this does not depend on where herdr happens to be installed.
   return process.platform === 'win32'
@@ -140,7 +140,7 @@ async function until(check: () => boolean, what: string): Promise<void> {
 describe('the Windows pipe-name rule', () => {
   it('turns the .sock path into a pipe name, and leaves other platforms alone', () => {
     // evidence §11.1: `%APPDATA%\herdr\herdr.sock` is a hint file, not a
-    // socket. The endpoint is a named pipe whose NAME is that path.
+    // socket. The endpoint is a named pipe whose name is that path.
     expect(endpointFor('C:\\Users\\x\\AppData\\Roaming\\herdr\\herdr.sock', 'win32')).toBe(
       '\\\\.\\pipe\\C:\\Users\\x\\AppData\\Roaming\\herdr\\herdr.sock',
     );
@@ -302,8 +302,8 @@ describe('what arrives on a subscription', () => {
 describe('a subscription that ends', () => {
   it('is reported, and reconnecting subscribes again', async () => {
     // supervision.md §2: reconnect is not optional. The spike never saw a Herdr
-    // restart under a subscriber, so the path is tested by ENDING THE
-    // CONNECTION under it rather than by hoping.
+    // restart under a subscriber, so the path is tested by ending the
+    // connection under it rather than by hoping.
     const herdr = await fakeHerdr();
     const events = client(herdr.endpoint);
     let closed = 0;

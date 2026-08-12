@@ -5,19 +5,19 @@
 //
 // Three rules, and all three exist because the failure they prevent is silent:
 //
-//   1. ENTRY POINT. Nothing outside src/externals/<m>/ may import a file inside
+//   1. Entry point. Nothing outside src/externals/<m>/ may import a file inside
 //      it other than its index.ts. That is what makes index.ts worth reading:
 //      it is the module's whole public surface, not a suggestion. Without this
 //      rule a test — or a command in a hurry — reaches for an internal helper,
 //      the helper becomes public by accident, and nobody can say what the
 //      module offers any more.
 //
-//   2. NO SIDEWAYS EDGES, BETWEEN EXTERNALS. No module under src/externals/<a>/ imports
+//   2. No sideways edges, between externals. No module under src/externals/<a>/ imports
 //      src/externals/<b>/. An external maps one outside authority into yan's
 //      vocabulary; one that reaches into another has started making decisions,
 //      which is the one thing they exist not to do (td §4.3).
 //
-//   3. PROMPTS STAY IN THE CLI. Nothing under src/ imports src/ui/ except
+//   3. Prompts stay in the CLI. Nothing under src/ imports src/ui/ except
 //      src/cli/. `ui/` is Clack and people (cli-ux.md §2). A store or an
 //      external that can prompt is one that can hang a hook forever with
 //      nobody there to answer it.
@@ -40,7 +40,7 @@ const srcRoot = resolve(process.argv[2] ?? join(repoRoot, 'src'));
 const MODULE_ROOTS = ['externals', 'records'];
 
 // …but only externals may not import each other. `records/` is yan's own
-// domain and it genuinely nests: a task HAS a log, a shift BELONGS TO a task,
+// domain and it genuinely nests: a task has a log, a shift belongs to a task,
 // so `shift → task → log` is the hierarchy and not a leak. What rule 2 forbids
 // for externals — one outside authority reaching into another, which means it
 // has started deciding — has no counterpart here.

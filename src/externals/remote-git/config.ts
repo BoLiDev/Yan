@@ -5,7 +5,7 @@ import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';
 
 /**
- * This file is the ONLY reader of the vault config's remote-git section.
+ * This file is the only reader of the vault config's remote-git section.
  * Subcommands never branch on the host kind.
  */
 
@@ -27,7 +27,7 @@ function configPath(): string {
  * went with it — two spellings of one key outlive the reason for them by years
  * otherwise, and the second is always the one somebody edits.
  *
- * `forge` is still LOOKED FOR, because the difference between "you have not
+ * `forge` is still looked for, because the difference between "you have not
  * configured a host" and "your host is configured under the old name" is the
  * difference between a puzzle and a one-line fix.
  */

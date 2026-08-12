@@ -8,10 +8,10 @@ import { LogError } from './errors.js';
  * One task's `log.md` — the narrative layer.
  *
  * This class is deliberately tiny, and that is the point. It is not hiding
- * complexity; it exists so that ONE invariant has exactly one enforcement
+ * complexity; it exists so that one invariant has exactly one enforcement
  * point:
  *
- *   log.md is APPEND-ONLY. An existing line is never rewritten and never
+ *   log.md is append-only. An existing line is never rewritten and never
  *   removed.
  *
  * The API is the enforcement. There is no set, no replace, no delete, no line
@@ -29,7 +29,7 @@ import { LogError } from './errors.js';
  *
  *   - 08-04  s1 auth       parse the header   → !31 merged into the integration branch
  *
- * One line per event. The date is MM-DD; the year is not carried because the
+ * One line per event. The date is mm-dd; the year is not carried because the
  * task directory's own lifetime already bounds it and the line has to stay
  * short enough that nobody skips writing it.
  */
@@ -58,7 +58,7 @@ export class Log {
   }
 
   /**
-   * The only write. `when` defaults to today as MM-DD and is accepted only so
+   * The only write. `when` defaults to today as mm-dd and is accepted only so
    * tests and back-fills are deterministic; it can never point at an existing
    * line.
    */

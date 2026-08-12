@@ -10,7 +10,7 @@ export type SupervisionErrorKind = keyof typeof CODES;
 /**
  * What the supervision files can fail with.
  *
- * Deliberately short. Almost everything this record is asked is a PREDICATE —
+ * Deliberately short. Almost everything this record is asked is a predicate —
  * is the watcher healthy, is this reason already waiting to be drained — and a
  * predicate that throws is a predicate a caller has to wrap. Only two things
  * here are conditions rather than answers: being called wrongly, and not being

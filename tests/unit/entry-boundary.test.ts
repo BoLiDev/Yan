@@ -7,11 +7,11 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
  * The entry point's two structural rules, which no unit test of a command can
  * reach (cli-ux.md §2, §4; architecture.md §2).
  *
- *   PROMPTS ARE FOR PEOPLE. Agents already know their arguments, so the
+ *   Prompts are for people. Agents already know their arguments, so the
  *   commands only they run must never grow one — a prompt reached by a hook, a
  *   script or an agent is a hang, and a hang inside a hook is invisible.
  *
- *   `attach` IS NOT IN THE VOCABULARY. V2's yan joins the multiplexer `user` is
+ *   `attach` is not in the vocabulary. V2's yan joins the multiplexer `user` is
  *   already in, so there is nothing to attach to. The word surviving in a
  *   command, a record field or the model's instructions is how the concept
  *   comes back.
@@ -19,7 +19,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
  * This file replaces `tests/unit/soft-path-boundary.test.sh`, which asserted
  * the same rules about a soft path that lived in `ui/` and was launched from
  * `bin/lib-ui.sh`. Both are gone: Clack is an ordinary dependency now. What is
- * kept is every assertion that was about the RULE rather than about the shell.
+ * kept is every assertion that was about the rule rather than about the shell.
  */
 
 function read(...parts: string[]): string {
@@ -46,7 +46,7 @@ describe('the model is never sent into the prompts', () => {
   });
 
   it('and still says the two things it has to', () => {
-    // THE RULE THESE GUARD CHANGED SHAPE, AND THE GUARANTEE DID NOT.
+    // The rule these guard changed shape, and the guarantee did not.
     //
     // AGENTS.md used to say "you only ever run `yan <command>`", which stopped
     // the model reaching for the human prompts and, in the same sentence,
@@ -118,7 +118,7 @@ describe('Clack is an ordinary dependency', () => {
   });
 
   it('is imported like any other package, with no discovery around it', () => {
-    // The MVP looked for node in three places and launched a separate Node
+    // The mvp looked for node in three places and launched a separate Node
     // island. Node is the runtime now, so the dance has nowhere left to live:
     // bin/ is where it was, and this is an import.
     const shell = readdirSync(join(repoRoot, 'bin'))
@@ -194,7 +194,7 @@ describe('one exit code for "you called this wrongly"', () => {
  * Every list a person picks from is searchable.
  *
  * Testable only as source text: drawing a prompt needs a real terminal, and
- * what is worth guarding is not the drawing but the CHOICE — that nobody adds
+ * what is worth guarding is not the drawing but the choice — that nobody adds
  * a sixth list later with a plain `select` because it happened to be the
  * import already in the file. The lists grow (a monorepo's packages, a vault's
  * repositories and tasks) and an unfilterable list of forty is miserable in a

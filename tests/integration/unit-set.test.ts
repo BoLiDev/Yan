@@ -32,7 +32,7 @@ import type { MrState } from '../../src/externals/remote-git/index.js';
  *   checked against a byte-for-byte copy of task.json: nothing moved.
  *
  *   `end` is looked up, not remembered. merged → delivered; closed, or no mr at
- *   all → abandoned; still open or unreachable → ASK `user`, and yan refuses to
+ *   all → abandoned; still open or unreachable → ask `user`, and yan refuses to
  *   decide. The host answers through an injected reader rather than a stub
  *   binary on PATH, so `open → merged` is reproducible and no network is
  *   involved — the same shape `yan wait` uses for its two sources.
@@ -151,7 +151,7 @@ describe('a round with nothing on it is replaced without an interrogation', () =
       branch: 'yan/t1-auth-r1',
       target: 'main',
       at: '2026-08-25',
-      // NOT 'abandoned'. Calling it that used to demand a written reason, so
+      // not 'abandoned'. Calling it that used to demand a written reason, so
       // the cheapest and commonest move — "this branch has nothing on it, give
       // me another" — was the one that cost the most typing.
       end: 'unused',
@@ -325,7 +325,7 @@ describe('history is append-only, and the whole file is still valid', () => {
  * A round is replaced by a branch cut somewhere else — off target, or wherever
  * a `branch-create` hook cuts things — so the commits on the old one are not
  * automatically on the new one. Carrying them forward is yan's own job,
- * deliberately not the hook's, and it happens IN THE MAIN CLONE with no
+ * deliberately not the hook's, and it happens in the main clone with no
  * worktree: `merge-tree --write-tree` merges into the object store, which is a
  * ref-and-object write and not the working-tree change the main-clone rule
  * forbids.
@@ -346,7 +346,7 @@ describe('the work on the old round is carried forward', () => {
   });
 
   it('merges the old branch into the new one, in the main clone, with no worktree', async () => {
-    // The successor is cut from target, which does NOT contain the old work —
+    // The successor is cut from target, which does not contain the old work —
     // exactly the shape a `branch-create` hook produces.
     const r = run({ task: 't1', unit: 'carry', branch: 'feat/carry-r2', base: 'main' });
     expect(r.code, r.message).toBe(0);
@@ -355,7 +355,7 @@ describe('the work on the old round is carried forward', () => {
     expect(reachable.code, 'the abandoned round is an ancestor of its successor now').toBe(0);
     expect((await fxGit(['-C', clone, 'cat-file', '-e', 'feat/carry-r2:carried.txt'])).code).toBe(0);
 
-    // THE RULE THIS MUST NOT BREAK: the main clone's working tree never moved.
+    // The rule this must not break: the main clone's working tree never moved.
     expect((await fxGit(['-C', clone, 'rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()).toBe('main');
     expect((await fxGit(['-C', clone, 'status', '--porcelain'])).stdout.trim()).toBe('');
 
@@ -368,7 +368,7 @@ describe('the work on the old round is carried forward', () => {
   });
 
   it('a conflict is reported loudly and does not undo the rotation', async () => {
-    // The SAME file, written differently on target and on the round being
+    // The same file, written differently on target and on the round being
     // replaced. The successor is cut from target, so the merge has no
     // mechanical answer and git says so.
     await fxGit(['checkout', '-b', 'side', 'origin/main'], work);

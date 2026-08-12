@@ -12,7 +12,7 @@ import { action, out } from './shared/action.js';
  * what carries that reason across the gap between "wait exited" and "the
  * model's next turn", because nothing else survives it.
  *
- * READ FIRST, CLEAR SECOND. The order is the whole design of this command: a
+ * Read first, clear second. The order is the whole design of this command: a
  * crash between the two leaves the reason on disk and the next drain picks it
  * up again, whereas clearing first and crashing loses it for good. Repeating a
  * wake is free; losing one means a shift waits for a yan that is never coming.
@@ -21,7 +21,7 @@ import { action, out } from './shared/action.js';
  * drains after a quiet timeout too, so "nothing to report" must not look like a
  * failure.
  *
- * WHOSE WAKE FILE. Supervision is per-yan and a yan is per-task (agents.md
+ * Whose wake file. Supervision is per-yan and a yan is per-task (agents.md
  * §5.2), so the file belongs to the task, not to any one shift:
  * `tasks/<id>/run/wake`, beside the guard's own `run/guard-failures`.
  * `$YAN_WAKE_FILE` overrides the path entirely.

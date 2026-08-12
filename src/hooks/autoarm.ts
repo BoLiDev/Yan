@@ -9,18 +9,18 @@ import { yanHome } from '../util/home.js';
  * Claude's Stop autoarm (supervision.md §4, architecture.md §6).
  *
  * Registered in `.claude/settings.json` with `asyncRewake: true` and a long
- * timeout. NOT registered for Codex, which parses `async` but does not run
+ * timeout. not registered for Codex, which parses `async` but does not run
  * asynchronous command hooks and therefore cannot hold a multi-hour watcher.
  *
  *   is there anything to supervise?   no  -> exit 0, quiet
- *   run the long `yan wait` IN THIS FOREGROUND
+ *   run the long `yan wait` in this foreground
  *     something happened   -> exit 2, the reason on stderr, Claude rewakes yan
  *     nothing left to do   -> exit 0, quiet
  *
- * NEVER `&`. NEVER BACKGROUND. NEVER detached.
+ * never `&`. Never background. never detached.
  *
- * The watcher runs in this hook's foreground so that THE HARNESS OWNS THE
- * PROCESS GROUP. A backgrounded watcher outlives the session that armed it,
+ * The watcher runs in this hook's foreground so that the harness owns the
+ * Process group. A backgrounded watcher outlives the session that armed it,
  * survives the harness being killed, and is then a second watcher nobody can
  * see — the exact failure the single-flight lock exists to prevent, made
  * permanent. `spawnSync` is what says that here, and the test reads this file

@@ -4,9 +4,9 @@ import { CommandError } from './errors.js';
  * The soft/hard rule, expressed once instead of per command
  * (runtime.md §3, cli-ux.md §1).
  *
- *   soft   stdin is a TTY  AND  a required value is missing  → prompt
- *   hard   every required flag is present, OR there is no TTY → no prompts.
- *          Missing values with no TTY is a REFUSAL that names the flags.
+ *   soft   stdin is a tty  and  a required value is missing  → prompt
+ *   hard   every required flag is present, or there is no TTY → no prompts.
+ *          Missing values with no tty is a refusal that names the flags.
  *
  * The refusal is the important half. A script, a hook or an agent that reached
  * a prompt would hang forever with nobody to answer it, so "there is no TTY" is

@@ -22,25 +22,25 @@ import type {
  *
  * Four rules this class exists to hold:
  *
- *   1. A LABEL IS NOT A SOURCE OF TRUTH; RECORD THE ID. Herdr does enforce that
- *      an agent NAME is unique among LIVE agents, which is tempting — but a
+ *   1. A label is not a source of truth; record the ID. Herdr does enforce that
+ *      an agent name is unique among live agents, which is tempting — but a
  *      name is cleared when the agent exits, so it cannot identify a shift that
  *      has died, and identifying dead shifts is precisely what supervision is
  *      for. Ids are what gets recorded and passed.
  *
- *   2. CLOSE EXACTLY ONE THING. `close` closes the recorded pane and nothing
+ *   2. Close exactly one thing. `close` closes the recorded pane and nothing
  *      else. `workspace close` and `tab close` are not spelled anywhere in this
  *      file, and a test greps for them: container lifetime belongs to `user`,
  *      and yan never closes something it did not create.
  *
- *   3. DO NOT STEAL FOCUS. Every call that could move the user passes
+ *   3. Do not steal focus. Every call that could move the user passes
  *      `--no-focus`, and yan never calls `agent focus` on a shift's pane at
  *      all. The second half has a reason that is easy to miss: focusing marks
- *      the tab SEEN, which turns the `done` yan was about to be woken by into
+ *      the tab seen, which turns the `done` yan was about to be woken by into
  *      an `idle` it ignores. `read` does not mark it seen, which is why yan
  *      reads rather than looks.
  *
- *   4. REPORT FACTS, DECIDE NOTHING. `agentAlive` answers with one of three
+ *   4. Report facts, decide nothing. `agentAlive` answers with one of three
  *      words defined by yan — alive, dead, unknown — never with Herdr's
  *      vocabulary, and never with a guess dressed up as a fact.
  *
@@ -88,13 +88,13 @@ export class Terminal {
   /**
    * Start an agent.
    *
-   * TWO STEPS, and they are not interchangeable: `agent start` requires a pane
+   * Two steps, and they are not interchangeable: `agent start` requires a pane
    * that already exists and is at an interactive prompt, and it never creates
    * layout. So the pane is split first, carrying the environment and working
    * directory, and the agent is started into it.
    *
    * `agent start` waits for Herdr to detect the agent before returning, and
-   * THAT IS NOT PROOF THE AGENT IS UP: detection is screen-based, and a bare
+   * That is not proof the agent is up: detection is screen-based, and a bare
    * shell prompt left behind by a CLI that exited immediately matches it just
    * as well, reporting `interactive_ready: true` for a pane with nothing in it.
    * So this asks again and refuses rather than handing such a pane back.
@@ -145,9 +145,9 @@ export class Terminal {
    * Atomic: text and Enter in one submission, honouring the pane's live
    * bracketed-paste mode.
    *
-   * NOTHING IS SENT TO A PANE WITHOUT A LIVE AGENT, hence the extra call first.
+   * Nothing is sent to a pane without a live agent, hence the extra call first.
    * Text sent to a pane whose agent has died is typed into the shell underneath,
-   * which then tries to RUN it — a brief pasted into PowerShell, one line at a
+   * which then tries to run it — a brief pasted into PowerShell, one line at a
    * time. Sends are not hot, so the check is cheap at any price.
    *
    * Same caveat as `startAgent`: liveness detection is screen-based, so this
@@ -174,7 +174,7 @@ export class Terminal {
    * another tool's and can be withdrawn as a set. `--ttl-ms` expires them, so a
    * yan that dies mid-task leaves labels that clean themselves up.
    *
-   * DISPLAY ONLY. Nothing reported here is ever read back as a fact — task.json
+   * Display only. Nothing reported here is ever read back as a fact — task.json
    * is the only record of which unit is on which branch — so a stale token is a
    * cosmetic bug, and callers treat a failure here as one logged line rather
    * than a reason to abandon what they were doing.
@@ -219,7 +219,7 @@ export class Terminal {
   /**
    * Read what is on an agent's terminal.
    *
-   * `recent-unwrapped` for transcripts. Reading does NOT mark the tab seen,
+   * `recent-unwrapped` for transcripts. Reading does not mark the tab seen,
    * which is the whole reason yan reads instead of focusing (rule 3).
    */
   public read(pane: string, lines = 80, source: ReadSource = 'recent-unwrapped'): string {
@@ -238,8 +238,8 @@ export class Terminal {
   /**
    * alive | dead | unknown.
    *
-   * THE ONE METHOD THAT NEEDS MORE THAN A SINGLE CALL, because `agent get`
-   * answers `agent_not_found` BOTH when the agent died and when it never
+   * The one method that needs more than a single call, because `agent get`
+   * answers `agent_not_found` both when the agent died and when it never
    * existed. The distinction lives one level down:
    *
    *   agent get <pane>
@@ -293,10 +293,10 @@ export class Terminal {
    *
    * `pane move` changes the pane id: a pane moved into another workspace gets a
    * new workspace-qualified one. yan never moves panes itself, but `user` can,
-   * so when the recorded id is gone and an agent with the recorded NAME is
+   * so when the recorded id is gone and an agent with the recorded name is
    * alive somewhere else, that is what happened.
    *
-   * This REPORTS the new id and writes nothing: run/meta.json belongs to the
+   * This reports the new id and writes nothing: run/meta.json belongs to the
    * subcommand, and a seam that quietly rewrote records would put that write in
    * two places.
    */
@@ -390,7 +390,7 @@ export class Terminal {
   }
 
   /**
-   * Which pane to split from is DERIVED, never guessed from the workspace id:
+   * Which pane to split from is derived, never guessed from the workspace id:
    * `w1` does not imply `w1:p1` (ids are opaque, and a closed pane's id is
    * never reused). `workspace get` answers with WorkspaceInfo and carries no
    * root pane, so the panes are listed and filtered by workspace instead.

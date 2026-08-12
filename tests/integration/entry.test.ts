@@ -16,7 +16,7 @@ import {
  * | `yan` without a TTY | usage, exit 0 — unchanged, so scripts and agents see no difference |
  *
  * Clack needs a real terminal and a test runner has none, so what is exercised
- * here is the half a test CAN see: the no-TTY behaviour, and the ROWS the
+ * here is the half a test can see: the no-TTY behaviour, and the rows the
  * select is built from. Those rows are the interesting claim — "derived, never
  * stored, from the same scan `yan ls` uses" — and getting them wrong is how a
  * menu starts disagreeing with the directory.
@@ -45,7 +45,7 @@ beforeAll(async () => {
   if (previous === undefined) delete process.env.YAN_HOME;
   else process.env.YAN_HOME = previous;
 
-  // One live shift on t001, which is what the hint counts. `run/` existing IS
+  // One live shift on t001, which is what the hint counts. `run/` existing is
   // the fact that a shift is live, so that is all this has to write.
   mkdirSync(join(home, 'tasks', 't001', 'shifts', 's1', 'run'), { recursive: true });
   writeFileSync(

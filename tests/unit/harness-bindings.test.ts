@@ -11,26 +11,24 @@ import { repoRoot } from '../helpers/fixtures.js';
  *            Stop         → hook-turnend-guard.sh --claude, blocking
  *   Codex    SessionStart → `yan session-start`
  *            Stop         → the turn-end guard, --codex
- *            and NO autoarm: Codex parses `async` but does not run asynchronous
+ *            and no autoarm: Codex parses `async` but does not run asynchronous
  *            command hooks, so it cannot hold a multi-hour watcher
  *
  * Ported from `tests/unit/harness-bindings.test.sh` in Phase 9, unchanged in
  * substance — the two settings files are the one subject of a bash test that
  * outlives bash. Only the runner moved.
  *
- * ---------------------------------------------------------------------------
- * WHY THE CODEX HALF IS STRUCTURAL
- * ---------------------------------------------------------------------------
+ * Why the codex half is structural.
  *
  * It used to grep the file's body, and said so: "the Codex file is written from
- * the documented shape and has NOT been run against a real codex." A body grep
+ * the documented shape and has not been run against a real codex." A body grep
  * passes on a file codex refuses to parse, which is exactly what happened — for
  * eight phases the checked-in file was rejected at startup with
  *
  *   unknown field `version`, expected `description` or `hooks`
  *
  * and nothing noticed, because `session-start` and `--codex` were both present
- * in the text. So this asserts the SHAPE codex parses: the nesting level, the
+ * in the text. So this asserts the shape codex parses: the nesting level, the
  * string-valued `command`, `timeout` in seconds, and the absence of the keys
  * codex rejects. The shape is not derived from documentation — it is the one
  * `herdr integration install codex` writes, and it was confirmed by running
@@ -125,7 +123,7 @@ describe('Codex: what those hooks run', () => {
   });
 
   it('starts the interpreter directly, because the shell it would get is not knowable', () => {
-    // MEASURED, not a style choice (evidence.md §13.2). Codex hands the command
+    // measured, not a style choice (evidence.md §13.2). Codex hands the command
     // string to the platform shell, which on Windows is PowerShell — and on the
     // plain Windows PATH `bash` resolves to the WSL launcher while `sh` does not
     // resolve at all. A hook naming either reaches the wrong interpreter or

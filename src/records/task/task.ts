@@ -10,14 +10,14 @@ import { Unit } from './unit.js';
 import { MODES, type AddUnitOptions, type TaskData } from './types.js';
 
 /**
- * One `tasks/<id>/` — the DECISIONS yan has made about a task, and only those.
+ * One `tasks/<id>/` — the decisions yan has made about a task, and only those.
  *
  * Facts live in git and are never mirrored here; live state is looked up on the
  * forge when it is needed. What is left, and what this file holds, is what
  * neither of them knows: which branch a unit is on, where it is meant to go,
  * how far it may reach, and whether `user` has called the task finished.
  *
- * The state this class holds is IDENTITY — which task — and never the document.
+ * The state this class holds is identity — which task — and never the document.
  * Every method re-reads, because other processes write this file while yan is
  * running and a cached parse would be a lie with a long half-life.
  */
@@ -69,7 +69,7 @@ export class Task {
    * The name of this task's terminal container.
    *
    * One container per task, and every caller has to reach the
-   * SAME one, so the derivation lives here next to the task's other naming. The
+   * same one, so the derivation lives here next to the task's other naming. The
    * name is for humans; nothing is ever looked up by it.
    */
   public containerName(): string {
@@ -148,7 +148,7 @@ export class Task {
   }
 
   /**
-   * For an id that has NOT been validated — something a person typed.
+   * For an id that has not been validated — something a person typed.
    *
    * The constructor refuses a malformed id, which is right when you are about
    * to act on a task and wrong when you are only asking whether a string names

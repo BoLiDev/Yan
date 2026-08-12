@@ -4,7 +4,7 @@ import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.j
 import { extractUrl } from './validate.js';
 
 /**
- * GitHub's JSON, mapped into yan's vocabulary. Both mappers are PURE: no
+ * GitHub's JSON, mapped into yan's vocabulary. Both mappers are pure: no
  * network, no configuration, no module state. They are the highest-value code
  * in this module, because a wrong confident answer would come from here, and
  * they are tested against payloads a real `gh` really printed
@@ -38,8 +38,8 @@ function lower(value: unknown): string {
 /**
  * `gh pr view --json state,mergedAt` → yan vocabulary.
  *
- * `mergedAt` (REST: `merged`) is consulted before `state`, and deliberately so:
- * a SQUASH-merged pull request is merged even though its head commit is not an
+ * `mergedAt` (rest: `merged`) is consulted before `state`, and deliberately so:
+ * a squash-merged pull request is merged even though its head commit is not an
  * ancestor of the base branch and its branch may already be deleted. Local git
  * ancestry is not the question; what the host says is (Rule 1).
  */
@@ -65,12 +65,12 @@ export function mapMrState(payload: string): MrState {
  *
  * The rollup is where GitHub's two CI systems meet in one array:
  *
- *   CheckRun       (checks API)  status QUEUED|IN_PROGRESS|COMPLETED|…
- *                                conclusion SUCCESS|FAILURE|SKIPPED|…
- *   StatusContext  (legacy)      state EXPECTED|PENDING|SUCCESS|FAILURE|ERROR
+ *   CheckRun       (checks API)  status queued|IN_PROGRESS|completed|…
+ *                                conclusion success|failure|skipped|…
+ *   StatusContext  (legacy)      state expected|pending|success|failure|error
  *
  * Both are collapsed to one word per entry and then folded with a fixed
- * precedence: RED BEATS PENDING BEATS GREEN. A failure is a settled fact and
+ * precedence: Red beats pending beats green. A failure is a settled fact and
  * the caller can act on it now; waiting for the rest of a run that has already
  * failed only delays the fix.
  *
@@ -82,7 +82,7 @@ export function mapMrState(payload: string): MrState {
  *            and anything else terminal we do not recognise
  *
  * An empty rollup is `none`: this repository ran no CI for this MR. A payload
- * with no rollup key at all is NOT `none` — that would be a confident wrong
+ * with no rollup key at all is not `none` — that would be a confident wrong
  * answer — it is `pending`.
  */
 export function mapCiState(payload: string): CiState {

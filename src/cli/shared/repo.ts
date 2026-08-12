@@ -20,7 +20,7 @@ export const DEFAULT_POOL_SIZE = 8;
  * holding both means a fresh clone of a vault does not know which repositories
  * the context even involves, and `task.json`'s `repo` field dangles.
  *
- * "Registered but not linked here" is therefore a NORMAL state — it is what
+ * "Registered but not linked here" is therefore a normal state — it is what
  * every freshly cloned vault looks like — which is why the refusal below names
  * both `yan repo add` and `yan repo link` rather than assuming which one the
  * reader needs.
@@ -53,7 +53,7 @@ function entriesOf(file: string): Record<string, Record<string, unknown>> {
 /**
  * Everything the vault knows about, joined with what this machine knows.
  *
- * No vault means no registry, and NOT an error here: `--repo <path to a clone>`
+ * No vault means no registry, and not an error here: `--repo <path to a clone>`
  * has always worked and has nothing to do with a vault — `yan tree get` against
  * a bare path is how the pool is exercised before anything is set up. The
  * refusal, when one is due, comes from `repoDir` below, which asks for the
@@ -132,7 +132,7 @@ export function repoDir(command: string, name: string, hint?: string): string {
     );
   }
 
-  // Out of answers. If the reason is that there is no vault at all, say THAT
+  // Out of answers. If the reason is that there is no vault at all, say that
   // rather than "unknown repository" — the registry cannot know a name when
   // there is no registry.
   vaultDir();

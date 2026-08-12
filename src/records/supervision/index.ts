@@ -3,7 +3,7 @@
  * "the watcher is healthy".
  *
  * The absence that matters: there is no `subscribed()`. Health is asked of the
- * LOOP — is the beacon still being touched — and never of the socket, because a
+ * loop — is the beacon still being touched — and never of the socket, because a
  * watcher that is mid-reconnect is still watching and would fail a socket
  * check.
  */

@@ -21,7 +21,7 @@ import {
  * tested, from vitest": a whole bash framework is not needed to cover fifteen
  * lines.
  *
- * WHAT WENT, AND WHY THE TESTS FOR IT WENT WITH IT. `bin/yan` used to prefer
+ * What went, and why the tests for it went with it. `bin/yan` used to prefer
  * `dist/cli/<cmd>.js` and fall back to `bin/yan-<cmd>.sh`, both derived from a
  * glob. That was the strangler (plan/INDEX.md §2) and Phase 8 removed the last
  * shell command, so the fallback branch could only ever find nothing. A test
@@ -84,7 +84,7 @@ describe('in a built tree', () => {
     // `doctor`'s first line is the home it resolved, which is the one thing
     // only the stub could have got wrong. Compared on the last segment: bash
     // says /tmp/yan-test-X and Node says C:\Users\…\Temp\yan-test-X, and that
-    // gap is an MSYS *mount point*, which normalizePath() cannot close.
+    // gap is an msys *mount point*, which normalizePath() cannot close.
     expect(r.out).toContain(basename(home));
   });
 

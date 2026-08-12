@@ -1,7 +1,7 @@
 /**
  * The shape of `tasks/<id>/task.json`.
  *
- * `TaskData` / `UnitData` are the DOCUMENT — what a read returns. `Task` and
+ * `TaskData` / `UnitData` are the document — what a read returns. `Task` and
  * `Unit` are the classes that mediate it. Keeping the two named apart matters
  * here: a caller holding a `UnitData` is holding a snapshot that stopped being
  * true the moment anyone wrote; a caller holding a `Unit` is holding a way to
@@ -16,7 +16,7 @@ export type Mode = (typeof MODES)[number];
  *
  * There are four rather than two because history is append-only: an entry
  * written wrongly can never be corrected, so a rotation must never have to
- * GUESS how a round ended. `unused` and `unknown` are what keep it from
+ * guess how a round ended. `unused` and `unknown` are what keep it from
  * having to — the alternative is refusing to rotate whenever the forge is
  * unreachable, which strands the round instead.
  *

@@ -9,10 +9,10 @@ import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fi
 
 /**
  * `tests/unit/lib-watch-health.test.sh`, ported: "the watcher is healthy" means
- * ALL of — the lock exists and its pid is alive, the identity matches, and the
+ * all of — the lock exists and its pid is alive, the identity matches, and the
  * beacon is fresh.
  *
- * BOTH DIRECTIONS ARE TESTED, because each one on its own is a lie a session
+ * Both directions are tested, because each one on its own is a lie a session
  * can run on for hours:
  *
  *   a live pid with a stale beacon    the watcher is there but has stopped
@@ -276,7 +276,7 @@ describe('what is still being supervised', () => {
     liveShift('s2', 'w1:p3');
     expect(sup.liveCount()).toBe(2);
 
-    // Clocking out deletes run/ whole, and that IS the fact - nothing mirrors it.
+    // Clocking out deletes run/ whole, and that is the fact - nothing mirrors it.
     rmSync(join(home, 'tasks', 't1', 'shifts', 's1', 'run'), { recursive: true, force: true });
     expect(sup.liveCount()).toBe(1);
   });

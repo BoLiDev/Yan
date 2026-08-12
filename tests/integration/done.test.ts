@@ -18,14 +18,14 @@ import { WorktreeError, type LeaseRow, type ReturnOptions } from '../../src/exte
  * Two properties are what this file exists for, and both of them fail quietly
  * if they regress:
  *
- *   1. THE DEFAULT DESTROYS NOTHING. A live shift stops the command before any
+ *   1. The default destroys nothing. A live shift stops the command before any
  *      tree is touched and before `complete` is set; a tree the pool's
  *      orphan-commit guard will not take back leaves the task open.
- *   2. `--force` IS `user`'s ANSWER, NOT A RETRY. It is the only thing in yan
+ *   2. `--force` is `user`'s answer, not a retry. It is the only thing in yan
  *      that reaches past that guard (boundaries.md §9.2), so nothing else may
  *      grow a way to do it — `yan tree return` in particular must stay flagless.
  *
- * The pool is a stand-in here so the ORDER and the AUTHORITY can be asserted
+ * The pool is a stand-in here so the order and the authority can be asserted
  * exactly. That force really does wipe a dirty tree, and really does leave the
  * commits alone, is proved against real git in
  * `src/externals/worktree/worktree.test.ts`.

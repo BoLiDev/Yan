@@ -22,8 +22,8 @@ import {
  * That half is the one worth a real repository. The failure it guards against
  * is silent: yan would create `yan/t1-api-r1`, the team's naming rules would
  * reject it at the forge much later, and by then the branch has commits on it.
- * So the test does not only check the exit code — it checks that NO branch was
- * created and NO unit was written.
+ * So the test does not only check the exit code — it checks that no branch was
+ * created and no unit was written.
  *
  * Real git against a local bare remote. Nothing here touches the network.
  */
@@ -158,10 +158,10 @@ describe('with no hook installed, the built-in default applies', () => {
 
 describe('a name of your own, however it is spelled', () => {
   /**
-   * THE HOOK THIS REPLACED. `branch-create` was an executable with a JSON
+   * The hook this replaced. `branch-create` was an executable with a JSON
    * contract, an exit-code protocol and an interpreter table, and it existed so
    * a team's tooling could name and open the branch. In practice that process
-   * is a couple of sentences, so it is a SKILL now — prose in
+   * is a couple of sentences, so it is a skill now — prose in
    * `<vault>/skills/`, read into the session — and the mechanism it uses is the
    * flag that was always there: run the tool, pass what it printed to
    * `--branch`.

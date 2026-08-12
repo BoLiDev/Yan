@@ -29,7 +29,7 @@ export function statusOf(value: unknown): AgentStatus {
 /**
  * `pane list` returns `agent_session: {kind:"id", source:"herdr:claude", value}`,
  * whose value is the agent CLI's own session id. It only arrives once the
- * integration's SessionStart hook has run, so ITS ABSENCE IS NORMAL — a fresh
+ * integration's SessionStart hook has run, so its absence is normal — a fresh
  * pane simply has not reported one yet.
  */
 export function agentSessionOf(value: unknown): string | undefined {

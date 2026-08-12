@@ -11,35 +11,35 @@ import { normalizePath } from '../util/paths.js';
  * One file, two harnesses, because the question is the same one — "may this
  * turn end while shifts are still live?" — and only the evidence differs.
  *
- * CLAUDE. Block when there is still supervision responsibility AND the watcher
+ * claude. Block when there is still supervision responsibility and the watcher
  * is not healthy. Ending a turn while shifts are live is perfectly fine when
  * autoarm is holding `yan wait`; what is not fine is ending it with nobody on
  * duty. The guard's value shows up exactly when autoarm never ran at all —
  * broken settings, a skipped hook — and only a second hook can detect that.
  *
- *   THE 800 ms WAIT. Both Stop hooks fire concurrently, so on a healthy turn
+ *   the 800 ms wait. Both Stop hooks fire concurrently, so on a healthy turn
  *   this hook can easily ask "is the lock taken?" while autoarm is still
  *   claiming it. Waiting first is the difference between a guard and a false
- *   alarm. What earns a pass inside that window is a lock that was NOT there
+ *   alarm. What earns a pass inside that window is a lock that was not there
  *   when the window opened — autoarm claiming it, with its first beacon still
  *   to come. A lock that was already there while the watcher is unhealthy does
  *   not become healthy by being looked at again, and is still a block.
  *
- *   IT DOES NOT READ STDIN, AND IT DOES NOT USE `stop_hook_active`. Claude sets
+ *   It does not read stdin, and it does not use `stop_hook_active`. Claude sets
  *   that flag true after asyncRewake continuations too, so the very turn that
  *   needs a new watcher armed — the one right after a rewake — already looks
  *   "already continued". A one-shot guard lets exactly that turn through, which
  *   is the blind window this hook exists to close. It keeps its own count in
  *   `run/guard-failures` instead.
  *
- *   A WATCHER MID-RECONNECT IS HEALTHY. `healthy()` asks whether the watcher is
+ *   A watcher mid-reconnect is healthy. `healthy()` asks whether the watcher is
  *   still going round its loop, not whether it holds a live subscription, and
  *   that is deliberate: `yan wait` reconnects and re-subscribes when Herdr's
  *   event stream drops, and a guard that read those seconds as "nobody on duty"
  *   would block a turn over a watcher that is working exactly as designed
  *   (supervision.md §5, `records/supervision/beacon.ts`).
  *
- * CODEX. The primary predicate is REMAINING SUPERVISION RESPONSIBILITY, not
+ * codex. The primary predicate is remaining supervision responsibility, not
  * Claude's "autoarm lock plus fresh beacon". There is no autoarm on Codex and
  * no long-lived wait process between checkpoint slices, so a missing lock is
  * the normal state, not a fault. Codex may use `stop_hook_active` as a one-shot,
@@ -52,7 +52,7 @@ import { normalizePath } from '../util/paths.js';
  * ([evidence §13](../../docs/v2/td/evidence.md)). What that run also showed is
  * in the comment on the reason string below.
  *
- * FAIL OPEN ON PURPOSE. The budget is 3 blocked attempts, then the guard lets
+ * Fail open on purpose. The budget is 3 blocked attempts, then the guard lets
  * the turn end with a loud warning. A guard that can wedge a session forever is
  * worse than no guard: automatic supervision being broken is a thing `user` can
  * see and fix, a session that will not end is not.
@@ -113,10 +113,10 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
       return 0;
     }
     // Kept now, because every later predicate overwrites it. This sentence is
-    // the only thing the model will see about WHY nobody was on duty.
+    // the only thing the model will see about why nobody was on duty.
     const why = sup.why() === '' ? 'no watcher on duty' : sup.why();
 
-    // Whether anybody held the lock BEFORE the wait, because that is what makes
+    // Whether anybody held the lock before the wait, because that is what makes
     // the wait meaningful.
     const takenBefore = sup.lockTaken();
 
@@ -165,12 +165,12 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
   // The command has to be one the model can paste and run, which is narrower
   // than it looks and was got wrong until a real codex ran this hook.
   //
-  //   `yan` IS NOT ON PATH inside an agent's pane. Everything else yan writes
+  //   `yan` is not on path inside an agent's pane. Everything else yan writes
   //   for an agent to run names $YAN_HOME/bin/yan absolutely — a shift's brief
   //   does — and this line did not. The model dutifully ran `yan drain` and
   //   got "the term 'yan' is not recognized".
   //
-  //   AND THE PANE'S SHELL IS POWERSHELL on Windows (terminal.md §7), which
+  //   And the pane's shell is powershell on Windows (terminal.md §7), which
   //   does not understand `${VAR:-default}`. A default written that way is a
   //   parse error, not a default, so the number is written out.
   const yan = normalizePath(join(yanHome(), 'bin', 'yan'));
@@ -186,7 +186,7 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
   return 0;
 }
 
-/** The Codex checkpoint slice, resolved HERE rather than left to a shell. */
+/** The Codex checkpoint slice, resolved here rather than left to a shell. */
 function checkpointSeconds(): number {
   const configured = Number.parseInt(process.env.YAN_CODEX_CHECKPOINT ?? '', 10);
   return Number.isInteger(configured) && configured > 0 ? configured : 180;
@@ -209,7 +209,7 @@ function sleep(ms: number): Promise<void> {
 /**
  * The harness payload, or nothing.
  *
- * BOUNDED, never a plain read to EOF. A Stop hook that blocks on a pipe nobody
+ * bounded, never a plain read to EOF. A Stop hook that blocks on a pipe nobody
  * ever closes is a session that cannot end, which is the failure this whole
  * file is built to avoid. A harness that hands over a payload and closes hits
  * EOF immediately; anything else costs one second and is treated as no payload.

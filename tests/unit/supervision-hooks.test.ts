@@ -273,11 +273,11 @@ describe('the guard on Claude', () => {
 
   it('does not false-alarm while autoarm is still claiming the lock', async () => {
     // Both Stop hooks fire concurrently. What earns a pass inside the window is
-    // a lock that was NOT there when the window opened.
+    // a lock that was not there when the window opened.
     liveShift('s1');
     noWatcher();
 
-    // In a SEPARATE PROCESS, because the guard below is run with `spawnSync`
+    // In a separate process, because the guard below is run with `spawnSync`
     // and a timer in this one could not fire while that call blocks. Autoarm is
     // a separate process in the real thing too.
     const record = JSON.stringify({
@@ -290,7 +290,7 @@ describe('the guard on Claude', () => {
       process.execPath,
       [
         '-e',
-        // Two seconds, because what is being tested is that the guard WAITS:
+        // Two seconds, because what is being tested is that the guard waits:
         // the lock has to appear after the guard has started looking, and
         // starting bash and node under a loaded test suite is not instant.
         `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(sup.lock)}, ${JSON.stringify(`${record}\n`)}), 2000)`,
@@ -305,7 +305,7 @@ describe('the guard on Claude', () => {
 
     expect(r.code, r.out).toBe(0);
     expect(existsSync(sup.guard)).toBe(false);
-    // The second look asks only about the LOCK: a watcher that has just claimed
+    // The second look asks only about the lock: a watcher that has just claimed
     // it has not necessarily written its first beacon.
     expect(existsSync(sup.beacon)).toBe(false);
   });

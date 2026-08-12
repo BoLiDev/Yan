@@ -4,11 +4,11 @@ import { join } from 'node:path';
 /**
  * Where Herdr's socket is, and what a client actually connects to.
  *
- * THE WINDOWS PIPE-NAME RULE (evidence §11.1). `%APPDATA%\herdr\herdr.sock` is
- * not a socket at all: it is a HINT FILE whose whole content is
+ * The windows pipe-name rule (evidence §11.1). `%APPDATA%\herdr\herdr.sock` is
+ * not a socket at all: it is a hint file whose whole content is
  * `<server-pid>:<nanos>`. Connecting to it as a path gives `ENOTSOCK`, and the
- * number inside it is not a TCP port either. The real endpoint is a named pipe
- * whose NAME is that path:
+ * number inside it is not a tcp port either. The real endpoint is a named pipe
+ * whose name is that path:
  *
  *     \\.\pipe\C:\Users\…\AppData\Roaming\herdr\herdr.sock
  *
@@ -17,7 +17,7 @@ import { join } from 'node:path';
  *
  * On Linux the same path is an ordinary unix domain socket and is connected to
  * directly. Herdr on WSL is unverified (conventions §1), so the candidate
- * locations below are the documented XDG ones and not measurements — which is
+ * locations below are the documented xdg ones and not measurements — which is
  * why `$HERDR_SOCKET_PATH` is honoured first and is the escape hatch when a
  * guess is wrong.
  */

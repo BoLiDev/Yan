@@ -6,7 +6,7 @@ import { YanError, type YanErrorOptions } from './error.js';
 /**
  * The one locking primitive in yan.
  *
- * The lock is a FILE, taken with `fs.open(path, 'wx')` — an atomic exclusive
+ * The lock is a file, taken with `fs.open(path, 'wx')` — an atomic exclusive
  * create on both platforms — and the owner's identity is its contents. `flock`
  * is not available under Git Bash and `noclobber` is not reliably atomic on
  * MSYS2 filesystems, so neither is an option here.
@@ -16,21 +16,21 @@ import { YanError, type YanErrorOptions } from './error.js';
  * Stale locks: a holder that died leaves the file behind. `process.kill(pid, 0)`
  * is the liveness test; it reports success for a live process we may not signal
  * (EPERM), which is the conservative direction — we would rather leave a lock
- * alone than steal one that is still held. Only locks taken on THIS machine are
+ * alone than steal one that is still held. Only locks taken on this machine are
  * reclaimed, because a pid from another host means nothing here.
  *
  * Three callers, and there must never be a fourth without a reason written
  * down:
  *
- *   1. THE WORKTREE POOL, per clone. See `src/externals/worktree/` for why it
+ *   1. The worktree pool, per clone. See `src/externals/worktree/` for why it
  *      needs one at all — the short version is that `git worktree add` writes
  *      the shared clone's `.git/config`, so it is not concurrency-safe against
  *      one repository even when the slot allocation is.
- *   2. SUPERVISION'S SINGLE FLIGHT. Under Claude every Stop can fire autoarm,
+ *   2. Supervision's single flight. Under Claude every Stop can fire autoarm,
  *      and without it several watchers start.
- *   3. `yan continue`'S PER-TASK ENTER LOCK, which is not the same kind of thing
- *      as the other two. They serialise a critical section; this one IS THE
- *      ANSWER to a question — is a yan already running on this task? That only
+ *   3. `yan continue`'s per-task enter lock, which is not the same kind of thing
+ *      as the other two. They serialise a critical section; this one is the
+ *      answer to a question — is a yan already running on this task? That only
  *      works because `yan continue` lives exactly as long as the main agent it
  *      started, so the file's own pid is the fact. `pidAlive` is what keeps a
  *      killed yan's lock reclaimable rather than permanent.
@@ -59,12 +59,12 @@ interface LockRecord {
   host: string;
   at: number;
   /**
-   * What the lock is FOR, when the caller said.
+   * What the lock is for, when the caller said.
    *
    * A lock file records who holds it and cannot know why. `tasks/<id>/run/wait.lock`
    * and `tasks/<id>/.enter.lock` are two live locks in the same tree with nothing
    * to do with each other, so supervision has to be able to ask "is this a
-   * WATCHER's lock" rather than merely "is a lock there".
+   * watcher's lock" rather than merely "is a lock there".
    */
   identity?: string;
 }
@@ -115,7 +115,7 @@ export function pidAlive(pid: number): boolean {
 }
 
 /**
- * True when a DIRECTORY sits at the lock path.
+ * True when a directory sits at the lock path.
  *
  * The other lock scheme: a directory rather than a file. Nothing here writes
  * one, and the two are not compatible. What matters is that a caller finding
@@ -160,7 +160,7 @@ export function isStale(file: string): boolean {
   return !pidAlive(record.pid);
 }
 
-/** True when the lock exists AND its owner is still alive. */
+/** True when the lock exists and its owner is still alive. */
 export function isHeld(file: string): boolean {
   return existsSync(file) && !isStale(file);
 }

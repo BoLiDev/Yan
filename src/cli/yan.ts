@@ -20,10 +20,10 @@ import { yanHome, subcommands } from '../util/home.js';
  *   - flags are declared once instead of parsed by hand twenty times.
  *
  * A command is a `dist/cli/<name>.js` exporting a `command`, and they are
- * DISCOVERED, never tabulated (`util/home.ts` says why that survived the
+ * discovered, never tabulated (`util/home.ts` says why that survived the
  * migration that first required it).
  *
- * NOTE, and it is the rule most easily broken: **no option anywhere under
+ * note, and it is the rule most easily broken: **no option anywhere under
  * `src/cli/` is ever declared `.requiredOption()`.** Commander would exit before
  * the soft path could ask. Validation belongs to the action handler, via
  * `shared/resolve.ts`.
@@ -94,14 +94,14 @@ export async function buildProgram(home: string): Promise<Command> {
  * Commander's own argument errors exit 2, like every other "you called this
  * wrongly" in yan.
  *
- * The exit-code contract is the MVP's and it is what a caller reads: 0 fine, 2
- * YOU CALLED THIS WRONGLY, 1 it did not work — plus the handful of per-command
- * codes above that. Commander's default is 1 for everything it rejects, so
- * until now `yan tree get --nonsense` and `yan tree get` with no `--repo`
- * disagreed about what the same class of mistake was worth: one was Commander's
- * refusal, the other was `resolve()`'s.
+ * The exit-code contract is what a caller reads: 0 fine, 2 you called this
+ * wrongly, 1 it did not work, plus the handful of per-command codes above that.
+ * Commander's default is 1 for everything it rejects, which would make
+ * `yan tree get --nonsense` and `yan tree get` with no `--repo` disagree about
+ * what the same class of mistake is worth — one being Commander's refusal, the
+ * other `resolve()`'s.
  *
- * Which way, and why THIS way: 2 is the one an agent can act on. A shift
+ * Which way, and why this way: 2 is the one an agent can act on. A shift
  * reading `1` learns only that something went wrong and has to parse prose to
  * find out whether to fix its command line or escalate; `2` says the command
  * line was wrong before anything happened, and nothing was done. Moving yan's
@@ -136,14 +136,14 @@ function commanderExitCode(err: CommanderError): number {
  *       t042  unify the auth header          2 shifts live
  *       t041  gateway retry budget           idle
  *
- * DERIVED, NEVER STORED: the list is the same scan `yan ls` already does over
+ * derived, never stored: the list is the same scan `yan ls` already does over
  * `tasks/*​/task.json`, so there is no menu configuration file and nothing that
  * can disagree with the directory. If `yan ls` can render it, the select can
  * offer it.
  *
  * The choice becomes a command line and re-enters the same program, which is
- * why this is a few lines: choosing a task IS `yan continue --task <id>`, and
- * choosing to create IS `yan task new` with nothing filled in, which then walks
+ * why this is a few lines: choosing a task is `yan continue --task <id>`, and
+ * choosing to create is `yan task new` with nothing filled in, which then walks
  * its own prompts.
  */
 export interface EntryChoice {

@@ -12,13 +12,11 @@ import { normalizePath } from '../util/paths.js';
 
 /**
  * `yan land` — merge the outbound merge requests into `target`, in `needs`
- * order (boundaries.md §9.2, branching.md §6.4).
+ * order.
  *
- * ---------------------------------------------------------------------------
- * `user` HAS TO ASK FOR THIS
- * ---------------------------------------------------------------------------
+ * `user` has to ask for this.
  *
- * It is the one line of boundaries.md §9.2 this file exists to hold:
+ * It is the one authority this file exists to hold:
  *
  *   merge the outbound MR into `target`   `user` has to ask for it
  *
@@ -40,9 +38,7 @@ import { normalizePath } from '../util/paths.js';
  * this is not a value the soft path could ask for on `user`'s behalf, because
  * `user` is the only source of it.
  *
- * ---------------------------------------------------------------------------
- * ORDER
- * ---------------------------------------------------------------------------
+ * Landing order.
  *
  * `needs` records the landing order, so the units are topologically sorted
  * before anything is merged and the run stops at the first unit that will not
@@ -151,7 +147,7 @@ export function land(
   // merged. It is deliberately not softened on a TTY: `user` saying so is the
   // input, and a program cannot supply it on their behalf.
   if (options.userAsked !== true) {
-    throw CommandError.usage('land', "merging into target is the one thing 'user' has to ask for (boundaries.md §9.2). Nothing was merged. When they have asked, re-run with --user-asked",
+    throw CommandError.usage('land', "merging into target is the one thing 'user' has to ask for. Nothing was merged. When they have asked, re-run with --user-asked",
     );
   }
 
@@ -227,10 +223,9 @@ export function land(
       );
     }
 
-    // `deleteSource` is deliberately not passed: deleting the integration
-    // branch is not this command's business, and boundaries.md §9.2 forbids
-    // deleting a branch that is not merged - a decision this command must not
-    // make for the host.
+    // `deleteSource` is deliberately not passed. Deleting the integration
+    // branch is not this command's business, and a forge that deletes on merge
+    // would be making a judgement about work that may not all have landed.
     try {
       remote.mergeMr({ ...ref, strategy });
     } catch (err) {
@@ -271,9 +266,8 @@ Merges each unit's outbound merge request into its target, topologically
 sorted by \`needs\`. With no --unit, every unit that has an outbound MR.
 
   --user-asked  REQUIRED. Merging into target is the one action \`user\` has to
-                ask for (boundaries.md §9.2). This flag is how their answer
-                reaches the command; it is not a confirmation prompt and not a
-                force switch.
+                ask for. This flag is how their answer reaches the command; it
+                is not a confirmation prompt and not a force switch.
 
 It stops at the first unit that will not land, so nothing ever lands out of
 order. A cycle in \`needs\` is refused: only \`user\` can resolve that.`,

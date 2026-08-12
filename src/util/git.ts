@@ -10,7 +10,7 @@ import { YanError, type YanErrorOptions } from './error.js';
  *
  * Two invariants, both carried over unchanged:
  *
- *   1. EVERY function takes an explicit directory as its first argument and
+ *   1. every function takes an explicit directory as its first argument and
  *      never relies on process.cwd(). `requireDir` refuses an empty or
  *      non-directory argument, so "forgot to pass the directory" fails loudly
  *      instead of operating on whatever happened to be the current directory.
@@ -144,7 +144,7 @@ export function diffNameOnly(dir: string, args: readonly string[] = []): string[
 /**
  * The branch the remote itself calls its default, or `undefined`.
  *
- * This is a SUGGESTION and nothing more. `target` remains `user`'s answer,
+ * This is a suggestion and nothing more. `target` remains `user`'s answer,
  * because a release period and a quiet period have different ones and the
  * remote's default cannot tell you which you are in. The only legitimate use is
  * to prefill a prompt a person then reads and confirms; nothing running without
@@ -279,7 +279,7 @@ export function resetHard(dir: string, ref = 'HEAD'): GitResult {
 }
 
 /**
- * `-fd` and NEVER `-x`. The worktree pool exists for warm reuse, so gitignored
+ * `-fd` and never `-x`. The worktree pool exists for warm reuse, so gitignored
  * node_modules and build caches have to survive a tree being returned. Adding
  * `-x` here would silently turn every lease into a cold install, and nothing
  * would fail loudly when it happened.
@@ -309,9 +309,9 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
 
 // --- merging without a working tree ----------------------------------------
 //
-// THE CONVENTION THESE EXIST TO RESPECT, stated exactly, because it is
+// The convention these exist to respect, stated exactly, because it is
 // routinely remembered wrong: a main clone is not "read-only". What is
-// forbidden is touching its WORKING TREE — checkout, merge, rebase, reset,
+// forbidden is touching its working tree — checkout, merge, rebase, reset,
 // clean — because since V3 that clone is `user`'s own working copy, and a tool
 // that moves you off your branch while you are thinking is a tool you stop
 // trusting.
@@ -321,12 +321,12 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
 // three complete the set, so a real three-way merge — carrying an abandoned
 // round forward — can happen in the clone with no checkout, no lease and no
 // worktree at all. `merge-tree --write-tree` (git ≥ 2.38) does the merge into
-// the object store and REPORTS conflicts rather than leaving them anywhere.
+// the object store and reports conflicts rather than leaving them anywhere.
 
 /**
  * A three-way merge of two commits, written to the object store.
  *
- * On success `stdout` is the merged tree's OID on its first line. On failure it
+ * On success `stdout` is the merged tree's oid on its first line. On failure it
  * is a conflict report — which is an answer and not a malfunction: it means
  * this one needs a human, or a shift with a real working tree.
  */

@@ -8,13 +8,13 @@ import { Shift } from '../records/shift/index.js';
  * `yan report <state> "<note>"` — the shift → yan channel (agents.md §5.4).
  *
  * This is a command rather than two sentences in the brief for one reason, and
- * §5.4 states it plainly: DO NOT COUNT ON AN AGENT REMEMBERING STEP TWO.
+ * §5.4 states it plainly: Do not count on an agent remembering step two.
  * Appending the event and touching the wake marker is one command, so a shift
  * that reports at all reports completely. Wrapping it also buys three things
  * the brief could not enforce: the state is checked against the allowed words,
  * a timestamp is added, and the line is written atomically.
  *
- * It is the ONLY command a shift needs, and it stays inside the shift's write
+ * It is the only command a shift needs, and it stays inside the shift's write
  * boundary: it
  * touches `run/status` and `run/signal` and nothing else (boundaries.md §9.3).
  *
@@ -23,9 +23,7 @@ import { Shift } from '../records/shift/index.js';
  * on Herdr recognising a screen (supervision.md §1). A shift that says it is
  * blocked is believed whether or not any manifest matched.
  *
- * ---------------------------------------------------------------------------
- * THE FIVE ALLOWED STATES, and where they come from
- * ---------------------------------------------------------------------------
+ * The five allowed states, and where they come from.
  *
  * §5.4 says "one of the five allowed words" but never lists all five. Three are
  * named outright and two are derived; the derivation is recorded here so the
@@ -83,7 +81,7 @@ yan itself and for tests.`,
   )
   .action(
     action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
-      // The state is checked BEFORE anything is written, so a refused state
+      // The state is checked before anything is written, so a refused state
       // writes nothing at all.
       if (state === undefined || state === '') {
         throw CommandError.usage('report', `a state is required - one of: ${REPORT_STATES.join(' ')}`);

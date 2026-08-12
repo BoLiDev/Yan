@@ -18,7 +18,7 @@ import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-g
  * boundaries.md §9.2 is the whole reason `yan mr` and `yan land` are two files:
  *
  *   open the outbound MR    yan, on its own - opening one is reversible
- *   merge it into target    `user` HAS TO ASK FOR IT
+ *   merge it into target    `user` has to ask for it
  *
  * After this command runs, `target` contains the work and colleagues are
  * looking at it. So the authority is checked before anything is read, and it is
@@ -78,7 +78,7 @@ beforeEach(() => {
   // can find it.
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
-  // `web` is declared FIRST and needs `api`, so declaration order and landing
+  // `web` is declared first and needs `api`, so declaration order and landing
   // order disagree. If the sort did nothing, this test would still pass by
   // accident — which is why it is written the wrong way round.
   Task.create('t042', 'unify the auth header');
