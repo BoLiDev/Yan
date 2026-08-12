@@ -271,14 +271,17 @@ describe('skills reach the session', () => {
     expect(r.stdout).not.toContain('what you may do yourself here');
   });
 
-  it('indexes them: the path, the heading, and the first paragraph', async () => {
+  it('indexes them by path, name and description from the front matter', async () => {
     mkdirSync(vaultSkills(), { recursive: true });
     writeFileSync(
       join(vaultSkills(), 'build.md'),
       [
-        '# Checking the build',
+        '---',
+        'name: Checking the build',
+        'description: you may run npm test yourself',
+        '---',
         '',
-        'You may run npm test yourself.',
+        '# Checking the build',
         '',
         'But do not fix what it finds: a fix is work, and work goes to a shift.',
         '',
@@ -289,21 +292,36 @@ describe('skills reach the session', () => {
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('what you may do yourself here');
     expect(r.stdout).toContain('skills/build.md');
-    expect(r.stdout, 'the heading is the name').toContain('Checking the build');
-    expect(r.stdout, 'the first paragraph is the description').toContain('You may run npm test yourself.');
+    expect(r.stdout).toContain('Checking the build');
+    expect(r.stdout).toContain('you may run npm test yourself');
     // AN INDEX, NOT THE TEXT. session-start is the SessionStart hook, so
     // anything printed here is a standing cost on the context for the whole
-    // session — the rest of the file is read when it turns out to matter.
+    // session — the body is read when it turns out to matter.
     expect(r.stdout, 'the body is not carried').not.toContain('work goes to a shift');
   });
 
-  it('falls back to the file name when there is no heading', async () => {
+  it('lists a file with no front matter anyway, under its own name', async () => {
     mkdirSync(vaultSkills(), { recursive: true });
-    writeFileSync(join(vaultSkills(), 'no-heading.md'), 'just a paragraph, no title\n');
+    writeFileSync(join(vaultSkills(), 'undeclared.md'), '# No front matter here\n\njust prose\n');
 
     const r = await runYan(home, ['session-start']);
-    expect(r.stdout).toContain('no-heading.md');
-    expect(r.stdout).toContain('just a paragraph, no title');
+    // A skill nobody described is not one yan should pretend it cannot see.
+    expect(r.stdout).toContain('skills/undeclared.md');
+    expect(r.stdout, 'the file name stands in for a name it never declared').toContain('undeclared.md');
+    expect(r.stdout).not.toContain('just prose');
+  });
+
+  it('takes a quoted value, and ignores keys it does not know', async () => {
+    mkdirSync(vaultSkills(), { recursive: true });
+    writeFileSync(
+      join(vaultSkills(), 'quoted.md'),
+      ['---', 'name: "Release rules"', "description: 'cut from release/*, not master'", 'colour: blue', '---', '', 'body', ''].join('\n'),
+    );
+
+    const r = await runYan(home, ['session-start']);
+    expect(r.stdout).toContain('Release rules');
+    expect(r.stdout).toContain('cut from release/*, not master');
+    expect(r.stdout).not.toContain('blue');
   });
 
   it('takes the vault first and the machine after, each labelled', async () => {

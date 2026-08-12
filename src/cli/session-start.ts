@@ -214,47 +214,62 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
 export interface Skill {
   /** Relative to the directory it was found in, so it can be opened. */
   readonly path: string;
-  /** The `# heading`, or the file name when there is none. */
+  /** From the front matter, or the file name when it declares none. */
   readonly name: string;
-  /** The first paragraph, on one line. */
+  /** From the front matter. Empty when it declares none. */
   readonly description: string;
 }
 
-/** How much of the first paragraph is worth carrying in an index. */
-const DESCRIPTION_LIMIT = 200;
-
 /**
- * The name and the one-line description of a skill, from the file itself.
+ * The `name` and `description` a skill declares, from its front matter.
  *
- * NO FRONT MATTER, and that is a decision rather than an omission. A skill is
- * prose; making prose carry a `name:` and a `description:` before it is allowed
- * to be prose is ceremony, and the heading plus the opening sentence is what
- * anybody writes anyway. A file with neither still gets an entry, under its own
- * name — a skill that is hard to summarise is not a skill yan should ignore.
+ * ```
+ * ---
+ * name: Integration branches
+ * description: branches come from the ticket system, not from yan
+ * ---
+ * ```
+ *
+ * DECLARED RATHER THAN INFERRED. The first cut of this read the `# heading` and
+ * the opening paragraph, on the grounds that prose should not have to fill in a
+ * form. It is the wrong trade for the one place this text is used: the index is
+ * all yan sees until it decides to open the file, so the description is doing a
+ * job — it is the sentence that gets the file read — and a sentence with a job
+ * should be written for it, not harvested from whatever the paragraph happened
+ * to open with.
+ *
+ * A HAND-ROLLED READER, and not a YAML dependency. What is understood is
+ * `key: value` on one line, optionally quoted, inside the leading `---` fence.
+ * Two keys, both strings: a parser for the rest of YAML would be a large answer
+ * to a question nobody asked.
+ *
+ * A file with no front matter is still listed, under its file name. A skill
+ * that has not been given a description is not a skill yan should pretend it
+ * cannot see.
  */
-export function summarise(fileName: string, text: string): { name: string; description: string } {
+export function frontMatter(fileName: string, text: string): { name: string; description: string } {
   const lines = text.split(/\r?\n/);
-  const headingAt = lines.findIndex((l) => /^#\s+\S/.test(l));
-  const name = headingAt >= 0 ? (lines[headingAt] as string).replace(/^#\s+/, '').trim() : fileName;
+  const fields: Record<string, string> = {};
 
-  // The first paragraph after the heading, flattened. Blank lines separate
-  // paragraphs; a second heading ends the search, because prose under a
-  // different heading is about something else.
-  const body: string[] = [];
-  for (const raw of lines.slice(headingAt + 1)) {
-    const line = raw.trim();
-    if (line.startsWith('#')) break;
-    if (line === '') {
-      if (body.length > 0) break;
-      continue;
+  if (lines[0]?.trim() === '---') {
+    for (const raw of lines.slice(1)) {
+      const line = raw.trim();
+      if (line === '---') break;
+      const match = /^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(line);
+      if (match === null) continue;
+      let value = (match[2] ?? '').trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
+        (value.startsWith("'") && value.endsWith("'") && value.length > 1)
+      ) {
+        value = value.slice(1, -1);
+      }
+      fields[(match[1] as string).toLowerCase()] = value;
     }
-    body.push(line);
   }
-  let description = body.join(' ').replace(/\s+/g, ' ').trim();
-  if (description.length > DESCRIPTION_LIMIT) {
-    description = `${description.slice(0, DESCRIPTION_LIMIT - 1).trimEnd()}…`;
-  }
-  return { name, description };
+
+  const name = fields.name !== undefined && fields.name !== '' ? fields.name : fileName;
+  return { name, description: fields.description ?? '' };
 }
 
 /**
@@ -288,7 +303,7 @@ function readSkillsFrom(dir: string, label: string): Skill[] {
       continue;
     }
     if (text === '') continue;
-    found.push({ path: `${label}/${name}`, ...summarise(name, text) });
+    found.push({ path: `${label}/${name}`, ...frontMatter(name, text) });
   }
   return found;
 }

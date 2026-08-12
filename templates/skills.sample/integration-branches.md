@@ -1,13 +1,17 @@
+---
+name: Integration branches
+description: Branches here come from the ticket system rather than from yan: run the team tool, then hand the name it prints to --branch.
+---
+
 # Integration branches
 
 Branches here come from the ticket system rather than from yan: run the team's
 tool, then hand the name it prints to `--branch`.
 
-The heading above is this skill's **name** and the paragraph under it is its
-**description** — those two lines are what `yan session-start` carries into the
-session. Everything below is read only when it turns out to matter, so write
-the first paragraph as the thing you would want yan to see before deciding
-whether to open the file.
+The `name` and `description` at the top are the only part `yan session-start`
+carries into the session. Everything below is read when it turns out to matter,
+so write that description as what it is: the sentence that decides whether this
+file gets opened.
 
 ---
 

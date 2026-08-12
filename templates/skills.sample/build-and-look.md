@@ -1,12 +1,17 @@
+---
+name: Checking and looking
+description: Build, test, grep and read on your own initiative when answering a question I asked. A fix is still work, and work still goes to a shift.
+---
+
 # Checking and looking
 
 You may build, test, grep and read on your own initiative when you are
 answering something I asked; a fix is still work, and work still goes to a shift.
 
-Copy this into `<vault>/skills/` and rewrite it. A skill is **prose** — no
-format, nothing to register. `yan session-start` lists every `.md` in
-`<vault>/skills/` by path, heading and first paragraph, and yan opens the file
-when the index suggests it is relevant.
+Copy this into `<vault>/skills/` and rewrite it. A skill is prose with a
+two-field front matter: `yan session-start` lists every `.md` in
+`<vault>/skills/` by path, `name` and `description`, and yan opens the file when
+that line suggests it is relevant.
 
 It exists because yan otherwise has two speeds and nothing between them: its
 default is that work goes to a shift — a sub-agent, a leased worktree, a merge

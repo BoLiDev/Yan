@@ -72,7 +72,18 @@ A skill is **prose**, and that is the whole design. `<vault>/skills/*.md` holds 
 
 `yan session-start` carries an **index**, not the text: a path, the `# heading` as the name, and the first paragraph as the description. Session-start is the SessionStart hook, so everything it prints sits in the context for the whole session whether it turns out to be relevant or not, and a handful of skills in full would be a standing tax paid mostly for nothing. A sentence each is enough to decide whether to open the file, and opening a file is something yan is good at.
 
-There is no front matter and that is a decision rather than an omission: making prose declare a `name:` before it is allowed to be prose is ceremony, and a heading followed by an opening sentence is what anybody writes anyway. A file with neither still gets an entry, under its own name.
+Both come from a two-field front matter:
+
+```
+---
+name: Integration branches
+description: branches come from the ticket system, not from yan
+---
+```
+
+DECLARED RATHER THAN INFERRED, and the first cut had it the other way — the `# heading` for the name, the opening paragraph for the description, on the grounds that prose should not have to fill in a form. That is the wrong trade for the one place this text is used. The index is all yan sees until it decides to open the file, so the description is doing a job: it is the sentence that gets the file read. A sentence with a job should be written for it rather than harvested from however the first paragraph happened to begin.
+
+The reader is hand-rolled and understands `key: value` on one line, optionally quoted, inside the leading fence — two keys, both strings. A YAML dependency would be a large answer to a question nobody asked. A file that declares nothing is still listed, under its file name: a skill nobody described is not one yan should pretend it cannot see.
 
 It exists because yan otherwise has only two speeds. Its default is that work goes to a shift: a single-use sub-agent, its own leased worktree, a merge request. That is right for implementing a feature and absurd for *check whether this still builds* or *find where this is called*. The middle ground was missing, and its absence pushed `user` into dispatching shifts for things a shift is far too heavy for.
 
