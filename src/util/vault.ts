@@ -172,3 +172,22 @@ export function localReposPath(): string {
 export function hooksDir(): string {
   return join(vaultDir(), 'hooks');
 }
+
+/**
+ * `skills/` — standing instructions, in prose, about what yan may do itself
+ * here (v3 td vault.md).
+ *
+ * NOT executables, and deliberately not: the machinery for running one would
+ * be larger than the thing it runs. A skill is a few paragraphs saying "in
+ * this environment you may check the build yourself rather than dispatching a
+ * shift for it", and `yan session-start` reads them into the session, which is
+ * the whole mechanism.
+ *
+ * In the vault, because what yan may do on its own is a property of the
+ * CONTEXT: at work there is a build command and a proxy and a rule about who
+ * touches release branches; at home there is none of that. A machine-level
+ * directory sits beside it for the things that really are about one box.
+ */
+export function skillsDir(): string {
+  return join(vaultDir(), 'skills');
+}

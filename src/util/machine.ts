@@ -43,6 +43,17 @@ export function machineDir(): string {
   return normalizePath(dir);
 }
 
+/**
+ * Standing instructions that are about THIS BOX rather than this context.
+ *
+ * The vault has the same directory and it is the one to reach for first: what
+ * yan may do itself is normally a property of the context. This is for the
+ * remainder — a path only this machine has, a tool only installed here.
+ */
+export function machineSkillsDir(): string {
+  return join(machineDir(), 'skills');
+}
+
 export function machineConfigPath(): string {
   return join(machineDir(), 'config.json');
 }

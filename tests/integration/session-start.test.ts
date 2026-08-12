@@ -246,3 +246,71 @@ describe('a half-written meta.json is one lost fact, never a crash', () => {
     expect((await runYan(home, ['session-start', '--task', 't042'])).code).toBe(0);
   });
 });
+
+/**
+ * Skills: standing instructions in prose (v3 td vault.md).
+ *
+ * The mechanism is deliberately the whole of it — session-start is the
+ * SessionStart hook, so what it prints is what the session starts knowing.
+ * There is nothing to run and nothing to register, which is why these tests
+ * are about READING: which files, in which order, and what happens when there
+ * are none.
+ */
+describe('skills reach the session', () => {
+  const vaultSkills = () => join(home, 'skills');
+  const machineSkills = () => join(home, '.machine', 'skills');
+
+  beforeEach(() => {
+    rmSync(vaultSkills(), { recursive: true, force: true });
+    rmSync(machineSkills(), { recursive: true, force: true });
+  });
+
+  it('says nothing at all when there are none', async () => {
+    const r = await runYan(home, ['session-start']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).not.toContain('what you may do yourself here');
+  });
+
+  it('prints them verbatim, and names where each came from', async () => {
+    mkdirSync(vaultSkills(), { recursive: true });
+    writeFileSync(join(vaultSkills(), 'build.md'), '# Checking the build\n\nYou may run npm test yourself.\n');
+
+    const r = await runYan(home, ['session-start']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('what you may do yourself here');
+    expect(r.stdout).toContain('## skills/build.md');
+    expect(r.stdout, 'verbatim: it is user speaking, not yan paraphrasing').toContain('You may run npm test yourself.');
+  });
+
+  it('takes the vault first and the machine after, each labelled', async () => {
+    mkdirSync(vaultSkills(), { recursive: true });
+    mkdirSync(machineSkills(), { recursive: true });
+    writeFileSync(join(vaultSkills(), 'a-context.md'), 'the context rule\n');
+    writeFileSync(join(machineSkills(), 'b-box.md'), 'the rule for this box\n');
+
+    const r = await runYan(home, ['session-start']);
+    const context = r.stdout.indexOf('skills/a-context.md');
+    const box = r.stdout.indexOf('machine skills/b-box.md');
+    expect(context).toBeGreaterThan(-1);
+    expect(box).toBeGreaterThan(-1);
+    expect(context, 'what yan may do is normally a property of the context').toBeLessThan(box);
+  });
+
+  it('ignores anything that is not a .md, and anything empty', async () => {
+    mkdirSync(vaultSkills(), { recursive: true });
+    writeFileSync(join(vaultSkills(), 'notes.txt'), 'not a skill\n');
+    writeFileSync(join(vaultSkills(), 'blank.md'), '   \n');
+
+    const r = await runYan(home, ['session-start']);
+    expect(r.stdout).not.toContain('not a skill');
+    expect(r.stdout).not.toContain('blank.md');
+  });
+
+  it('still writes nothing to the vault: a session start is a read', async () => {
+    mkdirSync(vaultSkills(), { recursive: true });
+    writeFileSync(join(vaultSkills(), 'one.md'), 'a rule\n');
+    const before = readdirSync(home).sort().join(',');
+    await runYan(home, ['session-start']);
+    expect(readdirSync(home).sort().join(',')).toBe(before);
+  });
+});

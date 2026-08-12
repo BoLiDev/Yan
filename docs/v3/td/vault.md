@@ -33,6 +33,7 @@ A vault is *not* a workspace and not a worktree — those words are taken, and t
   mem/
     user.md                judgements about a person, written only when asked
     learnings/             yan may write these on its own
+  skills/                  prose: what yan may do itself here, read at session start
   hooks/                   your executables for the outside-authority seam
   .local/                  ← gitignored, whole directory (machine layer)
     repos.json             name → this machine's clone path
@@ -66,11 +67,26 @@ Not tracked, and the rule is one line: **`run/` is throwaway, and machine-local 
 
 The vault's `.gitignore` ships in the template and is the only place this list lives.
 
+### `skills/`: what yan may do itself here
+
+A skill is **prose**, and that is the whole design. `<vault>/skills/*.md` holds a few paragraphs from `user` saying which small things yan may do on its own initiative in this environment; `yan session-start` reads them and prints them, and since session-start IS the SessionStart hook for both harnesses, printing them is loading them. There is no `yan skill run`, no argv contract and no lease — the machinery for running one would be larger than the thing it runs.
+
+It exists because yan otherwise has only two speeds. Its default is that work goes to a shift: a single-use sub-agent, its own leased worktree, a merge request. That is right for implementing a feature and absurd for *check whether this still builds* or *find where this is called*. The middle ground was missing, and its absence pushed `user` into dispatching shifts for things a shift is far too heavy for.
+
+They live in the vault for the same reason the hooks do: what yan may do itself is a property of the CONTEXT. At work there is a build command, a proxy, and a rule about who touches release branches; at home there is none of that. `~/.yan/skills/*.md` sits beside it for the remainder — a path only this box has, a tool only installed here — and is read after the vault, because the context is the norm and the machine is the exception.
+
+**Why this does not weaken the authority table.** Its right-hand column is *only when `user` asks*. A skill IS `user` asking — in advance, in writing, in a file only they can put there. Two things follow, and both are limits rather than politeness:
+
+- **yan cannot verify that a skill is being invoked legitimately.** It has no way to prove a request came from `user`. So this is a rule and not a mechanism, and it is written down as one rather than dressed up as a safeguard.
+- **acting on a skill means naming it.** A skill can widen what yan does without asking; it cannot make yan quiet about having done it, so *why did you run that* always has an answer.
+
+A skill is deliberately NOT the place to authorise the two things that need `user` every time — touching `target`, and anything a colleague will see. Those live in the authority table, where they are visible; moving one of them into a prose file would hide a real decision inside a paragraph.
+
 ### Why `hooks/` is in here at all
 
 Two things in yan are called hooks and they point in opposite directions. `bin/hook-*.sh` with `.claude/settings.json` and `.codex/hooks.json` are the **harness calling yan** — the Stop hook that arms `yan wait`, the SessionStart hook that rebuilds the picture. Those are how the code wires itself into an agent CLI, they are the same for everyone, and they never leave the mechanics clone.
 
-`<vault>/hooks/` is the other direction: **yan calling you**, the outside-authority seam of [boundaries.md §10](../../mvp/td/boundaries.md), with one hook so far — `branch-name`, which `yan unit add` asks before it names an integration branch.
+`<vault>/hooks/` is the other direction: **yan calling you**, the outside-authority seam of [boundaries.md §10](../../mvp/td/boundaries.md), with one hook so far — `branch-create`, which `yan unit add` asks to CREATE the integration branch and then verifies.
 
 It belongs to the vault because what it encodes is *the context's rule, not yan's behaviour*. A company repository that requires `feat/<ticket>`, or `hotfix/*` during a release, has a rule that is true at work, meaningless at home, and still true on your second work machine. That is the home/work line exactly — not a property of the code, and not a property of a disk.
 

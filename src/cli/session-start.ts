@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -9,7 +9,8 @@ import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/ind
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
-import { vaultDir } from '../util/vault.js';
+import { skillsDir, vaultDir } from '../util/vault.js';
+import { machineSkillsDir } from '../util/machine.js';
 import { pullVault, type PullResult } from './vault.js';
 import { samePath } from '../util/paths.js';
 
@@ -209,6 +210,63 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
   return { version: 1, home: vaultDir(), tasks };
 }
 
+
+export interface Skill {
+  /** Where it came from, for yan to cite when it acts on one. */
+  readonly source: string;
+  readonly text: string;
+}
+
+/**
+ * The standing instructions for this environment (v3 td vault.md).
+ *
+ * A skill is PROSE, not an executable. `<vault>/skills/*.md` says what yan may
+ * do itself here — check a build, run a script, look something up — instead of
+ * dispatching a shift for it, and `~/.yan/skills/*.md` says the same for things
+ * that are about this box rather than this context.
+ *
+ * They are read HERE because session-start is the SessionStart hook for both
+ * harnesses: what it prints is what the main agent starts the session knowing.
+ * There is no `yan skill run`, no lease, no argv contract — the machinery for
+ * running one would be larger than the thing it runs.
+ *
+ * WHY THIS DOES NOT WEAKEN THE AUTHORITY TABLE. The table's right-hand column
+ * is "only when `user` asks". A skill IS `user` asking — in advance, in
+ * writing, in a file only they can put there. What it cannot do is make yan
+ * forget to say what it did: acting on a skill means naming it.
+ */
+function readSkillsFrom(dir: string, label: string): Skill[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir).filter((n) => n.endsWith('.md')).sort();
+  } catch {
+    return [];
+  }
+  const found: Skill[] = [];
+  for (const name of names) {
+    let text: string;
+    try {
+      text = readFileSync(join(dir, name), 'utf8').trim();
+    } catch {
+      continue;
+    }
+    if (text !== '') found.push({ source: `${label}/${name}`, text });
+  }
+  return found;
+}
+
+export function readSkills(): Skill[] {
+  // The vault first: what yan may do is normally a property of the context,
+  // and a machine-level file is the remainder rather than the norm.
+  let fromVault: Skill[] = [];
+  try {
+    fromVault = readSkillsFrom(skillsDir(), 'skills');
+  } catch {
+    fromVault = [];
+  }
+  return [...fromVault, ...readSkillsFrom(machineSkillsDir(), 'machine skills')];
+}
+
 function render(picture: Picture, pulled: PullResult): void {
   out('yan session-start');
   out(`  vault    ${picture.home}`);
@@ -243,6 +301,31 @@ function render(picture: Picture, pulled: PullResult): void {
   out('');
   out('Nothing was stored: this picture was rebuilt from the task directories,');
   out('the terminal, the pool and the forge, and it is rebuilt again next time.');
+
+  renderSkills(readSkills());
+}
+
+/**
+ * The skills, verbatim, at the END of the rebuild.
+ *
+ * Last on purpose. The picture above is facts about right now; this is
+ * standing instruction, and it is the part that should still be in view when
+ * the session gets going.
+ */
+function renderSkills(skills: readonly Skill[]): void {
+  if (skills.length === 0) return;
+  out('');
+  out('--- what you may do yourself here -----------------------------------------');
+  out('');
+  out("Standing instructions from `user`, in their own words. They are the opt-in:");
+  out('where one of these covers what is being asked, do it yourself rather than');
+  out('dispatching a shift — and say which one you are acting on.');
+  for (const skill of skills) {
+    out('');
+    out(`## ${skill.source}`);
+    out('');
+    out(skill.text);
+  }
 }
 
 export const command = new Command('session-start')
