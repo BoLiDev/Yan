@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { yanHome } from '../../util/home.js';
 import { readJsonIfPresent } from '../../util/json.js';
 import { normalizePath } from '../../util/paths.js';
-import { localReposPath, reposPath } from '../../util/vault.js';
+import { localReposPath, reposPath, vaultDir } from '../../util/vault.js';
 import { CommandError } from './errors.js';
 
 export const DEFAULT_POOL_SIZE = 8;
@@ -51,36 +51,22 @@ function entriesOf(file: string): Record<string, Record<string, unknown>> {
 }
 
 /**
- * The pre-V3 layout: `$YAN_HOME/mem/repos.json`, clones under `$YAN_HOME/repos/`.
+ * Everything the vault knows about, joined with what this machine knows.
  *
- * TEMPORARY, AND PHASE 3 DELETES IT. It is what keeps this phase additive: a
- * machine whose data has not been migrated yet keeps working while the new
- * resolution is proven beside it. Nothing writes this shape any more.
+ * No vault means no registry, and NOT an error here: `--repo <path to a clone>`
+ * has always worked and has nothing to do with a vault — `yan tree get` against
+ * a bare path is how the pool is exercised before anything is set up. The
+ * refusal, when one is due, comes from `repoDir` below, which asks for the
+ * vault only once it has run out of other answers.
  */
-function legacyEntries(): Record<string, Record<string, unknown>> {
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const [name, entry] of Object.entries(entriesOf(join(yanHome(), 'mem', 'repos.json')))) {
-    const dir = join(yanHome(), 'repos', name);
-    out[name] = { ...entry, ...(isDir(dir) ? { path: normalizePath(dir) } : {}) };
-  }
-  return out;
-}
-
-/** Everything the vault knows about, joined with what this machine knows. */
 export function registry(): RepoEntry[] {
-  let portable: Record<string, Record<string, unknown>> = {};
-  let local: Record<string, Record<string, unknown>> = {};
+  let portable: Record<string, Record<string, unknown>>;
+  let local: Record<string, Record<string, unknown>>;
   try {
     portable = entriesOf(reposPath());
     local = entriesOf(localReposPath());
   } catch {
-    // No vault yet. The legacy source below is the whole answer, and the
-    // refusal a command needs comes from whatever asked for the vault next.
-  }
-  const legacy = legacyEntries();
-  portable = { ...legacy, ...portable };
-  for (const [name, entry] of Object.entries(legacy)) {
-    if (local[name] === undefined && typeof entry.path === 'string') local[name] = { path: entry.path };
+    return [];
   }
 
   return Object.keys(portable)
@@ -146,6 +132,10 @@ export function repoDir(command: string, name: string, hint?: string): string {
     );
   }
 
+  // Out of answers. If the reason is that there is no vault at all, say THAT
+  // rather than "unknown repository" — the registry cannot know a name when
+  // there is no registry.
+  vaultDir();
   throw CommandError.usage(
     command,
     `unknown repository: ${name} - ${hint ?? "register it with 'yan repo add', or pass the path to a clone"}`,

@@ -9,7 +9,7 @@ import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/ind
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
-import { yanHome } from '../util/home.js';
+import { vaultDir } from '../util/vault.js';
 import { samePath } from '../util/paths.js';
 
 /**
@@ -205,7 +205,7 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
     });
   }
 
-  return { version: 1, home: yanHome(), tasks };
+  return { version: 1, home: vaultDir(), tasks };
 }
 
 function render(picture: Picture): void {

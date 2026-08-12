@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { yanHome } from '../../util/home.js';
+import { taskDir, tasksDir } from '../../util/vault.js';
 import { initJson } from '../../util/json.js';
 import { normalizePath } from '../../util/paths.js';
 import { Log } from '../log/index.js';
@@ -36,7 +36,7 @@ export class Task {
     // Paths yan prints or stores are normalised (conventions §3): forward
     // slashes on both platforms, so `yan ls`'s `dir` line and a `tree` recorded
     // in run/meta.json read the same on Git Bash and on Linux.
-    this.dir = normalizePath(join(yanHome(), 'tasks', id));
+    this.dir = normalizePath(taskDir(id));
     this.file = normalizePath(join(this.dir, 'task.json'));
   }
 
@@ -181,7 +181,7 @@ export class Task {
    * (td INDEX.md §3), which removes the single most bug-prone thing there is.
    */
   public static list(): string[] {
-    const dir = join(yanHome(), 'tasks');
+    const dir = tasksDir();
     let entries: string[];
     try {
       entries = readdirSync(dir);

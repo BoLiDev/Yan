@@ -53,7 +53,7 @@ async function hasBranch(branch: string): Promise<boolean> {
 }
 
 function writeHook(body: string): void {
-  const dir = join(home, 'conf', 'hooks');
+  const dir = join(home, 'hooks');
   mkdirSync(dir, { recursive: true });
   const file = join(dir, 'branch-name');
   writeFileSync(file, `#!/usr/bin/env bash\n${body}\n`);
@@ -160,7 +160,7 @@ describe('a hook that answers owns the name', () => {
     expect(unitField('t1', 'docs', 'branch')).toBe('spike/docs');
     expect(await hasBranch('spike/docs')).toBe(true);
 
-    rmSync(join(home, 'conf', 'hooks', 'branch-name'));
+    rmSync(join(home, 'hooks', 'branch-name'));
   });
 });
 

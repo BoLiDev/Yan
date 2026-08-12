@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { yanHome } from '../../util/home.js';
+import { vaultConfigPath } from '../../util/vault.js';
 import { readJsonIfPresent } from '../../util/json.js';
 
 /**
@@ -12,7 +12,7 @@ import { readJsonIfPresent } from '../../util/json.js';
  */
 
 export function configPath(): string {
-  return join(yanHome(), 'conf', 'config.json');
+  return vaultConfigPath();
 }
 
 /** `agents.<role>`, or the empty string when it is not configured. */

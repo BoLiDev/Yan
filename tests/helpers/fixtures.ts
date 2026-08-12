@@ -178,19 +178,21 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
     );
   }
 
-  writeFileSync(
-    join(dest, 'conf', 'config.json'),
+  // Both spellings. `<vault>/config.json` is what V3 reads; `conf/config.json`
+  // is what a pre-V3 home had, and the migration test still needs to build one.
+  const configText =
     options.config ??
-      `${JSON.stringify(
-        {
-          version: 1,
-          agents: { yan: 'claude', shift: 'claude' },
-          remote_git: { kind: 'github' },
-        },
-        null,
-        2,
-      )}\n`,
-  );
+    `${JSON.stringify(
+      {
+        version: 1,
+        agents: { yan: 'claude', shift: 'claude' },
+        remote_git: { kind: 'github' },
+      },
+      null,
+      2,
+    )}\n`;
+  writeFileSync(join(dest, 'config.json'), configText);
+  writeFileSync(join(dest, 'conf', 'config.json'), configText);
   writeFileSync(join(dest, 'mem', 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, '.local', 'repos.json'), '{\n  "version": 1\n}\n');

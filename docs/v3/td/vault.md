@@ -84,7 +84,7 @@ Same shape as `yanHome()`: an exported override wins, but only when it validates
 { "version": 1,
   "active": "personal",
   "clone_root": "C:/workspace/project",
-  "vaults": { "personal": "C:/workspace/yan-vault-personal",
+  "vaults": { "personal": "C:/workspace/project/yan-vault-personal",
               "work":     "D:/work/yan-vault" } }
 ```
 

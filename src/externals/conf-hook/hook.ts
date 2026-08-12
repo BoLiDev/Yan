@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { yanHome } from '../../util/home.js';
+import { hooksDir } from '../../util/vault.js';
 import { bashCommand } from '../../util/bash.js';
 import { HookError } from './errors.js';
 
@@ -56,7 +56,7 @@ function hookNameOk(name: string): void {
 /** Where that hook would be, whether or not the file exists. */
 export function hookPath(name: string): string {
   hookNameOk(name);
-  return join(yanHome(), 'conf', 'hooks', name);
+  return join(hooksDir(), name);
 }
 
 export function hookExists(name: string): boolean {

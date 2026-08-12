@@ -2,28 +2,23 @@
 node_modules/
 *.log
 
-# Runtime data lives in the same tree as the code (td INDEX.md §3), so each
-# directory stays tracked through its .gitkeep while its contents never are.
-# The `dir/*` form matters: git does not descend into an ignored directory, so
-# `dir/` plus a negation would not work.
-
-# user's local choices (td Appendix D). config.sample.json is the tracked one.
-conf/config.json
-conf/hooks/
-
-mem/*
-!mem/.gitkeep
-
-tasks/*
-!tasks/.gitkeep
-
-repos/*
-!repos/.gitkeep
+# Build output. The dual dispatcher falls back to the shell half when it is
+# absent, so a fresh clone works before it is ever built.
+dist/
 
 # Scratch git worktrees used when several agents work on the checkout at once.
 # .claude itself stays tracked: settings.json is a deliverable (architecture.md §3).
 .claude/worktrees/
 
-# Build output. The dual dispatcher falls back to the shell half when it is
-# absent, so a fresh clone works before it is ever built.
-dist/
+# The note `yan vault drop-home` leaves behind, saying where this machine's
+# data went. Local, and true of one disk only.
+.migrated.json
+
+# WHAT IS NO LONGER HERE, and it was most of this file:
+#
+#   conf/config.json  conf/hooks/  mem/  tasks/  repos/
+#
+# Runtime data used to live in this tree and be ignored into invisibility, so a
+# task's brief, its log and every outcome.md existed on exactly one disk. They
+# live in a vault now — a repository of their own, versioned and pushed — and
+# this clone holds code and nothing else (docs/v3/td/INDEX.md §2).

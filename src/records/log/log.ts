@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { yanHome } from '../../util/home.js';
+import { taskDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { LogError } from './errors.js';
 
@@ -42,7 +42,7 @@ export class Log {
   public constructor(taskId: string) {
     if (!taskId) throw LogError.usage('a task id is required');
     this.id = taskId;
-    this.file = normalizePath(join(yanHome(), 'tasks', taskId, 'log.md'));
+    this.file = normalizePath(join(taskDir(taskId), 'log.md'));
   }
 
   /**

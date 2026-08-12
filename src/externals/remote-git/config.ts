@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { yanHome } from '../../util/home.js';
+import { vaultConfigPath } from '../../util/vault.js';
 import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';
 
@@ -15,7 +15,7 @@ export interface RemoteGitConfig {
 }
 
 function configPath(): string {
-  return join(yanHome(), 'conf', 'config.json');
+  return vaultConfigPath();
 }
 
 /**

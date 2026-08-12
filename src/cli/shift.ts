@@ -18,6 +18,7 @@ import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
 import { deleteRemoteBranch } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
+import { vaultDir } from '../util/vault.js';
 
 /**
  * `yan shift new` — dispatch a shift (agents.md §5.3, orchestration.md §2).
@@ -444,6 +445,9 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       cwd: workdir,
       env: {
         YAN_HOME: yanHome(),
+        // Explicit, for the reason  gives: a shift outlives the
+        // dispatch, and `yan vault use` in another pane must not move it.
+        YAN_VAULT: vaultDir(),
         YAN_TASK: task,
         YAN_TASK_DIR: taskDir,
         YAN_SID: sid,

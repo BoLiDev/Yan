@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { registry } from './shared/repo.js';
+import { tasksDir } from '../util/vault.js';
 import { isTty } from './shared/resolve.js';
 import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit } from './unit.js';
@@ -189,10 +190,10 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   // The next free number is DERIVED by scanning tasks/, never stored in a
   // counter file — there is no registry in yan. The lock is only around the
   // gap between deriving it and taking it.
-  const tasksDir = join(yanHome(), 'tasks');
-  mkdirSync(tasksDir, { recursive: true });
+  const dir = tasksDir();
+  mkdirSync(dir, { recursive: true });
   const timeout = Number.parseInt(process.env.YAN_TASK_NEW_LOCK_TIMEOUT ?? '', 10);
-  withLock(join(tasksDir, '.new.lock'), Number.isFinite(timeout) ? timeout : 30, () => {
+  withLock(join(dir, '.new.lock'), Number.isFinite(timeout) ? timeout : 30, () => {
     if (id === '') id = nextId();
     if (Task.exists(id)) {
       throw CommandError.usage('task_new', `task ${id} already exists - 'yan ls' lists them`);

@@ -13,6 +13,7 @@ import { configuredCli } from '../externals/remote-git/index.js';
 import { isYanError } from '../util/error.js';
 import { action, out } from './shared/action.js';
 import { configPath } from './shared/config.js';
+import { registry } from './shared/repo.js';
 
 /**
  * `yan doctor` — can this machine run yan?
@@ -173,6 +174,22 @@ function checkVault(report: Report): void {
   line(report, root === undefined ? 'warn' : 'ok', 'clone_root',
     root ?? `unset in ${machineConfigPath()} - 'yan repo add <url>' has nowhere to clone into`,
   );
+
+  // The row that earns its place on a machine that just cloned a vault: every
+  // repository is registered and none of them is anywhere yet, and without this
+  // the first thing you meet is a command failing for what looks like an
+  // unrelated reason.
+  const repos = registry();
+  const missing = repos.filter((r) => r.path === undefined).map((r) => r.name);
+  if (repos.length === 0) {
+    line(report, 'warn', 'repos', "none registered - 'yan repo add' in the directory where your clones live");
+  } else {
+    line(report, missing.length > 0 ? 'warn' : 'ok', 'repos',
+      missing.length > 0
+        ? `${repos.length} registered, ${repos.length - missing.length} linked here - no path on this machine for: ${missing.join(', ')}`
+        : `${repos.length} registered, all linked on this machine`,
+    );
+  }
 }
 
 /** Whether `yan` is on PATH so you can run it from any directory. */
@@ -191,10 +208,10 @@ function checkConfig(report: Report): { agents: Record<string, unknown> } {
   const path = configPath();
   const parsed = readJsonIfPresent(path);
   if (parsed === undefined) {
-    line(report, 'fail', 'conf/config.json', `missing or not valid JSON - copy conf/config.sample.json to ${path}`);
+    line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.* and remote_git.* live; copy conf/config.sample.json to ${path}`);
     return { agents: {} };
   }
-  line(report, 'ok', 'conf/config.json', path);
+  line(report, 'ok', 'config.json', path);
 
   const root = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
   const agents = (typeof root.agents === 'object' && root.agents !== null ? root.agents : {}) as Record<string, unknown>;
@@ -268,7 +285,7 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
     ),
   ].sort();
   if (kinds.length === 0) {
-    line(report, 'warn', 'integrations', 'conf/config.json names no agents');
+    line(report, 'warn', 'integrations', 'the vault config names no agents');
   }
   for (const kind of kinds) {
     const state = installed[kind];

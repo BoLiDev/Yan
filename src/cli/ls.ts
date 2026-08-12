@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { CommandError } from './shared/errors.js';
-import { yanHome } from '../util/home.js';
+import { tasksDir } from '../util/vault.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
@@ -129,7 +129,7 @@ export function taskDetailJson(id: string): unknown {
 function renderQueue(json: ReturnType<typeof queueJson>): void {
   const data = json as { tasks: Array<Record<string, unknown>> };
   if (data.tasks.length === 0) {
-    out(`no tasks in ${join(yanHome(), 'tasks')}`);
+    out(`no tasks in ${tasksDir()}`);
     return;
   }
   const rows: string[][] = [['ID', 'STATE', 'UNITS', 'SHIFTS', 'SCOPE', 'TITLE']];

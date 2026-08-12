@@ -418,7 +418,7 @@ describe('usage', () => {
   });
 
   it('is reachable as `yan shift new` through the dispatcher', async () => {
-    writeFileSync(join(home, 'conf', 'config.json'), readFileSync(join(home, 'conf', 'config.json'), 'utf8'));
+    writeFileSync(join(home, 'config.json'), readFileSync(join(home, 'config.json'), 'utf8'));
     const r = await runYan(home, ['shift', 'new', '--task', 't042']);
     expect(r.out).toContain('--unit is required');
   });

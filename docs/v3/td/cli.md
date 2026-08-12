@@ -11,6 +11,8 @@ yan vault init <name> --remote <url> [--path <dir>]   create and push a vault
 yan vault clone <url> [--name] [--path]               take one on a new machine
 yan vault ls                                          registered vaults, active first
 yan vault use <name>       (alias: yan use <name>)    switch the active vault
+yan vault where                                       where the active vault is
+yan vault drop-home                                   step 7 of a --from-home migration
 yan vault pull                                        fetch + rebase (session-start runs this)
 yan vault push [-m <msg>]                             stage, commit, push
 yan repo link <name> <path>                           the machine half of the registry
@@ -38,7 +40,7 @@ The old spelling is not kept as an alias. It has one user, this repository's own
 **`yan doctor`** gains four rows:
 
 ```
-vault        personal → C:/workspace/yan-vault-personal   (or FAIL: none registered)
+vault        personal → C:/workspace/project/yan-vault-personal  (or FAIL: none registered)
 vault remote origin reachable, N commits ahead / behind
 repos        4 registered, 3 linked on this machine       (WARN, naming the missing)
 clone_root   C:/workspace/project                          (WARN if missing)

@@ -7,6 +7,7 @@ import { agentFor, configPath } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
+import { tasksDir, vaultDir } from '../util/vault.js';
 import { queueJson } from './ls.js';
 import { isTty } from './shared/resolve.js';
 import { Terminal } from '../externals/herdr/index.js';
@@ -231,7 +232,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
     );
   }
   if (!Task.exists(id)) {
-    throw CommandError.usage('continue', `no such task: ${id} - 'yan ls' lists the tasks in ${join(yanHome(), 'tasks')}`,
+    throw CommandError.usage('continue', `no such task: ${id} - 'yan ls' lists the tasks in ${tasksDir()}`,
     );
   }
 
@@ -301,7 +302,11 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       try {
         return start(agent, argv, {
           cwd,
-          env: { ...process.env, YAN_HOME: cwd, YAN_TASK: id },
+          // The vault is passed EXPLICITLY rather than inherited: the agent
+          // outlives the command that started it, and the active vault can be
+          // switched underneath it. Which context this session belongs to is
+          // settled once, here.
+          env: { ...process.env, YAN_HOME: cwd, YAN_VAULT: vaultDir(), YAN_TASK: id },
         });
       } finally {
         if (workspace !== undefined) {

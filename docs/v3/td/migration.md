@@ -27,7 +27,7 @@ The state on this machine today, and its destination:
 
 `conf/config.sample.json`, `conf/hooks.sample/` and `templates/vault/` stay in the mechanics. They are templates, not choices.
 
-Defaults for this machine: vault name `personal`, path `C:/workspace/yan-vault-personal`, `clone_root` `C:/workspace/project` — the mechanics clone's own parent, so registered clones end up as siblings of `yan` rather than hidden inside it.
+Defaults for this machine: vault name `personal`, path `C:/workspace/project/yan-vault-personal`, `clone_root` `C:/workspace/project` — the mechanics clone's own parent, so both the vault and the registered clones end up as siblings of `yan` rather than hidden inside it.
 
 ---
 
@@ -57,9 +57,20 @@ Every step is resumable, because the failure that matters is "it died halfway" a
 4. Write the split registry, both halves.
 5. Move the clone; write `.local/repos.json`.
 6. Commit, add the remote, push. Register in `~/.yan/config.json`, set active.
-7. **Verify, then clean.** `yan ls` must show the same five tasks, and `yan doctor` must come back clean, before the old `tasks/`, `mem/`, `conf/config.json` and `repos/` are removed. A `--keep-home` flag skips the removal for the first run, which is what we will actually use.
+7. **Verify, then clean.** `yan ls` must show the same five tasks, and `yan doctor` must come back clean, before the old `tasks/`, `mem/`, `conf/config.json` and `repos/` are removed.
 
-Step 7 is the whole safety story: until it runs, the migration is additive and reversible by deleting the vault.
+Step 7 is the whole safety story: until it runs, the migration is additive and undone by deleting the vault. So **removal is off by default** — `--from-home` alone always keeps the old copy — and it happens either as `--drop-home` on the same run or, later, as its own command:
+
+```
+yan vault drop-home
+```
+
+Its own command because verifying takes longer than one invocation. It recomputes the plan against the ACTIVE vault and refuses if the old home still holds a task, a registry entry or a `mem/` file the vault does not have — which is what makes it different from `rm -rf`, and is the check that fired on the real run when a task was added after the copy.
+
+**What the first real run found**, recorded because both were cheap to fix and neither was in this document:
+
+- An **empty** `poe-tools/` directory beside the mechanics clone made the destination check refuse, claiming it would merge two clones. There was nothing there to merge: the check is now "exists and is not empty", and the migration removes an empty directory before renaming onto it, because Windows will not rename onto one.
+- The remote for the real vault started as a **local bare repository** beside the mechanics clone, because creating a repository on GitHub is `user`'s to do. `git remote set-url origin <the real one>` is the whole hand-over; nothing in the vault depends on which remote it was born with.
 
 ---
 

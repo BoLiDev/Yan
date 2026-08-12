@@ -38,7 +38,7 @@ let previousHome: string | undefined;
 
 function configure(remoteGit: Record<string, unknown>): void {
   writeFileSync(
-    join(home, 'conf', 'config.json'),
+    join(home, 'config.json'),
     `${JSON.stringify(
       { version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: remoteGit },
       null,
@@ -101,7 +101,7 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
     // configured a host" and "it is under the old name" is the difference
     // between a puzzle and a one-line fix.
     writeFileSync(
-      join(home, 'conf', 'config.json'),
+      join(home, 'config.json'),
       `${JSON.stringify({ version: 1, forge: { kind: 'github' } }, null, 2)}\n`,
     );
     expect(() => host().mrState({ mr: '1' })).toThrow(/rename that section to `remote_git`/);

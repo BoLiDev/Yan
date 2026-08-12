@@ -61,7 +61,7 @@ That fallback is what keeps this phase additive: the existing `poe-tools` entry 
 
 Every `join(yanHome(), 'tasks'|'mem'|'conf')` becomes `vaultDir()`; the `repos/` fallback goes; `yan vault init --from-home` lands and **is run for real on this machine**.
 
-*Trace:* preflight refuses on a live shift, on a lease against a clone being moved, on a non-empty destination · the five tasks appear under `yan ls` from the vault · `poe-tools` resolves at `C:/workspace/project/poe-tools` and a fresh `yan tree get` works against it · `--keep-home` leaves the old copy · `yan doctor` clean.
+*Trace:* preflight refuses on a live shift, on a lease against a clone being moved, on a non-empty destination · the five tasks appear under `yan ls` from the vault · `poe-tools` resolves at `C:/workspace/project/poe-tools` and a fresh `yan tree get` works against it · the old copy survives until `yan vault drop-home`, which refuses while anything is only in the home · `yan doctor` clean.
 
 ### Phase 4 — sync, and the emptied tree
 

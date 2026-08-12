@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { basename, dirname, join, resolve as resolvePath } from 'node:path';
-import { yanHome } from '../../util/home.js';
+import { tasksDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { Task } from '../task/index.js';
 import { ShiftError } from './errors.js';
@@ -112,19 +112,19 @@ export class Shift {
       return shift;
     }
 
-    const tasksDir = join(yanHome(), 'tasks');
+    const dir = tasksDir();
     let ids: string[];
     try {
-      ids = readdirSync(tasksDir);
+      ids = readdirSync(dir);
     } catch {
       ids = [];
     }
-    const hits = ids.filter((id) => existsSync(join(tasksDir, id, 'shifts', sid)));
+    const hits = ids.filter((id) => existsSync(join(dir, id, 'shifts', sid)));
 
     if (hits.length === 0) {
       throw new ShiftError(
         'missing',
-        `no such shift: ${sid} - nothing matches ${tasksDir}/*/shifts/${sid}`,
+        `no such shift: ${sid} - nothing matches ${dir}/*/shifts/${sid}`,
       );
     }
     if (hits.length > 1) {

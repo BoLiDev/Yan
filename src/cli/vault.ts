@@ -15,7 +15,9 @@ import {
 } from '../util/machine.js';
 import { normalizePath } from '../util/paths.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
+import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './shared/action.js';
+import { dropHome, migrate, planMigration, preflight, stillOnlyInHome } from './shared/migrate.js';
 import { CommandError } from './shared/errors.js';
 import { resolve } from './shared/resolve.js';
 
@@ -121,6 +123,22 @@ interface InitOptions {
   readonly remote?: string;
   readonly path?: string;
   readonly cloneRoot?: string;
+  readonly fromHome?: boolean;
+  readonly dropHome?: boolean;
+}
+
+/**
+ * How many trees the pool is holding for a clone that is about to move.
+ *
+ * Asked through the pool rather than by reading its directory, and any failure
+ * counts as zero: a pool that cannot be opened has no leases to lose.
+ */
+function leasesFor(clone: string): number {
+  try {
+    return new WorktreePool(clone).status().length;
+  } catch {
+    return 0;
+  }
 }
 
 const initVault = new Command('init')
@@ -129,6 +147,8 @@ const initVault = new Command('init')
   .option('--remote <url>', 'the empty repository this vault is pushed to')
   .option('--path <dir>', 'where the vault lives on this machine')
   .option('--clone-root <dir>', 'where `yan repo add <url>` clones into on this machine')
+  .option('--from-home', "move this $YAN_HOME's tasks, memory, config and clones into the new vault")
+  .option('--drop-home', 'with --from-home: delete the old copies once the vault is written')
   .action(
     action('vault_init', async (name: string | undefined, options: InitOptions) => {
       const answers = await resolve(
@@ -162,7 +182,15 @@ const initVault = new Command('init')
         throw new CommandError('vault', 'remote_not_empty', `${answers.remote} already has branches, so it is not an empty repository - 'yan vault clone ${answers.remote}' takes an existing vault; init needs an empty one`);
       }
 
+      const root = normalizePath(resolvePath(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
+
+      // Everything the migration could refuse for is refused HERE, before the
+      // skeleton exists — so a refusal leaves nothing behind to clean up.
+      const plan = options.fromHome === true ? planMigration(dir, root) : undefined;
+      if (plan !== undefined) preflight(plan, leasesFor);
+
       layDownSkeleton(dir, answers.name);
+      if (plan !== undefined) migrate(plan);
       gitOrThrow(dir, ['init', '--initial-branch=main'], 'git init');
       gitOrThrow(dir, ['add', '-A'], 'staging the skeleton');
       gitOrThrow(dir, ['commit', '-m', `vault: ${answers.name}`], 'the first commit');
@@ -170,16 +198,19 @@ const initVault = new Command('init')
       gitOrThrow(dir, ['push', '-u', 'origin', 'main'], 'the first push');
 
       registerVault(answers.name, dir);
-      if (options.cloneRoot !== undefined && options.cloneRoot !== '') {
-        setCloneRoot(resolvePath(options.cloneRoot));
-      } else if (cloneRoot() === undefined) {
-        // Beside the mechanics clone, for the same reason the vault is.
-        setCloneRoot(dirname(yanHome()));
-      }
+      setCloneRoot(root);
 
       out(`vault init: ${answers.name}  ${dir}`);
       out(`vault init: pushed to ${answers.remote}, and it is now the active vault`);
-      out(`vault init: clones on this machine go under ${cloneRoot() ?? '(unset)'}`);
+      out(`vault init: clones on this machine go under ${root}`);
+
+      if (plan !== undefined) {
+        // The old copy stays until someone has looked. `--drop-home` is the
+        // second run, after `yan ls` and `yan doctor` agree; without it this
+        // migration is undone by deleting one directory.
+        if (options.dropHome === true) dropHome(plan);
+        else out(`vault init: the old data is still in ${plan.home} - check 'yan ls' and 'yan doctor', then re-run with --drop-home, or delete tasks/ mem/ repos/ conf/config.json by hand`);
+      }
     }),
   );
 
@@ -266,6 +297,38 @@ const useCommand = new Command('use')
   .action(action('vault_use', (name: string | undefined) => { useVault(name); }));
 
 /**
+ * `yan vault drop-home` — step 7 of the migration, as its own command.
+ *
+ * The migration is deliberately additive: `--from-home` copies, and the old
+ * data stays until someone has looked at `yan ls` and `yan doctor`. Looking
+ * takes as long as it takes, which is longer than one command — so the
+ * deletion has to be runnable afterwards rather than only as a flag on the
+ * run that created the vault.
+ *
+ * It re-checks before it removes anything, and the check is the whole reason
+ * this is not `rm -rf`: every task and every registry entry the old home holds
+ * must already be in the active vault.
+ */
+const dropHomeCommand = new Command('drop-home')
+  .description('remove the pre-V3 data from $YAN_HOME, once the vault has it')
+  .action(
+    action('vault_drop_home', () => {
+      const vault = vaultDir();
+      const plan = planMigration(vault, cloneRoot() ?? dirname(yanHome()));
+
+      const missing = stillOnlyInHome(plan);
+      if (missing.length > 0) {
+        throw new CommandError('vault', 'incomplete', `${plan.home} still holds things the vault does not:\n${missing.map((m) => `  - ${m}`).join('\n')}\nnothing was removed - run 'yan vault init <name> --remote <url> --from-home' first`);
+      }
+      if (plan.tasks.length === 0 && !plan.config && plan.repos.length === 0) {
+        out(`vault drop-home: nothing left in ${plan.home} to remove`);
+        return;
+      }
+      dropHome(plan);
+    }),
+  );
+
+/**
  * `yan vault where` — one line, for a script or a person who lost track.
  *
  * It goes through `vaultDir()` rather than the forgiving variant on purpose:
@@ -283,4 +346,5 @@ export const command = new Command('vault')
   .addCommand(cloneVault)
   .addCommand(lsVaults)
   .addCommand(useCommand)
+  .addCommand(dropHomeCommand)
   .addCommand(whereCommand);

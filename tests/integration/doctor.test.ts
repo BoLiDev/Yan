@@ -32,7 +32,7 @@ afterAll(cleanupTempDirs);
 let home = '';
 
 function config(body: Record<string, unknown>): void {
-  writeFileSync(join(home, 'conf', 'config.json'), `${JSON.stringify(body, null, 2)}\n`);
+  writeFileSync(join(home, 'config.json'), `${JSON.stringify(body, null, 2)}\n`);
 }
 
 /** Doctor, with git pointed at configuration files this test owns. */
@@ -59,7 +59,7 @@ beforeAll(() => {
 describe('the checklist', () => {
   it('reports git, node, the config and the agents', async () => {
     const r = await doctor();
-    for (const needle of ['yan doctor', 'YAN_HOME', 'git', 'node', 'yan on PATH', 'conf/config.json', 'agents.yan', 'agents.shift']) {
+    for (const needle of ['yan doctor', 'YAN_HOME', 'git', 'node', 'yan on PATH', 'config.json', 'agents.yan', 'agents.shift']) {
       expect(r.out, needle).toContain(needle);
     }
   });
@@ -100,7 +100,7 @@ describe('only the CLI the configured kind names', () => {
 
 describe('a missing configuration is reported, not a crash', () => {
   it('says which file and what to copy', async () => {
-    rmSync(join(home, 'conf', 'config.json'));
+    rmSync(join(home, 'config.json'));
     const r = await doctor();
     expect(r.code).toBe(1);
     expect(r.out).toContain('conf/config.sample.json');
