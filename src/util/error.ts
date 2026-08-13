@@ -1,28 +1,11 @@
 /**
- * The base every error yan throws extends — and that nothing throws directly.
+ * The base every error yan throws extends; each module declares its own
+ * subclass in its `errors.ts`. `isYanError` separates a condition yan
+ * anticipated from a crash it did not, and `src/cli/shared/action.ts` turns
+ * any of these into an exit code.
  *
- * It is abstract on purpose. A single concrete `YanError` would mean every
- * failure in the system arrives under one name, and a name that fits everything
- * describes nothing: a caller reading `catch (e: YanError)` learns only that
- * something went wrong somewhere. Each module declares its own subclass in its
- * `errors.ts`, so the throw site says what kind of thing failed
- * (`WorktreeError`, `TerminalError`, `TaskError`) and `code` says which
- * condition.
- *
- * What the base is still for, and why it exists at all:
- *
- *   1. Ours versus theirs. `isYanError(e)` is the boundary predicate. A Herdr or
- *      `gh` error object must never propagate to a caller, so there has to be
- *      one question separating a condition yan anticipated from a crash it did
- *      not.
- *   2. One exit mapping. `src/cli/shared/action.ts` turns any of these into a
- *      process exit code. Without a shared base that would be one `instanceof`
- *      per module, forever out of date.
- *
- * `code` is the machine-readable half and is what tests assert on; the message
- * is prose and may change without anything breaking. Subclasses prefix their
- * codes with the module name, so `worktree_mismatch` and `term_not_found`
- * cannot be confused even after the class is lost to a JSON boundary.
+ * `code` is the machine-readable half, prefixed with the module name and safe
+ * to assert on; the message is prose and may change.
  */
 export abstract class YanError extends Error {
   readonly code: string;
@@ -32,9 +15,8 @@ export abstract class YanError extends Error {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.code = code;
-    // 2 means "you called this wrongly"; 1 means "yan tried, and refused or
-    // failed". Keeping the split is what lets a caller tell a bug in its own
-    // command line from a runtime condition it should react to.
+    // 2 means "you called this wrongly"; 1, the default, means "yan tried, and
+    // refused or failed".
     this.exitCode = options?.exitCode ?? 1;
   }
 }

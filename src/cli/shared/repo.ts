@@ -9,21 +9,13 @@ import { CommandError } from './errors.js';
 export const DEFAULT_POOL_SIZE = 8;
 
 /**
- * The registry, in two halves.
+ * The repository registry, in two halves:
  *
  *   <vault>/repos.json          url, mode_default, pool_size   — tracked
  *   <vault>/.local/repos.json   path                           — this machine
  *
- * The split is forced rather than chosen: a URL is true on every machine and a
- * path is true on one. One tracked file holding both means every machine
- * rewrites every other machine's paths on every push; one untracked file
- * holding both means a fresh clone of a vault does not know which repositories
- * the context even involves, and `task.json`'s `repo` field dangles.
- *
- * "Registered but not linked here" is therefore a normal state — it is what
- * every freshly cloned vault looks like — which is why the refusal below names
- * both `yan repo add` and `yan repo link` rather than assuming which one the
- * reader needs.
+ * "Registered but not linked here" is an ordinary state — it is what a freshly
+ * cloned vault looks like.
  */
 
 export interface RepoEntry {
@@ -51,13 +43,8 @@ function entriesOf(file: string): Record<string, Record<string, unknown>> {
 }
 
 /**
- * Everything the vault knows about, joined with what this machine knows.
- *
- * No vault means no registry, and not an error here: `--repo <path to a clone>`
- * has always worked and has nothing to do with a vault — `yan tree get` against
- * a bare path is how the pool is exercised before anything is set up. The
- * refusal, when one is due, comes from `repoDir` below, which asks for the
- * vault only once it has run out of other answers.
+ * Every registered repository, joined with what this machine knows, sorted by
+ * name. No vault is an empty list, never a throw.
  */
 export function registry(): RepoEntry[] {
   let portable: Record<string, Record<string, unknown>>;
@@ -98,16 +85,13 @@ function isDir(path: string): boolean {
 }
 
 /**
- * Which clone a `--repo` names.
+ * Which clone a `--repo` names: what this machine linked, or the argument
+ * itself when it is the path of a directory.
  *
- * Three answers, in order: what this machine recorded, the argument itself when
- * it is a path, and a refusal. The middle one is not a leftover — passing the
- * path to a clone has always worked and is how a one-off is done.
- *
- * The main clone is read-only: the only write allowed inside it is `git fetch`
- * That rule did not change when the clone became one
- * `user` also works in; what changed is that a branch checked out there cannot
- * also be leased, which the pool reports by name.
+ * @throws CommandError `repo_missing` when the linked path is gone,
+ *   `repo_unlinked` when it is registered but not linked here, `usage` when
+ *   the name is unknown — or whatever `vaultDir()` throws when there is no
+ *   vault to be registered in.
  */
 export function repoDir(command: string, name: string, hint?: string): string {
   const entry = lookup(name);
@@ -122,8 +106,6 @@ export function repoDir(command: string, name: string, hint?: string): string {
 
   if (name !== '' && isDir(name)) return normalizePath(resolve(name));
 
-  // Registered in the vault, but this machine has never said where it is. The
-  // ordinary state of a vault that arrived from another machine.
   if (entry !== undefined) {
     throw new CommandError(
       command,
@@ -132,9 +114,7 @@ export function repoDir(command: string, name: string, hint?: string): string {
     );
   }
 
-  // Out of answers. If the reason is that there is no vault at all, say that
-  // rather than "unknown repository" — the registry cannot know a name when
-  // there is no registry.
+  // Throws first when the real problem is that there is no vault at all.
   vaultDir();
   throw CommandError.usage(
     command,
@@ -142,54 +122,35 @@ export function repoDir(command: string, name: string, hint?: string): string {
   );
 }
 
-/**
- * The clone, or `undefined` — for the callers that are guessing on purpose.
- *
- * `yan continue` listing directories to allow, and `yan shift done` working out
- * which unit a stranded lease belonged to, both ask about repositories that may
- * not resolve, and neither should fail because of it. A refusal there would
- * turn "one unit's clone is missing" into "the whole command stops".
- */
+/** The clone on this machine, or `undefined`. Never throws, unlike `repoDir`. */
 export function repoDirIfKnown(name: string): string | undefined {
   const path = lookup(name)?.path;
   return path !== undefined && isDir(path) ? path : undefined;
 }
 
 /**
- * How many trees this repository's pool may hold.
+ * How many trees this repository's pool may hold, defaulting to
+ * DEFAULT_POOL_SIZE.
  *
- * `pool_size` follows the repository, not the code, and it lives in the vault's
- * registry — yan's own bookkeeping, which the pool module must not read. So the
- * command layer reads it and passes it in.
- *
- * The key is the clone's directory name, which is what `repoTarget` returns,
- * and it may not be the registered name; a repository registered under a
- * different name than its directory falls back to the default rather than
- * silently taking someone else's tuning.
+ * @param repoKey the clone's directory name, which `repoTarget` returns. A
+ *   repository registered under some other name gets the default.
  */
 export function poolSize(repoKey: string): number {
   return lookup(repoKey)?.poolSize ?? DEFAULT_POOL_SIZE;
 }
 
-/** The clone directory plus the key `poolSize` wants, resolved once. */
+/** The clone directory plus the key `poolSize` wants. Throws as `repoDir` does. */
 export function repoTarget(command: string, name: string, hint?: string): { clone: string; key: string } {
   const dir = repoDir(command, name, hint);
   return { clone: dir, key: dir.slice(dir.lastIndexOf('/') + 1) };
 }
 
-/**
- * Where `yan repo add <url>` clones into, when this machine has said.
- *
- * Kept here rather than in `util/machine.ts` because the fallback is a command
- * layer decision: beside the mechanics clone, which is where `yan vault init`
- * also puts things, so a machine that never configured anything still has one
- * obvious place instead of two.
- */
+/** Where clones go when this machine has not said: beside yan's own clone. */
 export function defaultCloneRoot(): string {
   return normalizePath(join(yanHome(), '..'));
 }
 
-/** True when a directory looks like a git clone rather than an ordinary folder. */
+/** True when a directory holds a `.git`. */
 export function isClone(dir: string): boolean {
   return existsSync(join(dir, '.git'));
 }

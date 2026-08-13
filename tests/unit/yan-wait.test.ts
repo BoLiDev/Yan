@@ -123,13 +123,8 @@ describe('the sources are enumerable, and the fourth is still refused', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('never wakes on what the terminal says, only on what herdr and the shift do', () => {
-    // The pulse is a content digest, and this command writes one — but it is
-    // deliberately not a source. Waking on it would answer the wrong question:
-    // an agent that is thinking is not moving, and one printing a spinner is.
-    //
-    // So the assertion is about `look`, which is where every wake reason is
-    // decided, rather than about the file: the pulse may be sampled anywhere,
-    // and may be consulted nowhere that returns a reason.
+    // The pulse is written but is never a wake reason, so the assertion is
+    // about `look` rather than about the file.
     expect(WAIT_SOURCES).toEqual(['signal', 'agent-status', 'agent-alive']);
     expect(source).not.toContain('cksum');
 
@@ -174,10 +169,7 @@ describe('source 1: run/signal', () => {
 });
 
 describe('the pulse: telling a long silence from a stuck one', () => {
-  // Sampled by the watcher, never by `yan state`. If the reading were taken at
-  // the moment somebody asked, the answer would be "nothing changed between
-  // your two calls" — the more anxious the caller, the more stuck the shift
-  // would look.
+  // Sampled by the watcher, never by `yan state`.
   it('records a digest of the terminal, and never the terminal', async () => {
     const run = liveShift('s1');
     const terminal = new FakeTerminal();
@@ -211,9 +203,7 @@ describe('the pulse: telling a long silence from a stuck one', () => {
     const first = readPulse(run);
     expect(first).toBeDefined();
 
-    // Same screen a minute later: the shift is quiet, so `changed` must not
-    // creep forward. If it did, a twenty-minute stall would look permanently
-    // fresh and the signal would be worthless.
+    // Same screen a minute later: `changed` must not creep forward.
     ageLastReading(run, 60);
     const stale = readPulse(run);
     await watch({ task: 't1', seconds: 0.3, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
@@ -231,9 +221,8 @@ describe('the pulse: telling a long silence from a stuck one', () => {
   });
 
   it('does not read a pane on every turn of the loop', async () => {
-    // Reading is a process spawn per shift. The loop turns every few seconds
-    // and the signal is measured in minutes, so a sampler that ignored that
-    // would triple what watching costs for nothing.
+    // Reading is a process spawn per shift, and the loop turns far faster
+    // than the signal moves.
     const run = liveShift('s1');
     const terminal = new FakeTerminal();
     terminal.text.set('w1:p2', 'working');
@@ -276,9 +265,8 @@ describe('source 2: what herdr reports about the agent', () => {
   });
 
   it('wakes on done — and tears nothing down, because done is not a verdict', async () => {
-    // Plan approval arrives as `done`. A shift parked on a plan
-    // approval therefore looks exactly like a shift that has finished, and
-    // clocking out is destructive. Rule 3 is the objective condition.
+    // A plan approval arrives as `done` too, so it is a reason to look and
+    // never a verdict.
     const run = liveShift('s1');
     const events = new FakeEvents();
     const watcher = watch({
@@ -320,9 +308,8 @@ describe('source 2: what herdr reports about the agent', () => {
   });
 
   it('takes a snapshot after subscribing, so a shift already blocked is not missed', async () => {
-    // The window this closes: a subscription is an edge trigger,
-    // so a `yan wait` starting up over shifts that are already running would
-    // never hear about a block that happened before it was listening.
+    // A subscription is an edge trigger, so a block that happened before this
+    // watcher started is only visible in the snapshot.
     liveShift('s1');
     const terminal = new FakeTerminal();
     terminal.status.set('w1:p2', 'blocked');
@@ -445,8 +432,7 @@ describe('a subscription that ends', () => {
     }, 30);
 
     const result = await watcher;
-    // The fact still arrives — one poll late, on `agent list`, which is the
-    // The fallback path, and still facts rather than a content hash.
+    // The fact still arrives, one poll late, on `agent list`.
     expect(result.code).toBe(0);
     expect(result.reason).toContain('blocked: s1');
     expect(notes.join('\n')).toContain('still watching, on the poll');
@@ -597,11 +583,8 @@ describe('a shift with no recorded pane', () => {
 
 describe('a pane herdr has never heard of', () => {
   it('is never subscribed to, because asking closes the whole connection', async () => {
-    // Measured against a real herdr: a subscription naming an
-    // unknown pane is not refused with an error — the server drops the
-    // connection, taking every other pane's subscription with it. A stale id in
-    // run/meta.json would otherwise cost the watcher its event stream once per
-    // turn, for ever.
+    // A subscription naming an unknown pane drops the whole connection, taking
+    // every other pane's subscription with it.
     liveShift('s1', 'w1:p2');
     liveShift('s2', 'w1:p7');
     const terminal = new FakeTerminal();
@@ -618,12 +601,8 @@ describe('a pane herdr has never heard of', () => {
 
 describe('a shift whose recorded pane id Herdr would not know', () => {
   it('does not cost the other shifts their subscription', async () => {
-    // A subscription naming one unknown pane is refused whole, so it is left
-    // out — that shift keeps run/signal and the poll, which is what a shift
-    // with no usable pane had all along. `%7` here is a tmux id, the shape
-    // Nothing produces one deliberately; what produces one is run/meta.json
-    // outliving the yan that wrote it, and the empty string `shift new` records
-    // before the agent starts.
+    // A pane id yan cannot vouch for is left out, and that shift keeps
+    // run/signal and the liveness poll.
     liveShift('s1', '%7');
     liveShift('s2', 'w1:p3');
     const events = new FakeEvents();
@@ -641,11 +620,8 @@ describe('a shift whose recorded pane id Herdr would not know', () => {
 
 describe('the socket client lives with the rest of Herdr', () => {
   it('is a file in the herdr module, with its own test, behind one index.ts', () => {
-    // Phase 6 gave it a module of its own, `externals/terminal-events`. That
-    // was one module too many: `externals` may not import each other, so the
-    // pane-id shape and the agent-status union were each written twice and a
-    // test existed only to police the copies. Two transports, one authority,
-    // one module.
+    // Both transports live in one module: `externals` may not import each
+    // other, so two would each need their own copy of the shared shapes.
     const files = readdirSync(join(repoRoot, 'src', 'externals', 'herdr'));
     expect(files).toContain('index.ts');
     expect(files).toContain('events.ts');
@@ -656,9 +632,8 @@ describe('the socket client lives with the rest of Herdr', () => {
   });
 
   it('and there is no second Herdr module for it to drift from', () => {
-    // One outside authority, one module. The list grows when yan learns about a
-    // new authority — Phase 7 added `conf-hook` for `conf/hooks/` — but no
-    // authority may ever appear twice, which is what this pins.
+    // One outside authority, one module: the list may grow, but no authority
+    // may ever appear twice.
     const externals = readdirSync(join(repoRoot, 'src', 'externals')).sort();
     expect(externals.filter((n) => /herdr|terminal|event|pane/.test(n))).toEqual(['herdr']);
     expect(externals).toContain('remote-git');

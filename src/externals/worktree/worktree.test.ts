@@ -19,12 +19,8 @@ import { WorktreePool } from './index.js';
 /**
  * The pool against real git and a real (local, bare) remote. No network.
  *
- * This test lives beside the module on purpose: it reaches for `cloneDir` and
- * `WorktreeError`, which are the module's own business and are not exported
- * from `index.ts`. A test in `tests/` could only see them by widening the
- * public surface, which is how the surface got wide in the first place.
- *
- * What is under test:
+ * Beside the module because it reaches for internals `index.ts` does not
+ * export. What is under test:
  *   - return uses `reset --hard` + `clean -fd` and never -x; gitignored
  *     directories survive a round trip
  *   - the orphan-commit guard refuses to return a tree holding uncommitted or
@@ -80,9 +76,6 @@ beforeEach(async () => {
   await fxGit(['clone', bare, clone], home);
   await fxGit(['config', 'user.name', 'yan tests'], clone);
   await fxGit(['config', 'user.email', 'yan-tests@localhost'], clone);
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 });
 
@@ -102,13 +95,9 @@ describe('the constructor', () => {
 
 describe('a branch the main clone is sitting on', () => {
   /**
-   * The one refusal that only became reachable in V3.
-   *
-   * Under `$YAN_HOME/repos/` the main clone was yan's own and nobody ever
-   * checked anything out in it, so "a branch cannot be checked out twice" could
-   * not happen. The registered clone is now the one `user` works in, and it
-   * happens on an ordinary Tuesday — so the message has to name the branch, the
-   * directory holding it, and the fix, rather than passing git's wording on.
+   * The registered clone is one `user` works in, so a branch being checked out
+   * there is ordinary: the refusal has to name the branch, the directory and
+   * the fix rather than pass git's wording on.
    */
   it('names the branch, the directory and the fix, and moves nobody', async () => {
     // `user` is working on the branch a shift is about to be dispatched onto.
@@ -195,10 +184,8 @@ describe('the orphan-commit guard', () => {
 });
 
 /**
- * A force flag is not forbidden, it is authorised: forbidden,
- * unless `user` says the changes can be thrown away.* `yan done --force` is the
- * only caller, and this is what it buys — recovering a slot the guard has, quite
- * correctly, refused to release.
+ * The one door past the orphan-commit guard, which only a command carrying
+ * `user`'s consent may open.
  */
 describe('force is the one door past the guard', () => {
   it('releases a dirty tree, and destroys exactly the uncommitted work', () => {
@@ -225,9 +212,7 @@ describe('force is the one door past the guard', () => {
 
     expect(pool().return(grant.path, { force: true })).toBe(grant.path);
 
-    // The distinction the help text makes, proved rather than asserted: the
-    // unpushed commit survives in the clone under its branch name. What force
-    // throws away is the working tree, not history.
+    // The unpushed commit survives in the clone under its branch name.
     const still = await fxGit(['rev-parse', 'shift/t042-s1'], clone);
     expect(still.code, still.stderr).toBe(0);
     expect(still.stdout.trim()).toBe(head);
@@ -395,8 +380,6 @@ describe('two concurrent gets never hand out the same tree', () => {
 });
 
 describe('yan tree, the command layer', () => {
-  // The shared helper, bound to this file's home and pool. It was a local copy
-  // on spawnSync until the suite went parallel again.
   function yan(args: readonly string[]) {
     return runYan(home, ['tree', ...args], { YAN_POOL_ROOT: poolRoot });
   }

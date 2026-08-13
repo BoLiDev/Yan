@@ -5,18 +5,10 @@ import { join } from 'node:path';
 import { repoRoot } from '../helpers/fixtures.js';
 
 /**
- * The three shell files yan has left, and the two things that were worth
- * keeping when `tests/run.sh` went.
+ * The three shell files yan has left, run through shellcheck — an unquoted
+ * `$YAN_HOME` in a path with a space is what these stubs would fail on.
  *
- * `run.sh --lint` ran shellcheck over `bin/` and `tests/`, and that was the
- * only lint yan had. It is still worth having — `set -euo pipefail` hides
- * nothing, but an unquoted `$YAN_HOME` in a path with a space is exactly the
- * kind of thing these stubs would fail on, on the maintainer's own machine.
- * What is not worth having is a bash framework to run it: three files, one
- * spawn.
- *
- * It skips loudly when shellcheck is absent rather than passing quietly, which
- * is the same rule the Herdr e2e test follows.
+ * Skips loudly when shellcheck is absent rather than passing quietly.
  */
 
 const BIN = join(repoRoot, 'bin');
@@ -30,9 +22,7 @@ const available = shellcheck.status === 0;
 
 describe('bin/ holds exactly four files, and each shell one is a stub', () => {
   it('is `yan`, `yan.mjs`, `hook-autoarm.sh`, `hook-turnend-guard.sh` and nothing else', () => {
-    // `yan.mjs` is the npm `bin` target and the only non-shell file here: npm's
-    // Windows shim cannot drive a bash shebang, so PATH installs come in
-    // through node instead. The three shell files are the stubs below.
+    // `yan.mjs` is the npm `bin` target, which cannot be a bash shebang.
     expect(readdirSync(BIN).sort()).toEqual([
       'hook-autoarm.sh',
       'hook-turnend-guard.sh',

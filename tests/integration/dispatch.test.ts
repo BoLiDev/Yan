@@ -14,26 +14,15 @@ import {
  * `bin/yan`, which is a stub and nothing else: find `$YAN_HOME`, check git and
  * node, exec `dist/cli/yan.js`.
  *
- * It is shell, so it is tested by running it, from bash, in a throwaway
- * `$YAN_HOME` — and it stays shell because `$YAN_HOME/bin/yan` is the path in
- * `.claude/settings.json`, `.codex/hooks.json`, every shift's brief and
- * the instruction files. This file is what is meant by "the three stubs keep being
- * tested, from vitest": a whole bash framework is not needed to cover fifteen
- * lines.
- *
- * There is no per-command dispatch to test: the stub execs one file. A test
- * that conjures up a `bin/yan-fake.sh` to prove some fallback works would be
- * keeping a branch alive that nothing else has.
+ * Shell, so it is tested by running it from bash in a throwaway `$YAN_HOME`.
+ * There is no per-command dispatch to test: the stub execs one file.
  */
 
 afterAll(cleanupTempDirs);
 
 /**
- * YAN_HOME is unset on purpose: the stub must resolve it from its own location,
- * which is how a copied fixture home stays self-contained. That is the whole
- * difference from `runYan`, and it is an argument rather than a second copy of
- * the helper — a local `spawnSync` here would block the worker exactly the way
- * `tests/helpers/fixtures.ts` explains at length.
+ * `runYan` with YAN_HOME unset, so the stub has to resolve it from its own
+ * location.
  */
 function yan(home: string, args: readonly string[]): Promise<RunResult> {
   return runYan(home, args, { YAN_HOME: undefined });
@@ -43,9 +32,7 @@ describe('in a tree that has never been built', () => {
   const home = mkYanHome(mkTempDir());
 
   it('refuses every invocation, loudly, and names the fix', async () => {
-    // There is no half-migrated state left to be usable in, so the honest
-    // answer to a missing dist/ is one sentence rather than a usage screen
-    // listing nothing.
+    // The answer to a missing dist/ is one sentence, not a usage screen.
     for (const args of [[], ['--help'], ['ls'], ['bogus']]) {
       const r = await yan(home, args);
       expect(r.code, args.join(' ')).not.toBe(0);
@@ -106,9 +93,8 @@ describe('in a built tree', () => {
   });
 
   it('reaches a two-word command by either spelling', async () => {
-    // `yan shift new` and `yan shift-new` are the same place. Commander cannot
-    // see two words as one name, so the rewrite happens once before parsing —
-    // and only when the hyphenated name exists, so `yan ls t042` is untouched.
+    // `yan shift new` and `yan shift-new` reach the same place, and `yan ls
+    // t042` is untouched.
     mkdirSync(join(home, 'tasks'), { recursive: true });
     expect((await yan(home, ['shift', 'new', '--help'])).out).toContain('dispatch a shift');
     expect((await yan(home, ['unit', 'add', '--help'])).out).toContain('--target');
@@ -133,8 +119,8 @@ describe('the inline dependency check', () => {
   });
 
   it('is short enough to read in one sitting', () => {
-    // A further words: "each is a few lines". The number is not sacred; a
-    // stub that has grown back into a dispatcher is what this notices.
+    // The number is not sacred: what this notices is a stub that has grown
+    // back into a dispatcher.
     const code = source
       .split('\n')
       .filter((l) => l.trim() !== '' && !l.trim().startsWith('#'));

@@ -17,25 +17,13 @@ import { Task } from '../../src/records/task/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan unit set`, ported from `tests/integration/yan-unit-set.test.sh` and
- * `tests/unit/yan-unit-args.test.sh`.
+ * `yan unit set`. Two things are pinned here:
  *
- * What is under test: "`unit set --branch` archives the old round into `history[]`
- * atomically."
+ *   The rotation is all of it or none of it, so every refusal path is checked
+ *   against a byte-for-byte copy of task.json.
  *
- * Two things are pinned here, and they pull in opposite directions.
- *
- *   All of it, or none of it. The rotation is decide `end` → append the old
- *   branch/target/mr to history[] with `at` → overwrite the current fields →
- *   log. A file left with the old round archived but the new branch not yet
- *   recorded would be a round that exists twice. So the refusal paths are
- *   checked against a byte-for-byte copy of task.json: nothing moved.
- *
- *   `end` is looked up, not remembered. merged → delivered; closed, or no mr at
- *   all → abandoned; still open or unreachable → ask `user`, and yan refuses to
- *   decide. The host answers through an injected reader rather than a stub
- *   binary on PATH, so `open → merged` is reproducible and no network is
- *   involved — the same shape `yan wait` uses for its two sources.
+ *   `end` is looked up rather than remembered, through an injected reader so
+ *   no network is involved.
  */
 
 afterAll(cleanupTempDirs);
@@ -95,9 +83,6 @@ beforeAll(async () => {
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'demo', clone);
 
   previousHome = process.env.YAN_HOME;
@@ -151,9 +136,7 @@ describe('a round with nothing on it is replaced without an interrogation', () =
       branch: 'yan/t1-auth-r1',
       target: 'main',
       at: '2026-08-25',
-      // not 'abandoned'. Calling it that would demand a written reason, so
-      // the cheapest and commonest move — "this branch has nothing on it, give
-      // me another" — was the one that cost the most typing.
+      // `unused`, not `abandoned`: there is nothing to explain.
       end: 'unused',
     });
     expect(h[0].mr, 'a round that never opened an MR stores no mr field').toBeUndefined();
@@ -188,9 +171,7 @@ describe('an open MR does not block the rotation any more', () => {
 
     const h = history('auth');
     expect(h).toHaveLength(2);
-    // The honest word. Rotating away from an open MR touches nothing a
-    // colleague can see — the MR stays open, the branch stays, nothing is
-    // deleted or force pushed — so what was needed was a loud line, not a veto.
+    // Rotating away from an open MR is allowed, and says so loudly.
     expect(h[1].end).toBe('unknown');
     expect(h[1].mr, 'it is awkward to look up once the branch is gone').toBe(MR);
     expect(unitField('auth', 'branch')).toBe('feat/auth-r3');
@@ -270,9 +251,8 @@ describe('closed means abandoned', () => {
 
 describe("the built-in default carries the NEXT round's number", () => {
   it('counts history AFTER this rotation appends to it', () => {
-    // Off by one and the default would hand back the name of the branch being
-    // replaced, which is precisely the collision the round number exists to
-    // stop: the same branch name cannot be created twice.
+    // Off by one and the built-in name would collide with the branch being
+    // replaced.
     expect(history('proto')).toHaveLength(2);
     const r = run({
       task: 't1',
@@ -320,15 +300,9 @@ describe('history is append-only, and the whole file is still valid', () => {
 });
 
 /**
- * The step that makes a cheap rotation safe (v3, unit.ts `inheritRound`).
- *
- * A round is replaced by a branch cut somewhere else — off target, or wherever
- * a `branch-create` hook cuts things — so the commits on the old one are not
- * automatically on the new one. Carrying them forward is yan's own job,
- * deliberately not the hook's, and it happens in the main clone with no
- * worktree: `merge-tree --write-tree` merges into the object store, which is a
- * ref-and-object write and not the working-tree change the main-clone rule
- * forbids.
+ * Carrying the replaced round forward: the successor is cut elsewhere, so its
+ * commits are not on it. Done in the main clone with no worktree, which is a
+ * ref-and-object write and never a working-tree change.
  */
 describe('the work on the old round is carried forward', () => {
   let work = '';

@@ -15,11 +15,9 @@ import {
  * | `yan` with a TTY    | the select                                 |
  * | `yan` without a TTY | usage, exit 0 — unchanged, so scripts and agents see no difference |
  *
- * Clack needs a real terminal and a test runner has none, so what is exercised
- * here is the half a test can see: the no-TTY behaviour, and the rows the
- * select is built from. Those rows are the interesting claim — "derived, never
- * stored, from the same scan `yan ls` uses" — and getting them wrong is how a
- * menu starts disagreeing with the directory.
+ * Clack needs a real terminal, so what is exercised here is the half a test
+ * can see: the no-TTY behaviour, and the rows the select is built from, which
+ * come from the same scan `yan ls` uses.
  */
 
 afterAll(cleanupTempDirs);
@@ -29,9 +27,6 @@ let home = '';
 beforeAll(async () => {
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
   mkdirSync(join(home, 'repos', 'demo'), { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'demo', join(home, 'repos', 'demo'));
 
   const previous = process.env.YAN_HOME;
@@ -45,8 +40,7 @@ beforeAll(async () => {
   if (previous === undefined) delete process.env.YAN_HOME;
   else process.env.YAN_HOME = previous;
 
-  // One live shift on t001, which is what the hint counts. `run/` existing is
-  // the fact that a shift is live, so that is all this has to write.
+  // One live shift on t001, which the hint counts: `run/` is the whole fact.
   mkdirSync(join(home, 'tasks', 't001', 'shifts', 's1', 'run'), { recursive: true });
   writeFileSync(
     join(home, 'tasks', 't001', 'shifts', 's1', 'run', 'meta.json'),

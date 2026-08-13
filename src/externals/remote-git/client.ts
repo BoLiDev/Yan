@@ -1,18 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
 /**
- * The one place a host CLI is actually executed.
- *
- * Host routing lives here. It is not authentication: `gh` and `glab` each keep
- * their own login, and naming the host only tells the CLI which of its own
- * stored credentials to use. A missing login is `yan doctor`'s business.
- *
- * stderr is captured rather than merged, because merging it would corrupt the
- * JSON on stdout the moment a CLI printed a deprecation notice — and a mapper
- * fed corrupted JSON would answer `unknown` for a perfectly healthy MR.
- *
- * This file is the module's only edge to the outside world, which is what lets
- * a test replace it by import rather than by an environment-variable trick
+ * The one place a host CLI is executed. stdout and stderr come back separately
+ * and CR-stripped, so a mapper never meets a deprecation notice mixed into its
+ * JSON. Authentication is the CLI's own; naming a host only picks which of its
+ * stored logins to use.
  */
 
 export interface CliResult {
@@ -30,9 +22,10 @@ export interface CliInvocation {
   readonly host?: string;
 }
 
-/** rc 127 is "the CLI is not installed", which is not an answer at all. */
+/** The code reported when the CLI is not on PATH. */
 export const CLI_MISSING = 127;
 
+/** Never throws: a CLI that will not start comes back as `CLI_MISSING`. */
 export function runCli(invocation: CliInvocation): CliResult {
   const env = { ...process.env };
   if (invocation.host !== undefined && invocation.host !== '') {
@@ -55,10 +48,6 @@ export function runCli(invocation: CliInvocation): CliResult {
     };
   }
 
-  // gh.exe and glab.exe are native Windows programs: their output arrives
-  // CRLF-terminated on Git Bash. Strip it here, once, so neither the JSON
-  // mappers nor the URL extractor ever has to think about it. (This is the one
-  // CR strip that survives V2 — the jq ones went with jq.)
   const clean = (s: string | null): string => (s ?? '').replace(/\r/g, '');
   return {
     code: spawned.status ?? 1,

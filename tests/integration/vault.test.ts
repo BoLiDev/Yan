@@ -12,13 +12,9 @@ import {
 } from '../helpers/fixtures.js';
 
 /**
- * `yan vault` — the three layers, and the resolution rules between them
- *
- * The whole point of this phase is that a machine can hold two contexts and
- * never mix them, so the tests that matter are about *which* vault answers:
- * an env override that only counts when it is really a vault, an `active`
- * entry that points at nothing, a name that is already taken. The happy path
- * is one test; the ways to be wrong are the rest of the file.
+ * `yan vault`, and which vault answers: an env override that only counts when
+ * it really is a vault, an `active` entry pointing at nothing, a name already
+ * taken. The happy path is one test; the ways to be wrong are the rest.
  *
  * Real git against a local bare remote. Nothing here touches the network, and
  * `$YAN_MACHINE_DIR` keeps every registration inside the temp directory.

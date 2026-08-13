@@ -7,11 +7,8 @@ import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../h
 /**
  * `yan report`.
  *
- * It accepts only the five allowed states, and it appends `run/status` and
- * touches `run/signal` in one go. "In one go" is the reason the command exists
- * at all — do not count on an agent remembering step two — so it
- * is asserted the only way that means anything: one invocation, then both
- * effects checked.
+ * It accepts only the five allowed states, and appends `run/status` and
+ * touches `run/signal` in one go: one invocation, then both effects checked.
  */
 
 afterAll(cleanupTempDirs);
@@ -95,9 +92,8 @@ describe('a note is required, and it is one line', () => {
     const before = status();
     expect((await runYan(home, ['report', 'done', '--sid', 's1', '--task', 't042'])).code).toBe(2);
 
-    // The newline is built inside bash rather than passed through spawnSync's
-    // argv: on Windows a literal newline in an argument is re-split before it
-    // reaches the process, which would test the harness and not the command.
+    // Built inside bash: on Windows a literal newline in argv is re-split
+    // before it reaches the process, which would test the harness.
     const r = spawnSync(
       bashCommand(),
       ['-c', `bash "$1" report done $'two\\nlines' --sid s1 --task t042`, '_', join(home, 'bin', 'yan')],

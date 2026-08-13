@@ -7,12 +7,8 @@ import { repoRoot } from '../helpers/fixtures.js';
 /**
  * The seven functions against a real Herdr session.
  *
- * What is under test: "term_container_create / term_agent_start / term_list /
- * term_agent_close round-trip against a real Herdr session", and
- * "term_agent_start is two steps … and returns only when Herdr reports the
- * agent interactive-ready".
- *
- * Two rules, and they are not negotiable here:
+ * A round trip: create a container, start an agent, list it, read it, close
+ * it. Three rules:
  *   - never `herdr server stop`;
  *   - never run bare `herdr` (it launches or attaches the tui and hangs a
  *     non-interactive caller);
@@ -54,10 +50,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     expect(container.tab).toMatch(/^w[0-9A-Za-z]+:t[0-9A-Za-z]+$/);
     expect(container.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
 
-    // 2/7 — two steps: a tab with cwd and env, then start the agent into the
-    // pane it comes with.
-    // It returns only once Herdr reports the agent interactive-ready, which is
-    // what makes a start confirmation possible at all.
+    // Two steps: a tab with cwd and env, then the agent into its pane.
     const started = new Terminal().startAgent({
       container: container.workspace,
       name: 'yane2e',
@@ -70,9 +63,8 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
     expect(started.pane).not.toBe(container.pane);
     expect([...term.AGENT_STATUS]).toContain(started.status);
-    // agent_session arrives from the integration's SessionStart hook. Its
-    // absence is normal, not an error — so this only asserts
-    // the shape when it is there.
+    // agent_session arrives from the integration's SessionStart hook, so its
+    // absence is normal: only its shape is asserted.
     if (started.agent_session !== undefined) {
       expect(started.agent_session).toMatch(/^[0-9a-f-]{8,}$/);
     }
@@ -101,8 +93,8 @@ describe.runIf(present)('the seven functions, round-trip', () => {
   });
 
   it('carries argv through without a shell in between', () => {
-    // `--append-system-prompt "a b"` survives intact, which is
-    // what deleted `_term_quote_cmd`.
+    // `--append-system-prompt "a b"` arrives as one argument: there is no
+    // shell in between, so nothing needs quoting.
     const container = new Terminal().createContainer('yan-e2e-argv', repoRoot);
     const previous = created;
     created = container.workspace;

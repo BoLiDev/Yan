@@ -37,11 +37,8 @@ export function allLeases(dir: string): Lease[] {
 }
 
 /**
- * Drop leases whose tree is gone.
- *
- * Only that case. A lease whose owning process died is not reclaimed, however
- * dead it looks: the tree may still hold work, and "nothing is running but this
- * tree is still taken" is precisely the state a lease exists to record.
+ * Drop leases whose tree is gone, and only those — a lease whose owning
+ * process died keeps its tree, which may still hold work.
  */
 export function reclaim(dir: string): void {
   let names: string[];

@@ -1,13 +1,12 @@
 import { isYanError } from '../../util/error.js';
 
 /**
- * Wrap a subcommand body so that a `YanError` becomes the message and exit code
- * a person, or an agent reading stderr, can act on:
+ * Wrap a subcommand body so a `YanError` becomes a line on stderr and an exit:
  *
  *   ls: no such task: t042
  *
- * Exit codes: 0 fine, 2 you called this wrongly, 1 it did not work. Anything that is not a `YanError` is a bug in `yan` and is left
- * to propagate with its stack, because hiding it would make it harder to fix.
+ * 0 fine, 2 you called this wrongly, 1 it did not work. Anything that is not a
+ * `YanError` propagates with its stack.
  */
 export function action<A extends unknown[]>(
   name: string,
@@ -24,7 +23,7 @@ export function action<A extends unknown[]>(
   };
 }
 
-/** Print one line to stdout. Kept in one place so nothing reaches for console. */
+/** Print one line to stdout. */
 export function out(line: string): void {
   process.stdout.write(`${line}\n`);
 }

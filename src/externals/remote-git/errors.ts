@@ -16,12 +16,12 @@ export class RemoteGitError extends YanError {
     super(CODES[kind], message, options);
   }
 
-  /** The caller passed something impossible. Exit 2: a bug, not a condition. */
+  /** The caller passed something impossible. Exit 2. */
   public static usage(message: string): RemoteGitError {
     return new RemoteGitError('usage', message, { exitCode: 2 });
   }
 
-  /** conf/config.json cannot be acted on. Exit 2: nothing will work until it is fixed. */
+  /** The vault's config.json cannot be acted on. Exit 2. */
   public static config(message: string): RemoteGitError {
     return new RemoteGitError('config', message, { exitCode: 2 });
   }

@@ -6,11 +6,8 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtur
 /**
  * `yan ls`.
  *
- * The assertion that matters most is the last: `yan ls` stores nothing. There is no
- * backlog file and there must never be one - the queue is a
- * view produced by scanning `tasks/*​/task.json` every time it is asked for. It
- * is asserted the only way that really proves it: list everything under
- * `$YAN_HOME` before and after, and require the two to be identical.
+ * The assertion that matters most is the last: `yan ls` stores nothing, so
+ * everything under `$YAN_HOME` is listed before and after and compared.
  */
 
 afterAll(cleanupTempDirs);

@@ -13,47 +13,15 @@ import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTr
 /**
  * `yan unit add` / `yan unit set`.
  *
- * One unit is one sub-application is one branch is one tree, and both of these
- * commands settle things that are not yan's to settle alone:
+ * `target` is never defaulted by either command. A unit's branch is named one
+ * of two ways:
  *
- *   target   never defaulted, by either command. During a release the team
- *            keeps a shared branch and everyone merges into it; in quiet
- *            periods everyone merges into master. A tool that guessed would be
- *            wrong about half the time, silently, and the mistake would only
- *            surface at the outbound MR.
+ *   default   yan names it `yan/<task>-<unit>-r<n>`
+ *   --branch  you name it, in whatever spelling your tooling printed
  *
- *   branch   supplied in one of three ways, and who creates the branch
- *            follows from which one:
- *
- *              default        yan names it `yan/<task>-<unit>-r<n>`, yan cuts it
- *              --branch       you name it, yan cuts it (or adopts it if it exists)
- *              branch-create  your hook cuts it and prints the name; yan verifies
- *
- *            If the hook exits non-zero, the command stops. It never falls back
- *            to the built-in default — silently creating a branch that breaks
- *            the team's rules, and may not be mergeable at all, is far worse
- *            than failing outright. Its stderr comes back with the refusal.
- *
- * The hook is called `branch-create` and not `branch-name` because that is what
- * it does: a company tool typically opens the branch in a ticket system or on
- * the forge and then reports what it called it. So yan does not cut a branch it
- * was given by a hook — it checks that one exists, and refuses if it does not.
- * Taking the hook's word for it would record a branch that is not there, and
- * the failure would surface two commands later inside the worktree pool.
- *
- * What the hook is not responsible for is inheriting the previous round. A
- * created branch is normally cut straight from the repository's main branch,
- * which is exactly what a company tool does; carrying an abandoned round's
- * commits forward is yan's own step, run afterwards, because it is a judgement
- * about not losing work rather than a naming rule.
- *
- * `ensureBranch` is the whole of "make it exist" for the two paths where yan
- * creates, and it creates a ref, never a checkout: cutting a branch in the main
- * clone is `git branch`, which leaves whoever is working there on the branch
- * they were on. Working trees come from the pool.
- *
- * yan does not parse the resulting name. It stores it in `unit.branch`, and that
- * is where ownership is looked up afterwards.
+ * Either way yan makes it exist, adopting a local or remote branch of that
+ * name before cutting one. Everything it cuts is a ref, never a checkout, so
+ * whoever is working in the main clone stays on their branch.
  */
 
 /** What the built-in name is made of. */
@@ -65,37 +33,21 @@ interface BranchNameContext {
 
 type NameSource = 'user' | 'default';
 
-/**
- * The hook is asked only when yan would otherwise have to invent a name. A name
- * `user` typed is already `user`'s decision, and the hook is one way of
- * supplying that decision, not a second owner of it (§6.5).
- */
+/** `given` normalised when there is one, otherwise the built-in name. */
 function decideBranchName(
   given: string | undefined,
   context: BranchNameContext,
 ): { branch: string; from: NameSource; raw?: string } {
   if (given !== undefined && given !== '') {
-    // Whatever spelling it arrived in. `--branch` is routinely a paste of
-    // something a company tool printed, and `refs/heads/x` is a name.
     return { branch: normalizeBranchName(given), from: 'user', raw: given };
   }
-  // Nobody said, so the built-in applies. That is the ordinary case and not a
-  // fallback from anything.
   return { branch: `yan/${context.task}-${context.unit}-r${context.round}`, from: 'default' };
 }
 
 
 /**
- * What a tool printed, as a branch name.
- *
- * A narrow, named exception to "yan never parses the name it gets back". That
- * rule is about ownership — who a branch belongs to is looked up in
- * `task.json`, never inferred from a prefix — and nothing here infers anything. What it does is accept the spellings real tooling emits for
- * the same ref: `refs/heads/x`, `origin/x`, a quoted name, a trailing CR.
- *
- * The alternative was tried by leaving it alone, and it is worse: the odd
- * spelling goes into `task.json` verbatim and fails later, somewhere that has
- * no idea a hook was involved.
+ * A branch name as a tool may have printed it — `refs/heads/x`, `origin/x`,
+ * quoted, or with a trailing CR — reduced to the plain name.
  */
 export function normalizeBranchName(raw: string): string {
   let name = raw.trim().replace(/\r/g, '');
@@ -106,11 +58,13 @@ export function normalizeBranchName(raw: string): string {
   return name.trim();
 }
 
+/**
+ * @throws CommandError `usage` when `branch` is unusable as a git ref. The
+ *   message quotes `raw` too, so a hook's own output is recognisable.
+ */
 function checkRefName(command: string, branch: string, raw?: string): void {
   const bad = branch === '' || /\s/.test(branch) || branch.startsWith('-') || branch.endsWith('/');
   if (bad) {
-    // The raw text, because "that is not a usable ref" about a normalised
-    // string sends the reader looking for a name their tool never printed.
     const from = raw !== undefined && raw !== branch ? ` (from '${raw}')` : '';
     throw CommandError.usage(command, `'${branch}'${from} is not usable as a git ref - fix the hook, or pass --branch`,
     );
@@ -118,12 +72,8 @@ function checkRefName(command: string, branch: string, raw?: string): void {
 }
 
 /**
- * `origin/<branch>` when it resolves, otherwise the empty string.
- *
- * origin/ is preferred over a local ref of the same name wherever both exist,
- * because a main clone is never checked out or pulled — the only write allowed
- * in it is a fetch — so its own `main` is whatever it was on the day it was
- * cloned, while `origin/main` is current.
+ * `origin/<branch>` when it resolves, otherwise `''`. Preferred over a local
+ * ref of the same name, which a main clone never pulls into.
  */
 function remoteRef(clone: string, branch: string): string {
   return gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])
@@ -132,20 +82,9 @@ function remoteRef(clone: string, branch: string): string {
 }
 
 /**
- * Bring a main clone's `origin/*` refs up to date.
- *
- * `git fetch` is the one write allowed inside a main clone, and it is the only
- * step in making a branch exist that touches the network. It may legitimately
- * fail offline, so it warns rather than stopping: the local refs are then
- * simply older than they could be, and every decision below still has an
- * answer.
- *
- * It belongs to the caller rather than to `ensureBranch` because the caller is
- * the only one that knows how many units it is about to add. `ensureBranch`
- * handles one unit and would fetch once per unit — correct in isolation, and a
- * round trip per unit when `yan task new` calls it eight times for the same
- * clone. The second fetch of one clone inside one command cannot return
- * anything the first did not, so the caller does it once per distinct clone.
+ * Bring a main clone's `origin/*` refs up to date. Warns rather than throwing
+ * when the network is not there. Call it once per clone: nothing below
+ * fetches.
  */
 export function freshenClone(command: string, clone: string, repo: string): void {
   if (fetch(clone).code !== 0) {
@@ -154,17 +93,16 @@ export function freshenClone(command: string, clone: string, repo: string): void
 }
 
 /**
- * Make `branch` exist in the clone, as a ref. Returns how that happened.
+ * Make `branch` exist in the clone as a ref, adopting a local or remote one of
+ * that name before cutting a new one from `base`. Returns a line saying which
+ * happened. Never fetches and never checks anything out.
  *
- * Reads refs and writes local ones; never fetches. `freshenClone` is what puts
- * current refs there, and its doc comment says why the split exists.
+ * @throws CommandError `branch_failed` or `base_unresolved`.
  */
 function ensureBranch(command: string, clone: string, branch: string, base: string): string {
   if (branchExists(clone, branch)) return 'adopted the existing local branch';
 
   if (remoteRef(clone, branch) !== '') {
-    // "The branch already exists on the remote → check it out" (see
-    // §10), done the only way a main clone allows: a ref, never a checkout.
     if (createBranch(clone, branch, `origin/${branch}`).code !== 0) {
       throw new CommandError(command, 'branch_failed', `cannot create a local ref for the existing remote branch '${branch}'`,
       );
@@ -194,36 +132,17 @@ export interface Inherited {
   readonly said: string;
   /** True when commits were carried forward and the branch moved. */
   readonly moved: boolean;
-  /** Paths git could not merge. Non-empty means nobody carried anything. */
+  /** Paths git could not merge. Non-empty means nothing was carried. */
   readonly conflicts: readonly string[];
 }
 
 /**
- * Carry the round being replaced forward onto the new integration branch.
+ * Merge the round being replaced onto the new integration branch, and push it.
  *
- * Why this is yan's job and not the hook's. A `branch-create` hook cuts where
- * the team cuts, normally straight off the main branch, and it should not have
- * to know that yan is in the middle of replacing a round. Not losing commits is
- * a judgement about work, so it stays here, and it runs after the new branch is
- * known to exist.
- *
- * Why it happens in the main clone. Because it can: `merge-tree --write-tree`
- * does a real three-way merge into the object store and hands back a tree, so
- * the whole operation is ref and object writes with no checkout — which is what
- * the main-clone rule actually forbids (util/git.ts says this at length). No
- * lease, no worktree, no tree to return if something throws halfway.
- *
- * Three outcomes, and the middle one is the point:
- *
- *   nothing to carry   the old branch has no commit the new one lacks. The
- *                      ordinary case after a delivered round, since target
- *                      already contains it
- *   carried            a merge commit lands on the new branch and is pushed
- *   conflicts          not an error here. The rotation itself already
- *                      happened and is correct; this says so loudly and names
- *                      the paths, and the same conflict is waiting for a shift
- *                      in a real worktree. Refusing to rotate over it would put
- *                      the strictness back exactly where it was taken out
+ * Runs entirely in the main clone: `merge-tree --write-tree` writes objects
+ * and refs and never checks anything out, so no tree is leased and nothing is
+ * left half-done. Never throws — a conflict, a failed commit or a failed push
+ * all come back in `said`, with `moved` false.
  */
 export function inheritRound(clone: string, from: string, to: string): Inherited {
   if (!branchExists(clone, from) || !branchExists(clone, to)) {
@@ -237,8 +156,6 @@ export function inheritRound(clone: string, from: string, to: string): Inherited
 
   const merged = mergeTree(clone, to, from);
   if (merged.code !== 0) {
-    // git prints the tree, then an "Auto-merging"/conflict section. The paths
-    // are what a person needs; the rest is git talking to itself.
     const conflicts = [
       ...new Set(
         merged.stdout
@@ -266,9 +183,6 @@ export function inheritRound(clone: string, from: string, to: string): Inherited
     return { said: `could not move ${to} onto the carried work: ${moved.stderr.trim()}`, moved: false, conflicts: [] };
   }
 
-  // Pushing is a network write, not a working-tree one, so the main clone is
-  // the right place for it. A push that fails is reported and nothing else:
-  // the commits are safe on the local branch either way.
   const pushed = push(clone, ['origin', to]);
   return {
     said:
@@ -280,14 +194,7 @@ export function inheritRound(clone: string, from: string, to: string): Inherited
   };
 }
 
-/**
- * Commander's repeatable-option accumulator.
- *
- * `previous` is whatever the option's default was on the first occurrence, and
- * `unit set --scope` deliberately defaults to `undefined` — "no --scope at all"
- * has to be distinguishable from "--scope with nothing in it", because the
- * first changes nothing and the second replaces the whole list with empty.
- */
+/** Commander's repeatable-option accumulator. */
 function collect(value: string, previous: readonly string[] | undefined): string[] {
   return [...(previous ?? []), value];
 }
@@ -305,15 +212,7 @@ export interface AddOptions {
   scope: string[];
   needs: string[];
   json?: boolean;
-  /**
-   * The caller has already run `freshenClone` for this unit's clone in this
-   * command, so this call must not fetch again.
-   *
-   * `yan task new` is the only caller that sets it: it adds several units at
-   * once, often from one clone, and one fetch answers for all of them. Left
-   * unset — every other caller, and every caller that forgets — this fetches,
-   * so the safe behaviour is the default rather than the thing to remember.
-   */
+  /** The caller has already fetched this unit's clone, so this must not. */
   fetched?: boolean;
 }
 
@@ -327,12 +226,12 @@ export interface AddResult {
 }
 
 /**
- * The command without the process around it.
+ * `yan unit add` without the process around it: name the branch, make it
+ * exist, record the unit, append the log line.
  *
- * `yan task new` adds its units through this rather than re-implementing any of
- * it: the branch-create hook, the "stop if the hook refuses" rule, and making the
- * branch exist all live here, and two homes for those rules would be two homes
- * that drift.
+ * @throws CommandError `usage` for a missing argument or unknown task,
+ *   `exists` when the unit is already there, `not_recorded` when the branch
+ *   was made but task.json could not be written.
  */
 export function addTaskUnit(options: AddOptions): AddResult {
   const task = options.task ?? '';
@@ -345,7 +244,6 @@ export function addTaskUnit(options: AddOptions): AddResult {
   if (repo === '') {
     throw CommandError.usage('unit_add', '--repo is required: a repository under repos/, or the path to a clone');
   }
-  // The one argument with no default anywhere in yan.
   if (target === '') {
     throw CommandError.usage('unit_add', '--target is required and is never guessed: say which branch this unit delivers into. A release period and a quiet period have different answers, so there is no safe default',
     );
@@ -362,18 +260,11 @@ export function addTaskUnit(options: AddOptions): AddResult {
 
   const clone = repoDir('unit_add', repo);
 
-  // n is the round number: len(history) + 1, so it needs no storage of its
-  // own. A unit that is only now being added has no history, so this is r1
-  // — but the expression is written the same way here and in `unit set`,
-  // because that is the rule and not a coincidence.
+  // A unit being added has no history, so its round is always the first.
   const round = 1;
   const { branch, from, raw } = decideBranchName(options.branch, { task, unit, round });
   checkRefName('unit_add', branch, raw);
 
-  // Who creates depends on where the name came from. A `branch-create` hook has
-  // already opened the branch — in a ticket system, on the forge, wherever the
-  // team's tooling does it — so yan checks that it is really there instead of
-  // cutting a second one over the top.
   if (options.fetched !== true) freshenClone('yan unit add', clone, repo);
   const how = ensureBranch('yan unit add', clone, branch, options.base ?? target);
 
@@ -442,25 +333,13 @@ A team whose branches come from somewhere else says so in a skill
 // --- unit set ---------------------------------------------------------------
 
 /**
- * Every one of these four is a decision. Who may make it is settled in the
- * instructions the main agent reads; what this command guarantees is the other
- * half — It never invents a value. Nothing here has a default, and the one
- * thing that could be guessed, how the round being replaced ended, is asked of
- * the forge rather than of the caller.
- *
- * `end` is therefore not a flag to be remembered. It is looked up:
+ * `yan unit set`. Nothing here is defaulted, and how the round being replaced
+ * ended is asked of the forge rather than of the caller, unless `--end` says:
  *
  *     merged                   → delivered
- *     closed, or mr was empty  → abandoned
- *     still open               → not over. Ask `user` first.
- *     unreachable              → ask `user`.
- *
- * The last two stop the command with RC_ASK_USER. They are the two cases where
- * a wrong answer gets written into an append-only history and can never be
- * corrected, so the command refuses to decide and says what to ask. `--end` is
- * therefore not a way around the lookup; it is the only way `user`'s answer can
- * reach the history at all. Once the conclusion is written, the host is never
- * asked about that round again — the history has to explain itself.
+ *     closed                   → abandoned
+ *     no merge request opened  → unused
+ *     open, or unreachable     → unknown
  */
 
 /** Nothing was changed; a person has to answer something first. */
@@ -483,10 +362,6 @@ export interface SetOptions {
 /**
  * What `unit set` needs from the remote host: how the round being replaced
  * ended. `RemoteGit` is the real one.
- *
- * Separated for the same reason `yan wait` separates its two sources: a test
- * drives the decision rather than the process, and `open → merged` becomes
- * reproducible without a network or a stub binary on `PATH`.
  */
 export type MrStateReader = (mr: string, dir: string) => MrState;
 
@@ -501,10 +376,8 @@ const set = new Command('set')
   .description("change a unit's branch, target, mode or scope")
   .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
-  // The value is optional, and that is deliberate: `--branch <name>` is "use
-  // this name", bare `--branch` is "start a new round and let the configured
-  // authority name it". A git branch may not begin with a dash, so Commander's
-  // own optional-value handling gets this right.
+  // Bare `--branch` starts a new round under the built-in name; with a value
+  // it starts one under that name.
   .option('--branch [name]', 'start a NEW ROUND on that integration branch')
   .option('--target <branch>', 'where this unit delivers')
   .option('--mode <mode>', 'scout | branch | mr')
@@ -527,7 +400,16 @@ has to answer something first.`,
   )
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 
-/** The command without the process around it: everything that decides is here. */
+/**
+ * `yan unit set` without the process around it. `--branch` rotates the unit:
+ * it archives the current round under an `end` it works out, makes the new
+ * branch exist, carries any un-landed commits forward, and relabels the
+ * workspace. Narrates to stdout.
+ *
+ * @throws CommandError `usage` for a missing argument, nothing to change, an
+ *   unknown task or unit, or a new branch equal to the current one;
+ *   `no_branch` when there is no round to replace.
+ */
 export function setUnit(options: SetOptions, readMrState?: MrStateReader, terminal?: Labeller): void {
   const task = options.task ?? '';
   const unitName = options.unit ?? '';
@@ -560,12 +442,8 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   if (wantBranch) {
     const before = unit.read();
     const clone = repoDir('unit_set', before.repo, 'the unit names it, but nothing on this machine says where it is');
-    // The round number of whatever is in unit.branch right now is
-    // len(history) + 1. This rotation appends one entry, so the round being
-    // started is len(history) + 2. Getting this wrong is not cosmetic: the
-    // built-in default would hand back the name of the branch being
-    // replaced, which is exactly the collision the round number exists to
-    // prevent — the same branch name cannot be created twice.
+    // The rotation appends one history entry, so the round being started is
+    // two past what history holds now.
     const retiring = before.history.length + 1;
     const round = before.history.length + 2;
 
@@ -579,18 +457,9 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     if (end !== '') {
       endFrom = 'user';
     } else if (before.mr === null || before.mr === '') {
-      // No outbound MR was ever opened, so nothing was delivered — but calling
-      // that 'abandoned' was the single most expensive mistake in this command.
-      // 'abandoned' demanded a written reason, so the cheapest and commonest
-      // move ("this branch has nothing on it, give me another") was the one
-      // that cost the most typing. Whether there is anything to explain is a
-      // question about commits, not about merge requests, and it is answerable.
       end = 'unused';
       endFrom = 'no merge request was ever opened for it';
     } else {
-      // A host that errors and a host that answers `unknown` mean the same
-      // thing here — we cannot tell how the round ended — so both land in
-      // the same branch below.
       const ask = readMrState ?? ((mr: string, dir: string) => new RemoteGit().mrState({ mr, dir }));
       let state: MrState = 'unknown';
       try {
@@ -605,11 +474,6 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
         end = 'abandoned';
         endFrom = `the host says ${before.mr} is closed`;
       } else if (state === 'open') {
-        // Not a refusal any more, and this is the heart of it. Rotating away
-        // from an open MR touches nothing a colleague can see: the MR stays
-        // open, the branch stays where it is, nothing is deleted or force
-        // pushed, and rotating back undoes it. What was needed was not
-        // permission but a loud line, which is below.
         end = 'unknown';
         endFrom = `${before.mr} was still open when the round was replaced`;
       } else {
@@ -627,17 +491,8 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     }
     checkRefName('unit_set', branch, raw);
 
-    // The base is not a detail. A delivered round is followed by a branch off
-    // `target`, which already contains it; an abandoned round is followed by a
-    // branch off the old branch itself, so the work that was dropped is still
-    // there to pick over.
-    //
-    // A hook-created branch has no base of ours. The team's tooling cuts it
-    // where the team cuts things, normally straight from the repository's main
-    // branch, and yan does not get a say in that. What yan does not give up is
-    // the work: carrying an abandoned round forward is its own step, run after
-    // the branch is known to exist, because it is a judgement about not losing
-    // commits rather than a naming rule.
+    // An abandoned round is followed by a branch off the old branch, so the
+    // dropped work is still there to pick over; anything else off the target.
     const base =
       options.base ?? (end === 'abandoned' ? before.branch : (options.target ?? before.target));
     freshenClone('yan unit set', clone, before.repo);
@@ -645,19 +500,10 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
     unit.rotate(end, branch, options.at ?? '');
 
-    // after the rotation is recorded, never before. The branch exists and the
-    // history is correct at this point; carrying commits forward is a separate
-    // question whose failure must not undo a rotation that was right.
-    //
-    // It runs whenever the round being replaced still holds something the new
-    // branch lacks — which is normally nothing after a delivered round, since
-    // target already contains it, and is exactly the work worth saving after an
-    // abandoned or unknown one.
+    // After the rotation is recorded, so a failure here cannot undo it.
     const carried = inheritRound(clone, before.branch, branch);
     out(`yan unit set: ${carried.said}`);
     if (carried.conflicts.length > 0) {
-      // Loud, and not fatal. The same conflict is waiting in a worktree for
-      // whoever picks it up, which is what a shift is for.
       out(`yan unit set: conflicting: ${carried.conflicts.join(' ')}`);
       out(`yan unit set: ${before.branch} still has that work - dispatch a shift to merge it into ${branch}, or leave it`);
     }
@@ -672,16 +518,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
       process.stderr.write('yan unit set: task.json was updated but log.md was not appended to\n');
     }
 
-    // A new round rewrites the workspace tokens. The workspace is derived
-    // rather than created — a command that only wants to relabel has no
-    // business making one — so a task with nothing on screen simply has nothing
-    // to relabel.
-    //
-    // The same derivation `shift new` places into, which is what keeps these
-    // tokens on the workspace `yan continue` labelled. They used to be found
-    // two different ways, so before any shift ran they went to the main agent's
-    // workspace, and afterwards to whichever workspace a shift was listed in
-    // first.
+    // A task with nothing on screen has no workspace, and none is created.
     const labeller = terminal ?? new Terminal();
     const container = containerOf(task, labeller);
     if (container !== undefined) {
@@ -694,16 +531,14 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     );
   }
 
-  // The three plain scalars run after the rotation on purpose: the history
-  // entry has to record the target the retired round actually used, not the
-  // one the next round will.
-
+  // After the rotation, so the history entry records the target the retired
+  // round used rather than the new one.
   if (options.target) {
     const old = unit.read().target;
     unit.set('target', options.target);
     try {
       new Log(task).append(`${unitName}  target ${old} → ${options.target}`);
-    } catch { /* the change is recorded; the narration is not worth failing for */ }
+    } catch { /* the change is recorded; a missing log line is not worth failing for */ }
     changed.push(`target=${options.target}`);
   }
 

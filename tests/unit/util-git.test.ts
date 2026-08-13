@@ -6,17 +6,14 @@ import { GitError } from '../../src/util/git.js';
 import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures.js';
 
 /**
- * The port of `tests/unit/lib-git-contract.test.sh`.
- *
- * What is under test: "util/git.ts refuses to run without an explicit directory and
- * never force-pushes."
+ * `util/git.ts` refuses to run without an explicit directory, and never
+ * force-pushes.
  */
 
 afterAll(cleanupTempDirs);
 
-// Every function whose first argument is a directory. The bash file lists the
-// same set; keeping it explicit is the point — a new function that forgets the
-// guard shows up as a missing name here.
+// Every function whose first argument is a directory, listed explicitly: one
+// that forgets the guard shows up as a missing name here.
 const directoryFirst: Array<[string, (dir: string) => unknown]> = [
   ['currentBranch', (d) => g.currentBranch(d)],
   ['branchExists', (d) => g.branchExists(d, 'x')],
@@ -83,21 +80,10 @@ describe('required arguments beyond the directory', () => {
 });
 
 describe('no force flag ever reaches git', () => {
-  // `git push --force` is refused outright. This is a
-  // source-level check on purpose: a runtime test can only cover the paths it
-  // happens to exercise, and the one that matters is the one nobody wrote yet.
-  //
-  // A substring search over all of src/ would be too blunt
-  // once §9.2's other force line got its command. That line reads *forbidden,
-  // unless `user` says the changes can be thrown away* — an authority, not an
-  // absence — and `yan done --force` is where `user` says it. A check that
-  // cannot tell `yan done`'s Commander option and the prose explaining it from
-  // an argument handed to git would have to be satisfied by hiding the honest
-  // one, which is how a guard stops meaning anything.
-  //
-  // So it is narrowed to exactly what it protects: git is invoked with arrays
-  // of quoted arguments, so a quoted force literal is the thing that can reach
-  // it. Prose may name the flag; an argument list may not contain it.
+  // A source-level check, because a runtime one covers only the paths it
+  // happens to exercise. It is narrowed to what can actually reach git: a
+  // quoted force literal in an argument list. Prose may name the flag, and
+  // `yan done --force` is a Commander option rather than a git argument.
   function allSources(dir: string): string[] {
     const out: string[] = [];
     for (const entry of readdirSync(dir)) {
@@ -165,9 +151,8 @@ describe('push actively refuses a force flag handed to it', () => {
 
 describe('the default branch is asked for, never assumed', () => {
   it('reads what the clone already knows, without touching the network', async () => {
-    // `git clone` writes refs/remotes/origin/HEAD, so the ordinary case costs
-    // nothing. The branch is deliberately not main or master: a detection that
-    // works only for the two names everyone hardcodes has detected nothing.
+    // Deliberately neither main nor master: a detection that works only for
+    // the two names everyone hardcodes has detected nothing.
     const bare = join(mkTempDir(), 'origin.git');
     await fxGit(['init', '--bare', '--initial-branch=release/24.10', bare]);
 
@@ -203,8 +188,7 @@ describe('the default branch is asked for, never assumed', () => {
   });
 
   it('says it does not know rather than picking something', async () => {
-    // No remote at all: the prompt gets an empty box, which is where the whole
-    // question started. `undefined` is an answer, not a failure.
+    // No remote at all: `undefined` is an answer, not a failure.
     const lonely = mkTempDir();
     await fxGit(['init', '--initial-branch=main', '.'], lonely);
     expect(g.defaultBranch(lonely)).toBeUndefined();

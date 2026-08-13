@@ -17,20 +17,11 @@ import type { LeaseRow } from '../../src/externals/worktree/index.js';
 /**
  * `yan session-start`.
  *
- * What is under test: "session-start rebuilds from disk + Herdr + pool + forge with
- * no durable `yan` state."
+ * It rebuilds from disk, Herdr, the pool and the host, and writes nothing:
+ * `$YAN_HOME` is compared byte for byte before and after, several times over.
  *
- * The second half is the one worth a test: yan holds no
- * persistent running state, and that is the whole reason a restart is a
- * non-event; the moment this command writes a cache, a session file or a
- * "last seen" timestamp, that stops being true and something exists that can
- * disagree with the world. So the assertion is blunt: `$YAN_HOME` is
- * byte-for-byte identical before and after, several times over.
- *
- * The first half is checked by taking every source away one at a time. A fresh
- * machine has no Herdr server, the pool root may be on a disk that is not
- * mounted, and the host is unreachable on a train — all three have to come back
- * as `unknown`, and none of them may end the command.
+ * Each source is taken away in turn — no Herdr server, no pool root, no host —
+ * and every one has to come back as `unknown` without ending the command.
  */
 
 afterAll(cleanupTempDirs);
@@ -85,9 +76,6 @@ beforeEach(() => {
   process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', clone);
 
   Task.create('t042', 'unify the auth header');
@@ -248,13 +236,9 @@ describe('a half-written meta.json is one lost fact, never a crash', () => {
 });
 
 /**
- * Skills: standing instructions in prose.
- *
- * The mechanism is deliberately the whole of it — session-start is the
- * SessionStart hook, so what it prints is what the session starts knowing.
- * There is nothing to run and nothing to register, which is why these tests
- * are about reading: which files, in which order, and what happens when there
- * are none.
+ * Skills are prose with nothing to run or register, so what is under test is
+ * the reading: which files, in which order, and what happens when there are
+ * none.
  */
 describe('skills reach the session', () => {
   const vaultSkills = () => join(home, 'skills');
@@ -294,9 +278,8 @@ describe('skills reach the session', () => {
     expect(r.stdout).toContain('skills/build.md');
     expect(r.stdout).toContain('Checking the build');
     expect(r.stdout).toContain('you may run npm test yourself');
-    // An index, not the text. session-start is the SessionStart hook, so
-    // anything printed here is a standing cost on the context for the whole
-    // session — the body is read when it turns out to matter.
+    // An index, not the text: everything printed here sits in the context for
+    // the whole session.
     expect(r.stdout, 'the body is not carried').not.toContain('work goes to a shift');
   });
 

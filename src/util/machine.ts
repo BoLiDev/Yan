@@ -5,27 +5,17 @@ import { editJson, initJson, readJsonIfPresent } from './json.js';
 import { normalizePath } from './paths.js';
 
 /**
- * The machine layer.
+ * `~/.yan/config.json` — which vault is active, where each one is, and where
+ * `yan repo add <url>` clones into. Never committed anywhere.
  *
- * Three layers hold yan's state and this is the smallest of them: what is true
- * about this disk and would be wrong on any other. Which vault is active, where
- * each one is, and where `yan repo add <url>` clones into. Nothing here is ever
- * committed anywhere, by anyone.
- *
- *   ~/.yan/config.json
  *   { "version": 1,
  *     "active": "personal",
  *     "clone_root": "C:/workspace/project",
  *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" } }
  *
- * This module is data access and nothing else — it reads, merges and writes,
- * and it refuses nothing. Every decision about a missing or broken registration
- * belongs to `util/vault.ts`, which is the layer above it. That split is what
- * keeps the two free of a cycle: vault knows about machine, never the reverse.
- *
- * `$YAN_MACHINE_DIR` overrides the location. It exists so a test can isolate
- * this layer the way it already isolates `$YAN_HOME` — a test that reads the
- * real `~/.yan` is a bug in the test — and it is not documented for users.
+ * Data access only: nothing here refuses a missing or broken registration, and
+ * `util/vault.ts` decides what to do about one. `$YAN_MACHINE_DIR` overrides
+ * the location, for tests.
  */
 
 export interface MachineConfig {
@@ -44,11 +34,8 @@ export function machineDir(): string {
 }
 
 /**
- * Standing instructions that are about this box rather than this context.
- *
- * The vault has the same directory and it is the one to reach for first: what
- * yan may do itself is normally a property of the context. This is for the
- * remainder — a path only this machine has, a tool only installed here.
+ * `~/.yan/skills/` — standing instructions about this box rather than this
+ * context. The vault's own `skillsDir()` holds the rest.
  */
 export function machineSkillsDir(): string {
   return join(machineDir(), 'skills');
@@ -62,7 +49,7 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
-/** The registry, or an empty one. A missing or unreadable file is not an error here. */
+/** The registry, or an empty one when the file is missing or unreadable. Never throws. */
 export function readMachine(): MachineConfig {
   const raw = readJsonIfPresent(machineConfigPath());
   if (typeof raw !== 'object' || raw === null) return EMPTY;
@@ -87,7 +74,7 @@ export function readMachine(): MachineConfig {
   };
 }
 
-/** Read-modify-write, atomically, creating `~/.yan/` on the way. */
+/** Read-modify-write, atomically, creating the config and its directory if needed. */
 export function editMachine(edit: (current: MachineConfig) => MachineConfig): void {
   mkdirSync(machineDir(), { recursive: true });
   initJson(machineConfigPath(), EMPTY);
@@ -109,12 +96,7 @@ export function vaultPathOf(name: string): string | undefined {
   return readMachine().vaults[name];
 }
 
-/**
- * Where `yan repo add <url>` clones into.
- *
- * Undefined when it has never been set, and that stays a caller's problem: a
- * default invented here would be invented in a module that cannot ask.
- */
+/** Where `yan repo add <url>` clones into, or undefined when it was never set. */
 export function cloneRoot(): string | undefined {
   return readMachine().clone_root;
 }
@@ -123,7 +105,7 @@ export function setCloneRoot(dir: string): void {
   editMachine((current) => ({ ...current, clone_root: normalizePath(dir) }));
 }
 
-/** Record a vault, and optionally make it the active one. Idempotent. */
+/** Record a vault under `name`, overwriting any path already there. */
 export function registerVault(name: string, path: string, activate = true): void {
   editMachine((current) => ({
     ...current,

@@ -14,57 +14,20 @@ import { yanHome } from '../util/home.js';
 import { withLock } from '../util/lock.js';
 
 /**
- * `yan task new` — the strong create path.
+ * `yan task new` — create a task with its units and end inside it, by handing
+ * off to `yan continue`.
  *
- * What "strong" means.
- *
- * Create is not "mkdir plus an empty brief". It is:
- *
- *   the contract          title and description, in brief.md
- *   the involved repos    at least one
- *   a concrete scope      including monorepo packages when they were detected
- *   at least one unit     with target, which is never invented
- *   and `user` inside it  the main agent running
- *
- * The last line is the one people drop. Create ends with `user` already inside
- * the task; there is no separate start step and no `yan start` in the
- * inventory. That final step is not re-implemented here — it is `yan continue`,
- * the one enter path. Two copies of "is a yan already running, and if not start
- * one" would drift, and the second copy would be the one that forgets the lock.
- *
- * The main agent starts in the pane `user` typed in, rather than in a container
- * created for it: Herdr is already the multiplexer they live in, so making a
- * second one would move them somewhere for no reason.
- *
- * The flag grammar is order sensitive.
- *
- * A task can involve several repositories, and each one can contribute several
- * units, so the unit flags have to group somehow. They group by position:
- *
- *     --repo <name>              opens a unit
- *     --unit --scope --target --mode --needs --branch --base
- *                                belong to the --repo before them
+ * The unit flags group by position: `--repo` opens a unit, and everything
+ * after it belongs to that unit until the next `--repo`.
  *
  *   yan task new --title 'unify the auth header' \
  *       --repo monorepo-x --scope apps/auth  --target master \
  *       --repo monorepo-x --scope apps/admin --target master \
  *       --repo proto                         --target main
  *
- * Three units, two repositories, and no nesting syntax to learn. Commander
- * cannot express that as a schema, but it does not have to: it calls an
- * option's coercion function in argv order, so the grammar is exactly a
- * builder driven by those calls. That is `UnitBuilder` below — and it is the
- * whole reason these options declare a coercion function at all.
- *
- * `--scope` is repeatable within a unit; leaving it out means the unit's scope
- * is the repo root, which is the empty list — the prefix that matches every
- * path is no prefix at all, and an empty scope means the unit restricts
- * nothing.
- *
- * `--target` is required for every unit and is never defaulted (see
- * §6.4): during a release the team merges into a shared branch, in quiet
- * periods into master, and a tool that guessed would be wrong about half the
- * time, silently, until the outbound MR.
+ * Three units, two repositories. `--scope` and `--needs` repeat within a unit;
+ * an empty scope means the whole repository. `--target` is required for every
+ * unit and never defaulted.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 1 it did not work.
  */
@@ -84,12 +47,8 @@ export interface UnitSpec {
 type UnitScalar = 'unit' | 'target' | 'mode' | 'branch' | 'base';
 
 /**
- * The order-sensitive half of the grammar, as a builder.
- *
- * One instance per parsed command line, which is why the command is built by a
- * factory rather than declared at module scope: a builder shared between two
- * parses in one process would carry the first command line's units into the
- * second.
+ * Accumulates the unit flags in argv order. One instance per parsed command
+ * line — a shared one would carry the first line's units into the second.
  */
 export class UnitBuilder {
   public readonly units: UnitSpec[] = [];
@@ -106,6 +65,7 @@ export class UnitBuilder {
     this.last(`--${flag}`)[flag].push(value);
   }
 
+  /** @throws CommandError `usage` when no `--repo` has opened a unit yet. */
   private last(flag: string): UnitSpec {
     const unit = this.units[this.units.length - 1];
     if (unit === undefined) {
@@ -116,11 +76,8 @@ export class UnitBuilder {
 }
 
 /**
- * A readable unit name from a scope path.
- *
- * A name is a convenience: it never invents a scope and never invents a target.
- * Two packages under one repository must not collide on one, though — one
- * sub-application is one unit — so the caller suffixes until it is free.
+ * A unit name from its first scope path, or the repo when it has none. Not
+ * unique: the caller suffixes until it is free.
  */
 export function unitNameFrom(repo: string, firstScope: string): string {
   const source = firstScope === '' ? repo : basename(firstScope.replace(/\/+$/, ''));
@@ -159,6 +116,14 @@ export function missingForTaskNew(options: TaskNewOptions): string[] {
   return missing;
 }
 
+/**
+ * Create the task directory and add every unit, fetching each distinct clone
+ * once first. The task id is taken or derived under a lock.
+ *
+ * @throws CommandError `usage` when a title, a unit or a unit's target is
+ *   missing, or the id is taken; `unit_failed` when the task was created but a
+ *   unit could not be added — the task stays.
+ */
 export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): TaskNewResult {
   const title = options.title ?? '';
   const missing = missingForTaskNew(options);
@@ -167,11 +132,8 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
     );
   }
 
-  // Every unit needs a target, and the message has to say which unit. A
-  // half-specified unit is deliberately not routed to the prompts: they collect
-  // a whole task from the top and would silently drop the --repo flags that
-  // were typed, and losing what `user` already said is worse than saying what
-  // is missing.
+  // A half-specified unit is refused rather than routed to the prompts, which
+  // collect a whole task and would drop the --repo flags already typed.
   for (const unit of options.units) {
     if ((unit.target ?? '') === '') {
       throw CommandError.usage('task_new', `--target is required for --repo ${unit.repo}, and yan never guesses it: say which branch that unit delivers into`,
@@ -184,9 +146,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
     throw CommandError.usage('task_new', `task ${id} already exists - 'yan ls' lists them`);
   }
 
-  // The next free number is derived by scanning tasks/, never stored in a
-  // counter file — there is no registry in yan. The lock is only around the
-  // gap between deriving it and taking it.
+  // The lock covers only the gap between deriving the id and taking it.
   const dir = tasksDir();
   mkdirSync(dir, { recursive: true });
   const timeout = Number.parseInt(process.env.YAN_TASK_NEW_LOCK_TIMEOUT ?? '', 10);
@@ -200,9 +160,8 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
 
   const record = new Task(id);
 
-  // Task.create writes the heading; the description is this command's to add,
-  // because it is the contract `user` just typed. An empty description is
-  // allowed and simply leaves the heading standing.
+  // `Task.create` has already written brief.md's heading; an empty description
+  // leaves it standing alone.
   const description = options.description ?? '';
   if (description !== '') {
     writeFileSync(join(record.dir, 'brief.md'), `# ${id} ${title}\n\n${description}\n`);
@@ -210,34 +169,17 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
 
   const add = deps.add ?? addTaskUnit;
 
-  // One fetch per clone, before any unit is added.
-  //
-  // Making a unit's integration branch exist is otherwise entirely local — read
-  // some refs, write one — and the fetch in front of it is the only network
-  // round trip. Left to `unit add` it runs once per unit, so eight units meant
-  // eight serial fetches and the better part of a minute before the command
-  // said anything. Units routinely share a clone (a monorepo split by scope is
-  // the ordinary case), and a second fetch of one clone inside one command
-  // cannot return anything the first did not.
-  //
-  // Failure is already only a warning inside `freshenClone` - a task can be
-  // created offline, with older refs - so nothing here needs to stop.
+  // One fetch per clone, before any unit is added — units routinely share one.
   const freshen = deps.freshen ?? freshenClone;
   const fetched = new Set<string>();
   const unresolved = new Set<string>();
   for (const spec of options.units) {
-    // Keyed by resolved clone path, not by `--repo`: the same clone can be
-    // named by its registry name in one unit and by its path in another, and
-    // fetching it twice because the two spellings differ is the bug this
-    // exists to remove. `repoDir` is the resolver `unit add` itself uses, so
-    // both spellings land on the same key.
+    // Keyed by resolved path, so a clone named two ways is fetched once.
     let clone;
     try {
       clone = repoDir('task_new', spec.repo);
     } catch {
-      // Unresolvable is not this loop's to report: `add` below raises it and
-      // names the unit, which is the message that helps. Remember it, so this
-      // unit is not told its clone was freshened when it was not.
+      // `add` below reports it, naming the unit.
       unresolved.add(spec.repo);
       continue;
     }
@@ -269,9 +211,6 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
         base: spec.base,
         scope: spec.scope,
         needs: spec.needs,
-        // Only for the clones the loop above actually reached. A repo it could
-        // not resolve was not fetched, so claiming otherwise would trade a slow
-        // `task new` for one that quietly works from stale refs.
         fetched: !unresolved.has(spec.repo),
       });
     } catch (err) {
@@ -288,19 +227,13 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   return { version: 1, task: id, title, units: added, dir: record.dir };
 }
 
-/**
- * The next free `t<NNN>`.
- *
- * Plain numbers in the t042 style. The readable title lives in brief.md and
- * log.md rather than in the id, because the id also goes into branch names and
- * short is worth something there.
- */
+/** One past the highest `t<NNN>` on disk, zero-padded to three digits. */
 function nextId(): string {
   let max = 0;
   for (const id of Task.list()) {
     const m = /^t(\d+)$/.exec(id);
     if (m === null) continue;
-    // Base 10 explicitly, so that t008 is eight rather than an invalid octal.
+    // Base 10 explicitly, so t008 is eight rather than an invalid octal.
     max = Math.max(max, Number.parseInt(m[1] as string, 10));
   }
   return `t${String(max + 1).padStart(3, '0')}`;
@@ -315,27 +248,16 @@ interface NewFlags {
 }
 
 /**
- * The soft path: with values missing and a person at the keyboard, walk the
- * create prompts.
- *
- * `resolve()` is not what asks here, and the difference is the point. The
- * generic helper fills in missing scalars; creating a task means detecting a
- * monorepo, offering its packages, and turning selections into units — a flow
- * rather than a list of options, so it has its own prompts and its own module.
- *
- * A half-specified unit is not routed here. The wizard collects a whole task
- * from the top, so it would silently drop `--repo` flags that were typed, and
- * losing what `user` already said is worse than saying what is missing: that
- * case falls through to `createTask`'s refusal.
+ * The given options, or the ones a wizard collects when something is missing
+ * and there is a tty. A command line that named any unit is handed back as it
+ * stands, for `createTask` to accept or refuse.
  */
 async function askWhenMissing(flags: NewFlags, units: readonly UnitSpec[]): Promise<TaskNewOptions> {
   const given: TaskNewOptions = { ...flags, units };
   if (units.length > 0 || missingForTaskNew(given).length === 0 || !isTty()) return given;
 
   const { askTaskNew } = await import('../ui/prompts.js');
-  // The wizard is handed the repositories rather than looking them up: where a
-  // clone is on this machine is a command-layer question now, and
-  // `ui/` reads no registry of its own.
+  // Only the repositories linked on this machine can be offered.
   const answers = await askTaskNew(
     registry()
       .filter((r) => r.path !== undefined)
@@ -418,9 +340,7 @@ is not coming.`,
       action('yan task new', async (flags: NewFlags) => {
         const created = createTask(await askWhenMissing(flags, builder.units));
 
-        // The enter step, which is `yan continue` itself and not a copy of it.
-        // Two phases: the record first, because it has to be printable before
-        // the pane is handed to the main agent, and the blocking half after.
+        // The record prints first; `run` then takes over the pane.
         const session = enterTask({ task: created.task, agent: flags.agent });
 
         if (flags.json === true) {

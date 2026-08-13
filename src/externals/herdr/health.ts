@@ -3,16 +3,8 @@ import { asRecord } from './parse.js';
 import type { HerdrHealth } from './types.js';
 
 /**
- * What the installed Herdr says about itself.
- *
- * A module function rather than a method on `Terminal`, because `yan doctor`
- * asks it precisely when the terminal may not be usable at all — constructing
- * something first would be the wrong shape.
- *
- * `yan doctor` compares the two stamps against the ones in `schema.ts`. That is
- * a version check and nothing more: a matching protocol says the wire shapes
- * agree, not that Herdr's view of an agent is authoritative — for Claude and
- * Codex it is not, and wording it that way in `doctor` output would mislead.
+ * What the installed Herdr says about itself, or `undefined` when it cannot be
+ * asked. `protocol` and `schemaVersion` are -1 when it answered without them.
  */
 export function herdrHealth(): HerdrHealth | undefined {
   const version = runHerdr(['--version']);
@@ -39,7 +31,7 @@ export function herdrHealth(): HerdrHealth | undefined {
   };
 }
 
-/** `herdr integration status`, one line per kind, parsed into name → state. */
+/** `herdr integration status` parsed into name → state; `{}` when it fails. */
 function integrationStatus(): Record<string, string> {
   const result = runHerdr(['integration', 'status']);
   if (result.code !== 0) return {};

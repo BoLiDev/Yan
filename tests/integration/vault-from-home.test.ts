@@ -15,13 +15,9 @@ import {
 /**
  * `yan vault init --from-home`.
  *
- * The migration is a command because it is the test: V3 claims the three
- * layers separate cleanly, and moving real tasks, a real registry, a real
- * config and a real clone out of a real home is the only honest way to find
- * out. What is checked here is what a person would check — the tasks arrive,
- * the registry splits, the clone moves, and the old copy is still there until
- * someone says otherwise — plus the two refusals that exist so nobody has to
- * check anything afterwards.
+ * What a person would check: the tasks arrive, the registry splits, the clone
+ * moves, and the old copy stays until someone says otherwise — plus the two
+ * refusals that run before anything moves.
  */
 
 afterEach(cleanupTempDirs);
@@ -36,7 +32,7 @@ const identity = {
   GIT_COMMITTER_EMAIL: 'yan-tests@localhost',
 };
 
-/** A pre-V3 home: tasks under tasks/, a registry in mem/, clones in repos/. */
+/** The old layout: tasks under tasks/, a registry in mem/, clones in repos/. */
 async function legacyHome(): Promise<{ clone: string; bare: string }> {
   const bare = await mkBareRemote(join(tmp, 'demo.git'));
   const clone = await mkClone(bare, join(home, 'repos', 'demo'));
@@ -73,7 +69,7 @@ function staleRun(id: string): void {
 beforeEach(() => {
   tmp = mkTempDir('yan-migrate-');
   home = mkYanHome(join(tmp, 'home'), { withDist: true, activate: false });
-  // The fixture builds a V3 home; this test needs the V2 one it replaced.
+  // The fixture builds a vault; this test needs the layout it replaced.
   writeFileSync(join(home, 'vault.json'), '');
 });
 
@@ -102,7 +98,7 @@ describe('what comes across', () => {
       expect(existsSync(join(vault, 'tasks', id, 'task.json')), id).toBe(true);
       expect(existsSync(join(vault, 'tasks', id, 'log.md'))).toBe(true);
       expect(existsSync(join(vault, 'tasks', id, 'artifacts', 'note.md'))).toBe(true);
-      // The asset V3 exists to keep: what a shift found.
+      // The artifacts a shift left, which are the point of keeping the task.
       expect(existsSync(join(vault, 'tasks', id, 'shifts', 's1', 'outcome.md'))).toBe(true);
     }
     // …but not the throwaway layer. Committing pane ids would make one
@@ -135,7 +131,7 @@ describe('what comes across', () => {
     const { code, out, vault } = await init();
     expect(code, out).toBe(0);
 
-    // Additive: the migration is undone by deleting one directory.
+    // Additive: until drop-home, deleting the vault undoes the migration.
     expect(existsSync(join(home, 'tasks', 't001', 'task.json'))).toBe(true);
     expect(out).toContain('--drop-home');
 
@@ -152,8 +148,7 @@ describe('what comes across', () => {
     expect(code, out).toBe(0);
     const env = { YAN_VAULT: vault, YAN_MACHINE_DIR: join(tmp, 'machine') };
 
-    // Something the vault does not have: looking takes longer than one command,
-    // so the check has to be re-run rather than trusted from the first pass.
+    // Something the vault does not have, so the check refuses.
     mkdirSync(join(home, 'tasks', 't003'), { recursive: true });
     writeFileSync(join(home, 'tasks', 't003', 'task.json'), '{"version":1,"id":"t003","title":"later","complete":false,"units":[]}\n');
 

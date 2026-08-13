@@ -18,16 +18,9 @@ import type { MrCreateOptions } from '../../src/externals/remote-git/index.js';
 /**
  * `yan mr`.
  *
- * This one sits in the "on its own" column, because opening
- * a merge request is reversible: it can be closed and nothing outside `user`'s
- * own branches has changed. Its sibling row — merging that MR into `target` —
- * is `yan land`, and `user` has to ask. Two rows, two files; the split is the
- * reason both exist.
- *
- * The host is a recording stand-in, so nothing here reaches the network. git is
- * real: the only git this command may run is the question "is the integration
- * branch on the remote yet", and that is worth proving as much as the MR itself
- * — pushing it is a separate act and must not be duplicated here.
+ * The host is a recording stand-in, so nothing here reaches the network. git
+ * is real, because the one git question this command may ask — is the branch
+ * on the remote yet — matters as much as the MR: it must never push.
  */
 
 afterAll(cleanupTempDirs);
@@ -72,9 +65,6 @@ beforeEach(async () => {
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'monorepo-x'));
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', clone, { url: bare });
   // Only feat/auth is published; feat/later deliberately is not.
   await fxGit(['-C', clone, 'push', 'origin', 'main:feat/auth']);
@@ -123,9 +113,8 @@ describe('it opens the MR and records the URL', () => {
   });
 
   it('never pushes: the only git question it asks is whether the branch is on the remote', () => {
-    // The proof is negative and structural — publishing the integration branch
-    // is a separate judgement, and a command that did it silently on the way to
-    // opening an MR is exactly the kind of thing that does not fail loudly.
+    // Structural, because a command that pushed on the way to opening an MR
+    // would not fail loudly.
     const source = readFileSync(join(process.cwd(), 'src', 'cli', 'mr.ts'), 'utf8');
     expect(source).not.toContain('push(');
     expect(source).toContain('remoteBranchExists');

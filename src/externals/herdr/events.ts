@@ -6,14 +6,8 @@ import { AGENT_STATUS } from './schema.js';
 import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './types.js';
 
 /**
- * Herdr's event stream, over the socket.
- *
- * Why this speaks the wire protocol instead of going through the CLI like
- * everything else: `herdr api` has exactly two subcommands, `snapshot` and
- * `schema`. `events.subscribe` exists in the request schema and has no CLI verb
- * at all, so there is nothing to shell out to.
- *
- * Newline-delimited JSON in both directions:
+ * Herdr's event stream, spoken over the socket because `events.subscribe` has
+ * no CLI verb. Newline-delimited JSON in both directions:
  *
  *   -> {"id":"yan:sub:1","method":"events.subscribe","params":{"subscriptions":[
  *        {"type":"pane.agent_status_changed","pane_id":"w1:p2"}]}}
@@ -21,35 +15,17 @@ import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './typ
  *   <- {"event":"pane.agent_status_changed","data":{"agent":"claude",
  *        "agent_status":"working","pane_id":"w1:p2","workspace_id":"w1"}}
  *
- * Three rules this module holds:
- *
- *   1. Record the ID, never the label. Subscriptions are per pane id; a pane
- *      that has moved is reconciled by whoever owns the bookkeeping, not here.
- *
- *   2. It cannot move the user or close anything. This client sends exactly one
- *      method — there is no `focus`, no `close`, no `stop`. A subscriber that
- *      could focus a pane would mark it seen, turning the `done` yan is waiting
- *      for into an `idle` it ignores.
- *
- *   3. It never decides. A status arrives as a fact with a pane id on it.
- *      Whether `blocked` is worth waking anybody is the caller's judgement, and
- *      `done` in particular is a reason to look, never a verdict.
- *
- * Reconnection is the caller's pacing. `reconnect()` is offered; a hidden retry
- * loop is not. A subscription ending is treated as a state that can arrive at
- * any time, but how soon to try again — and what to re-read before doing so, in
- * case something happened while the stream was down — is a supervision decision
- * this module has no way to make well.
+ * Subscribing is the only method this client sends: it cannot focus, close or
+ * stop anything. There is no retry loop — a dropped connection reaches
+ * `onClosed`, and coming back is `reconnect()`, at the caller's pace.
  */
 
 const SUBSCRIBABLE = 'pane.agent_status_changed';
 
-/** Herdr's pane id shape. Opaque: checked for shape, never parsed. */
-
 export interface TerminalEventsOptions {
-  /** Defaults to this machine's Herdr socket, with the Windows pipe-name rule applied. */
+  /** Defaults to this machine's Herdr socket. */
   readonly endpoint?: string;
-  /** How long to wait for the connection itself. */
+  /** How long to wait for the connection itself. Defaults to 5000. */
   readonly connectTimeoutMs?: number;
 }
 
@@ -66,7 +42,6 @@ export class TerminalEvents {
   private buffer = '';
   private seq = 0;
   private readonly pending = new Map<string, Pending>();
-  /** The panes this client is subscribed to, so a reconnect can restore them. */
   private readonly panes = new Set<string>();
   private readonly statusHandlers: ((event: AgentStatusEvent) => void)[] = [];
   private readonly closedHandlers: ((event: ClosedEvent) => void)[] = [];
@@ -90,14 +65,19 @@ export class TerminalEvents {
   }
 
   /**
-   * The subscription ended. Not an error and not a verdict about Herdr: the
-   * caller decides whether to come back, and how soon.
+   * Called when the connection ends, for any reason. Nothing reconnects on its
+   * own afterwards.
    */
   public onClosed(handler: (event: ClosedEvent) => void): void {
     this.closedHandlers.push(handler);
   }
 
-  /** Open the connection. Throws `events_unreachable` when there is nothing there. */
+  /**
+   * Open the connection, or return at once when it is already open.
+   *
+   * @throws EventsError `unreachable` when nothing answers within
+   *   `connectTimeoutMs`.
+   */
   public async open(): Promise<void> {
     if (this.socket !== undefined) return;
     const socket = await this.dial();
@@ -108,9 +88,6 @@ export class TerminalEvents {
     socket.on('data', (chunk: string) => {
       this.receive(chunk);
     });
-    // Both arrive for the same event on different platforms; `end` is a clean
-    // server-side close and `error` is a reset. Neither is a reason to throw at
-    // whoever happens to be awaiting something else.
     socket.on('error', (err: Error) => {
       this.dropped(err.message);
     });
@@ -120,10 +97,11 @@ export class TerminalEvents {
   }
 
   /**
-   * Subscribe to one pane's agent status, or several.
+   * Subscribe to the agent status of panes that are not subscribed already, so
+   * this is safe to call repeatedly with an overlapping set.
    *
-   * Panes already subscribed are skipped, so this is safe to call every turn of
-   * a watcher's loop as shifts come and go.
+   * @throws EventsError `usage` for anything that is not a pane id, `closed`
+   *   when the connection is not open.
    */
   public async subscribe(panes: readonly string[]): Promise<void> {
     const wanted = panes.filter((pane) => {
@@ -141,23 +119,22 @@ export class TerminalEvents {
   }
 
   /**
-   * Come back after the subscription ended: a fresh connection, then every pane
-   * subscribed again.
+   * A fresh connection, then every pane subscribed again.
    *
-   * `panes` replaces the remembered set when given — which is how a watcher
-   * re-subscribes from `run/meta.json` rather than from what it happened to
-   * hold in memory before the connection dropped.
+   * @param panes replaces the remembered set when given.
    */
   public async reconnect(panes?: readonly string[]): Promise<void> {
-    // Read the set before closing: `close()` forgets it, which is what makes a
-    // deliberate close different from a connection that dropped.
     const restore = panes ?? [...this.panes];
     this.close();
     await this.open();
     await this.subscribe(restore);
   }
 
-  /** Let go of the connection. Idempotent; releases the event loop. */
+  /**
+   * Let go of the connection and forget the subscribed panes, rejecting
+   * anything still awaited. Idempotent, and never calls the `onClosed`
+   * handlers.
+   */
   public close(): void {
     const socket = this.socket;
     this.socket = undefined;
@@ -226,8 +203,7 @@ export class TerminalEvents {
       try {
         message = JSON.parse(line);
       } catch {
-        // A preview build may print prose. Ignoring a line we cannot read is
-        // strictly better than dying on the watcher's only event channel.
+        // Not JSON: a preview build may print prose on the same stream.
         continue;
       }
       this.dispatch(message);
@@ -254,8 +230,6 @@ export class TerminalEvents {
 
     const error = body.error;
     if (error !== undefined && error !== null) {
-      // The Herdr code is mapped here and nowhere else: nothing above this
-      // module ever sees `invalid_request`.
       const code = typeof (error as { code?: unknown }).code === 'string' ? (error as { code: string }).code : 'unknown';
       waiting.reject(new EventsError('refused', `herdr refused the subscription: ${code}`));
       return;
@@ -269,8 +243,7 @@ export class TerminalEvents {
     const pane = typeof body.pane_id === 'string' ? body.pane_id : '';
     if (pane === '') return undefined;
     const raw = typeof body.agent_status === 'string' ? body.agent_status : '';
-    // An unrecognised status is `unknown`, never the string Herdr sent: the
-    // union is the contract, and `unknown` already means "yan could not tell".
+    // An unrecognised status is `unknown`, never the string Herdr sent.
     const status: AgentStatus = (AGENT_STATUS as readonly string[]).includes(raw)
       ? (raw as AgentStatus)
       : 'unknown';

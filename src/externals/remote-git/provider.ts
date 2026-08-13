@@ -2,17 +2,9 @@ import type { CliResult } from './client.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
 
 /**
- * What differs between GitHub and GitLab, and nothing else.
- *
- * The five differences between the two hosts — argument shapes, terminology,
- * JSON shapes, authentication, and the CI model itself — all land on this
- * interface. `RemoteGit` implements each verb once against it, so there is no
- * `if (kind === 'github')` anywhere above this line.
- *
- * That is the whole reason the interface exists. In the shell implementation,
- * and in the first TypeScript port, every verb carried its own copy of that
- * branch: four verbs, two providers, eight bodies to keep in step. Adding a
- * third host meant editing four functions and hoping.
+ * What differs between GitHub and GitLab, and nothing else — argument shapes,
+ * terminology, JSON shapes and the CI model. `RemoteGit` implements each verb
+ * once against this.
  */
 export interface Provider {
   readonly cli: 'gh' | 'glab';
@@ -21,9 +13,10 @@ export interface Provider {
   createArgs(options: MrCreateOptions, body: string): string[];
 
   /**
-   * The URL out of a successful create. Each CLI prints prose around it and
-   * spells it differently (`/pull/N` vs `/merge_requests/N`), and glab puts it
-   * on a different stream, so the provider decides where to look.
+   * The URL out of a successful create, taken from whichever stream this CLI
+   * prints it on.
+   *
+   * @throws RemoteGitError `failed` when there is no URL to find.
    */
   createdUrl(result: CliResult): string;
 
@@ -41,7 +34,7 @@ export interface Provider {
     deleteSource: boolean,
   ): string[];
 
-  /** Both mappers are pure: no network, no configuration, no module state. */
+  /** Pure: the payload is the CLI's stdout, and nothing else is consulted. */
   mapMrState(payload: string): MrState;
   mapCiState(payload: string): CiState;
 }

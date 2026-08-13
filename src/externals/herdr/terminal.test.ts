@@ -9,31 +9,20 @@ import { TerminalError } from './errors.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
- * The assertions of `tests/unit/lib-term-contract.test.sh`, ported to vitest and
- * run against the Herdr seam (not the same file, the same
- * contract).
- *
- * Everything here is true whether or not Herdr is installed, which is what
- * makes it a contract test rather than an integration test: the id rules, the
- * "cannot close what yan did not create" promise, and the closed set that comes
- * out of `agentAlive`.
+ * The terminal seam's contract, true whether or not Herdr is installed: the
+ * id rules, the "cannot close what yan did not create" promise, and the closed
+ * set `agentAlive` answers with.
  */
 
 const moduleDir = join(repoRoot, 'src', 'externals', 'herdr');
 
 /**
- * The seam with its comments stripped.
- *
- * The rules below are about what the code does, and the comments are where the
- * reasons live — `winpty` and `agent focus` are both named in prose precisely
- * so the next person does not reintroduce them. Grepping the raw file would
- * make writing that reason down a test failure, which is exactly backwards.
+ * The seam with its comments stripped: the greps below are about what the code
+ * does, and the same strings are named in prose above them.
  */
 function seamSource(): string {
   return readdirSync(moduleDir)
-    // Not this file. It lives in the module now, and it names every forbidden
-    // string as the literal it asserts against — grepping itself would fail
-    // every rule below.
+    // Not this file, which names every forbidden string as a literal.
     .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
     .map((f) => readFileSync(join(moduleDir, f), 'utf8'))
     .join('\n')
@@ -42,10 +31,8 @@ function seamSource(): string {
 }
 
 describe('ids are used, nothing is located by label alone', () => {
-  // Herdr does enforce that an agent name is unique among live agents, which
-  // tmux never promised - but a name is cleared when the agent exits, so it
-  // cannot identify a shift that has died, and identifying dead shifts is
-  // exactly what supervision does.
+  // A name is cleared when its agent exits, so it cannot identify a shift that
+  // has died — which is exactly what supervision has to do.
   const notPaneIds = ['yan', 's3-auth', '', '@3', '%7', 'w1', 'w1:t1', '3', 'w1:p'];
 
   it.each(notPaneIds)('send refuses %j', (bad) => {
@@ -126,9 +113,7 @@ describe('the seam cannot close what yan did not create', () => {
   const source = seamSource();
 
   it('never spells workspace close or tab close', () => {
-    // Container lifetime belongs to `user`. The two verbs that would take it
-    // away are simply not written anywhere in the seam, and this is the grep
-    // that keeps it that way.
+    // The two verbs that would close a container appear nowhere in the seam.
     expect(source).not.toMatch(/'workspace',\s*'close'/);
     expect(source).not.toMatch(/'tab',\s*'close'/);
     expect(source).not.toContain('server stop');
@@ -144,9 +129,8 @@ describe('yan never calls agent focus on a shift pane', () => {
   const source = seamSource();
 
   it('the string is absent from the seam', () => {
-    // Focusing marks the tab seen, which turns
-    // the `done` yan was about to be woken by into an `idle` it will ignore
-    // This is the assertion that keeps it out.
+    // Focusing marks the tab seen, which turns the `done` yan was about to be
+    // woken by into an `idle` it ignores.
     expect(source).not.toMatch(/'agent',\s*'focus'/);
     expect(source).not.toContain('agent focus');
     expect(source).not.toMatch(/'workspace',\s*'focus'/);
@@ -257,10 +241,9 @@ describe('an agent that is not really there', () => {
   };
 
   /**
-   * A herdr that answers `tab create` and `agent start` happily, reports the
-   * agent ready — and then has no agent in that pane. That is
-   * §11.7: codex exited at once and Herdr matched the bare shell prompt it left
-   * behind.
+   * A herdr that answers `tab create` and `agent start` happily and reports
+   * the agent ready, with no agent in that pane — what a CLI that exited at
+   * once looks like, since the bare shell prompt it left behind matches too.
    */
   function pretendingHerdr(alive: boolean) {
     return (args: readonly string[]) => {

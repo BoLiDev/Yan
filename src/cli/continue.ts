@@ -16,58 +16,21 @@ import { yanHome } from '../util/home.js';
 import { claim, isStale, owner, release } from '../util/lock.js';
 
 /**
- * `yan continue --task <id>` — the enter step, and the only one.
+ * `yan continue --task <id>` — start the main agent in the pane this was typed
+ * in, as a child sharing its stdin, stdout and stderr. Creates no container
+ * and focuses nothing.
  *
- * Yan joins; it does not host.
+ * One yan per task: a per-task lock, whose live pid is the fact, holds for
+ * exactly as long as the agent runs. A second `yan continue` on the same task
+ * starts nothing and reports where the live one is; a lock whose owner is gone
+ * is reclaimed.
  *
- * This command starts the main agent in the pane it was typed in, as a child
- * process sharing this process's stdin, stdout and stderr — which are the pane.
- * Nothing is created and nothing is focused.
+ * The workspace tokens are set before the agent starts and withdrawn when it
+ * returns, so a yan killed outright leaves stale ones until the next
+ * `yan continue` on that task overwrites them.
  *
- * Creating a container to hold the agent is the tempting alternative and it is
- * backwards: Herdr *is* the multiplexer and `user` is already standing in it,
- * so a second one is a tool insisting on its own furniture in someone else's
- * house. There is likewise no "create or join" step — we are already inside.
- *
- * One yan per task, and what answers it.
- *
- * The lock is per task, not per machine. Two yans on two different tasks is
- * ordinary working practice; only a second yan on the same task is refused,
- * because a yan sees one task's files and two of them would both be writing
- * that task's bookkeeping.
- *
- * The lock file's own pid is the fact, which works only because this command
- * lives exactly as long as the main agent it started. `pidAlive` makes it
- * self-healing: a yan killed outright leaves a lock whose pid is gone, and the
- * next `yan continue` reclaims it rather than obeying it.
- *
- * Asking herdr instead does not work, which is worth knowing because it looks
- * like the obvious answer. `agent list` reports every live agent with its pane
- * id, but an agent Herdr detected on screen has no name, and nothing in the
- * listing says which task an agent belongs to. Only an agent started through
- * `agent start` carries a name — and `agent start` needs a pane already sitting
- * at an interactive prompt, which the pane running this command is not.
- *
- * The lock records the pane it was taken in, so a second `yan continue` can say
- * where the live one is instead of spawning a duplicate.
- *
- * What "exits" means.
- *
- * The workspace tokens have to be cleared when yan exits, and clearing needs
- * someone who knows the workspace's lifetime. That is this command: it sets
- * them before the agent starts and withdraws them in the `finally` of the wait.
- * So "yan exits" means, in practice, the main agent process this command
- * Started has terminated — normally, by `/exit`, or by a signal that reaches the whole
- * pane, all of which return from `spawnSync` and run the cleanup.
- *
- * The one case it cannot cover is a yan killed without a chance to run
- * anything, and that is deliberate rather than overlooked: the alternative is a
- * TTL short enough to expire under a session that legitimately lasts all
- * afternoon. Stale tokens are a cosmetic bug, they name the task they belong
- * to, and the next `yan continue` on that task overwrites them.
- *
- * Exit codes: 0 fine (including "already running, here is where"), 2 you called
- * this wrongly, otherwise the main agent's own status.
+ * Exit codes: 0 fine (including "already running, here is where"), 2 you
+ * called this wrongly, otherwise the main agent's own status.
  */
 
 export interface ContinueOptions {
@@ -96,7 +59,7 @@ export interface Screen {
   clearWorkspaceTokens(workspace: string, names: readonly string[]): void;
 }
 
-/** Starting the main agent, so a test can drive the enter without a harness. */
+/** Starting the main agent; returns its exit status. */
 export type StartMain = (
   cli: string,
   argv: readonly string[],
@@ -109,12 +72,9 @@ export interface EnterDeps {
 }
 
 /**
- * What `enterTask` hands back: the record, and — when an agent is ours to run —
- * the blocking half.
- *
- * Two phases and not one, because the record has to be printable before the
- * pane is handed over. `yan task new --json` reads it, and a record that only
- * arrived after the agent had finished would arrive hours late or never.
+ * The record, available at once, and the blocking half. `run` is absent when a
+ * live yan already holds the task; calling it takes over the pane until the
+ * agent exits, then clears the tokens and releases the lock.
  */
 export interface Session {
   readonly record: Entered;
@@ -130,34 +90,10 @@ const startMain: StartMain = (cli, argv, options) =>
   }).status ?? 1;
 
 /**
- * The harness mapping table: a table on purpose, not an abstraction layer. yan
- * itself runs on Claude Code or Codex and nothing else, so it has two rows.
- *
- * Each extra directory is a clone this task actually touches, and anything not
- * listed is invisible to the agent. The working directory is `$YAN_HOME`,
- * because yan runs things in `bin/` and reads `mem/`.
- *
- * Why the main agent gets the same permission flags as a shift.
- *
- * The argument for a shift is that nobody is watching it (see `shift.ts`), and
- * the main agent looks like the opposite case: it is `user`'s own pane, with
- * `user` sitting in front of it. That reasoning is what makes leaving this row
- * empty tempting, and it is wrong.
- *
- * `yan` is not only what `user` types at. The Stop hook arms `yan wait`, and
- * between one turn and the next this agent drains a wake file, dispatches, and
- * clocks a shift out with nobody looking at the pane. A prompt raised in that
- * window stalls exactly as a shift's does — except that what has stalled is the
- * thing that was supposed to be doing the noticing.
- *
- * The prompt was never the boundary either way. What the agent may reach is
- * `$YAN_HOME` plus the clones listed below; work happens in leased trees, and
- * branch protection on the forge is the last line.
- *
- * Codex needs both flags. Without the sandbox flag and the hook-trust flag it
- * meets two first-run gates, and the hook-review gate is the one Herdr reads as
- * `idle` — so nothing wakes and the pane simply sits there. There is no `scout`
- * row here: the main agent is `mr` by nature.
+ * The flags the main agent's harness needs: the extra directories, and running
+ * unattended. Unattended even though `user` is at the pane, because the Stop
+ * hook wakes this agent between turns with nobody watching, and a permission
+ * prompt raised then stalls the thing that does the noticing.
  */
 function harnessArgs(agent: string, addDirs: readonly string[]): string[] {
   const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
@@ -185,15 +121,8 @@ function addDirsFor(task: Task): string[] {
 }
 
 /**
- * The pane this command is running in.
- *
- * Herdr injects `HERDR_PANE_ID` into every pane it creates, and this is the one
- * command allowed to read it. Everything else works from explicit ids, because
- * a hook may be handed a sanitised environment and would silently resolve to
- * the wrong pane. `yan continue` is never run by a hook — it is the entry a
- * person types — and what it passes onward is an explicit id either way.
- *
- * Empty when yan is not running under Herdr at all, which is not a failure.
+ * The pane this command is running in, from `$HERDR_PANE_ID` — the one place
+ * in yan that reads it. Empty when there is no Herdr around it.
  */
 function currentPane(): string {
   const pane = process.env.HERDR_PANE_ID ?? '';
@@ -201,6 +130,12 @@ function currentPane(): string {
 }
 
 
+/**
+ * Take the task's enter lock and prepare its main agent.
+ *
+ * @throws CommandError `usage` when no task is named, the task does not exist,
+ *   or no main agent is configured.
+ */
 export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Session {
   const id = options.task ?? '';
   if (id === '') {
@@ -219,21 +154,13 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
   }
 
   const record = new Task(id);
-  // Resolved once, here. `run` below is called much later — after this command
-  // has printed its record, and in `yan task new`'s case from another module —
-  // and re-deriving the home at that point would let it answer differently.
+  // Resolved now rather than inside `run`, which is called much later.
   const cwd = yanHome();
   const pane = currentPane();
   const lock = enterLockFile(id);
-  // The pane is stamped for two readers now: a refused second `yan continue`,
-  // which says where the live one is, and container resolution, which puts this
-  // task's shifts in the workspace that pane is in. `enter-lock.ts` owns the
-  // format so those two cannot drift apart from this writer.
   const identity = enterIdentity(id, pane);
 
   if (!claim(lock, identity)) {
-    // A lock left behind by a process that is gone is reclaimed, not obeyed.
-    // Anything else is a live yan, and a second one on the same task is refused.
     if (isStale(lock)) {
       release(lock);
     }
@@ -257,9 +184,6 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
   const terminal = deps.terminal ?? new Terminal();
   const workspace = pane === '' ? undefined : terminal.workspaceOfPane(pane);
   if (workspace !== undefined) {
-    // Never fatal: the work is correct with ugly
-    // labels, and a tool that will not start the main agent because a tab title
-    // did not stick is a worse tool.
     display('could not label the workspace', () => {
       terminal.setWorkspaceTokens(workspace, taskTokens(id));
     });
@@ -282,10 +206,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       try {
         return start(agent, argv, {
           cwd,
-          // The vault is passed explicitly rather than inherited: the agent
-          // outlives the command that started it, and the active vault can be
-          // switched underneath it. Which context this session belongs to is
-          // settled once, here.
+          // Explicit, so `yan vault use` elsewhere cannot move a running agent.
           env: { ...process.env, YAN_HOME: cwd, YAN_VAULT: vaultDir(), YAN_TASK: id },
         });
       } finally {
@@ -301,13 +222,10 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
 }
 
 /**
- * The soft path: with no id and a person at the keyboard, select among the
- * incomplete tasks.
+ * `given`, or a task chosen from the incomplete ones when there is a tty. With
+ * no tty it hands `given` straight back for `enterTask` to refuse.
  *
- * The list is `yan ls`'s own scan, so there is one owner for "which tasks are
- * there". Without a TTY there is nobody to answer, so this returns the empty
- * string and `enterTask` refuses with the flag to pass — that order matters,
- * because a prompt reached by a hook, a script or an agent is a hang.
+ * @throws CommandError `usage` when there is nothing incomplete to offer.
  */
 async function chooseWhenMissing(given: string): Promise<string> {
   if (given !== '' || !isTty()) return given;
@@ -326,10 +244,7 @@ async function chooseWhenMissing(given: string): Promise<string> {
   );
 }
 
-/**
- * What entering looks like to a person, in one place because `yan task new`
- * ends by entering and must not print a second version of it.
- */
+/** Print the enter record for a person. */
 export function renderEntered(record: Entered): void {
   if (!record.started) {
     out(`yan is already running on task ${record.task} - a second yan on the same task is refused`);

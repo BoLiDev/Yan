@@ -15,92 +15,22 @@ import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 
 /**
- * `yan done [<id>]` — declare a task finished and give its trees back.
+ * `yan done [<id>]` — mark a task complete and give its trees back, which are
+ * one event: a finished task whose trees are still leased shrinks the pool.
  *
- * Why this command exists at all.
+ * Which trees belong to the task is asked of the pool, whose holder is
+ * `<task>/<unit>/<sid>`, so a tree left behind by a teardown that stopped
+ * halfway is found too. `run/` is read for one thing only: which pane an agent
+ * is in.
  *
- * `complete` has been a field of task.json since the first version, `yan ls`
- * has rendered it as `done` vs `open` for just as long, and until now nothing
- * Could set it. Every task in the queue was open forever, which is the same as
- * having no state at all. `yan land` merges the outbound MR and stops there,
- * correctly — landing is about `target`, finishing is about the task — so the
- * last step had no command.
+ * Which task: an explicit id or `--task`, then `$YAN_TASK`, then a
+ * multi-select when there is a tty, then a refusal. Several tasks are all
+ * attempted and all reported, and the exit code is the first failure's.
  *
- * The second half is the reason it is one command and not two. A finished task
- * whose trees are still leased is a pool that shrinks by a slot per task, and
- * the pool refuses rather than grows when it is full. Marking
- * done and giving the trees back are the same event, so they are the same
- * command, and it is not possible to do the first and forget the second.
- *
- * What is derived, and from where.
- *
- * Which trees belong to this task is asked of the pool, never of `run/`. The
- * pool records the holder as `<task>/<unit>/<sid>`, so the leases whose holder
- * starts `<task>/` are the answer — and it is the only answer that is still
- * right after a teardown that stopped halfway, where `run/` is already gone and
- * the tree is still leased. `run/` is consulted for exactly one thing it alone
- * knows: which pane an agent is in.
- *
- * The default refuses, and `--force` is `user`'s answer.
- *
- * Two refusals, in this order, because the first one is free:
- *
- *   4  a shift is still live. Its agent may be mid-edit; returning the tree
- *      under it destroys work that was never anywhere else. Nothing is touched
- *      — not the trees, not `complete`.
- *   5  a tree will not come back: uncommitted changes, or no remote branch
- *      contains HEAD. That is the pool's orphan-commit guard and it is right.
- *      The trees that did come back stay returned; `complete` is not set,
- *      because a task is not finished while its work exists in one place only.
- *
- * `--force` is not a retry and not a confirmation prompt. It is the same thing
- * `yan land --user-asked` is: the flag that carries `user`'s answer in, for the
- * the one rule that names it —
- *
- *     yan tree return --force   forbidden, unless `user` says the changes
- *                               can be thrown away
- *
- * With it: live shifts are killed (pane closed, `run/` removed), every tree is
- * wiped past the guard, and the task is marked done. `yan` must not reach for
- * this on its own initiative; the flag is the whole authority and there is
- * nowhere else in yan that sets it.
- *
- * what `--force` does and does not destroy, precisely, because "throws work
- * away" is vaguer than the situation deserves: it destroys uncommitted changes
- * and untracked files (`git reset --hard`, `git clean -fd`). Commits are not
- * destroyed — they stay on the shift branch in the clone, unpushed and
- * reachable by name. The message says so, so nobody panics about the wrong
- * thing or relaxes about the right one.
- *
- * With no argument and a person at the keyboard it asks, and it asks for many
- * tasks at once.
- *
- * Every other task prompt in yan is a single select. This one is a multi-select
- * because finishing is the one thing that arrives in batches: a round lands and
- * three tasks are done at once. A single select would mean running the command
- * three times against a list that shrinks under you.
- *
- * The order of resolution is the ordinary soft/hard rule with
- * `$YAN_TASK` in its usual place:
- *
- *   an explicit <task-id> or --task    always wins
- *   $YAN_TASK                          the task-scoped session's own task
- *   a TTY                              the multi-select
- *   nothing                            refuse, and name the flag
- *
- * The refusal is the half that matters, as everywhere else: an agent, a hook or
- * a script that reached a prompt would hang forever with nobody to answer it,
- * so "there is no TTY" is checked before "ask", and it always wins.
- *
- * One task is not a degenerate many. A single named task takes the path that
- * throws — that is the contract an agent reads, one command one answer, and its
- * exit code says which refusal it hit. Several tasks cannot do that: stopping
- * at the first failure would leave the rest silently untried, so each is
- * attempted, all of them are reported, and the exit code is the first failure's.
- *
- * `--force` is deliberately not offered by the prompt. It is `user`'s authority
- * and it stays something they type; a checkbox in a list is not a decision
- * anyone would remember making.
+ * Without `--force` it refuses rather than destroys. With it, live shifts are
+ * killed and every tree is wiped past the orphan-commit guard: uncommitted
+ * changes and untracked files go, commits stay on the shift branch in the
+ * clone. Only `user` may ask for it, and the prompt never offers it.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 4 a shift is still live,
  * 5 a tree could not be returned, 1 anything else.
@@ -156,16 +86,10 @@ interface Held extends LeaseRow {
 }
 
 /**
- * Every tree the pool is holding for this task.
- *
- * The repositories are the union of the ones the units name and the ones live
- * shifts record, because the two can disagree: a unit that was re-pointed after
- * a shift was dispatched leaves a lease in a repository task.json no longer
- * mentions, and that lease is exactly the one that would be stranded.
- *
- * A repository that cannot be resolved is skipped rather than fatal. Its clone
- * being gone is a reason there is no lease to find, not a reason a task cannot
- * be finished.
+ * Every tree the pool is holding for this task, sorted by holder. Looks in
+ * every repository the units name and every one a live shift records, since a
+ * re-pointed unit can leave a lease task.json no longer mentions. A repository
+ * that cannot be resolved is skipped rather than fatal.
  */
 function heldBy(task: string, deps: DoneDeps): Held[] {
   const repos = new Set<string>();
@@ -203,16 +127,8 @@ function heldBy(task: string, deps: DoneDeps): Held[] {
 }
 
 /**
- * Close a live shift's pane and delete its `run/`.
- *
- * The pane comes out of `run/meta.json` before the directory goes, for the same
- * reason `yan shift done` reads its teardown fields first: afterwards nothing
- * records where the agent was. The pane is closed and never the container —
- * a container's lifetime belongs to `user`.
- *
- * `outcome.md`, `status` and the brief are long-lived and are not touched. A
- * shift that was killed still has to be readable afterwards, and what it
- * reported before it was killed is often the reason it was.
+ * Close a live shift's pane and delete its `run/`, leaving outcome.md, the
+ * status log and the brief. Never throws for a pane it cannot close.
  */
 function kill(shift: Shift, terminal: Closer): KilledShift {
   const meta = shift.meta();
@@ -226,6 +142,14 @@ function kill(shift: Shift, terminal: Closer): KilledShift {
   return { sid: shift.sid, unit: meta.unit ?? '', pane_closed: closed };
 }
 
+/**
+ * Finish one task: return its trees and mark it complete.
+ *
+ * @throws CommandError `usage` when no task is named, `missing` for an unknown
+ *   one, `live_shifts` (exit 4) when a shift is still live and `--force` was
+ *   not given — nothing is touched in that case — and `tree_held` (exit 5)
+ *   when a tree would not come back, after the others have been returned.
+ */
 export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResult {
   const task = options.task ?? process.env.YAN_TASK ?? '';
   if (task === '') {
@@ -255,8 +179,6 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   }
 
   // --- 2. with --force, kill them, and read the pool after -------------------
-  // After, not before: a killed shift's lease is unchanged, but reading the
-  // pool last means the two lists cannot disagree about what is still held.
   const terminal = deps.terminal ?? new Terminal();
   const killed = force ? live.map((s) => kill(s, terminal)) : [];
 
@@ -282,11 +204,9 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   }
   const stuck = trees.filter((t) => !t.returned);
 
-  // --- 4. and only now, the one decision this command records ----------------
-  // A task is not finished while its work exists in one place only, so an
-  // unforced run that could not empty the pool does not mark it done. Under
-  // --force it is marked either way: `user` asked for the task to be finished,
-  // and a slot that will not release is a separate problem, reported as 5.
+  // --- 4. and only now, `complete` ------------------------------------------
+  // A tree that would not come back leaves the task open, unless `user` asked
+  // for it to be finished anyway.
   const complete = force || stuck.length === 0;
   if (complete && !wasComplete) record.setComplete(true);
 
@@ -302,7 +222,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
         );
       }
       new Log(task).append(parts.join('; '));
-    } catch { /* the task is done; the narration is not worth failing for */ }
+    } catch { /* the task is done; a missing log line is not worth failing for */ }
   }
 
   if (stuck.length > 0) {
@@ -325,15 +245,6 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   };
 }
 
-/**
- * Which tasks this invocation is about.
- *
- * The list is `yan ls`'s own scan, so there is one owner for "which tasks are
- * there" and the prompt cannot offer something the queue does not show.
- * Complete ones are filtered out: `yan done` on a task already done is
- * harmless and stays reachable by name, but offering it in a list of things to
- * finish is noise.
- */
 export interface Finishable {
   readonly id: string;
   readonly title: string;
@@ -341,7 +252,7 @@ export interface Finishable {
   readonly shifts: number;
 }
 
-/** The rows of that multi-select, separated from the drawing of them so a test can see them. */
+/** The rows the multi-select offers: every task in the queue not yet complete. */
 export function finishableTasks(): Finishable[] {
   const queue = queueJson() as {
     tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
@@ -368,7 +279,7 @@ async function whichTasks(named: string): Promise<string[]> {
   return chooseTasksToFinish(open);
 }
 
-/** One task's outcome, as the summary and `--json` both render it. */
+/** One task's outcome, as the summary and `--json` both carry it. */
 type Outcome = { readonly ok: true; readonly result: DoneResult } | { readonly ok: false; readonly task: string; readonly exit_code: number; readonly error: string };
 
 function render(o: Outcome): void {
@@ -433,17 +344,15 @@ yan must not reach for --force on its own initiative.`,
       }
       const tasks = await whichTasks(options.task ?? positional ?? '');
 
-      // Nothing to offer is not a failure: `user` asked what is finishable and
-      // the answer is "nothing", which is worth one line and exit 0.
+      // Nothing to offer is one line and exit 0, not a failure.
       if (tasks.length === 0) {
         if (options.json === true) out(JSON.stringify({ version: 1, tasks: [] }));
         else out('every task is already done');
         return;
       }
 
-      // One named task keeps the throwing path. That is the contract an agent
-      // reads — one command, one answer, an exit code that says which refusal
-      // it hit — and wrapping it in a report would take that away.
+      // One task keeps the throwing path, so its exit code says which refusal
+      // it hit.
       if (tasks.length === 1) {
         const r = finishTask({ force: options.force, task: tasks[0] as string });
         if (options.json === true) out(JSON.stringify({ version: 1, tasks: [r] }));
@@ -451,8 +360,7 @@ yan must not reach for --force on its own initiative.`,
         return;
       }
 
-      // Several: stopping at the first failure would leave the rest silently
-      // untried, so every one is attempted and every one is reported.
+      // Several: every one is attempted, and every one is reported.
       const outcomes: Outcome[] = [];
       for (const task of tasks) {
         try {

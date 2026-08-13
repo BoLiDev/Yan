@@ -15,19 +15,16 @@ import { WorktreeError, type LeaseRow, type ReturnOptions } from '../../src/exte
 /**
  * `yan done` — the command that finishes a task.
  *
- * Two properties are what this file exists for, and both of them fail quietly
- * if they regress:
+ * Two properties, both of which fail quietly if they regress:
  *
  *   1. The default destroys nothing. A live shift stops the command before any
- *      tree is touched and before `complete` is set; a tree the pool's
- *      orphan-commit guard will not take back leaves the task open.
- *   2. `--force` is `user`'s answer, not a retry. It is the only thing in yan
- *      that reaches past that guard, so nothing else may
- *      grow a way to do it — `yan tree return` in particular must stay flagless.
+ *      tree is touched and before `complete` is set; a tree the guard will not
+ *      take back leaves the task open.
+ *   2. `--force` is `user`'s answer, and no other command may grow a way to
+ *      reach past the guard.
  *
- * The pool is a stand-in here so the order and the authority can be asserted
- * exactly. That force really does wipe a dirty tree, and really does leave the
- * commits alone, is proved against real git in
+ * The pool is a stand-in, so the order and the authority can be asserted
+ * exactly. What force does to a real tree is proved in
  * `src/externals/worktree/worktree.test.ts`.
  */
 
@@ -120,9 +117,6 @@ beforeEach(() => {
   delete process.env.YAN_TASK;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
   mkdirSync(tree, { recursive: true });
@@ -168,8 +162,8 @@ describe('the ordinary case', () => {
   });
 
   it('finds a tree left behind by a teardown that stopped halfway', () => {
-    // run/ is gone and the tree is still leased. The holder the pool records
-    // is <task>/<unit>/<sid>, which is why nothing had to be stored for this.
+    // run/ is gone and the tree is still leased: the pool's holder is what
+    // finds it.
     held('s7');
     expect(run().code).toBe(0);
     expect(calls[0]).toContain('holder=t042/auth/s7');
@@ -208,8 +202,7 @@ describe('--force is user\'s answer, and it is the whole authority', () => {
   });
 
   it('keeps the long-lived files of a shift it killed', () => {
-    // What a killed shift reported before it was killed is often the reason it
-    // was, so outcome.md and the brief survive. Only run/ is throwaway.
+    // outcome.md and the brief survive a kill; only run/ is throwaway.
     dispatched('s1');
     const dir = join(home, 'tasks', 't042', 'shifts', 's1');
     writeFileSync(join(dir, 'outcome.md'), '# s1\nI got stuck.\n');
@@ -219,12 +212,9 @@ describe('--force is user\'s answer, and it is the whole authority', () => {
   });
 
   it('never forces a return without a flag carrying `user`s word', () => {
-    // Forcing destroys work that exists nowhere else, so the rule is not "one
-    // command may do it" — it is that whoever does it had to be TOLD to. Two
-    // commands qualify: this one, and `yan tree return --discard --user-asked`.
-    // A third that learns to force a tree back without asking is the kind of
-    // edit nothing else would notice, so it is checked structurally: comments
-    // may name what is forbidden, code may not run it.
+    // Two commands may force a return, and both carry `user`'s answer. A
+    // third would be an edit nothing else notices, so it is checked
+    // structurally: comments may name what is forbidden, code may not run it.
     const CONSENTS = /\bforce\b|\buserAsked\b/;
     const unguarded: string[] = [];
     for (const file of readdirSync(join(process.cwd(), 'src', 'cli'))) {
@@ -253,9 +243,7 @@ describe('a tree that will not come back', () => {
   });
 
   it('under --force, says the task IS done and the slot is stranded', () => {
-    // Both halves are true and both have to be said: `user` asked for the task
-    // to be finished, and a slot that will not release is a separate problem
-    // they now have to know about.
+    // Both halves are said: the task is finished, and a slot is stranded.
     held('s1');
     returnRefusal = new WorktreeError('failed', 'cannot reset the tree');
 
@@ -278,8 +266,7 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   });
 
   it('refuses without a terminal rather than hanging on a prompt it cannot show', async () => {
-    // The half of the soft/hard rule that matters: an agent, a
-    // hook or a script that reached the multi-select would wait forever.
+    // An agent, a hook or a script that reached the multi-select would hang.
     const none = await yan(['done'], { YAN_TASK: undefined });
     expect(none.code).toBe(2);
     expect(none.out).toContain('which task?');
@@ -297,10 +284,8 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   });
 
   it('offers exactly the tasks that are still open, and drops them as they finish', async () => {
-    // The rows of the multi-select. They are `yan ls`'s own scan, so there is
-    // one owner for "which tasks are there" and the prompt cannot offer
-    // something the queue does not show. Clack itself is not driven here — the
-    // choices are, which is where the logic is.
+    // The rows of the multi-select, which come from `yan ls`'s own scan.
+    // Clack itself is not driven here; the choices are.
     const { finishableTasks } = await import('../../src/cli/done.js');
     Task.create('t043', 'the second one');
 

@@ -17,24 +17,14 @@ import { WorktreePool } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan shift done` against real git and the real pool, in the one case that
- * actually breaks: A squash merge.
+ * `yan shift done` against real git and the real pool, in the case that
+ * actually breaks: a squash merge, after which the integration branch does not
+ * contain the shift branch's HEAD.
  *
- * When the internal merge request is squash-merged, the integration branch does
- * not contain the shift branch's HEAD. Two things follow, and both are in
- * The rule under test:
- *
- *   1. An ancestry check would answer "not merged" about work that landed an
- *      hour ago. This test asserts that ancestry really does say no here, and
- *      that `yan shift done` clocks the shift out anyway, because it asked the
- *      host.
- *
- *   2. Deleting the remote shift branch removes its remote-tracking ref — which
- *      a worktree shares with its main clone — so `git branch -r --contains
- *      HEAD` goes empty and the pool's orphan-commit guard refuses to take the
- *      tree back. There is no force flag anywhere, so the slot would be
- *      stranded for good. The control below does exactly that, in the wrong
- *      order, and shows the refusal.
+ * Two things follow. Ancestry answers "not merged" about work that landed an
+ * hour ago, so the host has to be asked. And deleting the remote branch first
+ * empties `branch -r --contains HEAD`, so the orphan-commit guard refuses the
+ * return and strands the slot — the control below does exactly that.
  *
  * Only the host is a stand-in: whether an MR merged cannot be asked of a local
  * bare repository, and nothing here may touch the network.
@@ -113,9 +103,6 @@ beforeAll(async () => {
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'widget'));
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'widget', clone, { url: bare });
 
   // The integration branch this round works on.
@@ -197,12 +184,8 @@ describe('the control: the same situation in the WRONG order', () => {
 
 describe('an interrupted teardown can be finished', () => {
   it('derives which shift it was from the pool, and says what it is doing', async () => {
-    // The documented order deletes run/ (step 4) before returning the tree
-    // (step 5). So a return that refuses - or a kill, or a sleeping laptop -
-    // leaves run/ gone, the tree still leased and the remote branch still
-    // there, with nothing left in $YAN_HOME to say which shift they belonged
-    // to. Observed for real: the tree came back dirty because the install step
-    // the brief mandates had generated an untracked file.
+    // run/ is deleted before the tree is returned, so a refused return leaves
+    // run/ gone with the tree still leased and nothing to say whose it was.
     const tree = await dispatch('s5');
     await fxGit(['-C', tree, 'commit', '--allow-empty', '-m', 'work for s5']);
     await fxGit(['-C', tree, 'push', 'origin', 'yan/t042-auth-s5']);

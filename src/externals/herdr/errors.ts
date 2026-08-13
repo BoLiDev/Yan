@@ -1,11 +1,8 @@
 import { YanError, type YanErrorOptions } from '../../util/error.js';
 
 /**
- * What the terminal can fail with.
- *
- * These four are the closed set every Herdr error is mapped onto (`client.ts`
- * does the mapping). No Herdr code escapes the module: a caller branches on
- * `TerminalError.codes.notFound`, never on `agent_not_found`.
+ * What the terminal can fail with. Every Herdr error is mapped onto one of
+ * these by `cli.ts`, so no Herdr code reaches a caller.
  */
 const CODES = {
   usage: 'term_usage',
@@ -29,27 +26,16 @@ export class TerminalError extends YanError {
     return new TerminalError('usage', message, { exitCode: 2 });
   }
 
-  /**
-   * herdr answered rc 2: a CLI syntax error, which is a bug in yan and never a
-   * runtime condition. Exit 2 for the same reason.
-   */
+  /** herdr refused the command shape, which is a bug in yan. Exit 2. */
   public static bug(message: string): TerminalError {
     return new TerminalError('bug', message, { exitCode: 2 });
   }
 }
 
 /**
- * What the event stream can fail with.
- *
- * The same closed-set discipline as the terminal's: no Herdr `error.code`
- * escapes this module. A caller branches on `EventsError.codes.refused`, never
- * on `invalid_request` or `unsupported_event_wait_match`.
- *
- * `closed` is the one that carries a design decision. A subscription that ends
- * is not a failure of yan and not a reason to stop watching, so it is treated
- * as a state that arrives rather than one that surprises. It
- * is separate from `unreachable` because the recovery differs: `closed` means
- * reconnect, `unreachable` means there is nothing there to reconnect to.
+ * What the event stream can fail with; no Herdr `error.code` reaches a caller.
+ * `closed` means reconnect, `unreachable` means there is nothing there to
+ * reconnect to.
  */
 const EVENT_CODES = {
   usage: 'events_usage',

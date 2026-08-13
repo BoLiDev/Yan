@@ -11,12 +11,9 @@ import { repoRoot } from '../../../tests/helpers/fixtures.js';
 /**
  * The socket client, against a real server speaking Herdr's protocol.
  *
- * It is a real `net` server on a real endpoint — a named pipe on Windows, a
- * unix socket elsewhere — because the thing most likely to be wrong here is the
- * transport itself, and a fake object in front of it would prove nothing about
- * the one platform rule this module exists to hold.
- *
- * Herdr is not needed and is never started.
+ * A real `net` server on a real endpoint — a named pipe on Windows, a unix
+ * socket elsewhere — because the transport is what is under test. Herdr is
+ * never started.
  */
 
 interface FakeHerdr {
@@ -300,9 +297,7 @@ describe('what arrives on a subscription', () => {
 
 describe('a subscription that ends', () => {
   it('is reported, and reconnecting subscribes again', async () => {
-    // Reconnect is not optional. Nothing has ever observed a Herdr
-    // restart under a subscriber, so the path is tested by ending the
-    // connection under it rather than by hoping.
+    // The reconnect path is tested by ending the connection under it.
     const herdr = await fakeHerdr();
     const events = client(herdr.endpoint);
     let closed = 0;
@@ -363,9 +358,8 @@ describe('the module cannot move the user or close anything', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('never spells focus, close or stop as a herdr verb', () => {
-    // The same two regressions, applied to the second module that
-    // talks to Herdr: focusing marks a tab seen and turns the `done` yan is
-    // waiting for into an `idle` it ignores.
+    // Focusing marks a tab seen, which turns the `done` yan is waiting for
+    // into an `idle` it ignores.
     expect(source).not.toContain('agent focus');
     expect(source).not.toContain('pane.focus');
     expect(source).not.toContain('workspace.close');

@@ -4,41 +4,15 @@ import { dirname } from 'node:path';
 import { YanError, type YanErrorOptions } from './error.js';
 
 /**
- * The one locking primitive in yan.
+ * The one locking primitive in yan: a file created exclusively, holding the
+ * owner's stamp.
  *
- * The lock is a file, taken with `fs.open(path, 'wx')` — an atomic exclusive
- * create on both platforms — and the owner's identity is its contents. `flock`
- * is not available under Git Bash and `noclobber` is not reliably atomic on
- * MSYS2 filesystems, so neither is an option here.
+ *   {"pid": 1234, "host": "…", "at": 1786342616, "identity": "…"}
  *
- *   {"pid": 1234, "host": "…", "at": 1786342616}
- *
- * Stale locks: a holder that died leaves the file behind. `process.kill(pid, 0)`
- * is the liveness test; it reports success for a live process we may not signal
- * (EPERM), which is the conservative direction — we would rather leave a lock
- * alone than steal one that is still held. Only locks taken on this machine are
- * reclaimed, because a pid from another host means nothing here.
- *
- * Three callers, and there must never be a fourth without a reason written
- * down:
- *
- *   1. The worktree pool, per clone. See `src/externals/worktree/` for why it
- *      needs one at all — the short version is that `git worktree add` writes
- *      the shared clone's `.git/config`, so it is not concurrency-safe against
- *      one repository even when the slot allocation is.
- *   2. Supervision's single flight. Under Claude every Stop can fire autoarm,
- *      and without it several watchers start.
- *   3. `yan continue`'s per-task enter lock, which is not the same kind of thing
- *      as the other two. They serialise a critical section; this one is the
- *      answer to a question — is a yan already running on this task? That only
- *      works because `yan continue` lives exactly as long as the main agent it
- *      started, so the file's own pid is the fact. `pidAlive` is what keeps a
- *      killed yan's lock reclaimable rather than permanent.
- *
- * They want two shapes of the same lock, which is why there are two entry
- * points and not two schemes: the pool wraps a body (`withLock`), while
- * supervision and `continue` hold it across something long (`claim` /
- * `release`).
+ * Two shapes of the same lock — `withLock` wraps a body, `claim`/`release`
+ * hold one across something longer. A lock whose owner died is reclaimable,
+ * but only when it was taken on this machine: a pid from another host is not
+ * ours to judge.
  */
 
 const CODES = { timeout: 'lock_timeout' } as const;
@@ -58,18 +32,10 @@ interface LockRecord {
   pid: number;
   host: string;
   at: number;
-  /**
-   * What the lock is for, when the caller said.
-   *
-   * A lock file records who holds it and cannot know why. `tasks/<id>/run/wait.lock`
-   * and `tasks/<id>/.enter.lock` are two live locks in the same tree with nothing
-   * to do with each other, so supervision has to be able to ask "is this a
-   * watcher's lock" rather than merely "is a lock there".
-   */
+  /** What the lock is for, when the claimer said. */
   identity?: string;
 }
 
-/** What a holder can say about itself when it claims a lock. */
 export interface LockOwner {
   readonly pid: number;
   readonly host: string;
@@ -80,9 +46,8 @@ export interface LockOwner {
 /** A lock with no pid stamp yet is given this long before it is reclaimable. */
 const UNSTAMPED_GRACE_SECONDS = 10;
 
+/** Blocks the thread. */
 function sleepMs(ms: number): void {
-  // Synchronous on purpose: everything around it is synchronous file I/O, and
-  // an async lock would infect every caller for no benefit.
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
@@ -97,11 +62,8 @@ function readRecord(file: string): LockRecord | undefined {
 }
 
 /**
- * Is this process still there?
- *
- * Signal 0 reports success for a live process we may not signal (EPERM), which
- * is the conservative direction: we would rather leave a lock alone than steal
- * one that is still held.
+ * Is this process still there? A process running as another user counts as
+ * alive, so the answer errs towards "held".
  */
 export function pidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -109,19 +71,13 @@ export function pidAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    // EPERM means the process exists and is not ours to signal.
     return (err as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 
 /**
- * True when a directory sits at the lock path.
- *
- * The other lock scheme: a directory rather than a file. Nothing here writes
- * one, and the two are not compatible. What matters is that a caller finding
- * one reads it as "somebody holds this" and leaves it alone — treating it as a
- * stale file to reclaim would mean `rm`-ing a directory another process is
- * standing in.
+ * True when a directory sits at the lock path — the older scheme, which
+ * nothing here writes and which is never reclaimed as stale.
  */
 function isShellLock(file: string): boolean {
   try {
@@ -131,7 +87,7 @@ function isShellLock(file: string): boolean {
   }
 }
 
-/** Who holds this lock, as far as the file says. `undefined` when there is no lock. */
+/** Who the lock file says holds it; undefined when absent or unstamped. */
 export function owner(file: string): LockOwner | undefined {
   if (!existsSync(file)) return undefined;
   const record = readRecord(file);
@@ -139,15 +95,17 @@ export function owner(file: string): LockOwner | undefined {
   return record;
 }
 
-/** True when the file exists but nobody owns it any more. */
+/**
+ * True when the file exists but nobody owns it any more. A directory-shaped
+ * lock, one held on another host, and one whose stamp is younger than ten
+ * seconds all count as held.
+ */
 export function isStale(file: string): boolean {
   if (!existsSync(file)) return false;
   if (isShellLock(file)) return false;
   const record = readRecord(file);
   if (record === undefined || typeof record.pid !== 'number') {
-    // No stamp. Either a competitor is between its create and its write, or a
-    // crash left a truncated file. Age decides, and the answer is "not stale"
-    // while it could still be the former.
+    // Unstamped: a competitor may be between its create and its write.
     let age = 0;
     try {
       age = (Date.now() - statSync(file).mtimeMs) / 1000;
@@ -166,12 +124,9 @@ export function isHeld(file: string): boolean {
 }
 
 /**
- * Take the lock if it is free, and say so. Never waits, never throws.
- *
- * The scoped `withLock` below is the shape most callers want. This one exists
- * for the single caller that cannot use it: `yan wait` holds the lock for the
- * whole life of an asynchronous watcher, and a body-shaped helper would release
- * it the moment that body returned a promise rather than a result.
+ * Take the lock if it is free, and say whether it was taken. Never waits,
+ * never throws, and never reclaims a stale lock — the caller decides that.
+ * Prefer `withLock` unless the lock outlives a single call.
  */
 export function claim(file: string, identity?: string): boolean {
   mkdirSync(dirname(file), { recursive: true });
@@ -195,22 +150,21 @@ export function claim(file: string, identity?: string): boolean {
   return true;
 }
 
-/** Give the lock back. Releasing a lock that is already gone is not an error. */
+/** Give the lock back. Never throws, including for a lock already gone. */
 export function release(file: string): void {
   try {
     rmSync(file, { force: true });
   } catch {
-    // A lock we cannot remove is a worse problem than a lock we hold, but not
-    // one the holder can do anything about on its way out.
+    // Swallowed: nothing a holder on its way out can do about it.
   }
 }
 
 /**
- * Run `body` while holding `file`, and release it however `body` ends.
+ * Run `body` while holding `file`, releasing it however `body` ends. Waits for
+ * a held lock and reclaims a stale one.
  *
- * Throws a `YanError` with code `lock_timeout` when the lock could not be taken
- * within `timeoutSeconds` — a timeout is a real condition a caller has to see,
- * not something to work around.
+ * @throws LockError `lock_timeout` when the lock was still held after
+ *   `timeoutSeconds`. `body` never runs in that case.
  */
 export function withLock<T>(file: string, timeoutSeconds: number, body: () => T): T {
   const deadline = Date.now() + Math.max(0, timeoutSeconds) * 1000;
@@ -218,8 +172,6 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
   for (;;) {
     if (claim(file)) break;
     if (isStale(file)) {
-      // Reclaim and try again immediately. A losing racer simply fails its own
-      // exclusive create on the next turn of this loop.
       rmSync(file, { force: true });
       continue;
     }

@@ -1,32 +1,16 @@
 #!/usr/bin/env node
 //
-// yan - the entry point npm installs onto PATH.
-//
-// ---------------------------------------------------------------------------
-// WHY THIS EXISTS ALONGSIDE bin/yan
-// ---------------------------------------------------------------------------
-//
-// bin/yan is the path baked into .claude/settings.json, .codex/hooks.json,
-// every shift's brief and AGENTS.md, and it stays a bash script for the reason
-// written at the top of it. It cannot also be the npm `bin` target: npm's
-// Windows shim reads the shebang, sees bash, and hands bash a Windows path,
-// which bash reads as escape sequences -
-//
-//     /bin/bash: C:UserslibodAppDataRoamingnpm/node_modules/yan/bin/yan
-//
-// so the shim resolves nothing. A `#!/usr/bin/env node` shebang has no such
-// problem on any platform, so PATH installs come through here instead.
-//
-// It does the same three things bin/yan does, minus the `node` check, which is
-// answered by the fact that this file is running at all.
+// yan - the entry point npm installs onto PATH, beside bin/yan, which stays a
+// bash script and cannot be npm's `bin` target: npm's Windows shim hands bash
+// a Windows path, which bash reads as escape sequences.
 //
 //   1  find $YAN_HOME
 //   2  check the one remaining hard dependency
-//   3  spawn the compiled root, with the ORIGINAL words
+//   3  spawn dist/cli/yan.js, with the ORIGINAL words
 //
-// Step 3 spawns rather than imports on purpose: dist/cli/yan.js only calls
-// main() when process.argv[1] ends in `yan.js` (src/cli/yan.ts), so importing
-// it from a file named anything else is a silent no-op.
+// Spawned rather than imported: dist/cli/yan.js only runs when process.argv[1]
+// ends in `yan.js`, so importing it from here would do nothing at all.
+//
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';

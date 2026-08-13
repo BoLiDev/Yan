@@ -15,101 +15,50 @@ import { CommandError } from './shared/errors.js';
 import { action, out } from './shared/action.js';
 
 /**
- * `yan wait` — the watcher.
+ * `yan wait` — the watcher. Unbounded, or stopping dead at `--seconds N`; the
+ * sources are the same either way.
  *
- * One command, two shapes, and a pure observer.
+ *   signal        run/signal exists      the shift reported via `yan report`
+ *   agent-status  a Herdr subscription   blocked / done, seen from outside
+ *   agent-alive   a liveness poll        the agent died and cannot say so
  *
- *   yan wait                 Claude's Stop autoarm runs this in the hook's
- *                            foreground for minutes to hours
- *   yan wait --seconds N     the Codex model calls this as a foreground tool;
- *                            it stops dead at N so the model gets control back
+ * A pure observer, holding no durable state: killing it loses nothing. It
+ * writes only other people's channels — the wake file, the single-flight lock,
+ * the beacon — plus each shift's `run/pulse`, which nothing here ever decides
+ * from.
  *
- * Same sources either way. The only difference is when it gives up.
- *
- * It holds no durable state of its own. A timeout, a kill, or dying with its
- * process tree loses nothing: the shift is still in its own pane and every fact
- * it acted on is a file somebody else owns. The three things it writes are all
- * somebody else's channel — the wake file the model drains, the single-flight
- * lock, and the beacon other processes read.
- *
- * The sources, and why there are three words for two channels.
- *
- *   signal        run/signal exists         the shift reported via `yan report`
- *   agent-status  a Herdr subscription      blocked / done, observed from
- *                                           outside, without the shift saying
- *                                           anything
- *   agent-alive   termAgentAlive = dead     the agent died and cannot say so
- *
- * This command also samples each shift's terminal into `run/pulse`, and that is
- * not a fourth source. A digest of the last few lines is a poor thing to WAKE
- * on — an agent that is thinking is not moving, and one printing a spinner is —
- * so nothing here ever decides anything from it. It is recorded for `yan state`
- * to report, because a long silence and a stuck shift look identical from
- * outside and only the pulse tells them apart.
- *
- * The liveness poll is a poll for a reason, not an oversight: `pane_exited` is
- * in Herdr's event schema but not in its subscription schema, and `events.wait`
- * refuses it too. "The agent died" has no push channel on this
- * build, so it stays a poll for as long as that is true.
- *
- * There is deliberately no fourth source. yan does not poll pull requests or
- * CI, because a shift does not wait for CI before clocking out. When every
- * shift has clocked out and outbound CI is running there is nothing here to
- * wait for — the next `yan session-start` asks the forge. A known and accepted
- * gap, not an omission.
- *
- * Edge-triggered versus level-triggered.
- *
- * `signal` is an edge: this command is its only reader, so it writes the reason
- * down and then removes the marker. A crash in between repeats a wake; the
- * reverse order would lose one.
- *
- * Everything else is a level. A dead agent stays dead and a blocked agent stays
- * blocked until somebody acts, so a reason still sitting undrained in the wake
- * file suppresses an identical one — or a rearmed watcher would wake the model
- * again the instant it started, for ever.
+ * `signal` is edge-triggered, so its marker is removed once the reason is
+ * written down. The others are level-triggered and stay true until somebody
+ * acts, so an identical reason still undrained in the wake file suppresses a
+ * second one.
  *
  * Exit codes
  *
- *     0  something actionable happened; the reason is on stdout and in the wake
- *        file. Claude's autoarm turns this into a rewake; Codex drains and acts
+ *     0  something actionable happened; the reason is on stdout and in the
+ *        wake file
  *   124  a --seconds slice ended quietly while shifts are still being watched
- *     3  there is nothing (left) to supervise. silent in the unbounded shape
+ *     3  there is nothing (left) to supervise
  *     4  another watcher already holds the single-flight lock
  *     2  called wrongly            1  it did not work
  */
 
-/** The whole list. `yan wait --sources` prints it, and nothing else may add to it. */
+/** What `yan wait --sources` prints. */
 export const WAIT_SOURCES = ['signal', 'agent-status', 'agent-alive'] as const;
 
 const DEFAULT_INTERVAL_SECONDS = 5;
 const DEFAULT_CHECKPOINT_SECONDS = 180;
 
-/**
- * How many lines of a pane the pulse digests.
- *
- * Enough that a change shows up, few enough that reading it every turn is
- * cheap. The tail is where the movement is: an agent that has scrolled past its
- * own output is still working, and one whose last forty lines are identical to
- * the last forty lines a minute ago is not visibly doing anything.
- */
+/** How many lines of a pane's tail the pulse digests. */
 const PULSE_LINES = 40;
 
 /**
- * How often a pane is actually read.
- *
- * Reading is a process spawn per shift, and the loop turns every few seconds,
- * so sampling every turn would triple what this command costs a laptop for a
- * signal that is measured in minutes. Fifteen seconds is well inside the
- * freshness window `yan state` requires and well outside the loop's.
- *
- * The throttle reads the pulse file rather than keeping a timer, so it is right
- * across a watcher that died and restarted — which is exactly when a private
- * timer would resample everything at once.
+ * How often a pane is read, which is far less often than the loop turns. The
+ * throttle is the pulse file's own `seen`, so a restarted watcher does not
+ * resample everything at once.
  */
 const PULSE_EVERY_SECONDS = 15;
 
-/** What `yan wait` needs from the terminal: a status snapshot, a liveness verdict, and the pane's text. */
+/** What `yan wait` needs from the terminal. `Terminal` is the real one. */
 export interface StatusReader {
   list(container?: string): readonly { readonly pane: string; readonly status: AgentStatus }[];
   agentAlive(pane: string): 'alive' | 'dead' | 'unknown';
@@ -134,7 +83,7 @@ export interface WatchOptions {
   readonly intervalSeconds?: number;
   readonly terminal?: StatusReader;
   readonly events?: EventSource;
-  /** Where a degraded-mode note goes. Separated so a test can read it. */
+  /** Where a degraded-mode note goes; stderr by default. */
   readonly note?: (line: string) => void;
 }
 
@@ -150,11 +99,9 @@ interface Watched {
 }
 
 /**
- * The watcher, without the process around it.
- *
- * Separated from the Commander command for one reason: a test drives this and
- * gets a result back, where driving the command would mean driving
- * `process.exit`. Everything that decides anything is here.
+ * Watch until something actionable happens, returning the exit code and the
+ * reason rather than exiting. Falls back to polling when the event stream is
+ * not available, and never throws for a terminal it cannot reach.
  */
 export async function watch(options: WatchOptions): Promise<WatchResult> {
   const sup = new Supervision(options.task);
@@ -165,9 +112,7 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
 
   if (sup.liveCount() === 0) return { code: 3 };
 
-  // Single flight. Under Claude every Stop can fire autoarm, so without this a
-  // busy session ends up with several watchers, each able to wake the model for
-  // the same fact.
+  // Single flight: one watcher per task, or the model is woken twice over.
   if (sup.lockTaken()) {
     return { code: 4, reason: `another watcher is already on duty for task ${options.task}` };
   }
@@ -175,10 +120,8 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
     return { code: 4, reason: 'another watcher took the single-flight lock first' };
   }
 
-  // Only now, because a watcher that refused to start must never release the
-  // lock it did not take. A watcher is meant to be killable — it is the process
-  // tree of a hook the harness owns — so dying has to leave the lock behind for
-  // nobody.
+  // Registered only now, so a watcher that refused to start cannot release a
+  // lock it never took. Being killed has to leave the lock behind for nobody.
   const letGo = (): void => {
     sup.releaseLock();
   };
@@ -218,18 +161,12 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
     stir();
   });
 
-  /** The panes this watcher has a subscription for, so it does not ask twice. */
   const asked = new Set<string>();
 
   /**
-   * Subscribe to every live pane that is not subscribed yet.
-   *
-   * Only panes herdr currently lists are asked about, and that is not caution:
-   * a subscription naming a pane the server does not know is not refused with
-   * an error — **the server closes the connection**, taking every other pane's
-   * subscription with it. A stale pane id in `run/meta.json`
-   * would otherwise cost the whole watcher its event stream, once per turn,
-   * for ever. The snapshot is what says which panes are real.
+   * Subscribe to every live pane that is not subscribed yet, and that herdr
+   * currently lists — an id it does not know closes the whole connection,
+   * taking every other pane's subscription with it.
    */
   const subscribeToNew = async (live: readonly Watched[]): Promise<void> => {
     const missing = panesOf(live).filter((pane) => !asked.has(pane));
@@ -242,10 +179,8 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
   };
 
   try {
-    // subscribe, then snapshot, then block. The last snapshot is what closes
-    // the window for a `yan wait` starting up over shifts that are already
-    // running: a subscription is an edge trigger, so a shift that went
-    // `blocked` before anybody was listening would never be reported.
+    // Subscribe, then snapshot: a subscription is an edge trigger, so a shift
+    // that went `blocked` before anybody was listening needs the snapshot.
     let state: WatcherState = 'polling';
     try {
       await events.open();
@@ -263,19 +198,16 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
       sup.touchBeacon(state);
 
       const live = sup.liveShifts().map(toWatched);
-      // Sampled here rather than in `yan state` on purpose: the watcher is
-      // already awake on a timer, so the reading is about the shift instead of
-      // about how often somebody asked. See records/shift/pulse.ts.
       takePulses(terminal, live);
       for (const event of arrived.splice(0)) status.set(event.pane, event.status);
-      // Without a subscription the status has to be asked for. Same facts, one
-      // poll late, and never from a content hash.
+      // Without a subscription the status has to be asked for: same facts, one
+      // poll late.
       if (state !== 'subscribed') snapshot(terminal, status);
 
       const found = look(sup, terminal, live, status);
       if (found !== undefined) {
-        // The reason is written down before the marker is consumed: a crash in
-        // between repeats a wake, and repeating one is free.
+        // Written down before the marker is consumed: a crash in between
+        // repeats a wake, where the other order would lose one.
         sup.wakeWrite(found.reason);
         if (found.consume !== undefined) rmSync(found.consume, { force: true });
         return { code: 0, reason: found.reason };
@@ -285,11 +217,8 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
       if (bounded && Date.now() >= deadline) return { code: 124 };
 
       if (dropped || !events.connected) {
-        // A subscription that ends is reconnected and re-subscribed from disk,
-        // not from what this process happened to be holding: shifts may have
-        // come and gone while the connection was down. The snapshot on the way
-        // back in closes the window the reconnect opened, exactly as the one at
-        // startup does.
+        // Re-subscribed from disk rather than from memory: shifts may have
+        // come and gone while the connection was down.
         state = 'reconnecting';
         sup.touchBeacon(state);
         asked.clear();
@@ -308,8 +237,7 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
           dropped = false;
         }
       } else if (state === 'subscribed') {
-        // A pane may have appeared since the last turn: a shift dispatched
-        // while this watcher was already looping still has to be subscribed to.
+        // A shift dispatched while this watcher was looping has a new pane.
         try {
           await subscribeToNew(live);
         } catch {
@@ -338,15 +266,14 @@ interface Found {
 }
 
 /**
- * What the sources say, in the order a stronger fact beats a weaker one.
+ * The first actionable thing any live shift shows, or undefined. Per shift, in
+ * order: a reported signal, a dead agent, then its status —
  *
- * The mapping, complete:
+ *   blocked  → wake: it is sitting on an approval or a question
+ *   done     → wake, to look; never a verdict
+ *   idle | working | unknown  → not actionable
  *
- *   blocked  → escalate: the shift is sitting on an approval or a question
- *   done     → wake, and look. never a verdict — see below
- *   idle     → not actionable: the tab has been seen, so `user` already knows
- *   working  → not actionable: normal
- *   unknown  → not actionable: explicitly not a completion signal
+ * A reason already waiting undrained in the wake file is skipped.
  */
 function look(
   sup: Supervision,
@@ -365,8 +292,7 @@ function look(
 
     if (shift.pane === '') continue;
 
-    // `unknown` is never rounded up to `dead`: where the terminal cannot tell,
-    // yan says so and keeps watching.
+    // `unknown` is never rounded up to `dead`.
     let alive: 'alive' | 'dead' | 'unknown';
     try {
       alive = terminal.agentAlive(shift.pane);
@@ -386,12 +312,8 @@ function look(
       continue;
     }
     if (seen === 'done') {
-      // Done is a reason to look, never a verdict. The plan-approval prompt
-      // arrives as `done` because no screen rule matches it,
-      // so a shift parked on a plan approval looks exactly like a shift that
-      // has finished — and clocking out is destructive. Rule 3 is the objective
-      // condition, and this sentence is here because this is where it would be
-      // forgotten.
+      // A plan-approval prompt also arrives as `done`, so this is a reason to
+      // look and never a verdict.
       const reason =
         `done: ${shift.sid} - herdr reports unseen work finished. Look before acting: ` +
         `a shift clocks out only once its merge request has merged into the integration branch`;
@@ -402,13 +324,9 @@ function look(
   return undefined;
 }
 
-/** One `agent list` for every live pane's status. The snapshot, and the poll. */
 /**
- * Digest every live shift's terminal.
- *
- * Never fatal and never noisy. A terminal yan cannot read is one fact missing
- * from `yan state`, not a reason to stop watching, and the next turn asks
- * again — so a failure here is swallowed per shift rather than per turn.
+ * Digest every live shift's terminal into its `run/pulse`, at most once per
+ * PULSE_EVERY_SECONDS. Never throws: a pane that cannot be read is skipped.
  */
 function takePulses(terminal: StatusReader, live: readonly Watched[]): void {
   const now = Date.now();
@@ -425,13 +343,15 @@ function takePulses(terminal: StatusReader, live: readonly Watched[]): void {
   }
 }
 
+/**
+ * Merge one `agent list` into the status map. Never throws: a terminal that
+ * cannot be reached leaves the map as it was.
+ */
 function snapshot(terminal: StatusReader, into: Map<string, AgentStatus>): void {
   let listed: readonly { readonly pane: string; readonly status: AgentStatus }[];
   try {
     listed = terminal.list();
   } catch {
-    // A terminal yan cannot reach is not a reason to stop watching: run/signal
-    // still works, and the next turn asks again.
     return;
   }
   for (const agent of listed) {
@@ -444,19 +364,9 @@ function toWatched(shift: { sid: string; run: string; meta: () => { agentId?: st
 }
 
 /**
- * The panes a subscription can carry.
- *
- * A subscription naming one pane Herdr does not know is refused whole, so an id
- * this watcher cannot vouch for would cost every other shift its subscription
- * The filter is not about where the bad id came from; it is
- * about the blast radius of asking.
- *
- * Two produce one, and neither is historical. `shift new` records the dispatch
- * before the agent is running, so `pane` is the empty string for that window;
- * and `run/meta.json` outlives the process that wrote it, so a shift dispatched
- * by an older yan carries whatever that yan believed. A filtered shift is not
- * unwatched — it keeps `run/signal` and the liveness poll, which is what a shift
- * with no pane had all along.
+ * The panes a subscription can carry. A shift whose recorded pane is not an id
+ * — a dispatch mid-flight, or an older record — is dropped, and keeps
+ * `run/signal` and the liveness poll.
  */
 function panesOf(live: readonly Watched[]): string[] {
   return live.map((s) => s.pane).filter((pane) => isPaneId(pane));
@@ -536,9 +446,8 @@ export const command = new Command('wait')
           process.stderr.write(`wait: ${result.reason} - not starting a second one\n`);
         }
         if (result.code === 3 && seconds !== undefined) {
-          // The bounded shape says so on stderr, because the Codex model is the
-          // caller and needs to know to stop slicing. The unbounded shape is
-          // silent: a quiet end there must not wake anybody.
+          // Only the bounded shape says so: its caller is a model that has to
+          // know to stop slicing, where a quiet end must wake nobody.
           process.stderr.write(
             `wait: nothing to supervise in task ${task} - every shift has clocked out\n`,
           );

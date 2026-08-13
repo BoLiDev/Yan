@@ -1,9 +1,6 @@
-/**
- * The vocabulary the worktree pool speaks. Nothing here knows about git, the
- * file system, or how a lease is stored — those are `lease.ts` and `layout.ts`.
- */
+/** The vocabulary the worktree pool speaks. */
 
-/** A lease record as it is written to disk. `version` is the schema hook. */
+/** A lease record as it is written to disk. */
 export interface Lease {
   readonly version: number;
   readonly slot: number;
@@ -24,11 +21,8 @@ export interface LeaseGrant {
 }
 
 /**
- * One row of `status()`.
- *
- * Deliberately not a `Lease`: `version` is a storage detail, and `pid` is not a
- * fact about the tree at all. A lease whose owning process died is still held,
- * so showing the pid invites the reader to conclude the opposite.
+ * One row of `status()`. Carries no `pid`: a lease whose owning process died
+ * is still held, so the pid says nothing about the tree.
  */
 export type LeaseRow = Omit<Lease, 'version' | 'pid'>;
 
@@ -39,13 +33,8 @@ export interface ReturnExpectation {
 }
 
 /**
- * What `return()` takes: the identity check, plus the one way past the
- * orphan-commit guard.
- *
- * `force` is not a convenience. The capability lives here, where the guard is;
- * the authority to use it lives in the single command that can carry `user`'s
- * consent, `yan done --force`. `yan tree return` exposes no flag for it, which
- * is why that command looks oddly incomplete next to this type.
+ * What `return()` takes. `force` skips the orphan-commit guard, and only a
+ * command carrying `user`'s consent may set it.
  */
 export interface ReturnOptions extends ReturnExpectation {
   readonly force?: boolean;

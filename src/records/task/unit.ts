@@ -3,12 +3,8 @@ import { asString, editUnitIn, readDocument } from './document.js';
 import { ENDS, MODES, type HistoryEnd, type HistoryEntry, type ScalarField, type UnitData } from './types.js';
 
 /**
- * One `unit` of a task: one delivery channel, one integration branch, one
- * outbound merge request.
- *
- * Its state is identity, not data — the task's file and this unit's name. Every
- * method re-reads, because another process may have written in between and a
- * cached document would be a lie with a long half-life.
+ * One `unit` of a task: one integration branch, one outbound merge request.
+ * Holds identity only — every method re-reads the task file.
  */
 export class Unit {
   private readonly file: string;
@@ -16,21 +12,29 @@ export class Unit {
 
   public readonly name: string;
 
-  /** Built by `Task.unit()`; there is no reason to construct one by hand. */
+  /** Use `Task.unit()`, which checks the unit exists; this does not. */
   public constructor(taskFile: string, taskId: string, name: string) {
     this.file = taskFile;
     this.taskId = taskId;
     this.name = name;
   }
 
-  /** This unit as it is on disk right now. */
+  /**
+   * This unit as it is on disk right now.
+   *
+   * @throws TaskError `missing` when the unit is no longer in the document.
+   */
   public read(): UnitData {
     const found = readDocument(this.file, this.taskId).units.find((u) => u.name === this.name);
     if (found === undefined) throw new TaskError('missing', `no such unit: ${this.name}`);
     return found;
   }
 
-  /** The only writer of the four current scalars. It never touches history[]. */
+  /**
+   * Overwrite one scalar field, leaving `history[]` alone.
+   *
+   * @throws TaskError when setting `mode` to something outside MODES.
+   */
   public set(field: ScalarField, value: string): void {
     if (field === 'mode' && !(MODES as readonly string[]).includes(value)) {
       throw TaskError.usage(`invalid mode '${value}' - one of: ${MODES.join(' ')}`);
@@ -53,23 +57,19 @@ export class Unit {
   }
 
   /**
-   * How many rounds this unit has delivered or abandoned.
-   *
-   * The generated integration branch name carries r<n>, where n is
-   * length(history) + 1 — so the round number is derived and never stored, and
-   * cannot disagree with the history it is counting.
+   * How many rounds this unit has finished. The round in progress is not
+   * counted, so the current one is `rounds() + 1`.
    */
   public rounds(): number {
     return this.read().history.length;
   }
 
   /**
-   * The only history writer in the code base.
+   * Append one entry to `history[]`, leaving the existing ones untouched.
    *
-   * It builds `history + [entry]`, so every existing entry is carried across
-   * untouched by construction — there is no index parameter anywhere in this
-   * class, which is how "history[] is append-only" is enforced rather than
-   * merely intended. Pass an empty string for `at` to mean today.
+   * @param at an ISO date, or `''` for today.
+   * @throws TaskError when branch, target or end is empty, or `end` is not one
+   *   of ENDS.
    */
   public appendHistory(
     branch: string,
@@ -86,11 +86,11 @@ export class Unit {
   }
 
   /**
-   * Start a new round: archive the current branch/target/mr into history[],
-   * then overwrite the branch and clear mr — in one tmp → mv, because a crash
-   * between the archive and the overwrite would lose the round it was in.
+   * Start a new round: archive the current branch, target and mr into
+   * `history[]` under `end`, then move to `newBranch` and clear mr. One write,
+   * so a crash leaves either the old round or the new one.
    *
-   * Deciding `end` is the caller's business, not this record's.
+   * @throws TaskError when `newBranch` is empty or `end` is not one of ENDS.
    */
   public rotate(end: string, newBranch: string, at = ''): void {
     if (!newBranch) throw TaskError.usage('rotating a unit needs the new branch name');
@@ -125,7 +125,6 @@ function historyEntry(
   }
   const when = at === '' ? new Date().toISOString().slice(0, 10) : at;
   const entry: HistoryEntry = { branch, target, at: when, end: end as HistoryEnd };
-  // `mr` only when there is one: an abandoned round may never have opened one.
   if (mr !== undefined && mr !== null && mr !== '') entry.mr = mr;
   return entry;
 }

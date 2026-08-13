@@ -7,11 +7,8 @@ import { LockError } from '../../src/util/lock.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
 
 /**
- * The port of `tests/unit/lib-lock.test.sh`.
- *
- * The primitive is `fs.open(path, 'wx')`, not a
- * mkdir scheme and not a second invention. Two callers, and they are named in
- * `src/util/lock.ts`.
+ * The one locking primitive: an exclusive file create, with the owner's stamp
+ * inside it.
  */
 
 afterAll(cleanupTempDirs);

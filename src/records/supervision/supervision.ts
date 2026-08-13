@@ -7,29 +7,17 @@ import { SupervisionError } from './errors.js';
 import { beaconAge, readBeacon, writeBeacon, type WatcherState } from './beacon.js';
 
 /**
- * `tasks/<id>/run/` — the four files supervision keeps, and the predicates that
- * read them.
+ * The four files under `tasks/<id>/run/` that supervision keeps, and the
+ * predicates that read them. Nothing here polls or decides; the wait sources
+ * live in `yan wait`.
  *
- * This is not a layer over the wait sources. Nothing here polls and nothing
- * here decides; the sources live in `yan wait`. What is here is the format, so
- * that `yan wait`, the Stop autoarm and the turn-end guard cannot drift about
- * where the files are or about what "the watcher is healthy" means. Three
- * private copies of that predicate is exactly how a guard and a watcher end up
- * disagreeing about who is on duty.
- *
- *   run/wake            the reason, carried from "wait exited" to the model's
- *                       next turn. `yan wait` writes it, `yan drain` clears it
- *   run/wait.lock       the single-flight lock, on util/lock.ts's scheme and
- *                       never a second one
- *   run/beacon          attendance for the watcher; see beacon.ts
- *   run/guard-failures  the turn-end guard's own count, because Claude's
- *                       `stop_hook_active` cannot be trusted as a one-shot
- *
- * All four belong to the task, because supervision is per-yan and a yan is
- * per-task — which is also where `yan drain` already looks.
+ *   run/wake            wake reasons, written by `yan wait`, cleared by `yan drain`
+ *   run/wait.lock       the single-flight lock, on util/lock.ts's scheme
+ *   run/beacon          the watcher's attendance; see beacon.ts
+ *   run/guard-failures  how often the turn-end guard has blocked
  */
 
-/** How old the beacon may be before the watcher stops counting as healthy. */
+/** How old the beacon may be, from `$YAN_WATCH_BEACON_MAX` or 300 seconds. */
 function beaconMaxSeconds(): number {
   const configured = Number(process.env.YAN_WATCH_BEACON_MAX ?? '');
   return Number.isFinite(configured) && configured > 0 ? configured : 300;
@@ -46,19 +34,17 @@ export class Supervision {
   public readonly beacon: string;
   public readonly guard: string;
 
-  /**
-   * Why the last health question was answered no.
-   *
-   * Read it straight after asking, because every later predicate overwrites it.
-   * It is a sentence for a human or for the model; nothing branches on it.
-   */
   private lastWhy = '';
 
+  /**
+   * `$YAN_WATCH_DIR` and `$YAN_WAKE_FILE` override where the files are looked
+   * for, and `yan drain` honours the same two.
+   *
+   * @throws SupervisionError when `task` is empty.
+   */
   public constructor(task: string) {
     if (task === '') throw SupervisionError.usage('a task id is required');
     this.task = task;
-    // $YAN_WATCH_DIR and $YAN_WAKE_FILE override exactly as they do in
-    // `yan drain`, so no test can point the two commands at different files.
     this.run = process.env.YAN_WATCH_DIR ?? join(new Task(task).dir, 'run');
     this.wake = process.env.YAN_WAKE_FILE ?? join(this.run, 'wake');
     this.lock = join(this.run, 'wait.lock');
@@ -66,28 +52,26 @@ export class Supervision {
     this.guard = join(this.run, 'guard-failures');
   }
 
+  /**
+   * Why the most recent `lockTaken` or `healthy` answered no — a sentence for
+   * a reader, overwritten by every later call, empty after a yes.
+   */
   public why(): string {
     return this.lastWhy;
   }
 
-  /**
-   * What the single-flight lock must say to count as a watcher.
-   *
-   * `tasks/<id>/.enter.lock` proves why this is needed: a live lock in the same
-   * tree that has nothing to do with supervision.
-   */
+  /** The stamp a lock must carry to count as this task's watcher. */
   public identity(): string {
     return `yan-wait ${this.task}`;
   }
 
-  /** Take the single-flight lock, stamped so it can be told from any other lock. */
+  /**
+   * Take the single-flight lock, stamped with `identity()`. A lock whose owner
+   * is gone is reclaimed rather than obeyed.
+   */
   public claimLock(): boolean {
     this.ensureRun();
     if (claim(this.lock, this.identity())) return true;
-    // A lock left behind by a process that is gone is reclaimed, not obeyed: a
-    // machine that lost power mid-watch should not need a manual `rm`.
-    // `isStale` only ever says yes about a lock file whose owner is gone, so
-    // this cannot delete a directory-shaped lock somebody is standing in.
     if (!isStale(this.lock)) return false;
     release(this.lock);
     return claim(this.lock, this.identity());
@@ -98,11 +82,9 @@ export class Supervision {
   }
 
   /**
-   * The lock exists, its owner is alive, and it is a watcher's lock.
-   *
-   * Deliberately says nothing about the beacon. This is the guard's 800 ms
-   * question — "was the lock taken while I waited?" — and a watcher that has
-   * just claimed the lock has not necessarily finished its first loop yet.
+   * The lock exists, its owner is alive, and it carries `identity()`. Says
+   * nothing about the beacon, so a watcher mid-first-loop passes. Sets
+   * `why()`.
    */
   public lockTaken(): boolean {
     this.lastWhy = '';
@@ -127,17 +109,9 @@ export class Supervision {
   }
 
   /**
-   * "The watcher is healthy": the lock exists and its owner is alive, the
-   * identity matches, and the beacon is fresh — and the beacon belongs to the
-   * process holding the lock, so that neither half can vouch for the other:
-   *
-   *   live watcher pid + stale beacon      not healthy (it stopped looping)
-   *   fresh beacon + no/dead/foreign lock  not healthy (a leftover file)
-   *
-   * A watcher whose subscription has dropped and is being re-established is
-   * healthy. It is still going round the loop, and its liveness poll never went
-   * through the socket in the first place; blocking a turn for the seconds it
-   * takes to reconnect would be the guard inventing a fault (beacon.ts).
+   * `lockTaken()`, plus a beacon no older than `maxBeaconAge` seconds written
+   * by the same pid that holds the lock. A watcher whose subscription has
+   * dropped still counts as healthy. Sets `why()`.
    */
   public healthy(maxBeaconAge = beaconMaxSeconds()): boolean {
     if (!this.lockTaken()) return false;
@@ -162,7 +136,7 @@ export class Supervision {
     return true;
   }
 
-  /** One turn of the watcher's loop happened, just now. */
+  /** Record that the watcher went round its loop, stamping `state` and `now`. */
   public touchBeacon(state: WatcherState, now = Date.now()): void {
     this.ensureRun();
     writeBeacon(this.beacon, this.task, state, now);
@@ -173,11 +147,9 @@ export class Supervision {
   }
 
   /**
-   * One reason, appended.
+   * Append one reason to the wake file, keeping any already waiting there.
    *
-   * Appended rather than overwritten: two shifts can become interesting between
-   * one drain and the next, and the second must not erase the first. `yan drain`
-   * prints the file whole and then clears it.
+   * @throws SupervisionError when `reason` is empty or the file cannot be written.
    */
   public wakeWrite(reason: string): void {
     if (reason === '') throw SupervisionError.usage('a wake needs a reason');
@@ -191,14 +163,7 @@ export class Supervision {
     }
   }
 
-  /**
-   * Is this exact reason already waiting to be drained?
-   *
-   * The level-triggered sources — the agent is gone, the agent is blocked —
-   * stay true until somebody acts on them, so without this a rearmed watcher
-   * would wake the model again the instant it started, for ever. An undrained
-   * reason means the model has already been told.
-   */
+  /** Is this exact line already waiting to be drained? */
   public wakeHas(reason: string): boolean {
     if (reason === '' || !existsSync(this.wake)) return false;
     try {
@@ -220,7 +185,7 @@ export class Supervision {
     }
   }
 
-  /** Count one blocked attempt and answer with the new total. */
+  /** Count one blocked attempt and return the new total. */
   public guardBump(): number {
     const next = this.guardCount() + 1;
     this.ensureRun();
@@ -228,32 +193,17 @@ export class Supervision {
     return next;
   }
 
-  /**
-   * The watcher is healthy again, or there is nothing left to supervise. Either
-   * way the budget starts over.
-   */
+  /** Start the guard's budget over. */
   public guardReset(): void {
     rmSync(this.guard, { force: true });
   }
 
-  /**
-   * The shifts still being supervised.
-   *
-   * Derived by scanning every time it is called, so a shift dispatched while
-   * the watcher is already looping is picked up on the next turn, and one that
-   * clocks out drops off it. "Live" is the shift record's own rule — `run/` is
-   * deleted whole at clock-out — and not a second copy of it.
-   */
+  /** The task's live shifts, re-scanned on every call. */
   public liveShifts(): Shift[] {
     return Shift.liveIn(this.task);
   }
 
-  /**
-   * How many shifts are still being supervised.
-   *
-   * This is "supervision responsibility": the guard's primary question on
-   * Codex, and half of it on Claude.
-   */
+  /** How many shifts are still live. */
   public liveCount(): number {
     return this.liveShifts().length;
   }
@@ -267,12 +217,8 @@ export class Supervision {
   }
 
   /**
-   * The identity of a directory-shaped lock: a directory holding `pid` and
-   * `identity` files, rather than the single file `util/lock.ts` writes.
-   *
-   * Read, never written. Nothing in this repository takes a lock this way any
-   * more; what it buys is that a guard meeting one does not conclude "no
-   * watcher is on duty" and block every turn.
+   * The identity of a directory-shaped lock — a directory holding `pid` and
+   * `identity` files, which older watchers wrote. Read, never written.
    */
   private shellLockIdentity(): string | undefined {
     return this.readShellLockFile('identity');

@@ -3,40 +3,21 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 /**
- * Which bash to run, on a machine that may have more than one.
- *
- * Why `bash` is not an answer on Windows.
- *
- * A developer box with WSL installed has `bash.exe` in
- * `%LOCALAPPDATA%\Microsoft\WindowsApps`, and that directory usually comes
- * before Git's on PATH. So a bare `bash` reaches the WSL launcher, which is a
- * Linux shell in a Linux filesystem: `C:/Users/x/bin/yan` is not a path it can
- * open, under any spelling short of `/mnt/c/...`. What comes back is
- *
- *     /bin/bash: C:/Users/x/bin/yan: No such file or directory
- *
- * which reads like a missing file and is nothing of the kind — the file is
- * there, and the shell looking for it is in another operating system.
- *
- * Git Bash is the one that shares a filesystem with the rest of yan, and it
- * takes a Windows path in either slash direction, so the fix is to name it
- * rather than to reformat what we hand to whatever answers.
- *
- * `YAN_BASH` overrides everything, for a machine whose Git lives somewhere no
- * list would guess. Elsewhere — macOS, Linux — there is one bash and PATH finds
- * it.
+ * Which bash to run. On Windows this is Git Bash by absolute path, never a
+ * bare `bash` — that reaches WSL's launcher, which cannot open a `C:/…` path
+ * and reports it as a missing file. `$YAN_BASH` overrides everything.
  */
 
 let cached: string | undefined;
 
-/** Git's install root, derived from wherever `git` itself resolves. */
+/** Git's install root, two levels above wherever `git` itself resolves. */
 function gitRoot(): string | undefined {
   const where = spawnSync('where', ['git'], { encoding: 'utf8', windowsHide: true });
   const first = (where.stdout ?? '').split(/\r?\n/).find((l) => l.trim() !== '');
-  // …\Git\cmd\git.exe and …\Git\bin\git.exe both sit two levels below the root.
   return first === undefined ? undefined : dirname(dirname(first.trim()));
 }
 
+/** Cached after the first call. Falls back to `bash` when nothing is found. */
 export function bashCommand(): string {
   if (cached !== undefined) return cached;
 
@@ -69,9 +50,7 @@ export function bashCommand(): string {
     }
   }
 
-  // No Git Bash found. `bash` may still be right — a machine with MSYS2 or
-  // Cygwin on PATH and no Git for Windows — and a clear failure from the child
-  // beats a guess thrown here.
+  // No Git Bash found; MSYS2 or Cygwin on PATH may still answer.
   cached = 'bash';
   return cached;
 }

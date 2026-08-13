@@ -7,25 +7,11 @@ import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
 
 /**
- * The Commander root.
+ * The Commander root, and the only place subcommands are composed. A command
+ * is a `dist/cli/<name>.js` exporting a `command`, discovered from disk.
  *
- * `bin/yan` reaches this file, and this file is the only place that composes
- * subcommands. Three things that buys:
- *
- *   - `yan --help` is generated rather than hand-maintained, so it cannot drift
- *     from the real flags;
- *   - `yan shift new` is a command with a subcommand, not the filename trick
- *     `bin/yan` had to play (rewriting a space into a hyphen);
- *   - flags are declared once instead of parsed by hand twenty times.
- *
- * A command is a `dist/cli/<name>.js` exporting a `command`, and they are
- * discovered, never tabulated (`util/home.ts` says why that survived the
- * migration that first required it).
- *
- * note, and it is the rule most easily broken: **no option anywhere under
- * `src/cli/` is ever declared `.requiredOption()`.** Commander would exit before
- * the soft path could ask. Validation belongs to the action handler, via
- * `shared/resolve.ts`.
+ * No option anywhere under `src/cli/` may be declared `.requiredOption()`:
+ * Commander would exit before `shared/resolve.ts` could ask for it.
  */
 
 export const YAN_VERSION = '0.1.0';
@@ -45,11 +31,9 @@ function hasCommand(mod: unknown): mod is CommandModule {
 }
 
 /**
- * `yan shift new` and `yan shift-new` must reach the same place.
- *
- * Commander cannot see two words as one command name, so the space is
- * rewritten into a hyphen here, once, before parsing — and only when the
- * hyphenated name actually exists, so a real `yan ls t042` is untouched.
+ * Rewrite a leading `<a> <b>` into `<a>-<b>` when a command of that name
+ * exists, so `yan shift new` and `yan shift-new` are the same. Argv that does
+ * not name one is untouched.
  */
 export function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
   const [first, second, ...rest] = argv;
@@ -77,9 +61,7 @@ export async function buildProgram(home: string): Promise<Command> {
     if (hasCommand(mod)) {
       program.addCommand(mod.command);
     } else {
-      // A ported file that exports no command is a bug in the port, not a
-      // runtime condition, and there is no second half left that could answer
-      // instead - so it is said loudly and the command is simply absent.
+      // Loud, and the command is simply absent.
       process.stderr.write(`yan: dist/cli/${name}.js exports no \`command\`\n`);
     }
   }
@@ -89,34 +71,16 @@ export async function buildProgram(home: string): Promise<Command> {
 }
 
 /**
- * Commander's own argument errors exit 2, like every other "you called this
- * wrongly" in yan.
- *
- * The exit-code contract is what a caller reads: 0 fine, 2 you called this
- * wrongly, 1 it did not work, plus the handful of per-command codes above that.
- * Commander's default is 1 for everything it rejects, which would make
- * `yan tree get --nonsense` and `yan tree get` with no `--repo` disagree about
- * what the same class of mistake is worth — one being Commander's refusal, the
- * other `resolve()`'s.
- *
- * Which way, and why this way: 2 is the one an agent can act on. A shift
- * reading `1` learns only that something went wrong and has to parse prose to
- * find out whether to fix its command line or escalate; `2` says the command
- * line was wrong before anything happened, and nothing was done. Moving yan's
- * twenty hand-written usage refusals down to 1 would have made them agree just
- * as well and thrown that away.
- *
- * `exitOverride` is what makes it reachable: without it Commander calls
- * `process.exit` itself, before `main` has any say. It is applied to every
- * command in the tree because `addCommand` — which is how every ported
- * subcommand arrives — does not inherit it.
+ * Make Commander throw instead of exiting, for every command in the tree —
+ * `addCommand` does not inherit it — so `main` can map its refusals onto exit
+ * 2 like every other "you called this wrongly".
  */
 function refuseToExit(command: Command): void {
   command.exitOverride();
   for (const sub of command.commands) refuseToExit(sub);
 }
 
-/** `--help` and `--version` are not mistakes: Commander throws for those too. */
+/** The codes Commander throws for `--help` and `--version`, which are not mistakes. */
 const COMMANDER_INFORMATIONAL = new Set([
   'commander.help',
   'commander.helpDisplayed',
@@ -127,23 +91,7 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/**
- * Bare `yan` on a terminal.
- *
- *     › create new task
- *       t042  unify the auth header          2 shifts live
- *       t041  gateway retry budget           idle
- *
- * derived, never stored: the list is the same scan `yan ls` already does over
- * `tasks/*​/task.json`, so there is no menu configuration file and nothing that
- * can disagree with the directory. If `yan ls` can render it, the select can
- * offer it.
- *
- * The choice becomes a command line and re-enters the same program, which is
- * why this is a few lines: choosing a task is `yan continue --task <id>`, and
- * choosing to create is `yan task new` with nothing filled in, which then walks
- * its own prompts.
- */
+/** One row of the select bare `yan` shows on a terminal. */
 export interface EntryChoice {
   readonly id: string;
   readonly title: string;
@@ -151,7 +99,7 @@ export interface EntryChoice {
   readonly shifts: number;
 }
 
-/** The rows of that select, separated from the drawing of it so a test can see them. */
+/** The rows that select offers: every task in the queue not yet complete. */
 export function liveTaskChoices(): EntryChoice[] {
   const queue = queueJson() as {
     tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
@@ -161,6 +109,7 @@ export function liveTaskChoices(): EntryChoice[] {
     .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
 }
 
+/** The argv the chosen entry point becomes, re-entering this same program. */
 async function chooseEntryPoint(): Promise<string[]> {
   const { chooseEntry, CREATE_NEW } = await import('../ui/prompts.js');
   const { readVaultJson, vaultDirIfAny } = await import('../util/vault.js');
@@ -170,11 +119,8 @@ async function chooseEntryPoint(): Promise<string[]> {
 }
 
 /**
- * The soft path, installed rather than imported.
- *
- * `resolve()` calls this only when stdin is a TTY and a required value is
- * missing, so the dynamic import is what keeps Clack off every other path —
- * including every path a hook takes.
+ * Give `resolve()` its prompter. The import is dynamic, so no path that never
+ * prompts loads the prompt library.
  */
 function installPrompter(): void {
   setPrompter(async (missing) => {
@@ -192,9 +138,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   let words = [...argv];
 
   try {
-    // Bare `yan` with a person at the keyboard is the select. Without a TTY it
-    // prints usage and exits 0, unchanged, so scripts and agents see no
-    // difference — and it is not an unknown command, so it is not an error.
+    // Bare `yan` is the select on a terminal, and usage with exit 0 without.
     if (words.length === 0) {
       if (!isTty()) {
         program.outputHelp();
@@ -204,11 +148,8 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
 
     await program.parseAsync([...joinTwoWordCommand(words, found)], { from: 'user' });
-    // A subcommand that ended with a status of its own keeps it. `yan wait` is
-    // the first: 124 for a quiet slice, 3 for nothing left to supervise, 4 for
-    // "somebody else is already on duty" — none of them an error, so none of
-    // them a thrown YanError, and returning 0 unconditionally here would erase
-    // the whole contract.
+    // A subcommand that set an exit code of its own keeps it: `yan wait`'s
+    // 124, 3 and 4 are answers rather than errors.
     return typeof process.exitCode === 'number' ? process.exitCode : 0;
   } catch (err) {
     if (err instanceof CommanderError) {

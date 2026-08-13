@@ -8,17 +8,11 @@ import { Task } from '../../src/records/task/index.js';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, repoRoot } from '../helpers/fixtures.js';
 
 /**
- * `tests/unit/hook-autoarm.test.sh` and `tests/unit/hook-turnend-guard.test.sh`,
- * ported to the TypeScript hooks.
+ * The two Stop hooks, driven through `bin/hook-*.sh` rather than the compiled
+ * files, because the stub is part of the contract: a harness registration
+ * names the `.sh`.
  *
- * They are driven through `bin/hook-*.sh`, not through the compiled files
- * directly, because the shell stub is part of the contract: the
- * harness registration still names a `.sh`, and the stub has to reach the
- * compiled hook when there is one and the shell body when there is not.
- *
- * The 800 ms settle is injected down to 50 ms: it is there so the guard does
- * not false-alarm while autoarm is still claiming the lock, and nothing about
- * it needs to be slow to be tested.
+ * The guard's 800 ms settle is injected down to 50 ms throughout.
  */
 
 afterAll(cleanupTempDirs);
@@ -34,14 +28,7 @@ interface Run {
   readonly out: string;
 }
 
-/**
- * Run a hook and wait for it.
- *
- * `spawn` and not `spawnSync`, deliberately: these hooks deliberately take
- * their time — the guard's settle window, the watcher's loop — and a
- * synchronous spawn would block this worker's event loop for all of it, which
- * vitest reads as a worker that has stopped answering.
- */
+/** Run a hook and wait for it, without blocking this worker's event loop. */
 function hook(
   name: string,
   args: readonly string[],
@@ -121,9 +108,7 @@ describe('the autoarm hook never detaches its watcher', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('runs the watcher in this hook process, synchronously', async () => {
-    // The harness owns the process group. A backgrounded watcher outlives the
-    // session that armed it and is then a second watcher nobody can see — the
-    // failure the single-flight lock exists to prevent, made permanent.
+    // A backgrounded watcher would outlive the session that armed it.
     expect(source).toContain('spawnSync');
     for (const forbidden of ['detached', 'unref', 'nohup', 'setsid', 'disown', 'spawn(']) {
       expect(source, forbidden).not.toContain(forbidden);
@@ -277,9 +262,7 @@ describe('the guard on Claude', () => {
     liveShift('s1');
     noWatcher();
 
-    // In a separate process, because the guard below is run with `spawnSync`
-    // and a timer in this one could not fire while that call blocks. Autoarm is
-    // a separate process in the real thing too.
+    // A separate process, as it is in the real thing.
     const record = JSON.stringify({
       pid: process.pid,
       host: hostname(),
@@ -290,9 +273,7 @@ describe('the guard on Claude', () => {
       process.execPath,
       [
         '-e',
-        // Two seconds, because what is being tested is that the guard waits:
-        // the lock has to appear after the guard has started looking, and
-        // starting bash and node under a loaded test suite is not instant.
+        // Long enough that the lock appears after the guard starts looking.
         `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(sup.lock)}, ${JSON.stringify(`${record}\n`)}), 2000)`,
       ],
       { stdio: 'ignore', windowsHide: true },
@@ -337,12 +318,8 @@ describe('the guard on Codex', () => {
     expect(JSON.parse(r.stdout.trim()) as { decision: string }).toMatchObject({
       decision: 'block',
     });
-    // The command has to be runnable where the model will paste it: `yan` is
-    // not on PATH inside an agent's pane, and the pane's shell on Windows is
-    // PowerShell, which reads `${VAR:-default}` as a parse error rather than a
-    // default. A live codex ran this hook and dutifully reported
-    // "the term 'yan' is not recognized" — so the path is absolute and the
-    // number is resolved here.
+    // Pasteable in an agent's pane, where `yan` is not on PATH and the shell
+    // may be PowerShell: an absolute path and a real number.
     expect(r.stdout).toContain('wait --seconds 180');
     expect(r.stdout).toContain(`${home.replace(/\\/g, '/')}/bin/yan`);
     expect(r.stdout).not.toContain('${');
@@ -383,9 +360,7 @@ describe('the guard on Codex', () => {
 
 describe('the shell stubs', () => {
   it('reach the compiled hook when there is one', async () => {
-    // Dual dispatch, exactly as bin/yan does it. Proven by the message: the
-    // shell body cannot produce a Node stack or the TypeScript wording, so the
-    // simplest proof is that the compiled file is what answered.
+    // The wording proves the compiled hook answered rather than the stub.
     const r = spawnSync(
       bashCommand(),
       [join(home, 'bin', 'hook-turnend-guard.sh'), '--claude'],

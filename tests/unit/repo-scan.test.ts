@@ -7,10 +7,8 @@ import { scan } from '../../src/cli/repo.js';
 /**
  * `yan repo add`'s scan.
  *
- * The interactive half cannot be driven from a test — there is no terminal —
- * but the interesting half is not interactive: which directories are offered,
- * and what is said about the ones that cannot be taken. That is a pure
- * function over a directory, so it is tested as one.
+ * Not the interactive half, which needs a terminal: which directories are
+ * offered, and what is said about the ones that cannot be taken.
  */
 
 afterAll(cleanupTempDirs);
@@ -47,8 +45,7 @@ describe('one level, and everything visible', () => {
     const names = scan(root).map((c) => c.name);
     expect(names).toContain('alpha');
     expect(names).toContain('beta');
-    // `notes` is not a clone; `vendored` is one level too deep. Recursion would
-    // find every vendored checkout in node_modules, which nobody wants.
+    // `notes` is not a clone; `vendored` is one level too deep.
     expect(names).not.toContain('notes');
     expect(names).not.toContain('vendored');
   });

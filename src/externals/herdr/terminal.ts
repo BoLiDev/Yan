@@ -13,39 +13,14 @@ import type {
 } from './types.js';
 
 /**
- * Every Herdr command yan runs lives behind one of these methods.
+ * Every Herdr command yan runs lives behind one of these methods. A task's
+ * container is a workspace (`w1`) and one agent is a pane (`w1:p1`).
  *
- * One terminal container per task, and the concepts line up like this:
- *
- *     the task container   ->  a workspace   (w1)
- *     one agent            ->  a pane        (w1:p1)
- *
- * Four rules this class exists to hold:
- *
- *   1. A label is not a source of truth; record the ID. Herdr does enforce that
- *      an agent name is unique among live agents, which is tempting — but a
- *      name is cleared when the agent exits, so it cannot identify a shift that
- *      has died, and identifying dead shifts is precisely what supervision is
- *      for. Ids are what gets recorded and passed.
- *
- *   2. Close exactly one thing. `close` closes the recorded pane and nothing
- *      else. `workspace close` and `tab close` are not spelled anywhere in this
- *      file, and a test greps for them: container lifetime belongs to `user`,
- *      and yan never closes something it did not create.
- *
- *   3. Do not steal focus. Every call that could move the user passes
- *      `--no-focus`, and yan never calls `agent focus` on a shift's pane at
- *      all. The second half has a reason that is easy to miss: focusing marks
- *      the tab seen, which turns the `done` yan was about to be woken by into
- *      an `idle` it ignores. `read` does not mark it seen, which is why yan
- *      reads rather than looks.
- *
- *   4. Report facts, decide nothing. `agentAlive` answers with one of three
- *      words defined by yan — alive, dead, unknown — never with Herdr's
- *      vocabulary, and never with a guess dressed up as a fact.
- *
- * `--current` is never passed anywhere: it resolves through `HERDR_PANE_ID`,
- * and a hook may be handed a sanitised environment. Explicit ids only.
+ * Everything is addressed by id, never by label or `--current`: a name is
+ * cleared when its agent exits, which is when yan most needs to identify it.
+ * Nothing here closes a workspace or a tab, and nothing here focuses — a
+ * focused tab is marked seen, which turns a `done` yan would be woken by into
+ * an `idle` it ignores.
  */
 export interface TerminalOptions {
   /** Defaults to the real `herdr`. */
@@ -59,18 +34,16 @@ export class Terminal {
     this.run = options.run ?? runHerdr;
   }
 
-  /** Run a herdr command that must succeed, and return its parsed `.result`. */
+  /**
+   * Run a herdr command and return its parsed `.result`.
+   *
+   * @throws TerminalError when the command failed.
+   */
   private call(args: readonly string[], what: string): unknown {
     return herdrCall(this.run, args, what);
   }
 
-  /**
-   * Create the task container.
-   *
-   * Only when `user` asks for a new workspace; normally yan joins the one it is
-   * already in. `--no-focus` because creating a container must not move
-   * whoever asked for it.
-   */
+  /** Create a workspace to hold a task's agents. Does not focus it. */
   public createContainer(label: string, cwd?: string): Container {
     if (label === '') throw TerminalError.usage('a container label is required');
     const args = ['workspace', 'create', '--label', label, '--no-focus'];
@@ -86,27 +59,16 @@ export class Terminal {
   }
 
   /**
-   * Start an agent.
+   * Create a tab in the container, carrying `env` and `cwd`, and start an
+   * agent in its pane. Does not focus.
    *
-   * Two steps, and they are not interchangeable: `agent start` requires a pane
-   * that already exists and is at an interactive prompt, and it never creates
-   * layout. So a tab is created first, carrying the environment and working
-   * directory, and the agent is started into the pane it comes with.
+   * Only returns a pane whose agent was still alive a moment later — Herdr's
+   * own readiness check is screen-based and matches a bare shell prompt too.
+   * That second look can be fooled the same way, so it catches an agent that
+   * is already visibly gone and promises nothing beyond that.
    *
-   * A tab rather than a split, because every agent in the container gets a
-   * whole screen. Splitting put the second agent beside the first and the
-   * fourth in a quarter of the window; tabs cost a keystroke to switch between
-   * and stay legible however many are running.
-   *
-   * `agent start` waits for Herdr to detect the agent before returning, and
-   * That is not proof the agent is up: detection is screen-based, and a bare
-   * shell prompt left behind by a CLI that exited immediately matches it just
-   * as well, reporting `interactive_ready: true` for a pane with nothing in it.
-   * So this asks again and refuses rather than handing such a pane back.
-   *
-   * The second look is cheap insurance, not a guarantee — it can be fooled the
-   * same way a millisecond later. It catches an agent that is already visibly
-   * gone, which is the common case, and promises nothing beyond that.
+   * @throws TerminalError `usage` for a missing argument, `notFound` when no
+   *   agent is in the pane afterwards.
    */
   public startAgent(options: StartAgentOptions): StartedAgent {
     requireAgentName(options.name);
@@ -116,18 +78,14 @@ export class Terminal {
     const pane = this.createTab(options);
     const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
     if (options.timeoutMs !== undefined) startArgs.push('--timeout', String(options.timeoutMs));
-    // Everything after `--` reaches the agent as argv. There is no shell in
-    // between, so nothing needs quoting: `--append-system-prompt "a b"` arrives
-    // as one argument, and adding quotes here would make it two.
+    // Everything after `--` reaches the agent as argv, with no shell in
+    // between, so nothing here needs quoting.
     if (options.argv !== undefined && options.argv.length > 0) startArgs.push('--', ...options.argv);
 
     const started = asRecord(this.call(startArgs, 'agent start'));
     const agent = asRecord(started.agent);
     const reported = str(agent.pane_id) || pane;
 
-    // Anything but `alive` is a refusal. `agent start` has just succeeded, so
-    // herdr is reachable this instant; an `unknown` one call later is not a
-    // transport blip, it is something genuinely wrong.
     if (this.agentAlive(reported) !== 'alive') {
       throw new TerminalError(
         'notFound',
@@ -145,18 +103,15 @@ export class Terminal {
   }
 
   /**
-   * Send one prompt.
+   * Send one prompt: text and Enter in a single submission. `waitMs` waits for
+   * the agent to finish, up to that many milliseconds.
    *
-   * Atomic: text and Enter in one submission, honouring the pane's live
-   * bracketed-paste mode.
+   * Checks for a live agent first, so text is never typed into a shell that
+   * would run it. Liveness is screen-based, so it catches a pane whose agent
+   * is visibly gone and cannot promise more.
    *
-   * Nothing is sent to a pane without a live agent, hence the extra call first.
-   * Text sent to a pane whose agent has died is typed into the shell underneath,
-   * which then tries to run it — a brief pasted into PowerShell, one line at a
-   * time. Sends are not hot, so the check is cheap at any price.
-   *
-   * Same caveat as `startAgent`: liveness detection is screen-based, so this
-   * catches a pane whose agent is visibly gone and cannot promise more.
+   * @throws TerminalError `usage` for an empty pane or text, `notFound` when
+   *   no live agent is there.
    */
   public send(pane: string, text: string, waitMs?: number): void {
     requirePaneId(pane, 'send');
@@ -173,16 +128,11 @@ export class Terminal {
   }
 
   /**
-   * Tell Herdr what a workspace is delivering.
+   * Report display tokens for a workspace under the source `yan`, so they
+   * never collide with another tool's and can be withdrawn as a set. `ttlMs`
+   * expires them, so a yan that dies leaves no stale ones.
    *
-   * `--source yan` names the reporter, so these labels never collide with
-   * another tool's and can be withdrawn as a set. `--ttl-ms` expires them, so a
-   * yan that dies mid-task leaves labels that clean themselves up.
-   *
-   * Display only. Nothing reported here is ever read back as a fact — task.json
-   * is the only record of which unit is on which branch — so a stale token is a
-   * cosmetic bug, and callers treat a failure here as one logged line rather
-   * than a reason to abandon what they were doing.
+   * Display only: nothing set here is ever read back as a fact.
    */
   public setWorkspaceTokens(
     workspace: string,
@@ -196,7 +146,7 @@ export class Terminal {
     this.call(args, 'workspace report-metadata');
   }
 
-  /** Withdraw tokens yan set. Teardown is explicit and complete. */
+  /** Withdraw named tokens. An empty list is a no-op. */
   public clearWorkspaceTokens(workspace: string, names: readonly string[]): void {
     requireWorkspaceId(workspace, 'workspace report-metadata');
     if (names.length === 0) return;
@@ -205,7 +155,7 @@ export class Terminal {
     this.call(args, 'workspace report-metadata');
   }
 
-  /** Tell Herdr which shift a pane is. Display only; see `setWorkspaceTokens`. */
+  /** Report a pane's title under the source `yan`. Display only. */
   public setPaneTitle(pane: string, title: string, displayAgent?: string): void {
     requirePaneId(pane, 'pane report-metadata');
     const args = ['pane', 'report-metadata', pane, '--source', 'yan', '--title', title];
@@ -215,17 +165,15 @@ export class Terminal {
     this.call(args, 'pane report-metadata');
   }
 
-  /** Withdraw the title before the pane is closed. */
+  /** Withdraw the title yan set. */
   public clearPaneTitle(pane: string): void {
     requirePaneId(pane, 'pane report-metadata');
     this.call(['pane', 'report-metadata', pane, '--source', 'yan', '--clear-title'], 'pane report-metadata');
   }
 
   /**
-   * Read what is on an agent's terminal.
-   *
-   * `recent-unwrapped` for transcripts. Reading does not mark the tab seen,
-   * which is the whole reason yan reads instead of focusing (rule 3).
+   * The last `lines` lines of an agent's terminal, or `''` when Herdr reports
+   * none. Does not mark the tab seen.
    */
   public read(pane: string, lines = 80, source: ReadSource = 'recent-unwrapped'): string {
     requirePaneId(pane, 'read');
@@ -241,22 +189,8 @@ export class Terminal {
   }
 
   /**
-   * alive | dead | unknown.
-   *
-   * The one method that needs more than a single call, because `agent get`
-   * answers `agent_not_found` both when the agent died and when it never
-   * existed. The distinction lives one level down:
-   *
-   *   agent get <pane>
-   *     ok                 → alive
-   *     agent_not_found    → pane get <recorded pane id>
-   *                            pane exists, no agent → dead
-   *                            pane_not_found        → dead   (the pane was closed)
-   *                            transport failure     → unknown
-   *   transport failure    → unknown
-   *
-   * A Herdr server that is down produces `unknown`; a closed pane produces
-   * `dead`.
+   * alive | dead | unknown. A closed pane is `dead`; a Herdr that cannot be
+   * reached is `unknown`, never `dead`.
    */
   public agentAlive(pane: string): Alive {
     requirePaneId(pane, 'agentAlive');
@@ -271,14 +205,9 @@ export class Terminal {
   }
 
   /**
-   * Which workspace a pane belongs to, or `undefined` when Herdr cannot say.
-   *
-   * A pane id looks like `w1:p1` and the workspace looks like its prefix, which
-   * is exactly why this is a call and not a substring: ids are opaque, and a
-   * pane `user` has moved still carries the prefix it was created under.
-   *
-   * `undefined` rather than a throw. The callers want this for display, and a
-   * yan running outside Herdr altogether lands here and gets the same answer.
+   * Which workspace a pane belongs to — asked, not read off the id's prefix,
+   * which a moved pane keeps. `undefined` when Herdr cannot say, never a
+   * throw.
    */
   public workspaceOfPane(pane: string): string | undefined {
     if (!isPaneId(pane)) return undefined;
@@ -294,16 +223,9 @@ export class Terminal {
   }
 
   /**
-   * Reconcile a moved pane.
-   *
-   * `pane move` changes the pane id: a pane moved into another workspace gets a
-   * new workspace-qualified one. yan never moves panes itself, but `user` can,
-   * so when the recorded id is gone and an agent with the recorded name is
-   * alive somewhere else, that is what happened.
-   *
-   * This reports the new id and writes nothing: run/meta.json belongs to the
-   * subcommand, and a seam that quietly rewrote records would put that write in
-   * two places.
+   * The pane an agent is in now, when that differs from `recordedPane` —
+   * moving a pane between workspaces changes its id. `undefined` when the
+   * agent cannot be found or has not moved. Records nothing.
    */
   public reconcile(name: string, recordedPane: string): string | undefined {
     requireAgentName(name);
@@ -319,18 +241,18 @@ export class Terminal {
     return pane !== '' && pane !== recordedPane ? pane : undefined;
   }
 
-  /** Close exactly the recorded pane. Nothing here can close a workspace or a tab; see rule 2. */
+  /**
+   * Close one pane. Closing a tab's last pane removes the tab; the workspace
+   * is never touched.
+   */
   public close(pane: string): void {
     requirePaneId(pane, 'close');
     this.call(['pane', 'close', pane], 'pane close');
   }
 
   /**
-   * The agents Herdr knows about, with their pane ids, states and session ids.
-   *
-   * `container` filters to one workspace when given; a shift's pane id starts
-   * with its workspace id, which is the only place that prefix is ever used as
-   * more than an opaque string.
+   * The agents Herdr knows about, with their pane ids, states and session
+   * ids. `container` filters to the panes whose id carries that workspace.
    */
   public list(container?: string): ListedAgent[] {
     const scoped = container !== undefined && container !== '';
@@ -360,18 +282,10 @@ export class Terminal {
   }
 
   /**
-   * Make the tab to start an agent into, and answer with its pane.
+   * Make a tab in the container and answer with its one pane.
    *
-   * The container is addressed by id — `--workspace <w1>` — so this needs no
-   * pane to work from and cannot pick the wrong one. That is the difference
-   * from splitting, which had to find some existing pane first and derive it
-   * from a listing, because `w1` does not imply `w1:p1`.
-   *
-   * Herdr gives a new tab exactly one pane and reports it as `root_pane`. That
-   * is the pane the agent starts in, and it is also why nothing here ever needs
-   * `tab close`: closing that one pane empties the tab, and Herdr removes the
-   * tab itself. The workspace is untouched, which is the whole point — its
-   * lifetime belongs to `user` (rule 2).
+   * @throws TerminalError when the container is not a workspace id, or herdr
+   *   reports no root pane.
    */
   private createTab(options: StartAgentOptions): string {
     requireWorkspaceId(options.container, 'tab create');

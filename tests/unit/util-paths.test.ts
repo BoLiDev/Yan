@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { isInside, normalizePath, samePath } from '../../src/util/paths.js';
 
 /**
- * Any comparison between a path we built and a path an
- * external tool printed must normalise first, and a single `normalizePath()`
- * owns it.
+ * A path yan built and a path an external tool printed only compare after
+ * `normalizePath()`.
  */
 
 const windows = process.platform === 'win32';

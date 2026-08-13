@@ -13,19 +13,12 @@ import {
 } from '../helpers/fixtures.js';
 
 /**
- * `yan unit add`, ported from `tests/integration/yan-unit-add.test.sh` and
- * `tests/unit/yan-unit-args.test.sh`.
+ * `yan unit add` against real git and a local bare remote. Nothing here
+ * touches the network.
  *
- * What is under test: "`unit add` stops when the `branch-create` hook exits non-zero
- * and never falls back to a default."
- *
- * That half is the one worth a real repository. The failure it guards against
- * is silent: yan would create `yan/t1-api-r1`, the team's naming rules would
- * reject it at the forge much later, and by then the branch has commits on it.
- * So the test does not only check the exit code — it checks that no branch was
- * created and no unit was written.
- *
- * Real git against a local bare remote. Nothing here touches the network.
+ * What it pins: whatever spelling a name arrives in becomes the branch, an
+ * existing branch is adopted rather than re-cut, and a refusal leaves neither
+ * a branch nor a unit behind.
  */
 
 afterAll(cleanupTempDirs);
@@ -61,13 +54,7 @@ function writeHook(body: string): void {
   chmodSync(file, 0o755);
 }
 
-/**
- * The same hook in JavaScript, which is the shape a person actually writes.
- *
- * It carries the .mjs extension deliberately: that is how yan knows to run it
- * with node. Without the extension a non-executable file goes to bash, which
- * is right on Windows for a shell hook and nonsense for this one.
- */
+/** The same hook in JavaScript. The .mjs extension is what picks node. */
 function writeJsHook(body: string): void {
   const dir = join(home, 'hooks');
   mkdirSync(dir, { recursive: true });
@@ -95,9 +82,6 @@ beforeAll(async () => {
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'demo', clone, { url: bare });
 
   const previous = process.env.YAN_HOME;
@@ -158,17 +142,9 @@ describe('with no hook installed, the built-in default applies', () => {
 
 describe('a name of your own, however it is spelled', () => {
   /**
-   * The hook this replaced. `branch-create` was an executable with a JSON
-   * contract, an exit-code protocol and an interpreter table, and it existed so
-   * a team's tooling could name and open the branch. In practice that process
-   * is a couple of sentences, so it is a skill now — prose in
-   * `<vault>/skills/`, read into the session — and the mechanism it uses is the
-   * flag that was always there: run the tool, pass what it printed to
-   * `--branch`.
-   *
-   * Which makes these the tests that matter: whatever a company tool prints has
-   * to arrive as a branch name, and an existing branch has to be adopted rather
-   * than fought over.
+   * A team whose branches come from its own tooling passes what that tool
+   * printed to `--branch`, so whatever spelling it uses has to arrive as a
+   * branch name.
    */
   it('takes refs/heads/, origin/, quotes and a stray CR as the same name', async () => {
     for (const [given, expected, unit] of [

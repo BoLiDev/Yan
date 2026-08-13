@@ -1,25 +1,14 @@
 /**
  * Herdr, the terminal multiplexer, reached two ways: the `herdr` CLI for
  * commands (`Terminal`) and a socket for the event stream (`TerminalEvents`).
+ * A failed command is a `TerminalError`; `EventsError`'s `closed` is a state
+ * that arrives and means reconnect.
  *
- * Both transports live here, and splitting them is the tempting mistake.
- * Modules under `externals/` may not import one another, so two modules would
- * each need their own copy of the pane-id shape and the agent-status union.
- * Two transports are not two authorities.
- *
- * Two error classes, deliberately. `TerminalError` is a command that failed.
- * `EventsError`'s `closed` is not a failure at all — it is a state that arrives
- * and means reconnect, and folding the two together would lose that.
- *
- * Two traps this module exists to keep callers out of:
- *
- *   Record the pane ID, never the label, and never call `agent focus` on a
- *   shift's pane. Focusing marks the tab seen, which turns the `done` that
- *   would have woken yan into an `idle` it ignores.
- *
- *   A subscription naming an unknown pane is refused whole — Herdr closes the
- *   connection, taking every other pane's subscription with it. Hence
- *   `isPaneId` and a check against `agent list` before subscribing.
+ * Two traps for callers. Record the pane id, never the label, and never focus
+ * a shift's pane — focusing marks the tab seen, which turns the `done` that
+ * would have woken yan into an `idle` it ignores. And check `isPaneId` before
+ * subscribing: one unknown pane is refused whole, taking every other
+ * subscription on that connection with it.
  */
 
 export { Terminal } from './terminal.js';

@@ -25,14 +25,9 @@ import { resolve } from './shared/resolve.js';
 /**
  * `yan vault …` — the context a session works in.
  *
- * This is the only command that may run without a vault, and the only one that
- * writes `~/.yan/config.json`. Both follow from what it is: the thing you run
- * before yan has anywhere to put anything.
- *
- * The remote has to exist and be empty before `init`. Creating a repository on
- * a forge is a thirty-second click, and the alternative is a code path that has
- * to handle two APIs, two auth stories and a name collision — for one command
- * a person runs twice in their life.
+ * The only command that runs without a vault, and the only writer of
+ * `~/.yan/config.json`. `init` needs a remote that already exists and is
+ * empty; it never creates one on a forge.
  */
 
 const NAME_RULE = /^[A-Za-z0-9._-]+$/;
@@ -53,13 +48,7 @@ function emptyEnough(dir: string): boolean {
   }
 }
 
-/**
- * Where a vault goes when nobody said: beside the mechanics clone.
- *
- * Beside rather than inside, because "inside `$YAN_HOME`" is precisely the
- * arrangement V3 exists to undo, and a default that recreates it would be a
- * quiet way to end up back where we started.
- */
+/** Where a vault goes when nobody said: beside yan's own clone. */
 function defaultVaultPath(name: string): string {
   return normalizePath(join(dirname(yanHome()), `yan-vault-${name}`));
 }
@@ -77,10 +66,9 @@ function today(): string {
 }
 
 /**
- * The skeleton, from `templates/vault/` in the mechanics.
+ * Copy `templates/vault/` into `dir`, then write its vault.json and README.
  *
- * All of it, including `config.json`: the template is the sample, so there is
- * one file to keep current rather than two that drift.
+ * @throws CommandError `template_missing` when the template is not there.
  */
 function layDownSkeleton(dir: string, name: string): void {
   const template = join(yanHome(), 'templates', 'vault');
@@ -122,12 +110,7 @@ interface InitOptions {
   readonly dropHome?: boolean;
 }
 
-/**
- * How many trees the pool is holding for a clone that is about to move.
- *
- * Asked through the pool rather than by reading its directory, and any failure
- * counts as zero: a pool that cannot be opened has no leases to lose.
- */
+/** How many trees the pool holds for a clone; 0 when it cannot be asked. */
 function leasesFor(clone: string): number {
   try {
     return new WorktreePool(clone).status().length;
@@ -164,11 +147,7 @@ const initVault = new Command('init')
         throw new CommandError('vault', 'conflict', `${dir} already exists and is not empty - pass --path, or move it aside`);
       }
 
-      // Both refusals happen before a single file is written. A remote that
-      // already has commits is the likeliest mistake here — pointing init at
-      // the wrong repository — and finding out from a rejected push, after the
-      // skeleton is on disk and committed, leaves a half-made vault to clean up
-      // by hand.
+      // Both refusals land before a single file is written.
       const heads = git(yanHome(), ['ls-remote', '--heads', answers.remote]);
       if (heads.code !== 0) {
         throw new CommandError('vault', 'remote_unreachable', `cannot reach ${answers.remote} - create the repository first, then run this again\n${(heads.stderr || heads.stdout).trim()}`);
@@ -179,8 +158,7 @@ const initVault = new Command('init')
 
       const root = normalizePath(resolvePath(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
 
-      // Everything the migration could refuse for is refused here, before the
-      // skeleton exists — so a refusal leaves nothing behind to clean up.
+      // Before the skeleton exists, so a refusal leaves nothing behind.
       const plan = options.fromHome === true ? planMigration(dir, root) : undefined;
       if (plan !== undefined) preflight(plan, leasesFor);
 
@@ -200,9 +178,6 @@ const initVault = new Command('init')
       out(`vault init: clones on this machine go under ${root}`);
 
       if (plan !== undefined) {
-        // The old copy stays until someone has looked. `--drop-home` is the
-        // second run, after `yan ls` and `yan doctor` agree; without it this
-        // migration is undone by deleting one directory.
         if (options.dropHome === true) dropHome(plan);
         else out(`vault init: the old data is still in ${plan.home} - check 'yan ls' and 'yan doctor', then re-run with --drop-home, or delete tasks/ mem/ repos/ conf/config.json by hand`);
       }
@@ -220,8 +195,7 @@ const cloneVault = new Command('clone')
         { name: 'url', flag: '<url>', describe: 'the vault repository to clone' },
       ]);
 
-      // A provisional directory name only: the real one comes out of vault.json
-      // below, because the vault names itself and a URL is only a guess at it.
+      // Only for the directory name: the registered name comes from vault.json.
       const provisional = options.name ?? 'vault';
       const dir = normalizePath(resolvePath(options.path ?? defaultVaultPath(provisional)));
       if (!emptyEnough(dir)) {
@@ -269,7 +243,13 @@ const lsVaults = new Command('ls')
     }),
   );
 
-/** Shared by `yan vault use` and its top-level alias, so they cannot disagree. */
+/**
+ * Make a registered vault the active one, warning rather than failing when it
+ * has no vault.json.
+ *
+ * @throws CommandError `usage` when no name is given, `missing` when it is not
+ *   registered here.
+ */
 export function useVault(name: string | undefined): void {
   if (name === undefined || name === '') {
     throw CommandError.usage('vault', "a vault name is required - 'yan vault ls' lists them");
@@ -287,17 +267,8 @@ export function useVault(name: string | undefined): void {
 }
 
 /**
- * `yan vault link <name> <path>` — where a vault is on this machine.
- *
- * The exact dual of `yan repo link`, and it exists for the same reason: a
- * directory moves, and the only record of where it was is the machine layer,
- * which nothing but this command may write (design principle 2, one owner per
- * piece of information). Editing `~/.yan/config.json` by hand works right up
- * until it is the thing that is wrong.
- *
- * It checks the destination really is a vault first. A registration pointing
- * at a directory with no `vault.json` produces the same failure as no
- * registration at all, one command later and with a worse message.
+ * `yan vault link <name> <path>` — record where an already-registered vault is
+ * on this machine. Refuses a directory with no vault.json.
  */
 const linkCommand = new Command('link')
   .description('say where a registered vault is on this machine')
@@ -318,9 +289,7 @@ const linkCommand = new Command('link')
       }
       const found = readVaultJson(dir).name;
       if (found !== '' && found !== name) {
-        // Not fatal: the registered name is this machine's label and the
-        // vault's own name is what it calls itself. Worth saying out loud,
-        // because the usual cause is linking the wrong directory.
+        // Not fatal: the registered name is this machine's label.
         out(`vault link: note - ${dir} calls itself '${found}', and it is registered here as '${name}'`);
       }
       registerVault(name, dir, readMachine().active === name);
@@ -334,16 +303,8 @@ const useCommand = new Command('use')
   .action(action('vault_use', (name: string | undefined) => { useVault(name); }));
 
 /**
- * `yan vault pull` and `yan vault push`.
- *
- * Two commands, deliberately not one, and neither of them called `sync`: the
- * word says which way the data moved, and here that is the whole question.
- * Pull and push have different authorities, so a single verb hiding both is a
- * collision in the only place it matters, which is a tired person's memory.
- *
- * Pull is automatic (session-start runs it) and push is not, because push
- * writes to a remote and that is `user`'s call — and because auto-committing
- * every `log.md` append would produce a history nobody can read.
+ * `yan vault pull` and `yan vault push`. Pull runs automatically from
+ * session-start; push is only ever run when `user` asks.
  */
 export interface PullResult {
   readonly ok: boolean;
@@ -351,8 +312,8 @@ export interface PullResult {
 }
 
 /**
- * Never throws. Session-start calls it, and a session that refuses to start
- * because a remote is unreachable is a worse tool than one that does not sync.
+ * Fast-forward the vault from its origin. Never throws: no vault, no origin,
+ * a dirty tree or an unreachable remote all come back as `ok: false`.
  */
 export function pullVault(): PullResult {
   let dir: string;
@@ -407,13 +368,7 @@ const pullCommand = new Command('pull')
     }),
   );
 
-/**
- * A commit message from what changed, when nobody supplied one.
- *
- * Task ids rather than file names: "t103, t104" is what a person scanning the
- * vault's history is looking for, and the file names underneath are all
- * task.json and log.md.
- */
+/** A commit message naming the task ids that changed, for when nobody supplied one. */
 export function pushMessage(changed: readonly string[]): string {
   const tasks = [...new Set(changed.map((p) => /^tasks\/([^/]+)\//.exec(p)?.[1]).filter((id): id is string => id !== undefined))].sort();
   const others = changed.filter((p) => !p.startsWith('tasks/')).length;
@@ -432,9 +387,7 @@ const pushCommand = new Command('push')
         throw new CommandError('vault', 'no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
       }
 
-      // --untracked-files=all: without it git reports a new directory as one
-      // entry, so a brand-new task would be 'committed 1 change(s)' however
-      // much is in it, and the derived message would be counting directories.
+      // --untracked-files=all, or a new directory counts as one entry.
       const changed = statusPorcelain(dir, ['--untracked-files=all'])
         .split(/\r?\n/)
         .map((l) => l.slice(3).trim())
@@ -455,17 +408,9 @@ const pushCommand = new Command('push')
   );
 
 /**
- * `yan vault drop-home` — step 7 of the migration, as its own command.
- *
- * The migration is deliberately additive: `--from-home` copies, and the old
- * data stays until someone has looked at `yan ls` and `yan doctor`. Looking
- * takes as long as it takes, which is longer than one command — so the
- * deletion has to be runnable afterwards rather than only as a flag on the
- * run that created the vault.
- *
- * It re-checks before it removes anything, and the check is the whole reason
- * this is not `rm -rf`: every task and every registry entry the old home holds
- * must already be in the active vault.
+ * `yan vault drop-home` — delete what `--from-home` copied out of the old
+ * home, refusing unless every task and registry entry it holds is already in
+ * the active vault.
  */
 const dropHomeCommand = new Command('drop-home')
   .description('remove the pre-V3 data from $YAN_HOME, once the vault has it')
@@ -487,12 +432,8 @@ const dropHomeCommand = new Command('drop-home')
   );
 
 /**
- * `yan vault where` — one line, for a script or a person who lost track.
- *
- * It goes through `vaultDir()` rather than the forgiving variant on purpose:
- * this is the command you run when something is wrong, so it should produce
- * exactly the refusal every other command would have produced, with the same
- * words and the same exit code.
+ * `yan vault where` — the active vault's path, or the same refusal every other
+ * command would have given.
  */
 const whereCommand = new Command('where')
   .description('the active vault directory')

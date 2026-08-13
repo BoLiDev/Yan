@@ -5,10 +5,9 @@ import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fi
 import { Log } from './index.js';
 
 /**
- * The claim under test: the log cannot rewrite an existing line through its
- * API. That is a claim about the surface, so it is asserted about the surface as
- * well as about the behaviour — a behavioural test can only cover the calls
- * someone thought to make.
+ * The log cannot rewrite an existing line through its API, which is a claim
+ * about the surface and is asserted about the surface as well as the
+ * behaviour.
  */
 
 let home = '';
@@ -29,9 +28,7 @@ afterAll(cleanupTempDirs);
 
 describe('the append-only surface', () => {
   it('offers no writer that can reach an existing line', () => {
-    // If any of these ever appears, the one invariant this class exists to hold
-    // has been lost, and this is the alarm. The surface is now the class, which
-    // is a smaller thing to keep watch over than a module's exports.
+    // The absence of these is what makes the log append-only.
     const surface = Object.getOwnPropertyNames(Log.prototype);
     for (const forbidden of ['set', 'replace', 'delete', 'edit', 'truncate', 'rewrite']) {
       expect(surface).not.toContain(forbidden);

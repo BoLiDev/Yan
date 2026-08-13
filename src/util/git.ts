@@ -3,25 +3,12 @@ import { statSync } from 'node:fs';
 import { YanError, type YanErrorOptions } from './error.js';
 
 /**
- * Run git in a given directory. The TypeScript half of `bin/lib-git.sh`.
+ * Run git in a given directory. Every function takes that directory as its
+ * first argument and throws rather than falling back on `process.cwd()`, and
+ * nothing here will force-push: `push` refuses the flag.
  *
- * Purely functional. It has no idea what a task, a unit or a shift is; give it
- * a path and an action and that is all it needs.
- *
- * Two invariants, both carried over unchanged:
- *
- *   1. every function takes an explicit directory as its first argument and
- *      never relies on process.cwd(). `requireDir` refuses an empty or
- *      non-directory argument, so "forgot to pass the directory" fails loudly
- *      instead of operating on whatever happened to be the current directory.
- *
- *   2. This module never passes one of git's force flags. Force-pushing
- *      rewrites history colleagues have already pulled, and there is nowhere
- *      here for such a flag to hide; `push` actively refuses one if a caller
- *      tries to smuggle it through.
- *      (The flag's literal spelling is assembled from two pieces below, so that
- *      a grep of src/ for it finds nothing. Please keep it that way;
- *      tests/unit/util-git.test.ts greps for it.)
+ * (The flag's literal spelling is assembled from two pieces below so a grep of
+ * src/ for it stays silent; tests/unit/util-git.test.ts checks that.)
  */
 
 const CODES = {
@@ -72,14 +59,16 @@ function requireArg(value: string | undefined, message: string): string {
   return value;
 }
 
-/** Run git and hand back the result. Never throws on a non-zero git status. */
+/**
+ * Run git and hand back its result. A non-zero exit is a value, not a throw;
+ * only git failing to start is a GitError. A `timeoutMs` that elapses comes
+ * back as a non-zero result.
+ */
 export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): GitResult {
   const d = requireDir(dir);
   const r = spawnSync('git', ['-C', d, ...args], {
     encoding: 'utf8',
     windowsHide: true,
-    // Only for the handful of calls that touch the network. A timed-out git
-    // comes back as a non-zero result like any other failure, never a hang.
     ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
   });
   if (r.error) {
@@ -88,12 +77,12 @@ export function git(dir: string, args: readonly string[], options: { timeoutMs?:
   return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
-/** True when git exited 0. For the questions whose answer *is* the exit code. */
+/** True when git exited 0. */
 export function gitOk(dir: string, args: readonly string[]): boolean {
   return git(dir, args).code === 0;
 }
 
-/** Trimmed stdout, or a GitError carrying git's own stderr. */
+/** Trimmed stdout, or a GitError carrying git's stderr when it exits non-zero. */
 export function gitOut(dir: string, args: readonly string[]): string {
   const r = git(dir, args);
   if (r.code !== 0) {
@@ -142,27 +131,13 @@ export function diffNameOnly(dir: string, args: readonly string[] = []): string[
 }
 
 /**
- * The branch the remote itself calls its default, or `undefined`.
+ * The branch the remote calls its default: `refs/remotes/<remote>/HEAD` when
+ * the clone has it, otherwise `ls-remote --symref` over the network with a
+ * 3 s timeout. `undefined` when neither answers, so callers must have
+ * somewhere to go without one.
  *
- * This is a suggestion and nothing more. `target` remains `user`'s answer,
- * because a release period and a quiet period have different ones and the
- * remote's default cannot tell you which you are in. The only legitimate use is
- * to prefill a prompt a person then reads and confirms; nothing running without
- * a terminal may call this to invent a target for itself.
- *
- * Two ways to ask, cheapest first:
- *
- *   1. `refs/remotes/<remote>/HEAD`, which `git clone` writes and
- *      `git remote set-head` refreshes. No network, always right if present,
- *      and absent often enough — a clone made with `--single-branch`, a remote
- *      added by hand — that it cannot be the only way.
- *   2. `ls-remote --symref`, which asks the remote. This is the answer GitHub
- *      and GitLab give for their own default branch, whatever it is called, so
- *      nothing here needs a list of likely names.
- *
- * Both are allowed to fail. A remote that is unreachable, slow, or wants
- * credentials nobody is there to type produces `undefined`, and the caller asks
- * its question with an empty box — which is exactly where this started.
+ * Only ever a suggestion to prefill a prompt. A unit's `target` is `user`'s
+ * answer, and nothing running unattended may take this as one.
  */
 export function defaultBranch(dir: string, remote = 'origin'): string | undefined {
   const local = git(dir, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
@@ -179,7 +154,7 @@ export function defaultBranch(dir: string, remote = 'origin'): string | undefine
   return name === undefined || name === '' ? undefined : name;
 }
 
-/** Remote branches that contain HEAD. Used by the pool's orphan-commit guard. */
+/** Remote branches that contain HEAD, trimmed. */
 export function branchesContainingHead(dir: string): string[] {
   return gitLines(dir, ['branch', '-r', '--contains', 'HEAD']).map((l) => l.trim());
 }
@@ -195,10 +170,7 @@ export function checkout(dir: string, args: readonly string[]): GitResult {
   return git(dir, ['checkout', ...args]);
 }
 
-/**
- * The base is always explicit: cutting a branch from "wherever HEAD happens to
- * be" is exactly the kind of implicit state this module refuses to have.
- */
+/** Cut a branch. `base` is required — never HEAD by default. */
 export function createBranch(dir: string, branch: string, base: string): GitResult {
   requireArg(branch, 'a new branch name is required');
   requireArg(base, 'an explicit base ref is required');
@@ -217,14 +189,17 @@ export function merge(dir: string, args: readonly string[]): GitResult {
 
 // --- remote writes ---------------------------------------------------------
 
-// Assembled from two pieces so a grep of src/ for the forbidden flag is silent.
 const FORCE = `--${'force'}`;
 
 export function isForceFlag(arg: string): boolean {
   return arg === '-f' || arg === FORCE || arg.startsWith(`${FORCE}-`) || arg.startsWith(`${FORCE}=`);
 }
 
-/** Refuses a force flag rather than passing it on. */
+/**
+ * Push.
+ *
+ * @throws GitError `forceRefused` (exit 2) when any argument is a force flag.
+ */
 export function push(dir: string, args: readonly string[] = []): GitResult {
   for (const a of args) {
     if (isForceFlag(a)) {
@@ -237,9 +212,8 @@ export function push(dir: string, args: readonly string[] = []): GitResult {
 }
 
 /**
- * Callers must have checked that the branch is merged. Deleting an unmerged
- * branch destroys the only copy of the work on it, and that judgement is not
- * this module's to make.
+ * Delete a branch on the remote. Nothing here checks whether it merged, so the
+ * caller must have.
  */
 export function deleteRemoteBranch(dir: string, remote: string, branch: string): GitResult {
   requireArg(remote, 'a remote is required');
@@ -260,9 +234,8 @@ export function worktreeRemove(dir: string, args: readonly string[]): GitResult 
 }
 
 /**
- * Removes only the administrative records of worktrees whose directory is
- * already gone. It never touches a directory that still exists, which is why
- * the pool may call it before handing a slot out.
+ * Drop the administrative records of worktrees whose directory is already
+ * gone. A directory that still exists is left alone.
  */
 export function worktreePrune(dir: string): GitResult {
   return git(dir, ['worktree', 'prune']);
@@ -279,10 +252,8 @@ export function resetHard(dir: string, ref = 'HEAD'): GitResult {
 }
 
 /**
- * `-fd` and never `-x`. The worktree pool exists for warm reuse, so gitignored
- * node_modules and build caches have to survive a tree being returned. Adding
- * `-x` here would silently turn every lease into a cold install, and nothing
- * would fail loudly when it happened.
+ * `git clean -fd`: untracked files go, gitignored ones — node_modules, build
+ * caches — stay, so a returned tree stays warm.
  */
 export function cleanFd(dir: string): GitResult {
   return git(dir, ['clean', '-fd']);
@@ -297,11 +268,7 @@ export function clone(dir: string, url: string, dest: string, args: readonly str
   return git(dir, ['clone', ...args, url, dest]);
 }
 
-/**
- * Undefined when <dir> is not a git repository or has no such remote, which is
- * how a caller tells "this directory is a clone of that URL" from "this
- * directory merely has the same name".
- */
+/** A remote's URL, or undefined when <dir> is not a repo or has no such remote. */
 export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
   const r = git(dir, ['remote', 'get-url', remote]);
   return r.code === 0 ? r.stdout.trim() : undefined;
@@ -309,26 +276,16 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
 
 // --- merging without a working tree ----------------------------------------
 //
-// The convention these exist to respect, stated exactly, because it is
-// routinely remembered wrong: a main clone is not "read-only". What is
-// forbidden is touching its working tree — checkout, merge, rebase, reset,
-// clean — because since V3 that clone is `user`'s own working copy, and a tool
-// that moves you off your branch while you are thinking is a tool you stop
-// trusting.
-//
-// Writing refs and objects is not that, and yan already did it: cutting an
-// integration branch is `git branch`, a ref write in the main clone. These
-// three complete the set, so a real three-way merge — carrying an abandoned
-// round forward — can happen in the clone with no checkout, no lease and no
-// worktree at all. `merge-tree --write-tree` (git ≥ 2.38) does the merge into
-// the object store and reports conflicts rather than leaving them anywhere.
+// These three write refs and objects only, so they are safe to run in a main
+// clone: no checkout, and the working tree is never touched. Together they
+// merge a branch without a worktree at all.
 
 /**
- * A three-way merge of two commits, written to the object store.
+ * A three-way merge written straight to the object store. Needs git ≥ 2.38.
  *
- * On success `stdout` is the merged tree's oid on its first line. On failure it
- * is a conflict report — which is an answer and not a malfunction: it means
- * this one needs a human, or a shift with a real working tree.
+ * On success `stdout` opens with the merged tree's oid; on a conflict the exit
+ * code is non-zero and `stdout` is a conflict report. Nothing is left behind
+ * either way.
  */
 export function mergeTree(dir: string, ours: string, theirs: string): GitResult {
   requireArg(ours, 'a branch to merge into is required');
@@ -351,11 +308,8 @@ export function commitTree(
 }
 
 /**
- * Move a ref, refusing if it is not where we last saw it.
- *
- * `expect` is not optional politeness: between reading a branch and moving it a
- * shift may have merged into it. Passing the old value makes the update fail
- * rather than silently discard whatever arrived in between.
+ * Move a ref to `to`, failing rather than moving it if it is not currently at
+ * `expect` — so anything that landed in between is not discarded.
  */
 export function updateRef(dir: string, ref: string, to: string, expect: string): GitResult {
   requireArg(ref, 'a ref name is required');

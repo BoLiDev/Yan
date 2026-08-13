@@ -5,50 +5,20 @@ import { CommandError } from './shared/errors.js';
 import { Shift } from '../records/shift/index.js';
 
 /**
- * `yan report <state> "<note>"` — the shift → yan channel.
+ * `yan report <state> "<note>"` — the shift → yan channel, and the only
+ * command a shift needs. Appends one timestamped line to `run/status` and
+ * touches `run/signal`, in one call, and touches nothing else.
  *
- * This is a command rather than two sentences in the brief for one reason, and
- * §5.4 states it plainly: Do not count on an agent remembering step two.
- * Appending the event and touching the wake marker is one command, so a shift
- * that reports at all reports completely. Wrapping it also buys three things
- * the brief could not enforce: the state is checked against the allowed words,
- * a timestamp is added, and the line is written atomically.
+ * Five states, and any other is refused:
  *
- * It is the only command a shift needs, and it stays inside the shift's write
- * boundary: it
- * touches `run/status` and `run/signal` and nothing else.
+ *   started         the agent booted and read its brief
+ *   done            with the mode's deliverable in the note, e.g. `mr <url>`
+ *   blocked         it is waiting on something
+ *   needs-decision  it needs an answer from yan
+ *   conflict        the merge has conflicts
  *
- * It is not only the
- * shift's courtesy channel — it is the half of supervision that does not depend
- * on Herdr recognising a screen. A shift that says it is
- * blocked is believed whether or not any manifest matched.
- *
- * The five allowed states, and where they come from.
- *
- * §5.4 says "one of the five allowed words" but never lists all five. Three are
- * named outright and two are derived; the derivation is recorded here so the
- * next person changes the set on purpose rather than by accident:
- *
- *   done            §5.4 ("a shift reports `done`") and §8.2, whose three final
- *                   states — `done: report`, `done: branch <name>`,
- *                   `done: mr <url>` — are one state plus a deliverable. The
- *                   deliverable goes in the note: `yan report done "mr <url>"`.
- *   blocked         §5.4, named.
- *   needs-decision  §5.4, named.
- *   conflict        §5.4's wake table lists "the merge has conflicts" as its own
- *                   reason to wake the model. Of the events in that column it is
- *                   the only other one a shift discovers about itself — died,
- *                   stuck and red CI are all observed from outside.
- *   started         §5.3's first tier. One `started` line is positive proof that
- *                   the agent booted, read the brief and can call back at all —
- *                   which is precisely the thing yan has to act on when it never
- *                   arrives. Herdr's `agent start` confirmation narrowed the gap
- *                   this was covering but did not close it: the spike found
- *                   `interactive_ready: true` for an agent that had already
- *                   exited.
- *
- * Everything else is refused loudly. A sixth word would quietly become a sixth
- * meaning nobody handles.
+ * This is the half of supervision that does not depend on Herdr recognising a
+ * screen: a shift that says it is blocked is believed either way.
  */
 
 export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
@@ -81,8 +51,7 @@ yan itself and for tests.`,
   )
   .action(
     action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
-      // The state is checked before anything is written, so a refused state
-      // writes nothing at all.
+      // Checked first, so a refused state writes nothing at all.
       if (state === undefined || state === '') {
         throw CommandError.usage('report', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
       }
@@ -98,9 +67,7 @@ yan itself and for tests.`,
         );
       }
 
-      // Which shift is reporting. `yan report` takes no <sid> in normal use: a
-      // shift reports about itself, and asking it to repeat its own id is one
-      // more thing to get wrong.
+      // A shift reports about itself, so the id comes from its environment.
       let shift: Shift | undefined;
       if (options.dir !== undefined && options.dir !== '') {
         shift = Shift.fromDir(options.dir);

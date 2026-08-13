@@ -5,12 +5,8 @@ import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.j
 import { extractUrl } from './validate.js';
 
 /**
- * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure.
- *
- * These fixtures are documentation-derived rather than captured off the wire
- * (tests/fixtures/forge/PROVENANCE.json says so explicitly), which is exactly
- * why the mapping is written defensively: anything unrecognised lands on the
- * safe member of the set rather than on a guess.
+ * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure, and
+ * anything unrecognised lands on the safe member of the set.
  */
 
 function asObject(text: string): Record<string, unknown> | undefined {
@@ -29,11 +25,8 @@ function lower(value: unknown): string {
 }
 
 /**
- * `glab mr view --output json` → yan vocabulary.
- *
- * GitLab has four MR states where yan has three plus unknown: `locked` is an
- * open merge request whose discussion is locked, so it collapses onto `open`.
- * That collapse is the point — a fifth value is not allowed to reach §6.4.
+ * `glab mr view --output json` → yan vocabulary. `locked` reads as `open`, and
+ * anything unrecognised as `unknown`.
  */
 export function mapMrState(payload: string): MrState {
   const o = asObject(payload);
@@ -53,8 +46,8 @@ export function mapMrState(payload: string): MrState {
 }
 
 /**
- * One MR, one pipeline, one status — the opposite of GitHub's array. The MR
- * payload carries it as `head_pipeline` (older GitLab: `pipeline`).
+ * The MR payload's `head_pipeline` (older GitLab: `pipeline`) → yan
+ * vocabulary.
  *
  *   green    success
  *   red      failed, canceled — a cancelled pipeline did not pass
@@ -85,9 +78,10 @@ export function mapCiState(payload: string): CiState {
 }
 
 /**
- * `glab` wants an iid, not a URL. A yan merge request reference is usually the
- * URL `createMr` returned, so splitting it into "which project" and "which
- * number" happens here, once, instead of at every call site.
+ * `glab`'s way of naming one merge request: an iid, plus the project taken
+ * from `repo` or parsed out of a URL.
+ *
+ * @throws RemoteGitError `usage` when no number can be worked out.
  */
 export function refArgs(mr: string, repo: string | undefined): string[] {
   let iid = mr;
@@ -122,10 +116,7 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
 export const gitlabProvider: Provider = {
   cli: 'glab',
 
-  /**
-   * `--no-editor` and `--yes` together are what make this non-interactive; glab
-   * otherwise opens an editor and waits, which inside a pane looks like a hang.
-   */
+  /** Carries `--no-editor --yes`, so glab never opens an editor and waits. */
   createArgs(options: MrCreateOptions, body: string): string[] {
     const args = [
       'mr',
@@ -146,7 +137,7 @@ export const gitlabProvider: Provider = {
     return args;
   },
 
-  /** glab puts the URL on either stream depending on version, so search both. */
+  /** Searches both streams: glab picks one by version. */
   createdUrl(result: CliResult): string {
     return extractUrl(
       `${result.stdout}${result.stderr}`,
@@ -163,10 +154,8 @@ export const gitlabProvider: Provider = {
   },
 
   /**
-   * `--auto-merge` defaults to true in glab: with a pipeline running it would
-   * schedule the merge and report success without merging anything. yan's verb
-   * means "merge it now", so the default is turned off here rather than left
-   * for every caller to remember.
+   * Carries `--auto-merge=false`, which glab otherwise defaults to true —
+   * scheduling the merge behind a pipeline and reporting success.
    */
   mergeArgs(mr: string, repo: string | undefined, strategy: MergeStrategy, deleteSource: boolean) {
     const args = ['mr', 'merge', ...refArgs(mr, repo), '--yes', '--auto-merge=false'];

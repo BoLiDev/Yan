@@ -1,19 +1,10 @@
 import type { AgentStatus } from './schema.js';
 
-/**
- * The vocabulary a caller of this module sees.
- *
- * `AgentStatus` is re-exported from the generated schema rather than restated
- * here: it is Herdr's own closed set, and a copy would drift from what the
- * installed binary actually sends.
- */
+/** The vocabulary a caller of this module sees. */
 
 export type { AgentStatus } from './schema.js';
 
-/**
- * yan's three words, never Herdr's. `unknown` is reserved for "yan could not
- * find out", never for "yan found out something confusing".
- */
+/** `unknown` means yan could not find out, never that the agent is confusing. */
 export type Alive = 'alive' | 'dead' | 'unknown';
 
 export interface Container {
@@ -31,11 +22,7 @@ export interface StartedAgent {
 }
 
 export interface ListedAgent {
-  /**
-   * The name `agent start` was given. empty for an agent `user` started by
-   * hand — Herdr leaves `name` null unless some automation set it — so this
-   * cannot be used to find an agent, only to recognise one yan started.
-   */
+  /** The name `agent start` was given; empty for an agent nobody named. */
   readonly name: string;
   readonly pane: string;
   readonly status: AgentStatus;
@@ -55,10 +42,7 @@ export interface StartAgentOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly argv?: readonly string[];
   readonly timeoutMs?: number;
-  /**
-   * What to call the agent's tab. Display only, and never read back: the pane
-   * id in `run/meta.json` is what finds this agent again.
-   */
+  /** What to call the agent's tab. Display only. */
   readonly label?: string;
 }
 
@@ -72,12 +56,8 @@ export interface HerdrHealth {
 }
 
 /**
- * One `pane.agent_status_changed` off the socket.
- *
- * The only event kind yan subscribes to, and not by preference: `pane_exited`
- * is in Herdr's `EventKind` but not in `SubscriptionEventKind`, and
- * `events.wait` refuses it too. "The agent died" therefore has no push channel
- * at all, which is why supervision still polls for liveness.
+ * One `pane.agent_status_changed` off the socket — the only event kind that
+ * can be subscribed to, so an agent exiting has no push channel at all.
  */
 export interface AgentStatusEvent {
   readonly pane: string;
@@ -86,7 +66,7 @@ export interface AgentStatusEvent {
   readonly kind: string;
 }
 
-/** A subscription that has ended, and why, as far as this side can tell. */
+/** A connection that has ended, and why, as far as this side can tell. */
 export interface ClosedEvent {
   readonly reason: string;
 }
