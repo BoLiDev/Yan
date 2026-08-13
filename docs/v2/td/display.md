@@ -20,7 +20,7 @@ Herdr offers `worktree create | open | remove | list`, backed by workspaces. It 
 
 Those left-hand rows are `yan`'s policy, and one of them — the guard — is the only thing standing between a returned tree and lost work. Handing worktree lifetime to a UI tool would also put [rule 4](../../../CLAUDE.md) (*never work in a main clone; `repos/<repo>/` is read-only*) behind someone else's decisions.
 
-So the flow is: **`yan tree get` leases a path → `yan` passes that path as `pane split --cwd <path>`.** Herdr hosts the terminal; it does not own the checkout. `herdr worktree *` is not called by `yan` at all.
+So the flow is: **`yan tree get` leases a path → `yan` passes that path as `tab create --cwd <path>`.** Herdr hosts the terminal; it does not own the checkout. `herdr worktree *` is not called by `yan` at all.
 
 ---
 

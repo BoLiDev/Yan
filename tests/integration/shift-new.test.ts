@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
+import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import {
   cleanupTempDirs,
   mkTempDir,
@@ -59,12 +61,20 @@ class FakeTerminal implements Dispatcher {
   public startArgs: string[] = [];
   public startEnv: Record<string, string> = {};
   public cwd = '';
+  public label = '';
   public titles: string[] = [];
   public titleThrows = false;
+  /** What the main agent's pane resolves to; undefined means "not under Herdr". */
+  public paneWorkspace: string | undefined = undefined;
 
   public createContainer(label: string): { workspace: string } {
     calls.push(`container_create name=${label}`);
     return { workspace: 'w1' };
+  }
+
+  public workspaceOfPane(pane: string): string | undefined {
+    calls.push(`workspace_of_pane pane=${pane}`);
+    return this.paneWorkspace;
   }
 
   public startAgent(options: {
@@ -72,6 +82,7 @@ class FakeTerminal implements Dispatcher {
     name: string;
     kind: string;
     cwd: string;
+    label?: string;
     env?: Record<string, string>;
     argv?: readonly string[];
   }): { pane: string } {
@@ -81,6 +92,7 @@ class FakeTerminal implements Dispatcher {
     this.startArgs = [...(options.argv ?? [])];
     this.startEnv = { ...(options.env ?? {}) };
     this.cwd = options.cwd;
+    this.label = options.label ?? '';
     return { pane: 'w1:p2' };
   }
 
@@ -102,6 +114,14 @@ function deps(): Deps {
     terminal,
     pool: () => pool,
   };
+}
+
+/** The lock `yan continue` holds, stamped with the pane the main agent is in. */
+function enterLock(task: string, pane: string): void {
+  writeFileSync(
+    join(home, 'tasks', task, '.enter.lock'),
+    `${JSON.stringify({ pid: process.pid, host: hostname(), at: 0, identity: enterIdentity(task, pane) })}\n`,
+  );
 }
 
 function run(options: NewOptions): { code: number; message: string; meta: Record<string, unknown> } {
@@ -176,6 +196,58 @@ describe('the order', () => {
     expect(get, 'the holder is <task>/<unit>/<sid>').toContain('holder=t042/auth/s1');
     // git itself forbids feat/auth and feat/auth/s1 coexisting.
     expect(get, 'never derived from the integration branch').not.toContain('branch=feat/auth/');
+  });
+});
+
+describe('one task is one container', () => {
+  it('joins the workspace the main agent is in, rather than making a new one', () => {
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = 'w7';
+
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(calls.some((c) => c.startsWith('container_create'))).toBe(false);
+    expect(calls.find((c) => c.startsWith('agent_start'))).toContain('container=w7');
+    expect(r.meta.container).toBe('w7');
+  });
+
+  it('follows the first shift, so a second one lands beside it', () => {
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = 'w7';
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+
+    calls = [];
+    // The main agent has been restarted somewhere else since. The container
+    // must not move: s1 is already on screen in w7.
+    terminal.paneWorkspace = 'w9';
+    const second = run({ task: 't042', unit: 'auth', sid: 's2', briefText: 'x' });
+    expect(second.code, second.message).toBe(0);
+    expect(second.meta.container).toBe('w7');
+    expect(calls.some((c) => c.startsWith('container_create'))).toBe(false);
+  });
+
+  it('creates one only when there is nowhere to join', () => {
+    // No lock, so no yan is running under Herdr. Refusing to dispatch over a
+    // display concern would be worse than making a container.
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(calls.find((c) => c.startsWith('container_create'))).toContain('name=t042 unify');
+    expect(r.meta.container).toBe('w1');
+  });
+
+  it('creates one when the lock names a pane herdr no longer knows', () => {
+    // The stamped pane is gone — a yan that was killed, or a workspace `user`
+    // closed. `workspaceOfPane` says undefined and the fallback carries on.
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = undefined;
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(calls.some((c) => c.startsWith('container_create'))).toBe(true);
+  });
+
+  it('labels the tab so `user` can pick the shift out of the row', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(terminal.label).toBe('s1-auth');
   });
 });
 

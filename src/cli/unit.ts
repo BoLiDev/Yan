@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
-import { containerOf, display, unitTokens } from './shared/display.js';
+import { containerOf } from './shared/container.js';
+import { display, unitTokens } from './shared/display.js';
 import { repoDir } from './shared/repo.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
@@ -461,6 +462,8 @@ export type MrStateReader = (mr: string, dir: string) => MrState;
 /** What `unit set` reports to Herdr. Display only, and never fatal. */
 export interface Labeller {
   setWorkspaceTokens(workspace: string, tokens: Record<string, string>): void;
+  /** How the workspace to label is found, when no shift has recorded one. */
+  workspaceOfPane(pane: string): string | undefined;
 }
 
 const set = new Command('set')
@@ -637,14 +640,21 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
       process.stderr.write('yan unit set: task.json was updated but log.md was not appended to\n');
     }
 
-    // A new round rewrites the workspace tokens. The workspace is derived from
-    // a live shift rather than created — a command that only wants to relabel
-    // has no business making one — so a task with nothing running simply has
-    // nothing on screen to relabel.
-    const container = containerOf(task);
+    // A new round rewrites the workspace tokens. The workspace is derived
+    // rather than created — a command that only wants to relabel has no
+    // business making one — so a task with nothing on screen simply has nothing
+    // to relabel.
+    //
+    // The same derivation `shift new` places into, which is what keeps these
+    // tokens on the workspace `yan continue` labelled. They used to be found
+    // two different ways, so before any shift ran they went to the main agent's
+    // workspace, and afterwards to whichever workspace a shift was listed in
+    // first.
+    const labeller = terminal ?? new Terminal();
+    const container = containerOf(task, labeller);
     if (container !== undefined) {
       display('could not rewrite the workspace tokens', () => {
-        (terminal ?? new Terminal()).setWorkspaceTokens(container, unitTokens(task, unitName, branch));
+        labeller.setWorkspaceTokens(container, unitTokens(task, unitName, branch));
       });
     }
 

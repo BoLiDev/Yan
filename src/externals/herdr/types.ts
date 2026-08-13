@@ -55,10 +55,11 @@ export interface StartAgentOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly argv?: readonly string[];
   readonly timeoutMs?: number;
-  /** Split this pane instead of the container's first pane. */
-  readonly fromPane?: string;
-  /** `down` by default: a sibling pane in the current tab, never a new tab. */
-  readonly direction?: 'right' | 'down';
+  /**
+   * What to call the agent's tab. Display only, and never read back: the pane
+   * id in `run/meta.json` is what finds this agent again.
+   */
+  readonly label?: string;
 }
 
 /** What `yan doctor` needs to know about the installed Herdr. */

@@ -1,4 +1,3 @@
-import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
 
 /**
@@ -24,23 +23,6 @@ export function display(what: string, call: () => void): void {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`yan: ${what} (display only, carrying on): ${message}\n`);
   }
-}
-
-/**
- * Which workspace this task's panes live in, derived from a live shift's
- * `run/meta.json` — never created.
- *
- * `createContainer` would make one, and a command that only wants to relabel
- * has no business creating a workspace. So the answer is "the container a live
- * shift recorded", and `undefined` when nothing is running: there is then
- * nothing on screen to relabel, which is not a failure.
- */
-export function containerOf(task: string): string | undefined {
-  for (const shift of Shift.liveIn(task)) {
-    const container = shift.meta().container;
-    if (container !== undefined && container !== '') return container;
-  }
-  return undefined;
 }
 
 /** The token names, in one place so the two writers cannot disagree. */

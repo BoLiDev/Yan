@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { agentFor, configPath } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
+import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { tasksDir, vaultDir } from '../util/vault.js';
@@ -200,9 +200,6 @@ function currentPane(): string {
   return pane.trim();
 }
 
-function lockFile(id: string): string {
-  return join(new Task(id).dir, '.enter.lock');
-}
 
 export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Session {
   const id = options.task ?? '';
@@ -227,8 +224,12 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
   // and re-deriving the home at that point would let it answer differently.
   const cwd = yanHome();
   const pane = currentPane();
-  const lock = lockFile(id);
-  const identity = `yan ${id}${pane === '' ? '' : ` pane=${pane}`}`;
+  const lock = enterLockFile(id);
+  // The pane is stamped for two readers now: a refused second `yan continue`,
+  // which says where the live one is, and container resolution, which puts this
+  // task's shifts in the workspace that pane is in. `enter-lock.ts` owns the
+  // format so those two cannot drift apart from this writer.
+  const identity = enterIdentity(id, pane);
 
   if (!claim(lock, identity)) {
     // A lock left behind by a process that is gone is reclaimed, not obeyed.

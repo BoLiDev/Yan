@@ -12,7 +12,9 @@ import {
   repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
-import { containerOf } from '../../src/cli/shared/display.js';
+import { hostname } from 'node:os';
+import { containerOf } from '../../src/cli/shared/container.js';
+import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import { setUnit, type Labeller } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -39,10 +41,16 @@ let previousHome: string | undefined;
 class FakeLabeller implements Labeller {
   public readonly calls: { workspace: string; tokens: Record<string, string> }[] = [];
   public refuse = false;
+  /** What the main agent's pane resolves to; undefined means "not under Herdr". */
+  public paneWorkspace: string | undefined = undefined;
 
   public setWorkspaceTokens(workspace: string, tokens: Record<string, string>): void {
     if (this.refuse) throw new Error('herdr refused the tokens');
     this.calls.push({ workspace, tokens });
+  }
+
+  public workspaceOfPane(): string | undefined {
+    return this.paneWorkspace;
   }
 }
 
@@ -50,6 +58,14 @@ function liveShift(sid: string, container: string): void {
   const run = join(home, 'tasks', 't042', 'shifts', sid, 'run');
   mkdirSync(run, { recursive: true });
   writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, container, pane: 'w1:p2' })}\n`);
+}
+
+/** The lock `yan continue` holds, stamped with the pane the main agent is in. */
+function enterLock(task: string, pane: string): void {
+  writeFileSync(
+    join(home, 'tasks', task, '.enter.lock'),
+    `${JSON.stringify({ pid: process.pid, host: hostname(), at: 0, identity: enterIdentity(task, pane) })}\n`,
+  );
 }
 
 beforeEach(async () => {
@@ -82,12 +98,42 @@ describe('the workspace is derived, never created', () => {
     expect(containerOf('t042')).toBe('w3');
   });
 
-  it('never reaches for `workspace create`, which would make one', () => {
-    // The doc comment names it to say why; the code may not call it.
-    const source = readFileSync(join(repoRoot, 'src', 'cli', 'shared', 'display.ts'), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/(^|[^:])\/\/.*$/gm, '$1');
-    expect(source).not.toContain('createContainer');
+  it('falls back to the workspace the main agent is in', () => {
+    // No shift has run yet, so the only thing on screen is `user`'s own pane
+    // with yan in it. That is the container this task's tabs belong in, and
+    // the enter lock is where its id is stamped.
+    enterLock('t042', 'w7:p1');
+    const terminal = new FakeLabeller();
+    terminal.paneWorkspace = 'w7';
+    expect(containerOf('t042', terminal)).toBe('w7');
+  });
+
+  it('prefers a live shift over the lock, so the answer cannot move mid-task', () => {
+    liveShift('s1', 'w3');
+    enterLock('t042', 'w7:p1');
+    const terminal = new FakeLabeller();
+    terminal.paneWorkspace = 'w7';
+    expect(containerOf('t042', terminal)).toBe('w3');
+  });
+
+  it('is undefined when the lock names no pane, because yan is not under Herdr', () => {
+    enterLock('t042', '');
+    const terminal = new FakeLabeller();
+    terminal.paneWorkspace = 'w7';
+    expect(containerOf('t042', terminal)).toBeUndefined();
+  });
+
+  it('creates nothing, even handed a terminal that could', () => {
+    // The relabelling callers pass a Terminal because they need
+    // `workspaceOfPane`. That must not become a way to make a workspace: a
+    // command that only wants to relabel has no business creating one.
+    const terminal = {
+      workspaceOfPane: () => undefined,
+      createContainer: () => {
+        throw new Error('containerOf must never create a container');
+      },
+    };
+    expect(containerOf('t042', terminal)).toBeUndefined();
   });
 });
 

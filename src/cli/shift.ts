@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { agentFor, configPath } from './shared/config.js';
+import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
@@ -252,11 +253,14 @@ export interface NewOptions {
 /** What `shift new` needs from the terminal. `Terminal` is the real one. */
 export interface Dispatcher {
   createContainer(label: string): { workspace: string };
+  /** How the task's existing container is found before one is created. */
+  workspaceOfPane(pane: string): string | undefined;
   startAgent(options: {
     container: string;
     name: string;
     kind: string;
     cwd: string;
+    label?: string;
     env?: Record<string, string>;
     argv?: readonly string[];
   }): { pane: string; agent_session?: string };
@@ -378,7 +382,11 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
     // --- 4. start the agent, and confirm it ---------------------------------
     const terminal = deps.terminal ?? new Terminal();
-    const container = terminal.createContainer(record.containerName()).workspace;
+    // Joined, not created. The shift lands in a tab of the workspace the rest
+    // of this task is already in — `user`'s own, with the main agent in it —
+    // so one task is one thing to look at. `container.ts` owns the order the
+    // three answers are tried in, and creating is the last of them.
+    const container = resolveContainer(task, terminal, record.containerName());
 
     // run/meta.json is written before the agent starts, with the pane filled in
     // immediately afterwards. The other order would leave a running agent with
@@ -417,6 +425,10 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       name: `${sid}-${unitName}`,
       kind: agent,
       cwd: workdir,
+      // The tab is what `user` picks this shift out of the row by, so it says
+      // the same thing the pane title does. Display only; the pane id in
+      // run/meta.json is what finds this agent again.
+      label: `${sid}-${unitName}`,
       env: {
         YAN_HOME: yanHome(),
         // Explicit, for the reason  gives: a shift outlives the

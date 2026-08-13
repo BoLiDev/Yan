@@ -54,7 +54,8 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     expect(container.tab).toMatch(/^w[0-9A-Za-z]+:t[0-9A-Za-z]+$/);
     expect(container.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
 
-    // 2/7 — two steps: split with cwd and env, then start the agent into it.
+    // 2/7 — two steps: a tab with cwd and env, then start the agent into the
+    // pane it comes with.
     // It returns only once Herdr reports the agent interactive-ready, which is
     // what makes a start confirmation possible at all.
     const started = new Terminal().startAgent({

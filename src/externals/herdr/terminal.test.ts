@@ -257,7 +257,7 @@ describe('an agent that is not really there', () => {
   };
 
   /**
-   * A herdr that answers `pane split` and `agent start` happily, reports the
+   * A herdr that answers `tab create` and `agent start` happily, reports the
    * agent ready — and then has no agent in that pane. That is
    * §11.7: codex exited at once and Herdr matched the bare shell prompt it left
    * behind.
@@ -265,8 +265,11 @@ describe('an agent that is not really there', () => {
   function pretendingHerdr(alive: boolean) {
     return (args: readonly string[]) => {
       const verb = `${args[0]} ${args[1]}`;
-      if (verb === 'pane list') return ok({ panes: [{ pane_id: 'w1:p1', workspace_id: 'w1' }] });
-      if (verb === 'pane split') return ok({ pane: { pane_id: 'w1:p2' } });
+      // A new tab comes with exactly one pane, and Herdr reports it as
+      // `root_pane`. That is the pane the agent is started into.
+      if (verb === 'tab create') {
+        return ok({ tab: { tab_id: 'w1:t2' }, root_pane: { pane_id: 'w1:p2' } });
+      }
       if (verb === 'agent start') {
         return ok({ agent: { name: 's1', pane_id: 'w1:p2', agent_status: 'idle' } });
       }

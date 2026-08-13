@@ -90,8 +90,13 @@ export class Terminal {
    *
    * Two steps, and they are not interchangeable: `agent start` requires a pane
    * that already exists and is at an interactive prompt, and it never creates
-   * layout. So the pane is split first, carrying the environment and working
-   * directory, and the agent is started into it.
+   * layout. So a tab is created first, carrying the environment and working
+   * directory, and the agent is started into the pane it comes with.
+   *
+   * A tab rather than a split, because every agent in the container gets a
+   * whole screen. Splitting put the second agent beside the first and the
+   * fourth in a quarter of the window; tabs cost a keystroke to switch between
+   * and stay legible however many are running.
    *
    * `agent start` waits for Herdr to detect the agent before returning, and
    * That is not proof the agent is up: detection is screen-based, and a bare
@@ -108,7 +113,7 @@ export class Terminal {
     if (options.kind === '') throw TerminalError.usage('an agent kind is required');
     if (options.cwd === '') throw TerminalError.usage('a working directory is required');
 
-    const pane = this.split(options);
+    const pane = this.createTab(options);
     const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
     if (options.timeoutMs !== undefined) startArgs.push('--timeout', String(options.timeoutMs));
     // Everything after `--` reaches the agent as argv. There is no shell in
@@ -355,57 +360,40 @@ export class Terminal {
   }
 
   /**
-   * Split a pane to start an agent into.
+   * Make the tab to start an agent into, and answer with its pane.
    *
-   * `--direction` is required by `pane split`; omitting it is an rc 2 CLI
-   * syntax error, which this module reports as a bug in yan rather than as a
-   * runtime condition.
+   * The container is addressed by id — `--workspace <w1>` — so this needs no
+   * pane to work from and cannot pick the wrong one. That is the difference
+   * from splitting, which had to find some existing pane first and derive it
+   * from a listing, because `w1` does not imply `w1:p1`.
+   *
+   * Herdr gives a new tab exactly one pane and reports it as `root_pane`. That
+   * is the pane the agent starts in, and it is also why nothing here ever needs
+   * `tab close`: closing that one pane empties the tab, and Herdr removes the
+   * tab itself. The workspace is untouched, which is the whole point — its
+   * lifetime belongs to `user` (rule 2).
    */
-  private split(options: StartAgentOptions): string {
+  private createTab(options: StartAgentOptions): string {
+    requireWorkspaceId(options.container, 'tab create');
     const args = [
-      'pane',
-      'split',
-      '--direction',
-      options.direction ?? 'down',
+      'tab',
+      'create',
+      '--workspace',
+      options.container,
       '--no-focus',
       '--cwd',
       nativePath(options.cwd),
     ];
-
-    if (options.fromPane !== undefined && options.fromPane !== '') {
-      args.push('--pane', requirePaneId(options.fromPane, 'pane split'));
-    } else {
-      requireWorkspaceId(options.container, 'pane split');
-      args.push('--pane', this.firstPaneOf(options.container));
+    if (options.label !== undefined && options.label !== '') {
+      args.push('--label', options.label);
     }
     for (const [key, value] of Object.entries(options.env ?? {})) {
       args.push('--env', `${key}=${value}`);
     }
 
-    const split = asRecord(this.call(args, 'pane split'));
-    const pane =
-      str(asRecord(split.pane).pane_id) || str(split.pane_id) || str(asRecord(split.result).pane_id);
-    if (pane === '') throw TerminalError.usage('herdr did not report a pane id for the split');
+    const created = asRecord(this.call(args, 'tab create'));
+    const pane = str(asRecord(created.root_pane).pane_id) || str(created.root_pane_id);
+    if (pane === '') throw TerminalError.usage('herdr did not report a root pane for the new tab');
     return pane;
-  }
-
-  /**
-   * Which pane to split from is derived, never guessed from the workspace id:
-   * `w1` does not imply `w1:p1` (ids are opaque, and a closed pane's id is
-   * never reused). `workspace get` answers with WorkspaceInfo and carries no
-   * root pane, so the panes are listed and filtered by workspace instead.
-   */
-  private firstPaneOf(container: string): string {
-    const body = asRecord(this.call(['pane', 'list'], 'pane list'));
-    const panes = Array.isArray(body.panes) ? body.panes : [];
-    const first = panes
-      .map((p) => asRecord(p))
-      .filter((p) => str(p.workspace_id) === container)
-      .map((p) => str(p.pane_id))
-      .find((id) => id !== '');
-    if (first === undefined) {
-      throw TerminalError.usage(`${container} has no pane to split`);
-    }
-    return first;
   }
 }
