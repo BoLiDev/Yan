@@ -29,6 +29,25 @@ which is what makes it safe to make a mess in. The interactive prompts are for p
 at a keyboard, not for you: pass your arguments as flags, because a prompt nobody is
 there to answer is a hang. `yan --help` lists what is missing below.
 
+**Every unit you work in gets a standing tree, and you and `user` share it.** Lease
+it once, before the first shift, and hold it for the whole task:
+
+```
+yan tree get --repo <repo> --base <integration branch> \
+             --branch <integration branch> --holder <task>/<unit>
+```
+
+Same branch on both flags is the point — the integration branch already exists, so
+the tree is checked out on it rather than cutting anything new. `yan done` returns
+it with the rest, because it collects every lease whose holder starts with the task
+id, and the holder has no `sid` because no shift owns it. Print the path when you
+take it: it is where `user` works too, and neither of you should be reading a
+registered clone to see what a round currently looks like. It costs a pool slot for
+the task's lifetime, so `pool_size` has to cover the shifts you intend to run
+concurrently plus one per unit. If it is already checked out somewhere, the pool
+says so and names the holder — switch that clone off the branch rather than asking
+the pool to, which it will not do.
+
 ```
 yan session-start                  rebuild the picture (run at startup)
 yan ls [<id>]                      the queue, or one task in depth

@@ -131,15 +131,35 @@ function remoteRef(clone: string, branch: string): string {
     : '';
 }
 
-/** Make `branch` exist in the clone, as a ref. Returns how that happened. */
-function ensureBranch(command: string, clone: string, repo: string, branch: string, base: string): string {
-  // git fetch is the one write allowed inside a main clone. It may legitimately
-  // fail offline, so it warns rather than stopping: the local refs are then
-  // simply older than they could be.
+/**
+ * Bring a main clone's `origin/*` refs up to date.
+ *
+ * `git fetch` is the one write allowed inside a main clone, and it is the only
+ * step in making a branch exist that touches the network. It may legitimately
+ * fail offline, so it warns rather than stopping: the local refs are then
+ * simply older than they could be, and every decision below still has an
+ * answer.
+ *
+ * It belongs to the caller rather than to `ensureBranch` because the caller is
+ * the only one that knows how many units it is about to add. `ensureBranch`
+ * handles one unit and would fetch once per unit — correct in isolation, and a
+ * round trip per unit when `yan task new` calls it eight times for the same
+ * clone. The second fetch of one clone inside one command cannot return
+ * anything the first did not, so the caller does it once per distinct clone.
+ */
+export function freshenClone(command: string, clone: string, repo: string): void {
   if (fetch(clone).code !== 0) {
     process.stderr.write(`${command}: could not fetch ${repo} - working from the refs already in the clone\n`);
   }
+}
 
+/**
+ * Make `branch` exist in the clone, as a ref. Returns how that happened.
+ *
+ * Reads refs and writes local ones; never fetches. `freshenClone` is what puts
+ * current refs there, and its doc comment says why the split exists.
+ */
+function ensureBranch(command: string, clone: string, branch: string, base: string): string {
   if (branchExists(clone, branch)) return 'adopted the existing local branch';
 
   if (remoteRef(clone, branch) !== '') {
@@ -285,6 +305,16 @@ export interface AddOptions {
   scope: string[];
   needs: string[];
   json?: boolean;
+  /**
+   * The caller has already run `freshenClone` for this unit's clone in this
+   * command, so this call must not fetch again.
+   *
+   * `yan task new` is the only caller that sets it: it adds several units at
+   * once, often from one clone, and one fetch answers for all of them. Left
+   * unset — every other caller, and every caller that forgets — this fetches,
+   * so the safe behaviour is the default rather than the thing to remember.
+   */
+  fetched?: boolean;
 }
 
 export interface AddResult {
@@ -344,7 +374,8 @@ export function addTaskUnit(options: AddOptions): AddResult {
   // already opened the branch — in a ticket system, on the forge, wherever the
   // team's tooling does it — so yan checks that it is really there instead of
   // cutting a second one over the top.
-  const how = ensureBranch('yan unit add', clone, repo, branch, options.base ?? target);
+  if (options.fetched !== true) freshenClone('yan unit add', clone, repo);
+  const how = ensureBranch('yan unit add', clone, branch, options.base ?? target);
 
   try {
     record.addUnit(unit, repo, target, {
@@ -609,7 +640,8 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     // commits rather than a naming rule.
     const base =
       options.base ?? (end === 'abandoned' ? before.branch : (options.target ?? before.target));
-    const how = ensureBranch('yan unit set', clone, before.repo, branch, base);
+    freshenClone('yan unit set', clone, before.repo);
+    const how = ensureBranch('yan unit set', clone, branch, base);
 
     unit.rotate(end, branch, options.at ?? '');
 

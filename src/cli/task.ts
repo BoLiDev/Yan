@@ -3,11 +3,11 @@ import { basename, join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
-import { registry } from './shared/repo.js';
+import { registry, repoDir } from './shared/repo.js';
 import { tasksDir } from '../util/vault.js';
 import { isTty } from './shared/resolve.js';
 import { enterTask, renderEntered } from './continue.js';
-import { addTaskUnit } from './unit.js';
+import { addTaskUnit, freshenClone } from './unit.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
@@ -147,6 +147,8 @@ export interface TaskNewResult {
 
 export interface TaskNewDeps {
   readonly add?: typeof addTaskUnit;
+  /** Replaceable so a test can count fetches without a network or a real clone. */
+  readonly freshen?: typeof freshenClone;
 }
 
 /** What is missing before this can run at all, as flags a caller can pass. */
@@ -207,6 +209,43 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   }
 
   const add = deps.add ?? addTaskUnit;
+
+  // One fetch per clone, before any unit is added.
+  //
+  // Making a unit's integration branch exist is otherwise entirely local — read
+  // some refs, write one — and the fetch in front of it is the only network
+  // round trip. Left to `unit add` it runs once per unit, so eight units meant
+  // eight serial fetches and the better part of a minute before the command
+  // said anything. Units routinely share a clone (a monorepo split by scope is
+  // the ordinary case), and a second fetch of one clone inside one command
+  // cannot return anything the first did not.
+  //
+  // Failure is already only a warning inside `freshenClone` - a task can be
+  // created offline, with older refs - so nothing here needs to stop.
+  const freshen = deps.freshen ?? freshenClone;
+  const fetched = new Set<string>();
+  const unresolved = new Set<string>();
+  for (const spec of options.units) {
+    // Keyed by resolved clone path, not by `--repo`: the same clone can be
+    // named by its registry name in one unit and by its path in another, and
+    // fetching it twice because the two spellings differ is the bug this
+    // exists to remove. `repoDir` is the resolver `unit add` itself uses, so
+    // both spellings land on the same key.
+    let clone;
+    try {
+      clone = repoDir('task_new', spec.repo);
+    } catch {
+      // Unresolvable is not this loop's to report: `add` below raises it and
+      // names the unit, which is the message that helps. Remember it, so this
+      // unit is not told its clone was freshened when it was not.
+      unresolved.add(spec.repo);
+      continue;
+    }
+    if (fetched.has(clone)) continue;
+    fetched.add(clone);
+    freshen('yan task new', clone, spec.repo);
+  }
+
   const added: string[] = [];
   for (const spec of options.units) {
     let name = spec.unit ?? '';
@@ -230,6 +269,10 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
         base: spec.base,
         scope: spec.scope,
         needs: spec.needs,
+        // Only for the clones the loop above actually reached. A repo it could
+        // not resolve was not fetched, so claiming otherwise would trade a slow
+        // `task new` for one that quietly works from stale refs.
+        fetched: !unresolved.has(spec.repo),
       });
     } catch (err) {
       throw new CommandError('task_new', 'unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue --task ${id}'`,

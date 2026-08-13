@@ -10,6 +10,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { createTask } from '../../src/cli/task.js';
 
 /**
  * `yan task new`, ported from `tests/integration/yan-task-new.test.sh` and
@@ -183,5 +184,107 @@ describe('what it refuses, and never guesses', () => {
 
   it('creates nothing when it refuses', () => {
     expect(existsSync(join(home, 'tasks', 't045'))).toBe(false);
+  });
+});
+
+describe('the clone is fetched once per clone, not once per unit', () => {
+  /**
+   * Making a unit's integration branch exist is local except for one `git
+   * fetch`, and that fetch used to run per unit. Eight units off one monorepo
+   * meant eight serial round trips before the command said anything - the
+   * whole cost of `yan task new` on a slow network, for refs the first fetch
+   * already had.
+   *
+   * `add` is injected too, so nothing here cuts a real branch: what is under
+   * test is how many times the network is reached and which units are told it
+   * happened, not what git did afterwards.
+   */
+  function createWithFakes(units: Array<{ repo: string; target: string; scope?: string[] }>) {
+    const freshened: string[] = [];
+    const addedWith: Array<{ repo: string; fetched: boolean }> = [];
+    const previous = process.env.YAN_HOME;
+    process.env.YAN_HOME = home;
+    try {
+      const result = createTask(
+        {
+          title: 'fetch dedup',
+          units: units.map((u) => ({
+            repo: u.repo,
+            target: u.target,
+            scope: u.scope ?? [],
+            needs: [],
+          })),
+        },
+        {
+          freshen: (_command, clone) => {
+            freshened.push(clone);
+          },
+          add: (options) => {
+            addedWith.push({ repo: options.repo ?? '', fetched: options.fetched === true });
+            return {
+              task: options.task ?? '',
+              unit: options.unit ?? '',
+              branch: 'b',
+              target: options.target ?? '',
+              name_from: 'default',
+              branch_state: 'cut from origin/main',
+            };
+          },
+        },
+      );
+      return { result, freshened, addedWith };
+    } finally {
+      if (previous === undefined) delete process.env.YAN_HOME;
+      else process.env.YAN_HOME = previous;
+    }
+  }
+
+  it('fetches one clone once, however many units come off it', () => {
+    const { result, freshened } = createWithFakes([
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/auth'] },
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/admin'] },
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/api'] },
+    ]);
+    expect(result.units).toHaveLength(3);
+    expect(freshened).toHaveLength(1);
+  });
+
+  it('still fetches each distinct clone', () => {
+    const { freshened } = createWithFakes([
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/auth'] },
+      { repo: 'proto', target: 'main' },
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/admin'] },
+    ]);
+    expect(freshened).toHaveLength(2);
+    expect(new Set(freshened).size).toBe(2);
+  });
+
+  it('keys on the resolved clone, so a name and a path are not fetched twice', () => {
+    const { freshened } = createWithFakes([
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/auth'] },
+      { repo: join(home, 'repos', 'monorepo-x'), target: 'main', scope: ['apps/admin'] },
+    ]);
+    expect(freshened).toHaveLength(1);
+  });
+
+  it('tells the units it fetched that it did, so they do not fetch again', () => {
+    const { addedWith } = createWithFakes([
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/auth'] },
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/admin'] },
+    ]);
+    expect(addedWith.every((a) => a.fetched)).toBe(true);
+  });
+
+  it('does not claim a clone it could not resolve was fetched', () => {
+    // The unresolvable repo still reaches `add`, which is what raises the real
+    // error with the unit name on it. What it must not carry is `fetched`:
+    // that would trade a slow create for one silently working from stale refs.
+    const { freshened, addedWith } = createWithFakes([
+      { repo: 'monorepo-x', target: 'main', scope: ['apps/auth'] },
+      { repo: 'no-such-repo', target: 'main' },
+    ]);
+    expect(freshened).toHaveLength(1);
+    expect(addedWith.find((a) => a.repo === 'no-such-repo')?.fetched).toBe(false);
+    expect(addedWith.find((a) => a.repo === 'monorepo-x')?.fetched).toBe(true);
   });
 });
