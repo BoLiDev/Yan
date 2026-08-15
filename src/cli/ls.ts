@@ -9,26 +9,16 @@ import { action, out } from './shared/action.js';
 import { dash, renderTable } from './shared/table.js';
 
 /**
- * `yan ls [<id>] [--json]` — the queue, and the deeper view of one task.
- *
- * This command stores nothing. There is no backlog file and there must never be
- * one: the queue is a view produced by scanning
- * `tasks/*​/task.json` every single time it is asked for. That is design
- * principle 1 — do not store state you can derive — and it removes the most
- * bug-prone thing in the system, a second list that can disagree with the
- * directory.
- *
- * The JSON shape is byte-identical to the shell version's, key order included.
- * That is not cosmetic: during the migration either half may be the one a
- * script is piping into `jq`, and a reordered key is a broken script.
+ * `yan ls [<id>] [--json]` — the queue, and the deeper view of one task,
+ * produced by scanning `tasks/*​/task.json` on every call. Stores nothing.
  */
 
-/** jq's `// ""`: null, absent and false become the empty string. */
+/** A string field: null, absent and false all become the empty string. */
 function orEmpty(value: unknown): unknown {
   return value === null || value === undefined || value === false ? '' : value;
 }
 
-/** jq's `unique`: sorted by code point, deduplicated. */
+/** Sorted by code point, deduplicated. */
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
@@ -42,12 +32,8 @@ interface ShiftRow {
 }
 
 /**
- * The live shifts of one task.
- *
- * "Live" means `run/` still exists: `run/` is the only throwaway layer and a
- * shift clocking out deletes it whole, so its presence is the
- * fact. A `meta.json` that cannot be parsed is skipped rather than fatal — the
- * file may be half-written at the moment we look (lib-shift invariant 3).
+ * The live shifts of one task — the ones that still have a `run/`. A
+ * `meta.json` that cannot be read is skipped rather than fatal.
  */
 function shiftRows(id: string): ShiftRow[] {
   const dir = join(new Task(id).dir, 'shifts');

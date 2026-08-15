@@ -4,18 +4,9 @@ import { TaskError } from './errors.js';
 import { MODES, type Mode, type TaskData, type UnitData } from './types.js';
 
 /**
- * Reading and writing the document itself — the part that knows JSON.
- *
- * Two invariants live here and nowhere else:
- *
- *   1. Read leniently. A missing key, an unexpected key or a half-written array
- *      must never crash a reader. task.json outlives the version of yan that
- *      wrote it, and a task nobody can open is a task nobody can finish.
- *
- *   2. Write through `util/json.ts`, so every write lands tmp → mv and carries
- *      a version field. Key order is preserved on edit rather than rebuilt:
- *      task.json is versioned in the vault, and a rebuild would turn every
- *      one-field change into a whole-file diff.
+ * The JSON layer under task.json. Reads fill in a default for anything the
+ * file omits or mistypes, so only a missing file throws; writes go through
+ * `util/json.ts`, landing tmp → mv with key order preserved.
  */
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -67,7 +58,10 @@ export function readDocument(file: string, id: string): TaskData {
   };
 }
 
-/** Read-modify-write one task.json, atomically, preserving key order. */
+/**
+ * Read-modify-write one task.json, atomically, preserving key order. Anything
+ * `edit` throws propagates and leaves the file untouched.
+ */
 export function editDocument(
   file: string,
   id: string,
@@ -80,7 +74,12 @@ export function editDocument(
   });
 }
 
-/** The same, narrowed to one unit. Refuses rather than creating one. */
+/**
+ * The same, narrowed to one unit.
+ *
+ * @throws TaskError `missing` when no unit of that name exists; it is never
+ *   created.
+ */
 export function editUnitIn(
   file: string,
   id: string,

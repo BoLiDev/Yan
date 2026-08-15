@@ -7,15 +7,7 @@ const CODES = {
 
 export type SupervisionErrorKind = keyof typeof CODES;
 
-/**
- * What the supervision files can fail with.
- *
- * Deliberately short. Almost everything this record is asked is a predicate —
- * is the watcher healthy, is this reason already waiting to be drained — and a
- * predicate that throws is a predicate a caller has to wrap. Only two things
- * here are conditions rather than answers: being called wrongly, and not being
- * able to write a file supervision cannot work without.
- */
+/** What the supervision files can fail with. The predicates never throw. */
 export class SupervisionError extends YanError {
   public static readonly codes = CODES;
 

@@ -3,15 +3,9 @@ import { readJsonIfPresent } from '../../util/json.js';
 import type { ShiftMeta } from './types.js';
 
 /**
- * Reading `run/meta.json`, once, into a typed value.
- *
- * The shape this replaces was six one-line accessors over a shared `get(...keys)`
- * — `unit`, `branch`, `tree`, `agent`, `agentId`, `mr`. That was not only six
- * names for one idea: each of them re-opened and re-parsed the file, so a caller
- * that wanted three fields parsed the same JSON three times.
- *
- * Invariant 3 lives here: a missing file, a missing key, a half-written file or
- * an unrecognised key answers "I do not know" and never throws.
+ * Read `run/meta.json` in one pass. Never throws: a missing, unreadable or
+ * half-written file yields `{}`, and any field the file does not carry is
+ * absent rather than empty.
  */
 export function readMeta(run: string): ShiftMeta {
   let raw: unknown;
@@ -32,8 +26,7 @@ export function readMeta(run: string): ShiftMeta {
     return undefined;
   };
 
-  // Several spellings per field because which one is written is the dispatching
-  // phase's decision; accepting both costs a loop and cannot be wrong about it.
+  // A field is taken from the first spelling present, in the order listed.
   return strip({
     unit: first('unit'),
     branch: first('branch'),
@@ -49,7 +42,7 @@ export function readMeta(run: string): ShiftMeta {
   });
 }
 
-/** Absent means absent: an explicit `undefined` would survive JSON round trips as a key. */
+/** Drop undefined values, so an absent field has no key at all. */
 function strip(meta: Record<string, string | undefined>): ShiftMeta {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(meta)) if (v !== undefined) out[k] = v;

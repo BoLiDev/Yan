@@ -7,24 +7,12 @@ import { out } from './action.js';
 import { CommandError } from './errors.js';
 
 /**
- * Not a subcommand, which is why it is under shared/: every top-level file in
- * src/cli/ is a command (util/home.ts derives the list from disk), and this is
- * one command's implementation rather than a command of its own.
+ * What `yan vault init --from-home` does: the only reader of the pre-vault
+ * layout.
  *
- * `yan vault init --from-home` — the one thing that still reads the pre-V3
- * layout, and the last thing that ever will.
- *
- * It is a command rather than a page of instructions for one reason beyond
- * convenience: **it is the test.** V3's whole claim is that the three layers
- * separate cleanly, and moving real tasks, a real registry, a real config and a
- * real clone out of a real home is the only honest way to find out. A checklist
- * proves nothing and cannot be re-run.
- *
- * The order is: preflight everything, copy (never move) the data, move the
- * clones, write both halves of the registry, and leave the old copy alone. The
- * caller deletes it afterwards, by hand or with `--drop-home`, once `yan ls`
- * and `yan doctor` have agreed. Until that moment the migration is additive and
- * undone by deleting one directory.
+ * Call `planMigration`, `preflight`, `migrate`, then `stillOnlyInHome` and at
+ * most `dropHome`. Everything but the clones is copied rather than moved, so
+ * until `dropHome` runs the migration is undone by deleting the vault.
  */
 
 export interface MigrationPlan {
@@ -45,14 +33,7 @@ function isDir(path: string): boolean {
   }
 }
 
-/**
- * Something is in the way at a destination.
- *
- * An empty directory is not in the way, and that distinction is not a nicety:
- * the first real run of this migration hit a leftover empty `poe-tools/` beside
- * the mechanics clone and refused, claiming it would merge two clones. There
- * was nothing there to merge.
- */
+/** Something is in the way at a destination. An empty directory is not. */
 function occupied(path: string): boolean {
   if (!existsSync(path)) return false;
   try {
@@ -100,18 +81,12 @@ export function planMigration(vault: string, cloneRoot: string): MigrationPlan {
 }
 
 /**
- * Every refusal, before a single file moves.
+ * Check the whole plan before anything moves. Nothing here writes.
  *
- * The two that matter are the last two. A live shift means panes and leases
- * that record absolute paths, and moving the task directory under a running
- * agent is how you get a shift writing its outcome into a directory nobody
- * reads again. A lease on a clone that is about to move is worse: the pool's
- * directory is keyed by a hash of that path, so the tree would be orphaned and
- * the work in it unreachable by the pool that made it.
- *
- * The pool is deliberately not rewritten to follow the clone. A tree is a
- * scratch checkout — the pool exists to be thrown away and re-leased — and a
- * migration that rewrites derived state is how you end up with two answers.
+ * @param leasesFor how many trees the pool holds for a clone; a clone with any
+ *   cannot move, because the pool is keyed by its path.
+ * @throws CommandError `vault_preflight` listing every problem at once —
+ *   an occupied destination, a leased clone, or a live shift.
  */
 export function preflight(plan: MigrationPlan, leasesFor: (clone: string) => number): void {
   const problems: string[] = [];
@@ -147,12 +122,9 @@ export function preflight(plan: MigrationPlan, leasesFor: (clone: string) => num
 }
 
 /**
- * Copy the data in, move the clones, write both halves.
- *
- * copy, not move, for everything under the old home: until the caller deletes
- * it, the migration can be undone by deleting the vault. The clones are the one
- * exception — two copies of a repository is not a safe state to leave someone
- * in, and the pool has already been proven empty for each of them.
+ * Copy tasks, mem, config and hooks into the vault, move the clones to the
+ * clone root, and write both halves of the registry. The old home keeps its
+ * copy of everything but the clones. Narrates to stdout.
  */
 export function migrate(plan: MigrationPlan): void {
   mkdirSync(plan.vault, { recursive: true });
@@ -161,8 +133,7 @@ export function migrate(plan: MigrationPlan): void {
     mkdirSync(join(plan.vault, 'tasks'), { recursive: true });
     for (const id of plan.tasks) {
       cpSync(join(plan.home, 'tasks', id), join(plan.vault, 'tasks', id), { recursive: true });
-      // run/ is throwaway and machine-local, and the .gitignore in the vault
-      // says so; copying it in would commit pane ids on the first push.
+      // run/ and the enter lock are machine-local and never enter the vault.
       rmSync(join(plan.vault, 'tasks', id, 'run'), { recursive: true, force: true });
       rmSync(join(plan.vault, 'tasks', id, '.enter.lock'), { force: true });
       out(`vault init: task ${id}`);
@@ -173,8 +144,7 @@ export function migrate(plan: MigrationPlan): void {
   if (isDir(mem)) {
     mkdirSync(join(plan.vault, 'mem'), { recursive: true });
     for (const entry of readdirSync(mem)) {
-      // The old registry does not travel: it is split below into two files
-      // that mean different things.
+      // The old registry is split into two files below instead.
       if (entry === 'repos.json') continue;
       cpSync(join(mem, entry), join(plan.vault, 'mem', entry), { recursive: true });
     }
@@ -198,8 +168,8 @@ export function migrate(plan: MigrationPlan): void {
   const old = entriesOf(join(plan.home, 'mem', 'repos.json'));
   for (const repo of plan.repos) {
     mkdirSync(plan.cloneRoot, { recursive: true });
-    // An empty directory at the destination passed preflight; `rename` onto it
-    // still fails on Windows, so it goes first.
+    // An empty destination passed preflight, but `rename` onto one still
+    // fails on Windows.
     rmSync(repo.to, { recursive: true, force: true });
     renameSync(repo.from, repo.to);
     out(`vault init: ${repo.name}  ${repo.from} → ${repo.to}`);
@@ -221,9 +191,7 @@ export function migrate(plan: MigrationPlan): void {
     });
   }
 
-  // A registry entry with no clone on this disk is a normal state, but one
-  // whose clone was never registered at all is a repository yan would forget
-  // about entirely, so the entries without directories come across too.
+  // Entries with no clone under repos/ still come across, unlinked.
   for (const [name, entry] of Object.entries(old)) {
     if (plan.repos.some((r) => r.name === name)) continue;
     editJson(portable, (raw) => {
@@ -240,12 +208,9 @@ export function migrate(plan: MigrationPlan): void {
 }
 
 /**
- * Everything the old home still holds that the vault does not.
- *
- * The check `dropHome` is not allowed to skip. It compares by task id and by
- * registry entry rather than by byte, because that is the question a person is
- * really asking — did anything get left behind — and a byte comparison would
- * fail on the `run/` directories that are deliberately not copied.
+ * Everything the old home still holds that the vault does not, compared by
+ * task id and registry entry rather than by byte. Empty means `dropHome` is
+ * safe.
  */
 export function stillOnlyInHome(plan: MigrationPlan): string[] {
   const missing: string[] = [];
@@ -263,7 +228,10 @@ export function stillOnlyInHome(plan: MigrationPlan): string[] {
   return missing;
 }
 
-/** What the old home can give up, once the new one has been checked. */
+/**
+ * Delete the migrated data from the old home, leaving a `.migrated.json`
+ * pointing at the vault. Checks nothing first.
+ */
 export function dropHome(plan: MigrationPlan): void {
   for (const rel of ['tasks', 'mem', 'repos', join('conf', 'config.json'), join('conf', 'hooks')]) {
     rmSync(join(plan.home, rel), { recursive: true, force: true });

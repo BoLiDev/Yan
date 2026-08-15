@@ -7,11 +7,8 @@ import { cleanupTempDirs, mkTempDir, repoRoot } from '../helpers/fixtures.js';
 /**
  * The module-boundary lint rule, exercised against fixture trees.
  *
- * It lives in tests/unit/ rather than beside a module because it is not about
- * any one module: it is the rule that keeps every module's `index.ts` the whole
- * truth about that module. The checker is a build step (`npm run
- * lint:boundaries`, wired into `npm run build`), so the test runs the real
- * checker rather than asserting on its source.
+ * The checker is a build step, so this runs the real one rather than
+ * asserting on its source.
  */
 
 afterAll(cleanupTempDirs);
@@ -67,9 +64,7 @@ describe('rule 1: only index.ts may be imported from outside a module', () => {
 describe('rule 2: no sideways edges between modules', () => {
   it('fails when one external imports another', () => {
     const root = mkTempDir();
-    // Deliberately not real module names: this test is about the rule, and a
-    // fixture named after a real module gets damaged the next time one is
-    // renamed. It was, once.
+    // Deliberately not real module names, which a rename would break.
     write(root, 'externals/alpha/index.ts', `import { x } from '../beta/index.js';\n`);
     write(root, 'externals/beta/index.ts', `export const x = 1;\n`);
 

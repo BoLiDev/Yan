@@ -10,12 +10,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fi
  * scalars stay separate from it.
  */
 
-/**
- * The unit data a fixture just wrote. A test accessor, not module surface:
- * `Task.unit(name)` hands back identity, and `.read()` is how you get data —
- * pulling a unit out of an already-parsed document is a convenience only a
- * test wants.
- */
+/** One unit out of an already-parsed document. A test accessor only. */
 function requireUnitOf(task: TaskData, name: string): UnitData {
   const found = task.units.find((u) => u.name === name);
   if (found === undefined) throw new Error(`no such unit in the fixture: `);
@@ -132,8 +127,7 @@ describe('the four current scalars', () => {
 
 describe('history is append-only', () => {
   it('offers no way to reach an existing entry', () => {
-    // The API is the enforcement. If one of these ever appears, invariant 1 has
-    // been lost and this test is the alarm.
+    // The absence of these is what makes history[] append-only.
     const surface = Object.getOwnPropertyNames(Unit.prototype);
     for (const forbidden of ['setHistory', 'replaceHistory', 'deleteHistory', 'historyAt']) {
       expect(surface).not.toContain(forbidden);

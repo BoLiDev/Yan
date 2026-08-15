@@ -19,18 +19,9 @@ import { setUnit, type Labeller } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
- * The display-metadata calls, and the two
- * bullets that span every command rather than belonging to one.
- *
- *   "Workspace tokens and pane titles are set at the right moments,
- *    cleared on teardown, and a metadata failure logs one line without
- *    aborting the operation."
- *
- *   "`target` is never defaulted by any command."
- *
- * Herdr receives presentation, never truth: nothing reported here is ever read
- * back as a fact, so a refused call is a cosmetic bug and must never abort the
- * operation that made it.
+ * Two claims that span every command rather than belonging to one: workspace
+ * tokens and pane titles are set and cleared at the right moments and never
+ * abort the operation that set them, and `target` is never defaulted.
  */
 
 afterAll(cleanupTempDirs);
@@ -74,9 +65,6 @@ beforeEach(async () => {
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   process.env.YAN_HOME = home;
   await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
   Task.create('t042', 'unify the auth header');
@@ -99,9 +87,8 @@ describe('the workspace is derived, never created', () => {
   });
 
   it('falls back to the workspace the main agent is in', () => {
-    // No shift has run yet, so the only thing on screen is `user`'s own pane
-    // with yan in it. That is the container this task's tabs belong in, and
-    // the enter lock is where its id is stamped.
+    // No shift has run yet, so the container comes from the pane stamped on
+    // the enter lock.
     enterLock('t042', 'w7:p1');
     const terminal = new FakeLabeller();
     terminal.paneWorkspace = 'w7';
@@ -124,9 +111,8 @@ describe('the workspace is derived, never created', () => {
   });
 
   it('creates nothing, even handed a terminal that could', () => {
-    // The relabelling callers pass a Terminal because they need
-    // `workspaceOfPane`. That must not become a way to make a workspace: a
-    // command that only wants to relabel has no business creating one.
+    // A relabelling caller passes a Terminal for `workspaceOfPane`, which must
+    // not become a way to make a workspace.
     const terminal = {
       workspaceOfPane: () => undefined,
       createContainer: () => {
@@ -191,9 +177,8 @@ describe('`target` is never defaulted by any command', () => {
   });
 
   it('is never invented by the commands that read it', () => {
-    // The other three readers - mr, land, shift new - take it from the
-    // unit and refuse when it is empty. None of them may fall back to main,
-    // master, or the current branch.
+    // mr, land and shift new take it from the unit and refuse when it is
+    // empty: never main, master, or the current branch.
     for (const file of ['mr.ts', 'land.ts', 'shift.ts', 'unit.ts']) {
       const source = readFileSync(join(repoRoot, 'src', 'cli', file), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')

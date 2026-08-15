@@ -5,37 +5,14 @@ import { Terminal } from '../externals/herdr/index.js';
 import { Shift } from '../records/shift/index.js';
 
 /**
- * `yan send <sid> "<line>"` — yan → shift, while it is running.
+ * `yan send <sid> "<line>"` — one short line to a running shift, text and
+ * Enter in a single submission. Anything long goes in a file: send the path.
  *
- * One short line. The long contract was written once, into
- * `shifts/<sid>/brief.md`, and anything long that comes up afterwards goes into
- * a file: write the file, send the path. A wall of text typed into a running
- * agent's prompt is how the terminal ends up with half a paragraph in it and
- * the agent with the other half.
- *
- * Why one call rather than two.
- *
- * Typing the text and pressing Enter separately is the obvious shape, and it is
- * wrong here: agent CLIs routinely swallow the first Enter while they are still
- * painting their input box, so the two-call version needs a retry and a flag to
- * drive it. Herdr's `agent prompt` submits text and Enter together, honouring
- * the pane's live bracketed-paste mode, so there is nothing to retry and `--enter` /
- * `--no-enter` go with it.
- *
- * What replaces it is a different guard, and it is the one that now matters:
- * Nothing is sent to a pane without a live agent. A prompt to a pane whose
- * agent has died is typed into whatever shell is there, which then tries to run
- * it as a command. The seam refuses; this command reports it.
- * A dead shift is a `died:` wake, not a retry.
- *
- * The pane id comes from `run/meta.json`, never a label — a label is not a
- * source of truth: it can be renamed, and is cleared when the agent exits.
+ * The pane comes from `run/meta.json`, and nothing is sent to a pane with no
+ * live agent — the text would be typed into whatever shell is there.
  */
 
-/**
- * One line to a prompt, not a document. Long enough for a real instruction,
- * short enough that "put it in a file and send the path" stays the habit.
- */
+/** The longest line this will send. */
 function sendMax(): number {
   const raw = process.env.YAN_SEND_MAX;
   const n = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
@@ -47,7 +24,14 @@ export interface Prompter {
   send(pane: string, text: string): void;
 }
 
-/** The command without the process around it: everything that decides is here. */
+/**
+ * Send one line to a shift's agent.
+ *
+ * @throws CommandError `usage` for a missing sid, an empty line, a line with a
+ *   newline in it, or one over the limit; `clocked_out` when the shift has
+ *   clocked out; `no_pane` when its pane was never recorded. TerminalError
+ *   `notFound` when the pane holds no live agent.
+ */
 export function sendLine(
   sid: string | undefined,
   line: string | undefined,

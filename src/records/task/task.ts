@@ -10,30 +10,25 @@ import { Unit } from './unit.js';
 import { MODES, type AddUnitOptions, type TaskData } from './types.js';
 
 /**
- * One `tasks/<id>/` — the decisions yan has made about a task, and only those.
- *
- * Facts live in git and are never mirrored here; live state is looked up on the
- * forge when it is needed. What is left, and what this file holds, is what
- * neither of them knows: which branch a unit is on, where it is meant to go,
- * how far it may reach, and whether `user` has called the task finished.
- *
- * The state this class holds is identity — which task — and never the document.
- * Every method re-reads, because other processes write this file while yan is
- * running and a cached parse would be a lie with a long half-life.
+ * One `tasks/<id>/task.json` — which branch a unit is on, where it is meant to
+ * go, how far it may reach, and whether the task is finished. Holds identity
+ * only: every method re-reads the file, which other processes also write.
  */
 export class Task {
   public readonly id: string;
   public readonly dir: string;
   public readonly file: string;
 
+  /**
+   * `dir` and `file` come back with forward slashes on every platform.
+   *
+   * @throws TaskError when `id` is not a valid task id.
+   */
   public constructor(id: string) {
     if (!Task.isId(id)) {
       throw TaskError.usage(`invalid task id: '${id}' - use letters, digits, dot, dash or underscore`);
     }
     this.id = id;
-    // Paths yan prints or stores are normalised: forward
-    // slashes on both platforms, so `yan ls`'s `dir` line and a `tree` recorded
-    // in run/meta.json read the same on Git Bash and on Linux.
     this.dir = normalizePath(taskDir(id));
     this.file = normalizePath(join(this.dir, 'task.json'));
   }
@@ -42,7 +37,7 @@ export class Task {
     return existsSync(this.file);
   }
 
-  /** The whole document, read leniently. */
+  /** The whole document, with defaults filled in for whatever the file omits. */
   public read(): TaskData {
     return readDocument(this.file, this.id);
   }
@@ -55,10 +50,6 @@ export class Task {
     return this.read().complete;
   }
 
-  /**
-   * The one thing about a task that cannot be derived: `user` has declared it
-   * finished.
-   */
   public setComplete(complete: boolean): void {
     editDocument(this.file, this.id, (task) => {
       task.complete = complete;
@@ -66,11 +57,9 @@ export class Task {
   }
 
   /**
-   * The name of this task's terminal container.
-   *
-   * One container per task, and every caller has to reach the
-   * same one, so the derivation lives here next to the task's other naming. The
-   * name is for humans; nothing is ever looked up by it.
+   * The name of this task's terminal container: `<id> <title>` with `:` and
+   * `.` replaced by `-`, falling back to the id alone when the title cannot be
+   * read.
    */
   public containerName(): string {
     let title = '';
@@ -93,7 +82,7 @@ export class Task {
       : undefined;
   }
 
-  /** The same, but a missing unit is an error rather than an absence. */
+  /** As `findUnit`, but throws TaskError `missing` instead of returning undefined. */
   public unit(name: string): Unit {
     const found = this.findUnit(name);
     if (found === undefined) throw new TaskError('missing', `no such unit: ${name}`);
@@ -101,14 +90,11 @@ export class Task {
   }
 
   /**
-   * `target` is required and never defaulted: during a release the team merges
-   * into a shared branch, in quiet weeks into the default one, and there is no
-   * way to tell which from here. Guessing it wrong aims a merge request at the
-   * wrong branch.
+   * Add a unit. `target` is required and never defaulted; `mode` defaults to
+   * `mr`, so a caller wanting the repository's `mode_default` passes it in.
    *
-   * `mode` defaults to `mr`. A caller that wants the repository's tuned
-   * `mode_default` passes it in, because reading mem/repos.json is on the other
-   * side of this record's fence.
+   * @throws TaskError when a field is missing, the mode is unknown, or a unit
+   *   of this name already exists.
    */
   public addUnit(name: string, repo: string, target: string, options: AddUnitOptions = {}): Unit {
     if (!name || !repo || !target) {
@@ -124,8 +110,6 @@ export class Task {
       if (units.some((u) => (u as Record<string, unknown>).name === name)) {
         throw new TaskError('exists', `unit already exists: ${name}`);
       }
-      // Key order is the shell implementation's, so the two halves write the
-      // same bytes for the same unit.
       units.push({
         name,
         repo,
@@ -147,20 +131,16 @@ export class Task {
     return id !== '' && /^[A-Za-z0-9._-]+$/.test(id);
   }
 
-  /**
-   * For an id that has not been validated — something a person typed.
-   *
-   * The constructor refuses a malformed id, which is right when you are about
-   * to act on a task and wrong when you are only asking whether a string names
-   * one. This answers false instead of throwing.
-   */
+  /** Does this string name a task? False for a malformed id, never a throw. */
   public static exists(id: string): boolean {
     return Task.isId(id) && new Task(id).exists();
   }
 
   /**
-   * The minimal task directory: task.json + brief.md + an empty log.md.
-   * Re-running it on an existing task changes nothing.
+   * Create task.json, brief.md and an empty log.md. Re-running it on an
+   * existing task changes nothing.
+   *
+   * @throws TaskError when `title` is empty.
    */
   public static create(id: string, title: string): Task {
     const task = new Task(id);
@@ -176,12 +156,7 @@ export class Task {
     return task;
   }
 
-  /**
-   * Every task id on disk.
-   *
-   * Derived by scanning, never read from a list. There is no backlog file, and
-   * so no second place for a task to exist in but not really.
-   */
+  /** Every id under `tasks/` that has a task.json, sorted. */
   public static list(): string[] {
     const dir = tasksDir();
     let entries: string[];

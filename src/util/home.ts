@@ -3,14 +3,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Where `$YAN_HOME` is — this clone, the one holding the code.
- *
- *   an exported YAN_HOME wins, but only when it really is a yan home;
- *   otherwise it is derived from this file's own location.
- *
- * The env var is checked rather than trusted because it is easy to inherit a
- * stale one from a shell that was opened in a different clone, and a yan home
- * pointing at the wrong tree fails in ways that look like anything but that.
+ * Where the clone holding yan's own code is: `$YAN_HOME` when it is set and
+ * holds a `bin/yan`, and this file's own location otherwise — so a stale
+ * exported value is ignored rather than obeyed.
  */
 
 function looksLikeHome(dir: string): boolean {
@@ -29,15 +24,7 @@ export function yanHome(): string {
   return resolve(here, '..', '..');
 }
 
-/**
- * The subcommands that exist, derived from disk and never tabulated.
- *
- * `dist/cli/` already knows which commands exist, so a list here could only be
- * a second answer to the same question — and a second answer fails silently:
- * a command that runs but is missing from `--help`, or one announced in
- * `--help` that is not there. Adding a command is adding a file, and that is
- * the whole registration step.
- */
+/** The names between `prefix` and `suffix` in `dir`, sorted; `[]` when unreadable. */
 function namesIn(dir: string, prefix: string, suffix: string, skip: readonly string[]): string[] {
   let entries: string[];
   try {
@@ -55,9 +42,7 @@ function namesIn(dir: string, prefix: string, suffix: string, skip: readonly str
   return names.sort();
 }
 
+/** The subcommands that exist, read off the top level of `dist/cli/`. */
 export function subcommands(home: string): string[] {
-  // Only the top level of dist/cli/ is subcommands. What every command shares lives
-  // one directory down, in src/cli/shared/, precisely so that this stays a
-  // derivation and never needs a list of exceptions.
   return namesIn(join(home, 'dist', 'cli'), '', '.js', ['yan']);
 }

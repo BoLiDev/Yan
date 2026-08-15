@@ -9,11 +9,8 @@ import type { MrCreateOptions, MrRef, RepoRef } from './types.js';
  */
 
 /**
- * Yan's own options. No `gh` or `glab` flag is ever accepted: every verb
- * declares the option names it takes and this refuses everything else, so a
- * caller cannot reach the provider's surface even by accident. The compiler
- * says the same thing; this is the runtime half, for a caller that arrived
- * through JSON or through `unknown`.
+ * @throws RemoteGitError `usage` when `input` carries a defined key outside
+ *   `allowed`, so no CLI flag can reach a provider.
  */
 export function only(input: object, allowed: readonly string[]): void {
   const options = input as Record<string, unknown>;
@@ -26,6 +23,11 @@ export function only(input: object, allowed: readonly string[]): void {
   }
 }
 
+/**
+ * The directory to run in, or undefined when the ref names none.
+ *
+ * @throws RemoteGitError `usage` when `dir` is set but is not a directory.
+ */
 export function checkDir(ref: RepoRef): string | undefined {
   if (ref.dir === undefined || ref.dir === '') return undefined;
   let isDir = false;
@@ -38,16 +40,24 @@ export function checkDir(ref: RepoRef): string | undefined {
   return ref.dir;
 }
 
+/**
+ * The merge request reference, CR-stripped.
+ *
+ * @throws RemoteGitError `usage` when it is missing.
+ */
 export function requireMr(ref: MrRef): string {
   if (ref.mr === undefined || ref.mr === '') {
     throw RemoteGitError.usage('mr is required - pass the merge request URL createMr returned, or its number',
     );
   }
-  // A URL or a branch name that arrived from a JSON file read on Git Bash may
-  // carry a carriage return, and it would turn into an unexplainable 404.
   return ref.mr.replace(/\r/g, '');
 }
 
+/**
+ * The merge request body: `bodyFile`'s contents, `body`, or `''`.
+ *
+ * @throws RemoteGitError `usage` when both are given, or the file is missing.
+ */
 export function bodyText(options: MrCreateOptions): string {
   if (options.bodyFile !== undefined && options.bodyFile !== '') {
     if (options.body !== undefined && options.body !== '') {
@@ -61,7 +71,11 @@ export function bodyText(options: MrCreateOptions): string {
   return options.body ?? '';
 }
 
-/** Callers get the URL and nothing else — never the CLI's prose around it. */
+/**
+ * The last match of `pattern` in `text`, CR-stripped.
+ *
+ * @throws RemoteGitError `failed` when nothing matches.
+ */
 export function extractUrl(text: string, pattern: RegExp): string {
   const matches = text.match(pattern);
   if (matches === null || matches.length === 0) {
@@ -71,10 +85,7 @@ export function extractUrl(text: string, pattern: RegExp): string {
   return (matches[matches.length - 1] ?? '').replace(/\r/g, '');
 }
 
-/**
- * A query verb could not reach the host. It still has to answer with a member
- * of its closed set, so it says so on stderr and returns the safe one.
- */
+/** Write one line on stderr saying the host could not be asked. */
 export function unreachable(what: string, fallback: string, result: CliResult): void {
   const detail = result.stderr.trim().replace(/\n/g, ' ');
   process.stderr.write(

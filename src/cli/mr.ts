@@ -10,37 +10,13 @@ import { Task } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 
 /**
- * `yan mr` — open the outbound merge request, integration branch → target.
+ * `yan mr` — open the outbound merge request, integration branch → target,
+ * and record its URL on the unit. `yan` may run this on its own, because an
+ * MR that should not exist can be closed; merging it is `yan land`, which
+ * `user` has to ask for.
  *
- * Why this is a separate command from `yan land`.
- *
- * Authority, and nothing else:
- *
- *   open the outbound MR from the integration branch to `target`
- *                                        yan, on its own, because opening an
- *                                        MR is reversible
- *   merge the outbound MR into `target`  `user` has to ask for it
- *
- * Two rows of that table, two files. Splitting them is the whole point: `yan`
- * may run this one without being told, because an MR that should not exist can
- * be closed and nothing outside `user`'s own branches has changed. It may not
- * run `yan land`, because that writes into `target`, which colleagues own.
- *
- * There are two levels of review, which is why this MR matters: shift branches
- * merge into the integration branch as internal checkpoints nobody outside
- * sees, and this is the single merge request colleagues actually review. Its
- * size is the size of the unit.
- *
- * What it does not do.
- *
- *   * it does not push. Opening a merge request and deciding that a branch is
- *     ready to be published are two different judgements, and one command that
- *     did both would make the second one invisible. If the branch is not on the
- *     remote yet, this says so and stops;
- *   * it does not comment on anything, and it never mentions anyone
- *     — that interrupts colleagues, so `user` has to ask for it;
- *   * it does not know which host this machine uses. Everything remote goes
- *     through `externals/remote-git`, which is the only module allowed to know.
+ * It never pushes: a branch that is not on the remote yet stops the command.
+ * It never comments and never mentions anyone.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 1 it did not work.
  */
@@ -68,7 +44,14 @@ export interface MrResult {
   readonly draft: boolean;
 }
 
-/** The command without the process around it: everything that decides is here. */
+/**
+ * Open the unit's outbound merge request and record its URL.
+ *
+ * @throws CommandError `usage` for a missing or contradictory argument, an
+ *   unknown task or unit, a unit not in `mr` mode, one that already has an
+ *   outbound MR, or one whose branch and target are the same; `no_branch`,
+ *   `no_target` or `not_pushed` for a unit that is not ready.
+ */
 export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   const task = options.task ?? '';
   const unitName = options.unit ?? '';
@@ -87,9 +70,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   }
   const data = unit.read();
 
-  // The four refusals. `mode` decides whether an MR is the deliverable at all:
-  // a `branch` unit delivers a clean local branch, a `scout` delivers a report,
-  // and neither opens a merge request.
+  // `mode` decides whether an MR is the deliverable at all.
   if (data.mode === 'scout') {
     throw CommandError.usage('mr', `unit ${unitName} is a scout: it delivers a report and artifacts, and never pushes or opens an MR. If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
     );
@@ -120,9 +101,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
 
   const clone = repoDir('mr', data.repo, `register it with 'yan repo add'`);
 
-  // The branch has to be on the remote before a merge request can point at it.
-  // This only checks and reports: pushing is a separate act with its own
-  // moment, and it is not this command's to perform silently.
+  // Checked, never pushed: publishing a branch is its own decision.
   if (!remoteBranchExists(clone, data.branch)) {
     throw new CommandError('mr', 'not_pushed', `${data.branch} is not on the remote yet, so there is nothing to open a merge request from - push it first (git push -u origin ${data.branch})`,
     );
@@ -155,9 +134,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     );
   }
 
-  // `mr` is one of the unit's four current scalars, and it is written only
-  // after the host has confirmed the URL: a recorded MR that does not exist
-  // would later be read as "this round was delivered".
+  // Recorded only once the host has answered with a URL.
   try {
     unit.set('mr', url);
   } catch (err) {

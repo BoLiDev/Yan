@@ -6,21 +6,9 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
 /**
  * `yan doctor`.
  *
- * The whole checklist runs in one place, and there are no rows for `jq`,
- * `backend` or `winpty`: nothing shells out, there is one terminal, and a
- * native process in a Herdr pane already gets a real console.
- *
- * What is checked, because each row caught something real:
- *
- *   Only the CLI the configured kind names is checked, never both. A machine
- *   that delivers to GitHub has no reason to install `glab`, and reporting its
- *   absence trains people to ignore doctor.
- *
- *   The commit identity is a failure, not a warning. Every shift commits in a
- *   leased worktree, which sees only the global config - so an identity that
- *   lives in a repository's own .git/config reads as healthy from inside the
- *   checkout and is invisible where it is needed. `git commit` then fails after
- *   the work is done.
+ * Two rows earn their own tests: only the CLI the configured kind names is
+ * checked, never both; and a commit identity is a failure rather than a
+ * warning, because a leased worktree sees only the global config.
  *
  * Nothing here touches the network.
  */
@@ -130,9 +118,8 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
     config({ version: 1, agents: { yan: 'codex', shift: 'codex' }, remote_git: { kind: 'github' } });
     const r = await doctor();
 
-    // The one that hangs silently: Herdr reads "Hooks need review" as `idle`,
-    // so nothing wakes. This home has never been trusted by codex, which is the
-    // state every fresh machine is in.
+    // The gate that hangs silently: Herdr reads "Hooks need review" as `idle`.
+    // This home has never been trusted by codex, as a fresh machine has not.
     expect(r.out).toContain('hook review');
     expect(r.out).toContain('Hooks need review');
     expect(r.out).toContain('--dangerously-bypass-hook-trust');
@@ -149,8 +136,7 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
   });
 });
 
-// The template a vault is born with is the sample: conf/ held nothing else
-// once the real config moved into the vault, so it is gone.
+// The template a vault is born with is the sample config.
 describe('the shipped template config', () => {
   it('is valid and carries what doctor asks for', () => {
     const sample = JSON.parse(

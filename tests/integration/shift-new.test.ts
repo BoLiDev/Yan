@@ -15,20 +15,12 @@ import { Task } from '../../src/records/task/index.js';
 import { WorktreeError, type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
 
 /**
- * `yan shift new`.
+ * `yan shift new`. Two properties are what this file is for: a dispatch whose
+ * working directory would be the main clone refuses rather than warns, and
+ * every failure after the lease gives the tree back.
  *
- * What is under test: "`shift new` asserts the sub-agent's cwd is not a main clone
- * and refuses otherwise" — one of the four mvp ordering regressions, and the
- * one whose failure hides completely: everything looks like it worked. So the
- * pool is programmed to hand out the main clone and this command has to refuse,
- * not warn, and give the tree back on its way out.
- *
- * And A further sixth: "a `shift new` that fails after leasing returns the
- * tree." Every failure after step 2 is checked for that, not only the assertion.
- *
- * The order is checked, not assumed: every step appends to one call log, so
- * "the brief did not exist yet when the tree was leased" and "it did by the
- * time the agent started" are exact assertions.
+ * The order is asserted rather than assumed: every step appends to one call
+ * log.
  */
 
 afterAll(cleanupTempDirs);
@@ -141,9 +133,6 @@ beforeEach(() => {
 
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
   mkdirSync(join(tree, 'apps', 'auth'), { recursive: true });
@@ -170,11 +159,8 @@ describe('the order', () => {
   it('leases, then makes the container, then starts the agent', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'parse the header' });
     expect(r.code, r.message).toBe(0);
-    // No sync. Running one first would mean the shift branch came off a head
-    // that had just caught up with target — but a shift's MR goes into the
-    // integration branch, and target only matters at the outbound MR. The sync
-    // was buying a property nothing downstream needed and charging a fetch, a
-    // merge, a push and a leased tree for it on every dispatch.
+    // Nothing syncs with target: a shift's MR goes into the integration
+    // branch, and target only matters at the outbound MR.
     expect(calls.map((c) => c.split(' ')[0])).toEqual([
       'pool_get',
       'container_create',
@@ -273,8 +259,8 @@ describe('what the agent was started with', () => {
   });
 
   it('lets the shift run unattended, because nobody is watching the pane', () => {
-    // Without this the agent stops on its first tool call waiting for someone to
-    // answer "Do you want to proceed?" - observed against a real dispatch.
+    // Without this the agent stops on its first tool call, waiting for someone
+    // to answer "Do you want to proceed?".
     expect(terminal.startArgs).toContain('--dangerously-skip-permissions');
   });
 
@@ -284,16 +270,11 @@ describe('what the agent was started with', () => {
 });
 
 describe('codex, and the gate yan cannot survive', () => {
-  // Two first-run gates were measured here. Herdr calls the trust dialog
-  // `blocked`, so supervision escalates and somebody answers it. It matches no
-  // rule at all against the hook-review prompt and calls it `idle`, so a shift
-  // parks on that one in an unfocused pane and nothing ever wakes.
-  //
-  // `user` decided to pass the flag that clears it, knowing the cost: hooks
-  // shipped by the target repository then run without review. These assertions
-  // exist so that decision is reversed on purpose rather than by accident —
-  // and it should be reversed the moment Herdr's manifest learns the prompt,
-  // which is one word (`esc to go back`, not `esc to cancel`).
+  // Codex has two first-run gates. Herdr reads the trust dialog as `blocked`,
+  // so somebody is woken to answer it; it reads the hook-review prompt as
+  // `idle`, so a shift would park on it in silence. `user` decided to pass the
+  // flag that clears the second, knowing hooks shipped by the target
+  // repository then run without review — so it is reversed on purpose.
   it('never parks silently on hook review, in either mode', () => {
     new Task('t042').addUnit('api', 'monorepo-x', 'master', {
       branch: 'feat/api',
@@ -435,9 +416,8 @@ describe('THE ASSERTION: the working directory is never the main clone', () => {
 
 describe('a shift new that fails after leasing returns the tree', () => {
   it('does so on every failing path, not only the assertion', () => {
-    // A further regression 6: the tree is already
-    // leased, and a dispatch that throws after step 2 must return it or the
-    // pool leaks a slot on every failed attempt.
+    // The tree is already leased, and a dispatch that throws after this must
+    // give it back or the pool leaks a slot per failed attempt.
     terminal.startAgent = () => {
       throw new Error('herdr could not confirm the agent');
     };

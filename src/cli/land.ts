@@ -12,44 +12,12 @@ import { normalizePath } from '../util/paths.js';
 
 /**
  * `yan land` — merge the outbound merge requests into `target`, in `needs`
- * order.
+ * order, stopping at the first unit that will not land.
  *
- * `user` has to ask for this.
- *
- * It is the one authority this file exists to hold:
- *
- *   merge the outbound MR into `target`   `user` has to ask for it
- *
- * and the summary underneath it: *inside your own branches and your own
- * machine, act on your own. Anything that affects `target`, or that a colleague
- * will see, requires `user` to say so.*
- *
- * Everything up to here — dispatching shifts, merging shift MRs into the
- * integration branch, opening the outbound MR with `yan mr` — `yan` does on its
- * own, because all of it happens on branches `user` owns and all of it is
- * reversible. This one is not: after it, `target` contains the work and
- * colleagues are looking at it.
- *
- * So the authority is stated twice. In the instructions the model reads, where it is told not
- * to reach for this on its own initiative; and here, as `--user-asked`, which
- * is not a confirmation prompt and not a forcing switch. It is the flag that
- * carries `user`'s answer in, exactly as `yan unit set --end` carries it into
- * an append-only history. Without it nothing is merged, on a terminal or not:
- * this is not a value the soft path could ask for on `user`'s behalf, because
- * `user` is the only source of it.
- *
- * Landing order.
- *
- * `needs` records the landing order, so the units are topologically sorted
- * before anything is merged and the run stops at the first unit that will not
- * land. Stopping matters more than finishing: a unit that lands before the one
- * it needs is exactly the breakage `needs` exists to prevent, and carrying on
- * past a failure would do it deliberately.
- *
- * A cycle is refused outright. It is not a merge order yan may pick a way out
- * of; it is a mistake in `needs` that only `user` can resolve.
- *
- * Nothing is ever forced, nothing is commented on, and nobody is mentioned.
+ * Nothing is merged without `--user-asked`, on a terminal or not: it carries
+ * `user`'s answer, and no prompt can supply it on their behalf. A cycle in
+ * `needs` is refused rather than resolved. Nothing is ever forced, nothing is
+ * commented on, and nobody is mentioned.
  *
  * Exit codes: 0 fine, 2 you called this wrongly (including "user has not
  * asked"), 1 something did not land.
@@ -85,13 +53,9 @@ export interface LandResult {
 }
 
 /**
- * Kahn's algorithm over the task's whole unit list, so a unit's needs are
- * resolved even when they were not asked for by name. Ties keep declaration
- * order, which makes the printed plan stable and reviewable.
- *
- * A `needs` entry naming something that is not a unit here is reported and then
- * ignored: it cannot be ordered against, and refusing the whole run for a typo
- * in an unrelated unit would be worse than saying so.
+ * The task's units in `needs` order, ties keeping declaration order. A `needs`
+ * entry naming no unit of this task is reported and then ignored; units caught
+ * in a `needs` cycle come back in `cycle` instead of `order`.
  */
 export function topoSort(
   units: readonly { name: string; needs: readonly string[] }[],
@@ -128,7 +92,13 @@ export function topoSort(
   return { order, cycle: remaining };
 }
 
-/** The command without the process around it: everything that decides is here. */
+/**
+ * Merge each unit's outbound MR into its target, in `needs` order, stopping at
+ * the first that does not land. Narrates through `say`.
+ *
+ * @throws CommandError `usage` when a task, a strategy or `--user-asked` is
+ *   missing, or a named unit does not exist; `cycle` when `needs` has one.
+ */
 export function land(
   options: LandOptions,
   host?: Host,
@@ -143,9 +113,7 @@ export function land(
     throw CommandError.usage('land', `--strategy is merge, squash or rebase, not '${String(options.strategy)}'`);
   }
 
-  // The authority check, before anything is read and long before anything is
-  // merged. It is deliberately not softened on a TTY: `user` saying so is the
-  // input, and a program cannot supply it on their behalf.
+  // Before anything is read, and never softened on a terminal.
   if (options.userAsked !== true) {
     throw CommandError.usage('land', "merging into target is the one thing 'user' has to ask for. Nothing was merged. When they have asked, re-run with --user-asked",
     );
@@ -200,9 +168,7 @@ export function land(
     const clone = repoDirIfKnown(unit.repo);
     const ref: MrRef = clone === undefined ? { mr } : { mr, dir: clone };
 
-    // Ask before merging. Whether it merged is the host's answer and never git
-    // ancestry, and the four words it may answer with are exactly the four
-    // cases below.
+    // Whether it merged is the host's answer, never git ancestry.
     let state: MrState;
     try {
       state = remote.mrState(ref);
@@ -223,9 +189,7 @@ export function land(
       );
     }
 
-    // `deleteSource` is deliberately not passed. Deleting the integration
-    // branch is not this command's business, and a forge that deletes on merge
-    // would be making a judgement about work that may not all have landed.
+    // The integration branch is left on the remote.
     try {
       remote.mergeMr({ ...ref, strategy });
     } catch (err) {

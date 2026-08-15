@@ -12,12 +12,9 @@ import { repoRoot } from '../../../tests/helpers/fixtures.js';
  * `CiState` one of {green, red, pending, none}, for every fixture under
  * tests/fixtures/forge/.
  *
- * These are the highest-value tests here. The mapping from a forge's
- * raw JSON to yan's vocabulary is where a wrong confident answer would come
- * from, so every case below is driven by a payload that a real CLI really
- * printed (GitHub) or by a shape taken from the published API documentation
- * (GitLab — tests/fixtures/forge/PROVENANCE.json is explicit about which is
- * which). The fixtures are ported as-is; no network.
+ * Every case is driven by a payload a real CLI printed (GitHub) or a shape
+ * from the published API documentation (GitLab); PROVENANCE.json says which.
+ * No network.
  */
 
 const FX = join(repoRoot, 'tests', 'fixtures', 'forge');
@@ -123,8 +120,7 @@ describe('GitLab: merge request state', () => {
     // GitLab says opened; yan says open.
     expect(gitlab.mapMrState(fx('gitlab/mr-opened.json'))).toBe('open');
     expect(gitlab.mapMrState(fx('gitlab/mr-closed.json'))).toBe('closed');
-    // GitLab's fourth state, locked, collapses onto open - §6.4 gets four
-    // values, not five.
+    // GitLab's fourth state collapses onto open: yan has four, not five.
     expect(gitlab.mapMrState(fx('gitlab/mr-locked.json'))).toBe('open');
     expect(gitlab.mapMrState(fx('gitlab/mr-state-unknown-to-yan.json'))).toBe('unknown');
   });
@@ -182,15 +178,9 @@ describe('every fixture lands inside the closed set', () => {
 /**
  * The verdict every fixture produced, all four mappers, frozen.
  *
- * The reference is frozen rather than re-derived, and that is the point: this
- * table is what the four mappers produce over every fixture, written down, so a
- * change to any of them shows up as a diff here rather than as a quietly
- * different verdict. The named tests above are spot checks with reasons; this
- * is the sweep.
- *
- * A row that has to change is a behaviour change, and should be argued for in
- * the commit that changes it — which is the same thing the bash comparison
- * demanded, minus the bash.
+ * Frozen rather than re-derived, so a changed mapping shows up as a diff here
+ * rather than as a quietly different verdict. A row that has to change is a
+ * behaviour change.
  */
 const RECORDED: readonly [string, MrState, CiState, MrState, CiState][] = [
   ['github/ci-checks-green.json', 'unknown', 'green', 'unknown', 'none'],

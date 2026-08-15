@@ -1,29 +1,19 @@
 import { sep } from 'node:path';
 
 /**
- * Path normalisation, in one place.
- *
- * On Windows `git` and `herdr` both report native paths (`C:\…` or `C:/…`),
- * while a path yan built may be POSIX (`/c/…`) if it came out of a Git Bash
- * environment variable. Any comparison between a path we built and a path an
- * external tool printed has to normalise first, and this is the only module
- * allowed to know that.
- *
- * The normal form is: forward slashes, an upper-case drive letter, no trailing
- * slash. It is a *comparison* form, not a form to hand back to the OS — Node
- * accepts it on both platforms, which is why nothing else needs converting.
+ * Path normalisation. The normal form is forward slashes, an upper-case drive
+ * letter and no trailing slash — a form to compare and to store, which Node
+ * accepts on both platforms. `nativePath` is the one to hand to another tool.
  */
 
 const isWindows = process.platform === 'win32';
 
-/** `/c/foo` (MSYS2) or `/cygdrive/c/foo` (Cygwin) → `C:/foo`. */
+/** `/c/foo` (MSYS2) or `/cygdrive/c/foo` (Cygwin) → `C:/foo`. MSYS2 form on Windows only. */
 function fromPosixDrive(p: string): string {
   const cygdrive = /^\/cygdrive\/([a-zA-Z])(\/|$)/.exec(p);
   if (cygdrive) {
     return `${cygdrive[1].toUpperCase()}:${p.slice(`/cygdrive/${cygdrive[1]}`.length) || '/'}`;
   }
-  // Only treat /x/… as a drive on Windows: on Linux /c/foo is a real directory
-  // and rewriting it to C:/foo would be a data-loss bug rather than a nicety.
   if (isWindows) {
     const msys = /^\/([a-zA-Z])(\/|$)/.exec(p);
     if (msys) {
@@ -39,15 +29,14 @@ export function normalizePath(input: string): string {
   let p = input.replace(/\\/g, '/');
   p = fromPosixDrive(p);
 
-  // Upper-case the drive letter so `c:/x` and `C:/x` compare equal.
   p = p.replace(/^([a-zA-Z]):/, (_m, d: string) => `${d.toUpperCase()}:`);
 
-  // Collapse duplicate separators, but keep a leading `//` (unc share).
+  // Duplicate separators collapse, but a leading `//` (unc share) survives.
   const unc = p.startsWith('//');
   p = p.replace(/\/{2,}/g, '/');
   if (unc) p = `/${p}`;
 
-  // Drop a trailing slash, except for a bare root (`/` or `C:/`).
+  // A trailing slash goes, except on a bare root (`/` or `C:/`).
   if (p.length > 1 && p.endsWith('/') && !/^[A-Z]:\/$/.test(p)) {
     p = p.slice(0, -1);
   }
@@ -70,7 +59,7 @@ export function isInside(parent: string, child: string): boolean {
   return isWindows ? c.toLowerCase().startsWith(prefix.toLowerCase()) : c.startsWith(prefix);
 }
 
-/** The platform's own spelling, for handing a path back to a tool or the OS. */
+/** The platform's own spelling — backslashes on Windows. */
 export function nativePath(input: string): string {
   const n = normalizePath(input);
   return isWindows ? n.replace(/\//g, sep) : n;

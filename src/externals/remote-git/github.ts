@@ -3,13 +3,7 @@ import type { Provider } from './provider.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
 import { extractUrl } from './validate.js';
 
-/**
- * GitHub's JSON, mapped into yan's vocabulary. Both mappers are pure: no
- * network, no configuration, no module state. They are the highest-value code
- * in this module, because a wrong confident answer would come from here, and
- * they are tested against payloads a real `gh` really printed
- * (tests/fixtures/forge/PROVENANCE.json).
- */
+/** GitHub's JSON, mapped into yan's vocabulary. Both mappers are pure. */
 
 function asObject(text: string): Record<string, unknown> | undefined {
   try {
@@ -36,12 +30,9 @@ function lower(value: unknown): string {
 }
 
 /**
- * `gh pr view --json state,mergedAt` → yan vocabulary.
- *
- * `mergedAt` (rest: `merged`) is consulted before `state`, and deliberately so:
- * a squash-merged pull request is merged even though its head commit is not an
- * ancestor of the base branch and its branch may already be deleted. Local git
- * ancestry is not the question; what the host says is (Rule 1).
+ * `gh pr view --json state,mergedAt` → yan vocabulary. `mergedAt` (or the REST
+ * API's `merged`) wins over `state`, so a squash merge reads as merged.
+ * Anything unrecognised is `unknown`.
  */
 export function mapMrState(payload: string): MrState {
   const o = asObject(payload);
@@ -61,29 +52,17 @@ export function mapMrState(payload: string): MrState {
 }
 
 /**
- * `gh pr view --json statusCheckRollup` → yan vocabulary.
+ * `gh pr view --json statusCheckRollup` → yan vocabulary. Handles both entry
+ * shapes in the rollup, CheckRun and the legacy StatusContext, and folds them
+ * red > pending > green — so a red answer can arrive before the run finishes.
  *
- * The rollup is where GitHub's two CI systems meet in one array:
+ * Per entry:
+ *   green    success, neutral, skipped
+ *   pending  not finished yet, or a `stale` conclusion
+ *   red      anything else terminal
  *
- *   CheckRun       (checks API)  status queued|IN_PROGRESS|completed|…
- *                                conclusion success|failure|skipped|…
- *   StatusContext  (legacy)      state expected|pending|success|failure|error
- *
- * Both are collapsed to one word per entry and then folded with a fixed
- * precedence: Red beats pending beats green. A failure is a settled fact and
- * the caller can act on it now; waiting for the rest of a run that has already
- * failed only delays the fix.
- *
- * Per-entry rules:
- *   green    success, neutral, skipped — nothing is blocking
- *   pending  not finished yet, or a conclusion of `stale` (GitHub supersedes
- *            those, so they are neither a pass nor a failure)
- *   red      failure, timed_out, cancelled, action_required, startup_failure,
- *            and anything else terminal we do not recognise
- *
- * An empty rollup is `none`: this repository ran no CI for this MR. A payload
- * with no rollup key at all is not `none` — that would be a confident wrong
- * answer — it is `pending`.
+ * An empty or null rollup is `none`; a payload with no rollup key at all is
+ * `pending`, never `none`.
  */
 export function mapCiState(payload: string): CiState {
   let rollup: unknown[] | undefined;
@@ -96,7 +75,6 @@ export function mapCiState(payload: string): CiState {
     if (o === undefined) return 'pending';
     if (!Object.hasOwn(o, 'statusCheckRollup')) return 'pending';
     const value = o.statusCheckRollup;
-    // gh prints null for a pull request with no checks at all.
     if (value === null) return 'none';
     if (!Array.isArray(value)) return 'pending';
     rollup = value;
@@ -130,8 +108,8 @@ export function mapCiState(payload: string): CiState {
 }
 
 /**
- * `gh` takes a number, a URL or a branch verbatim. A URL already names the
- * repository, so `--repo` would only be a chance to disagree with it.
+ * `gh`'s way of naming one merge request: the ref verbatim, plus `--repo`
+ * unless the ref is a URL, which already names the repository.
  */
 export function refArgs(mr: string, repo: string | undefined): string[] {
   const args = [mr];

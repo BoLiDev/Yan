@@ -3,10 +3,8 @@ import { resolve, setPrompter } from '../../src/cli/shared/resolve.js';
 import { CommandError } from '../../src/cli/shared/errors.js';
 
 /**
- * The soft/hard rule. The half that matters is
- * the refusal: an agent, a hook or a script that reached a prompt would hang
- * forever with nobody to answer it, so "there is no TTY" is checked before "a
- * value is missing" and always wins.
+ * How a missing option is filled in. The half that matters is the refusal:
+ * "there is no tty" is checked before "a value is missing" and always wins.
  */
 
 const SPEC = [
@@ -49,8 +47,7 @@ describe('resolve', () => {
   });
 
   it('refuses with a TTY when no prompter is installed', async () => {
-    // With no src/ui/ installed there is no soft
-    // path at all, and "no prompter" must refuse rather than hang.
+    // With no prompter installed there is no soft path at all.
     setTty(true);
     await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
   });

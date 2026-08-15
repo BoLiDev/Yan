@@ -4,10 +4,7 @@ import { vaultConfigPath } from '../../util/vault.js';
 import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';
 
-/**
- * This file is the only reader of the vault config's remote-git section.
- * Subcommands never branch on the host kind.
- */
+/** The vault config's `remote_git` section. */
 
 export interface RemoteGitConfig {
   readonly kind: HostKind;
@@ -19,14 +16,8 @@ function configPath(): string {
 }
 
 /**
- * The section is `remote_git`, and `forge` is read only to say what to rename.
- *
- * There is exactly one spelling of the key. Two spellings outlive the reason
- * for them by years, and the second is always the one somebody edits.
- *
- * `forge` is still looked for, because the difference between "you have not
- * configured a host" and "your host is configured under the old name" is the
- * difference between a puzzle and a one-line fix.
+ * The `remote_git` section, or `'legacy'` when the file still spells it
+ * `forge` — which is reported so it can be renamed, never read.
  */
 function section(parsed: unknown): Record<string, unknown> | 'legacy' | undefined {
   const root = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
@@ -37,6 +28,10 @@ function section(parsed: unknown): Record<string, unknown> | 'legacy' | undefine
   return undefined;
 }
 
+/**
+ * @throws RemoteGitError `config` (exit 2) when the file is missing, unparseable,
+ *   names no supported `kind`, or is a gitlab config with no `host`.
+ */
 export function readConfig(): RemoteGitConfig {
   const path = configPath();
   if (!existsSync(path)) {
@@ -75,7 +70,7 @@ export function readConfig(): RemoteGitConfig {
   return { kind, host };
 }
 
-/** github.com needs no GH_HOST; anything else does. */
+/** The host to put in the CLI's environment, or undefined for github.com. */
 export function hostFor(config: RemoteGitConfig): string | undefined {
   if (config.kind === 'github') {
     return config.host === '' || config.host === 'github.com' ? undefined : config.host;

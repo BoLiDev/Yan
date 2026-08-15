@@ -10,40 +10,21 @@ import { allLeases, newLeaseId, readLease, reclaim, releaseLease, slotOf, writeL
 import type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
 
 /**
- * The worktree pool for one main clone.
+ * The worktree pool for one main clone: a fixed set of slots, reused warm so a
+ * leased tree needs no cold install.
  *
- * The pool exists for one reason: warm reuse. On a large monorepo a handful of
- * trees stay ready, so whichever one you lease needs no cold install.
- * Everything else here — leases, backpressure, the orphan-commit guard — is the
- * price of that single property.
- *
- * It reports facts and decides nothing. `get` hands out a tree or says the pool
- * is full; what that means is the caller's problem.
- *
- * Why `get` takes a lock, when an atomic create looks like enough.
- *
- * Slot allocation alone needs no lock: `fs.open(leaseFile, 'wx')` is an atomic
- * exclusive create on both platforms, so two racers cannot claim one slot.
- *
- * It is still not sufficient, because the slot is not the only shared thing.
- * `git worktree add` writes the shared clone's `.git/config` to record the
- * upstream branch, and two of those against one repository collide on git's own
- * config lock:
- *
- *   error: could not lock config file .git/config: File exists
- *
- * So the critical section is "one git worktree operation per clone at a time",
- * not "one slot allocation at a time".
- *
- * `return` and `status` take no lock, deliberately: a return is identified by
- * the lease it releases and touches only that one tree, and status must never
- * block behind whoever is busy creating a worktree.
+ * `get` serialises on a per-clone lock, because `git worktree add` writes the
+ * shared clone's `.git/config` and two at once collide on git's config lock.
+ * `return` and `status` take no lock and never block behind it.
  */
 export class WorktreePool {
   private readonly clone: string;
   private readonly dir: string;
 
-  /** @param clone the main clone this pool serves. Validated once, here. */
+  /**
+   * @param clone the main clone this pool serves.
+   * @throws WorktreeError when it is empty or not a directory.
+   */
   public constructor(clone: string) {
     if (!clone) throw WorktreeError.usage('a main clone directory is required');
     let isDir = false;
@@ -59,11 +40,15 @@ export class WorktreePool {
   }
 
   /**
-   * Lease a tree and cut `branch` from `base` in it.
+   * Lease a tree and put it on `branch`, cutting it from `base` when it does
+   * not exist yet. Waits up to `$YAN_POOL_LOCK_TIMEOUT` seconds (60 by
+   * default) for the pool lock.
    *
-   * The pool size is a parameter rather than something this reads, because it
-   * lives in mem/repos.json — yan's own bookkeeping, which this module is not
-   * allowed to know about.
+   * @param size how many slots this pool may use; the caller reads it from
+   *   repos.json.
+   * @throws WorktreeError `usage` for a missing or whitespace-carrying
+   *   argument, `full` when every slot is leased, `failed` when the branch is
+   *   checked out elsewhere or the tree cannot be placed.
    */
   public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
     if (!Number.isInteger(size) || size <= 0) {
@@ -93,16 +78,16 @@ export class WorktreePool {
   }
 
   /**
-   * Reset and clean a tree, then release its lease. Returns the path.
+   * Reset and clean a tree, then release its lease, and return its path. A
+   * tree that is already gone releases its lease and reports the path.
    *
-   * `expect` is compared before anything destructive happens — no reset, no
-   * clean, no lease cleared — which is what makes an automatic retry safe. An
-   * absent field is not compared.
-   *
-   * `expect.force` skips the orphan-commit guard and nothing else. The identity
-   * check still runs: a forced return that lands on the wrong slot is the one
-   * mistake force must not make, because the consent it carries was to discard
-   * this tree's changes, not somebody else's.
+   * @param target the path `get` printed, or a slot number.
+   * @param expect fields compared before anything destructive happens, so a
+   *   mismatch costs nothing and a retry is safe. An absent field is not
+   *   compared; `force` skips the orphan-commit guard but never the identity
+   *   check.
+   * @throws WorktreeError `mismatch` when `expect` disagrees, `failed` when no
+   *   lease matches `target` or the guard refuses.
    */
   public return(target: string, expect: ReturnOptions = {}): string {
     if (!target) {
@@ -165,16 +150,11 @@ export class WorktreePool {
   private getLocked(size: number, base: string, branch: string, holder: string): LeaseGrant {
     const name = repoName(absolute(this.clone));
 
-    // A tree somebody deleted by hand leaves an administrative record behind
-    // that would make `worktree add` refuse the path. Pruning removes only
-    // records whose directory is already gone.
     git.worktreePrune(this.clone);
     reclaim(this.dir);
 
     const slot = this.pickSlot(size, name);
     if (slot === undefined) {
-      // Backpressure: a full pool fails instead of growing. An extra tree would
-      // be a cold one, and a cold tree is the same as having no pool at all.
       throw new WorktreeError(
         'full',
         `the pool is full - all ${size} trees are leased, cannot start a new shift. 'yan tree status' shows who holds them; raise pool_size in mem/repos.json only if this machine can afford another tree`,
@@ -191,7 +171,7 @@ export class WorktreePool {
     return { path: tree, lease_id: leaseId, holder };
   }
 
-  /** A slot that already holds a tree wins — that is the warm reuse. An empty slot is the fallback. */
+  /** A free slot that already holds a tree, otherwise the lowest empty one. */
   private pickSlot(size: number, name: string): number | undefined {
     const cold: number[] = [];
     for (let n = 1; n <= size; n += 1) {
@@ -241,14 +221,9 @@ export class WorktreePool {
   }
 
   /**
-   * Turn git's "already used by worktree at …" into the sentence that says what
-   * to do about it.
-   *
-   * git's own message is accurate and easy to read past; what it leaves out is
-   * that the branch is very likely checked out in the clone the reader is
-   * sitting in, and that the fix is one command there. The pool will not run
-   * that command on their behalf: a tool that moves you off your branch to get
-   * on with its own work is one you stop trusting.
+   * Throws a WorktreeError naming the clone that holds `branch` when git's
+   * stderr says it is checked out elsewhere; returns quietly otherwise. The
+   * pool never moves a clone off a branch itself.
    */
   private reportOccupied(branch: string, stderr: string): void {
     if (!/already (used by worktree|checked out)/i.test(stderr)) return;
@@ -259,12 +234,7 @@ export class WorktreePool {
     );
   }
 
-  /**
-   * The tree must end up on a real branch, never a detached HEAD. A shift's work
-   * has to be pushed and turned into a merge request, so a detached HEAD is not
-   * a state this can hand out and hope about — it is a bug that would surface
-   * hours later, at the push.
-   */
+  /** Throws unless the tree is on `branch`, so a detached HEAD is never handed out. */
   private assertOnBranch(tree: string, branch: string): void {
     let current = '';
     try {

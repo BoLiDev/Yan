@@ -91,12 +91,8 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
   });
 
   it('reads only the current config section, and says what to rename', () => {
-    // There is one spelling of the key, deliberately: two of them outlive their
-    // reason by years, and the second is always the one somebody edits.
-    //
-    // `forge` is still looked for, because the difference between "you have not
-    // configured a host" and "it is under the old name" is the difference
-    // between a puzzle and a one-line fix.
+    // `remote_git` is the only spelling read; `forge` is looked for only so
+    // the refusal can say what to rename.
     writeFileSync(
       join(home, 'config.json'),
       `${JSON.stringify({ version: 1, forge: { kind: 'github' } }, null, 2)}\n`,
@@ -232,9 +228,8 @@ describe('mergeMr', () => {
     configure({ kind: 'github' });
     host().mergeMr({ mr: 'https://github.com/o/r/pull/1' });
     expect(calls[0]?.args).toEqual(['pr', 'merge', 'https://github.com/o/r/pull/1', '--merge']);
-    // `yan shift done` returns the tree and then deletes the
-    // remote branch, so a host that deleted it during the merge would take that
-    // step away.
+    // `yan shift done` deletes the remote branch itself, after the tree is
+    // back: a host that deleted it during the merge would take that step away.
     expect(calls[0]?.args).not.toContain('--delete-branch');
   });
 

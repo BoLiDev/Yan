@@ -16,32 +16,15 @@ import { pullVault, type PullResult } from './vault.js';
 import { samePath } from '../util/paths.js';
 
 /**
- * `yan session-start` — the full rebuild. Registered as the
- * SessionStart hook for both harnesses.
- *
- * A restart is a non-event, and this command is why.
- *
- * yan holds no persistent running state. Every time it starts it rebuilds its
- * picture from scratch:
+ * `yan session-start` — rebuild the whole picture, and the SessionStart hook
+ * for both harnesses.
  *
  *     scan tasks/  →  ask the terminal  →  ask the pool  →  ask the host
  *
- * Whatever those say is the answer. That is what makes "close it and open a new
- * one" cost nothing: there is nothing to hand over and nothing to resume, and
- * therefore nothing that can drift out of sync.
- *
- * So this command writes nothing. Not a session file, not a cache of what it
- * found, not a "last seen" timestamp. The moment it writes one, a restart stops
- * being a non-event, because there is now a file that can disagree with the
- * world. Its own test asserts that `$YAN_HOME` is byte-for-byte unchanged after
- * it runs.
- *
- * It also never crashes on a source that will not answer. There is no Herdr
- * server yet on a fresh boot; the pool root may be on a disk that is not
- * mounted; the host may be unreachable on a train. Each of those costs one fact
- * and is reported as `unknown`, exactly as `yan state` and the modules
- * themselves do: where we cannot tell, we say so, and we never round a guess up
- * to a fact.
+ * Writes nothing, so a restart costs nothing and there is no file to disagree
+ * with the world; its own test asserts `$YAN_HOME` is byte-for-byte unchanged.
+ * A source that will not answer costs one fact, reported as `unknown`, and
+ * never a crash.
  */
 
 type Reported = Alive | 'n/a';
@@ -81,11 +64,8 @@ export interface TaskRow {
 }
 
 /**
- * A repository this context knows about, and where it is on this machine.
- *
- * `path` is absent when the vault names the repository but nothing on this
- * machine has said where its clone is. That is the ordinary state of a freshly
- * cloned vault, not a fault, and `yan repo link` is what fills it in.
+ * A repository this context knows about. `path` is absent when nothing on this
+ * machine has said where its clone is.
  */
 export interface RepoRow {
   readonly name: string;
@@ -100,7 +80,7 @@ export interface Picture {
   readonly tasks: TaskRow[];
 }
 
-/** The three live sources, each replaceable so a test can take one away. */
+/** The three live sources; each defaults to the real one. */
 export interface Sources {
   readonly aliveOf?: (paneId: string) => Alive;
   readonly leasesOf?: (clone: string) => readonly LeaseRow[];
@@ -127,9 +107,8 @@ function askHost(sources: Sources, mr: string, dir: string): MrReport {
 }
 
 /**
- * The pool is asked once per clone and the answer is remembered for the length
- * of one command — a local map, never a file. Caching it on disk is exactly the
- * thing this command may not do.
+ * Whether a tree is leased, asking each clone's pool at most once. The cache
+ * is per call and never touches disk.
  */
 function poolAsker(sources: Sources): (clone: string, tree: string, leaseId: string) => PoolState {
   const cache = new Map<string, readonly LeaseRow[] | undefined>();
@@ -162,16 +141,7 @@ function shiftIds(task: string): string[] {
   }
 }
 
-/**
- * The clones this context knows about.
- *
- * These are printed because yan works in them directly: catching an integration
- * branch up with its target, reading how something is spelled, checking whether
- * the build is red. Without the path in hand the first move of any of those is
- * a lookup, every session.
- *
- * A registry that cannot be read costs the paths and nothing else.
- */
+/** The clones this context knows about; `[]` when the registry cannot be read. */
 function knownRepos(): RepoRow[] {
   try {
     return registry().map((r) => ({
@@ -184,7 +154,10 @@ function knownRepos(): RepoRow[] {
   }
 }
 
-/** The whole picture, without the process around it. */
+/**
+ * The whole picture. A task that cannot be read is left out; the live sources
+ * are asked only about shifts that are still live, and answer `n/a` otherwise.
+ */
 export function rebuild(ids: readonly string[], sources: Sources = {}): Picture {
   const askPool = poolAsker(sources);
 
@@ -215,8 +188,6 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
         agent_id: meta.agentId ?? '',
         container: meta.container ?? '',
         live,
-        // run/ gone means the shift clocked out, and every live source is about
-        // something that no longer exists. Asking would be noise.
         terminal: live ? askTerminal(sources, meta.agentId ?? '') : 'n/a',
         pool: live ? askPool(clone, tree, meta.leaseId ?? '') : 'n/a',
         mr: meta.mr ?? '',
@@ -256,7 +227,7 @@ export interface Skill {
 }
 
 /**
- * The `name` and `description` a skill declares, from its front matter.
+ * The `name` and `description` a skill declares in its front matter:
  *
  * ```
  * ---
@@ -265,22 +236,9 @@ export interface Skill {
  * ---
  * ```
  *
- * Declared rather than inferred. The first cut of this read the `# heading` and
- * the opening paragraph, on the grounds that prose should not have to fill in a
- * form. It is the wrong trade for the one place this text is used: the index is
- * all yan sees until it decides to open the file, so the description is doing a
- * job — it is the sentence that gets the file read — and a sentence with a job
- * should be written for it, not harvested from whatever the paragraph happened
- * to open with.
- *
- * A hand-rolled reader, and not a YAML dependency. What is understood is
- * `key: value` on one line, optionally quoted, inside the leading `---` fence.
- * Two keys, both strings: a parser for the rest of YAML would be a large answer
- * to a question nobody asked.
- *
- * A file with no front matter is still listed, under its file name. A skill
- * that has not been given a description is not a skill yan should pretend it
- * cannot see.
+ * Understands `key: value` on one line, optionally quoted, inside a leading
+ * `---` fence, and nothing else of YAML. A file with no front matter takes
+ * `fileName` as its name and an empty description.
  */
 export function frontMatter(fileName: string, text: string): { name: string; description: string } {
   const lines = text.split(/\r?\n/);
@@ -308,19 +266,8 @@ export function frontMatter(fileName: string, text: string): { name: string; des
 }
 
 /**
- * The standing instructions for this environment.
- *
- * A skill is prose, not an executable. `<vault>/skills/*.md` says what yan may
- * do itself here — check a build, run a script, look something up — instead of
- * dispatching a shift for it, and `~/.yan/skills/*.md` says the same for things
- * about this box rather than this context.
- *
- * What session-start carries is an index, not the text. Session-start is the
- * SessionStart hook, so everything it prints is in front of the agent for the
- * whole session whether it is relevant or not; a handful of skills printed in
- * full would be a standing tax on the context window paid mostly for nothing.
- * A path, a name and a sentence is enough to know whether to open the file, and
- * opening a file is something yan is good at.
+ * Index the `*.md` files in one skills directory — path, name and description,
+ * never the text. An unreadable directory or file is skipped.
  */
 function readSkillsFrom(dir: string, label: string): Skill[] {
   let names: string[];
@@ -343,9 +290,8 @@ function readSkillsFrom(dir: string, label: string): Skill[] {
   return found;
 }
 
+/** Every skill, the vault's before this machine's. */
 export function readSkills(): Skill[] {
-  // The vault first: what yan may do is normally a property of the context,
-  // and a machine-level file is the remainder rather than the norm.
   let fromVault: Skill[] = [];
   try {
     fromVault = readSkillsFrom(skillsDir(), 'skills');
@@ -396,19 +342,7 @@ function render(picture: Picture, pulled: PullResult): void {
   renderSkills(readSkills());
 }
 
-/**
- * The skills, as an index, at the end of the rebuild.
- *
- * A path, a name and a sentence each — never the text. Session-start is the
- * SessionStart hook, so anything printed here sits in the context for the whole
- * session whether it is relevant or not; a few skills in full would be a
- * standing tax paid mostly for nothing. Deciding whether to open a file is what
- * an index is for, and opening one is cheap.
- *
- * Last on purpose: the picture above is facts about right now, and this is
- * standing instruction, which is what should still be in view when the session
- * gets going.
- */
+/** Print the skills index: a path, a name and a sentence each. Silent when empty. */
 function renderSkills(skills: readonly Skill[]): void {
   if (skills.length === 0) return;
   out('');
@@ -449,17 +383,11 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       }
       const id = options.all === true ? '' : (options.task ?? positional ?? process.env.YAN_TASK ?? '');
 
-      // The vault is caught up before the picture is rebuilt, so a session that
-      // starts on the laptop starts with the desktop's work in it.
-      //
-      // Never fatal, and `--json` stays machine readable: a missing network, a
-      // dirty vault or a conflict costs one warning line on stderr and the
-      // session continues on local state. A session-start that refused because a
-      // remote was unreachable would be a worse tool than one that never synced.
+      // Caught up before the picture is rebuilt. Never fatal: a pull that
+      // fails costs one line on stderr and the session continues on local
+      // state.
       const pulled = pullVault();
       if (options.json === true && !pulled.ok) {
-        // `--json` stays machine readable: the warning goes to stderr, which
-        // nothing parses, and the exit code is unchanged.
         process.stderr.write(`yan session-start: vault pull: ${pulled.message}\n`);
       }
 

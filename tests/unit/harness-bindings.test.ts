@@ -14,19 +14,10 @@ import { repoRoot } from '../helpers/fixtures.js';
  *            and no autoarm: Codex parses `async` but does not run asynchronous
  *            command hooks, so it cannot hold a multi-hour watcher
  *
- * Why the codex half is structural.
- *
- * A grep over the file's body passes on a file codex refuses to PARSE, and that
- * is not hypothetical: the checked-in file was rejected at startup with
- *
- *   unknown field `version`, expected `description` or `hooks`
- *
- * and nothing noticed, because `session-start` and `--codex` were both present
- * in the text. So this asserts the shape codex parses: the nesting level, the
+ * The codex half asserts the shape codex parses — the nesting, the
  * string-valued `command`, `timeout` in seconds, and the absence of the keys
- * codex rejects. The shape is not derived from documentation — it is the one
- * `herdr integration install codex` writes, and it was confirmed by running
- * codex.
+ * it rejects — because a grep over the body passes on a file codex refuses to
+ * read at all.
  */
 
 function settings(...parts: string[]): Record<string, unknown> {
@@ -79,8 +70,7 @@ describe('Claude', () => {
 
 describe('Codex: the shape codex parses', () => {
   it('carries none of the three keys codex refuses the whole file for', () => {
-    // Each of these was in the checked-in file, and each is the sort of thing a
-    // body grep cannot see.
+    // Each of these is the sort of thing a grep over the body cannot see.
     expect(codex.version, 'a top-level `version` is what codex refused').toBeUndefined();
 
     const every = [...hooksFor(codex, 'SessionStart'), ...hooksFor(codex, 'Stop')];
@@ -117,11 +107,9 @@ describe('Codex: what those hooks run', () => {
   });
 
   it('starts the interpreter directly, because the shell it would get is not knowable', () => {
-    // measured, not a style choice. Codex hands the command
-    // string to the platform shell, which on Windows is PowerShell — and on the
-    // plain Windows PATH `bash` resolves to the WSL launcher while `sh` does not
-    // resolve at all. A hook naming either reaches the wrong interpreter or
-    // none, and which one depends on how codex happened to be started.
+    // Codex hands the command string to the platform shell, which on Windows
+    // is PowerShell: there `bash` resolves to the WSL launcher and `sh` to
+    // nothing at all.
     for (const hook of [start, stop]) {
       const command = String(hook?.command);
       expect(command.startsWith('node ')).toBe(true);

@@ -14,23 +14,14 @@ import { WorktreeError, type LeaseRow, type ReturnExpectation } from '../../src/
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan shift done`, ported from `tests/unit/yan-shift-done-order.test.sh` and
- * `tests/integration/yan-shift-done-squash.test.sh`.
+ * `yan shift done`, and the order it has to keep: MR merged → outcome.md →
+ * the log line → rm -rf run/ → return the tree → delete the remote branch.
+ * Backwards, everything still looks like it worked until a squash-merged
+ * shift strands a pool slot.
  *
- * What is under test: "`shift done` order: MR merged → `outcome` → `rm -rf run/` →
- * return the tree → then delete the remote branch." It is the kind of
- * regression that never fails loudly: get it backwards and everything still
- * looks like it worked, right up until a squash-merged shift strands a pool
- * slot.
- *
- * Every step appends to one call log, so the order is an exact assertion. The
- * step no module can see — `run/` being deleted — is read off the pool's
- * witness: the stand-in records whether run/ still existed when the tree came
- * back.
- *
- * And A further fifth regression: a `done` wake never tears down a shift
- * whose MR has not merged. Plan approval arrives as
- * `done`, so a shift parked on one looks exactly like a shift that finished.
+ * Every step appends to one call log, so the order is an exact assertion, and
+ * the pool stand-in records whether run/ still existed when the tree came
+ * back. A `done` wake must never stand in for asking the host.
  */
 
 afterAll(cleanupTempDirs);
@@ -129,9 +120,6 @@ beforeEach(() => {
   process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
   mkdirSync(tree, { recursive: true });
@@ -164,9 +152,8 @@ describe('an unmerged merge request stops everything', () => {
   });
 
   it('is what makes a `done` wake safe', () => {
-    // Plan approval arrives as `done`, so a shift parked
-    // on one looks exactly like a shift that finished — and what follows
-    // "finished" is destructive. `done` is a reason to look, never a verdict.
+    // A plan approval arrives as `done` too, and what follows "finished" is
+    // destructive: `done` is a reason to look, never a verdict.
     const runDir = dispatched('s1');
     writeFileSync(join(runDir, 'status'), '2026-08-09T11:00:00Z\tdone\tI think I am finished\n');
     hostSays = 'open';
@@ -211,9 +198,8 @@ describe('merged: the whole teardown, in order', () => {
   });
 
   it('never asks git about ancestry', () => {
-    // A squash-merged branch is not an ancestor of the branch it landed on, so
-    // ancestry would answer "not merged" about work that landed an hour ago.
-    // Comments may name what is forbidden; code may not run it.
+    // Ancestry would answer "not merged" about a squash merge. Comments may
+    // name what is forbidden; code may not run it.
     const source = stripComments(readFileSync(join(process.cwd(), 'src', 'cli', 'shift.ts'), 'utf8'));
     for (const forbidden of ['merge-base', 'rev-list', '--contains']) {
       expect(source, forbidden).not.toContain(forbidden);
@@ -239,9 +225,8 @@ describe('merged: the whole teardown, in order', () => {
 
 describe('a failed return stops before the branch is deleted', () => {
   it('is the last line of defence, so nothing after it runs', () => {
-    // The moment the pool will not take a tree back is the moment the work may
-    // exist nowhere else, and deleting the remote branch next would make that
-    // permanent.
+    // A tree that will not come back may hold the only copy of the work, so
+    // the remote branch stays.
     dispatched('s2', { lease_id: 'not-the-one' });
     returnRefusal = WorktreeError.mismatch('the lease id does not match');
 
@@ -254,10 +239,8 @@ describe('a failed return stops before the branch is deleted', () => {
 
 describe("the MR url reaches yan through the shift's own report", () => {
   it('is the only channel carrying the address back', () => {
-    // `done: mr <url>` is the deliverable in mr mode. The
-    // shift opens its own merge request, so nothing else records the address.
-    // The host still decides whether it merged; the note only supplies what to
-    // ask about.
+    // The shift opens its own MR, so its `done` note is the only record of the
+    // address. Whether it merged is still the host's answer.
     const reported = 'https://example.test/org/repo/pull/42';
     const runDir = dispatched('s1', { mr: '' });
     writeFileSync(
@@ -275,10 +258,8 @@ describe("the MR url reaches yan through the shift's own report", () => {
 
 describe('a teardown that stopped at the tree return can be finished', () => {
   it('derives which shift it was from the pool, not from a stored flag', () => {
-    // run/ is gone and the tree is still leased: from $YAN_HOME that is
-    // identical to a clean clock-out, and refusing would make the stranded slot
-    // permanent. The pool records the holder as <task>/<unit>/<sid>, which is
-    // everything steps 5 and 6 need.
+    // run/ gone with the tree still leased looks identical to a clean
+    // clock-out from disk; the pool's holder is what tells them apart.
     mkdirSync(join(home, 'tasks', 't042', 'shifts', 's3'), { recursive: true });
     writeFileSync(join(home, 'tasks', 't042', 'shifts', 's3', 'outcome.md'), `# s3\n- merge request: ${MR} (merged)\n`);
     leases = [

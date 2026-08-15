@@ -1,20 +1,8 @@
 import { Task } from '../../records/task/index.js';
 
 /**
- * Telling Herdr what it is looking at.
- *
- * These calls are never fatal
- *
- * Herdr receives presentation, never truth. `task.json` remains the only record
- * of which unit is on which branch; a token or a title is a copy for human
- * eyes, and a copy that goes stale is a cosmetic bug rather than a correctness
- * one.
- *
- * So every call goes through here, and here swallows the failure into one line
- * on stderr. An orchestrator that will not dispatch a shift because a title did
- * not stick is a worse orchestrator, and the way to make
- * sure nobody writes that by accident is to give the calls one door that cannot
- * throw.
+ * Run a call that only affects what Herdr displays. Never throws: a failure
+ * becomes one line on stderr and the caller carries on.
  */
 export function display(what: string, call: () => void): void {
   try {
@@ -25,21 +13,14 @@ export function display(what: string, call: () => void): void {
   }
 }
 
-/** The token names, in one place so the two writers cannot disagree. */
+/** The display tokens describing one unit. */
 export function unitTokens(task: string, unit: string, branch: string): Record<string, string> {
   return { task, unit, branch };
 }
 
 /**
- * The same tokens for a whole task, which is what `yan continue` knows at the
- * moment it labels the workspace.
- *
- * "The task and its current unit" has an answer only when there is one unit. A
- * task with three units delivers three branches into three targets, and naming
- * one of them on the tab would be a statement that is false about the other
- * two — so the unit and branch tokens are simply left off, and the tab says
- * which task this is. `yan unit set --branch` fills them in for the unit it
- * rotates, which is the moment there really is a current one.
+ * The display tokens for a task: the unit and branch too when it has exactly
+ * one unit, and the task alone otherwise.
  */
 export function taskTokens(task: string): Record<string, string> {
   let units;

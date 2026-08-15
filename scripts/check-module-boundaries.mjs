@@ -1,30 +1,15 @@
 #!/usr/bin/env node
 //
-// The dependency graph, enforced by lint rather than
-// by discipline.
+// The module boundaries, checked by lint. Three rules:
 //
-// Three rules, and all three exist because the failure they prevent is silent:
+//   1. Nothing outside src/externals/<m>/ may import a file inside it other
+//      than its index.ts, which is the module's whole public surface.
+//   2. No module under src/externals/<a>/ may import src/externals/<b>/.
+//   3. Nothing under src/ may import src/ui/ except src/cli/, so nothing but
+//      a command can prompt.
 //
-//   1. Entry point. Nothing outside src/externals/<m>/ may import a file inside
-//      it other than its index.ts. That is what makes index.ts worth reading:
-//      it is the module's whole public surface, not a suggestion. Without this
-//      rule a test — or a command in a hurry — reaches for an internal helper,
-//      the helper becomes public by accident, and nobody can say what the
-//      module offers any more.
-//
-//   2. No sideways edges, between externals. No module under src/externals/<a>/ imports
-//      src/externals/<b>/. An external maps one outside authority into yan's
-//      vocabulary; one that reaches into another has started making decisions,
-//      which is the one thing they exist not to do.
-//
-//   3. Prompts stay in the CLI. Nothing under src/ imports src/ui/ except
-//      src/cli/. `ui/` is Clack and people. A store or an
-//      external that can prompt is one that can hang a hook forever with
-//      nobody there to answer it.
-//
-// A module's own test (src/externals/<m>/*.test.ts) is inside the module, so
-// rule 1 does not apply to it. That is the point: colocating the test is what
-// lets the internals stay internal.
+// A module's own colocated test is inside the module, so rule 1 lets it reach
+// the internals.
 //
 // Usage: node scripts/check-module-boundaries.mjs [src-root]
 // Exit 0 clean, 1 violations found, 2 called wrongly.
@@ -39,11 +24,8 @@ const srcRoot = resolve(process.argv[2] ?? join(repoRoot, 'src'));
 // Directories whose children are each one module with one entry point.
 const MODULE_ROOTS = ['externals', 'records'];
 
-// …but only externals may not import each other. `records/` is yan's own
-// domain and it genuinely nests: a task has a log, a shift belongs to a task,
-// so `shift → task → log` is the hierarchy and not a leak. What rule 2 forbids
-// for externals — one outside authority reaching into another, which means it
-// has started deciding — has no counterpart here.
+// …but rule 2 applies to externals only: `records/` genuinely nests, so
+// `shift → task → log` is the hierarchy rather than a leak.
 const NO_SIDEWAYS_EDGES = ['externals'];
 
 function walk(dir) {
@@ -65,9 +47,7 @@ function walk(dir) {
   return files;
 }
 
-// `import … from 'x'`, `export … from 'x'`, and `import('x')`. Deliberately a
-// regex and not a parser: the rule is about module specifiers, which are the
-// one part of the syntax a regex reads correctly.
+// `import … from 'x'`, `export … from 'x'`, and `import('x')`.
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm;
 
 function posix(p) {
@@ -105,11 +85,7 @@ function isEntry(target, layer) {
 
 const violations = [];
 
-// tests/ is scanned too, and that is the point of rule 1 rather than an extra:
-// the only thing that had ever reached past an entry point was a test, because
-// a test in tests/ cannot see a module's internals any other way. A module's
-// own test lives inside the module and is covered by the src walk.
-// Skipped when an explicit root was passed — that is fixture mode.
+// tests/ is scanned too, unless an explicit root was passed.
 const roots = [srcRoot];
 if (process.argv[2] === undefined) roots.push(join(repoRoot, 'tests'));
 

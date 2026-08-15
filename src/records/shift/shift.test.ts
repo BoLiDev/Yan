@@ -80,7 +80,7 @@ describe('finding a shift', () => {
     const run = seed('t042', 's1');
     expect(Shift.fromDir(join(run, '..')).task).toBe('t042');
 
-    // Anywhere else it stays empty: guessing would be worse than not knowing.
+    // Anywhere else it stays empty rather than being guessed at.
     const loose = mkTempDir();
     mkdirSync(join(loose, 's9'), { recursive: true });
     const shift = Shift.fromDir(join(loose, 's9'));
@@ -146,9 +146,8 @@ describe('reporting', () => {
   });
 
   it('offers no way to read the last line', () => {
-    // Every line is an event, not the current state. A
-    // `last()` would be read as "the state" within a week, so it does not exist
-    // and this is the alarm if it ever does.
+    // Every line is an event, not the current state, so nothing here reads the
+    // newest one. This is the alarm if something learns to.
     const surface = Object.getOwnPropertyNames(Shift.prototype);
     for (const forbidden of ['last', 'lastEvent', 'state', 'status', 'currentState']) {
       expect(surface).not.toContain(forbidden);

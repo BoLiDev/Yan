@@ -13,23 +13,13 @@ import {
 import { createTask } from '../../src/cli/task.js';
 
 /**
- * `yan task new`, ported from `tests/integration/yan-task-new.test.sh` and
- * `tests/unit/yan-task-new-args.test.sh`.
+ * `yan task new`. What it has to keep proving: create ends with `user` inside
+ * the task, with its units added and their integration branches really cut.
  *
- * What the
- * bash test proved and this one has to keep proving:
- *
- *   Create ends with `user` inside the task. Create is not "mkdir plus an empty
- *   brief" — it is the contract, the involved repositories, a concrete scope, at
- *   least one unit, and the main agent running. A create that stopped at
- *   task.json would leave the whole product sentence unfinished, and the enter
- *   step is `yan continue` itself rather than a second copy of it.
- *
- * Real git against local bare remotes, because `yan unit add` really cuts the
- * integration branches. The main agent is `process.execPath`, which reads an
- * empty stdin and exits 0 — a real spawn, so "it entered" stays an observation.
- * `HERDR_PANE_ID` is cleared for the same reason as in `continue.test.ts`: the
- * runner really is inside a Herdr pane and the suite must not relabel it.
+ * Real git against local bare remotes. The main agent is `process.execPath`,
+ * which reads an empty stdin and exits 0, so "it entered" stays an
+ * observation. `HERDR_PANE_ID` is cleared: the runner really is in a pane, and
+ * the suite must not relabel it.
  */
 
 afterAll(cleanupTempDirs);
@@ -72,9 +62,6 @@ beforeAll(async () => {
   expect((await yan(['repo', 'add', join(tmp, 'proto.git'), '--name', 'proto', '--path', join(home, 'repos')])).code).toBe(0);
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'auth'), { recursive: true });
   mkdirSync(join(home, 'repos', 'monorepo-x', 'apps', 'admin'), { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   for (const name of ['monorepo-x', 'proto']) registerRepo(home, name, join(home, 'repos', name));
 });
 
@@ -90,8 +77,7 @@ describe('three units across two repositories, in one order-sensitive run', () =
     ]);
     expect(r.code, r.out).toBe(0);
 
-    // The id is t042-shaped: a plain sequence number, because it also goes into
-    // branch names and the readable title lives in brief.md.
+    // The id is a plain sequence number; the readable title is in brief.md.
     expect(existsSync(join(home, 'tasks', 't001', 'task.json'))).toBe(true);
     const d = await detail('t001');
     expect(d.title).toBe('unify the auth header');
@@ -115,8 +101,7 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(await hasBranch('monorepo-x', 'yan/t001-admin-r1')).toBe(true);
     expect(await hasBranch('proto', 'yan/t001-proto-r1')).toBe(true);
 
-    // …and create ended by starting the main agent in this pane, which is
-    // `yan continue` itself and not a second copy of it.
+    // …and create ended by starting the main agent in this pane.
     expect(r.stdout).toContain('starting in this pane');
     // The enter step's per-task lock is held for exactly as long as the agent.
     expect(existsSync(join(home, 'tasks', 't001', '.enter.lock'))).toBe(false);
@@ -153,9 +138,7 @@ describe('--json still enters; it only changes how the result is printed', () =>
     };
     expect(seen.task).toBe('t044');
     expect(seen.units).toEqual(['proto']);
-    // The record is printed before the pane is handed over, which is the whole
-    // reason entering is two phases: a record that only arrived once the agent
-    // had finished would arrive hours late or never.
+    // The record is printed before the pane is handed over.
     expect(seen.entered.started).toBe(true);
     expect(seen.entered.task).toBe('t044');
   });
@@ -189,15 +172,9 @@ describe('what it refuses, and never guesses', () => {
 
 describe('the clone is fetched once per clone, not once per unit', () => {
   /**
-   * Making a unit's integration branch exist is local except for one `git
-   * fetch`, and that fetch used to run per unit. Eight units off one monorepo
-   * meant eight serial round trips before the command said anything - the
-   * whole cost of `yan task new` on a slow network, for refs the first fetch
-   * already had.
-   *
-   * `add` is injected too, so nothing here cuts a real branch: what is under
-   * test is how many times the network is reached and which units are told it
-   * happened, not what git did afterwards.
+   * One fetch per clone, however many units share it. `add` is injected, so
+   * what is under test is how often the network is reached and which units are
+   * told it happened.
    */
   function createWithFakes(units: Array<{ repo: string; target: string; scope?: string[] }>) {
     const freshened: string[] = [];
@@ -276,9 +253,8 @@ describe('the clone is fetched once per clone, not once per unit', () => {
   });
 
   it('does not claim a clone it could not resolve was fetched', () => {
-    // The unresolvable repo still reaches `add`, which is what raises the real
-    // error with the unit name on it. What it must not carry is `fetched`:
-    // that would trade a slow create for one silently working from stale refs.
+    // An unresolvable repo still reaches `add`, which raises the error naming
+    // the unit — but it must not be told its clone was freshened.
     const { freshened, addedWith } = createWithFakes([
       { repo: 'monorepo-x', target: 'main', scope: ['apps/auth'] },
       { repo: 'no-such-repo', target: 'main' },

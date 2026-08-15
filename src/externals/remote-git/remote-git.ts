@@ -25,35 +25,21 @@ export interface RemoteGitOptions {
 }
 
 /**
- * The remote git host — GitHub or GitLab (see
- * §4.3).
- *
- * Everything that opens, queries or merges a merge request, and everything that
- * asks about CI, goes through here. Callers speak yan's vocabulary only. They
- * never learn which host the repository lives on.
+ * The remote git host — GitHub or GitLab — behind four verbs:
  *
  *     createMr   open one, return its URL
  *     mrState    merged | closed | open | unknown
  *     mergeMr    merge it, now
  *     ciState    green | red | pending | none
  *
- * Four verbs over a thick implementation. The five differences between the two
- * CLIs — argument shapes, terminology, JSON shapes, authentication, and the CI
- * model itself — all live behind `Provider`, resolved once in the constructor.
- * There is no `if (kind === 'github')` in this file.
+ * Which host is resolved once, in the constructor, and never reaches a caller.
+ * Each verb declares the options it takes and throws on any other, so no extra
+ * CLI flag can be smuggled through.
  *
- * The failure mode to guard against is this degrading into a shallow module —
- * one-line pass-throughs, the outside tool's own words leaking out, and the
- * caller still having to know which system it is talking to. The defence is
- * that the interface is written in yan's vocabulary, and that every verb
- * declares the options it takes and refuses everything else, so a caller cannot
- * smuggle `--admin` or `--auto-merge` through.
- *
- * Exit behaviour: the two query verbs always return a member of their closed
- * set, including when the host cannot be reached — that is reported as
- * `unknown` / `pending` plus a note on stderr, so a caller branches on the
- * value and never has to catch. The two action verbs throw a `RemoteGitError` when
- * they did not work.
+ * The two query verbs always return a member of their closed set — a host that
+ * cannot be reached is `unknown` / `pending` plus a note on stderr — so a
+ * caller branches on the value rather than catching. The two action verbs
+ * throw a RemoteGitError when they did not work.
  */
 export class RemoteGit {
   private readonly provider: Provider;
@@ -68,9 +54,11 @@ export class RemoteGit {
   }
 
   /**
-   * Open a merge request and return its URL. That URL is the reference the
-   * other three verbs take, and the value a unit stores as
-   * `unit.mr`.
+   * Open a merge request and return its URL, which is what the other three
+   * verbs take as `mr`.
+   *
+   * @throws RemoteGitError `usage` for a missing or unknown option, `failed`
+   *   when the host refused.
    */
   public createMr(options: MrCreateOptions): string {
     only(options, ['repo', 'dir', 'source', 'target', 'title', 'body', 'bodyFile', 'draft']);
@@ -89,7 +77,10 @@ export class RemoteGit {
     return this.provider.createdUrl(result);
   }
 
-  /** Exactly one of: merged | closed | open | unknown. */
+  /**
+   * Exactly one of: merged | closed | open | unknown. A host that cannot be
+   * reached is `unknown` with a note on stderr, never a throw.
+   */
   public mrState(ref: MrRef): MrState {
     only(ref, ['repo', 'dir', 'mr']);
     const mr = requireMr(ref);
@@ -102,10 +93,11 @@ export class RemoteGit {
   }
 
   /**
-   * Merge now. `deleteSource` is off by default on purpose:
-   * fixes the order of `yan shift done` as return the tree, then delete the
-   * remote branch, and a host that deleted it during the merge would take that
-   * step away.
+   * Merge now, with `strategy` defaulting to `merge`. The source branch
+   * survives unless `deleteSource` says otherwise.
+   *
+   * @throws RemoteGitError `usage` for an unknown option or strategy, `failed`
+   *   when the merge did not happen.
    */
   public mergeMr(options: MrMergeOptions): void {
     only(options, ['repo', 'dir', 'mr', 'strategy', 'deleteSource']);
@@ -125,12 +117,8 @@ export class RemoteGit {
   }
 
   /**
-   * Exactly one of: green | red | pending | none.
-   *
-   * It does not say which job failed. That is not withheld to be tidy: the two
-   * hosts' job identities do not line up, and inventing a common shape for them
-   * would throw information away. `red` is the fact; reading the details is the
-   * shift's job.
+   * Exactly one of: green | red | pending | none, and never which job failed.
+   * A host that cannot be reached is `pending` with a note on stderr.
    */
   public ciState(ref: MrRef): CiState {
     only(ref, ['repo', 'dir', 'mr']);
@@ -149,11 +137,8 @@ export class RemoteGit {
 }
 
 /**
- * Which CLI this machine's configuration names.
- *
- * A module function rather than a method because bootstrap has to answer it
- * before there is anything to construct — and it has to check exactly one CLI,
- * since checking both would report a failure on a perfectly healthy machine.
+ * Which CLI the configuration names, answerable without constructing a
+ * `RemoteGit`.
  */
 export function configuredCli(kind?: HostKind): 'gh' | 'glab' {
   return (kind ?? readConfig().kind) === 'github' ? 'gh' : 'glab';

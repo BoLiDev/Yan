@@ -15,32 +15,25 @@ import { isTty } from './shared/resolve.js';
  * `yan repo add | link | ls` — which repositories this context knows about,
  * and where they are on this machine.
  *
- * This command is the only writer of the registry, both halves. Nothing else
- * may create, edit or delete `repos.json` or `.local/repos.json`: one owner per
- * piece of information (design principle 2).
+ * The only writer of either half of the registry — `repos.json` and
+ * `.local/repos.json`.
  *
- * What V3 removed is `$YAN_HOME/repos/<name>/` — a second clone of a repository
- * you already have on disk, costing a full fetch and invisible from your own
- * project directory. Registering is now the normal case and cloning is the
- * exception, which is why `add` reads its argument rather than demanding a URL:
+ * `add` reads its argument rather than demanding a URL:
  *
  *   yan repo add                    scan the current directory, multi-select
  *   yan repo add ../poe-tools       register a clone that is already there
  *   yan repo add git@host:org/x     clone into clone_root, then register
  *
- * Two behaviours that outlived the rewrite, because the reasons did:
- *
- *   * Idempotent. Re-adding never clobbers a `mode_default` or `pool_size`
- *     someone has tuned. Only an explicit flag changes them.
- *   * It never clones over an existing directory. "Delete and retry" is not
- *     something a tool should do to a directory it did not create.
+ * Re-adding keeps a tuned `mode_default` or `pool_size` unless a flag changes
+ * it, and nothing here ever clones over an existing directory.
  */
 
 const MODE_DEFAULT = 'mr';
 const POOL_SIZE = 8;
 
 /**
- * Handles both spellings a forge hands out:
+ * The repository's own name out of a clone URL, in either spelling a forge
+ * hands out:
  *   git@host:org/name.git      ssh://git@host:22/org/name.git
  *   https://host/org/name.git  https://host/org/name/
  */
@@ -52,12 +45,8 @@ export function repoNameFromUrl(url: string): string {
 }
 
 /**
- * Two URLs naming the same repository.
- *
- * A local path we built and a local path git printed back can differ in
- * spelling on Windows, so those go through `normalizePath`.
- * Remote URLs (`git@…`, `https://…`) have no such problem and are compared
- * verbatim.
+ * Do two URLs name the same repository? Local paths are compared as paths;
+ * remote URLs only ever verbatim.
  */
 export function sameUrl(a: string, b: string): boolean {
   if (a === b) return true;
@@ -71,13 +60,15 @@ function checkName(name: string): void {
     throw CommandError.usage('repo', `'${name}' is not a usable repository name - pass --name`);
   }
   if (name === 'version') {
-    // The registry keeps repositories at the top level beside `version`, so
-    // that one name is not available.
+    // Repositories sit at the registry's top level, beside `version`.
     throw CommandError.usage('repo', "'version' is not a usable repository name - pass --name");
   }
 }
 
-/** The portable half. Merged, never replaced. */
+/**
+ * Write the tracked half. Merged into any entry already there: an empty `mode`
+ * or `pool` keeps what is recorded.
+ */
 function writePortable(name: string, url: string, mode: string, pool: string): void {
   const file = reposPath();
   mkdirSync(vaultDir(), { recursive: true });
@@ -95,7 +86,7 @@ function writePortable(name: string, url: string, mode: string, pool: string): v
   });
 }
 
-/** The machine half. Never committed, and the only thing `link` writes. */
+/** Write the machine half, which is never committed. */
 function writeLocal(name: string, dir: string): void {
   const file = localReposPath();
   mkdirSync(join(vaultDir(), '.local'), { recursive: true });
@@ -108,11 +99,8 @@ function writeLocal(name: string, dir: string): void {
 }
 
 /**
- * A name that is taken by a different repository.
- *
- * Checked before anything is cloned or written, in every one of the three
- * forms. The failure it prevents is a person typing a name they have used
- * before, waiting out a clone, and then being told it was never going to work.
+ * @throws CommandError `conflict` when `name` is registered to a different
+ *   URL. Called before anything is cloned or written.
  */
 function checkConflict(name: string, url: string): void {
   const existing = lookup(name);
@@ -121,7 +109,12 @@ function checkConflict(name: string, url: string): void {
   }
 }
 
-/** Register one clone that is already on this disk. Both halves. */
+/**
+ * Register one clone that is already on this disk, writing both halves.
+ *
+ * @throws CommandError `usage` for an unusable name, `conflict` when it is
+ *   taken by another URL.
+ */
 function registerClone(name: string, dir: string, url: string, mode = '', pool = ''): void {
   checkName(name);
   checkConflict(name, url);
@@ -157,15 +150,11 @@ export interface Candidate {
 }
 
 /**
- * The children of `dir` that are git clones, and what is wrong with each.
+ * The immediate children of `dir` that are git clones, sorted, each with what
+ * blocks it. Never recursive, and a clone with no `origin` is listed as
+ * blocked rather than left out.
  *
- * One level, not recursive. Recursion means walking into `node_modules` and
- * every vendored checkout to find things nobody wants; `cd` to the right
- * parent first costs nothing.
- *
- * A clone with no `origin` is listed and disabled rather than skipped: a
- * repository with no remote cannot be delivered from, and silently leaving it
- * out looks like a bug in the scan.
+ * @throws CommandError `usage` when `dir` cannot be read.
  */
 export function scan(dir: string): Candidate[] {
   let names: string[];
@@ -204,11 +193,7 @@ export function scan(dir: string): Candidate[] {
 async function addByScan(dir: string, options: AddOptions): Promise<void> {
   const { mode, pool } = checkFlags(options);
 
-  // No TTY wins over everything else, and it is checked first — the same
-  // ordering `resolve()` uses, and for the same reason: a script, a hook or an
-  // agent that reached a prompt would wait forever with nobody to answer it,
-  // so the refusal has to be about the missing argument rather than about
-  // whatever the scan happened to find.
+  // Checked before the scan, so the refusal is about the missing argument.
   if (!isTty()) {
     throw CommandError.usage('repo', `there is no terminal to select in: pass a path or a URL. 'yan repo add' with no argument is the interactive form`);
   }
@@ -272,18 +257,14 @@ function addByUrl(url: string, options: AddOptions): void {
   out(`repo add: ${name}  url=${after?.url ?? url}  mode_default=${after?.modeDefault ?? MODE_DEFAULT}  pool_size=${String(after?.poolSize ?? POOL_SIZE)}`);
 }
 
-/** A URL, a directory, or nothing — told apart by looking, never by a flag. */
+/** Does this argument look like a clone URL rather than a path? */
 function looksLikeUrl(target: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(target) || /^[^/\\]+@[^/\\]+:/.test(target);
 }
 
 /**
- * A bare repository on this disk is a clone source, not a clone.
- *
- * `git clone /srv/git/thing.git` is an ordinary thing to do, and the argument
- * is a directory that exists — so without this the path branch would claim it
- * and refuse it for having no `.git`. A bare repo has git's own contents at the
- * top instead.
+ * Is this directory a bare repository? One is a clone source rather than a
+ * clone, so it takes the URL path even though it is a local directory.
  */
 function isBareRepo(dir: string): boolean {
   return existsSync(join(dir, 'HEAD')) && existsSync(join(dir, 'objects'));

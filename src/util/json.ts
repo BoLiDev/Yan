@@ -14,23 +14,11 @@ import { dirname, join } from 'node:path';
 import { YanError, type YanErrorOptions } from './error.js';
 
 /**
- * Read and write JSON: stateless, and the only place in the code base that
- * replaces a JSON file.
- *
- * Three invariants:
- *
- *   1. every write goes through a temporary file in the same directory as the
- *      target and is then renamed into place, so the rename stays inside one
- *      filesystem and a reader never sees a half-written file;
- *   2. every object written carries a `version` field, the one hook left for a
- *      future schema change;
- *   3. invalid content is refused before the target is touched, so a failed
- *      write always leaves the previous content intact.
- *
- * What is *gone* is `_json_lf`: there is no `jq.exe` emitting CRLF any more, so
- * the 126 strip sites and the explanation they needed both disappear. Output is
- * LF on both platforms because we write it that way, not because we clean up
- * after someone.
+ * Read and write JSON. Every write lands through a temporary file in the
+ * target's own directory and a rename, so a reader never sees a half-written
+ * file and a failed write leaves the previous content intact. Objects written
+ * carry a `version` field, and output is two-space indented, LF, with a
+ * trailing newline on both platforms.
  */
 
 const CODES = {
@@ -67,9 +55,6 @@ function serialize(value: unknown): string {
   if (text === undefined) {
     throw new JsonError('invalid', 'refusing to write a value that is not JSON');
   }
-  // Two-space indent and a trailing newline: these files are versioned in the
-  // vault, so the formatting has to be stable or every write shows up as a
-  // whole-file diff.
   return `${text}\n`;
 }
 
@@ -97,15 +82,10 @@ function atomicWrite(file: string, value: unknown, versionFallback = 1): void {
     throw new JsonError('writeFailed', `cannot create directory: ${dir}`, { cause });
   }
 
-  // The temporary file is anchored to the target's own directory on purpose:
-  // os.tmpdir() could be on another filesystem and the rename would then be a
-  // copy, which is not atomic.
   tmpCounter += 1;
   const tmp = join(dir, `.yan-json.${process.pid}.${tmpCounter}.tmp`);
 
   try {
-    // 'wx' is an atomic exclusive create on both platforms, so two writers
-    // cannot pick the same temporary name.
     const fd = openSync(tmp, 'wx', 0o644);
     try {
       writeSync(fd, text);
@@ -121,13 +101,17 @@ function atomicWrite(file: string, value: unknown, versionFallback = 1): void {
     try {
       unlinkSync(tmp);
     } catch {
-      // The temp file may never have been created; nothing to clean up.
+      // The temp file may never have been created.
     }
     throw new JsonError('writeFailed', `cannot replace ${file}`, { cause });
   }
 }
 
-/** Parse text, refusing anything that is not JSON. */
+/**
+ * Parse text.
+ *
+ * @throws JsonError `invalid` when it is not JSON.
+ */
 export function parseJson(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
@@ -136,7 +120,12 @@ export function parseJson(text: string): unknown {
   }
 }
 
-/** The whole file, parsed. Throws when the file is missing or malformed. */
+/**
+ * The whole file, parsed.
+ *
+ * @throws JsonError `missing` when it cannot be read, `invalid` when it does
+ *   not parse.
+ */
 export function readJson(file: string): unknown {
   if (!file) throw JsonError.usage('missing', 'a file is required');
   let text: string;
@@ -164,11 +153,10 @@ export function writeJson(file: string, value: unknown): void {
 }
 
 /**
- * Replace a file's contents from raw text.
+ * Replace a file's contents from raw text, which is parsed first.
  *
- * Kept because it is the only shape in which invalid JSON can reach the writer
- * at all — a caller holding a parsed value cannot express `{"a":` — and
- * invariant 3 is worth a real test.
+ * @throws JsonError `invalid` when the text is empty or not JSON; the target
+ *   is untouched in that case.
  */
 export function writeJsonText(file: string, text: string): void {
   if (text === '') {
@@ -178,10 +166,9 @@ export function writeJsonText(file: string, text: string): void {
 }
 
 /**
- * Read-modify-write through the same atomic path.
- *
- * The file's existing `version` is carried over unless the edit set one itself.
- * A throwing edit leaves the file untouched.
+ * Read-modify-write, atomically. The file's existing `version` is carried over
+ * unless `edit` set one itself, and a throwing `edit` leaves the file
+ * untouched.
  */
 export function editJson(file: string, edit: (current: unknown) => unknown): void {
   const current = readJson(file);
@@ -190,7 +177,7 @@ export function editJson(file: string, edit: (current: unknown) => unknown): voi
   atomicWrite(file, edit(current), existingVersion);
 }
 
-/** Create the file only when it is absent. Existing content is never touched. */
+/** Create the file only when it is absent, and say whether it was written. */
 export function initJson(file: string, value: unknown): boolean {
   if (existsSync(file)) return false;
   atomicWrite(file, value);

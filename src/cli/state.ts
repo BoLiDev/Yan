@@ -9,71 +9,36 @@ import { currentBranch, isClean } from '../util/git.js';
 import { existsSync } from 'node:fs';
 
 /**
- * `yan state <sid>` — what is true about a shift right now.
+ * `yan state <sid>` — what is true about a shift right now, derived on every
+ * call from `run/meta.json`, the terminal, git and the host. Nothing here
+ * reads the event log, whose last line is the newest event and not the state.
  *
- * This command does not read the last line of run/status. Not ever.
+ * The verdict, decided in this order:
  *
- * Every line in run/status is an event, not the current state. A shift that reported `done` and then died has `done` as its last
- * line; so has a shift that reported `done` an hour ago and is still waiting
- * for its merge request to be reviewed; so has a shift whose work has since
- * landed. The last line is the most recent thing that happened, and reading it
- * as the state is the single mistake this command exists to prevent. The record
- * offers no way to do it: `Shift` has `eventCount()` and no `last()`.
- *
- * The state is derived, every time, from the live sources: `run/meta.json` plus
- * the terminal, git and the host.
- *
- * The five verdicts, and the order they are decided in:
- *
- *   clocked-out  run/ is gone. Clocking out deletes it whole, so its absence is
- *                the fact - checked first, because every other source is about
- *                a shift that is still running.
- *   merged       the host says the shift branch's merge request is merged. That
- *                is a shift's objective end condition (§5.3) and it outranks the
- *                terminal on purpose: an agent still sitting in its pane after
- *                the work landed is a shift to clock out, not one to wait for.
- *                Ancestry is never used for this - a squash merge is not an
- *                ancestor of what it landed on.
- *   dead         the terminal says the agent is gone.
- *   running      the terminal says the agent is alive.
- *   unknown      nothing above could be established. Said out loud rather than
- *                rounded up to something more comfortable.
- *
- * `unknown` is not `dead`, and this command must not round it that way
- * `unknown` means yan could not find out, and clocking a
- * shift out on "could not find out" is how work gets deleted. The two-call
- * derivation that separates them lives in the seam; nothing here re-implements
- * it.
- *
- * `run/meta.json` is read defensively: a missing key costs one fact, never a
- * crash.
+ *   clocked-out  run/ is gone
+ *   merged       the host says the merge request merged. Never git ancestry,
+ *                and it outranks a pane the agent is still sitting in
+ *   dead         the terminal says the agent is gone
+ *   running      the terminal says the agent is alive
+ *   unknown      nothing above could be established — which is not `dead`
  */
 
 export type Verdict = 'clocked-out' | 'merged' | 'dead' | 'running' | 'unknown';
 
 /**
- * Whether the shift's terminal is moving, and how confident that is.
+ * Whether the shift's terminal is moving.
  *
  *   moving     the digest changed recently
  *   still      it has not changed, and the reading is fresh
- *   unsampled  no watcher has taken a reading lately, so there is nothing to
- *              say about the shift at all
+ *   unsampled  no watcher has taken a reading lately, so this says nothing
+ *              about the shift at all
  *
- * `still` is deliberately not `stuck`. An `npm install` is still for minutes
- * and a model thinking is still for a minute and a half; both are working. What
- * this reports is a duration, and what to make of it is a judgement that needs
- * to know what the shift was asked to do.
+ * `still` is a duration, not a verdict: an install and a model thinking are
+ * both still.
  */
 export type Motion = 'moving' | 'still' | 'unsampled';
 
-/**
- * How stale a reading may be before it stops being about the shift.
- *
- * The watcher's own turn is five seconds. Beyond a few multiples of that,
- * "nothing changed" stops meaning the terminal is quiet and starts meaning
- * nobody has looked — and reporting the second as the first is how a healthy
- * shift gets declared stuck.
- */
+/** How stale a pulse reading may be before it stops being about the shift. */
 const PULSE_FRESH_SECONDS = 30;
 
 /** What `yan state` needs from the terminal. `Terminal` is the real one. */
@@ -114,7 +79,12 @@ export interface StateDeps {
   readonly readMrState?: MrStateReader;
 }
 
-/** Everything this command establishes, without the process around it. */
+/**
+ * Everything this command establishes. A source that cannot answer costs one
+ * fact rather than throwing.
+ *
+ * @throws ShiftError when `sid` names no shift, or more than one.
+ */
 export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateFacts {
   const shift = Shift.resolve(sid, task);
   const meta = shift.meta();
@@ -155,9 +125,8 @@ export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateF
     }
   }
 
-  // Source 3: the host. Only when a merge request has been recorded. There is
-  // no branch-to-MR lookup here: `mrState` takes the URL `createMr` returned,
-  // and inventing a search would put host vocabulary in a subcommand.
+  // Source 3: the host, only when a merge request URL has been recorded —
+  // nothing here searches for one by branch.
   let mrState: MrState | 'none' = 'none';
   if (mr !== '') {
     const dir = tree !== '' && existsSync(tree) ? tree : undefined;
@@ -165,8 +134,8 @@ export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateF
     mrState = ask(mr, dir);
   }
 
-  // Source 4: what the watcher has seen of the terminal. Read, never taken:
-  // sampling here would make the answer depend on how often this was called.
+  // Source 4: the pulse, read and never taken — sampling here would make the
+  // answer depend on how often this was called.
   let motion: Motion = 'unsampled';
   let stillFor: number | undefined;
   let sampledAgo: number | undefined;

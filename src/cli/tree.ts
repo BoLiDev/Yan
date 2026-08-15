@@ -5,13 +5,9 @@ import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './shared/action.js';
 
 /**
- * `yan tree get | return | status` — the entry point to the worktree pool
- *
- * The pool is part of yan, not a separate binary and not a wrapper around an
- * outside tool. This file is the thin command layer: it resolves which
- * repository is meant, reads `pool_size` from mem/repos.json (yan's own
- * bookkeeping, which the seam must not read), and formats what the seam
- * reports. Every decision that matters lives in `src/externals/worktree/`.
+ * `yan tree get | return | status` — the command layer over the worktree pool:
+ * it resolves which repository is meant, reads its `pool_size` from the
+ * registry, and formats what the pool reports.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 a conditional return was
  * refused because the lease identity did not match (nothing was touched),
@@ -94,11 +90,8 @@ const returnTree = new Command('return')
           throw CommandError.usage('tree', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
           );
         }
-        // Two flags rather than one, and the second is not a confirmation
-        // prompt: `--discard` says what to do and `--user-asked` says whose
-        // decision it was. A single flag would be indistinguishable from a
-        // retry, which is the shape this must not have — the work it destroys
-        // exists nowhere else.
+        // Both flags: `--discard` says what to do, `--user-asked` says whose
+        // decision it was. Neither alone gets past the guard.
         if (options.discard === true && options.userAsked !== true) {
           throw CommandError.usage('tree', "--discard throws away work that exists nowhere else, so it needs `user`'s word: pass --user-asked once they have given it. Nothing was touched",
           );
@@ -106,9 +99,8 @@ const returnTree = new Command('return')
         if (options.userAsked === true && options.discard !== true) {
           throw CommandError.usage('tree', '--user-asked answers --discard, and there is nothing here to answer without it');
         }
-        // The --if-* options are compared before anything destructive happens; a
-        // mismatch exits 3 and touches nothing, which is what makes an
-        // automatic retry safe.
+        // Compared before anything destructive happens: a mismatch exits 3 and
+        // touches nothing.
         const returned = new WorktreePool(target.clone).return(which, {
           leaseId: options.ifLeaseId,
           holder: options.ifLeaseHolder,

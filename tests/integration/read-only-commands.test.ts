@@ -14,9 +14,7 @@ afterAll(cleanupTempDirs);
 let home = '';
 let previousHome: string | undefined;
 
-// The shared helper, bound to this file's home. It was a local copy on
-// spawnSync until the suite went parallel again; a fourth implementation of
-// "run bin/yan" is a fourth place for the blocking to come back.
+// The shared helper, bound to this file's home.
 function yan(args: readonly string[], env: Record<string, string> = {}) {
   return runYan(home, args, env);
 }
@@ -226,8 +224,8 @@ describe('yan repo add', () => {
     await mkClone(url, where);
     await yan(['repo', 'add', where, '--name', 'listed']);
 
-    // What a vault that arrived from another machine looks like: registered,
-    // with no path on this disk. It is a normal state, not a broken one.
+    // A vault that arrived from another machine: registered, with no path on
+    // this disk, which is a normal state.
     const file = join(home, 'repos.json');
     const reg = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
     reg['from-elsewhere'] = { url: 'git@host:org/from-elsewhere.git', mode_default: 'mr', pool_size: 8 };

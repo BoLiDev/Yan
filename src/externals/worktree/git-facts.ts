@@ -2,10 +2,7 @@ import * as git from '../../util/git.js';
 import { WorktreeError } from './errors.js';
 import { pathKey } from './layout.js';
 
-/**
- * Questions this module asks git. Facts only — nothing here decides anything,
- * and nothing here writes.
- */
+/** What the pool asks git. Reads only; nothing here writes. */
 
 /** True when git knows `path` as a worktree of `clone`. */
 export function isRegisteredWorktree(clone: string, path: string): boolean {
@@ -23,11 +20,8 @@ export function isRegisteredWorktree(clone: string, path: string): boolean {
 }
 
 /**
- * Which working tree has `branch` checked out, if any.
- *
- * The main clone counts and is listed first, which is the point: the registered
- * clone is one `user` works in, so it holds branches like any other tree, and
- * the answer a caller needs is the directory to go and look at.
+ * Which working tree has `branch` checked out, if any. The main clone counts,
+ * so the answer can be a directory the pool does not own.
  */
 export function worktreeHolding(clone: string, branch: string): string | undefined {
   let porcelain: string;
@@ -47,12 +41,11 @@ export function worktreeHolding(clone: string, branch: string): string | undefin
 }
 
 /**
- * The ref a new shift branch is cut from.
+ * The ref `base` names: a local branch first, then `origin/<base>`, then
+ * anything git can resolve. Never fetches, so the answer is only as fresh as
+ * the clone.
  *
- * A local branch wins, then origin/<base>, then anything git can resolve. The
- * pool never fetches: keeping the integration branch up to date belongs to
- * whoever is running the round, and this module does not decide when to talk
- * to the remote.
+ * @throws WorktreeError when nothing resolves.
  */
 export function baseRef(clone: string, base: string): string {
   if (git.branchExists(clone, base)) return base;

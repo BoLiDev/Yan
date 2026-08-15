@@ -40,13 +40,8 @@ step('npm install', () => npm(['install']));
 step('npm run build', () => npm(['run', 'build']));
 step('npm link', () => npm(['link']));
 
-// The config used to be copied into conf/ here. It is not a machine-level file
-// any more: `agents.*` and `remote_git.*` follow the context — GitHub at home,
-// an internal GitLab at work — so they live in the vault, and `yan vault init`
-// lays one down from the same sample.
-//
-// Setup does not create a vault. Which forge you deliver to is a decision, and
-// a bootstrap script guessing it is exactly the guess V3 exists to stop.
+// Setup creates no vault and writes no config: `agents.*` and `remote_git.*`
+// live in a vault, which `yan vault init` lays down.
 const machineConfig = join(homedir(), '.yan', 'config.json');
 const hasVault = existsSync(machineConfig);
 

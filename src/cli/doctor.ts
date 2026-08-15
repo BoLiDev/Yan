@@ -16,17 +16,10 @@ import { configPath } from './shared/config.js';
 import { registry } from './shared/repo.js';
 
 /**
- * `yan doctor` — can this machine run yan?
+ * `yan doctor` — can this machine run yan? Every check is local: none of them
+ * reaches the network, so this answers offline.
  *
- * What it does not check is as deliberate as what it does. There is no `jq`
- * row, because nothing shells out to it; no `backend` row, because there is one
- * terminal and it is Herdr; and no `winpty` row, because a native process in a
- * Herdr pane already gets a real console.
- *
- * One rule worth restating, because it is the one a tidy-up breaks: only the
- * CLI named by the configured host kind is checked, never both. A machine that
- * delivers to GitHub has no reason to install `glab`, and reporting its absence
- * as a problem trains people to ignore doctor.
+ * Only the host CLI the configuration names is checked, never both.
  */
 
 interface Report {
@@ -42,11 +35,8 @@ function line(report: Report, state: 'ok' | 'warn' | 'fail', name: string, detai
 }
 
 /**
- * Where a command is, or `undefined`.
- *
- * `command -v`'s job, done without a shell — doctor runs on both runtimes and
- * must not need one of them to answer. `PATHEXT` is why this is not one line:
- * on Windows `gh` is `gh.exe` and `claude` is often `claude.cmd`.
+ * Where a command is, or `undefined`. Honours `PATHEXT` on Windows, so `gh`
+ * finds `gh.exe` and `claude` finds `claude.cmd`. Needs no shell.
  */
 function which(command: string): string | undefined {
   if (command.includes('/') || command.includes('\\')) {
@@ -78,21 +68,8 @@ function gitConfig(scope: '--global' | '--system', key: string): string {
 }
 
 /**
- * A commit identity every leased worktree can see.
- *
- * Every shift commits, and it commits in a worktree under `~/.yan-trees` —
- * not in this checkout and not in the main clone. An identity that lives only
- * in a repository's own `.git/config` is therefore invisible where it is
- * needed, and `git commit` fails with "Please tell me who you are" after the
- * work is already done.
- *
- * Found on the machine yan was built on: Git Bash had no global identity at
- * all, while the checkout had a local one — which reads as perfectly healthy
- * from inside the checkout. So this asks `--global` and `--system`
- * deliberately, and never the repository.
- *
- * yan does not fix it: writing git config is `user`'s decision. Doctor reports
- * it and says what to run.
+ * A commit identity in `--global` or `--system`, never a repository's own —
+ * that is the only kind a leased worktree can see. Reports, never fixes.
  */
 function checkGitIdentity(report: Report): void {
   const name = gitConfig('--global', 'user.name') || gitConfig('--system', 'user.name');
@@ -111,9 +88,8 @@ function checkRequired(report: Report): void {
   if (git === undefined) line(report, 'fail', 'git', 'not on PATH - install git and retry');
   else line(report, 'ok', 'git', git);
 
-  // node cannot be missing here — it is running this — so what is worth
-  // reporting is which one, and whether the same one is on PATH for the hooks
-  // and the panes that will look for it by name.
+  // node is obviously present; what matters is whether it is on PATH for the
+  // hooks and panes that will look for it by name.
   const onPath = which('node');
   line(report, onPath === undefined ? 'warn' : 'ok', 'node',
     onPath === undefined
@@ -125,16 +101,8 @@ function checkRequired(report: Report): void {
 }
 
 /**
- * The vault this machine works in.
- *
- * "Registered but not resolving" is the row that earns its place: it is the
- * normal state of a fresh install and of a vault whose directory moved, and it
- * is the state in which every other command fails with a message about
- * something else.
- *
- * The remote row is deliberately local-only — `origin/main` as the last fetch
- * left it. Doctor has to answer on a train, and a check that reaches the
- * network is one people learn to skip.
+ * The vault this machine works in, and how its checkout stands against
+ * `origin/main` as the last fetch left it — nothing here fetches.
  */
 function checkVault(report: Report): void {
   const dir = vaultDirIfAny();
@@ -223,7 +191,7 @@ function checkConfig(report: Report): { agents: Record<string, unknown> } {
   return { agents };
 }
 
-/** Only the CLI the configured kind names. Never both. */
+/** The host CLI the configuration names, checked for presence only. */
 function checkRemoteHost(report: Report): void {
   let cli: 'gh' | 'glab';
   try {
@@ -242,9 +210,6 @@ function checkRemoteHost(report: Report): void {
     );
     return;
   }
-  // Presence, and not whether it is logged in. Asking `glab auth status`
-  // reaches the network, and doctor has to answer on a train; a host that
-  // refuses us is reported by the command that actually needed it.
   line(report, 'ok', `remote host (${cli})`, found);
 }
 
@@ -254,9 +219,7 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
     line(report, 'fail', 'herdr', "not answering - install it, or start it, then run 'yan doctor'");
   } else {
     line(report, 'ok', 'herdr', version.version);
-    // A version check, and only a version check. Herdr ships on a preview
-    // channel with no API stability promise, so the generated types are pinned
-    // to a protocol and this is where drift is noticed.
+    // The generated types are pinned to a protocol; this is where drift shows.
     const drift =
       version.protocol !== HERDR_PROTOCOL || version.schemaVersion !== HERDR_SCHEMA_VERSION;
     line(report, drift ? 'warn' : 'ok', 'protocol',
@@ -266,8 +229,7 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
     );
   }
 
-  // Empty when herdr did not answer at all; the failure is already reported
-  // above, and every kind then reads as "no integration installed".
+  // Empty when herdr did not answer, so every kind reads as not installed.
   const installed = version?.integrations ?? {};
   const kinds = [
     ...new Set(
@@ -292,16 +254,8 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
 }
 
 /**
- * Codex's first-run gates, reported where they can still be answered.
- *
- * Both were measured against codex-cli 0.147.0, and the second is the one that
- * matters: codex parks on "Hooks need review" and Herdr classifies
- * that screen as `idle`, so an unattended shift hangs there and nothing wakes.
- * A person finding this out by dispatching finds it out hours later.
- *
- * The hook-trust half is a real check rather than a leaflet: codex records
- * trust per hooks file in `[hooks.state]`, keyed by path, so whether yan's own
- * `.codex/hooks.json` has ever been trusted is answerable from disk.
+ * Codex's first-run gates, read out of `$CODEX_HOME/config.toml`. Silent when
+ * no configured agent is codex.
  */
 function checkCodex(report: Report, agents: Record<string, unknown>): void {
   const roles = Object.entries(agents).filter(
@@ -329,10 +283,7 @@ function checkCodex(report: Report, agents: Record<string, unknown>): void {
   const shift = roles.some(([role]) => role === 'shift');
   const main = roles.some(([role]) => role !== 'shift');
 
-  // A shift is dispatched with --dangerously-bypass-hook-trust, so it never
-  // meets this gate; the main agent is not, because it runs in a pane `user` is
-  // watching and can answer it. So the same unanswered prompt is a warning for
-  // one role and irrelevant to the other.
+  // Only the main agent meets this gate: a shift is dispatched past it.
   line(report, trusted || !main ? 'ok' : 'warn', 'hook review',
     trusted
       ? `${ours} is recorded as trusted`

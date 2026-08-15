@@ -6,19 +6,11 @@ import { sendLine, type Prompter } from '../../src/cli/send.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
- * `yan send`, and the send half of
- * `tests/integration/yan-send-state.test.sh`.
- *
- * Herdr's `agent prompt` submits text and Enter in one call, so there is no
- * two-step to retry and no `--enter` / `--no-enter` to test. What is pinned
- * instead is the guard:
- *
- *   Nothing is sent to a pane without a live agent.
+ * `yan send`. Text and Enter go in one call, so what is pinned here is the
+ * guard: nothing is sent to a pane without a live agent.
  *
  * A recording stand-in stands where the seam does, so "one call, with exactly
- * this text" is an exact assertion rather than an eyeball on a pane. What the
- * seam itself does with the call is `src/externals/herdr/terminal.test.ts` and
- * `tests/e2e/terminal-herdr.test.ts`.
+ * this text" is an exact assertion.
  */
 
 afterAll(cleanupTempDirs);
@@ -126,9 +118,8 @@ describe('the pane id comes from meta.json, and it is an id', () => {
 
 describe('a pane with no live agent', () => {
   it('is refused by the seam, and the refusal reaches the caller', () => {
-    // A prompt to a pane whose agent has died is typed into
-    // whatever shell is there, which then tries to run it as a command. A dead
-    // shift is a `died:` wake, not a retry.
+    // Text sent to a pane whose agent has died is typed into whatever shell is
+    // there, which then tries to run it.
     terminal.refuse = Object.assign(new Error('no live agent in w1:p7 - refusing to send'), {
       exitCode: 1,
     });
@@ -156,11 +147,8 @@ describe('usage', () => {
   });
 
   it('no longer offers --enter or --no-enter', async () => {
-    // Herdr's `agent prompt` submits text and Enter in one call, so the two-step
-    // has nothing left to do. A flag that silently did nothing would be worse
-    // than one that is gone.
-    // The help text still names them, to say they are gone. What must not
-    // exist is the option itself.
+    // Text and Enter go in one call, so there is no `--enter` / `--no-enter`.
+    // The help text names them only to say they are gone.
     const options = /Options:\n([\s\S]*?)\n\n/.exec((await runYan(home, ['send', '--help'])).out)?.[1] ?? '';
     expect(options).not.toContain('--no-enter');
     expect(options).not.toContain('--enter');

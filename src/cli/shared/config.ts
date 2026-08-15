@@ -3,12 +3,8 @@ import { vaultConfigPath } from '../../util/vault.js';
 import { readJsonIfPresent } from '../../util/json.js';
 
 /**
- * The bits of the vault's `config.json` the command layer reads.
- *
- * `remote_git` is not one of them: that section has exactly one reader, inside
- * `externals/remote-git`, so that no subcommand ever branches on the host kind.
- * What is here is `agents.*`, which is a command-layer decision — which CLI to
- * start for a shift — and nothing else.
+ * The `agents.*` section of the vault's `config.json`. `remote_git` is read
+ * inside `externals/remote-git` and nowhere else.
  */
 
 export function configPath(): string {

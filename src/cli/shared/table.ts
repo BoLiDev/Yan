@@ -1,9 +1,6 @@
 /**
- * Column alignment for the human renderings.
- *
- * Rows are tab-separated, the first row is the header, and the last column is
- * never padded — trailing spaces at end of line are noise in a terminal and in
- * a diff. Empty cells become a dash so the columns stay visible.
+ * Pad each column to its widest cell, two spaces apart, prefixing every line
+ * with `indent`. The last column is never padded, so no line ends in spaces.
  */
 export function renderTable(rows: readonly (readonly string[])[], indent = ''): string[] {
   if (rows.length === 0) return [];
@@ -23,7 +20,7 @@ export function renderTable(rows: readonly (readonly string[])[], indent = ''): 
   );
 }
 
-/** Empty becomes a dash, so a missing value is visible rather than invisible. */
+/** A missing or empty value as a dash. */
 export function dash(value: string | undefined | null): string {
   return value === undefined || value === null || value === '' ? '-' : value;
 }

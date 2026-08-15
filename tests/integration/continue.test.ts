@@ -14,17 +14,10 @@ import {
 /**
  * `yan continue`.
  *
- * Two of its assertions carry over unchanged and are the easiest in the command
- * to lose in a rewrite:
- *
- *   A second yan on the same task is refused, and the lock is per task, not per
- *   home — two yans on two different tasks is ordinary working practice.
- *   When one is already alive, `continue` says where it is rather than spawning
- *   a duplicate.
- *
- * And two are new, because V2's entry is: the main agent starts in the calling
- * pane, no container is created, and the workspace tokens this command set are
- * withdrawn when the agent exits.
+ * Four things this file pins: a second yan on the same task is refused and
+ * says where the live one is; the lock is per task, so two yans on two tasks
+ * is ordinary; the main agent starts in the calling pane with no container
+ * created; and the workspace tokens are withdrawn when it exits.
  *
  * The main agent is `process.execPath` — a real spawn of a real executable that
  * reads an empty stdin and exits 0. Nothing here needs a harness installed, and
@@ -46,12 +39,9 @@ const config = `${JSON.stringify(
 )}\n`;
 
 /**
- * Every run pretends yan is not inside a Herdr pane.
- *
- * `HERDR_PANE_ID` is how this command finds the pane it is in, and the test
- * runner really is inside one — so without this the suite would relabel the
- * workspace of whoever is running it. The pane-aware half is exercised below
- * with an injected terminal instead, where the ids are the test's own.
+ * Every run pretends yan is not inside a Herdr pane, because the runner really
+ * is in one and the suite must not relabel it. The pane-aware half is
+ * exercised with an injected terminal instead.
  */
 async function yan(args: readonly string[], env: Record<string, string> = {}) {
   return await runYan(home, args, { HERDR_PANE_ID: '', ...env });
@@ -75,9 +65,6 @@ beforeAll(async () => {
   home = mkYanHome(join(tmp, 'home'), { withDist: true, config });
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
   mkdirSync(join(home, 'repos', 'proto'), { recursive: true });
-  // A clone is where the registry says it is now, not where a convention put
-  // it. The path does not change; only the reason yan
-  // can find it.
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
   registerRepo(home, 'proto', join(home, 'repos', 'proto'));
 
@@ -109,8 +96,7 @@ describe('the hard path: the main agent starts in this pane', () => {
     // Not inside Herdr in this run, and that is not a failure.
     expect(seen.pane).toBe('');
 
-    // The lock is held for exactly as long as the agent, which is what makes it
-    // able to answer "is a yan running" at all.
+    // The lock is held for exactly as long as the agent.
     expect(existsSync(lockOf('t042'))).toBe(false);
   });
 
@@ -141,8 +127,7 @@ describe('a second yan on the same task', () => {
   });
 
   it('reclaims a lock left behind by a process that is gone', async () => {
-    // pid 1 is not this yan on this host, and nothing in the tree says the
-    // holder is alive. An obeyed stale lock would wedge the task for good.
+    // A lock whose holder is gone must be reclaimed, not obeyed.
     writeFileSync(
       lockOf('t042'),
       `${JSON.stringify({ pid: 999999, host: hostname(), at: 1, identity: 'yan t042' })}\n`,
@@ -261,9 +246,8 @@ describe('the enter step itself, with the terminal and the harness injected', ()
   });
 
   it('gives the main agent the same permission flags a shift gets', async () => {
-    // The main agent is unattended for exactly as long as it matters: between
-    // one turn and the next, with `yan wait` armed by the Stop hook. A prompt
-    // raised there stalls the thing that was supposed to notice.
+    // The main agent is unattended between one turn and the next, where a
+    // prompt would stall the thing that does the noticing.
     const claude = await enter('t042', '', 'claude');
     claude.session.run?.();
     expect(claude.started[0]?.argv).toContain('--dangerously-skip-permissions');

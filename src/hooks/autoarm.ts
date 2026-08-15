@@ -6,50 +6,29 @@ import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
 
 /**
- * Claude's Stop autoarm.
+ * Claude's Stop autoarm, registered with `asyncRewake: true` and a long
+ * timeout — never for Codex, which cannot hold a multi-hour hook.
  *
- * Registered in `.claude/settings.json` with `asyncRewake: true` and a long
- * timeout. not registered for Codex, which parses `async` but does not run
- * asynchronous command hooks and therefore cannot hold a multi-hour watcher.
- *
- *   is there anything to supervise?   no  -> exit 0, quiet
- *   run the long `yan wait` in this foreground
+ *   nothing to supervise, or a watcher already on duty  -> exit 0, quiet
+ *   otherwise run the long `yan wait` in this foreground
  *     something happened   -> exit 2, the reason on stderr, Claude rewakes yan
  *     nothing left to do   -> exit 0, quiet
  *
- * never `&`. Never background. never detached.
+ * The watcher runs in the foreground, never backgrounded or detached, so the
+ * harness owns its process group and it cannot outlive the session. A test
+ * reads this file to check that stays true.
  *
- * The watcher runs in this hook's foreground so that the harness owns the
- * Process group. A backgrounded watcher outlives the session that armed it,
- * survives the harness being killed, and is then a second watcher nobody can
- * see — the exact failure the single-flight lock exists to prevent, made
- * permanent. `spawnSync` is what says that here, and the test reads this file
- * to make sure it stays that way.
- *
- * This hook is why "the model forgot to start supervision" is not a possible
- * failure on the Claude path: the model never calls `yan wait`. What can still
- * fail is autoarm never running at all — broken settings, a skipped hook — and
- * only a second hook can notice that, which is what `turnend-guard.ts` is for.
- *
- * It does not read stdin. Nothing it decides depends on the harness's payload.
+ * Reads no stdin, and never blocks a turn: `turnend-guard.ts` is what notices
+ * an autoarm that did not run at all.
  */
 
 export function autoarm(argv: readonly string[], note: (line: string) => void): number {
   const task = argv[0] ?? process.env.YAN_TASK ?? '';
 
-  // A hook that cannot tell whose supervision this is has nothing to arm. It
-  // gets out of the way rather than failing: a Stop hook that fails is a Stop
-  // hook that blocks a turn.
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) return 0;
 
   const sup = new Supervision(task);
-
-  // Nothing to supervise: no shift is live, so there is nothing for a watcher
-  // to see and no reason to hold a lock for hours.
   if (sup.liveCount() === 0) return 0;
-
-  // Somebody is already on duty. Every Stop can fire autoarm, so this is the
-  // normal case whenever a turn ends while a watcher is running.
   if (sup.lockTaken()) return 0;
 
   const home = yanHome();
@@ -59,10 +38,8 @@ export function autoarm(argv: readonly string[], note: (line: string) => void): 
     return 0;
   }
 
-  // No --seconds: this is the long shape. A checkpoint slice is the Codex path,
-  // and a hook that armed one would report "nothing happened" every three
-  // minutes. stdout is the reason, which becomes the banner Claude shows the
-  // model; stderr flows through to ours.
+  // No --seconds: the unbounded shape. Its stdout is the reason, which becomes
+  // the banner Claude shows the model.
   const watcher = spawnSync(process.execPath, [yan, 'wait', '--task', task], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
@@ -82,15 +59,13 @@ export function autoarm(argv: readonly string[], note: (line: string) => void): 
       note("run 'yan drain' first, then handle it.");
       return 2;
     case 3:
-      // Every shift clocked out while we watched. Nothing to wake anybody for.
+      // Every shift clocked out while we watched.
       return 0;
     case 4:
-      // Another watcher took the lock between our check and the start. Fine.
+      // Another watcher took the lock between the check and the start.
       return 0;
     default:
-      // Supervision did not start. Do not block the turn over it — the turn-end
-      // guard is what notices an unhealthy watcher, and it has a budget so a
-      // broken watcher cannot wedge the session.
+      // Supervision did not start, and the turn is let through anyway.
       note(
         `'yan wait' exited ${String(watcher.status)} without arming supervision - 'yan ls ${task}' shows what is live`,
       );

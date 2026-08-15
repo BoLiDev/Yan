@@ -4,19 +4,9 @@ import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
- * The entry point's two structural rules, which no unit test of a command can
- * reach.
- *
- *   Prompts are for people. Agents already know their arguments, so the
- *   commands only they run must never grow one — a prompt reached by a hook, a
- *   script or an agent is a hang, and a hang inside a hook is invisible.
- *
- *   `attach` is not in the vocabulary. V2's yan joins the multiplexer `user` is
- *   already in, so there is nothing to attach to. The word surviving in a
- *   command, a record field or the model's instructions is how the concept
- *   comes back.
- *
- * It also holds the rule that keeps the two instruction files one document.
+ * The entry point's structural rules, which no unit test of a command can
+ * reach: the commands only agents run never prompt, `attach` appears nowhere
+ * in the vocabulary, and the two instruction files stay one document.
  */
 
 function read(...parts: string[]): string {
@@ -43,19 +33,9 @@ describe('the model is never sent into the prompts', () => {
   });
 
   it('and still says the two things it has to', () => {
-    // The rule these guard changed shape, and the guarantee did not.
-    //
-    // The instructions once said "you only ever run `yan <command>`", which stopped
-    // the model reaching for the human prompts and, in the same sentence,
-    // stopped it grepping a file. The second half made yan stupid, so the rule
-    // is soft now — `yan` is the toolkit, judgement is the agent's — and what
-    // has to survive is the part that was never about capability:
-    //
-    //   the prompts are for people. An agent knows its arguments and passes
-    //   them; a prompt reached by an agent is a hang with nobody to answer it;
-    //
-    //   where a subcommand exists it is the right way to do that thing,
-    //   because it knows what a raw git call does not.
+    // Two claims have to survive however the instructions are reworded: the
+    // prompts are for people, and where a subcommand exists it is the right
+    // way to do that thing.
     const said = agents.replace(/\s+/g, ' ');
     expect(said, 'the prompts are for people, and the model passes flags').toContain(
       'prompts are for people at a keyboard, not',
@@ -66,12 +46,8 @@ describe('the model is never sent into the prompts', () => {
   });
 
   it('and does not let "you may run things" read as "you may decide things"', () => {
-    // Capability is open; authority is not, and the same document has to say
-    // so or the table quietly becomes advisory. What is checked is the test
-    // the table is derived from, not the rows — rows move, the test does not.
-    //
-    // Whitespace is collapsed first: these are claims about what the document
-    // says, and a sentence that rewraps has not changed its mind.
+    // The test the authority table is derived from, not its rows, which move.
+    // Whitespace is collapsed first, so a rewrapped sentence still matches.
     const said = agents.replace(/\s+/g, ' ');
     expect(said).toContain('needs `user` to say so first');
     expect(said, 'and it names what makes something need asking').toContain(
@@ -88,11 +64,8 @@ describe('the model is never sent into the prompts', () => {
 });
 
 describe('the two instruction files are one document', () => {
-  // Claude reads CLAUDE.md and Codex reads AGENTS.md, so the same guidance has
-  // to exist twice. Maintained by hand they drift — and they drift silently,
-  // because nobody reads both. Everything outside "## Supervision" is compared
-  // byte for byte; that section is the one place the two harnesses genuinely
-  // differ, because only Claude's Stop hook arms the watcher.
+  // CLAUDE.md and AGENTS.md are compared byte for byte outside
+  // "## Supervision", which is the one section the two harnesses differ in.
   function withoutSupervision(text: string): string {
     const start = text.indexOf('## Supervision');
     if (start < 0) throw new Error('the section has to be findable to be excluded');
@@ -144,9 +117,6 @@ describe('Clack is an ordinary dependency', () => {
   });
 
   it('is imported like any other package, with no discovery around it', () => {
-    // Looking for node in three places and launching a separate Node
-    // island. Node is the runtime now, so the dance has nowhere left to live:
-    // bin/ is where it was, and this is an import.
     const shell = readdirSync(join(repoRoot, 'bin'))
       .map((name) => readFileSync(join(repoRoot, 'bin', name), 'utf8'))
       .join('\n');
@@ -157,11 +127,9 @@ describe('Clack is an ordinary dependency', () => {
   });
 
   /**
-   * The three callers reach `src/ui/` through `await import(...)`, so a wrong
-   * path there compiles, passes every test, and fails only in front of a person
-   * at a keyboard — which is the one place nothing is watching. Loading the
-   * compiled module is the cheap half of that risk; drawing a prompt needs a
-   * real terminal and stays untested.
+   * `src/ui/` is reached through `await import(...)`, so a wrong path there
+   * compiles and fails only in front of a person. Loading the compiled module
+   * is what can be checked; drawing a prompt needs a real terminal.
    */
   it('the prompts really resolve at run time, which only a dynamic import can get wrong', async () => {
     const prompts = (await import('../../dist/ui/prompts.js' as string)) as Record<string, unknown>;
@@ -176,9 +144,7 @@ describe('Clack is an ordinary dependency', () => {
 
 describe('bin/ holds three prefixes and no others', () => {
   it('a subcommand, a library, or a hook — plus the one node shim', () => {
-    // `yan.mjs` is the npm `bin` target, not a fourth prefix: it is the same
-    // entry point for callers who arrive through PATH rather than through the
-    // absolute `$YAN_HOME/bin/yan` everything else hardcodes.
+    // `yan.mjs` is the npm `bin` target, not a fourth entry point.
     for (const name of readdirSync(join(repoRoot, 'bin'))) {
       expect(/^(yan|yan\.mjs|yan-.*\.sh|lib-.*\.sh|hook-.*\.sh)$/.test(name), `bin/${name}`).toBe(
         true,
@@ -189,8 +155,6 @@ describe('bin/ holds three prefixes and no others', () => {
 
 describe('one exit code for "you called this wrongly"', () => {
   // Commander's own argument errors join yan's, at 2.
-  // A caller reading `1` learns only that something went wrong; `2` says the
-  // command line was wrong before anything happened.
   let home = '';
 
   beforeAll(() => {
@@ -217,14 +181,8 @@ describe('one exit code for "you called this wrongly"', () => {
 });
 
 /**
- * Every list a person picks from is searchable.
- *
- * Testable only as source text: drawing a prompt needs a real terminal, and
- * what is worth guarding is not the drawing but the choice — that nobody adds
- * a sixth list later with a plain `select` because it happened to be the
- * import already in the file. The lists grow (a monorepo's packages, a vault's
- * repositories and tasks) and an unfilterable list of forty is miserable in a
- * way that is nobody's fault by the time it happens.
+ * Every list a person picks from is searchable. Checked as source text,
+ * because drawing a prompt needs a real terminal.
  */
 describe('the soft path filters', () => {
   it('imports no plain select or multiselect from clack', () => {

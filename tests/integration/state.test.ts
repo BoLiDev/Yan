@@ -8,16 +8,11 @@ import type { Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
- * `yan state`, and the state half of
- * `tests/integration/yan-send-state.test.sh`.
- *
- * Every line in run/status is an event, and `yan state` does not treat the last
- * one as the current state. The status file below is built so that its last
- * line is a trap: it says `done`, with a note nobody could produce by accident.
- * Each case then puts the live sources — the terminal and the host — somewhere
- * else entirely and requires `yan state` to report what they say. If the answer
- * ever comes back `done`, or the trap note ever appears in the output, this
- * command has started reading the event stream as a state.
+ * `yan state` derives from the live sources and never from the event log. The
+ * status file below is a trap: its last line says `done`, with a note nobody
+ * could produce by accident, while the terminal and the host say something
+ * else. That note appearing in the output means the log is being read as a
+ * state.
  */
 
 afterAll(cleanupTempDirs);
@@ -105,8 +100,7 @@ describe('the live sources decide, never the newest event', () => {
     mrState = 'unknown';
     const facts = stateOf('s1', 't042', deps());
     expect(facts.state).toBe('unknown');
-    // `unknown` is not `dead`. Rounding it that way is how
-    // work gets deleted.
+    // `unknown` is not `dead`: rounding it that way is how work gets deleted.
     expect(facts.state).not.toBe('dead');
   });
 });
@@ -176,8 +170,8 @@ describe('the pulse says whether the terminal is moving', () => {
   }
 
   it('says nothing at all when no watcher has taken a reading', async () => {
-    // The failure this prevents: silence read as stillness. With nobody
-    // sampling, "unchanged" is a fact about the watcher, not about the shift.
+    // With nobody sampling, "unchanged" is a fact about the watcher rather
+    // than about the shift.
     const r = await runYan(home, ['state', 's1', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('pulse      unsampled');
@@ -203,8 +197,7 @@ describe('the pulse says whether the terminal is moving', () => {
     expect(r.stdout).toContain('pulse      still');
     expect(r.stdout).toMatch(/6m\d\ds/);
     // An install is still for minutes and so is a model thinking, so the line
-    // reports a duration and says outright that it is not a verdict. Calling
-    // this 'stuck' would be the same mistake as rounding `unknown` to `dead`.
+    // reports a duration and never calls it stuck.
     expect(r.stdout).toContain('not the same as stuck');
     expect(r.stdout).not.toMatch(/^pulse\s+stuck/m);
   });
@@ -214,9 +207,7 @@ describe('the pulse says whether the terminal is moving', () => {
     const r = await runYan(home, ['state', 's1', '--task', 't042', '--json']);
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
     expect(parsed.motion).toBe('still');
-    // Ranges, not equalities: spawning the command costs a second or two of
-    // wall clock, and pinning these to the number the fixture wrote would make
-    // the test fail on a slow machine rather than on a real change.
+    // Ranges, not equalities: spawning the command costs real wall clock.
     expect(parsed.still_for as number).toBeGreaterThanOrEqual(375);
     expect(parsed.still_for as number).toBeLessThanOrEqual(385);
     expect(parsed.sampled_ago as number).toBeLessThanOrEqual(10);

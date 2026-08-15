@@ -1,20 +1,11 @@
 import { CommandError } from './errors.js';
 
 /**
- * The soft/hard rule, expressed once instead of per command
+ * How a missing option is filled in: a prompt when stdin is a tty, and a
+ * refusal naming the flags otherwise, so nothing unattended can hang on one.
  *
- *   soft   stdin is a tty  and  a required value is missing  → prompt
- *   hard   every required flag is present, or there is no TTY → no prompts.
- *          Missing values with no tty is a refusal that names the flags.
- *
- * The refusal is the important half. A script, a hook or an agent that reached
- * a prompt would hang forever with nobody to answer it, so "there is no TTY" is
- * checked before "a value is missing", and it always wins.
- *
- * Commander's own reaction to a missing `.requiredOption()` is to print an
- * error and exit, which would run *before* any of this. That is why no option
- * in `src/cli/` is ever declared required: every option is optional to
- * Commander and the action handler calls this instead.
+ * This is why no option in `src/cli/` is declared required — Commander's own
+ * refusal would run before any of this.
  */
 
 export interface OptionSpec {
@@ -28,22 +19,15 @@ export interface OptionSpec {
 
 export type Prompter = (missing: readonly OptionSpec[]) => Promise<Record<string, string>>;
 
-// The prompter is *installed*, never imported here: `src/ui/` is Clack and
-// people, and a seam or a store must never be able to reach it
-// Installed from src/cli/yan.ts rather than imported here, so that the
-// soft path simply does not exist and every caller takes the hard one.
+// Installed by src/cli/yan.ts rather than imported, so a caller that does not
+// install one always takes the refusing path.
 let installedPrompter: Prompter | undefined;
 
 export function setPrompter(prompter: Prompter | undefined): void {
   installedPrompter = prompter;
 }
 
-/**
- * Can a person answer a prompt right now?
- *
- * stdin only. stdout is often a pipe even for a person (`yan ls | less`), and
- * it is stdin that a prompt reads from.
- */
+/** Can a person answer a prompt right now? Asked of stdin only. */
 export function isTty(): boolean {
   return process.stdin.isTTY === true;
 }
@@ -54,13 +38,16 @@ function refuse(missing: readonly OptionSpec[]): never {
     'missing',
     'options',
     `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`,
-    // Exit 2: not enough was passed, which is the caller's mistake. The code
-    // stays `missing_options` rather than `<command>_usage` because it is the
-    // one usage failure that is not about a particular command.
     { exitCode: 2 },
   );
 }
 
+/**
+ * `values` with every spec'd option filled in.
+ *
+ * @throws CommandError `missing_options` (exit 2) when a value is absent and
+ *   there is no prompter or no tty, or the prompt did not fill it in.
+ */
 export async function resolve<T extends Record<string, string | undefined>>(
   values: T,
   spec: readonly OptionSpec[],

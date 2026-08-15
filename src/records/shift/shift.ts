@@ -9,18 +9,9 @@ import { appendEvent, countEvents, reportedMr } from './status.js';
 import type { ShiftMeta } from './types.js';
 
 /**
- * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory.
- *
- * The state is identity — which task, which shift, where it lives. Nothing is
- * cached: `run/` is written by the shift itself while yan is reading, so a
- * remembered answer would be a lie with a long half-life.
- *
- * The four invariants this record exists to hold are stated where they are
- * enforced: two in `status.ts` (append-only plain text; every line is an event,
- * never the current state), one in `meta.ts` (read defensively, answer "I do
- * not know"), and the fourth in `appendEvent` — the event and the wake marker
- * go together, in that order, because a shift that reports has done one thing
- * and not two.
+ * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory. Holds
+ * identity only; every reader below hits the disk on each call, because the
+ * shift writes `run/` while yan reads it.
  */
 export class Shift {
   public readonly task: string;
@@ -29,9 +20,9 @@ export class Shift {
   public readonly run: string;
 
   /**
-   * @param task the task id, or '' when the layout did not say.
-   * @param dir only when the shift is not under the standard layout — that is
-   *   what `fromDir` needs and nothing else should.
+   * @param task the task id, or '' when it is unknown.
+   * @param dir overrides the standard `<task>/shifts/<sid>` location.
+   * @throws ShiftError when `sid` is not a valid id.
    */
   public constructor(task: string, sid: string, dir?: string) {
     if (!Shift.isId(sid)) {
@@ -50,13 +41,7 @@ export class Shift {
     return this.task === '' ? this.sid : `${this.sid} (task ${this.task})`;
   }
 
-  /**
-   * True while `run/` still exists.
-   *
-   * `run/` is the only throwaway layer, and clocking out deletes it whole — so
-   * its presence is the fact, and nothing mirrors it into a field that could
-   * then disagree.
-   */
+  /** True while `run/` still exists, which clocking out deletes. */
   public isLive(): boolean {
     return existsSync(this.run);
   }
@@ -66,7 +51,7 @@ export class Shift {
     return readMeta(this.run);
   }
 
-  /** How many events have been reported. A count, never a verdict. */
+  /** How many events have been reported. */
   public eventCount(): number {
     return countEvents(this.run);
   }
@@ -76,7 +61,7 @@ export class Shift {
     return reportedMr(this.run);
   }
 
-  /** One event, then the wake marker, in that order and in one call. */
+  /** Append one event and touch the wake marker. */
   public appendEvent(state: string, note = ''): void {
     appendEvent(this.run, state, note);
   }
@@ -86,14 +71,11 @@ export class Shift {
   }
 
   /**
-   * Find an existing shift by id.
+   * Find an existing shift by id, scanning `tasks/*​/shifts/<sid>`.
    *
-   * Derived by scanning, never read from an index: `tasks/*​/shifts/<sid>` is
-   * the registry, so there is no second list to fall out of step with it.
-   * `$YAN_TASK` narrows the search when it is set, which is the normal case
-   * because a yan handles one task.
-   *
-   * An id that exists under two tasks is refused rather than guessed at.
+   * @param task narrows the search; defaults to `$YAN_TASK`.
+   * @throws ShiftError `missing` when nothing matches, `ambiguous` when the id
+   *   exists under more than one task and no task was named.
    */
   public static resolve(sid: string, task = ''): Shift {
     if (!Shift.isId(sid)) {
@@ -141,11 +123,10 @@ export class Shift {
   }
 
   /**
-   * Point at a shift given its directory.
+   * Point at a shift given its directory. The task id is recovered only from a
+   * `…/<task>/shifts/<sid>` path and is `''` otherwise.
    *
-   * The task id is recovered from the path only when the layout says so
-   * (`…/<task>/shifts/<sid>`); anywhere else it stays empty and callers that
-   * need a task say so themselves. Guessing would be worse than not knowing.
+   * @throws ShiftError when `dir` is empty or does not exist.
    */
   public static fromDir(dir: string): Shift {
     if (!dir) throw ShiftError.usage('a shift directory is required');
@@ -157,16 +138,12 @@ export class Shift {
   }
 
   /**
-   * Find the calling shift's own directory.
+   * The calling shift, named by the environment its spawn script set, or
+   * undefined when none of these say:
    *
-   * `yan report` takes no <sid>: a shift reports about itself, and asking it to
-   * repeat its own id is one more thing to get wrong. So the identity comes
-   * from the environment its spawn script set. All three readings are accepted,
-   * and none of them is invented later:
-   *
-   *   YAN_SHIFT_DIR        the shift's own directory (preferred, unambiguous)
-   *   YAN_TASK_DIR         the shift's own directory, or the task directory when
-   *                        YAN_SID is also set
+   *   YAN_SHIFT_DIR        the shift's own directory (preferred)
+   *   YAN_TASK_DIR         the shift's own directory, or the task directory
+   *                        when YAN_SID is also set
    *   YAN_TASK + YAN_SID   ids only; resolved by scanning
    */
   public static fromEnv(): Shift | undefined {
@@ -188,7 +165,7 @@ export class Shift {
     return undefined;
   }
 
-  /** Every live shift of a task, in id order. `run/meta.json` present is the fact. */
+  /** Every shift of a task that still has `run/meta.json`, in id order. */
   public static liveIn(task: string): Shift[] {
     const dir = join(new Task(task).dir, 'shifts');
     let entries: string[];

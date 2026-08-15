@@ -6,28 +6,16 @@ import { activeVaultName, machineConfigPath, vaultPathOf } from './machine.js';
 import { normalizePath } from './paths.js';
 
 /**
- * Where a context's assets are.
+ * Where the active vault is — one context's task assets, in a git repository
+ * `user` owns.
  *
- * A **vault** is one context's task assets in a git repository you own: home
- * and work are two vaults, and a second machine opens the same one. This module
- * answers only "where are the tasks" — not where the code is, and not where
- * this machine's own state lives.
- *
- * Resolution mirrors `yanHome()` deliberately, because a rule that is the same
- * in both places is a rule nobody has to look up:
- *
- *   $YAN_VAULT             if it is set and really is a vault
+ *   $YAN_VAULT             when it is set and holds a vault.json
  *   ~/.yan/config.json     the `active` entry, otherwise
- *   neither                a refusal naming `yan vault init`
+ *   neither                `vaultDir()` throws, `vaultDirIfAny()` says undefined
  *
- * "Really is a vault" means `vault.json` is present, exactly as "really is a
- * home" means `bin/yan` is present. The env var is not only for tests: a work
- * machine can pin a terminal profile to the work vault and never depend on
- * global state.
- *
- * Throwing is a normal outcome here — a fresh install has no vault — so the
- * commands that must work without one (`doctor`, `vault init`, `vault clone`,
- * `vault ls`, `--help`) call `vaultDirIfAny()` or nothing at all.
+ * A fresh install has no vault, so anything that must run without one —
+ * `doctor`, `vault init`, `vault clone`, `vault ls`, `--help` — asks
+ * `vaultDirIfAny()`.
  */
 
 const CODES = {
@@ -49,7 +37,7 @@ export class VaultError extends YanError {
 /** The newest `vault.json` version this build understands. */
 export const VAULT_VERSION = 1;
 
-/** The marker file. One name, used by the check and by `vault init` alike. */
+/** The file whose presence makes a directory a vault. */
 export const VAULT_MARKER = 'vault.json';
 
 export function isVault(dir: string): boolean {
@@ -77,11 +65,8 @@ export function readVaultJson(dir: string): VaultIdentity {
 }
 
 /**
- * Refuse a vault written by a newer yan.
- *
- * A silent downgrade is the one failure that corrupts rather than annoys: this
- * build would write the old shape over the new one and the newer machine would
- * find its own data quietly truncated.
+ * @throws VaultError `ahead` when vault.json's version is newer than this
+ *   build understands, so it is never written over with an older shape.
  */
 function checkVersion(dir: string): void {
   const { version } = readVaultJson(dir);
@@ -93,7 +78,10 @@ function checkVersion(dir: string): void {
   }
 }
 
-/** The active vault, or `undefined`. Never throws — for doctor and for `vault ls`. */
+/**
+ * The active vault, or `undefined`. Never throws, and never checks the
+ * version.
+ */
 export function vaultDirIfAny(): string | undefined {
   const fromEnv = process.env.YAN_VAULT;
   if (fromEnv !== undefined && fromEnv !== '' && isVault(fromEnv)) {
@@ -106,7 +94,12 @@ export function vaultDirIfAny(): string | undefined {
   return normalizePath(resolve(path));
 }
 
-/** The active vault, or a refusal that says what to do about it. */
+/**
+ * The active vault.
+ *
+ * @throws VaultError `missing` when none is registered, `invalid` when the
+ *   registered one is not there, `ahead` when it is too new for this build.
+ */
 export function vaultDir(): string {
   const found = vaultDirIfAny();
   if (found !== undefined) {
@@ -134,12 +127,7 @@ export function vaultDir(): string {
   );
 }
 
-/*
- * The paths inside a vault, in one place.
- *
- * Every `join(vaultDir(), 'tasks')` in the code base would otherwise be a place
- * the layout is restated, and the layout is exactly the thing V3 moved.
- */
+/* The paths inside a vault. Each throws exactly as `vaultDir()` does. */
 
 export function tasksDir(): string {
   return join(vaultDir(), 'tasks');
@@ -153,35 +141,24 @@ export function memDir(): string {
   return join(vaultDir(), 'mem');
 }
 
-/** `config.json` — agents.* and remote_git.*, which follow the context, not the disk. */
+/** `config.json` — agents.* and remote_git.*, which follow the context. */
 export function vaultConfigPath(): string {
   return join(vaultDir(), 'config.json');
 }
 
-/** The portable half of the registry: name → url, mode_default, pool_size. */
+/** `repos.json` — the portable half of the repo registry: name → url, mode_default, pool_size. */
 export function reposPath(): string {
   return join(vaultDir(), 'repos.json');
 }
 
-/** The machine half: name → this disk's clone path. Never committed. */
+/** `.local/repos.json` — the machine half: name → this disk's clone path, never committed. */
 export function localReposPath(): string {
   return join(vaultDir(), '.local', 'repos.json');
 }
 
 /**
- * `skills/` — standing instructions, in prose, about what yan may do itself
- * here.
- *
- * not executables, and deliberately not: the machinery for running one would
- * be larger than the thing it runs. A skill is a few paragraphs saying "in
- * this environment you may check the build yourself rather than dispatching a
- * shift for it", and `yan session-start` reads them into the session, which is
- * the whole mechanism.
- *
- * In the vault, because what yan may do on its own is a property of the
- * context: at work there is a build command and a proxy and a rule about who
- * touches release branches; at home there is none of that. A machine-level
- * directory sits beside it for the things that really are about one box.
+ * `skills/` — standing instructions in prose, not executables, which
+ * `yan session-start` lists. See `machineSkillsDir()` for the per-box ones.
  */
 export function skillsDir(): string {
   return join(vaultDir(), 'skills');

@@ -9,8 +9,7 @@ import { WorktreeError } from './errors.js';
  * Where the pool keeps things:
  *
  *   <pool root>/<repo>-<hash>/
- *     leases/<slot>.json     runtime records. They belong to the pool, not to
- *                            a task, so they never live under $YAN_HOME
+ *     leases/<slot>.json     the lease records
  *     <slot>/<repo>/         the tree itself
  *
  * The pool root is ~/.yan-trees, overridden by $YAN_POOL_ROOT.
@@ -20,7 +19,7 @@ export function absolute(path: string): string {
   return normalizePath(resolve(path));
 }
 
-/** Not a security boundary: it only keeps two clones with the same basename in different pools. */
+/** Short and non-cryptographic: it only keeps same-named clones in different pools. */
 function shortHash(text: string, length = 8): string {
   return createHash('sha1').update(text).digest('hex').slice(0, length);
 }
@@ -30,16 +29,15 @@ export function repoName(clone: string): string {
 }
 
 /**
- * The comparable form of a path. Purely lexical, so it works for paths that do
- * not exist yet. Lower-cased on Windows only, because two spellings that differ
- * in case are the same directory there and the same comparison would be wrong
- * on Linux.
+ * The comparable form of a path, lower-cased on Windows. Purely lexical, so it
+ * works for a path that does not exist yet and never resolves a symlink.
  */
 export function pathKey(path: string): string {
   const n = normalizePath(path);
   return process.platform === 'win32' ? n.toLowerCase() : n;
 }
 
+/** Creates the pool root if it is absent. */
 export function rootDir(): string {
   const root = process.env.YAN_POOL_ROOT ?? join(homedir(), '.yan-trees');
   try {

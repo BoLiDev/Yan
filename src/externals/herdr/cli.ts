@@ -2,26 +2,17 @@ import { spawnSync } from 'node:child_process';
 import { TerminalError } from './errors.js';
 
 /**
- * The `herdr` executable, and the only module in yan that names it.
- *
- * It needs no environment. With `HERDR_ENV`, `HERDR_SOCKET_PATH` and
- * `HERDR_PANE_ID` all stripped, `herdr pane list` still answers — it finds the
- * default socket itself. That is what makes yan safe to call from a hook, which
- * may be handed a sanitised environment, and it is worth re-checking whenever
- * Herdr is upgraded.
- *
- * The wire contract:
+ * The `herdr` executable, and the only module in yan that names it. Needs no
+ * environment: herdr finds its own socket.
  *
  *   {"error":{"code":"agent_not_found","message":"…"},"id":"cli:agent:get"}
  *
- *   exit 0   success. Some mutating commands succeed with no stdout at all, so
- *            an empty body is not a failure
- *   exit 1   server error, with that JSON on stderr — parse error.code
- *   exit 2   the command shape was wrong: a bug in yan, never a condition
+ *   exit 0   success, possibly with no stdout at all
+ *   exit 1   server error, with that JSON on stderr
+ *   exit 2   the command shape was wrong: a bug in yan
  *
- * No Herdr `error.code` escapes this file. Mapping them into yan's own
- * vocabulary here is what keeps every caller from having to know two
- * spellings of the same failure.
+ * No Herdr `error.code` escapes this file; `mapError` turns each into yan's
+ * own vocabulary.
  */
 
 
@@ -40,17 +31,15 @@ export function herdrErrorCode(stderr: string): string | undefined {
       const error = (parsed as { error?: { code?: unknown } }).error;
       if (error !== undefined && typeof error.code === 'string') return error.code;
     } catch {
-      // Prose, not JSON. Herdr is a preview build and may print either.
+      // Not JSON: herdr may print prose on the same stream.
     }
   }
   return undefined;
 }
 
 /**
- * Run a herdr command. Never throws for a Herdr-level failure: the caller
- * decides what one means, because `agent_not_found` is a problem to one caller
- * and the answer itself to another — it is how `agentAlive` tells a dead agent
- * from a live one.
+ * Run a herdr command. Never throws: a failure is a non-zero `code`, and a
+ * herdr that will not start is 127.
  */
 export function runHerdr(args: readonly string[]): HerdrResult {
   const spawned = spawnSync('herdr', [...args], {
@@ -58,7 +47,6 @@ export function runHerdr(args: readonly string[]): HerdrResult {
     windowsHide: true,
   });
   if (spawned.error !== undefined) {
-    // Not installed, or not startable. That is "yan could not find out".
     return { code: 127, stdout: '', stderr: `herdr is not on PATH: ${spawned.error.message}` };
   }
   return {
@@ -68,14 +56,14 @@ export function runHerdr(args: readonly string[]): HerdrResult {
   };
 }
 
-/** How a herdr command is actually run. Replaceable so a test needs no module mocking. */
+/** How a herdr command is run; replaceable in a test. */
 export type HerdrRunner = (args: readonly string[]) => HerdrResult;
 
 /**
- * Run a herdr command that must succeed, and return its parsed `.result`.
+ * Run a herdr command and return its parsed `.result`, or `undefined` when it
+ * succeeded with an empty or unparseable body.
  *
- * Mutating commands legitimately answer with rc 0 and empty stdout, so an empty
- * body is `undefined`, never an error.
+ * @throws TerminalError when the command failed.
  */
 export function herdrCall(run: HerdrRunner, args: readonly string[], what: string): unknown {
   const result = run(args);
@@ -92,10 +80,13 @@ export function herdrCall(run: HerdrRunner, args: readonly string[], what: strin
   throw mapError(result, what);
 }
 
-/** Map a Herdr failure onto yan's vocabulary. Nothing else may do this. */
+/**
+ * Map a Herdr failure onto yan's vocabulary: `bug` for a refused command
+ * shape, `notFound` for a missing agent, pane, workspace or tab, `unreachable`
+ * when herdr said nothing structured, `refused` otherwise.
+ */
 export function mapError(result: HerdrResult, what: string): TerminalError {
   if (result.code === 2) {
-    // A CLI syntax error is a bug in yan, never a runtime condition.
     return TerminalError.bug(`herdr refused the command shape (${what}): ${result.stderr.trim()}`);
   }
   if (result.code === 127) {
@@ -110,7 +101,6 @@ export function mapError(result: HerdrResult, what: string): TerminalError {
     case 'tab_not_found':
       return new TerminalError('notFound', `${what}: ${code}`);
     case undefined:
-      // rc 1 with no structured error is a transport problem, not a verdict.
       return new TerminalError('unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
     default:
       return new TerminalError('refused', `${what}: ${code}`);

@@ -5,26 +5,11 @@ import { Supervision } from '../records/supervision/index.js';
 import { action, out } from './shared/action.js';
 
 /**
- * `yan drain` — read the wake file and clear it.
+ * `yan drain` — print the reasons `yan wait` wrote to `tasks/<id>/run/wake`,
+ * then clear it. Read first and clear second, so a crash in between repeats a
+ * wake rather than losing one.
  *
- * The first thing the model does after being woken. `yan wait` exits when
- * something actionable happened and writes the reason down; the wake file is
- * what carries that reason across the gap between "wait exited" and "the
- * model's next turn", because nothing else survives it.
- *
- * Read first, clear second. The order is the whole design of this command: a
- * crash between the two leaves the reason on disk and the next drain picks it
- * up again, whereas clearing first and crashing loses it for good. Repeating a
- * wake is free; losing one means a shift waits for a yan that is never coming.
- *
- * An empty drain is normal and silent, and exits 0. Codex's checkpoint loop
- * drains after a quiet timeout too, so "nothing to report" must not look like a
- * failure.
- *
- * Whose wake file. Supervision is per-yan and a yan is per-task (see
- * §5.2), so the file belongs to the task, not to any one shift:
- * `tasks/<id>/run/wake`, beside the guard's own `run/guard-failures`.
- * `$YAN_WAKE_FILE` overrides the path entirely.
+ * An empty drain is silent and exits 0. `$YAN_WAKE_FILE` overrides the path.
  */
 
 export const command = new Command('drain')
@@ -39,10 +24,7 @@ export const command = new Command('drain')
         throw CommandError.usage('drain', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
         );
       }
-      // Through the supervision record rather than by joining the path here:
-      // `yan wait` writes this file and `yan drain` clears it, and two private
-      // copies of where it lives is how the pair ends up pointing at different
-      // files under $YAN_WAKE_FILE.
+      // Through the supervision record, which is also what `yan wait` writes.
       const wake = task === '' ? override : new Supervision(task).wake;
 
       if (!existsSync(wake)) return;

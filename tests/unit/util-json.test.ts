@@ -14,14 +14,8 @@ import { JsonError } from '../../src/util/json.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
 
 /**
- * The port of `tests/unit/lib-json.test.sh`.
- *
- * What is under test: "JSON writes still go tmp → mv and every file still carries
- * `version`; lib-json's tests pass against util/json.ts."
- *
- * Every assertion below has a counterpart in the bash file, except the two
- * marked new, which cover the one thing the shell could not express: a value
- * that is not serialisable at all.
+ * JSON writes land tmp → rename, every object written carries `version`, and
+ * a value that cannot be serialised is refused before the target is touched.
  */
 
 afterAll(cleanupTempDirs);
@@ -55,10 +49,8 @@ describe('writeJson', () => {
   });
 
   it('writes the temp file beside the target, not in TMPDIR', () => {
-    // If the implementation used os.tmpdir() the rename could cross a
-    // filesystem and would no longer be atomic. Pointing tmpdir at something
-    // that does not exist proves the template is anchored to the target's own
-    // directory.
+    // A temporary file in os.tmpdir() could rename across a filesystem, which
+    // is not atomic. Pointing tmpdir at nothing proves it is not used.
     const tmp = mkTempDir();
     const previous = process.env.TMPDIR;
     process.env.TMPDIR = join(tmp, 'definitely-not-here');
@@ -79,8 +71,7 @@ describe('writeJson', () => {
     const raw = readFileSync(f, 'utf8');
     expect(raw).not.toContain('\r');
     expect(raw.endsWith('\n')).toBe(true);
-    // jq's default pretty printing, so the two halves of the migration write
-    // byte-identical files.
+    // Two-space indent and a trailing newline, so the formatting is stable.
     expect(raw).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ],\n  "version": 1\n}\n');
   });
 

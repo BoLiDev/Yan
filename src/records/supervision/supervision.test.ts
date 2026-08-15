@@ -8,9 +8,8 @@ import { Task } from '../task/index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 
 /**
- * `tests/unit/lib-watch-health.test.sh`, ported: "the watcher is healthy" means
- * all of — the lock exists and its pid is alive, the identity matches, and the
- * beacon is fresh.
+ * "The watcher is healthy" means all of: the lock exists, its pid is alive,
+ * the identity matches, and the beacon is fresh.
  *
  * Both directions are tested, because each one on its own is a lie a session
  * can run on for hours:
