@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { stateOf, type AliveReader, type StateDeps } from '../../src/cli/state.js';
 import { Task } from '../../src/records/task/index.js';
-import type { Alive } from '../../src/externals/herdr/index.js';
+import type { AgentStatus, Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
 /**
@@ -25,11 +25,15 @@ const MR = 'https://forge.invalid/acme/widget/-/merge_requests/1';
 const TRAP_NOTE = 'LAST-LINE-IS-NOT-THE-STATE';
 
 let alive: Alive = 'alive';
+let attention: AgentStatus = 'working';
 let mrState: MrState = 'open';
 const mrCalls: { mr: string; dir: string | undefined }[] = [];
 
 const deps = (): StateDeps => ({
-  terminal: { agentAlive: (): Alive => alive } satisfies AliveReader,
+  terminal: {
+    agentAlive: (): Alive => alive,
+    agentStatus: (): AgentStatus => attention,
+  } satisfies AliveReader,
   readMrState: (mr, dir) => {
     mrCalls.push({ mr, dir });
     return mrState;
@@ -63,6 +67,7 @@ beforeEach(() => {
   );
 
   alive = 'alive';
+  attention = 'working';
   mrState = 'open';
   mrCalls.length = 0;
 });
@@ -93,6 +98,28 @@ describe('the live sources decide, never the newest event', () => {
     expect(stateOf('s1', 't042', deps()).state, 'the objective end condition is the MR').toBe('merged');
     // The host really was asked, in yan vocabulary and with the recorded MR.
     expect(mrCalls).toEqual([{ mr: MR, dir: undefined }]);
+  });
+
+  it('says blocked rather than running when herdr sees a question on the screen', () => {
+    // A shift sitting on an approval is alive and going nowhere, and the
+    // difference is the whole thing yan has to act on. `yan wait` already
+    // wakes on this; before, `yan state` called it `running`.
+    attention = 'blocked';
+    const facts = stateOf('s1', 't042', deps());
+    expect(facts.state).toBe('blocked');
+    expect(facts.terminal, 'and it is still alive, which is why the tree is not touched').toBe('alive');
+    expect(facts.attention).toBe('blocked');
+  });
+
+  it('does not ask for a status when there is no agent to ask about', () => {
+    alive = 'dead';
+    expect(stateOf('s1', 't042', deps()).attention).toBe('unasked');
+  });
+
+  it('lets a merged MR outrank a blocked pane too', () => {
+    attention = 'blocked';
+    mrState = 'merged';
+    expect(stateOf('s1', 't042', deps()).state).toBe('merged');
   });
 
   it('says unknown out loud where nothing can be established', () => {

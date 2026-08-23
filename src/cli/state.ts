@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { dash } from './shared/table.js';
-import { Terminal, type Alive } from '../externals/herdr/index.js';
+import { Terminal, type AgentStatus, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Shift, readPulse } from '../records/shift/index.js';
 import { currentBranch, isClean } from '../util/git.js';
@@ -19,11 +19,13 @@ import { existsSync } from 'node:fs';
  *   merged       the host says the merge request merged. Never git ancestry,
  *                and it outranks a pane the agent is still sitting in
  *   dead         the terminal says the agent is gone
+ *   blocked      Herdr sees an approval or a question on its screen, so it is
+ *                alive and going nowhere until somebody answers
  *   running      the terminal says the agent is alive
  *   unknown      nothing above could be established — which is not `dead`
  */
 
-export type Verdict = 'clocked-out' | 'merged' | 'dead' | 'running' | 'unknown';
+export type Verdict = 'clocked-out' | 'merged' | 'dead' | 'blocked' | 'running' | 'unknown';
 
 /**
  * Whether the shift's terminal is moving.
@@ -44,6 +46,7 @@ const PULSE_FRESH_SECONDS = 30;
 /** What `yan state` needs from the terminal. `Terminal` is the real one. */
 export interface AliveReader {
   agentAlive(pane: string): Alive;
+  agentStatus(pane: string): AgentStatus;
 }
 
 /** What `yan state` needs from the host. `RemoteGit` is the real one. */
@@ -61,6 +64,11 @@ export interface StateFacts {
   readonly live: boolean;
   readonly terminal: Alive;
   readonly terminal_why: string;
+  /**
+   * What Herdr says the agent is doing. `unasked` means nothing was in a
+   * position to ask, which is not the same as `unknown`.
+   */
+  readonly attention: AgentStatus | 'unasked';
   readonly tree_state: 'unrecorded' | 'missing' | 'clean' | 'dirty' | 'unknown';
   readonly head_branch: string;
   readonly mr: string;
@@ -100,12 +108,17 @@ export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateF
   // Source 1: the terminal.
   let terminal: Alive = 'unknown';
   let terminalWhy = '';
+  let attention: AgentStatus | 'unasked' = 'unasked';
   if (!live) {
     terminalWhy = 'run/ is gone; there is nothing left to ask about';
   } else if (agentId === '') {
     terminalWhy = 'no terminal id in run/meta.json';
   } else {
-    terminal = (deps.terminal ?? new Terminal()).agentAlive(agentId);
+    const screen = deps.terminal ?? new Terminal();
+    terminal = screen.agentAlive(agentId);
+    // Asked separately, and only of an agent that is there: a pane with no
+    // agent in it has no status worth reporting.
+    if (terminal === 'alive') attention = screen.agentStatus(agentId);
   }
 
   // Source 2: git.
@@ -155,6 +168,9 @@ export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateF
   if (!live) state = 'clocked-out';
   else if (mrState === 'merged') state = 'merged';
   else if (terminal === 'dead') state = 'dead';
+  // Ranked above `running`, because a shift sitting on a question is not
+  // making progress and the difference is what yan has to act on.
+  else if (attention === 'blocked') state = 'blocked';
   else if (terminal === 'alive') state = 'running';
   else state = 'unknown';
 
@@ -170,6 +186,7 @@ export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateF
     live,
     terminal,
     terminal_why: terminalWhy,
+    attention,
     tree_state: treeState,
     head_branch: headBranch,
     mr,
@@ -201,6 +218,22 @@ function motionLine(facts: StateFacts): string {
     : `still  (${been}, which is not the same as stuck - what it was asked to do decides that)`;
 }
 
+/** Herdr's reading of the screen, and what it does and does not mean. */
+function attentionLine(attention: AgentStatus): string {
+  switch (attention) {
+    case 'blocked':
+      return 'blocked  (herdr sees an approval or a question - read the pane and answer it)';
+    case 'done':
+      return 'done  (unseen work finished; whether the work landed is the forge to answer)';
+    case 'working':
+      return 'working';
+    case 'idle':
+      return 'idle  (waiting for input, and its tab has been seen)';
+    default:
+      return 'unknown  (an agent is there and herdr will not classify it)';
+  }
+}
+
 function duration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const m = Math.floor(seconds / 60);
@@ -223,7 +256,7 @@ export const command = new Command('state')
     `
 usage: yan state <sid> [--task <id>] [--json | --verdict]
 
-Verdicts: clocked-out | merged | dead | running | unknown
+Verdicts: clocked-out | merged | dead | blocked | running | unknown
 
 The state is derived from the live sources every time. Lines in run/status are
 events; this command counts them and never reads the last one as the state.
@@ -265,6 +298,7 @@ never a verdict: an install is still for minutes and so is a model thinking.`,
       row('terminal', facts.terminal_why !== ''
         ? `${facts.terminal}  (${facts.terminal_why})`
         : `${facts.terminal}  (id ${facts.agent_id})`);
+      if (facts.attention !== 'unasked') row('screen', attentionLine(facts.attention));
       row('git', facts.head_branch !== '' && facts.branch !== '' && facts.head_branch !== facts.branch
         ? `${facts.tree_state}  (HEAD is on ${facts.head_branch}, meta says ${facts.branch})`
         : facts.tree_state);

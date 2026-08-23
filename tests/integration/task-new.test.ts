@@ -16,10 +16,11 @@ import { createTask } from '../../src/cli/task.js';
  * `yan task new`. What it has to keep proving: create ends with `user` inside
  * the task, with its units added and their integration branches really cut.
  *
- * Real git against local bare remotes. The main agent is `process.execPath`,
- * which reads an empty stdin and exits 0, so "it entered" stays an
- * observation. `HERDR_PANE_ID` is cleared: the runner really is in a pane, and
- * the suite must not relabel it.
+ * Real git against local bare remotes. The runner's stdio is pipes, which is
+ * what a hook or a script gives `yan task new` too, so the enter step reports
+ * that there is no terminal to hand over and the command still exits 0: the
+ * task was created either way. `HERDR_PANE_ID` is cleared: the runner really
+ * is in a pane, and the suite must not relabel it.
  */
 
 afterAll(cleanupTempDirs);
@@ -101,8 +102,12 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(await hasBranch('monorepo-x', 'yan/t001-admin-r1')).toBe(true);
     expect(await hasBranch('proto', 'yan/t001-proto-r1')).toBe(true);
 
-    // …and create ended by starting the main agent in this pane.
-    expect(r.stdout).toContain('starting in this pane');
+    // …and create ended by trying to enter. This runner's stdio has no
+    // terminal on it, so there is nowhere to put the agent and it says so —
+    // and still exits 0, because the task was created either way.
+    expect(r.code, 'creating the task is the job; entering is the convenience').toBe(0);
+    expect(r.stdout).toContain('no terminal');
+    expect(r.stdout).toContain('yan continue t001');
     // The enter step's per-task lock is held for exactly as long as the agent.
     expect(existsSync(join(home, 'tasks', 't001', '.enter.lock'))).toBe(false);
   });
@@ -127,19 +132,21 @@ describe('the id', () => {
   });
 });
 
-describe('--json still enters; it only changes how the result is printed', () => {
+describe('--json carries the enter record too; it only changes how it is printed', () => {
   it('reports the task, its units, and the enter record', async () => {
     const r = await yan(['task', 'new', '--title', 'as json', '--repo', 'proto', '--target', 'main', '--json']);
     expect(r.code, r.out).toBe(0);
     const seen = JSON.parse(r.stdout) as {
       task: string;
       units: string[];
-      entered: { started: boolean; task: string };
+      entered: { started: boolean; refused: string; task: string };
     };
     expect(seen.task).toBe('t044');
     expect(seen.units).toEqual(['proto']);
-    // The record is printed before the pane is handed over.
-    expect(seen.entered.started).toBe(true);
+    // The record is printed before the pane would be handed over, and says in
+    // one word why it was not: this runner's stdio is pipes.
+    expect(seen.entered.started).toBe(false);
+    expect(seen.entered.refused).toBe('no-terminal');
     expect(seen.entered.task).toBe('t044');
   });
 });

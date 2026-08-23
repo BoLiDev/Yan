@@ -277,6 +277,82 @@ describe('an agent that is not really there', () => {
     expect(started.name).toBe('s1');
   });
 
+  it('answers the trust dialog, and gives back the prompt it swallowed', () => {
+    // Herdr calls an agent ready as soon as it recognises one, which it does
+    // while the harness is still holding up "is this a project you trust?".
+    // The harness then comes up at an empty input line, having dropped the
+    // prompt it was started with — a shift that looks alive and was asked
+    // nothing.
+    const trustScreen = ' ❯ 1. Yes, I trust this folder\n   2. No, exit';
+    const sent: string[][] = [];
+    let cleared = false;
+
+    const run = (args: readonly string[]) => {
+      sent.push([...args]);
+      const verb = `${args[0]} ${args[1]}`;
+      if (verb === 'tab create') {
+        return ok({ tab: { tab_id: 'w1:t2' }, root_pane: { pane_id: 'w1:p2' } });
+      }
+      if (verb === 'agent start') {
+        return ok({ agent: { name: 's1', pane_id: 'w1:p2', agent_status: 'idle' } });
+      }
+      if (verb === 'agent send-keys') {
+        cleared = true;
+        return ok({});
+      }
+      if (verb === 'agent read') {
+        return { code: 0, stdout: cleared ? 'a normal prompt' : trustScreen, stderr: '' };
+      }
+      if (verb === 'agent get') {
+        return ok({ agent: { pane_id: 'w1:p2', agent_status: cleared ? 'working' : 'blocked' } });
+      }
+      return ok({});
+    };
+
+    const started = new Terminal({ run }).startAgent({
+      container: 'w1',
+      name: 's1',
+      kind: 'claude',
+      cwd: '.',
+      argv: ['--dangerously-skip-permissions', '--', 'read the brief'],
+      prompt: 'read the brief',
+    });
+
+    const keys = sent.find((a) => a[1] === 'send-keys');
+    expect(keys, 'the dialog is answered rather than left for nobody').toEqual([
+      'agent', 'send-keys', 'w1:p2', 'enter',
+    ]);
+    const prompt = sent.find((a) => a[1] === 'prompt');
+    expect(prompt?.[3], 'and the work order is handed over again').toBe('read the brief');
+    expect(started.status, 'the status is the settled one, not the three-second one').toBe('working');
+  });
+
+  it('leaves a question it does not recognise standing, and says so', () => {
+    // The agent is running in a leased tree, so tearing the dispatch down
+    // would destroy live work: the honest answer is `blocked`, which is what
+    // supervision wakes on.
+    const run = (args: readonly string[]) => {
+      const verb = `${args[0]} ${args[1]}`;
+      if (verb === 'tab create') {
+        return ok({ tab: { tab_id: 'w1:t2' }, root_pane: { pane_id: 'w1:p2' } });
+      }
+      if (verb === 'agent start') {
+        return ok({ agent: { name: 's1', pane_id: 'w1:p2', agent_status: 'idle' } });
+      }
+      if (verb === 'agent read') {
+        return { code: 0, stdout: 'Delete every branch? (y/N)', stderr: '' };
+      }
+      if (verb === 'agent get') return ok({ agent: { pane_id: 'w1:p2', agent_status: 'blocked' } });
+      if (verb === 'agent send-keys') throw new Error('nothing unrecognised may be answered blind');
+      return ok({});
+    };
+
+    const started = new Terminal({ run }).startAgent({
+      container: 'w1', name: 's1', kind: 'claude', cwd: '.',
+    });
+    expect(started.status).toBe('blocked');
+  });
+
   it('send refuses, because the text would be typed into the shell', () => {
     const term = new Terminal({ run: pretendingHerdr(false) });
     expect(() => term.send('w1:p2', 'here is your brief')).toThrow(/refusing to send/);
