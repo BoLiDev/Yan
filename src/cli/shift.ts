@@ -7,7 +7,7 @@ import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
-import { Terminal } from '../externals/herdr/index.js';
+import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, WorktreeError, type LeaseGrant } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
@@ -16,6 +16,7 @@ import { Task, type UnitData } from '../records/task/index.js';
 import { isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
+import { withLock } from '../util/lock.js';
 import { deleteRemoteBranch } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
 import { vaultDir } from '../util/vault.js';
@@ -55,21 +56,75 @@ function nextSid(task: string): string {
   return `s${max + 1}`;
 }
 
+/** How long a dispatch waits for the task's prologue lock. */
+const DISPATCH_LOCK_SECONDS = 120;
+
 /**
- * The flags one harness needs: the extra directories, and either running
- * unattended or, for a `scout`, running read-only. An unflagged harness would
- * stop at its first permission prompt in a pane nobody is watching.
+ * Claim `shifts/<sid>/` for this dispatch, and answer with the sid it got.
+ * The directory is the claim: `mkdir` without `recursive` fails rather than
+ * succeeding on one that is already there, so two dispatches racing for the
+ * same `s<n>` cannot both walk away believing they hold it — which is how they
+ * used to end up cutting the same shift branch.
  *
- * A scout in either harness cannot run a build or a test suite, because both
- * write.
+ * @throws CommandError `usage` when an explicitly named sid is already taken.
  */
-function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): string[] {
+function claimSid(task: string, asked: string | undefined): string {
+  const shifts = join(new Task(task).dir, 'shifts');
+  mkdirSync(shifts, { recursive: true });
+
+  if (asked !== undefined && asked !== '') {
+    try {
+      mkdirSync(join(shifts, asked));
+    } catch {
+      throw CommandError.usage('shift_new',
+        `shift ${asked} already exists in task ${task} - ${join(shifts, asked)} is there already`,
+      );
+    }
+    return asked;
+  }
+
+  let sid = nextSid(task);
+  for (;;) {
+    try {
+      mkdirSync(join(shifts, sid));
+      return sid;
+    } catch {
+      sid = `s${Number.parseInt(sid.slice(1), 10) + 1}`;
+    }
+  }
+}
+
+/**
+ * The whole argv one harness needs: the extra directories, running unattended,
+ * and the work order last. An unflagged harness would stop at its first
+ * permission prompt in a pane nobody is watching.
+ *
+ * A `scout` runs unattended too. Read-only by permission mode is the one thing
+ * it must not be: `--permission-mode plan` ends at "ready to execute - would
+ * you like to proceed?", which is an approval nobody is there to give, so
+ * every scout parked there and delivered nothing. What keeps a scout from
+ * pushing is its brief, plus a deny rule that makes the obvious way to do it
+ * fail; what makes that affordable is that a scout's tree is thrown away and
+ * its branch is never pushed. The gain is that a scout can now run the build
+ * and the test suite it is reporting on.
+ *
+ * `--add-dir` and `--disallowed-tools` take any number of values, so the
+ * prompt has to be fenced off behind `--` or it is read as one more of them
+ * and the harness starts with no work order at all.
+ */
+function harnessArgv(
+  agent: string,
+  mode: string,
+  addDirs: readonly string[],
+  prompt: string,
+): string[] {
   const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
   const args: string[] = [];
   if (kind === 'claude') {
     for (const d of addDirs) args.push('--add-dir', d);
-    if (mode === 'scout') args.push('--permission-mode', 'plan');
-    else args.push('--dangerously-skip-permissions');
+    args.push('--dangerously-skip-permissions');
+    if (mode === 'scout') args.push('--disallowed-tools', 'Bash(git push:*)');
+    args.push('--');
   } else if (kind === 'codex') {
     if (mode === 'scout') args.push('--sandbox', 'read-only');
     else args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -80,6 +135,7 @@ function harnessArgs(agent: string, mode: string, addDirs: readonly string[]): s
     // `user` took this decision knowing what it costs.
     args.push('--dangerously-bypass-hook-trust');
   }
+  args.push(prompt);
   return args;
 }
 
@@ -138,7 +194,12 @@ function briefBody(options: {
     '  why, and let yan answer.',
   );
   if (data.mode === 'scout') {
-    lines.push('- mode is scout: investigate and write it up. Do not push and do not open a merge request.');
+    lines.push(
+      '- mode is scout: investigate and write it up. Build it, run it, break it if that is what',
+      '  answering the question takes - the tree is thrown away. What you must not do is leave',
+      '  anything behind: do not push, do not open a merge request. The report goes in',
+      '  $YAN_TASK_DIR/artifacts, and that is the whole deliverable.',
+    );
   }
   lines.push('- Do not talk to other shifts, and do not talk to user. Everything goes through yan.');
   return `${lines.join('\n')}\n`;
@@ -167,7 +228,8 @@ export interface Dispatcher {
     label?: string;
     env?: Record<string, string>;
     argv?: readonly string[];
-  }): { pane: string; agent_session?: string };
+    prompt?: string;
+  }): { pane: string; status: AgentStatus; agent_session?: string };
   setPaneTitle(pane: string, title: string, displayAgent?: string): void;
 }
 
@@ -212,43 +274,56 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
   const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
 
-  const sid = options.sid !== undefined && options.sid !== '' ? options.sid : nextSid(task);
-  const shift = new Shift(task, sid);
-  if (existsSync(shift.dir)) {
-    throw CommandError.usage('shift_new', `shift ${sid} already exists in task ${task} - ${shift.dir} is there already`,
-    );
-  }
-
-  const branch = `yan/${task}-${unitName}-${sid}`;
-  const holder = `${task}/${unitName}/${sid}`;
-
   const agent = options.agent !== undefined && options.agent !== '' ? options.agent : agentFor('shift');
   if (agent === '') {
     throw CommandError.usage('shift_new', `no shift agent configured - set agents.shift in ${configPath()}, or pass --agent`,
     );
   }
 
-  // --- 1. lease a tree, cutting the shift branch ----------------------------
-  const pool = deps.pool?.(clone) ?? new WorktreePool(clone);
-  let grant: LeaseGrant;
-  try {
-    grant = pool.get(poolSize(key), data.branch, branch, holder);
-  } catch (err) {
-    if (err instanceof WorktreeError && err.code === WorktreeError.codes.full) {
-      throw new CommandError('shift_new', 'pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
-        { exitCode: RC_POOL_FULL, cause: err },
-      );
-    }
-    throw err;
-  }
+  const taskDir = record.dir;
+  const terminal = deps.terminal ?? new Terminal();
 
-  // From here the tree is held, so every exit gives it back — until an agent
-  // is running in it, after which returning it would destroy live work.
+  // --- 1. claim the sid and the container, one dispatch of this task at a
+  // time ---------------------------------------------------------------------
+  //
+  // Both answers are read off what the task already has, so two dispatches
+  // reading at once agree and then diverge: the same `s<n>`, and so the same
+  // shift branch, and a container each because neither can see a shift the
+  // other has not written down yet. The lock makes the read and the write one
+  // step; the placeholder run/meta.json is the write, because a container is
+  // found by asking this task's live shifts which one they are in.
+  const claimed = withLock(join(taskDir, 'dispatch.lock'), DISPATCH_LOCK_SECONDS, () => {
+    const sid = claimSid(task, options.sid);
+    const shift = new Shift(task, sid);
+    const container = resolveContainer(task, terminal, record.containerName());
+    mkdirSync(shift.run, { recursive: true });
+    writeJson(join(shift.run, 'meta.json'), { version: 1, task, sid, unit: unitName, container, pane: '' });
+    return { sid, shift, container };
+  });
+  const { sid, shift, container } = claimed;
+
+  const branch = `yan/${task}-${unitName}-${sid}`;
+  const holder = `${task}/${unitName}/${sid}`;
+
+  // From here the shift directory is claimed, so every exit before an agent is
+  // running gives it back along with the tree.
   let started = false;
+  let grant: LeaseGrant | undefined;
   try {
+    // --- 2. lease a tree, cutting the shift branch --------------------------
+    const pool = deps.pool?.(clone) ?? new WorktreePool(clone);
+    try {
+      grant = pool.get(poolSize(key), data.branch, branch, holder);
+    } catch (err) {
+      if (err instanceof WorktreeError && err.code === WorktreeError.codes.full) {
+        throw new CommandError('shift_new', 'pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
+          { exitCode: RC_POOL_FULL, cause: err },
+        );
+      }
+      throw err;
+    }
+
     const tree = grant.path;
-    const taskDir = record.dir;
-    mkdirSync(shift.dir, { recursive: true });
     mkdirSync(join(taskDir, 'artifacts'), { recursive: true });
 
     // --- 2. write the work order -------------------------------------------
@@ -289,13 +364,9 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       );
     }
 
-    // --- 4. start the agent, and confirm it ---------------------------------
-    const terminal = deps.terminal ?? new Terminal();
-    const container = resolveContainer(task, terminal, record.containerName());
-
-    // Written before the agent starts, so a running agent is always recorded;
-    // the pane is filled in immediately afterwards.
-    mkdirSync(shift.run, { recursive: true });
+    // --- 5. start the agent, and confirm it ---------------------------------
+    // Filled in over the placeholder step 1 wrote; the pane follows
+    // immediately afterwards, so a running agent is always recorded.
     const metaFile = join(shift.run, 'meta.json');
     const meta: Record<string, unknown> = {
       version: 1,
@@ -335,13 +406,20 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
         YAN_SID: sid,
         YAN_SHIFT_DIR: shift.dir,
       },
-      argv: [...harnessArgs(agent, data.mode, addDirs), prompt],
+      argv: harnessArgv(agent, data.mode, addDirs, prompt),
+      prompt,
     });
     started = true;
 
     meta.pane = startedAgent.pane;
+    meta.status = startedAgent.status;
     if (startedAgent.agent_session !== undefined) meta.agent_session = startedAgent.agent_session;
     writeJson(metaFile, meta);
+
+    if (startedAgent.status === 'blocked') {
+      process.stderr.write(`yan shift new: ${sid} started, but something yan does not recognise is waiting for an answer on ${startedAgent.pane} - 'yan state ${sid}' and the pane itself say what. The tree is held and the shift is running\n`,
+      );
+    }
 
     display('could not title the shift pane', () => {
       terminal.setPaneTitle(startedAgent.pane, `${sid}-${unitName} · unit=${unitName}`, 'yan:shift');
@@ -354,14 +432,22 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     return meta;
   } finally {
     if (!started) {
-      // The lease id goes with it, so a slot somebody else now holds is
-      // refused rather than wiped.
-      try {
-        pool.return(grant.path, { leaseId: grant.lease_id, holder });
-      } catch {
-        process.stderr.write(`yan shift new: the tree at ${grant.path} could not be returned - 'yan tree status --repo ${data.repo}' shows the lease\n`,
-        );
+      if (grant !== undefined) {
+        // The lease id goes with it, so a slot somebody else now holds is
+        // refused rather than wiped.
+        const held = grant;
+        try {
+          (deps.pool?.(clone) ?? new WorktreePool(clone)).return(held.path, {
+            leaseId: held.lease_id,
+            holder,
+          });
+        } catch {
+          process.stderr.write(`yan shift new: the tree at ${held.path} could not be returned - 'yan tree status --repo ${data.repo}' shows the lease\n`,
+          );
+        }
       }
+      // Giving the sid back too, so the next dispatch reuses it rather than
+      // leaving a hole where a shift never ran.
       rmSync(shift.dir, { recursive: true, force: true });
     }
   }

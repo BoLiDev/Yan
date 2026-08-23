@@ -14,10 +14,12 @@ import {
 /**
  * `yan continue`.
  *
- * Four things this file pins: a second yan on the same task is refused and
+ * Five things this file pins: a second yan on the same task is refused and
  * says where the live one is; the lock is per task, so two yans on two tasks
  * is ordinary; the main agent starts in the calling pane with no container
- * created; and the workspace tokens are withdrawn when it exits.
+ * created; the workspace tokens are withdrawn when it exits; and a stdio with
+ * no terminal on it is refused up front rather than handed to a harness that
+ * cannot use it.
  *
  * The main agent is `process.execPath` — a real spawn of a real executable that
  * reads an empty stdin and exits 0. Nothing here needs a harness installed, and
@@ -80,30 +82,33 @@ beforeAll(async () => {
   else process.env.YAN_HOME = previous;
 });
 
-describe('the hard path: the main agent starts in this pane', () => {
-  it('reports what it started, and gives the lock back when the agent exits', async () => {
+describe('there has to be a terminal for the agent to take over', () => {
+  // A spawned bin/yan has pipes for stdio, which is what a hook, a script or
+  // another agent's shell gives it. The harness would come up in print mode,
+  // find nothing on the empty stdin it was handed, and die naming that instead
+  // of this. Starting the agent is this command's whole job, so not doing it
+  // is a failure - unlike `yan task new`, where the task was still created.
+  it('says so, fails, and leaves no lock behind', async () => {
     const r = await yan(['continue', '--task', 't042', '--json']);
-    expect(r.code, r.out).toBe(0);
+    expect(r.code, r.out).toBe(2);
     const seen = JSON.parse(r.stdout) as {
       task: string;
       agent: string;
       started: boolean;
-      pane: string;
+      refused: string;
     };
     expect(seen.task).toBe('t042');
-    expect(seen.started).toBe(true);
+    expect(seen.started).toBe(false);
+    expect(seen.refused).toBe('no-terminal');
     expect(seen.agent).toBe(process.execPath);
-    // Not inside Herdr in this run, and that is not a failure.
-    expect(seen.pane).toBe('');
-
-    // The lock is held for exactly as long as the agent.
-    expect(existsSync(lockOf('t042'))).toBe(false);
+    expect(existsSync(lockOf('t042')), 'nothing is going to run under it').toBe(false);
   });
 
-  it('takes the positional form too', async () => {
+  it('names the task it resolved, so the positional form is still readable', async () => {
     const r = await yan(['continue', 't042']);
-    expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toContain('starting in this pane');
+    expect(r.code).toBe(2);
+    expect(r.stdout).toContain('no terminal');
+    expect(r.stdout).toContain('t042');
   });
 });
 
@@ -119,9 +124,11 @@ describe('a second yan on the same task', () => {
   });
 
   it('does not refuse a yan on a DIFFERENT task: the lock is per task', async () => {
+    // t042's lock is live from the test above, and t099 must get straight past
+    // it - to the terminal question, which is as far as a piped stdio goes.
     const r = await yan(['continue', '--task', 't099']);
-    expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toContain('starting in this pane');
+    expect(r.stdout).not.toContain('a second yan on the same task');
+    expect(r.stdout).toContain('no terminal');
 
     rmSync(lockOf('t042'));
   });
@@ -133,9 +140,8 @@ describe('a second yan on the same task', () => {
       `${JSON.stringify({ pid: 999999, host: hostname(), at: 1, identity: 'yan t042' })}\n`,
     );
     const r = await yan(['continue', '--task', 't042']);
-    expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toContain('starting in this pane');
-    expect(existsSync(lockOf('t042'))).toBe(false);
+    expect(r.stdout, 'a dead holder is not obeyed').not.toContain('a second yan on the same task');
+    expect(existsSync(lockOf('t042')), 'and the reclaimed lock goes back').toBe(false);
   });
 });
 
@@ -204,6 +210,8 @@ describe('the enter step itself, with the terminal and the harness injected', ()
             started.push({ cli, argv, cwd: options.cwd, env: options.env });
             return 0;
           },
+          // A terminal, which the test runner's own stdio is not.
+          tty: () => true,
         },
       );
       return { calls, started, session };

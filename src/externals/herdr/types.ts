@@ -41,6 +41,13 @@ export interface StartAgentOptions {
   readonly cwd: string;
   readonly env?: Readonly<Record<string, string>>;
   readonly argv?: readonly string[];
+  /**
+   * The opening prompt, when `argv` carries one. Not passed to the harness —
+   * `argv` already has it, fenced however that harness needs. It is here so
+   * that a start which had to answer a trust dialog, and so lost the prompt it
+   * was given, can hand it over again.
+   */
+  readonly prompt?: string;
   readonly timeoutMs?: number;
   /** What to call the agent's tab. Display only. */
   readonly label?: string;

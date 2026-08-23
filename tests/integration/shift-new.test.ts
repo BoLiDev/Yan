@@ -77,7 +77,7 @@ class FakeTerminal implements Dispatcher {
     label?: string;
     env?: Record<string, string>;
     argv?: readonly string[];
-  }): { pane: string } {
+  }): { pane: string; status: 'working' } {
     calls.push(
       `agent_start container=${options.container} name=${options.name} kind=${options.kind} cwd=${options.cwd} brief=${briefState()}`,
     );
@@ -85,7 +85,7 @@ class FakeTerminal implements Dispatcher {
     this.startEnv = { ...(options.env ?? {}) };
     this.cwd = options.cwd;
     this.label = options.label ?? '';
-    return { pane: 'w1:p2' };
+    return { pane: 'w1:p2', status: 'working' };
   }
 
   public setPaneTitle(pane: string, title: string): void {
@@ -156,14 +156,18 @@ afterEach(() => {
 });
 
 describe('the order', () => {
-  it('leases, then makes the container, then starts the agent', () => {
+  it('makes the container, then leases, then starts the agent', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'parse the header' });
     expect(r.code, r.message).toBe(0);
+    // The container comes first because it is decided under the task's
+    // dispatch lock, together with the sid: two dispatches racing would
+    // otherwise each read a task with no live shift in it and make a container
+    // apiece, scattering one task's shifts across several workspaces.
     // Nothing syncs with target: a shift's MR goes into the integration
     // branch, and target only matters at the outbound MR.
     expect(calls.map((c) => c.split(' ')[0])).toEqual([
-      'pool_get',
       'container_create',
+      'pool_get',
       'agent_start',
     ]);
   });
@@ -267,6 +271,16 @@ describe('what the agent was started with', () => {
   it('points the opening prompt at the brief', () => {
     expect(terminal.startArgs[terminal.startArgs.length - 1]).toContain('brief.md');
   });
+
+  it('fences the prompt off behind --, or --add-dir eats it', () => {
+    // --add-dir and --disallowed-tools take any number of values, so a prompt
+    // left bare after one is read as one more directory and the harness starts
+    // with no work order at all - which looks exactly like a shift that came
+    // up and did nothing.
+    const args = terminal.startArgs;
+    expect(args).toContain('--add-dir');
+    expect(args[args.length - 2]).toBe('--');
+  });
 });
 
 describe('codex, and the gate yan cannot survive', () => {
@@ -303,19 +317,54 @@ describe('codex, and the gate yan cannot survive', () => {
   });
 });
 
+describe('the sid is claimed by making its directory', () => {
+  // Deriving it from a read and then acting on the answer is what let two
+  // dispatches of one task pick the same s<n>, and so cut the same shift
+  // branch: the second lost its tree to `already checked out`. The directory
+  // is the claim, because mkdir without recursive fails on one that is there.
+  it('hands consecutive dispatches different sids and different branches', () => {
+    const first = run({ task: 't042', unit: 'auth', briefText: 'one' });
+    const second = run({ task: 't042', unit: 'auth', briefText: 'two' });
+    expect(first.code, first.message).toBe(0);
+    expect(second.code, second.message).toBe(0);
+    expect(second.meta.sid).not.toBe(first.meta.sid);
+    expect(second.meta.branch).not.toBe(first.meta.branch);
+  });
+
+  it('refuses a sid that is already taken rather than dispatching over it', () => {
+    expect(run({ task: 't042', unit: 'auth', sid: 's5', briefText: 'one' }).code).toBe(0);
+    const again = run({ task: 't042', unit: 'auth', sid: 's5', briefText: 'two' });
+    expect(again.code).toBe(2);
+    expect(again.message).toContain('already exists');
+  });
+
+  it('gives the sid back when the dispatch fails, so it leaves no hole', () => {
+    terminal.startAgent = () => {
+      throw new Error('herdr could not confirm the agent');
+    };
+    expect(run({ task: 't042', unit: 'auth', briefText: 'doomed' }).code).not.toBe(0);
+    expect(existsSync(join(home, 'tasks', 't042', 'shifts', 's1'))).toBe(false);
+
+    terminal = new FakeTerminal();
+    expect(run({ task: 't042', unit: 'auth', briefText: 'the retry' }).meta.sid).toBe('s1');
+  });
+});
+
 describe('a scout is the exception', () => {
-  it('keeps plan mode and is never given a free hand', () => {
+  it('runs unattended too, and is kept from pushing by a deny rule', () => {
     new Task('t042').addUnit('probe', 'monorepo-x', 'master', {
       branch: 'feat/probe',
       mode: 'scout',
       scope: ['apps/auth'],
     });
     run({ task: 't042', unit: 'probe', sid: 's90', briefText: 'just look' });
-    expect(terminal.startArgs).toContain('--permission-mode');
-    expect(terminal.startArgs).toContain('plan');
-    expect(terminal.startArgs, 'a scout must never be given a free hand').not.toContain(
-      '--dangerously-skip-permissions',
-    );
+    // Plan mode ends at an approval nobody is there to give, so a scout that
+    // had it delivered nothing at all. What a scout must not do is leave
+    // something behind, and that is a deny rule and a brief, not a mode.
+    expect(terminal.startArgs, 'plan mode parks a scout on an approval').not.toContain('plan');
+    expect(terminal.startArgs).toContain('--dangerously-skip-permissions');
+    expect(terminal.startArgs).toContain('--disallowed-tools');
+    expect(terminal.startArgs).toContain('Bash(git push:*)');
   });
 });
 

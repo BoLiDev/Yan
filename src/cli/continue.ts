@@ -46,9 +46,15 @@ export interface Entered {
   /** The pane this yan is in, or empty when it is not running under Herdr. */
   readonly pane: string;
   readonly workspace: string;
-  /** False means a live yan already holds this task and nothing was started. */
+  /** False means nothing was started; `refused` says what stopped it. */
   readonly started: boolean;
-  /** Where that live yan is, when this one refused to become a second. */
+  /**
+   * Why nothing was started: `live-yan` is another yan holding this task,
+   * `no-terminal` is a stdio the main agent cannot take over. Empty when it
+   * did start.
+   */
+  readonly refused: 'live-yan' | 'no-terminal' | '';
+  /** Where the live yan is, when this one refused to become a second. */
   readonly where: string;
 }
 
@@ -69,6 +75,8 @@ export type StartMain = (
 export interface EnterDeps {
   readonly terminal?: Screen;
   readonly start?: StartMain;
+  /** Whether this stdio is a terminal; the real one reads `process.stdin`. */
+  readonly tty?: () => boolean;
 }
 
 /**
@@ -157,6 +165,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
   // Resolved now rather than inside `run`, which is called much later.
   const cwd = yanHome();
   const pane = currentPane();
+
   const lock = enterLockFile(id);
   const identity = enterIdentity(id, pane);
 
@@ -175,10 +184,32 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
           pane,
           workspace: '',
           started: false,
+          refused: 'live-yan',
           where,
         },
       };
     }
+  }
+
+  // The main agent takes over this stdio, so without a terminal it has nowhere
+  // to go: it comes up in print mode, finds nothing on the empty stdin it was
+  // handed, and dies naming that instead of this. Asked after the lock, so a
+  // task that is already held is reported as held rather than as this; the
+  // lock goes straight back, because nothing is going to run under it.
+  if (!(deps.tty ?? isTty)()) {
+    release(lock);
+    return {
+      record: {
+        version: 1,
+        task: id,
+        agent,
+        pane,
+        workspace: '',
+        started: false,
+        refused: 'no-terminal',
+        where: '',
+      },
+    };
   }
 
   const terminal = deps.terminal ?? new Terminal();
@@ -200,6 +231,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       pane,
       workspace: workspace ?? '',
       started: true,
+      refused: '',
       where: '',
     },
     run: () => {
@@ -246,6 +278,11 @@ async function chooseWhenMissing(given: string): Promise<string> {
 
 /** Print the enter record for a person. */
 export function renderEntered(record: Entered): void {
+  if (record.refused === 'no-terminal') {
+    out(`nothing was started: there is no terminal on this stdio for ${record.agent} to take over`);
+    out(`start    yan continue ${record.task}   (from a pane)`);
+    return;
+  }
   if (!record.started) {
     out(`yan is already running on task ${record.task} - a second yan on the same task is refused`);
     out(`live     ${record.where === '' ? '(the holder left no pane id)' : record.where}`);
@@ -292,6 +329,10 @@ Without a terminal it refuses: pass --task <id>.`,
 
       if (session.run !== undefined) {
         process.exitCode = session.run();
+      } else if (record.refused === 'no-terminal') {
+        // Starting the agent is the whole job here, so not doing it is a
+        // failure - unlike `yan task new`, where the task was still created.
+        process.exitCode = 2;
       }
     }),
   );

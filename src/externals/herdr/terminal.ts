@@ -4,6 +4,7 @@ import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
 import { isPaneId, paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { agentSessionOf, asRecord, statusOf, str } from './parse.js';
 import type {
+  AgentStatus,
   StartAgentOptions,
   Alive,
   Container,
@@ -25,13 +26,43 @@ import type {
 export interface TerminalOptions {
   /** Defaults to the real `herdr`. */
   readonly run?: HerdrRunner;
+  /**
+   * How long `startAgent` waits for a freshly started agent to settle, in
+   * milliseconds. 0 skips the wait, which is what a test with a fake herdr
+   * wants.
+   */
+  readonly settleMs?: number;
+}
+
+/** How long a freshly started agent is given to reach `working` or `blocked`. */
+const SETTLE_MS = 8000;
+
+/** How many startup dialogs in a row `startAgent` will answer before giving up. */
+const STARTUP_DIALOG_ROUNDS = 3;
+
+/**
+ * The dialogs a harness puts up before it has read its prompt, whose Enter
+ * default answers the question yan already decided by choosing the directory
+ * it started the agent in. Nothing else is answered blind: an unrecognised
+ * question is left standing, for supervision to wake yan about.
+ *
+ * `--dangerously-skip-permissions` does not cover this one; it is asked before
+ * permissions are consulted at all, and it is asked once per directory that
+ * has no trusted ancestor.
+ */
+const STARTUP_DIALOGS: readonly RegExp[] = [/Yes, I trust this folder/i];
+
+function isStartupDialog(screen: string): boolean {
+  return STARTUP_DIALOGS.some((pattern) => pattern.test(screen));
 }
 
 export class Terminal {
   private readonly run: HerdrRunner;
+  private readonly settleMs: number;
 
   public constructor(options: TerminalOptions = {}) {
     this.run = options.run ?? runHerdr;
+    this.settleMs = options.settleMs ?? SETTLE_MS;
   }
 
   /**
@@ -67,6 +98,14 @@ export class Terminal {
    * That second look can be fooled the same way, so it catches an agent that
    * is already visibly gone and promises nothing beyond that.
    *
+   * Herdr calls an agent ready as soon as it recognises one, which it does
+   * while the harness is still holding up its trust dialog; the returned
+   * `status` is therefore the settled one, read after the agent has had time
+   * to move, and a recognised startup dialog has been answered by then. A
+   * `blocked` here means something yan does not recognise is on the screen —
+   * the agent is running, so the caller keeps the tree and lets supervision
+   * wake `user`.
+   *
    * @throws TerminalError `usage` for a missing argument, `notFound` when no
    *   agent is in the pane afterwards.
    */
@@ -97,9 +136,100 @@ export class Terminal {
     return {
       name: str(agent.name) || options.name,
       pane: reported,
-      status: statusOf(agent.agent_status),
+      status: this.settle(reported, statusOf(agent.agent_status), options.prompt),
       ...(session === undefined ? {} : { agent_session: session }),
     };
+  }
+
+  /**
+   * Wait for a freshly started agent to move off whatever Herdr called it at
+   * three seconds old, answering the startup dialogs in `STARTUP_DIALOGS` as
+   * they appear, and answer with the status it settled on.
+   *
+   * A harness that stopped to ask one of those discards the prompt it was
+   * started with and comes up at an empty input line, so `prompt` is given
+   * again — which is the difference between a shift that works and one that
+   * sits there having been asked nothing.
+   *
+   * Never throws: the agent is already running, and every failure here is a
+   * question about it rather than a reason to tear it down.
+   */
+  private settle(pane: string, reported: AgentStatus, prompt?: string): AgentStatus {
+    if (this.settleMs <= 0) return reported;
+
+    let status = reported;
+    let answered = false;
+    for (let round = 0; round <= STARTUP_DIALOG_ROUNDS; round += 1) {
+      // Returns the moment it is either, so a healthy agent costs a second
+      // rather than the whole budget.
+      this.waitFor(pane, ['working', 'blocked']);
+      status = this.statusOrUnknown(pane);
+
+      if (status !== 'blocked') break;
+      if (round === STARTUP_DIALOG_ROUNDS) break;
+      if (!isStartupDialog(this.readOrEmpty(pane))) break;
+
+      // Enter takes the highlighted default, which for these is yes.
+      this.run(['agent', 'send-keys', pane, 'enter']);
+      answered = true;
+    }
+
+    if (!answered) return status;
+
+    // The harness is restarting behind the dialog, and Herdr reads that screen
+    // as `blocked` too, so the status just taken says nothing yet.
+    this.waitFor(pane, ['idle', 'working', 'done']);
+    status = this.statusOrUnknown(pane);
+    if (status === 'blocked' || prompt === undefined || prompt === '') return status;
+
+    try {
+      this.send(pane, prompt);
+      return this.statusOrUnknown(pane);
+    } catch {
+      // The agent is up and the pane is recorded; supervision has it from here.
+      return status;
+    }
+  }
+
+  /** Wait for any of `states`, and answer nothing: the caller re-reads. */
+  private waitFor(pane: string, states: readonly AgentStatus[]): void {
+    const args = ['agent', 'wait', pane];
+    for (const state of states) args.push('--until', state);
+    args.push('--timeout', String(this.settleMs));
+    this.run(args);
+  }
+
+  /**
+   * What Herdr says the agent in this pane is doing: `blocked` is an approval
+   * or a question on its screen, `done` is unseen work that finished, and
+   * `unknown` is Herdr declining to say — never a verdict about the shift.
+   *
+   * @throws TerminalError `usage` when `pane` is not a pane id.
+   */
+  public agentStatus(pane: string): AgentStatus {
+    requirePaneId(pane, 'agentStatus');
+    return this.statusOrUnknown(pane);
+  }
+
+  /** The agent's status, or `unknown` when Herdr will not say. */
+  private statusOrUnknown(pane: string): AgentStatus {
+    const result = this.run(['agent', 'get', pane]);
+    if (result.code !== 0) return 'unknown';
+    try {
+      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
+      return statusOf(asRecord(body.agent).agent_status);
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /** The screen, or `''` when it cannot be read. */
+  private readOrEmpty(pane: string): string {
+    try {
+      return this.read(pane, 60, 'detection');
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -174,18 +304,32 @@ export class Terminal {
   /**
    * The last `lines` lines of an agent's terminal, or `''` when Herdr reports
    * none. Does not mark the tab seen.
+   *
+   * The one command whose answer is the screen itself rather than JSON, so it
+   * does not go through `call`: putting it there returned `''` for every
+   * successful read, because a screen does not parse as JSON. A body that does
+   * parse is still unwrapped, so a Herdr that starts wrapping it is read too.
+   *
+   * @throws TerminalError when the command failed.
    */
   public read(pane: string, lines = 80, source: ReadSource = 'recent-unwrapped'): string {
     requirePaneId(pane, 'read');
     if (!Number.isInteger(lines) || lines <= 0) {
       throw TerminalError.usage(`a whole number of lines is required, got '${lines}'`);
     }
-    const body = asRecord(
-      this.call(['agent', 'read', pane, '--source', source, '--lines', String(lines)], 'agent read'),
-    );
-    if (typeof body.text === 'string') return body.text;
-    if (Array.isArray(body.lines)) return body.lines.map((l) => str(l)).join('\n');
-    return '';
+    const result = this.run(['agent', 'read', pane, '--source', source, '--lines', String(lines)]);
+    if (result.code !== 0) throw mapError(result, 'agent read');
+
+    const raw = result.stdout;
+    if (!raw.trimStart().startsWith('{')) return raw;
+    try {
+      const body = asRecord(asRecord(JSON.parse(raw)).result ?? JSON.parse(raw));
+      if (typeof body.text === 'string') return body.text;
+      if (Array.isArray(body.lines)) return body.lines.map((l) => str(l)).join('\n');
+      return raw;
+    } catch {
+      return raw;
+    }
   }
 
   /**
