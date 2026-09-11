@@ -208,7 +208,9 @@ function logRow(line: string): string {
   }
   const untyped = /^- (\d{2}-\d{2}) {2}(.*)$/.exec(line);
   if (untyped !== null) return `${dim(untyped[1] as string)}  ${' '.repeat(9)}  ${untyped[2] as string}`;
-  return line;
+  // Written by hand before entries were dated: no date and no type, so the
+  // text starts in the column every other entry's text starts in.
+  return `${' '.repeat(5)}  ${' '.repeat(9)}  ${line.replace(/^- /, '')}`;
 }
 
 function section(label: string, aside = ''): void {

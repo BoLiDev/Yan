@@ -146,6 +146,31 @@ describe('one task at a glance', () => {
     expect(j.log.lines).toHaveLength(5);
   });
 
+  it('lines up log entries written before they carried a date or a type', async () => {
+    Task.create('t050', 'an old task');
+    writeFileSync(
+      join(home, 'tasks', 't050', 'log.md'),
+      [
+        '# t050 an old task',
+        '',
+        '- 08-30  auth  unit added',
+        '- s1 dispatched: parse the header',
+        'a paragraph that is not an entry',
+        '- 08-31  agreed     one parser',
+        '',
+      ].join('\n'),
+    );
+    const r = await show(['show', 't050']);
+    expect(r.code, r.out).toBe(0);
+    const rows = r.stdout.split('\n');
+    const column = (needle: string): number => (rows.find((l) => l.includes(needle)) ?? '').indexOf(needle);
+    expect(column('s1 dispatched')).toBe(column('auth  unit added'));
+    expect(column('one parser')).toBe(column('auth  unit added'));
+    expect(r.stdout, 'no list marker survives').not.toContain('- s1 dispatched');
+    expect(r.stdout, 'prose is not an entry').not.toContain('a paragraph');
+    expect(r.stdout).toContain('last 3 of 3');
+  });
+
   it('is what yan ls <id> prints', async () => {
     expect((await show(['ls', 't042'])).stdout).toBe((await show(['show', 't042'])).stdout);
   });
