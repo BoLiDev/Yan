@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { Supervision, type WatcherState } from '../records/supervision/index.js';
@@ -32,10 +32,13 @@ import { action, out } from './shared/action.js';
  * acts, so an identical reason still undrained in the wake file suppresses a
  * second one.
  *
+ * `--drain` reads and clears the wake file on the way out, the way `yan drain`
+ * does, so a checkpoint loop spends one call per event rather than two.
+ *
  * Exit codes
  *
  *     0  something actionable happened; the reason is on stdout and in the
- *        wake file
+ *        wake file, or on stdout alone with --drain
  *   124  a --seconds slice ended quietly while shifts are still being watched
  *     3  there is nothing (left) to supervise
  *     4  another watcher already holds the single-flight lock
@@ -383,6 +386,24 @@ function rest(ms: number, register: (wake: () => void) => void): Promise<void> {
   });
 }
 
+/**
+ * Every reason waiting in the task's wake file, which is then cleared: read
+ * first and cleared second, so a crash in between repeats a wake rather than
+ * losing one. `undefined` when there is no file.
+ */
+export function drainWake(task: string): string | undefined {
+  const wake = new Supervision(task).wake;
+  if (!existsSync(wake)) return undefined;
+  let text: string;
+  try {
+    text = readFileSync(wake, 'utf8').replace(/\r?\n$/, '');
+  } catch {
+    return undefined;
+  }
+  rmSync(wake, { force: true });
+  return text;
+}
+
 function wholeSeconds(value: string, what: string): number {
   if (!/^\d+$/.test(value)) {
     throw CommandError.usage('wait', `${what} takes a whole number of seconds, got: ${value}`);
@@ -396,13 +417,14 @@ export const command = new Command('wait')
   .option('--task <id>', 'the task to watch')
   .option('--seconds [n]', 'stop after N seconds whatever happens (the Codex checkpoint slice)')
   .option('--interval <s>', 'how often to look')
+  .option('--drain', 'on a wake, print every waiting reason and clear the wake file, as yan drain does')
   .option('--sources', 'print the sources this watches, one per line, and exit')
   .action(
     action(
       'wait',
       async (
         id: string | undefined,
-        options: { task?: string; seconds?: string | boolean; interval?: string; sources?: boolean },
+        options: { task?: string; seconds?: string | boolean; interval?: string; sources?: boolean; drain?: boolean },
       ) => {
         if (options.sources === true) {
           for (const source of WAIT_SOURCES) out(source);
@@ -441,7 +463,11 @@ export const command = new Command('wait')
 
         const result = await watch({ task, seconds, intervalSeconds });
 
-        if (result.code === 0 && result.reason !== undefined) out(result.reason);
+        if (result.code === 0 && options.drain === true) {
+          out(drainWake(task) ?? result.reason ?? '');
+        } else if (result.code === 0 && result.reason !== undefined) {
+          out(result.reason);
+        }
         if (result.code === 4 && result.reason !== undefined) {
           process.stderr.write(`wait: ${result.reason} - not starting a second one\n`);
         }

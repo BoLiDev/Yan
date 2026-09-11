@@ -320,7 +320,8 @@ describe('the guard on Codex', () => {
     });
     // Pasteable in an agent's pane, where `yan` is not on PATH and the shell
     // may be PowerShell: an absolute path and a real number.
-    expect(r.stdout).toContain('wait --seconds 180');
+    expect(r.stdout).toContain('wait --seconds 180 --drain');
+    expect(r.stdout, 'a quiet slice needs no separate drain').not.toContain(' drain,');
     expect(r.stdout).toContain(`${home.replace(/\\/g, '/')}/bin/yan`);
     expect(r.stdout).not.toContain('${');
     expect(sup.guardCount()).toBe(1);

@@ -277,10 +277,12 @@ Something has to be watching whenever a shift runs, or one can finish, die or ge
 with nobody noticing. `yan wait` is that watcher, and under Codex the loop is yours: an
 interactive Codex may not fire the SessionStart hook, so assume nothing armed it. Run
 `yan session-start` yourself, then keep taking slices as **foreground** calls of
-`yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180}`. Exit 0 carries a reason: drain,
-handle it, take the next. A quiet timeout means drain anyway and take the next. Never
-background a watcher and never leave `yan wait` unbounded here, because returning
-control is what makes the next wake possible; if the turn-end guard blocks you, another
-slice is the answer.
+`yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180} --drain`. Exit 0 prints every reason
+waiting and clears them in the same call: handle them, then take the next. Exit 124 is
+a quiet slice — nothing happened and there is nothing to drain — so take the next one
+**without a word**: no status line, no summary, nothing for `user` to read until
+something happens. Never background a watcher and never leave `yan wait` unbounded
+here, because returning control is what makes the next wake possible; if the turn-end
+guard blocks you, another slice is the answer.
 
 
