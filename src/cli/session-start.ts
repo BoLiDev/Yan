@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
+import { readScenarios, resolveShift, runsAs } from './shared/config.js';
 import { CommandError } from './shared/errors.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
@@ -414,7 +415,33 @@ function render(picture: Picture, pulled: PullResult, memoryOf?: string): void {
   out('the terminal, the pool and the forge, and it is rebuilt again next time.');
 
   if (memoryOf !== undefined) renderMemory(memoryOf);
+  renderScenarios();
   renderSkills(readSkills());
+}
+
+/**
+ * What a shift can be dispatched as: each scenario, its tiers, and what each
+ * tier really runs. Problems in the configuration are printed rather than
+ * hidden, because a dispatch will refuse over them.
+ */
+function renderScenarios(): void {
+  const { scenarios, problems } = readScenarios();
+  out('');
+  out('── scenarios');
+  out('What a shift can be dispatched as: yan shift new --scenario <s> [--tier <t>].');
+  out("Choose the scenario by the kind of work and the tier by its description; the");
+  out("scenario's default when unsure. Only these exist - there is no other model to ask for.");
+  out('');
+  for (const scenario of scenarios) {
+    out(`  ${scenario.name} — ${scenario.description}`);
+    for (const tier of scenario.tiers) {
+      const spec = resolveShift('session_start', scenario.name, tier.name);
+      const runs = runsAs(spec);
+      const mark = tier.name === scenario.defaultTier ? ' (default)' : '';
+      out(`      ${tier.name}${mark}  ${runs}${tier.description === '' ? '' : ` — ${tier.description}`}`);
+    }
+  }
+  for (const problem of problems) out(`  WARN ${problem}`);
 }
 
 /** Print the skills index: a path, a name and a sentence each. Silent when empty. */

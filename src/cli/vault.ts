@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../util/git.js';
@@ -77,6 +77,8 @@ function layDownSkeleton(dir: string, name: string): void {
   }
   mkdirSync(dir, { recursive: true });
   cpSync(template, dir, { recursive: true });
+  // The template ships as an example; the vault it seeds holds the real one.
+  renameSync(join(dir, 'config.example.json'), join(dir, 'config.json'));
 
   writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: today() });
 

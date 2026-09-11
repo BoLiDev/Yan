@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { LOG_TYPES } from '../../src/records/log/index.js';
 
 /**
- * Every main agent is told how to remember, whichever harness it runs under.
+ * Every main agent is told how to remember and how to dispatch, whichever
+ * harness it runs under.
  * The three instruction files are written separately, so what they must all
  * carry is pinned here rather than trusted to stay in step.
  */
@@ -33,5 +34,11 @@ describe.each(FILES)('%s', (name) => {
   it('keeps task.json in step with what user says', () => {
     for (const flag of ['--branch', '--target', '--mode', '--scope', '--needs']) expect(text, flag).toContain(flag);
     expect(text).toContain('yan unit add');
+  });
+
+  it('names the three scenarios and how a dispatch chooses one', () => {
+    for (const scenario of ['explore', 'coding', 'uix']) expect(text, scenario).toContain(`\`${scenario}\``);
+    expect(text).toContain('--scenario');
+    expect(text).toContain('--tier');
   });
 });

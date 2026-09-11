@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "agents": { "yan": "claude", "shift": "claude" },
-  "remote_git": { "kind": "gitlab", "host": "gitlab.company.internal" }
-}

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { agentFor, configPath } from './shared/config.js';
+import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from './shared/config.js';
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
@@ -115,19 +115,22 @@ function claimSid(task: string, asked: string | undefined): string {
  * and the harness starts with no work order at all.
  */
 function harnessArgv(
-  agent: string,
+  spec: ShiftSpec,
   mode: string,
+  workdir: string,
   addDirs: readonly string[],
   prompt: string,
 ): string[] {
-  const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
+  const kind = cliKind(spec.cli);
   const args: string[] = [];
   if (kind === 'claude') {
+    args.push(...modelFlags(spec.cli, spec));
     for (const d of addDirs) args.push('--add-dir', d);
     args.push('--dangerously-skip-permissions');
     if (mode === 'scout') args.push('--disallowed-tools', 'Bash(git push:*)');
     args.push('--');
   } else if (kind === 'codex') {
+    args.push(...modelFlags(spec.cli, spec));
     if (mode === 'scout') args.push('--sandbox', 'read-only');
     else args.push('--dangerously-bypass-approvals-and-sandbox');
 
@@ -136,6 +139,12 @@ function harnessArgv(
     // met it would park in an unfocused pane and never wake anybody.
     // `user` took this decision knowing what it costs.
     args.push('--dangerously-bypass-hook-trust');
+  } else if (kind === 'agy') {
+    // Agy ignores the directory it starts in: its workspace is what --add-dir
+    // names. A prompt it should act on and then stay open for is -i's.
+    args.push(...modelFlags(spec.cli, spec));
+    for (const d of [workdir, ...addDirs]) args.push('--add-dir', d);
+    args.push('--dangerously-skip-permissions', '-i');
   }
   args.push(prompt);
   return args;
@@ -162,8 +171,9 @@ function briefBody(options: {
   branch: string;
   taskDir: string;
   work: string;
+  skills: readonly string[];
 }): string {
-  const { sid, task, unit, data, tree, clone, branch, taskDir } = options;
+  const { sid, task, unit, data, tree, clone, branch, taskDir, skills } = options;
   const home = yanHome();
   const lines = [
     `# ${sid} ${unit} (task ${task})`,
@@ -178,6 +188,15 @@ function briefBody(options: {
     `| mode | ${data.mode} |`,
     `| scope | ${data.scope.length > 0 ? data.scope.join(' ') : '(the whole repository)'} |`,
     '',
+    ...(skills.length === 0
+      ? []
+      : [
+          '## Skills',
+          '',
+          `Invoke ${skills.map((s) => `/${s}`).join(', ')} before anything else, and work the way ${skills.length === 1 ? 'it says' : 'they say'}.`,
+          'If one is not available, carry on without it and say so in outcome.md.',
+          '',
+        ]),
     '## The work',
     '',
     options.work,
@@ -248,7 +267,8 @@ export interface NewOptions {
   task?: string;
   unit?: string;
   sid?: string;
-  agent?: string;
+  scenario?: string;
+  tier?: string;
   brief?: string;
   briefText?: string;
   note?: string;
@@ -315,11 +335,8 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
   const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
 
-  const agent = options.agent !== undefined && options.agent !== '' ? options.agent : agentFor('shift');
-  if (agent === '') {
-    throw CommandError.usage('shift_new', `no shift agent configured - set agents.shift in ${configPath()}, or pass --agent`,
-    );
-  }
+  const spec = resolveShift('shift_new', options.scenario, options.tier);
+  const agent = spec.cli;
 
   const taskDir = record.dir;
   const terminal = deps.terminal ?? new Terminal();
@@ -388,7 +405,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
     writeFileSync(
       join(shift.dir, 'brief.md'),
-      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work }),
+      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills }),
     );
 
     // --- 3. refuse the main clone -------------------------------------------
@@ -424,6 +441,11 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       lease_id: grant.lease_id,
       mode: data.mode,
       agent,
+      scenario: spec.scenario,
+      skills: [...spec.skills],
+      tier: spec.tier,
+      model: spec.model,
+      effort: spec.effort,
       container,
       pane: '',
       mr: '',
@@ -431,7 +453,10 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     };
     writeJson(metaFile, meta);
 
-    const prompt = `Read ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
+    // The first words the shift sees, so the skills are invoked before the
+    // brief can pull it into the work.
+    const invoke = spec.skills.length === 0 ? '' : `First invoke ${spec.skills.map((s) => `/${s}`).join(', ')}; if one is not available, carry on without it. Then `;
+    const prompt = `${invoke}${invoke === '' ? 'Read' : 'read'} ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
     const startedAgent = terminal.startAgent({
       container,
       name: `${sid}-${unitName}`,
@@ -447,7 +472,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
         YAN_SID: sid,
         YAN_SHIFT_DIR: shift.dir,
       },
-      argv: harnessArgv(agent, data.mode, addDirs, prompt),
+      argv: harnessArgv(spec, data.mode, workdir, addDirs, prompt),
       prompt,
     });
     started = true;
@@ -467,7 +492,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     });
 
     try {
-      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} (${agent} in ${workdir})`, note));
+      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note));
     } catch { /* the shift is running; a missing log line is not worth failing for */ }
 
     return meta;
@@ -499,7 +524,8 @@ const newShift = new Command('new')
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
   .option('--unit <name>', 'which unit of that task this shift works on')
   .option('--sid <sid>', 'the shift id; derived as the next free s<n> when omitted')
-  .option('--agent <cli>', 'override agents.shift for this dispatch')
+  .option('--scenario <name>', 'REQUIRED: explore | coding | uix - the kind of work')
+  .option('--tier <name>', "one of the scenario's tiers in config.json; defaults to its default")
   .option('--brief <file>', 'a file whose contents become the body of the work order')
   .option('--brief-text <text>', 'the work order, inline')
   .option('--note <text>', 'one line for log.md: what this shift is for')
@@ -508,7 +534,7 @@ const newShift = new Command('new')
     'after',
     `
 usage: yan shift new --task <id> --unit <name>
-                     [--sid <sid>] [--agent <cli>]
+                     --scenario <explore|coding|uix> [--tier <name>] [--sid <sid>]
                      [--brief <file> | --brief-text <text>]
                      [--note <text>] [--json]
 
@@ -530,7 +556,7 @@ with its target and a shift has to reconcile it first.`,
       out(`branch   ${String(meta.branch)} (from ${String(meta.base)})`);
       out(`tree     ${String(meta.tree)}`);
       out(`workdir  ${String(meta.workdir)}`);
-      out(`agent    ${String(meta.agent)}  (${String(meta.pane)} in container ${String(meta.container)})`);
+      out(`agent    ${String(meta.scenario)}/${String(meta.tier)}: ${runsAs({ cli: String(meta.agent), model: String(meta.model), effort: String(meta.effort), skills: meta.skills as string[] })}  (${String(meta.pane)} in container ${String(meta.container)})`);
       out(`brief    ${join(new Shift(String(meta.task), String(meta.sid)).dir, 'brief.md')}`);
     }),
   );

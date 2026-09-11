@@ -53,7 +53,7 @@ yan session-start                  rebuild the picture (run at startup)
 yan ls [<id>]                      the queue, or one task in depth
 yan task new --title … --repo …    create a task and enter it
 yan unit add | set                 a unit's branch, target, mode, scope
-yan shift new --task --unit        dispatch a shift
+yan shift new --task --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
 yan send <sid> "<line>"            one short line to a running shift
 yan shift done <sid>               clock a shift out once its MR has merged
@@ -106,10 +106,10 @@ split in the wrong place, and saying so beats widening it again.
 **Writing a brief.** A shift reads it once and then works alone, so write for someone
 competent who has never seen this task: the finished condition rather than an aim, the
 paths that matter and the ones that do not, the research and learnings that apply, what
-the log and earlier `outcome.md` files say was already tried, how to check it, and the deliverable its `mode` implies — `scout`
-reports and never pushes, `branch` leaves a clean local branch, `mr` opens a merge
-request. Leave out how you would have done it, conventions the code shows, and anything
-readable in a minute.
+the log and earlier `outcome.md` files say was already tried, how to check it, and the
+deliverable its `mode` implies — `scout` reports and never pushes, `branch` leaves a
+clean local branch, `mr` opens a merge request. Leave out how you would have done it,
+conventions the code shows, and anything readable in a minute.
 
 **Deciding whether to dispatch.** A shift buys four things: your context stays small,
 and it holds what nothing else is holding; isolation, so an abandoned attempt costs a
@@ -121,6 +121,18 @@ meant — those are yours, and a shift dispatched to find where a function is ca
 answers slowly what you could have answered. A one-line fix goes either way; the
 question is whether the brief costs more than the work. **Say which way you went when
 it is not obvious**, so `user` never has to work out where a change came from.
+
+**Choosing a scenario and a tier.** Every dispatch names a scenario, `--scenario explore |
+coding | uix`, and may name a `--tier`. The scenario is the kind of work: `explore`
+investigates and answers, with no code meant to merge; `coding` produces code meant to
+merge; `uix` designs interfaces and interactions. It is not `mode` — `mode` is what a
+unit delivers, the scenario is what the work takes, so a scout that has to write code to
+prove a point is `coding`. The tier is how demanding the work is, and `user` wrote what
+each one is for; session start lists them with the CLI, model, effort and skills each runs. Take
+the scenario's default unless another tier's description fits better, and say so when you
+pick another, above all a heavier one, because that is where `user`'s money goes. A shift that failed at
+one tier is a reason to go up one, not to the top. Nothing outside these can be asked
+for, on purpose.
 
 **What a skill tells you.** `yan session-start` lists the skills `user` has written for
 this environment. A skill is not what permits you to act — you can already read, grep

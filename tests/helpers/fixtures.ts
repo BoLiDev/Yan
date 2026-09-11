@@ -134,6 +134,11 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
       {
         version: 1,
         agents: { yan: 'claude', shift: 'claude' },
+        scenarios: {
+          explore: { default: 'normal', tiers: { normal: {} } },
+          coding: { default: 'normal', tiers: { normal: {} } },
+          uix: { default: 'normal', tiers: { normal: {} } },
+        },
         remote_git: { kind: 'github' },
       },
       null,

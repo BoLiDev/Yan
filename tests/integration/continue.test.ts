@@ -270,6 +270,25 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     ]);
   });
 
+  it("starts the main agent on agents.yan's model and effort, and only on that CLI's", async () => {
+    const file = join(home, 'config.json');
+    const before = readFileSync(file, 'utf8');
+    writeFileSync(file, JSON.stringify({ version: 1, agents: { yan: { cli: 'claude', model: 'opus', effort: 'max' } }, remote_git: { kind: 'github' } }));
+    try {
+      const configured = await enter('t042', '');
+      configured.session.run?.();
+      expect(configured.started[0]?.cli).toBe('claude');
+      expect(configured.started[0]?.argv.slice(0, 4)).toEqual(['--model', 'opus', '--effort', 'max']);
+
+      // Another CLI for this run does not inherit a model meant for claude.
+      const other = await enter('t042', '', 'codex');
+      other.session.run?.();
+      expect(other.started[0]?.argv).not.toContain('opus');
+    } finally {
+      writeFileSync(file, before);
+    }
+  });
+
   it('starts nothing at all when a live yan already holds the task', async () => {
     liveLock('t042', 'yan t042 pane=w9:p9');
     const { started, calls, session } = await enter('t042', 'w7:p2');
