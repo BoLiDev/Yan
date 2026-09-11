@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { agentFor, configPath } from './shared/config.js';
+import { agentSpecFor, cliKind, configPath, modelFlags, type AgentSpec } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { CommandError } from './shared/errors.js';
@@ -110,9 +110,9 @@ const startMain: StartMain = (cli, argv, options) =>
  * empty one it invents a project under `~/.gemini` and writes there instead —
  * a yan that cannot see its own `dist/` is a yan that cannot run a hook.
  */
-function harnessArgs(agent: string, home: string, addDirs: readonly string[]): string[] {
-  const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
-  const args: string[] = [];
+function harnessArgs(spec: AgentSpec, home: string, addDirs: readonly string[]): string[] {
+  const kind = cliKind(spec.cli);
+  const args: string[] = modelFlags(spec.cli, spec);
   if (kind === 'claude') {
     for (const d of addDirs) args.push('--add-dir', d);
     args.push('--dangerously-skip-permissions');
@@ -121,10 +121,6 @@ function harnessArgs(agent: string, home: string, addDirs: readonly string[]): s
   } else if (kind === 'agy') {
     for (const d of [home, ...addDirs]) args.push('--add-dir', d);
     args.push('--dangerously-skip-permissions');
-    // Which Gemini answers is `user`'s call and changes with the task, so it
-    // is a knob rather than a constant: unset, agy picks its own default.
-    const model = process.env.YAN_AGY_MODEL ?? '';
-    if (model !== '') args.push('--model', model);
   }
   return args;
 }
@@ -169,7 +165,14 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
     );
   }
 
-  const agent = options.agent !== undefined && options.agent !== '' ? options.agent : agentFor('yan');
+  const configured = agentSpecFor('yan');
+  // `--agent` is `user` picking another CLI for this run; the configured model
+  // and effort were meant for the configured one and do not come with it.
+  const spec: AgentSpec =
+    options.agent !== undefined && options.agent !== '' && options.agent !== configured.cli
+      ? { cli: options.agent, model: '', effort: '' }
+      : configured;
+  const agent = spec.cli;
   if (agent === '') {
     throw CommandError.usage('continue', `no main agent configured - set agents.yan in ${configPath()}, or pass --agent`,
     );
@@ -234,7 +237,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
     });
   }
 
-  const argv = harnessArgs(agent, cwd, addDirsFor(record));
+  const argv = harnessArgs(spec, cwd, addDirsFor(record));
   const start = deps.start ?? startMain;
 
   return {

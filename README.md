@@ -51,6 +51,15 @@ only the global config), the one remote-host CLI `remote_git.kind` selects, and 
 its version against the generated types, and the integration for each agent kind you have
 configured.
 
+Which models run is the vault's `config.json`, starting from
+[`templates/vault/config.example.json`](templates/vault/config.example.json). `agents.yan`
+and `agents.shift` are the defaults — a CLI, and optionally a `model` and `effort`. Every
+shift is dispatched as one of three fixed scenarios, `explore`, `coding` and `uix`, and
+each needs at least one tier you define: a description the main agent chooses by, and
+the CLI, model or effort that tier overrides. The main agent can pick a tier; it cannot
+name a model, so nothing runs that you did not configure. `yan doctor` lists every tier
+with what it really runs.
+
 Then: `yan repo add` in the directory holding your clones (or `yan repo add <url>` to
 clone one) → type `yan` → you are inside the task.
 
@@ -67,8 +76,8 @@ the measurements are in [docs/v2/td/evidence.md §13](docs/v2/td/evidence.md).
 Agy — the Antigravity CLI — works as the main agent, with Claude's supervision rather than
 Codex's: its `Stop` hook blocks the agent loop synchronously for as long as its `timeout`
 allows, so the real autoarm runs on it and `yan wait` holds the turn open the way it does
-on Claude. Set `agents.yan` to `agy`, and `$YAN_AGY_MODEL` to pick the model (`agy models`
-lists the ids; unset, agy chooses its own). Two things differ from the other two:
+on Claude. Set `agents.yan` to `{ "cli": "agy", "model": … }` (`agy models` lists the ids; with no
+model, agy chooses its own). Two things differ from the other two:
 
 - It has no notion of the directory it was started in. Its working set is the workspace
   named by `--add-dir`, and with an empty one it invents a project under `~/.gemini` and

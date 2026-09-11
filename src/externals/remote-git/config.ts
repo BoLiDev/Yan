@@ -35,7 +35,7 @@ function section(parsed: unknown): Record<string, unknown> | 'legacy' | undefine
 export function readConfig(): RemoteGitConfig {
   const path = configPath();
   if (!existsSync(path)) {
-    throw RemoteGitError.config(`no configuration at ${path} - copy templates/vault/config.json there and set remote_git.kind`,
+    throw RemoteGitError.config(`no configuration at ${path} - copy templates/vault/config.example.json there and set remote_git.kind`,
     );
   }
   let parsed: unknown;

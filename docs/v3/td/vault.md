@@ -56,6 +56,23 @@ Identity versus choices. `vault.json` is written once by `yan vault init` and ne
   "remote_git": { "kind": "github", "host": "github.com" } }
 ```
 
+It has since grown two things. `agents.<role>` may be an object, `{ "cli", "model", "effort" }`, the default a role runs; a bare string is still the CLI alone. And `scenarios` is what a shift may be dispatched as:
+
+```jsonc
+"scenarios": {
+  "explore": { "default": "normal", "tiers": {
+    "light":  { "description": "the answer is in one or two places", "model": "sonnet", "effort": "medium" },
+    "normal": { "description": "it crosses modules" } } },
+  "coding":  { "default": "normal", "tiers": { "normal": {}, "heavy": { "effort": "max" } } },
+  "uix":     { "tiers": { "normal": { "cli": "agy", "model": "gemini-3.1-pro-high" } } } }
+```
+
+THE SCENARIOS ARE FIXED AND THE TIERS ARE NOT. The three scenarios are kinds of work, and what each covers is written into the instructions, where the main agent chooses by it; a scenario invented in a config file would have no such sentence behind it. The tiers are `user`'s: how many, what they are called, what each is for, and what it runs. Each scenario needs at least one, and `yan shift new` requires `--scenario`, so every dispatch is a stated judgement about the work. A tier overrides `agents.shift` field by field; one that switches CLI does not inherit a model meant for another.
+
+The main agent chooses a tier and never names a model. That is the cost control: whatever it decides, it runs something `user` configured. The main agent's own model is `agents.yan` alone, fixed for the session, because it cannot restart itself. The flags are spelled per CLI — `--model`/`--effort` for claude and agy, `-m` and `-c model_reasoning_effort=` for codex — by one function, for shifts and the main agent alike.
+
+The template ships as `templates/vault/config.example.json`, and `yan vault init` writes it into the new vault as `config.json`, which stays tracked: tiers are a preference of the context and should follow it between machines.
+
 Keeping them separate means `yan vault init` can write a marker that a hand-edit cannot accidentally invalidate, and a broken `config.json` still leaves the vault identifiable enough to say *which* vault is broken.
 
 ### What is tracked and what is not

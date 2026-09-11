@@ -89,7 +89,7 @@ describe('a missing configuration is reported, not a crash', () => {
     rmSync(join(home, 'config.json'));
     const r = await doctor();
     expect(r.code).toBe(1);
-    expect(r.out).toContain('templates/vault/config.json');
+    expect(r.out).toContain('templates/vault/config.example.json');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 });
@@ -140,11 +140,44 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
 describe('the shipped template config', () => {
   it('is valid and carries what doctor asks for', () => {
     const sample = JSON.parse(
-      readFileSync(join(repoRoot, 'templates', 'vault', 'config.json'), 'utf8'),
+      readFileSync(join(repoRoot, 'templates', 'vault', 'config.example.json'), 'utf8'),
     ) as { version: number; agents?: Record<string, string>; forge?: { kind?: string }; remote_git?: { kind?: string } };
     expect(sample.version).toBe(1);
     expect(sample.agents?.yan).toBeTruthy();
     expect(sample.agents?.shift).toBeTruthy();
     expect(sample.remote_git?.kind ?? sample.forge?.kind).toBeTruthy();
+  });
+});
+
+describe('scenarios', () => {
+  const tiers = { normal: {} };
+
+  it('lists every tier with what it really runs, and marks the default', async () => {
+    config({
+      version: 1,
+      agents: { yan: 'claude', shift: { cli: 'claude', model: 'opus', effort: 'high' } },
+      scenarios: { explore: { tiers: { light: { model: 'sonnet' } } }, coding: { default: 'normal', tiers: { normal: {}, heavy: { effort: 'max' } } }, uix: { tiers } },
+      remote_git: { kind: 'github' },
+    });
+    const r = await doctor();
+    expect(r.out).toContain('explore/light');
+    expect(r.out).toContain('claude sonnet high, default');
+    expect(r.out).toContain('coding/heavy');
+    expect(r.out).toContain('claude opus max');
+  });
+
+  it('fails a configuration a dispatch would refuse', async () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, scenarios: { explore: { tiers: {} }, coding: { tiers }, design: { tiers } }, remote_git: { kind: 'github' } });
+    const r = await doctor();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('scenarios.explore has no tiers');
+    expect(r.out).toContain('scenarios.uix is missing');
+    expect(r.out).toContain('scenarios.design is not a scenario');
+  });
+
+  it('reports the codex gates for a tier that runs codex, even when agents.shift does not', async () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, scenarios: { explore: { tiers }, coding: { tiers: { normal: { cli: 'codex' } } }, uix: { tiers } }, remote_git: { kind: 'github' } });
+    expect((await doctor()).out).toContain('directory trust');
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 });

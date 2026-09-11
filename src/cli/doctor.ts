@@ -12,7 +12,7 @@ import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/
 import { configuredCli } from '../externals/remote-git/index.js';
 import { isYanError } from '../util/error.js';
 import { action, out } from './shared/action.js';
-import { configPath } from './shared/config.js';
+import { agentSpecFor, cliKind, configPath, readScenarios, resolveShift, type AgentSpec } from './shared/config.js';
 import { registry } from './shared/repo.js';
 
 /**
@@ -165,28 +165,56 @@ function checkYanOnPath(report: Report): void {
   line(report, 'ok', 'yan on PATH', found);
 }
 
-function checkConfig(report: Report): { agents: Record<string, unknown> } {
+/** How a CLI runs, in one phrase: `claude opus high`. */
+function describeSpec(spec: AgentSpec): string {
+  return [spec.cli, spec.model, spec.effort].filter((x) => x !== '').join(' ');
+}
+
+/** One configured CLI: on PATH, and able to take the model and effort it was given. */
+function checkCli(report: Report, label: string, spec: AgentSpec, suffix = ''): void {
+  const found = which(cliKind(spec.cli));
+  const known = ['claude', 'codex', 'agy'].includes(cliKind(spec.cli));
+  if (!known && (spec.model !== '' || spec.effort !== '')) {
+    line(report, 'warn', label, `${describeSpec(spec)} - yan does not know how to pass a model or effort to '${cliKind(spec.cli)}', so both are ignored`);
+  } else if (found === undefined) {
+    line(report, 'warn', label, `${describeSpec(spec)}${suffix} - '${cliKind(spec.cli)}' is not on PATH yet`);
+  } else {
+    line(report, 'ok', label, `${describeSpec(spec)}${suffix} (${found})`);
+  }
+}
+
+/**
+ * `agents.*` and `scenarios`. Returns every CLI a role can run, keyed by role:
+ * `yan`, `shift`, and `shift:<scenario>/<tier>` for each tier.
+ */
+function checkConfig(report: Report): { agents: Record<string, string> } {
   const path = configPath();
   const parsed = readJsonIfPresent(path);
   if (parsed === undefined) {
-    line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.* and remote_git.* live; copy templates/vault/config.json to ${path}`);
+    line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.*, scenarios and remote_git.* live; copy templates/vault/config.example.json to ${path}`);
     return { agents: {} };
   }
   line(report, 'ok', 'config.json', path);
 
-  const root = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
-  const agents = (typeof root.agents === 'object' && root.agents !== null ? root.agents : {}) as Record<string, unknown>;
+  const agents: Record<string, string> = {};
   for (const role of ['yan', 'shift']) {
-    const value = agents[role];
-    if (typeof value !== 'string' || value === '') {
+    const spec = agentSpecFor(role);
+    if (spec.cli === '') {
       line(report, 'fail', `agents.${role}`, `not set in ${path}`);
       continue;
     }
-    // The value may carry trailing argv; the executable is the first word.
-    const cli = value.trim().split(/\s+/)[0] as string;
-    const found = which(cli);
-    if (found === undefined) line(report, 'warn', `agents.${role}`, `'${value}' is not on PATH yet`);
-    else line(report, 'ok', `agents.${role}`, `${value} (${found})`);
+    agents[role] = spec.cli;
+    checkCli(report, `agents.${role}`, spec);
+  }
+
+  const { scenarios, problems } = readScenarios();
+  for (const problem of problems) line(report, 'fail', 'scenarios', `${problem} - shift new refuses what it cannot resolve`);
+  for (const scenario of scenarios) {
+    for (const tier of scenario.tiers) {
+      const spec = resolveShift('doctor', scenario.name, tier.name);
+      agents[`shift:${scenario.name}/${tier.name}`] = spec.cli;
+      checkCli(report, `${scenario.name}/${tier.name}`, spec, tier.name === scenario.defaultTier ? ', default' : '');
+    }
   }
   return { agents };
 }
@@ -213,7 +241,7 @@ function checkRemoteHost(report: Report): void {
   line(report, 'ok', `remote host (${cli})`, found);
 }
 
-function checkHerdr(report: Report, agents: Record<string, unknown>): void {
+function checkHerdr(report: Report, agents: Record<string, string>): void {
   const version = herdrHealth();
   if (version === undefined) {
     line(report, 'fail', 'herdr', "not answering - install it, or start it, then run 'yan doctor'");
@@ -239,8 +267,8 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
   const kinds = [
     ...new Set(
       Object.values(agents)
-        .filter((v): v is string => typeof v === 'string' && v !== '')
-        .map((v) => v.trim().split(/\s+/)[0] as string),
+        .filter((v) => v !== '')
+        .map((v) => cliKind(v)),
     ),
   ].sort();
   if (kinds.length === 0) {
@@ -263,10 +291,8 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
  * Codex's first-run gates, read out of `$CODEX_HOME/config.toml`. Silent when
  * no configured agent is codex.
  */
-function checkCodex(report: Report, agents: Record<string, unknown>): void {
-  const roles = Object.entries(agents).filter(
-    ([, v]) => typeof v === 'string' && (v.trim().split(/\s+/)[0] ?? '') === 'codex',
-  );
+function checkCodex(report: Report, agents: Record<string, string>): void {
+  const roles = Object.entries(agents).filter(([, v]) => cliKind(v) === 'codex');
   if (roles.length === 0) return;
 
   out('');
@@ -286,8 +312,8 @@ function checkCodex(report: Report, agents: Record<string, unknown>): void {
   // codex's, so the test is on the file, not on an exact key.
   const ours = join(yanHome(), '.codex', 'hooks.json');
   const trusted = config.toLowerCase().includes(`${ours.toLowerCase().replace(/\//g, '\\')}:`);
-  const shift = roles.some(([role]) => role === 'shift');
-  const main = roles.some(([role]) => role !== 'shift');
+  const shift = roles.some(([role]) => role.startsWith('shift'));
+  const main = roles.some(([role]) => role === 'yan');
 
   // Only the main agent meets this gate: a shift is dispatched past it.
   line(report, trusted || !main ? 'ok' : 'warn', 'hook review',
@@ -324,34 +350,28 @@ function checkCodex(report: Report, agents: Record<string, unknown>): void {
  * both at once; what is checked here is that the file it goes looking for is
  * actually there.
  */
-function checkAgy(report: Report, agents: Record<string, unknown>): void {
-  const roles = Object.entries(agents).filter(
-    ([, v]) => typeof v === 'string' && (v.trim().split(/\s+/)[0] ?? '') === 'agy',
-  );
+function checkAgy(report: Report, agents: Record<string, string>): void {
+  const roles = Object.entries(agents).filter(([, v]) => cliKind(v) === 'agy');
   if (roles.length === 0) return;
 
   out('');
   out('agy');
 
-  const ours = join(yanHome(), '.agents', 'hooks.json');
-  const registered = existsSync(ours);
-  line(report, registered ? 'ok' : 'fail', 'hooks.json',
-    registered
-      ? `${ours} - the autoarm, the guard, and the session-start stand-in`
-      : `${ours} is missing, so nothing supervises a turn: no autoarm, no turn-end guard, and no rebuilt picture at startup`,
-  );
-
-  const model = process.env.YAN_AGY_MODEL ?? '';
-  line(report, 'ok', 'model',
-    model === ''
-      ? "YAN_AGY_MODEL is unset, so agy picks its own default - 'agy models' lists the ids"
-      : `${model} (from YAN_AGY_MODEL)`,
-  );
+  // The hooks supervise the main agent; a shift on agy needs none of them.
+  const main = roles.some(([role]) => role === 'yan');
+  if (main) {
+    const ours = join(yanHome(), '.agents', 'hooks.json');
+    const registered = existsSync(ours);
+    line(report, registered ? 'ok' : 'fail', 'hooks.json',
+      registered
+        ? `${ours} - the autoarm, the guard, and the session-start stand-in`
+        : `${ours} is missing, so nothing supervises a turn: no autoarm, no turn-end guard, and no rebuilt picture at startup`,
+    );
+  }
 
   // The one screen where agy stops and Herdr does not notice. The main agent
   // meets it in `user`'s own pane, which is why this is a note rather than a
   // warning; a shift meets it unattended, and `Terminal.settle` answers it.
-  const main = roles.some(([role]) => role !== 'shift');
   if (main) {
     line(report, 'ok', 'project trust',
       'the first `yan continue` in a new workspace stops on "Do you trust the contents of this project?". Herdr reads that screen as \'idle\', not \'blocked\', and --dangerously-skip-permissions does NOT cover it - answer it once in your own pane',

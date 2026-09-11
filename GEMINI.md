@@ -56,8 +56,14 @@ Your superpower is **deep intent understanding, architectural context synthesis,
   - **Constraints**：现有的编码规范、组件复用要求。
 - 派发 Shift：
   ```bash
-  yan shift new --task $YAN_TASK --unit <unit> --agent claude --brief-text "<brief 内容>" --note "<这个 shift 要做什么，一句话>"
+  yan shift new --task $YAN_TASK --unit <unit> --scenario <explore|coding|uix> [--tier <档位>] --brief-text "<brief 内容>" --note "<这个 shift 要做什么，一句话>"
   ```
+- **选场景和档位**（每次派发必填场景）：
+  - 场景看工作类型：`explore` 调研、读代码、回答问题，不产出要合入的代码；`coding` 产出要合入的代码；`uix` 界面与交互设计。
+  - 场景不是 `mode`：`mode` 决定 unit 交付什么，场景决定这份活需要什么。需要写代码来验证思路的 scout，场景是 `coding`。
+  - 档位看工作难度：session start 列出了每个场景的档位、`user` 写的说明，以及实际用的 CLI、模型和 effort。默认用场景的 default 档；另一个档位的说明更贴切时才换。**不用默认档位时向 `user` 说明理由，尤其是更重的档位**——那是 `user` 花钱的地方。
+  - shift 在某一档失败了，是往上升一档的理由，不是直接升到最高档的理由。
+  - 这些之外的模型没有办法指定，这是有意为之。
 
 ### 第三步：监护与审查合并 (Supervise & Integrate)
 - 启动监护循环：执行 `yan wait` 监听 Shift 状态变化。
@@ -152,7 +158,7 @@ description: Claude parks on the trust dialog in a new repo's worktrees
 yan session-start                  # 恢复上下文（启动必跑）
 yan ls                             # 查看当前任务与状态
 yan tree get                       # 租借 standing worktree
-yan shift new --task --unit        # 派发 Claude shift
+yan shift new --task --unit --scenario [--tier]   # 派发 shift
 yan wait [--seconds N]             # 监护 shift 运行
 yan state <sid>                    # 查看 shift 运行状态
 yan shift done <sid>               # shift 完成合并后时钟打卡

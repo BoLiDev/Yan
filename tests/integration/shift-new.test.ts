@@ -118,11 +118,29 @@ function enterLock(task: string, pane: string): void {
 
 function run(options: NewOptions): { code: number; message: string; meta: Record<string, unknown> } {
   try {
-    return { code: 0, message: '', meta: dispatch(options, deps()) };
+    return { code: 0, message: '', meta: dispatch({ scenario: 'coding', ...options }, deps()) };
   } catch (err) {
     const e = err as { exitCode?: number; message?: string };
     return { code: e.exitCode ?? 1, message: e.message ?? '', meta: {} };
   }
+}
+
+/** Configure the coding scenario's one tier, and agents.shift beside it. */
+function scenarios(shift: unknown, coding: Record<string, unknown>): void {
+  const tiers = { normal: {} };
+  writeFileSync(
+    join(home, 'config.json'),
+    `${JSON.stringify({
+      version: 1,
+      agents: { yan: 'claude', shift },
+      scenarios: { explore: { tiers }, coding: { default: 'normal', tiers: coding }, uix: { tiers } },
+      remote_git: { kind: 'github' },
+    })}\n`,
+  );
+}
+
+function useCli(cli: string): void {
+  scenarios('claude', { normal: { cli } });
 }
 
 beforeEach(() => {
@@ -295,7 +313,8 @@ describe('codex, and the gate yan cannot survive', () => {
       mode: 'mr',
       scope: ['apps/auth'],
     });
-    run({ task: 't042', unit: 'api', sid: 's80', briefText: 'go', agent: 'codex' });
+    useCli('codex');
+    run({ task: 't042', unit: 'api', sid: 's80', briefText: 'go' });
     expect(terminal.startArgs).toContain('--dangerously-bypass-hook-trust');
     expect(terminal.startArgs).toContain('--dangerously-bypass-approvals-and-sandbox');
   });
@@ -306,7 +325,8 @@ describe('codex, and the gate yan cannot survive', () => {
       mode: 'scout',
       scope: ['apps/auth'],
     });
-    run({ task: 't042', unit: 'look', sid: 's81', briefText: 'just look', agent: 'codex' });
+    useCli('codex');
+    run({ task: 't042', unit: 'look', sid: 's81', briefText: 'just look' });
     expect(terminal.startArgs).toContain('--dangerously-bypass-hook-trust');
     // What keeps a scout honest is containment, not a prompt.
     expect(terminal.startArgs).toContain('--sandbox');
@@ -565,5 +585,53 @@ describe('usage', () => {
     writeFileSync(join(home, 'config.json'), readFileSync(join(home, 'config.json'), 'utf8'));
     const r = await runYan(home, ['shift', 'new', '--task', 't042']);
     expect(r.out).toContain('--unit is required');
+  });
+});
+
+describe('scenario and tier', () => {
+  it('refuses a dispatch that names no scenario, before leasing anything', () => {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', scenario: '' });
+    expect(r.code).toBe(2);
+    expect(r.message).toContain('--scenario is required');
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses a tier the configuration does not have, before leasing anything', () => {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', tier: 'max' });
+    expect(r.code).toBe(2);
+    expect(r.message).toContain("'max' is not a tier of coding");
+    expect(calls).toEqual([]);
+  });
+
+  it('puts the model and effort before the prompt fence for claude', () => {
+    scenarios({ cli: 'claude', model: 'opus', effort: 'high' }, { normal: {}, heavy: { effort: 'max' } });
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', tier: 'heavy' });
+    const args = terminal.startArgs;
+    expect(args.slice(0, 4)).toEqual(['--model', 'opus', '--effort', 'max']);
+    expect(args.indexOf('--effort')).toBeLessThan(args.indexOf('--'));
+  });
+
+  it('spells them for codex', () => {
+    scenarios('claude', { normal: { cli: 'codex', model: 'gpt-5', effort: 'high' } });
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(terminal.startArgs.slice(0, 4)).toEqual(['-m', 'gpt-5', '-c', 'model_reasoning_effort=high']);
+  });
+
+  it('gives agy its workspace through --add-dir, since it ignores where it starts', () => {
+    scenarios('claude', { normal: { cli: 'agy', model: 'gemini-3.1-pro-high' } });
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    const args = terminal.startArgs;
+    expect(args.slice(0, 2)).toEqual(['--model', 'gemini-3.1-pro-high']);
+    expect(args[args.indexOf('--add-dir') + 1]).toBe(terminal.cwd);
+    expect(args[args.length - 2]).toBe('-i');
+  });
+
+  it('records what the shift runs, in meta.json and on its log line', () => {
+    scenarios({ cli: 'claude', model: 'opus', effort: 'high' }, { normal: {}, light: { model: 'sonnet' } });
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', tier: 'light' });
+    expect(r.code, r.message).toBe(0);
+    expect(r.meta).toMatchObject({ scenario: 'coding', tier: 'light', agent: 'claude', model: 'sonnet', effort: 'high' });
+    const log = readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8');
+    expect(log).toContain('as coding/light (claude sonnet high in');
   });
 });

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "agents": {
+    "yan": { "cli": "claude", "model": "opus", "effort": "high" },
+    "shift": { "cli": "claude", "model": "opus", "effort": "high" }
+  },
+  "scenarios": {
+    "explore": {
+      "default": "normal",
+      "tiers": {
+        "light": {
+          "description": "the answer is likely in one or two places; find it and report",
+          "model": "sonnet",
+          "effort": "medium"
+        },
+        "normal": {
+          "description": "the question crosses modules, or several approaches have to be compared"
+        }
+      }
+    },
+    "coding": {
+      "default": "normal",
+      "tiers": {
+        "light": {
+          "description": "a local change whose approach is already clear",
+          "model": "sonnet",
+          "effort": "high"
+        },
+        "normal": {
+          "description": "an ordinary feature or fix"
+        },
+        "heavy": {
+          "description": "crosses modules, touches concurrency or data migration, or an earlier shift already failed at it",
+          "effort": "max"
+        }
+      }
+    },
+    "uix": {
+      "default": "normal",
+      "tiers": {
+        "normal": {
+          "description": "prototypes and visual proposals"
+        }
+      }
+    }
+  },
+  "remote_git": { "kind": "gitlab", "host": "gitlab.company.internal" }
+}

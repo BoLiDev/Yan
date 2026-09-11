@@ -399,3 +399,28 @@ describe('the task memory reaches the session', () => {
     expect(snapshot()).toBe(before);
   });
 });
+
+describe('the scenarios reach the session', () => {
+  it('lists each scenario, its tiers and what each runs', async () => {
+    writeFileSync(
+      join(home, 'config.json'),
+      JSON.stringify({
+        version: 1,
+        agents: { yan: 'claude', shift: { cli: 'claude', model: 'opus', effort: 'high' } },
+        scenarios: {
+          explore: { default: 'normal', tiers: { light: { description: 'find it', model: 'sonnet' }, normal: {} } },
+          coding: { tiers: { normal: { description: 'an ordinary change' } } },
+          uix: { tiers: { normal: { cli: 'agy', model: 'gemini-3.1-pro-high' } } },
+        },
+        remote_git: { kind: 'github' },
+      }),
+    );
+    const r = await runYan(home, ['session-start', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('── scenarios');
+    expect(r.stdout).toContain('explore — investigating');
+    expect(r.stdout).toContain('light  claude sonnet high — find it');
+    expect(r.stdout).toContain('normal (default)  claude opus high');
+    expect(r.stdout).toContain('normal (default)  agy gemini-3.1-pro-high');
+  });
+});
