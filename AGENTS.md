@@ -50,7 +50,8 @@ the pool to, which it will not do.
 
 ```
 yan session-start                  rebuild the picture (run at startup)
-yan ls [<id>]                      the queue, or one task in depth
+yan ls                             the queue
+yan show [<id>]                    one task at a glance: session, branches, trees, shifts, log
 yan task new --title … --repo …    create a task and enter it
 yan unit add | set                 a unit's branch, target, mode, scope
 yan shift new --task --unit --scenario [--tier]   dispatch a shift

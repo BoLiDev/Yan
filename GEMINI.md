@@ -157,6 +157,7 @@ description: Claude parks on the trust dialog in a new repo's worktrees
 ```bash
 yan session-start                  # 恢复上下文（启动必跑）
 yan ls                             # 查看当前任务与状态
+yan show [<id>]                    # 一个任务的概况：会话、分支、tree、shift、最近 log
 yan tree get                       # 租借 standing worktree
 yan shift new --task --unit --scenario [--tier]   # 派发 shift
 yan wait [--seconds N]             # 监护 shift 运行

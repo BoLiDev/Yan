@@ -6,11 +6,13 @@ import { tasksDir } from '../util/vault.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
+import { printTask } from './show.js';
 import { dash, renderTable } from './shared/table.js';
 
 /**
- * `yan ls [<id>] [--json]` — the queue, and the deeper view of one task,
- * produced by scanning `tasks/*​/task.json` on every call. Stores nothing.
+ * `yan ls [<id>] [--json]` — the queue, produced by scanning
+ * `tasks/*​/task.json` on every call, or one task through `yan show`. Stores
+ * nothing.
  */
 
 /** A string field: null, absent and false all become the empty string. */
@@ -100,18 +102,6 @@ export function queueJson(): unknown {
   return { version: 1, tasks };
 }
 
-export function taskDetailJson(id: string): unknown {
-  const task = rawTask(id);
-  return {
-    version: 1,
-    id: orEmpty(task.id),
-    title: orEmpty(task.title),
-    complete: task.complete === true,
-    units: Array.isArray(task.units) ? task.units : [],
-    shifts: shiftRows(id),
-  };
-}
-
 function renderQueue(json: ReturnType<typeof queueJson>): void {
   const data = json as { tasks: Array<Record<string, unknown>> };
   if (data.tasks.length === 0) {
@@ -132,60 +122,9 @@ function renderQueue(json: ReturnType<typeof queueJson>): void {
   for (const line of renderTable(rows)) out(line);
 }
 
-function renderTask(id: string, json: ReturnType<typeof taskDetailJson>): void {
-  const data = json as {
-    id: unknown;
-    title: unknown;
-    complete: boolean;
-    units: unknown[];
-    shifts: ShiftRow[];
-  };
-  out(`${String(data.id)}  ${String(data.title)}`);
-  out(`state    ${data.complete ? 'done' : 'open'}`);
-  out(`dir      ${new Task(id).dir}`);
-
-  out('');
-  out('units');
-  if (data.units.length === 0) {
-    out('  (none)');
-  } else {
-    const rows: string[][] = [
-      ['NAME', 'REPO', 'BRANCH', 'TARGET', 'MODE', 'MR', 'SCOPE', 'NEEDS'],
-    ];
-    for (const raw of data.units) {
-      const u = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-      const list = (v: unknown): string =>
-        Array.isArray(v) ? v.map((x) => String(x)).join(' ') : '';
-      rows.push([
-        dash(u.name === undefined || u.name === null ? '' : String(u.name)),
-        dash(u.repo === undefined || u.repo === null ? '' : String(u.repo)),
-        dash(u.branch === undefined || u.branch === null ? '' : String(u.branch)),
-        dash(u.target === undefined || u.target === null ? '' : String(u.target)),
-        dash(u.mode === undefined || u.mode === null ? '' : String(u.mode)),
-        dash(u.mr === undefined || u.mr === null ? '' : String(u.mr)),
-        dash(list(u.scope)),
-        dash(list(u.needs)),
-      ]);
-    }
-    for (const line of renderTable(rows, '  ')) out(line);
-  }
-
-  out('');
-  out('shifts (live)');
-  if (data.shifts.length === 0) {
-    out('  (none)');
-  } else {
-    const rows: string[][] = [['SID', 'UNIT', 'BRANCH', 'TREE']];
-    for (const s of data.shifts) {
-      rows.push([dash(s.sid), dash(String(s.unit)), dash(String(s.branch)), dash(String(s.tree))]);
-    }
-    for (const line of renderTable(rows, '  ')) out(line);
-  }
-}
-
 export const command = new Command('ls')
-  .description('the queue, or one task in depth')
-  .argument('[task-id]', 'one task: its units, and every live shift')
+  .description('the queue, or one task in depth (the same as yan show <id>)')
+  .argument('[task-id]', 'one task, exactly as yan show prints it')
   .option('--json', 'machine readable output for either form')
   .action(
     action('ls', (id: string | undefined, options: { json?: boolean }) => {
@@ -196,13 +135,6 @@ export const command = new Command('ls')
         return;
       }
 
-      if (!Task.exists(id)) {
-        const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
-        throw new CommandError('task', 'missing', `no such task: ${id} - ${where} does not exist`);
-      }
-
-      const json = taskDetailJson(id);
-      if (options.json === true) out(JSON.stringify(json));
-      else renderTask(id, json);
+      printTask(id, options.json === true);
     }),
   );
