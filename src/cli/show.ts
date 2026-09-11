@@ -6,7 +6,7 @@ import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
-import { blue, bold, cyan, dim, gray, green, magenta, red, tildePath, yellow } from './shared/style.js';
+import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { queueJson } from './ls.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
@@ -60,6 +60,8 @@ export interface ShowJson {
     readonly pane: string;
     /** The newest line of run/status: an event, not the shift's state. */
     readonly last_event: { readonly state: string; readonly at: string; readonly note: string } | null;
+    /** The task is done and this shift never clocked out: its run/ is left over, not running. */
+    readonly leftover: boolean;
   }[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
@@ -158,6 +160,7 @@ export function showJson(id: string): ShowJson {
       tier: text(extra.tier),
       pane: meta.agentId ?? '',
       last_event: lastEvent(shift),
+      leftover: data.complete,
     };
   });
 
@@ -200,18 +203,19 @@ const LOG_COLOURS: Record<string, (s: string) => string> = {
 };
 
 /** One log.md entry as a row: the date dim, the type in its colour. */
-function logRow(line: string): string {
+function logRow(line: string, width?: number): string {
+  const text = (s: string): string => (width === undefined ? s : fit(s, width));
   const typed = /^- (\d{2}-\d{2}) {2}(\S+)\s+(.*)$/.exec(line);
   if (typed !== null && LOG_COLOURS[typed[2] as string] !== undefined) {
-    const [, date, type, text] = typed as unknown as [string, string, string, string];
-    return `${dim(date)}  ${(LOG_COLOURS[type] as (s: string) => string)(type.padEnd(9))}  ${text}`;
+    const [, date, type, body] = typed as unknown as [string, string, string, string];
+    return `${dim(date)}  ${(LOG_COLOURS[type] as (s: string) => string)(type.padEnd(9))}  ${text(body)}`;
   }
   // Written before entries carried a type, and by hand before they carried a
   // date: named `legacy` rather than left blank, and a missing date is `--`.
   const legacy = gray('legacy'.padEnd(9));
   const untyped = /^- (\d{2}-\d{2}) {2}(.*)$/.exec(line);
-  if (untyped !== null) return `${dim(untyped[1] as string)}  ${legacy}  ${untyped[2] as string}`;
-  return `${dim('--'.padEnd(5))}  ${legacy}  ${line.replace(/^- /, '')}`;
+  if (untyped !== null) return `${dim(untyped[1] as string)}  ${legacy}  ${text(untyped[2] as string)}`;
+  return `${dim('--'.padEnd(5))}  ${legacy}  ${text(line.replace(/^- /, ''))}`;
 }
 
 function section(label: string, aside = ''): void {
@@ -254,7 +258,16 @@ export function renderShow(show: ShowJson): void {
     }
   }
 
-  section('Shifts', show.shifts.length === 0 ? '' : `${show.shifts.length} running · last reported events`);
+  const leftovers = show.shifts.filter((s) => s.leftover).length;
+  const running = show.shifts.length - leftovers;
+  section(
+    'Shifts',
+    show.shifts.length === 0
+      ? ''
+      : [running > 0 ? `${running} running` : '', leftovers > 0 ? `${leftovers} not clocked out` : '', 'last reported events']
+          .filter((x) => x !== '')
+          .join(' · '),
+  );
   if (show.shifts.length === 0) out(`   ${dim('none running')}`);
   const sidWidth = Math.max(0, ...show.shifts.map((s) => s.sid.length));
   const asWidth = Math.max(0, ...show.shifts.map((s) => `${s.scenario}/${s.tier}`.length));
@@ -265,17 +278,25 @@ export function renderShow(show: ShowJson): void {
     const when = s.last_event === null ? '' : ago(s.last_event.at);
     // The note is left to --json and `yan state`: a shift's report can run
     // to a paragraph, and this is one row per shift.
-    const where = [s.pane, s.branch].filter((x) => x !== '').join(' · ');
+    // A done task's shift with run/ still there is debris to clean up, and
+    // saying where it ran would read as if it still were.
+    const where = s.leftover
+      ? yellow('not clocked out')
+      : dim([s.pane, s.branch].filter((x) => x !== '').join(' · '));
     out(
       `   ${bold(s.sid.padEnd(sidWidth))}  ${magenta(as.padEnd(asWidth))}  ` +
         `${s.last_event === null ? dim(event.padEnd(eventWidth)) : paintEvent(event) + ' '.repeat(eventWidth - event.length)}  ` +
-        `${dim(when.padStart(7))}${where === '' ? '' : `   ${dim(where)}`}`,
+        `${dim(when.padStart(7))}${where === '' ? '' : `   ${where}`}`,
     );
   }
 
   section('Log', show.log.total === 0 ? '' : `last ${show.log.lines.length} of ${show.log.total}`);
   if (show.log.lines.length === 0) out(`   ${dim('nothing logged yet')}`);
-  for (const line of show.log.lines) out(`   ${logRow(line)}`);
+  // Indent, date, type and their gaps come to 21 columns before the text.
+  const textWidth = terminalWidth();
+  for (const line of show.log.lines) {
+    out(`   ${logRow(line, textWidth === undefined ? undefined : Math.max(20, textWidth - 21 - 1))}`);
+  }
   out('');
 }
 

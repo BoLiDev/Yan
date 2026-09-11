@@ -31,6 +31,48 @@ export const magenta = sgr('35', '39');
 export const cyan = sgr('36', '39');
 export const gray = sgr('90', '39');
 
+/**
+ * How many columns a line may take: the terminal's width when stdout is one,
+ * `$COLUMNS` when it is set, and `undefined` otherwise — a pipe gets every
+ * line whole.
+ */
+export function terminalWidth(): number | undefined {
+  if (process.stdout.isTTY === true && process.stdout.columns > 0) return process.stdout.columns;
+  const columns = Number.parseInt(process.env.COLUMNS ?? '', 10);
+  return Number.isNaN(columns) || columns <= 0 ? undefined : columns;
+}
+
+/** Columns a character takes: two for East Asian wide and fullwidth forms, one otherwise. */
+function columnsOf(char: string): number {
+  const code = char.codePointAt(0) ?? 0;
+  return (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe4f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x20000 && code <= 0x3fffd)
+    ? 2
+    : 1;
+}
+
+/** `text` cut to `width` columns, ending in `…` when anything was cut. Plain text only. */
+export function fit(text: string, width: number): string {
+  let used = 0;
+  let out = '';
+  const chars = [...text];
+  const total = chars.reduce((n, c) => n + columnsOf(c), 0);
+  if (total <= width) return text;
+  for (const char of chars) {
+    const w = columnsOf(char);
+    if (used + w > width - 1) break;
+    out += char;
+    used += w;
+  }
+  return `${out}…`;
+}
+
 /** `path` with the home directory spelled `~`, in forward slashes. */
 export function tildePath(path: string): string {
   const home = homedir().replace(/\\/g, '/').replace(/\/$/, '');
