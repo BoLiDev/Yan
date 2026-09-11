@@ -82,8 +82,9 @@ export function herdrCall(run: HerdrRunner, args: readonly string[], what: strin
 
 /**
  * Map a Herdr failure onto yan's vocabulary: `bug` for a refused command
- * shape, `notFound` for a missing agent, pane, workspace or tab, `unreachable`
- * when herdr said nothing structured, `refused` otherwise.
+ * shape, `notFound` for a missing agent, pane, workspace or tab, `busy` for a
+ * pane not yet at its shell prompt, `unreachable` when herdr said nothing
+ * structured, `refused` otherwise.
  */
 export function mapError(result: HerdrResult, what: string): TerminalError {
   if (result.code === 2) {
@@ -100,6 +101,8 @@ export function mapError(result: HerdrResult, what: string): TerminalError {
     case 'workspace_not_found':
     case 'tab_not_found':
       return new TerminalError('notFound', `${what}: ${code}`);
+    case 'pane_busy':
+      return new TerminalError('busy', `${what}: ${code}`);
     case undefined:
       return new TerminalError('unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
     default:
