@@ -17,7 +17,7 @@ import { Shift } from '../records/shift/index.js';
 import { Task, type UnitData } from '../records/task/index.js';
 import { isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
-import { writeJson } from '../util/json.js';
+import { readJsonIfPresent, writeJson } from '../util/json.js';
 import { withLock } from '../util/lock.js';
 import { deleteRemoteBranch } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
@@ -247,6 +247,22 @@ function briefBody(options: {
     );
   }
   lines.push(
+    '- Reporting done does not end this shift. yan tries the work, and when it needs more of',
+    '  the same - a fix, a change, another pass - it sends you the next round here, since',
+    '  you already know the work. Stay until yan clocks you out.',
+  );
+  if (data.mode === 'mr') {
+    lines.push(
+      `  A new round starts from ${data.branch} as it now is: once yan says your last merge`,
+      `  request merged, fetch and reset ${branch} onto origin/${data.branch} - what you had`,
+      '  is already in it - then work, push, open a new merge request, rewrite outcome.md, and',
+      '  report done with the new URL.',
+    );
+  } else {
+    lines.push('  For a new round, do the work, rewrite outcome.md, and report done again.');
+  }
+  lines.push(
+    '- A line from yan may name a file; read it, since it carries what did not fit in the line.',
     '- The scope in the table above is where this work belongs. Going outside it is not',
     "  forbidden, but it is not yours to decide quietly: report it, say what you need and",
     '  why, and let yan answer.',
@@ -590,6 +606,7 @@ export interface DoneOptions {
   outcome?: string;
   note?: string;
   keepPane?: boolean;
+  userAccepted?: boolean;
   json?: boolean;
 }
 
@@ -597,6 +614,8 @@ export interface DoneOptions {
 export interface Closer {
   close(pane: string): void;
   clearPaneTitle(pane: string): void;
+  /** Asked after the close, so an agent still running is reported, not assumed gone. */
+  agentAlive?(pane: string): 'alive' | 'dead' | 'unknown';
 }
 
 export interface DoneDeps {
@@ -612,13 +631,18 @@ export interface DoneResult {
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
+  /** The last round's merge request, or '' for a mode that opens none. */
   readonly mr: string;
-  readonly mr_state: 'merged';
+  readonly mr_state: 'merged' | 'none';
+  readonly mode: string;
   readonly tree: string;
   readonly outcome_by: string;
   readonly run_removed: true;
   readonly tree_returned: boolean;
   readonly branch_deleted: boolean;
+  /** False when the agent was still in its pane after the close; the pane is then named in `pane`. */
+  readonly pane_closed: boolean;
+  readonly pane: string;
 }
 
 /**
@@ -718,21 +742,48 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
 
+  // What the dispatch recorded beyond the typed fields: an older meta.json
+  // carries neither, and was an `mr` shift outside any scenario.
+  const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
+  const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const mode = typeof extra.mode === 'string' && extra.mode !== '' ? extra.mode : 'mr';
+  const opensMr = mode === 'mr';
+
   // Steps 1 to 4 already ran in the attempt that stopped, and the URL they
   // needed went with run/, so a resume starts at the tree return.
   if (!resuming) {
-    // --- 1. is it merged? ---------------------------------------------------
-    if (mr === '') {
-      throw CommandError.usage('shift_done', `no merge request recorded for ${shift.label()} - pass --mr <url>. Whether the work landed is the host's answer, and yan will not guess it from git history`,
-      );
-    }
-    const dir = tree !== '' && existsSync(tree) ? tree : clone !== '' && existsSync(clone) ? clone : undefined;
-    const ask = deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
-    const state = ask(mr, dir);
-    if (state !== 'merged') {
-      throw new CommandError('shift_done', 'not_merged', `${mr} is '${state}', not merged - a shift clocks out when its merge request has been merged into the integration branch, and nothing sooner`,
+    // --- 0. accepted, and by whom -------------------------------------------
+    // Clocking out is the statement that the work is accepted. Interface work
+    // is accepted by user alone, so that is a flag rather than a judgement.
+    if (extra.scenario === 'uix' && options.userAccepted !== true) {
+      throw new CommandError('shift_done', 'needs_user', `${shift.label()} is uix work, and only user accepts it - nothing was clocked out. When they have said they are satisfied, re-run with --user-accepted`,
         { exitCode: RC_NOT_MERGED },
       );
+    }
+
+    // --- 1. is its last round merged? ---------------------------------------
+    if (opensMr) {
+      if (mr === '') {
+        throw CommandError.usage('shift_done', `no merge request recorded for ${shift.label()} - pass --mr <url>. Whether the work landed is the host's answer, and yan will not guess it from git history`,
+        );
+      }
+      const dir = tree !== '' && existsSync(tree) ? tree : clone !== '' && existsSync(clone) ? clone : undefined;
+      const ask = deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
+      const state = ask(mr, dir);
+      if (state !== 'merged') {
+        throw new CommandError('shift_done', 'not_merged', `${mr} is '${state}', not merged - a shift clocks out once its last round's merge request has merged into the integration branch, and nothing sooner`,
+          { exitCode: RC_NOT_MERGED },
+        );
+      }
+    } else {
+      // A scout or a branch opens no merge request; what it delivered is its
+      // handover, and without one there is nothing to have accepted.
+      mr = '';
+      if (!existsSync(outcomeFile) && options.outcome === undefined) {
+        throw new CommandError('shift_done', 'no_outcome', `${shift.label()} is a ${mode} shift and has written no outcome.md - there is no deliverable to accept yet. Pass --outcome <file> if its report lives elsewhere`,
+          { exitCode: RC_NOT_MERGED },
+        );
+      }
     }
 
     // --- 2. outcome.md ------------------------------------------------------
@@ -764,7 +815,10 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     // --- 3. the log line ----------------------------------------------------
     if (shift.task !== '') {
       try {
-        new Log(shift.task).append('delivered', noted(`${shift.sid} ${unit}  ${mr} merged into the integration branch`, note));
+        const what = opensMr
+          ? `${mr} merged into the integration branch`
+          : mode === 'scout' ? 'report accepted' : `branch ${branch} accepted`;
+        new Log(shift.task).append('delivered', noted(`${shift.sid} ${unit}  ${what}`, note));
       } catch { /* the teardown matters more than its log line */ }
     }
 
@@ -801,7 +855,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
 
   // --- 6. and only now, the remote shift branch -----------------------------
   let deleted = false;
-  if (clone !== '' && existsSync(clone)) {
+  // Only a merge request's branch was ever pushed.
+  if (opensMr && clone !== '' && existsSync(clone)) {
     const drop =
       deps.deleteBranch ?? ((c: string, b: string) => deleteRemoteBranch(c, 'origin', b).code === 0);
     deleted = drop(clone, branch);
@@ -811,7 +866,10 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     }
   }
 
-  // --- 7. the agent's pane, never fatal ------------------------------------
+  // --- 7. the agent's pane, and then whether the agent really went ----------
+  // Never fatal to the teardown, which is done by now; an agent still running
+  // is reported as a failure of the command, because nobody else will notice.
+  let paneClosed = true;
   if (options.keepPane !== true && pane !== '') {
     const terminal = deps.terminal ?? new Terminal();
     display('could not clear the shift pane title', () => {
@@ -820,6 +878,13 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     display('could not close the shift pane', () => {
       terminal.close(pane);
     });
+    if (terminal.agentAlive !== undefined) {
+      try {
+        paneClosed = terminal.agentAlive(pane) !== 'alive';
+      } catch {
+        paneClosed = true;
+      }
+    }
   }
 
   return {
@@ -829,54 +894,68 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     unit,
     branch,
     mr,
-    mr_state: 'merged',
+    mr_state: opensMr ? 'merged' : 'none',
+    mode,
     tree: returned !== '' ? returned : tree,
     outcome_by: outcomeBy,
     run_removed: true,
     tree_returned: returned !== '',
     branch_deleted: deleted,
+    pane_closed: paneClosed,
+    pane,
   };
 }
 
 const doneShift = new Command('done')
-  .description('clock a shift out once its merge request has merged')
+  .description('clock a shift out once its work is accepted')
   .argument('[sid]')
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
-  .option('--mr <url>', "the shift branch's merge request, when run/meta.json has none")
+  .option('--mr <url>', "the last round's merge request, when the shift reported none")
   .option('--outcome <file>', 'a file whose contents become outcome.md if the shift wrote none')
-  .option('--note <text>', 'one line for log.md: what the merged work changed')
+  .option('--note <text>', 'one line for log.md: what the accepted work changed')
+  .option('--user-accepted', 'user has said they are satisfied - required for uix work')
   .option('--keep-pane', "leave the agent's pane open")
   .option('--json', 'print the teardown record instead of a summary')
   .addHelpText(
     'after',
     `
-usage: yan shift done <sid> [--task <id>] [--mr <url>]
-                      [--outcome <file>] [--note <text>] [--keep-pane] [--json]
+usage: yan shift done <sid> [--task <id>] [--mr <url>] [--outcome <file>]
+                      [--note <text>] [--user-accepted] [--keep-pane] [--json]
 
-Clocks a shift out, in the one order that survives a squash merge:
+Running it says the shift's work is accepted: a shift carries on through as
+many rounds of rework as that takes, and is clocked out once, at the end. uix
+work is accepted by user alone, so it needs --user-accepted.
 
-  the merge request is merged -> outcome.md -> the log line
-    -> rm -rf run/ -> return the tree -> delete the remote shift branch
+An mr shift clocks out once its last round's merge request has merged, in the
+one order that survives a squash merge:
 
-Whether it merged is asked of the host, never inferred from git ancestry: a
-squash-merged branch is not an ancestor of the branch it landed on.
+  merged -> outcome.md -> the log line -> rm -rf run/ -> return the tree
+    -> delete the remote shift branch -> close the pane
 
-Exit code 4 means the merge request has not merged, so there is nothing to
-clock out yet.`,
+A scout or branch shift opens none, and needs its outcome.md instead. Whether
+a request merged is asked of the host, never inferred from git ancestry.
+
+Exit code 4 means nothing was clocked out yet: the merge request has not
+merged, the report is missing, or user has not accepted uix work. Exit code 1
+after a teardown means the agent was still in its pane after closing it.`,
   )
   .action(
     action('yan shift done', (sid: string | undefined, options: DoneOptions) => {
       const r = clockOut(sid, options);
       if (options.json === true) {
         out(JSON.stringify(r));
-        return;
+      } else {
+        out(`${r.sid} clocked out`);
+        if (r.mr_state === 'merged') out(`mr       ${r.mr} (merged)`);
+        out(`outcome  ${join(new Shift(r.task, r.sid).dir, 'outcome.md')} (${r.outcome_by})`);
+        out('run      removed');
+        out(`tree     ${r.tree_returned ? r.tree : 'not returned'}`);
+        if (r.mr_state === 'merged') out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'left on origin'}`);
       }
-      out(`${r.sid} clocked out`);
-      out(`mr       ${r.mr} (merged)`);
-      out(`outcome  ${join(new Shift(r.task, r.sid).dir, 'outcome.md')} (${r.outcome_by})`);
-      out('run      removed');
-      out(`tree     ${r.tree_returned ? r.tree : 'not returned'}`);
-      out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'left on origin'}`);
+      if (!r.pane_closed) {
+        process.stderr.write(`yan shift done: the agent in ${r.pane} was still running after its pane was closed - close ${r.pane} by hand\n`);
+        process.exitCode = 1;
+      }
     }),
   );
 

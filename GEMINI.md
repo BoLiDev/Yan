@@ -67,11 +67,14 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 
 ### 第三步：监护与审查合并 (Supervise & Integrate)
 - 启动监护循环：执行 `yan wait` 监听 Shift 状态变化。
-- 收到 Claude 的 `done` 信号后：
-  1. 读取 `$YAN_TASK_DIR/shifts/<sid>/outcome.md`（shift 的交接说明：结果、理解与取舍、偏离、遗留、验证）。
-  2. 审查生成的 MR 与代码差异。
-  3. 合并 Shift 分支至集成分支，执行 `yan shift done <sid> --note "<它改变了什么，一句话>"`。
-  4. 运行 `typecheck` / `test` 验证集成质量。
+- **shift 报告 `done` 只代表完成了一轮，不代表这个 shift 做完了。** 收到后：
+  1. 读取 `$YAN_TASK_DIR/shifts/<sid>/outcome.md`（shift 的交接说明：结果、理解与取舍、偏离、Learnings、遗留、验证）。
+  2. 审查 MR 与代码差异。**MR 看着没问题只代表代码审查通过**，合并进集成分支即可，这一步不需要结束 shift。
+  3. **验收**：把 standing tree 同步到最新的集成分支，实际运行——启动开发服务器、跑端到端测试，或用自动化工具试用——看到真实结果。
+  4. **验收通过**（你或 `user` 看到结果后明确说 OK）才执行 `yan shift done <sid> --note "<它改变了什么，一句话>"`。**`uix` 场景一律由 `user` 验收**，要加 `--user-accepted`。
+  5. **验收不通过**：同一个 shift 继续下一轮，它已经懂这件事了。用 `yan send <sid> "<返工意见>"` 告诉它哪里不对——一行，最多 1000 字符；更长的内容写进文件，在消息里附上文件路径。
+  6. **只有做的是另一件独立的事，或者 `user` 明确要求，才开新的 shift。**
+  7. 等待验收的 shift 会一直占着它的 tree 和 agent，`yan show` 里会标成 awaiting acceptance。
 
 ### 第四步：通俗化成果汇报 (Explain to User)
 - 向 `user` 交付成果时：
@@ -162,7 +165,8 @@ yan tree get                       # 租借 standing worktree
 yan shift new --task --unit --scenario [--tier]   # 派发 shift
 yan wait [--seconds N]             # 监护 shift 运行
 yan state <sid>                    # 查看 shift 运行状态
-yan shift done <sid>               # shift 完成合并后时钟打卡
+yan shift done <sid>               # 验收通过后结束 shift（uix 要加 --user-accepted）
+yan send <sid> "<一行>"            # 给 shift 发返工意见，最多 1000 字符，更长的附文件路径
 yan land --task --user-asked       # 将集成分支合入 target (需 user 同意)
 yan log <type> "<一行>"            # 记录命令不会自动记的事件（见「记忆」）
 ```

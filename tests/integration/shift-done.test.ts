@@ -292,3 +292,62 @@ describe('usage', () => {
     expect(r.out).toContain('a shift id is required');
   });
 });
+
+describe('uix work is accepted by user alone', () => {
+  it('refuses without --user-accepted, and tears nothing down', () => {
+    const run_ = dispatched('s1', { scenario: 'uix', tier: 'normal' });
+    const r = run('s1');
+    expect(r.code).toBe(4);
+    expect(r.message).toContain('--user-accepted');
+    expect(existsSync(run_), 'run/ is still there').toBe(true);
+    expect(calls, 'not even the host was asked').toEqual([]);
+  });
+
+  it('clocks out once user has accepted', () => {
+    dispatched('s1', { scenario: 'uix', tier: 'normal' });
+    expect(run('s1', { userAccepted: true }).code).toBe(0);
+  });
+
+  it('asks nothing of a coding shift, which the main agent accepts', () => {
+    dispatched('s1', { scenario: 'coding', tier: 'normal' });
+    expect(run('s1').code).toBe(0);
+  });
+});
+
+describe('a scout or branch shift opens no merge request', () => {
+  it('clocks out on its outcome.md, never asking the host or deleting a branch', () => {
+    const run_ = dispatched('s1', { mode: 'scout', mr: '' });
+    writeFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md'), '# s1\n\nResult: the overlay needs a layered window.\n');
+    const r = run('s1');
+    expect(r.code, r.message).toBe(0);
+    expect(existsSync(run_)).toBe(false);
+    expect(calls.some((c) => c.startsWith('mr_state')), 'there is no merge request to ask about').toBe(false);
+    expect(calls.some((c) => c.startsWith('git push origin --delete')), 'a scout never pushed').toBe(false);
+    expect(calls.some((c) => c.startsWith('pool_return'))).toBe(true);
+    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toMatch(/delivered {2}s1 auth {2}report accepted/);
+  });
+
+  it('refuses while there is no report to accept', () => {
+    const run_ = dispatched('s1', { mode: 'branch', mr: '' });
+    const r = run('s1');
+    expect(r.code).toBe(4);
+    expect(r.message).toContain('outcome.md');
+    expect(existsSync(run_)).toBe(true);
+  });
+});
+
+describe('closing the pane is checked, not assumed', () => {
+  it('reports an agent still in its pane after the close', () => {
+    dispatched('s1');
+    const stubborn: Closer = { close: () => {}, clearPaneTitle: () => {}, agentAlive: () => 'alive' };
+    const r = clockOut('s1', {}, { ...deps(), terminal: stubborn });
+    expect(r.pane_closed).toBe(false);
+    expect(r.pane).toBe('w1:p7');
+  });
+
+  it('is satisfied when the agent has gone', () => {
+    dispatched('s1');
+    const gone: Closer = { close: () => {}, clearPaneTitle: () => {}, agentAlive: () => 'dead' };
+    expect(clockOut('s1', {}, { ...deps(), terminal: gone }).pane_closed).toBe(true);
+  });
+});

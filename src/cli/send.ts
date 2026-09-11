@@ -5,8 +5,9 @@ import { Terminal } from '../externals/herdr/index.js';
 import { Shift } from '../records/shift/index.js';
 
 /**
- * `yan send <sid> "<line>"` — one short line to a running shift, text and
- * Enter in a single submission. Anything long goes in a file: send the path.
+ * `yan send <sid> "<line>"` — one line to a running shift, up to 1000
+ * characters, text and Enter in a single submission. More than that goes in a
+ * file whose path the line names.
  *
  * The pane comes from `run/meta.json`, and nothing is sent to a pane with no
  * live agent — the text would be typed into whatever shell is there.
@@ -16,7 +17,7 @@ import { Shift } from '../records/shift/index.js';
 function sendMax(): number {
   const raw = process.env.YAN_SEND_MAX;
   const n = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
-  return Number.isInteger(n) && n > 0 ? n : 500;
+  return Number.isInteger(n) && n > 0 ? n : 1000;
 }
 
 /** What `yan send` needs from the terminal. `Terminal` is the real one. */
@@ -42,17 +43,17 @@ export function sendLine(
     throw CommandError.usage('send', 'a shift id is required');
   }
   if (line === undefined) {
-    throw CommandError.usage('send', 'a line is required - one short instruction, in quotes');
+    throw CommandError.usage('send', 'a line is required - one instruction, in quotes');
   }
   if (line === '') {
     throw CommandError.usage('send', 'refusing to send an empty line');
   }
   if (line.includes('\n')) {
-    throw CommandError.usage('send', 'a line is one line - write the long version to a file and send its path');
+    throw CommandError.usage('send', 'a line is one line - a newline would submit it early; write the rest to a file and name its path in the line');
   }
   const max = sendMax();
   if (line.length > max) {
-    throw CommandError.usage('send', `that line is ${line.length} characters and the limit is ${max} - write it to a file and send the path instead`,
+    throw CommandError.usage('send', `that line is ${line.length} characters and the limit is ${max} - write the detail to a file and name its path in the line`,
     );
   }
 
@@ -72,7 +73,7 @@ export function sendLine(
 }
 
 export const command = new Command('send')
-  .description('one short line to a running shift')
+  .description('one line, up to 1000 characters, to a running shift')
   .argument('[sid]')
   .argument('[line]')
   .option('--task <id>', 'the task the shift belongs to')
@@ -81,7 +82,8 @@ export const command = new Command('send')
     `
 usage: yan send <sid> "<line>" [--task <id>]
 
-  one short line; anything long goes in a file and only the path is sent.
+  one line of up to 1000 characters, never a newline. For more, write it to a
+  file and name the path in the line: "round 2 feedback is in <path>".
 
 Herdr's \`agent prompt\` submits the text and the Enter together, so there is no
 --enter / --no-enter to retry, and no first Enter for the agent to swallow.

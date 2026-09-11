@@ -71,7 +71,7 @@ describe('one call, carrying the line as it stands', () => {
   });
 });
 
-describe('one short line only', () => {
+describe('one line, up to 1000 characters', () => {
   it('refuses a newline, and nothing reaches the terminal', () => {
     const r = send('s3', 'two\nlines');
     expect(r.code, 'a newline is not one line').toBe(2);
@@ -80,16 +80,18 @@ describe('one short line only', () => {
   });
 
   it('refuses a line longer than the limit, and says how long it was', () => {
-    const long = 'x'.repeat(501);
+    expect(send('s3', 'x'.repeat(1000)).code, 'a long paragraph is fine').toBe(0);
+    terminal.calls.length = 0;
+    const long = 'x'.repeat(1001);
     const r = send('s3', long);
     expect(r.code, 'anything long goes in a file and only the path is sent').toBe(2);
-    expect(r.message).toContain('501 characters');
+    expect(r.message).toContain('1001 characters');
     expect(terminal.calls).toEqual([]);
   });
 
   it('treats the limit as a knob, not a law of nature', () => {
-    process.env.YAN_SEND_MAX = '600';
-    expect(send('s3', 'x'.repeat(501)).code).toBe(0);
+    process.env.YAN_SEND_MAX = '1200';
+    expect(send('s3', 'x'.repeat(1001)).code).toBe(0);
   });
 
   it('refuses an empty line', () => {

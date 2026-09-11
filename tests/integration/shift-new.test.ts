@@ -660,3 +660,15 @@ describe('skills a tier loads', () => {
     expect(body).not.toContain('## Skills');
   });
 });
+
+describe('a shift stays for the rounds of rework', () => {
+  it('tells an mr shift that done is not the end, and how a new round starts', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body).toContain('Reporting done does not end this shift');
+    expect(body).toContain('Stay until yan clocks you out');
+    expect(body).toContain('reset yan/t042-auth-s1 onto origin/feat/auth');
+    expect(body).toContain('open a new merge request');
+    expect(body).toContain('may name a file');
+  });
+});

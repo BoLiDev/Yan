@@ -19,7 +19,9 @@ import type {
  *
  * Everything is addressed by id, never by label or `--current`: a name is
  * cleared when its agent exits, which is when yan most needs to identify it.
- * Nothing here closes a workspace or a tab, and nothing here focuses — a
+ * Nothing here closes a workspace or a tab — the one pane closed is either
+ * named by its caller or the root pane of a tab `startAgent` just made and
+ * could not start its agent in — and nothing here focuses — a
  * focused tab is marked seen, which turns a `done` yan would be woken by into
  * an `idle` it ignores.
  */
@@ -32,6 +34,24 @@ export interface TerminalOptions {
    * wants.
    */
   readonly settleMs?: number;
+  /**
+   * How long `startAgent` keeps asking a new tab's pane to take its agent
+   * while herdr answers that the pane is not at its shell prompt yet, in
+   * milliseconds.
+   */
+  readonly busyRetryMs?: number;
+  /** Blocks for a number of milliseconds between those attempts. */
+  readonly sleep?: (ms: number) => void;
+}
+
+/** How long a new tab's shell is given to reach its prompt. */
+const BUSY_RETRY_MS = 15000;
+
+/** The pause between asking a busy pane again. */
+const BUSY_INTERVAL_MS = 500;
+
+function sleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 /** How long a freshly started agent is given to reach `working` or `blocked`. */
@@ -59,10 +79,14 @@ function isStartupDialog(screen: string): boolean {
 export class Terminal {
   private readonly run: HerdrRunner;
   private readonly settleMs: number;
+  private readonly busyRetryMs: number;
+  private readonly sleep: (ms: number) => void;
 
   public constructor(options: TerminalOptions = {}) {
     this.run = options.run ?? runHerdr;
     this.settleMs = options.settleMs ?? SETTLE_MS;
+    this.busyRetryMs = options.busyRetryMs ?? BUSY_RETRY_MS;
+    this.sleep = options.sleep ?? sleepMs;
   }
 
   /**
@@ -121,7 +145,19 @@ export class Terminal {
     // between, so nothing here needs quoting.
     if (options.argv !== undefined && options.argv.length > 0) startArgs.push('--', ...options.argv);
 
-    const started = asRecord(this.call(startArgs, 'agent start'));
+    let started: Record<string, unknown>;
+    try {
+      started = asRecord(this.startWhenReady(startArgs));
+    } catch (err) {
+      // The pane came with the tab this call made, and it never took its
+      // agent, so it is not left behind as an empty tab.
+      try {
+        this.call(['pane', 'close', pane], 'pane close');
+      } catch {
+        // Closing is tidying; the reason worth reporting is the start's.
+      }
+      throw err;
+    }
     const agent = asRecord(started.agent);
     const reported = str(agent.pane_id) || pane;
 
@@ -188,6 +224,30 @@ export class Terminal {
     } catch {
       // The agent is up and the pane is recorded; supervision has it from here.
       return status;
+    }
+  }
+
+  /**
+   * `agent start`, asked again while herdr says the pane is busy. A new tab's
+   * shell takes a moment to reach its prompt, and herdr is the one that knows
+   * when it has; nothing was started while it said busy, so asking again
+   * cannot start a second agent.
+   *
+   * @throws TerminalError `busy` once `busyRetryMs` has passed, or whatever
+   *   else the start fails with, at once.
+   */
+  private startWhenReady(args: readonly string[]): unknown {
+    const deadline = Date.now() + this.busyRetryMs;
+    for (;;) {
+      try {
+        return this.call(args, 'agent start');
+      } catch (err) {
+        if (!(err instanceof TerminalError) || err.code !== TerminalError.codes.busy) throw err;
+        if (Date.now() + BUSY_INTERVAL_MS > deadline) {
+          throw new TerminalError('busy', `the new pane was not at its shell prompt within ${Math.round(this.busyRetryMs / 1000)}s, so no agent was started in it`, { cause: err });
+        }
+        this.sleep(BUSY_INTERVAL_MS);
+      }
     }
   }
 

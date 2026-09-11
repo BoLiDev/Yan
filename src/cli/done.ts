@@ -173,7 +173,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
         return unit === '' ? s.sid : `${s.sid} (${unit})`;
       })
       .join(', ');
-    throw new CommandError('done', 'live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their merge requests have merged, or - if user says the work can be thrown away - re-run with --force`,
+    throw new CommandError('done', 'live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user says the work can be thrown away - re-run with --force`,
       { exitCode: RC_LIVE_SHIFTS },
     );
   }

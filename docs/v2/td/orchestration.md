@@ -51,17 +51,20 @@ The single most dangerous thing in this phase.
 
 The spike found the plan-approval prompt arriving as **`done`** rather than `blocked` ([evidence §11.3](evidence.md#113-which-prompts-herdr-recognises)). `done` is also the word for "this shift finished its work" — and what follows "finished" is destructive: delete `run/`, return the tree, delete the branch.
 
-**So every path that could tear a shift down re-checks the objective condition first**: has the merge request merged into the integration branch? That is rule 3, unchanged; what is new is that a wake reason is now a plausible-looking way to skip it.
+**So every path that could tear a shift down re-checks its conditions first**; a wake reason is a plausible-looking way to skip them.
+
+Rule 3 has since changed what those conditions are. A shift was clocked out the moment its merge request merged, and that turned out to end it too early: a merge request that reads well has passed code review, and whether the work is right is only known once the merged result has been run — the dev server, the end-to-end tests, an automation tool. When it is not right, the shift that wrote it is the one that already knows the work, and a new shift has to learn it all again. So a shift now lives through rounds: `done` ends a round, its merge request is merged, the result is tried in the standing tree, and either the same shift gets the next round through `yan send` or the work is accepted. `uix` work is accepted by `user` alone, which `yan shift done --user-accepted` records.
 
 The shape to keep in mind:
 
 ```
-a done wake            →  look
-the MR has merged      →  clock out
-anything else          →  it is still working, or it is stuck, or it wants an answer
+a done wake                                 →  look, merge, try the result
+accepted, and the last MR has merged        →  clock out
+not accepted                                →  the next round, same shift
+anything else                               →  it is still working, or it is stuck, or it wants an answer
 ```
 
-Nothing else is allowed to stand in for the middle line.
+The merge stays objective — asked of the host, never inferred — and a scout or branch shift, which opens none, needs its report instead. Acceptance is the judgement, and it is the only one `shift done` takes on trust.
 
 ---
 

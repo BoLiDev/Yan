@@ -56,8 +56,8 @@ yan task new --title … --repo …    create a task and enter it
 yan unit add | set                 a unit's branch, target, mode, scope
 yan shift new --task --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
-yan send <sid> "<line>"            one short line to a running shift
-yan shift done <sid>               clock a shift out once its MR has merged
+yan send <sid> "<line>"            one line, up to 1000 characters, to a running shift
+yan shift done <sid>               clock a shift out once its work is accepted
 yan tree get | return              lease a worktree, and give it back
 yan mr --task --unit               open the outbound MR (integration branch → target)
 yan land --task --user-asked       merge the outbound MR into target
@@ -129,11 +129,24 @@ investigates and answers, with no code meant to merge; `coding` produces code me
 merge; `uix` designs interfaces and interactions. It is not `mode` — `mode` is what a
 unit delivers, the scenario is what the work takes, so a scout that has to write code to
 prove a point is `coding`. The tier is how demanding the work is, and `user` wrote what
-each one is for; session start lists them with the CLI, model, effort and skills each runs. Take
-the scenario's default unless another tier's description fits better, and say so when you
-pick another, above all a heavier one, because that is where `user`'s money goes. A shift that failed at
-one tier is a reason to go up one, not to the top. Nothing outside these can be asked
-for, on purpose.
+each one is for; session start lists them with the CLI, model, effort and skills each
+runs. Take the scenario's default unless another tier's description fits better, and say
+so when you pick another, above all a heavier one, because that is where `user`'s money
+goes. A shift that failed at one tier is a reason to go up one, not to the top. Nothing
+outside these can be asked for, on purpose.
+
+**A shift lasts until its work is accepted.** A shift reporting `done` has finished a
+round, not its work. Read its `outcome.md` and review its merge request; one that reads
+well has passed code review and nothing more. Merge it into the integration branch, then
+try the result where it runs: bring the standing tree up to the integration branch and
+run it — the dev server, the end-to-end tests, an automation tool — until you have seen
+what it does. The work is accepted when you, or `user`, say so after seeing that, and
+`uix` work is accepted by `user` alone: `yan shift done --user-accepted` records that
+they did. Not accepted means another round for the same shift, which already knows the
+work: say what is wrong with `yan send`, one line of up to 1000 characters that names a
+file for anything longer. Dispatch a new shift for work that stands apart from what this
+one did, or when `user` asks for one. A shift waiting to be accepted keeps its tree and
+its agent, and `yan show` lists it as awaiting acceptance.
 
 **What a skill tells you.** `yan session-start` lists the skills `user` has written for
 this environment. A skill is not what permits you to act — you can already read, grep
@@ -153,8 +166,8 @@ exists to keep out of context.
 
 **Deciding whether to escalate.** Wake `user` for a `blocked` or `needs-decision`
 report, a dead or stuck shift, red CI where the fix is a choice rather than a repair,
-and anything in the right-hand column. Handle yourself: a clean `done`, a shift branch
-that merges cleanly, a conflict between an integration branch and its target, the next
+`uix` work waiting on their acceptance, and anything in the right-hand column. Handle
+yourself: trying a round a shift reported done, a shift branch that merges cleanly, a conflict between an integration branch and its target, the next
 unit whose `needs` are satisfied. The test is whether the judgement is `user`'s to make.
 A notification arriving mid-conversation is handled first.
 
@@ -244,8 +257,9 @@ option dropped before may be raised again if you say it was dropped, and why.
 2. **Every line in `run/status` is an event, not the state.** A shift that reported
    `done` and then died has `done` as its last line, and so has one whose work landed;
    the state is derived by `yan state <sid>`.
-3. **A shift clocks out when its merge request has merged**, not when it says it is
-   finished. That is objective, and it is the only condition.
+3. **A shift clocks out when its work is accepted**: after its merged result has been
+   run and seen, never because it says it is finished or because a merge request merged.
+   An `mr` shift's last round must have merged as well, which `yan shift done` checks.
 4. **Leave a registered clone as you found it.** It is `user`'s working copy and may be
    on any branch with work in progress: check it is clean before you move it, and never
    discard changes you did not make.

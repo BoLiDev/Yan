@@ -107,7 +107,8 @@ describe('one task at a glance', () => {
     expect(text).toContain('scope  apps/auth');
     expect(text).toContain(`tree   ${tildePath(tree)}   ● 1 uncommitted`);
     expect(text).toContain('s3  coding/normal  blocked');
-    expect(text).toContain('0m ago  which header wins');
+    expect(text).toContain('0m ago');
+    expect(text, "a shift's report note is not shown").not.toContain('which header wins');
     expect(text).toContain('w1:p4 · yan/t042-auth-s3');
     expect(text).toContain('Log  last 5 of 7');
     expect(text).toContain('entry 7');
@@ -173,6 +174,32 @@ describe('one task at a glance', () => {
     expect(r.stdout).toContain('--     legacy     s1 dispatched');
   });
 
+  it('marks a shift a done task never clocked out, rather than counting it as running', async () => {
+    Task.create('t051', 'a finished task');
+    new Task('t051').setComplete(true);
+    const run = join(home, 'tasks', 't051', 'shifts', 's4', 'run');
+    mkdirSync(run, { recursive: true });
+    writeFileSync(join(run, 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t051-auth-s4', pane: 'w2:p3', scenario: 'uix', tier: 'normal' }));
+    writeFileSync(join(run, 'status'), ['2026-09-01T08:00:00Z', 'done', 'delivered'].join('\t') + '\n');
+
+    const r = await show(['show', 't051']);
+    expect(r.stdout).toContain('1 not clocked out');
+    expect(r.stdout).not.toContain('running ·');
+    expect(r.stdout).toContain('not clocked out');
+    expect(r.stdout, 'where it ran would read as if it still were').not.toContain('w2:p3');
+    expect((JSON.parse((await show(['show', 't051', '--json'])).stdout) as ShowJson).shifts[0]?.leftover).toBe(true);
+    expect((JSON.parse((await show(['show', 't042', '--json'])).stdout) as ShowJson).shifts[0]?.leftover).toBe(false);
+  });
+
+  it('cuts a long log entry to the terminal, and keeps it whole for a pipe', async () => {
+    Log.prototype.append.call(new Log('t042'), 'agreed', `a long decision ${'x'.repeat(120)} end`, '09-12');
+    expect((await show(['show', 't042'])).stdout).toContain(' end');
+    const narrow = await show(['show', 't042'], { COLUMNS: '60' });
+    expect(narrow.stdout).not.toContain(' end');
+    expect(narrow.stdout).toContain('a long decision x');
+    expect(narrow.stdout).toContain('…');
+  });
+
   it('is what yan ls <id> prints', async () => {
     expect((await show(['ls', 't042'])).stdout).toBe((await show(['show', 't042'])).stdout);
   });
@@ -203,5 +230,21 @@ describe('choosing, and refusing', () => {
     await show(['show', 't042']);
     await show(['show', 't042', '--json']);
     expect(snapshot(home)).toEqual(before);
+  });
+});
+
+describe('a shift that reported done on an open task', () => {
+  it('is awaiting acceptance, not running', async () => {
+    Task.create('t052', 'rounds of rework');
+    const run = join(home, 'tasks', 't052', 'shifts', 's2', 'run');
+    mkdirSync(run, { recursive: true });
+    writeFileSync(join(run, 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t052-auth-s2', pane: 'w5:p2', scenario: 'coding', tier: 'normal' }));
+    writeFileSync(join(run, 'status'), ['2026-09-11T08:00:00Z', 'done', 'mr https://forge.invalid/1'].join('\t') + '\n');
+
+    const r = await show(['show', 't052']);
+    expect(r.stdout).toContain('1 awaiting acceptance');
+    expect(r.stdout).not.toContain('running ·');
+    expect(r.stdout).toContain('awaiting acceptance   w5:p2 · yan/t052-auth-s2');
+    expect((JSON.parse((await show(['show', 't052', '--json'])).stdout) as ShowJson).shifts[0]?.awaiting_acceptance).toBe(true);
   });
 });
