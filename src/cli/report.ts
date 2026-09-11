@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -12,7 +13,8 @@ import { Shift } from '../records/shift/index.js';
  * Five states, and any other is refused:
  *
  *   started         the agent booted and read its brief
- *   done            with the mode's deliverable in the note, e.g. `mr <url>`
+ *   done            with the mode's deliverable in the note, e.g. `mr <url>`;
+ *                   refused until the shift has written outcome.md
  *   blocked         it is waiting on something
  *   needs-decision  it needs an answer from yan
  *   conflict        the merge has conflicts
@@ -43,7 +45,8 @@ export const command = new Command('report')
     `
 usage: yan report <state> "<note>" [--sid <sid>] [--task <id>] [--dir <dir>]
 
-Appends the event to run/status and touches run/signal in one go.
+Appends the event to run/status and touches run/signal in one go. \`done\` is
+refused, and nothing is written, until the shift directory has outcome.md.
 
 Which shift is reporting is normally taken from the environment the spawn
 step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid / --dir are for
@@ -78,6 +81,13 @@ yan itself and for tests.`,
       }
       if (shift === undefined) {
         throw CommandError.usage('report', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
+        );
+      }
+
+      // The handover has to exist before the event that sends yan to read it.
+      if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
+        throw new CommandError('report', 'no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
+          { exitCode: 2 },
         );
       }
 

@@ -221,7 +221,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   }
 
   try {
-    new Log(id).append(`task created: ${added.length} unit(s) - ${added.join(' ')}`);
+    new Log(id).append('started', `task created: ${added.length} unit(s) - ${added.join(' ')}`);
   } catch { /* the task exists; the narration is not worth failing for */ }
 
   return { version: 1, task: id, title, units: added, dir: record.dir };

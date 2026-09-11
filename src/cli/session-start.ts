@@ -9,11 +9,12 @@ import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/ind
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
-import { skillsDir, vaultDir } from '../util/vault.js';
+import { Log, type LogType } from '../records/log/index.js';
+import { memDir, skillsDir, vaultDir } from '../util/vault.js';
 import { machineSkillsDir } from '../util/machine.js';
 import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
-import { samePath } from '../util/paths.js';
+import { normalizePath, samePath } from '../util/paths.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -301,7 +302,80 @@ export function readSkills(): Skill[] {
   return [...fromVault, ...readSkillsFrom(machineSkillsDir(), 'machine skills')];
 }
 
-function render(picture: Picture, pulled: PullResult): void {
+/** How many of the most recent log entries a session starts with. */
+export const LOG_TAIL = 20;
+
+/** The log entries a session starts with in full, however old. */
+const LOG_KEPT: readonly LogType[] = ['agreed', 'changed'];
+
+function readTrimmed(file: string): string {
+  try {
+    return readFileSync(file, 'utf8').replace(/^﻿/, '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** The index of `mem/learnings/`, read the way skills are. */
+export function readLearnings(): Skill[] {
+  try {
+    return readSkillsFrom(join(memDir(), 'learnings'), 'mem/learnings');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * What the task has remembered: its brief, the log entries that still bind,
+ * the learnings index and `mem/user.md`. Printed for one task only.
+ */
+function renderMemory(id: string): void {
+  const record = new Task(id);
+
+  out('');
+  out(`── brief  ${normalizePath(join(record.dir, 'brief.md'))}`);
+  out('What this task delivers, as it stands now.');
+  out('');
+  out(readTrimmed(join(record.dir, 'brief.md')) || '(empty)');
+
+  const log = new Log(id).excerpt(LOG_KEPT, LOG_TAIL);
+  out('');
+  out(`── log  ${log.lines.length < log.total ? `${log.lines.length} of ${log.total} entries` : `${log.total} entries`}  ${new Log(id).file}`);
+  out(`Every agreed and changed entry, and the last ${LOG_TAIL} of any kind. An agreed`);
+  out('entry is what was understood then, not a verdict for ever: a later one');
+  out('overrides it, and an option dropped before can be raised again if you say it');
+  out('was dropped before, and why.');
+  out('');
+  for (const line of log.lines.length > 0 ? log.lines : ['(nothing logged yet)']) out(line);
+
+  const learnings = readLearnings();
+  if (learnings.length > 0) {
+    out('');
+    out('── learnings');
+    out('What earlier work found out the hard way. Open the one that matches before');
+    out('working a problem out again.');
+    out('');
+    for (const l of learnings) {
+      out(`  ${l.path}`);
+      out(`      ${l.name}${l.description === '' ? '' : ` — ${l.description}`}`);
+    }
+  }
+
+  let user = '';
+  try {
+    user = readTrimmed(join(memDir(), 'user.md'));
+  } catch {
+    user = '';
+  }
+  if (user !== '') {
+    out('');
+    out('── user  mem/user.md');
+    out('');
+    out(user);
+  }
+}
+
+function render(picture: Picture, pulled: PullResult, memoryOf?: string): void {
   out('yan session-start');
   out(`  vault    ${picture.home}`);
   out(`  sync     ${pulled.ok ? pulled.message : `WARN ${pulled.message}`}`);
@@ -339,6 +413,7 @@ function render(picture: Picture, pulled: PullResult): void {
   out('Nothing was stored: this picture was rebuilt from the task directories,');
   out('the terminal, the pool and the forge, and it is rebuilt again next time.');
 
+  if (memoryOf !== undefined) renderMemory(memoryOf);
   renderSkills(readSkills());
 }
 
@@ -372,6 +447,10 @@ usage: yan session-start [<task-id>] [--task <id>] [--all] [--json]
   (no id)   the task in $YAN_TASK, or every task when that is unset
   --all     every task, even when $YAN_TASK is set
 
+For one task it also prints what the task remembers: brief.md, every agreed
+and changed entry in log.md with the last ${LOG_TAIL} of any kind, the index of
+mem/learnings/, and mem/user.md.
+
 A source that cannot be reached is reported as \`unknown\` rather than being
 treated as an error: a fresh machine has no Herdr server yet, and a train has
 no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
@@ -400,6 +479,6 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
         out(JSON.stringify(picture));
         return;
       }
-      render(picture, pulled);
+      render(picture, pulled, id !== '' ? id : undefined);
     }),
   );

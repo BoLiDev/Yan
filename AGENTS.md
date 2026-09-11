@@ -61,6 +61,7 @@ yan tree get | return              lease a worktree, and give it back
 yan mr --task --unit               open the outbound MR (integration branch → target)
 yan land --task --user-asked       merge the outbound MR into target
 yan done [<id>] [--force]          mark the task done and give its trees back
+yan log <type> "<line>"            record what no command records (Memory)
 yan wait [--seconds N] · yan drain supervision
 ```
 
@@ -75,7 +76,7 @@ exists nowhere else, needs `user` to say so first. The table is that test worked
 | run git in a registered clone, and resolve the conflicts that come with it | `yan unit set --target` — a wrong guess aims a merge request at the wrong branch, and only `user` knows whether this is a release week |
 | dispatch shifts; merge a shift's MR into the integration branch | commenting on an MR, or mentioning anyone: it interrupts colleagues |
 | push the integration branch; `yan mr`, which is reversible | `yan done --force`, `yan tree return --discard --user-asked` — both destroy work that exists nowhere else |
-| `yan unit set --branch`, `--mode`, `--scope` — reversible and internal; the reason goes in `log.md` | `yan vault push`; `yan vault init` / `clone` / `use` |
+| `yan unit set --branch`, `--mode`, `--scope`, `--needs` — reversible and internal; the reason goes in `--note` | `yan vault push`; `yan vault init` / `clone` / `use` |
 | `yan done` without `--force`; `yan vault pull`; `yan repo add` / `link` | |
 
 Never `git push --force`: it rewrites history colleagues have already pulled, and
@@ -104,11 +105,11 @@ split in the wrong place, and saying so beats widening it again.
 
 **Writing a brief.** A shift reads it once and then works alone, so write for someone
 competent who has never seen this task: the finished condition rather than an aim, the
-paths that matter and the ones that do not, what earlier `outcome.md` files already
-tried, how to check it, and the deliverable its `mode` implies — `scout` reports and
-never pushes, `branch` leaves a clean local branch, `mr` opens a merge request. Leave
-out how you would have done it, conventions the code shows, and anything readable in a
-minute.
+paths that matter and the ones that do not, the research and learnings that apply, what
+the log and earlier `outcome.md` files say was already tried, how to check it, and the deliverable its `mode` implies — `scout`
+reports and never pushes, `branch` leaves a clean local branch, `mr` opens a merge
+request. Leave out how you would have done it, conventions the code shows, and anything
+readable in a minute.
 
 **Deciding whether to dispatch.** A shift buys four things: your context stays small,
 and it holds what nothing else is holding; isolation, so an abandoned attempt costs a
@@ -144,6 +145,84 @@ that merges cleanly, a conflict between an integration branch and its target, th
 unit whose `needs` are satisfied. The test is whether the judgement is `user`'s to make.
 A notification arriving mid-conversation is handled first.
 
+## Memory
+
+You keep no state, so what a task knows between sessions is what is in its files, and
+anything not written down goes when this session does. One test decides every write:
+**if you were killed now, would the next yan, reading only these files, ask `user`
+something already answered, or walk into something already hit?** If so, write it in
+this turn, before you reply.
+
+| File | What it holds | Written | Read |
+| --- | --- | --- | --- |
+| `brief.md` | what the task delivers now: goal, deliverables, what is not being done | after the first alignment; in the turn `user` adds, drops or replaces a deliverable, even in passing | session start, in full |
+| `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
+| `task.json` | each unit's branch, target, mode, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
+| `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
+| `mem/learnings/` | what to do when X happens, true beyond this task | see below | its index at session start and in every shift's brief; a file when a problem matches it |
+| `mem/user.md` | judgements about `user` | only when `user` asks | session start |
+
+A shift's `outcome.md` is its handover to you, not memory: read it after it reports
+`done` and before you merge. Its Learnings section — the problems a shift hit and how it
+solved them — is where most learnings start; a shift writes nothing to `mem/` itself.
+
+**`log.md`.** Six kinds of line. Log in the turn the event happens.
+
+| Type | When | The line says |
+| --- | --- | --- |
+| `agreed` | a conclusion, plan or understanding is reached with `user`, a rejection included | what, and why when a reason was given |
+| `started` | work begins: a shift is dispatched, or you start on something yourself | what it is for |
+| `delivered` | work finishes: a shift's MR merges, or you commit | what it changed, and any doubt about how it was verified |
+| `changed` | what happens departs from what the log said: aborted, dropped, reworked, a deviation accepted, an earlier line wrong, a unit field moved | what and why |
+| `incident` | something went wrong and has been resolved | one sentence: the cause, what it held up, how it was solved; `→ mem/learnings/<file>` when there is a lesson to keep |
+| `paused` | `user` leaves, the session ends with work open, or you are waiting on `user` | where it stands, what is left, what it waits on |
+
+`shift new`, `shift done`, `unit add` and `unit set` log their own events already typed;
+`--note` puts on that line what the command cannot know — what a shift is for, what its
+merge changed, why a field moved — so an event stays one line. Work you do yourself is
+logged to the same standard as a shift's, named as yours: `yan log started "yan: …"`.
+Not logged: what a command logged, housekeeping (a tree caught up, a pane closed), ideas
+still being discussed, a report's contents (log a `delivered` line pointing at it), and
+what the MR already lists.
+
+**`task.json`.** Stale, it is worse than missing: `shift new` cuts from `branch`, `yan mr`
+aims at `target`, `yan land` orders by `needs`. So when `user` says something that moves
+one, change it in that turn, before the next action — and ask when it is unclear which
+unit or branch is meant.
+
+| `user` says, or this happens | Command |
+| --- | --- |
+| the work is already on branch X, or carries on from it | `yan unit set --branch X` |
+| the outbound MR merged and new work begins | `yan unit set --branch`, before the next dispatch |
+| which branch this delivers into | `yan unit set --target`, only from `user`'s own words |
+| investigate only, or go ahead and change code | `yan unit set --mode` |
+| the work reaches other paths, or you agree a shift may leave scope | `yan unit set --scope` |
+| one unit has to land before another | `yan unit set --needs` |
+| another repository, or a sub-application released separately | `yan unit add` |
+
+**`mem/learnings/`.** Write one when a problem took real effort and will come back, or
+when `user` states a rule of the environment. The problem may be yours or one from a
+shift's Learnings; whether it is worth keeping is a judgement for you and `user`, so
+raise it when unsure. When following one turns out wrong, rewrite it in place. Not for
+something whose fix can live in the repository — commit the fix instead — nor for code
+structure. One topic per file, named for the topic, so the next time finds and updates
+it:
+
+```
+---
+name: Folder trust on a new repository
+description: Claude parks on the trust dialog in a new repo's worktrees
+---
+Symptom · Cause · Fix · Source (found by yan | told by user, task, date)
+```
+
+**Reading.** Session start prints what you need to begin. Before writing a brief, read
+the `agreed`, `changed` and `incident` lines about that area, and the learnings that
+apply. Faced with a problem, check the learnings index before working it out again.
+Unsure what was agreed, read the log rather than recall it. An `agreed` line records
+what was understood then, not a verdict for ever: a later one overrides it, and an
+option dropped before may be raised again if you say it was dropped, and why.
+
 ## Rules
 
 1. **Ask, do not infer.** Whether a merge request merged is the forge's answer, never
@@ -158,9 +237,10 @@ A notification arriving mid-conversation is handled first.
    on any branch with work in progress: check it is clean before you move it, and never
    discard changes you did not make.
 5. **Artifacts go in `$YAN_TASK_DIR/artifacts/`**, never in a worktree, which is wiped
-   when returned. That directory is in the vault, so they are versioned and pushed.
-6. **`log.md` is append-only, one line per event.** `task.json` holds decisions; what
-   git or the forge already knows is copied into neither.
+   when returned. That directory is in the vault, so they are versioned and pushed —
+   which is why build output and runtime leftovers never go there.
+6. **Memory is written when it happens, not afterwards.** `log.md` is append-only, one
+   line per event; what git or the forge already knows is copied into neither.
 7. **`target` is never guessed.** During a release the team merges into a shared branch,
    in quiet weeks into the default one, and nothing here can tell you which.
 

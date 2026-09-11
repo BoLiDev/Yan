@@ -5,6 +5,8 @@ import { action, out } from './shared/action.js';
 import { agentFor, configPath } from './shared/config.js';
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
+import { noted, readNote } from './shared/note.js';
+import { readLearnings } from './session-start.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
 import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
@@ -139,6 +141,17 @@ function harnessArgv(
   return args;
 }
 
+/** The learnings index as brief lines, each with a path a shift can open. */
+function knownLearnings(): string[] {
+  const learnings = readLearnings();
+  if (learnings.length === 0) return [];
+  return [
+    '- What earlier work found out the hard way. When a problem matches one, read it before',
+    '  working the problem out again:',
+    ...learnings.map((l) => `      ${normalizePath(join(vaultDir(), l.path))} — ${l.name}${l.description === '' ? '' : `: ${l.description}`}`),
+  ];
+}
+
 function briefBody(options: {
   sid: string;
   task: string;
@@ -169,15 +182,41 @@ function briefBody(options: {
     '',
     options.work,
     '',
+    '## What is already known',
+    '',
+    `- Research, designs and other by-products of this task are in ${taskDir}/artifacts;`,
+    '  the work above names the ones that matter here.',
+    ...knownLearnings(),
+    '',
     '## How this shift works',
     '',
     `- Work only inside ${tree}. Never touch ${clone}: it is the main clone.`,
     `- You are on ${branch}, which was cut from ${data.branch}. Push it and open a merge request into ${data.branch}.`,
     `- Run the project's install step first, every time. The tree may be warm from an`,
     '  earlier shift, in which case it finishes in seconds with nothing to do.',
-    '- Artifacts - prototypes, notes, screenshots, data - go in $YAN_TASK_DIR/artifacts',
+    '- Artifacts go in $YAN_TASK_DIR/artifacts',
     `  (${taskDir}/artifacts), NEVER inside the worktree: the tree is wiped when it is`,
-    '  returned, so anything left in it is destroyed or accidentally committed.',
+    '  returned, so anything left in it is destroyed or accidentally committed. An',
+    '  artifact is a by-product that helps yan and user understand the work - research',
+    '  findings, prototypes, designs, screenshots that show the result. The deliverable',
+    '  itself is on your branch.',
+    '- Throwaway state - build output, a browser profile, a scratch database, logs - is',
+    '  not an artifact. Put it in the system temp directory, so it is neither committed',
+    '  nor kept.',
+    '- Before you report done, write $YAN_SHIFT_DIR/outcome.md',
+    `  (${taskDir}/shifts/${sid}/outcome.md): the handover yan reads before it`,
+    '  merges your work and decides what comes next. It is for yan, not for the reviewers',
+    '  a merge request description is for, so say what the diff cannot:',
+    '      Result        what changed, in behaviour, in a few sentences',
+    '      Reading       where the brief was ambiguous or silent, and what you chose',
+    '      Deviations    where you did not do what the brief said, and why',
+    '      Learnings     problems you hit and how you solved them, above all what cost real time',
+    '      Left over     what is unfinished, and problems you saw outside scope but did not touch',
+    '      Verification  how you checked it, and what you could not check',
+    '      Artifacts     what you left in $YAN_TASK_DIR/artifacts',
+    '  Leave out a section with nothing in it. Do not restate the brief or walk the diff',
+    '  file by file. If yan sends you more work after that, rewrite the file before you',
+    '  report done again. `yan report done` refuses until the file exists.',
     '- Report only when yan has to act:',
     `      ${home}/bin/yan report <started|done|blocked|needs-decision|conflict> "<one line>"`,
   ];
@@ -212,6 +251,7 @@ export interface NewOptions {
   agent?: string;
   brief?: string;
   briefText?: string;
+  note?: string;
   json?: boolean;
 }
 
@@ -256,6 +296,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
   if (options.brief !== undefined && options.briefText !== undefined) {
     throw CommandError.usage('shift_new', '--brief and --brief-text are alternatives - pass one');
   }
+  const note = readNote('shift_new', options.note);
   if (options.brief !== undefined && !existsSync(options.brief)) {
     throw CommandError.usage('shift_new', `no such brief file: ${options.brief}`);
   }
@@ -426,7 +467,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     });
 
     try {
-      new Log(task).append(`${sid} ${unitName}  dispatched on ${branch} (${agent} in ${workdir})`);
+      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} (${agent} in ${workdir})`, note));
     } catch { /* the shift is running; a missing log line is not worth failing for */ }
 
     return meta;
@@ -461,13 +502,15 @@ const newShift = new Command('new')
   .option('--agent <cli>', 'override agents.shift for this dispatch')
   .option('--brief <file>', 'a file whose contents become the body of the work order')
   .option('--brief-text <text>', 'the work order, inline')
+  .option('--note <text>', 'one line for log.md: what this shift is for')
   .option('--json', 'print the dispatch record instead of a summary')
   .addHelpText(
     'after',
     `
 usage: yan shift new --task <id> --unit <name>
                      [--sid <sid>] [--agent <cli>]
-                     [--brief <file> | --brief-text <text>] [--json]
+                     [--brief <file> | --brief-text <text>]
+                     [--note <text>] [--json]
 
 The shift branch is always yan/<task>-<unit>-<sid> and is never derived from
 the integration branch's name.
@@ -519,6 +562,7 @@ export interface DoneOptions {
   task?: string;
   mr?: string;
   outcome?: string;
+  note?: string;
   keepPane?: boolean;
   json?: boolean;
 }
@@ -603,6 +647,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   if (options.outcome !== undefined && !existsSync(options.outcome)) {
     throw CommandError.usage('shift_done', `no such outcome file: ${options.outcome}`);
   }
+  const note = readNote('shift_done', options.note);
 
   const shift = Shift.resolve(sid, options.task ?? '');
   const meta = shift.meta();
@@ -693,7 +738,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     // --- 3. the log line ----------------------------------------------------
     if (shift.task !== '') {
       try {
-        new Log(shift.task).append(`${shift.sid} ${unit}  ${mr} merged into the integration branch`);
+        new Log(shift.task).append('delivered', noted(`${shift.sid} ${unit}  ${mr} merged into the integration branch`, note));
       } catch { /* the teardown matters more than its log line */ }
     }
 
@@ -773,13 +818,14 @@ const doneShift = new Command('done')
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
   .option('--mr <url>', "the shift branch's merge request, when run/meta.json has none")
   .option('--outcome <file>', 'a file whose contents become outcome.md if the shift wrote none')
+  .option('--note <text>', 'one line for log.md: what the merged work changed')
   .option('--keep-pane', "leave the agent's pane open")
   .option('--json', 'print the teardown record instead of a summary')
   .addHelpText(
     'after',
     `
 usage: yan shift done <sid> [--task <id>] [--mr <url>]
-                      [--outcome <file>] [--keep-pane] [--json]
+                      [--outcome <file>] [--note <text>] [--keep-pane] [--json]
 
 Clocks a shift out, in the one order that survives a squash merge:
 

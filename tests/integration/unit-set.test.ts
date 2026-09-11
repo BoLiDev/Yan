@@ -368,3 +368,35 @@ describe('the work on the old round is carried forward', () => {
     expect((await fxGit(['-C', clone, 'cat-file', '-e', 'side:clash.txt'])).code).toBe(0);
   });
 });
+
+describe('--needs, and --note', () => {
+  it('replaces the needs list, and says so in log.md with the reason', () => {
+    const r = run({ task: 't1', unit: 'auth', needs: ['proto'], note: 'proto ships the schema auth reads' });
+    expect(r.code, r.message).toBe(0);
+    expect(unitField('auth', 'needs')).toEqual(['proto']);
+    const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
+    expect(log).toMatch(/changed {4}auth {2}needs → proto — proto ships the schema auth reads/);
+  });
+
+  it("clears it with --needs ''", () => {
+    expect(run({ task: 't1', unit: 'auth', needs: [''] }).code).toBe(0);
+    expect(unitField('auth', 'needs')).toEqual([]);
+  });
+
+  it('refuses a unit the task does not have, or the unit itself, and changes nothing', () => {
+    snap();
+    const ghost = run({ task: 't1', unit: 'auth', needs: ['ghost'] });
+    expect(ghost.code).toBe(2);
+    expect(ghost.message).toContain('ghost');
+    expect(run({ task: 't1', unit: 'auth', needs: ['auth'] }).code).toBe(2);
+    assertUntouched();
+  });
+
+  it('refuses a note on more than one line before it changes anything', () => {
+    snap();
+    const r = run({ task: 't1', unit: 'auth', mode: 'scout', note: 'one\ntwo' });
+    expect(r.code).toBe(2);
+    expect(r.message).toContain('one line');
+    assertUntouched();
+  });
+});

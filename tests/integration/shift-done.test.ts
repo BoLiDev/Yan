@@ -212,7 +212,7 @@ describe('merged: the whole teardown, in order', () => {
     const outcome = join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md');
     expect(existsSync(outcome), 'outcome.md is long-lived and survives').toBe(true);
     expect(readFileSync(outcome, 'utf8')).toContain(MR);
-    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toContain('merged into the integration branch');
+    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toMatch(/delivered {2}s1 auth {2}\S+ merged into the integration branch/);
     expect(leases, 'the pool slot is free again').toEqual([]);
   });
 
