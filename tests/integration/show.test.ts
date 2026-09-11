@@ -107,7 +107,8 @@ describe('one task at a glance', () => {
     expect(text).toContain('scope  apps/auth');
     expect(text).toContain(`tree   ${tildePath(tree)}   ● 1 uncommitted`);
     expect(text).toContain('s3  coding/normal  blocked');
-    expect(text).toContain('0m ago  which header wins');
+    expect(text).toContain('0m ago');
+    expect(text, "a shift's report note is not shown").not.toContain('which header wins');
     expect(text).toContain('w1:p4 · yan/t042-auth-s3');
     expect(text).toContain('Log  last 5 of 7');
     expect(text).toContain('entry 7');

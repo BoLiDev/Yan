@@ -266,7 +266,9 @@ export function renderShow(show: ShowJson): void {
     out(
       `   ${bold(s.sid.padEnd(sidWidth))}  ${magenta(as.padEnd(asWidth))}  ` +
         `${s.last_event === null ? dim(event.padEnd(eventWidth)) : paintEvent(event) + ' '.repeat(eventWidth - event.length)}  ` +
-        `${dim(when.padStart(7))}  ${s.last_event?.note ?? ''}`,
+        // The note is left to --json and `yan state`: a shift's report can
+        // run to a paragraph, and this is a glance.
+        dim(when.padStart(7)),
     );
     out(`   ${' '.repeat(sidWidth)}  ${dim([s.pane, s.branch].filter((x) => x !== '').join(' · '))}`);
   }
