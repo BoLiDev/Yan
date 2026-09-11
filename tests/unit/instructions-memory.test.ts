@@ -42,6 +42,12 @@ describe.each(FILES)('%s', (name) => {
     expect(text).toContain('yan send');
   });
 
+  it('says how to give work up, and to abandon a shift dispatched as the wrong kind', () => {
+    expect(text).toContain('yan shift abandon');
+    expect(text).toContain('yan abandon');
+    expect(text).toContain('--reason');
+  });
+
   it('names the three scenarios and how a dispatch chooses one', () => {
     for (const scenario of ['explore', 'coding', 'uix']) expect(text, scenario).toContain(`\`${scenario}\``);
     expect(text).toContain('--scenario');

@@ -39,6 +39,7 @@ export function readDocument(file: string, id: string): TaskData {
     id: asString(raw.id, id),
     title: asString(raw.title),
     complete: raw.complete === true,
+    abandoned: raw.abandoned === true,
     units: units.map((u): UnitData => {
       const r = asRecord(u);
       const mode = asString(r.mode, 'mr');

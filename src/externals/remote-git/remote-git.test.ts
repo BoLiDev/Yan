@@ -6,7 +6,7 @@ import type { CliInvocation, CliResult } from './client.js';
 import { RemoteGit, configuredCli } from './index.js';
 
 /**
- * The four verbs, with the CLI transport replaced through the constructor.
+ * The five verbs, with the CLI transport replaced through the constructor.
  *
  * No module mocking: `new RemoteGit({ run })` is the supported way to route the
  * calls somewhere else, so the test uses the same door a caller would. What is
@@ -220,6 +220,26 @@ describe('createMr', () => {
     expect(() => host().createMr({ source: 'a', target: 'b', title: 't' })).toThrow(
       /did not print a merge request URL/,
     );
+  });
+});
+
+describe('closeMr', () => {
+  it('closes without merging and without touching the branch, on both hosts', () => {
+    configure({ kind: 'github' });
+    host().closeMr({ mr: 'https://github.com/o/r/pull/4' });
+    expect(calls[0]?.args).toEqual(['pr', 'close', 'https://github.com/o/r/pull/4']);
+
+    calls.length = 0;
+    configure({ kind: 'gitlab', host: 'gitlab.example.com' });
+    host().closeMr({ mr: '9', repo: 'o/r' });
+    expect(calls[0]?.args).toEqual(['mr', 'close', '9', '--repo', 'o/r']);
+    expect(calls[0]?.args.join(' ')).not.toContain('branch');
+  });
+
+  it('throws when the host did not close it', () => {
+    configure({ kind: 'github' });
+    nextResult = { code: 1, stdout: '', stderr: 'no such pull request' };
+    expect(() => host().closeMr({ mr: '4' })).toThrow(/could not close 4/);
   });
 });
 

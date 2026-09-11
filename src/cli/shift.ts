@@ -6,6 +6,7 @@ import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from './sha
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
+import { shiftAbandonCommand } from './abandon.js';
 import { readLearnings } from './session-start.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
@@ -960,6 +961,7 @@ after a teardown means the agent was still in its pane after closing it.`,
   );
 
 export const command = new Command('shift')
-  .description('dispatch and clock out shifts')
+  .description('dispatch, clock out and abandon shifts')
   .addCommand(newShift)
-  .addCommand(doneShift);
+  .addCommand(doneShift)
+  .addCommand(shiftAbandonCommand);

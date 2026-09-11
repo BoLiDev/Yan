@@ -56,6 +56,18 @@ export class Task {
     });
   }
 
+  public isAbandoned(): boolean {
+    return this.read().abandoned;
+  }
+
+  /** Mark the task given up on, which also makes it complete: nothing more will happen to it. */
+  public setAbandoned(): void {
+    editDocument(this.file, this.id, (task) => {
+      task.complete = true;
+      task.abandoned = true;
+    });
+  }
+
   /**
    * The name of this task's terminal container: `<id> <title>` with `:` and
    * `.` replaced by `-`, falling back to the id alone when the title cannot be

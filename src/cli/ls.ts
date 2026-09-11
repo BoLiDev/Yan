@@ -90,6 +90,7 @@ export function queueJson(): unknown {
       id: orEmpty(task.id),
       title: orEmpty(task.title),
       complete: task.complete === true,
+      abandoned: task.abandoned === true,
       units: units.map((u) => u.name ?? null),
       scope: unique(
         units.flatMap((u) =>
@@ -112,7 +113,7 @@ function renderQueue(json: ReturnType<typeof queueJson>): void {
   for (const t of data.tasks) {
     rows.push([
       String(t.id ?? ''),
-      t.complete === true ? 'done' : 'open',
+      t.abandoned === true ? 'abandoned' : t.complete === true ? 'done' : 'open',
       String((t.units as unknown[]).length),
       String(t.shifts),
       dash((t.scope as string[]).join(' ')),

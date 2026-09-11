@@ -34,6 +34,9 @@ export interface Provider {
     deleteSource: boolean,
   ): string[];
 
+  /** Arguments that close a merge request without merging it, leaving its branch. */
+  closeArgs(mr: string, repo: string | undefined): string[];
+
   /** Pure: the payload is the CLI's stdout, and nothing else is consulted. */
   mapMrState(payload: string): MrState;
   mapCiState(payload: string): CiState;

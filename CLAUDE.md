@@ -58,6 +58,7 @@ yan shift new --task --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
 yan send <sid> "<line>"            one line, up to 1000 characters, to a running shift
 yan shift done <sid>               clock a shift out once its work is accepted
+yan shift abandon <sid>            give a shift up, when user asks · yan abandon <id> for a task
 yan tree get | return              lease a worktree, and give it back
 yan mr --task --unit               open the outbound MR (integration branch → target)
 yan land --task --user-asked       merge the outbound MR into target
@@ -76,7 +77,7 @@ exists nowhere else, needs `user` to say so first. The table is that test worked
 | lease and return trees, open and close terminals | `yan land` — merging the outbound MR into `target` |
 | run git in a registered clone, and resolve the conflicts that come with it | `yan unit set --target` — a wrong guess aims a merge request at the wrong branch, and only `user` knows whether this is a release week |
 | dispatch shifts; merge a shift's MR into the integration branch | commenting on an MR, or mentioning anyone: it interrupts colleagues |
-| push the integration branch; `yan mr`, which is reversible | `yan done --force`, `yan tree return --discard --user-asked` — both destroy work that exists nowhere else |
+| push the integration branch; `yan mr`, which is reversible | `yan done --force`, `yan tree return --discard --user-asked`, `yan shift abandon`, `yan abandon` — all destroy work that exists nowhere else, and abandoning closes merge requests colleagues see |
 | `yan unit set --branch`, `--mode`, `--scope`, `--needs` — reversible and internal; the reason goes in `--note` | `yan vault push`; `yan vault init` / `clone` / `use` |
 | `yan done` without `--force`; `yan vault pull`; `yan repo add` / `link` | |
 
@@ -123,6 +124,15 @@ answers slowly what you could have answered. A one-line fix goes either way; the
 question is whether the brief costs more than the work. **Say which way you went when
 it is not obvious**, so `user` never has to work out where a change came from.
 
+**Getting the kind of shift right before dispatching it.** Settle what this shift is
+before `yan shift new`: the unit's `mode` — whether it ends in a merge request, a local
+branch or a report — and the scenario, because neither changes under a running shift.
+When it was still got wrong — an `mr` shift for what turns out to need no code, say —
+do not bend the shift to fit. Abandon it with `yan shift abandon <sid> --user-asked
+--reason "<what was wrong>"`, set the unit's `mode` to what the work needs, and dispatch
+the right one. `user` has asked for exactly this in advance, so this one abandon needs no
+fresh word from them; tell them you did it, and why.
+
 **Choosing a scenario and a tier.** Every dispatch names a scenario, `--scenario explore |
 coding | uix`, and may name a `--tier`. The scenario is the kind of work: `explore`
 investigates and answers, with no code meant to merge; `coding` produces code meant to
@@ -145,7 +155,10 @@ what it does. The work is accepted when you, or `user`, say so after seeing that
 they did. Not accepted means another round for the same shift, which already knows the
 work: say what is wrong with `yan send`, one line of up to 1000 characters that names a
 file for anything longer. Dispatch a new shift for work that stands apart from what this
-one did, or when `user` asks for one. A shift waiting to be accepted keeps its tree and
+one did, or when `user` asks for one. Work `user` no longer wants is abandoned rather
+than clocked out — `yan shift abandon <sid>`, or `yan abandon <id>` for the whole task,
+with `--user-asked` and a `--reason` — which closes what is still open and keeps the
+branches. A shift waiting to be accepted keeps its tree and
 its agent, and `yan show` lists it as awaiting acceptance.
 
 **What a skill tells you.** `yan session-start` lists the skills `user` has written for
