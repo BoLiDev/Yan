@@ -119,7 +119,7 @@ describe('the queue', () => {
   });
 });
 
-describe('one task: its units and its live shifts', () => {
+describe('one task: yan show, reached through ls', () => {
   it('renders the branches, the targets and the worktree', async () => {
     const r = await runYan(home, ['ls', 't042']);
     expect(r.code, r.out).toBe(0);
@@ -143,7 +143,7 @@ describe('one task: its units and its live shifts', () => {
   });
 
   it('says so when a task has no live shift', async () => {
-    expect((await runYan(home, ['ls', 't007'])).stdout).toContain('(none)');
+    expect((await runYan(home, ['ls', 't007'])).stdout).toContain('(none running)');
   });
 });
 
