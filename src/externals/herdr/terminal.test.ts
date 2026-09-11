@@ -170,10 +170,17 @@ describe('no Herdr error code escapes the seam', () => {
     expect(notFound.code).toBe(TerminalError.codes.notFound);
 
     const refused = mapError(
-      { code: 1, stdout: '', stderr: '{"error":{"code":"pane_busy","message":"x"}}' },
+      { code: 1, stdout: '', stderr: '{"error":{"code":"workspace_full","message":"x"}}' },
       'pane split',
     );
     expect(refused.code).toBe(TerminalError.codes.refused);
+
+    // The one refusal that is about timing rather than a verdict.
+    const busy = mapError(
+      { code: 1, stdout: '', stderr: '{"error":{"code":"pane_busy","message":"x"}}' },
+      'agent start',
+    );
+    expect(busy.code).toBe(TerminalError.codes.busy);
 
     // rc 2 is a CLI syntax error - a bug in yan, never a runtime condition.
     expect(mapError({ code: 2, stdout: '', stderr: 'usage: …' }, 'pane split').code).toBe(
@@ -275,6 +282,72 @@ describe('an agent that is not really there', () => {
     const started = term.startAgent({ container: 'w1', name: 's1', kind: 'claude', cwd: '.' });
     expect(started.pane).toBe('w1:p2');
     expect(started.name).toBe('s1');
+  });
+
+  /**
+   * A new tab's shell is not at its prompt at once, and herdr refuses an
+   * agent start into it with `pane_busy` until it is. `refusals` is how many
+   * times it says so; `code` what it says.
+   */
+  function slowShellHerdr(refusals: number, code = 'pane_busy') {
+    const calls: string[] = [];
+    let asked = 0;
+    const run = (args: readonly string[]) => {
+      const verb = `${args[0]} ${args[1]}`;
+      calls.push(`${verb} ${args[2] ?? ''}`.trim());
+      if (verb === 'tab create') return ok({ tab: { tab_id: 'w1:t2' }, root_pane: { pane_id: 'w1:p2' } });
+      if (verb === 'agent start') {
+        asked += 1;
+        if (asked <= refusals) return { code: 1, stdout: '', stderr: `{"error":{"code":"${code}","message":"x"}}` };
+        return ok({ agent: { name: 's1', pane_id: 'w1:p2', agent_status: 'idle' } });
+      }
+      if (verb === 'agent get') return ok({ agent: { pane_id: 'w1:p2' } });
+      return ok({});
+    };
+    return { run, calls };
+  }
+
+  it('asks a busy new pane again until its shell is ready', () => {
+    const herdr = slowShellHerdr(3);
+    const slept: number[] = [];
+    const term = new Terminal({ run: herdr.run, settleMs: 0, sleep: (ms) => slept.push(ms) });
+    const started = term.startAgent({ container: 'w1', name: 's1', kind: 'claude', cwd: '.' });
+    expect(started.pane).toBe('w1:p2');
+    expect(herdr.calls.filter((c) => c.startsWith('agent start'))).toHaveLength(4);
+    expect(slept).toEqual([500, 500, 500]);
+    expect(herdr.calls, 'a pane that took its agent stays').not.toContain('pane close w1:p2');
+  });
+
+  it('gives up once the budget is spent, and closes the tab it made', () => {
+    const herdr = slowShellHerdr(1000);
+    let clock = 0;
+    const realNow = Date.now;
+    Date.now = () => clock;
+    try {
+      const term = new Terminal({ run: herdr.run, settleMs: 0, busyRetryMs: 15000, sleep: (ms) => { clock += ms; } });
+      let caught: unknown;
+      try {
+        term.startAgent({ container: 'w1', name: 's1', kind: 'claude', cwd: '.' });
+      } catch (err) {
+        caught = err;
+      }
+      expect((caught as TerminalError).code).toBe(TerminalError.codes.busy);
+      expect((caught as TerminalError).message).toContain('within 15s');
+      // Once at the start, then every 500ms up to and including the fifteenth second.
+      expect(herdr.calls.filter((c) => c.startsWith('agent start'))).toHaveLength(31);
+      expect(herdr.calls.at(-1)).toBe('pane close w1:p2');
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('does not wait out a refusal that is not about timing, and still closes the tab', () => {
+    const herdr = slowShellHerdr(1, 'unsupported_kind');
+    const slept: number[] = [];
+    const term = new Terminal({ run: herdr.run, settleMs: 0, sleep: (ms) => slept.push(ms) });
+    expect(() => term.startAgent({ container: 'w1', name: 's1', kind: 'claude', cwd: '.' })).toThrow(/unsupported_kind/);
+    expect(slept).toEqual([]);
+    expect(herdr.calls).toEqual(['tab create --workspace', 'agent start s1', 'pane close w1:p2']);
   });
 
   it('answers the trust dialog, and gives back the prompt it swallowed', () => {

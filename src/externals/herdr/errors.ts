@@ -9,6 +9,8 @@ const CODES = {
   unreachable: 'term_unreachable',
   notFound: 'term_not_found',
   refused: 'term_refused',
+  /** The pane is not at its shell prompt yet; asking again later may succeed. */
+  busy: 'term_busy',
   bug: 'term_bug',
 } as const;
 
