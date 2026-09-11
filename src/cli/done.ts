@@ -81,7 +81,7 @@ export interface DoneResult {
 }
 
 /** A lease of this task, with the clone it belongs to. */
-interface Held extends LeaseRow {
+export interface Held extends LeaseRow {
   readonly clone: string;
 }
 
@@ -91,7 +91,7 @@ interface Held extends LeaseRow {
  * re-pointed unit can leave a lease task.json no longer mentions. A repository
  * that cannot be resolved is skipped rather than fatal.
  */
-function heldBy(task: string, deps: DoneDeps): Held[] {
+export function heldBy(task: string, deps: DoneDeps): Held[] {
   const repos = new Set<string>();
   for (const unit of new Task(task).read().units) {
     if (typeof unit.repo === 'string' && unit.repo !== '') repos.add(unit.repo);
@@ -173,7 +173,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
         return unit === '' ? s.sid : `${s.sid} (${unit})`;
       })
       .join(', ');
-    throw new CommandError('done', 'live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user says the work can be thrown away - re-run with --force`,
+    throw new CommandError('done', 'live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user is giving the task up - 'yan abandon ${task} --user-asked --reason ...', which closes their merge requests too; --force instead marks it done and discards their work`,
       { exitCode: RC_LIVE_SHIFTS },
     );
   }

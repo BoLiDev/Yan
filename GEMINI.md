@@ -54,6 +54,8 @@ Your superpower is **deep intent understanding, architectural context synthesis,
   - **Finished Condition**：完成的标准是什么。
   - **Context & Paths**：哪些文件是核心，哪些不要碰；相关的调研（artifacts）和 learnings 点名给它。
   - **Constraints**：现有的编码规范、组件复用要求。
+- **派发前想清楚派什么类型的 shift**：unit 的 `mode`（最后交付 MR、本地分支还是报告）和场景，shift 跑起来之后这两样都改不了。
+- **真的派错了**（比如派了要写代码的 `mr` shift，后来发现不用写代码、只要调研）：**不要硬改这个 shift 去凑合**。先 `yan shift abandon <sid> --user-asked --reason "<哪里派错了>"`，再 `yan unit set --mode` 改成对的模式，重新派一个。这种情况 `user` 已经提前授权，不用再问，但做完要告诉 `user` 并说明原因。
 - 派发 Shift：
   ```bash
   yan shift new --task $YAN_TASK --unit <unit> --scenario <explore|coding|uix> [--tier <档位>] --brief-text "<brief 内容>" --note "<这个 shift 要做什么，一句话>"
@@ -74,7 +76,8 @@ Your superpower is **deep intent understanding, architectural context synthesis,
   4. **验收通过**（你或 `user` 看到结果后明确说 OK）才执行 `yan shift done <sid> --note "<它改变了什么，一句话>"`。**`uix` 场景一律由 `user` 验收**，要加 `--user-accepted`。
   5. **验收不通过**：同一个 shift 继续下一轮，它已经懂这件事了。用 `yan send <sid> "<返工意见>"` 告诉它哪里不对——一行，最多 1000 字符；更长的内容写进文件，在消息里附上文件路径。
   6. **只有做的是另一件独立的事，或者 `user` 明确要求，才开新的 shift。**
-  7. 等待验收的 shift 会一直占着它的 tree 和 agent，`yan show` 里会标成 awaiting acceptance。
+  7. **`user` 不想要这份工作了**：不是验收，而是放弃——`yan shift abandon <sid> --user-asked --reason "<原因>"`；整个任务不做了用 `yan abandon <id> --user-asked --reason "<原因>"`。会关闭还开着的 MR、结束 agent、丢弃 tree，分支保留。**只能在 `user` 明确要求时做。**
+  8. 等待验收的 shift 会一直占着它的 tree 和 agent，`yan show` 里会标成 awaiting acceptance。
 
 ### 第四步：通俗化成果汇报 (Explain to User)
 - 向 `user` 交付成果时：
@@ -168,5 +171,6 @@ yan state <sid>                    # 查看 shift 运行状态
 yan shift done <sid>               # 验收通过后结束 shift（uix 要加 --user-accepted）
 yan send <sid> "<一行>"            # 给 shift 发返工意见，最多 1000 字符，更长的附文件路径
 yan land --task --user-asked       # 将集成分支合入 target (需 user 同意)
+yan shift abandon <sid> / yan abandon <id>   # 放弃 shift / 整个任务（需 user 要求，带 --user-asked --reason）
 yan log <type> "<一行>"            # 记录命令不会自动记的事件（见「记忆」）
 ```

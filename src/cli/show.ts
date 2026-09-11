@@ -33,6 +33,7 @@ export interface ShowJson {
   readonly id: string;
   readonly title: string;
   readonly complete: boolean;
+  readonly abandoned: boolean;
   readonly dir: string;
   /** Whether a live `yan continue` holds the task, and the pane it is in. */
   readonly session: { readonly running: boolean; readonly pane: string | null };
@@ -172,6 +173,7 @@ export function showJson(id: string): ShowJson {
     id: data.id,
     title: data.title,
     complete: data.complete,
+    abandoned: data.abandoned,
     dir: task.dir,
     session: sessionOf(id),
     units,
@@ -229,7 +231,7 @@ function section(label: string, aside = ''): void {
 export function renderShow(show: ShowJson): void {
   out('');
   out(` ${bold(cyan(show.id))}  ${bold(dash(show.title))}`);
-  const state = show.complete ? dim('✓ done') : green('● open');
+  const state = show.abandoned ? red('✗ abandoned') : show.complete ? dim('✓ done') : green('● open');
   // A task still open with nobody on it is one to resume, so the command is
   // said where the absence is.
   const session = show.session.running

@@ -25,11 +25,12 @@ export interface RemoteGitOptions {
 }
 
 /**
- * The remote git host — GitHub or GitLab — behind four verbs:
+ * The remote git host — GitHub or GitLab — behind five verbs:
  *
  *     createMr   open one, return its URL
  *     mrState    merged | closed | open | unknown
  *     mergeMr    merge it, now
+ *     closeMr    close it unmerged, keeping its branch
  *     ciState    green | red | pending | none
  *
  * Which host is resolved once, in the constructor, and never reaches a caller.
@@ -38,7 +39,7 @@ export interface RemoteGitOptions {
  *
  * The two query verbs always return a member of their closed set — a host that
  * cannot be reached is `unknown` / `pending` plus a note on stderr — so a
- * caller branches on the value rather than catching. The two action verbs
+ * caller branches on the value rather than catching. The three action verbs
  * throw a RemoteGitError when they did not work.
  */
 export class RemoteGit {
@@ -113,6 +114,22 @@ export class RemoteGit {
     if (result.code !== 0) {
       throw new RemoteGitError('failed', `could not merge ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`,
       );
+    }
+  }
+
+  /**
+   * Close without merging. The source branch is left where it is: an
+   * abandoned piece of work may still be wanted.
+   *
+   * @throws RemoteGitError `usage` for an unknown option, `failed` when the
+   *   host did not close it.
+   */
+  public closeMr(ref: MrRef): void {
+    only(ref, ['repo', 'dir', 'mr']);
+    const mr = requireMr(ref);
+    const result = this.invoke(this.provider.closeArgs(mr, ref.repo), checkDir(ref));
+    if (result.code !== 0) {
+      throw new RemoteGitError('failed', `could not close ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`);
     }
   }
 

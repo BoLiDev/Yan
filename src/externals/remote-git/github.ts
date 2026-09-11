@@ -158,6 +158,10 @@ export const githubProvider: Provider = {
     return args;
   },
 
+  closeArgs(mr: string, repo: string | undefined) {
+    return ['pr', 'close', ...refArgs(mr, repo)];
+  },
+
   mapMrState,
   mapCiState,
 };

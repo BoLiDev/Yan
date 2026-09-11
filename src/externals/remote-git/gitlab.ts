@@ -165,6 +165,10 @@ export const gitlabProvider: Provider = {
     return args;
   },
 
+  closeArgs(mr: string, repo: string | undefined) {
+    return ['mr', 'close', ...refArgs(mr, repo)];
+  },
+
   mapMrState,
   mapCiState,
 };

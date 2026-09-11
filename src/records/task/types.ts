@@ -45,6 +45,8 @@ export interface TaskData {
   id: string;
   title: string;
   complete: boolean;
+  /** Given up on rather than finished: also `complete`, since nothing more will happen to it. */
+  abandoned: boolean;
   units: UnitData[];
   [key: string]: unknown;
 }
