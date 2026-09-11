@@ -101,6 +101,9 @@ export function mapError(result: HerdrResult, what: string): TerminalError {
     case 'workspace_not_found':
     case 'tab_not_found':
       return new TerminalError('notFound', `${what}: ${code}`);
+    // `agent_pane_busy` is what `agent start` answers; the bare spelling is
+    // kept for a herdr that names it without the prefix.
+    case 'agent_pane_busy':
     case 'pane_busy':
       return new TerminalError('busy', `${what}: ${code}`);
     case undefined:
