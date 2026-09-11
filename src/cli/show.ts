@@ -263,14 +263,14 @@ export function renderShow(show: ShowJson): void {
     const as = s.scenario === '' ? '' : `${s.scenario}${s.tier === '' ? '' : `/${s.tier}`}`;
     const event = s.last_event?.state ?? 'no event';
     const when = s.last_event === null ? '' : ago(s.last_event.at);
+    // The note is left to --json and `yan state`: a shift's report can run
+    // to a paragraph, and this is one row per shift.
+    const where = [s.pane, s.branch].filter((x) => x !== '').join(' · ');
     out(
       `   ${bold(s.sid.padEnd(sidWidth))}  ${magenta(as.padEnd(asWidth))}  ` +
         `${s.last_event === null ? dim(event.padEnd(eventWidth)) : paintEvent(event) + ' '.repeat(eventWidth - event.length)}  ` +
-        // The note is left to --json and `yan state`: a shift's report can
-        // run to a paragraph, and this is a glance.
-        dim(when.padStart(7)),
+        `${dim(when.padStart(7))}${where === '' ? '' : `   ${dim(where)}`}`,
     );
-    out(`   ${' '.repeat(sidWidth)}  ${dim([s.pane, s.branch].filter((x) => x !== '').join(' · '))}`);
   }
 
   section('Log', show.log.total === 0 ? '' : `last ${show.log.lines.length} of ${show.log.total}`);
