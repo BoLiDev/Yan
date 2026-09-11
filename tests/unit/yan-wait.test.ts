@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { WAIT_SOURCES, watch, type EventSource, type StatusReader } from '../../src/cli/wait.js';
+import { WAIT_SOURCES, drainWake, watch, type EventSource, type StatusReader } from '../../src/cli/wait.js';
 import { Supervision } from '../../src/records/supervision/index.js';
 import { Task } from '../../src/records/task/index.js';
 import { readPulse } from '../../src/records/shift/index.js';
@@ -639,5 +639,18 @@ describe('the socket client lives with the rest of Herdr', () => {
     expect(externals).toContain('remote-git');
     expect(externals).toContain('worktree');
     expect(new Set(externals).size).toBe(externals.length);
+  });
+});
+
+describe('--drain: the reason and the clearing in one call', () => {
+  it('hands back every waiting reason and leaves no wake file behind', () => {
+    sup.wakeWrite('signal: s1 done');
+    sup.wakeWrite('agent-status: s2 blocked');
+    expect(drainWake('t1')).toBe('signal: s1 done\nagent-status: s2 blocked');
+    expect(existsSync(sup.wake)).toBe(false);
+  });
+
+  it('is undefined when nothing is waiting', () => {
+    expect(drainWake('t1')).toBeUndefined();
   });
 });

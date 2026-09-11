@@ -167,9 +167,9 @@ There is **no** Stop autoarm on Codex. As of the public Codex hooks docs (checke
 
 The model **actively** loops:
 
-1. When this session still has shifts to supervise, run `yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180}` as a foreground tool.
-2. On an event: `yan drain`, handle, start the next `--seconds` slice.
-3. On quiet timeout: drain anyway, handle any newly visible user message, start the next slice.
+1. When this session still has shifts to supervise, run `yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180} --drain` as a foreground tool.
+2. On an event: the same call has printed and cleared the reasons; handle them, start the next slice.
+3. On quiet timeout: handle any newly visible user message, start the next slice, and say nothing. A quiet slice writes no wake, so there is nothing to drain; and every word between slices is tokens and screen `user` pays for without learning anything.
 4. Never use shell `&` or Codex background tasks for watcher supervision.
 5. Do not use long unbounded `yan wait` as Codex's normal path.
 
@@ -188,8 +188,7 @@ sequenceDiagram
     Shift-->>Disk: report or die or stuck
     alt event in slice
       Wait->>Disk: write wake
-      Wait-->>Codex: exit 0 + reason
-      Codex->>Disk: yan drain
+      Wait-->>Codex: exit 0 + reason (--drain clears it)
       Codex->>Wait: next --seconds
     else quiet timeout
       Wait-->>Codex: timed out

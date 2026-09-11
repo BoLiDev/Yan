@@ -156,9 +156,7 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
     JSON.stringify({
       decision: 'block',
       reason:
-        `yan guard: task ${task} still has live shifts. Attempt ${n} of ${GUARD_BUDGET}: run ` +
-        `'${yan}' wait --seconds ${checkpointSeconds()} for another checkpoint slice, then ` +
-        `'${yan}' drain, before ending the turn.`,
+        `yan guard (${n}/${GUARD_BUDGET}): shifts are live. Run '${yan}' wait --seconds ${checkpointSeconds()} --drain, silently.`,
     }),
   );
   return 0;
