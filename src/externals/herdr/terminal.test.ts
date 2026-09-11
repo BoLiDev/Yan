@@ -176,11 +176,14 @@ describe('no Herdr error code escapes the seam', () => {
     expect(refused.code).toBe(TerminalError.codes.refused);
 
     // The one refusal that is about timing rather than a verdict.
-    const busy = mapError(
-      { code: 1, stdout: '', stderr: '{"error":{"code":"pane_busy","message":"x"}}' },
-      'agent start',
-    );
-    expect(busy.code).toBe(TerminalError.codes.busy);
+    // What herdr 0.8 really says, and the bare spelling beside it.
+    for (const herdrCode of ['agent_pane_busy', 'pane_busy']) {
+      const busy = mapError(
+        { code: 1, stdout: '', stderr: `{"error":{"code":"${herdrCode}","message":"x"}}` },
+        'agent start',
+      );
+      expect(busy.code, herdrCode).toBe(TerminalError.codes.busy);
+    }
 
     // rc 2 is a CLI syntax error - a bug in yan, never a runtime condition.
     expect(mapError({ code: 2, stdout: '', stderr: 'usage: …' }, 'pane split').code).toBe(
@@ -286,10 +289,10 @@ describe('an agent that is not really there', () => {
 
   /**
    * A new tab's shell is not at its prompt at once, and herdr refuses an
-   * agent start into it with `pane_busy` until it is. `refusals` is how many
+   * agent start into it with `agent_pane_busy` until it is. `refusals` is how many
    * times it says so; `code` what it says.
    */
-  function slowShellHerdr(refusals: number, code = 'pane_busy') {
+  function slowShellHerdr(refusals: number, code = 'agent_pane_busy') {
     const calls: string[] = [];
     let asked = 0;
     const run = (args: readonly string[]) => {
