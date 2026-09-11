@@ -62,6 +62,8 @@ export interface ShowJson {
     readonly last_event: { readonly state: string; readonly at: string; readonly note: string } | null;
     /** The task is done and this shift never clocked out: its run/ is left over, not running. */
     readonly leftover: boolean;
+    /** Reported done on an open task: its work is merged or delivered, and waits to be tried and accepted. */
+    readonly awaiting_acceptance: boolean;
   }[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
@@ -161,6 +163,7 @@ export function showJson(id: string): ShowJson {
       pane: meta.agentId ?? '',
       last_event: lastEvent(shift),
       leftover: data.complete,
+      awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',
     };
   });
 
@@ -259,12 +262,18 @@ export function renderShow(show: ShowJson): void {
   }
 
   const leftovers = show.shifts.filter((s) => s.leftover).length;
-  const running = show.shifts.length - leftovers;
+  const awaiting = show.shifts.filter((s) => s.awaiting_acceptance).length;
+  const running = show.shifts.length - leftovers - awaiting;
   section(
     'Shifts',
     show.shifts.length === 0
       ? ''
-      : [running > 0 ? `${running} running` : '', leftovers > 0 ? `${leftovers} not clocked out` : '', 'last reported events']
+      : [
+          running > 0 ? `${running} running` : '',
+          awaiting > 0 ? `${awaiting} awaiting acceptance` : '',
+          leftovers > 0 ? `${leftovers} not clocked out` : '',
+          'last reported events',
+        ]
           .filter((x) => x !== '')
           .join(' · '),
   );
@@ -280,9 +289,10 @@ export function renderShow(show: ShowJson): void {
     // to a paragraph, and this is one row per shift.
     // A done task's shift with run/ still there is debris to clean up, and
     // saying where it ran would read as if it still were.
+    const place = dim([s.pane, s.branch].filter((x) => x !== '').join(' · '));
     const where = s.leftover
       ? yellow('not clocked out')
-      : dim([s.pane, s.branch].filter((x) => x !== '').join(' · '));
+      : s.awaiting_acceptance ? `${cyan('awaiting acceptance')}   ${place}` : place;
     out(
       `   ${bold(s.sid.padEnd(sidWidth))}  ${magenta(as.padEnd(asWidth))}  ` +
         `${s.last_event === null ? dim(event.padEnd(eventWidth)) : paintEvent(event) + ' '.repeat(eventWidth - event.length)}  ` +

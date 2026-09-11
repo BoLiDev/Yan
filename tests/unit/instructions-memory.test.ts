@@ -36,6 +36,12 @@ describe.each(FILES)('%s', (name) => {
     expect(text).toContain('yan unit add');
   });
 
+  it('says a shift lasts until its work is accepted, and uix is accepted by user', () => {
+    expect(text).toContain('--user-accepted');
+    expect(text).toContain('1000');
+    expect(text).toContain('yan send');
+  });
+
   it('names the three scenarios and how a dispatch chooses one', () => {
     for (const scenario of ['explore', 'coding', 'uix']) expect(text, scenario).toContain(`\`${scenario}\``);
     expect(text).toContain('--scenario');

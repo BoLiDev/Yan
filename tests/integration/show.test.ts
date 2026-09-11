@@ -232,3 +232,19 @@ describe('choosing, and refusing', () => {
     expect(snapshot(home)).toEqual(before);
   });
 });
+
+describe('a shift that reported done on an open task', () => {
+  it('is awaiting acceptance, not running', async () => {
+    Task.create('t052', 'rounds of rework');
+    const run = join(home, 'tasks', 't052', 'shifts', 's2', 'run');
+    mkdirSync(run, { recursive: true });
+    writeFileSync(join(run, 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t052-auth-s2', pane: 'w5:p2', scenario: 'coding', tier: 'normal' }));
+    writeFileSync(join(run, 'status'), ['2026-09-11T08:00:00Z', 'done', 'mr https://forge.invalid/1'].join('\t') + '\n');
+
+    const r = await show(['show', 't052']);
+    expect(r.stdout).toContain('1 awaiting acceptance');
+    expect(r.stdout).not.toContain('running ·');
+    expect(r.stdout).toContain('awaiting acceptance   w5:p2 · yan/t052-auth-s2');
+    expect((JSON.parse((await show(['show', 't052', '--json'])).stdout) as ShowJson).shifts[0]?.awaiting_acceptance).toBe(true);
+  });
+});
