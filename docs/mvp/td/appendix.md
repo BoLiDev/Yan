@@ -6,20 +6,19 @@ These sections are lists to look things up in, not sections to read through. The
 
 | File | Who writes | When | Who reads | When |
 | --- | --- | --- | --- | --- |
-| `mem/user.md` | `yan` | only when `user` asks; rewritten in place | `yan` | at startup |
+| `mem/user.md` | `yan` | only when `user` asks; rewritten in place | `yan` | printed at session start |
 | `mem/repos.json` | `yan` | only through `yan repo-add` | `yan` | at startup, and when a repository is involved |
-| `mem/learnings/*.md` | `yan` | once there is evidence; rewritten in place, dated, deleted when it goes stale | `yan` | on demand, only the parts that apply |
-| `tasks/<id>/task.json` | `yan` | on creation, adding a `unit`, `unit set`, and declaring the task finished | `yan` | at startup |
-| `tasks/<id>/brief.md` | `yan` | once at creation; revisions must be explicit | `yan`, `shift` | when `yan` starts; when a `shift` starts |
-| `tasks/<id>/log.md` | `yan` | one line appended at the end of each `shift` and at each decision | `yan`, `user` | at startup; with `cat` |
-| `tasks/<id>/report.md` | `shift` | before wrapping up | `yan`, future tasks | when the task wraps up; when a similar problem comes in |
-| `tasks/<id>/artifacts/` | `shift` | at any time | `user` | after the task wraps up |
+| `mem/learnings/*.md` | `yan` | a problem that took real effort and will recur — its own, or one from a shift's Learnings, judged with `user` — or a rule `user` states; rewritten in place when wrong; one topic per file with `name` / `description` front matter | `yan`, `shift` | the index at session start and in every shift brief; a file when a problem matches it |
+| `tasks/<id>/task.json` | `yan`, through commands only | on creation; `unit add` / `unit set` in the turn `user` says something that moves a field; `mr`, `land`, `done` | the commands; `yan` | when acting; at session start |
+| `tasks/<id>/brief.md` | `yan` | at creation; after the first alignment; in the turn a deliverable is added, dropped or replaced | `yan`, colleagues | printed at session start; as the outbound MR body |
+| `tasks/<id>/log.md` | commands, and `yan` through `yan log` | one typed line per event, in the turn it happens ([§4.3](memory.md#43-logmd-the-tasks-story)) | `yan`, `user` | every `agreed` / `changed` line and the last 20 at session start; in full on demand |
+| `tasks/<id>/artifacts/` | `shift`, `yan` | when there is a by-product worth looking at: research, prototype, design, screenshot | `user`, `yan`, `shift` | when a log line or a brief points at it |
 | `shifts/<sid>/brief.md` | `yan` | once before spawning | `shift` | the first thing it does |
-| `shifts/<sid>/outcome.md` | `shift`, with `yan` as fallback | before clocking out | `yan`, the next `shift` | when a new `shift` starts |
+| `shifts/<sid>/outcome.md` | `shift`, with `yan` as fallback | before `yan report done`, which refuses without it | `yan` | after `done`, before merging: the source of the `delivered` line; its Learnings section is where most learnings start |
 | `run/meta.json` | the spawn script | at spawn time | `yan` | at startup, to rebuild the picture |
 | `run/status` | `shift` | sparingly: only events that need `yan` to act | `yan` | when woken |
 
-The reasoning behind the different write rules is in [§4.1](memory.md#41-who-may-write-what).
+The reasoning behind the different write rules is in [§4.1](memory.md#41-who-may-write-what), and behind the triggers in [§4.2](memory.md#42-triggers-not-frequency).
 
 ## Appendix B. File system boundary for `yan`
 
@@ -28,12 +27,12 @@ The reasoning behind the different write rules is in [§4.1](memory.md#41-who-ma
 | Path | What goes in it | Constraints |
 | --- | --- | --- |
 | `tasks/<id>/task.json` | decisions: units, `scope`, delivery history, the completion flag | written atomically |
-| `tasks/<id>/log.md` | narrative progress | append-only; existing lines are never rewritten |
-| `tasks/<id>/brief.md` | the task contract | once at creation; a revision must be explicit and logged |
+| `tasks/<id>/log.md` | the task's story | append-only, one typed line per event; written through commands and `yan log` |
+| `tasks/<id>/brief.md` | the task contract as it stands | rewritten when a deliverable changes, with an `agreed` line logged beside it |
 | `shifts/<sid>/brief.md` | the work order for a `shift` | once before spawning |
 | `shifts/<sid>/run/meta.json` | tree path, terminal id, shift branch name, agent CLI | at spawn time |
 | `shifts/<sid>/run/` | deleted as a whole directory | when clocking out |
-| `mem/learnings/*.md` | operational facts | may be written without asking, but rewritten in place, dated, and backed by evidence — never appended to indefinitely |
+| `mem/learnings/*.md` | what to do when something recurs | may be written without asking, but rewritten in place, dated, and with its source — never appended to indefinitely |
 | `mem/repos.json` | the repository registry | only through `yan repo-add` |
 
 ### Read-only
@@ -43,7 +42,7 @@ The reasoning behind the different write rules is in [§4.1](memory.md#41-who-ma
 | `repos/<repo>/` | a main clone. The only write allowed is `git fetch`. Never check out, never touch the working tree, never commit |
 | `shifts/<sid>/run/status` | the event stream a `shift` writes; `yan` only reads it |
 | `shifts/<sid>/outcome.md` | written by the `shift`. `yan` writes it only when a `shift` died without doing so, and marks it as written after the fact |
-| `tasks/<id>/artifacts/` | written by the `shift`. `yan` may tidy it — rename files, add an index — but not change the contents |
+| `tasks/<id>/artifacts/` | written by the `shift`, or by `yan` for its own research and visuals. `yan` may tidy a shift's — rename files, add an index — but not change the contents |
 | `mem/user.md` | written only when `user` asks |
 | `conf/` | `user`'s local choices; see [Appendix D](#appendix-d-configuration) |
 | `bin/`, `AGENTS.md` | `yan`'s own tools and its own instructions; it does not modify them at runtime |

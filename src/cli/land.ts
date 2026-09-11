@@ -199,7 +199,7 @@ export function land(
 
     landed.push({ unit: name, mr, result: 'merged' });
     try {
-      new Log(task).append(`${name}  landed: ${mr} merged into ${unit.target} ('user' asked)`);
+      new Log(task).append('delivered', `${name}  landed: ${mr} merged into ${unit.target} ('user' asked)`);
     } catch {
       process.stderr.write(`yan land: ${name} landed but log.md was not appended to\n`);
     }

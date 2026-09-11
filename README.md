@@ -64,6 +64,20 @@ so: its first-run hook-review prompt is one Herdr does not classify as blocked, 
 would park on it silently. `yan doctor` says this at the point it can still be answered;
 the measurements are in [docs/v2/td/evidence.md §13](docs/v2/td/evidence.md).
 
+Agy — the Antigravity CLI — works as the main agent, with Claude's supervision rather than
+Codex's: its `Stop` hook blocks the agent loop synchronously for as long as its `timeout`
+allows, so the real autoarm runs on it and `yan wait` holds the turn open the way it does
+on Claude. Set `agents.yan` to `agy`, and `$YAN_AGY_MODEL` to pick the model (`agy models`
+lists the ids; unset, agy chooses its own). Two things differ from the other two:
+
+- It has no notion of the directory it was started in. Its working set is the workspace
+  named by `--add-dir`, and with an empty one it invents a project under `~/.gemini` and
+  writes there — so `yan continue` passes `--add-dir $YAN_HOME`, which is also what makes
+  its hooks in `.agents/hooks.json` discoverable at all.
+- The first run in a new workspace stops on *"Do you trust the contents of this project?"*,
+  which `--dangerously-skip-permissions` does not cover and Herdr reads as `idle` rather
+  than `blocked`. The main agent meets it in your own pane, so answer it once.
+
 Tests: `npm test`. That is the whole suite — unit, integration, and the e2e tests that
 skip loudly when Herdr or a real forge is absent.
 

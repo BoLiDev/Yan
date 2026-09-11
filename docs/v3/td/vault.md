@@ -21,18 +21,18 @@ A vault is *not* a workspace and not a worktree — those words are taken, and t
     t103/
       task.json            decisions
       brief.md             what user asked for
-      log.md               the narrative, append-only
-      artifacts/           what a person looks at
+      log.md               the task's story: typed lines, append-only
+      artifacts/           by-products: research, prototypes, designs, screenshots
       shifts/
         s1/
           brief.md         what the shift was told
-          outcome.md       what it found — the raw material of the next brief
+          outcome.md       the shift's handover to yan, read before merging
           run/             ← gitignored: throwaway, and pane ids are machine-local
       run/                 ← gitignored: wait lock, beacon, wake
       .enter.lock          ← gitignored
   mem/
     user.md                judgements about a person, written only when asked
-    learnings/             yan may write these on its own
+    learnings/             yan may write these on its own; indexed for yan and every shift
   skills/                  prose: what yan may do itself here. Indexed at session start
   .local/                  ← gitignored, whole directory (machine layer)
     repos.json             name → this machine's clone path
@@ -60,7 +60,7 @@ Keeping them separate means `yan vault init` can write a marker that a hand-edit
 
 ### What is tracked and what is not
 
-Tracked: everything that answers "what did we decide, what did we try, what did we learn". That explicitly includes `shifts/*/brief.md` and `shifts/*/outcome.md` — an outcome is the raw material of the next brief, and [the third thing a brief must carry](../../mvp/td/agents.md) is what has already been tried. Losing those to a disk is the failure V3 exists to prevent.
+Tracked: everything that answers "what did we decide, what did we try, what did we learn". That explicitly includes `shifts/*/brief.md` and `shifts/*/outcome.md` — a shift's handover is where the detail behind a `delivered` log line lives, and what a shift hit on the way, and [the third thing a brief must carry](../../mvp/td/agents.md) is what has already been tried. Losing those to a disk is the failure V3 exists to prevent.
 
 Not tracked, and the rule is one line: **`run/` is throwaway, and machine-local things are wrong elsewhere.** So `tasks/*/run/`, `tasks/*/shifts/*/run/`, `tasks/*/.enter.lock`, and all of `.local/`. `run/meta.json` holds Herdr pane ids; committing them would let one machine's session state look authoritative on another, which is exactly the kind of second answer [design principle 1](../../mvp/td/INDEX.md#0-what-yan-is) forbids.
 

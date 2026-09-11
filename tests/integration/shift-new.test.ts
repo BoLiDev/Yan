@@ -378,6 +378,60 @@ describe('the brief', () => {
     expect(body, 'artifacts go outside the worktree').toContain(`${new Task('t042').dir}/artifacts`);
     expect(body).toContain('yan report');
   });
+
+  it('says what an artifact is, and where throwaway state goes instead', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body).toContain('screenshots that show the result');
+    expect(body).toContain('browser profile');
+    expect(body).toContain('system temp directory');
+  });
+
+  it('asks for outcome.md before done, and says what goes in it', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body).toContain(`${new Task('t042').dir}/shifts/s1/outcome.md`);
+    for (const section of ['Result', 'Reading', 'Deviations', 'Left over', 'Verification', 'Artifacts']) {
+      expect(body, section).toContain(section);
+    }
+    expect(body).toContain('refuses until the file exists');
+  });
+});
+
+describe('what is already known', () => {
+  it('lists the learnings with a path the shift can open, and never their text', () => {
+    mkdirSync(join(home, 'mem', 'learnings'), { recursive: true });
+    writeFileSync(
+      join(home, 'mem', 'learnings', 'folder-trust.md'),
+      ['---', 'name: Folder trust', 'description: a new repo parks Claude on the trust dialog', '---', '', 'the long fix', ''].join('\n'),
+    );
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body).toContain('/mem/learnings/folder-trust.md — Folder trust: a new repo parks Claude on the trust dialog');
+    expect(body).not.toContain('the long fix');
+    expect(body).toContain(`${new Task('t042').dir}/artifacts`);
+  });
+
+  it('asks for what the shift learned in the handover', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body).toContain('Learnings     problems you hit and how you solved them');
+  });
+});
+
+describe('--note', () => {
+  it('puts what the shift is for on its log line', () => {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', note: 'parse the auth header' });
+    expect(r.code, r.message).toBe(0);
+    const log = readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8');
+    expect(log).toMatch(/started {4}s1 auth {2}dispatched on yan\/t042-auth-s1 .* — parse the auth header/);
+  });
+
+  it('refuses a note on more than one line before leasing anything', () => {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', note: 'a\nb' });
+    expect(r.code).toBe(2);
+    expect(briefState()).toBe('absent');
+  });
 });
 
 describe('run/meta.json', () => {

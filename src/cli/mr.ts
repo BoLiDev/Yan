@@ -144,7 +144,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   }
 
   try {
-    new Log(task).append(`${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
+    new Log(task).append('delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
   } catch {
     process.stderr.write('yan mr: the MR was recorded in task.json but log.md was not appended to\n');
   }

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 
@@ -39,6 +39,8 @@ beforeAll(async () => {
   run = join(home, 'tasks', 't042', 'shifts', 's1', 'run');
   mkdirSync(join(home, 'tasks', 't042', 'shifts', 's1'), { recursive: true });
   mkdirSync(join(home, 'tasks', 't007', 'shifts', 's1'), { recursive: true });
+  writeFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md'), '# s1 auth\n\nResult: parsed.\n');
+  writeFileSync(join(home, 'tasks', 't007', 'shifts', 's1', 'outcome.md'), '# s1\n');
 });
 
 describe('one command, both effects', () => {
@@ -142,5 +144,32 @@ describe('who is reporting: the spawn environment, not an argument', () => {
     });
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('--task');
+  });
+});
+
+describe('done waits for the handover', () => {
+  const dir = () => join(home, 'tasks', 't042', 'shifts', 's2');
+
+  it('refuses done while outcome.md is missing, names the file, and writes nothing', async () => {
+    mkdirSync(dir(), { recursive: true });
+    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2', '--task', 't042']);
+    expect(r.code).toBe(2);
+    expect(r.out).toContain('outcome.md');
+    expect(existsSync(join(dir(), 'run', 'status')), 'no event').toBe(false);
+    expect(existsSync(join(dir(), 'run', 'signal')), 'nobody is woken to read a handover that is not there').toBe(false);
+  });
+
+  it('still takes every other state without one', async () => {
+    for (const state of ['started', 'blocked', 'needs-decision', 'conflict']) {
+      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's2', '--task', 't042']);
+      expect(r.code, `${state}: ${r.out}`).toBe(0);
+    }
+  });
+
+  it('takes done once the file exists', async () => {
+    writeFileSync(join(dir(), 'outcome.md'), '# s2 auth\n\nResult: done.\n');
+    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2', '--task', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(readFileSync(join(dir(), 'run', 'status'), 'utf8')).toContain('\tdone\t');
   });
 });

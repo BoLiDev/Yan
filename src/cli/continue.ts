@@ -102,8 +102,15 @@ const startMain: StartMain = (cli, argv, options) =>
  * unattended. Unattended even though `user` is at the pane, because the Stop
  * hook wakes this agent between turns with nobody watching, and a permission
  * prompt raised then stalls the thing that does the noticing.
+ *
+ * Agy needs one thing the other two do not: `home` on the `--add-dir` list.
+ * Claude and Codex take the directory they were started in as the root of what
+ * they may touch, so `cwd` covers yan's own clone; agy does not look at `cwd`
+ * at all. Its working set is the workspace named by `--add-dir`, and with an
+ * empty one it invents a project under `~/.gemini` and writes there instead —
+ * a yan that cannot see its own `dist/` is a yan that cannot run a hook.
  */
-function harnessArgs(agent: string, addDirs: readonly string[]): string[] {
+function harnessArgs(agent: string, home: string, addDirs: readonly string[]): string[] {
   const kind = (agent.split(/[\\/]/).pop() ?? agent).replace(/\.exe$/, '');
   const args: string[] = [];
   if (kind === 'claude') {
@@ -111,6 +118,13 @@ function harnessArgs(agent: string, addDirs: readonly string[]): string[] {
     args.push('--dangerously-skip-permissions');
   } else if (kind === 'codex') {
     args.push('--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust');
+  } else if (kind === 'agy') {
+    for (const d of [home, ...addDirs]) args.push('--add-dir', d);
+    args.push('--dangerously-skip-permissions');
+    // Which Gemini answers is `user`'s call and changes with the task, so it
+    // is a knob rather than a constant: unset, agy picks its own default.
+    const model = process.env.YAN_AGY_MODEL ?? '';
+    if (model !== '') args.push('--model', model);
   }
   return args;
 }
@@ -220,7 +234,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
     });
   }
 
-  const argv = harnessArgs(agent, addDirsFor(record));
+  const argv = harnessArgs(agent, cwd, addDirsFor(record));
   const start = deps.start ?? startMain;
 
   return {

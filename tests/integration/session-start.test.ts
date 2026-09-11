@@ -339,3 +339,63 @@ describe('skills reach the session', () => {
     expect(readdirSync(home).sort().join(',')).toBe(before);
   });
 });
+
+/**
+ * What a task remembers reaches the session for that task, and only for it:
+ * an unscoped session start is a queue, not a briefing.
+ */
+describe('the task memory reaches the session', () => {
+  function logLines(lines: string[]): void {
+    writeFileSync(join(home, 'tasks', 't042', 'log.md'), `# t042 unify the auth header\n\n${lines.join('\n')}\n`);
+  }
+
+  it('prints the brief, the log excerpt, the learnings index and user.md for one task', async () => {
+    writeFileSync(join(home, 'tasks', 't042', 'brief.md'), '# t042\n\n## Deliver\n- the parser\n');
+    const lines = ['- 08-01  agreed     the header is parsed once, at the edge'];
+    for (let i = 0; i < 30; i += 1) lines.push(`- 08-02  started    filler ${i}`);
+    logLines(lines);
+    mkdirSync(join(home, 'mem', 'learnings'), { recursive: true });
+    writeFileSync(
+      join(home, 'mem', 'learnings', 'folder-trust.md'),
+      ['---', 'name: Folder trust', 'description: a new repo stops Claude on the trust dialog', '---', '', 'the fix is long', ''].join('\n'),
+    );
+    writeFileSync(join(home, 'mem', 'user.md'), 'prefers prose to bullet lists\n');
+
+    const r = await runYan(home, ['session-start', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('- the parser');
+    expect(r.stdout, 'an agreed entry is carried however old').toContain('the header is parsed once');
+    expect(r.stdout, 'the tail is carried').toContain('filler 29');
+    expect(r.stdout, 'older entries of other kinds are not').not.toContain('filler 9\n');
+    expect(r.stdout).toContain('21 of 31 entries');
+    expect(r.stdout).toContain('mem/learnings/folder-trust.md');
+    expect(r.stdout).toContain('a new repo stops Claude on the trust dialog');
+    expect(r.stdout, 'an index, not the text').not.toContain('the fix is long');
+    expect(r.stdout).toContain('prefers prose to bullet lists');
+  });
+
+  it('prints none of it when no task is named', async () => {
+    writeFileSync(join(home, 'mem', 'user.md'), 'prefers prose to bullet lists\n');
+    const r = await runYan(home, ['session-start'], { YAN_TASK: '' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).not.toContain('── brief');
+    expect(r.stdout).not.toContain('prefers prose');
+  });
+
+  it('says so when the log is empty, and leaves out what does not exist', async () => {
+    rmSync(join(home, 'mem', 'user.md'), { force: true });
+    rmSync(join(home, 'mem', 'learnings'), { recursive: true, force: true });
+    const r = await runYan(home, ['session-start', 't099']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('(nothing logged yet)');
+    expect(r.stdout).not.toContain('── learnings');
+    expect(r.stdout).not.toContain('── user');
+  });
+
+  it('still writes nothing', async () => {
+    logLines(['- 08-01  agreed     x']);
+    const before = snapshot();
+    await runYan(home, ['session-start', 't042']);
+    expect(snapshot()).toBe(before);
+  });
+});

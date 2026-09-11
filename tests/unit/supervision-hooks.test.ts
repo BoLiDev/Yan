@@ -168,7 +168,7 @@ describe('the turn-end guard', () => {
   it('has to be told which harness it is', async () => {
     const r = await hook('hook-turnend-guard.sh', [], { env: { YAN_TASK: 't1' } });
     expect(r.code).toBe(2);
-    expect(r.out).toContain('--claude or --codex');
+    expect(r.out).toContain('--claude, --codex or --agy');
   });
 
   it('lets the turn end when there is nothing left to supervise, and resets the budget', async () => {
@@ -355,6 +355,84 @@ describe('the guard on Codex', () => {
     expect(r.code).toBe(0);
     expect(r.stderr).toContain('AUTOMATIC SUPERVISION IS BROKEN');
     expect(r.stdout).not.toContain('decision');
+  });
+});
+
+/**
+ * Agy weighs Claude's evidence and speaks Codex's envelope. It reads no exit
+ * code at all, so every answer — including the permissive one — is an object
+ * on stdout, and `continue` is its word for exit 2.
+ */
+describe('the guard on Agy', () => {
+  const decision = (out: string): { decision?: string; reason?: string } =>
+    JSON.parse(out.trim()) as { decision?: string; reason?: string };
+
+  it('asks Claude\'s question: is a watcher on duty?', async () => {
+    liveShift('s1');
+    noWatcher();
+
+    const r = await hook('hook-turnend-guard.sh', ['--agy'], { env: { YAN_TASK: 't1' } });
+    expect(r.code, r.out).toBe(0);
+    expect(decision(r.stdout).decision).toBe('continue');
+    expect(decision(r.stdout).reason).toContain('no healthy watcher');
+    expect(sup.guardCount()).toBe(1);
+
+    // Unlike Codex, a healthy watcher is the whole answer: there is an autoarm
+    // on this harness, so the turn may end once one is on duty.
+    healthyWatcher();
+    const again = await hook('hook-turnend-guard.sh', ['--agy'], { env: { YAN_TASK: 't1' } });
+    expect(decision(again.stdout).decision).toBe('stop');
+    expect(sup.guardCount()).toBe(0);
+  });
+
+  it('says `stop` out loud on every permissive path, because silence is not an answer', async () => {
+    // Nothing live at all.
+    const idle = await hook('hook-turnend-guard.sh', ['--agy'], { env: { YAN_TASK: 't1' } });
+    expect(idle.code).toBe(0);
+    expect(decision(idle.stdout).decision).toBe('stop');
+
+    // And when it cannot tell whose turn this is.
+    liveShift('s1');
+    for (const task of ['', 'no-such-task']) {
+      const r = await hook('hook-turnend-guard.sh', ['--agy'], { env: { YAN_TASK: task } });
+      expect(r.code, r.out).toBe(0);
+      expect(decision(r.stdout).decision).toBe('stop');
+    }
+  });
+
+  it('fails open by saying so, where Codex fails open by saying nothing', async () => {
+    liveShift('s1');
+    noWatcher();
+    writeFileSync(sup.guard, '3\n');
+
+    const r = await hook('hook-turnend-guard.sh', ['--agy'], { env: { YAN_TASK: 't1' } });
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain('AUTOMATIC SUPERVISION IS BROKEN');
+    expect(decision(r.stdout).decision).toBe('stop');
+  });
+});
+
+describe('autoarm on Agy', () => {
+  it('turns an event into a `continue`, not an exit code', async () => {
+    const run = liveShift('s1');
+    writeFileSync(join(run, 'signal'), '');
+
+    const r = await hook('hook-autoarm.sh', ['--agy'], {
+      env: { YAN_TASK: 't1', YAN_WAIT_INTERVAL: '0.1' },
+    });
+    // Exit 2 would be Claude's answer; agy discards it and reads the object.
+    expect(r.code, r.out).toBe(0);
+    const parsed = JSON.parse(r.stdout.trim()) as { decision?: string; reason?: string };
+    expect(parsed.decision).toBe('continue');
+    expect(parsed.reason).toContain('signal: s1');
+    expect(parsed.reason).toContain('yan drain');
+    expect(existsSync(sup.lock)).toBe(false);
+  });
+
+  it('says `stop` when there is nothing to arm', async () => {
+    const r = await hook('hook-autoarm.sh', ['--agy'], { env: { YAN_TASK: 't1' } });
+    expect(r.code, r.out).toBe(0);
+    expect((JSON.parse(r.stdout.trim()) as { decision?: string }).decision).toBe('stop');
   });
 });
 

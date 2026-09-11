@@ -221,7 +221,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
             : '--force: the orphan-commit guard was skipped',
         );
       }
-      new Log(task).append(parts.join('; '));
+      new Log(task).append(force && killed.length > 0 ? 'changed' : 'delivered', parts.join('; '));
     } catch { /* the task is done; a missing log line is not worth failing for */ }
   }
 

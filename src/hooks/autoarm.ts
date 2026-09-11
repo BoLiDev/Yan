@@ -6,13 +6,20 @@ import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
 
 /**
- * Claude's Stop autoarm, registered with `asyncRewake: true` and a long
- * timeout — never for Codex, which cannot hold a multi-hour hook.
+ * The Stop autoarm for the two harnesses that can hold a multi-hour hook:
+ * Claude, with `asyncRewake: true` and a long timeout, and agy, whose Stop
+ * hook blocks its loop synchronously for as long as its `timeout` allows.
+ * Never Codex, which parses `async` but does not run asynchronous hooks.
  *
  *   nothing to supervise, or a watcher already on duty  -> exit 0, quiet
  *   otherwise run the long `yan wait` in this foreground
  *     something happened   -> exit 2, the reason on stderr, Claude rewakes yan
  *     nothing left to do   -> exit 0, quiet
+ *
+ * Agy is the same decision in a different envelope: it discards the exit code
+ * and reads a decision object off stdout, so `--agy` speaks `continue` where
+ * Claude exits 2, and says `stop` out loud on every quiet path rather than
+ * leaving stdout empty.
  *
  * The watcher runs in the foreground, never backgrounded or detached, so the
  * harness owns its process group and it cannot outlive the session. A test
@@ -22,20 +29,44 @@ import { yanHome } from '../util/home.js';
  * an autoarm that did not run at all.
  */
 
-export function autoarm(argv: readonly string[], note: (line: string) => void): number {
-  const task = argv[0] ?? process.env.YAN_TASK ?? '';
+export interface AutoarmIo {
+  /** stderr: what the Claude model reads, and where a warning goes. */
+  readonly note: (line: string) => void;
+  /** stdout: agy's decision object, and nothing at all for Claude. */
+  readonly say: (line: string) => void;
+}
 
-  if (task === '' || !Task.isId(task) || !new Task(task).exists()) return 0;
+export function autoarm(argv: readonly string[], io: AutoarmIo): number {
+  const agy = argv.includes('--agy');
+  const positional = argv.filter((a) => !a.startsWith('-'));
+  const task = positional[0] ?? process.env.YAN_TASK ?? '';
+
+  /** Let the turn end. Agy is told so; Claude reads the exit code. */
+  const quiet = (): number => {
+    if (agy) io.say(JSON.stringify({ decision: 'stop' }));
+    return 0;
+  };
+  /** Hold the turn open, with `reason` as the whole of what the model reads. */
+  const hold = (reason: string): number => {
+    if (agy) {
+      io.say(JSON.stringify({ decision: 'continue', reason }));
+      return 0;
+    }
+    io.note(reason);
+    return 2;
+  };
+
+  if (task === '' || !Task.isId(task) || !new Task(task).exists()) return quiet();
 
   const sup = new Supervision(task);
-  if (sup.liveCount() === 0) return 0;
-  if (sup.lockTaken()) return 0;
+  if (sup.liveCount() === 0) return quiet();
+  if (sup.lockTaken()) return quiet();
 
   const home = yanHome();
   const yan = join(home, 'dist', 'cli', 'yan.js');
   if (!existsSync(yan)) {
-    note(`cannot find ${yan} - run 'npm run build'; nothing is watching task ${task}`);
-    return 0;
+    io.note(`cannot find ${yan} - run 'npm run build'; nothing is watching task ${task}`);
+    return quiet();
   }
 
   // No --seconds: the unbounded shape. Its stdout is the reason, which becomes
@@ -48,34 +79,37 @@ export function autoarm(argv: readonly string[], note: (line: string) => void): 
   });
 
   if (watcher.error !== undefined) {
-    note(`could not start the watcher: ${watcher.error.message}`);
-    return 0;
+    io.note(`could not start the watcher: ${watcher.error.message}`);
+    return quiet();
   }
 
   const reason = (watcher.stdout ?? '').trim();
   switch (watcher.status) {
     case 0:
-      note(reason);
-      note("run 'yan drain' first, then handle it.");
-      return 2;
+      return hold(`${reason}\nrun 'yan drain' first, then handle it.`);
     case 3:
       // Every shift clocked out while we watched.
-      return 0;
+      return quiet();
     case 4:
       // Another watcher took the lock between the check and the start.
-      return 0;
+      return quiet();
     default:
       // Supervision did not start, and the turn is let through anyway.
-      note(
+      io.note(
         `'yan wait' exited ${String(watcher.status)} without arming supervision - 'yan ls ${task}' shows what is live`,
       );
-      return 0;
+      return quiet();
   }
 }
 
 const invokedDirectly = process.argv[1] !== undefined && /[\\/]autoarm\.js$/.test(process.argv[1]);
 if (invokedDirectly) {
-  process.exitCode = autoarm(process.argv.slice(2), (line) => {
-    process.stderr.write(`yan autoarm: ${line}\n`);
+  process.exitCode = autoarm(process.argv.slice(2), {
+    note: (line) => {
+      process.stderr.write(`yan autoarm: ${line}\n`);
+    },
+    say: (line) => {
+      process.stdout.write(`${line}\n`);
+    },
   });
 }

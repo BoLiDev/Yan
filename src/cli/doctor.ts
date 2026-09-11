@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { Command } from 'commander';
@@ -231,6 +231,11 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
 
   // Empty when herdr did not answer, so every kind reads as not installed.
   const installed = version?.integrations ?? {};
+  // Herdr names its integration after the product; `agents.*` names the
+  // executable. They agree everywhere but here, and an unmapped kind reports
+  // "no integration installed" forever however many times you install it.
+  const integrationOf = (kind: string): string =>
+    kind === 'agy' ? 'antigravity-cli' : kind;
   const kinds = [
     ...new Set(
       Object.values(agents)
@@ -242,10 +247,11 @@ function checkHerdr(report: Report, agents: Record<string, unknown>): void {
     line(report, 'warn', 'integrations', 'the vault config names no agents');
   }
   for (const kind of kinds) {
-    const state = installed[kind];
+    const name = integrationOf(kind);
+    const state = installed[name];
     if (state === undefined) {
       line(report, 'warn', kind,
-        `no herdr integration installed - 'herdr integration install ${kind}' records the agent's session id`,
+        `no herdr integration installed - 'herdr integration install ${name}' records the agent's session id`,
       );
     } else {
       line(report, 'ok', kind, `integration ${state}`);
@@ -305,6 +311,54 @@ function checkCodex(report: Report, agents: Record<string, unknown>): void {
   );
 }
 
+/**
+ * What agy needs that the other two do not. Silent when no configured agent is
+ * agy.
+ *
+ * Agy has no notion of "the directory I was started in": its working set is
+ * the workspace named by `--add-dir`, and with an empty one it invents a
+ * project under `~/.gemini` and writes there. Customization discovery follows
+ * the same workspace, so `.agents/hooks.json` is found — or not — for exactly
+ * the same reason the files land in the right place or the wrong one. One
+ * cause, two symptoms, and `yan continue` passes `--add-dir $YAN_HOME` to fix
+ * both at once; what is checked here is that the file it goes looking for is
+ * actually there.
+ */
+function checkAgy(report: Report, agents: Record<string, unknown>): void {
+  const roles = Object.entries(agents).filter(
+    ([, v]) => typeof v === 'string' && (v.trim().split(/\s+/)[0] ?? '') === 'agy',
+  );
+  if (roles.length === 0) return;
+
+  out('');
+  out('agy');
+
+  const ours = join(yanHome(), '.agents', 'hooks.json');
+  const registered = existsSync(ours);
+  line(report, registered ? 'ok' : 'fail', 'hooks.json',
+    registered
+      ? `${ours} - the autoarm, the guard, and the session-start stand-in`
+      : `${ours} is missing, so nothing supervises a turn: no autoarm, no turn-end guard, and no rebuilt picture at startup`,
+  );
+
+  const model = process.env.YAN_AGY_MODEL ?? '';
+  line(report, 'ok', 'model',
+    model === ''
+      ? "YAN_AGY_MODEL is unset, so agy picks its own default - 'agy models' lists the ids"
+      : `${model} (from YAN_AGY_MODEL)`,
+  );
+
+  // The one screen where agy stops and Herdr does not notice. The main agent
+  // meets it in `user`'s own pane, which is why this is a note rather than a
+  // warning; a shift meets it unattended, and `Terminal.settle` answers it.
+  const main = roles.some(([role]) => role !== 'shift');
+  if (main) {
+    line(report, 'ok', 'project trust',
+      'the first `yan continue` in a new workspace stops on "Do you trust the contents of this project?". Herdr reads that screen as \'idle\', not \'blocked\', and --dangerously-skip-permissions does NOT cover it - answer it once in your own pane',
+    );
+  }
+}
+
 export const command = new Command('doctor')
   .description('check this machine can run yan')
   .action(
@@ -335,6 +389,7 @@ export const command = new Command('doctor')
       out('herdr');
       checkHerdr(report, agents);
       checkCodex(report, agents);
+      checkAgy(report, agents);
 
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7
