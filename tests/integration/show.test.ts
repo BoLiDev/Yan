@@ -146,7 +146,7 @@ describe('one task at a glance', () => {
     expect(j.log.lines).toHaveLength(5);
   });
 
-  it('lines up log entries written before they carried a date or a type', async () => {
+  it('names entries written before they carried a type legacy, and lines them up', async () => {
     Task.create('t050', 'an old task');
     writeFileSync(
       join(home, 'tasks', 't050', 'log.md'),
@@ -169,6 +169,8 @@ describe('one task at a glance', () => {
     expect(r.stdout, 'no list marker survives').not.toContain('- s1 dispatched');
     expect(r.stdout, 'prose is not an entry').not.toContain('a paragraph');
     expect(r.stdout).toContain('last 3 of 3');
+    expect(r.stdout).toContain('08-30  legacy     auth  unit added');
+    expect(r.stdout).toContain('--     legacy     s1 dispatched');
   });
 
   it('is what yan ls <id> prints', async () => {
