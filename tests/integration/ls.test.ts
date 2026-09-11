@@ -120,10 +120,10 @@ describe('the queue', () => {
 });
 
 describe('one task: yan show, reached through ls', () => {
-  it('renders the branches, the targets and the worktree', async () => {
+  it('renders the branches, the targets and the live shift', async () => {
     const r = await runYan(home, ['ls', 't042']);
     expect(r.code, r.out).toBe(0);
-    for (const needle of ['unify the auth header', 'feat/auth', 'feat/gw', 'master', 'apps/auth', 'yan/t042-auth-s3', treePath]) {
+    for (const needle of ['unify the auth header', 'feat/auth', 'feat/gw', 'master', 'apps/auth', 'yan/t042-auth-s3']) {
       expect(r.stdout, needle).toContain(needle);
     }
   });
@@ -143,7 +143,7 @@ describe('one task: yan show, reached through ls', () => {
   });
 
   it('says so when a task has no live shift', async () => {
-    expect((await runYan(home, ['ls', 't007'])).stdout).toContain('(none running)');
+    expect((await runYan(home, ['ls', 't007'])).stdout).toContain('none running');
   });
 });
 

@@ -14,6 +14,7 @@ import {
   runYan,
 } from '../helpers/fixtures.js';
 import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
+import { tildePath } from '../../src/cli/shared/style.js';
 import { WorktreePool } from '../../src/externals/worktree/index.js';
 import { Log } from '../../src/records/log/index.js';
 import { Task } from '../../src/records/task/index.js';
@@ -95,28 +96,30 @@ afterAll(() => {
 });
 
 describe('one task at a glance', () => {
-  it('shows the session, the goal, the branch, the tree, the shifts and the last five log entries', async () => {
+  it('shows the session, the branch, the tree, the shifts and the last five log entries', async () => {
     const r = await show(['show', 't042']);
     expect(r.code, r.out).toBe(0);
     const text = r.stdout;
-    expect(text).toContain('t042  unify the auth header   open · no yan running');
-    expect(text, 'the first line of prose, not a heading').toContain('One parser for the auth header, at the edge.');
-    expect(text).toContain('auth  feat/auth → main   mr   2 ahead of main');
-    expect(text).toContain('scope apps/auth');
-    expect(text).toContain(`tree  ${tree}   1 uncommitted`);
-    expect(text).toContain('s3  auth  coding/normal   last event blocked 0m ago — which header wins');
-    expect(text).toContain('── log  last 5 of 7');
+    expect(text).toContain('t042  unify the auth header');
+    expect(text).toContain('● open   ○ no yan running — resume with yan continue t042');
+    expect(text, 'the brief is not shown').not.toContain('One parser');
+    expect(text).toContain('auth  feat/auth → main   ↑2   mr');
+    expect(text).toContain('scope  apps/auth');
+    expect(text).toContain(`tree   ${tildePath(tree)}   ● 1 uncommitted`);
+    expect(text).toContain('s3  coding/normal  blocked');
+    expect(text).toContain('0m ago  which header wins');
+    expect(text).toContain('w1:p4 · yan/t042-auth-s3');
+    expect(text).toContain('Log  last 5 of 7');
     expect(text).toContain('entry 7');
     expect(text).toContain('entry 3');
     expect(text).not.toContain('entry 2');
-    expect(text).toContain('→ yan continue t042');
   });
 
   it('says a unit has no standing tree, and a task has no live shift', async () => {
     new Task('t007').addUnit('client', 'widget', 'main', { branch: 'feat/auth' });
     const r = await show(['show', 't007']);
-    expect(r.stdout).toContain('(no standing tree)');
-    expect(r.stdout).toContain('(none running)');
+    expect(r.stdout).toContain('no standing tree');
+    expect(r.stdout).toContain('none running');
     expect(r.stdout, 'a finished task is not one to continue').not.toContain('yan continue');
   });
 
@@ -125,7 +128,7 @@ describe('one task at a glance', () => {
     writeFileSync(lock, `${JSON.stringify({ pid: process.pid, host: hostname(), at: Math.floor(Date.now() / 1000), identity: enterIdentity('t042', 'w7:p1') })}\n`);
     try {
       const r = await show(['show', 't042']);
-      expect(r.stdout).toContain('open · yan running in w7:p1');
+      expect(r.stdout).toContain('◉ yan running · w7:p1');
       expect(r.stdout).not.toContain('yan continue');
     } finally {
       rmSync(lock);
@@ -159,6 +162,13 @@ describe('choosing, and refusing', () => {
     const r = await show(['show', 't404']);
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('no such task');
+  });
+
+  it('is plain text when it is not a terminal, and coloured when asked to be', async () => {
+    const ESC = `${String.fromCharCode(27)}[`;
+    expect((await show(['show', 't042'])).stdout).not.toContain(ESC);
+    expect((await show(['show', 't042'], { FORCE_COLOR: '1' })).stdout).toContain(ESC);
+    expect((await show(['show', 't042'], { FORCE_COLOR: '0' })).stdout).not.toContain(ESC);
   });
 
   it('writes nothing under the vault', async () => {

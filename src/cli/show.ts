@@ -6,6 +6,7 @@ import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
+import { blue, bold, cyan, dim, gray, green, magenta, red, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { queueJson } from './ls.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
@@ -18,8 +19,8 @@ import { isStale, owner } from '../util/lock.js';
 
 /**
  * `yan show [<id>] [--json]` — one task at a glance: whether a yan is running
- * on it, what it is for, each unit's branch and standing tree, its live
- * shifts, and the last log entries. Every fact is local: nothing here asks
+ * on it, each unit's branch and standing tree, its live shifts, and the last
+ * log entries. Every fact is local: nothing here asks
  * the forge or the terminal, so a shift's line is the last event it reported,
  * not its state, and a merge request is the address that was recorded.
  */
@@ -35,8 +36,6 @@ export interface ShowJson {
   readonly dir: string;
   /** Whether a live `yan continue` holds the task, and the pane it is in. */
   readonly session: { readonly running: boolean; readonly pane: string | null };
-  /** The first line of prose in brief.md. */
-  readonly goal: string;
   readonly units: readonly {
     readonly name: string;
     readonly repo: string;
@@ -63,21 +62,6 @@ export interface ShowJson {
     readonly last_event: { readonly state: string; readonly at: string; readonly note: string } | null;
   }[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
-}
-
-function goalOf(task: Task): string {
-  let text = '';
-  try {
-    text = readFileSync(join(task.dir, 'brief.md'), 'utf8').replace(/^﻿/, '');
-  } catch {
-    return '';
-  }
-  return (
-    text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .find((l) => l !== '' && !l.startsWith('#') && !/^[-*]\s*$/.test(l)) ?? ''
-  );
 }
 
 function sessionOf(id: string): ShowJson['session'] {
@@ -184,7 +168,6 @@ export function showJson(id: string): ShowJson {
     complete: data.complete,
     dir: task.dir,
     session: sessionOf(id),
-    goal: goalOf(task),
     units,
     shifts,
     log: new Log(id).excerpt([], SHOW_LOG_TAIL),
@@ -200,51 +183,95 @@ function ago(iso: string, now = Date.now()): string {
   return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
 }
 
+/** How an event a shift reported is coloured: what needs somebody is loud. */
+function paintEvent(state: string): string {
+  if (['blocked', 'needs-decision', 'conflict'].includes(state)) return bold(yellow(state));
+  if (state === 'done') return green(state);
+  return blue(state);
+}
+
+const LOG_COLOURS: Record<string, (s: string) => string> = {
+  agreed: magenta,
+  started: blue,
+  delivered: green,
+  changed: yellow,
+  incident: red,
+  paused: gray,
+};
+
+/** One log.md entry as a row: the date dim, the type in its colour. */
+function logRow(line: string): string {
+  const typed = /^- (\d{2}-\d{2}) {2}(\S+)\s+(.*)$/.exec(line);
+  if (typed !== null && LOG_COLOURS[typed[2] as string] !== undefined) {
+    const [, date, type, text] = typed as unknown as [string, string, string, string];
+    return `${dim(date)}  ${(LOG_COLOURS[type] as (s: string) => string)(type.padEnd(9))}  ${text}`;
+  }
+  const untyped = /^- (\d{2}-\d{2}) {2}(.*)$/.exec(line);
+  if (untyped !== null) return `${dim(untyped[1] as string)}  ${' '.repeat(9)}  ${untyped[2] as string}`;
+  return line;
+}
+
+function section(label: string, aside = ''): void {
+  out('');
+  out(` ${bold(label)}${aside === '' ? '' : `  ${dim(aside)}`}`);
+}
+
 export function renderShow(show: ShowJson): void {
-  const state = show.complete ? 'done' : 'open';
+  out('');
+  out(` ${bold(cyan(show.id))}  ${bold(dash(show.title))}`);
+  const state = show.complete ? dim('✓ done') : green('● open');
+  // A task still open with nobody on it is one to resume, so the command is
+  // said where the absence is.
   const session = show.session.running
-    ? `yan running${show.session.pane === null ? '' : ` in ${show.session.pane}`}`
-    : 'no yan running';
-  out(`${show.id}  ${dash(show.title)}   ${state} · ${session}`);
-  if (show.goal !== '') out(`  ${show.goal}`);
+    ? green(`◉ yan running${show.session.pane === null ? '' : ` · ${show.session.pane}`}`)
+    : show.complete
+      ? dim('○ no yan running')
+      : `${dim('○ no yan running — resume with')} ${cyan(`yan continue ${show.id}`)}`;
+  out(` ${state}   ${session}`);
 
-  out('');
-  out('── units');
-  if (show.units.length === 0) out('  (none)');
+  section('Units');
+  if (show.units.length === 0) out(`   ${dim('none')}`);
+  const nameWidth = Math.max(0, ...show.units.map((u) => u.name.length));
+  const indent = ' '.repeat(nameWidth + 5);
   for (const u of show.units) {
-    const ahead = u.ahead === null ? '' : `   ${u.ahead} ahead of ${u.target}`;
-    out(`  ${u.name}  ${dash(u.branch)} → ${dash(u.target)}   ${u.mode}${ahead}`);
+    const ahead = u.ahead === null ? '' : `   ${u.ahead === 0 ? dim('↑0') : green(`↑${u.ahead}`)}`;
+    out(`   ${bold(u.name.padEnd(nameWidth))}  ${cyan(dash(u.branch))} ${dim('→')} ${dash(u.target)}${ahead}   ${dim(u.mode)}`);
     if (u.scope.length > 0 || u.needs.length > 0) {
-      out(`      scope ${u.scope.length > 0 ? u.scope.join(' ') : '(whole repository)'}${u.needs.length > 0 ? `   needs ${u.needs.join(' ')}` : ''}`);
+      const needs = u.needs.length > 0 ? `   ${dim('needs')} ${u.needs.join(' ')}` : '';
+      out(`${indent}${dim('scope')}  ${u.scope.length > 0 ? u.scope.join(' ') : dim('whole repository')}${needs}`);
     }
-    if (u.mr !== null) out(`      mr    ${u.mr}`);
-    const dirty = u.tree?.dirty === null || u.tree?.dirty === undefined
-      ? ''
-      : u.tree.dirty === 0 ? '   clean' : `   ${u.tree.dirty} uncommitted`;
-    out(`      tree  ${u.tree === null ? '(no standing tree)' : `${u.tree.path}${dirty}`}`);
+    if (u.mr !== null) out(`${indent}${dim('mr   ')}  ${u.mr}`);
+    if (u.tree === null) {
+      out(`${indent}${dim('tree ')}  ${dim('no standing tree')}`);
+    } else {
+      const dirty = u.tree.dirty === null
+        ? ''
+        : u.tree.dirty === 0 ? `   ${green('✓ clean')}` : `   ${yellow(`● ${u.tree.dirty} uncommitted`)}`;
+      out(`${indent}${dim('tree ')}  ${tildePath(u.tree.path)}${dirty}`);
+    }
   }
 
-  out('');
-  out('── shifts');
-  if (show.shifts.length === 0) out('  (none running)');
+  section('Shifts', show.shifts.length === 0 ? '' : `${show.shifts.length} running · last reported events`);
+  if (show.shifts.length === 0) out(`   ${dim('none running')}`);
+  const sidWidth = Math.max(0, ...show.shifts.map((s) => s.sid.length));
+  const asWidth = Math.max(0, ...show.shifts.map((s) => `${s.scenario}/${s.tier}`.length));
+  const eventWidth = Math.max(0, ...show.shifts.map((s) => (s.last_event?.state ?? 'no event').length));
   for (const s of show.shifts) {
-    const as = s.scenario === '' ? '' : `  ${s.scenario}${s.tier === '' ? '' : `/${s.tier}`}`;
-    const event = s.last_event === null
-      ? 'no event yet'
-      : `last event ${s.last_event.state}${ago(s.last_event.at) === '' ? '' : ` ${ago(s.last_event.at)}`}${s.last_event.note === '' ? '' : ` — ${s.last_event.note}`}`;
-    out(`  ${s.sid}  ${dash(s.unit)}${as}   ${event}`);
-    out(`      tree  ${dash(s.tree)}   ${dash(s.branch)}${s.pane === '' ? '' : `   pane ${s.pane}`}`);
+    const as = s.scenario === '' ? '' : `${s.scenario}${s.tier === '' ? '' : `/${s.tier}`}`;
+    const event = s.last_event?.state ?? 'no event';
+    const when = s.last_event === null ? '' : ago(s.last_event.at);
+    out(
+      `   ${bold(s.sid.padEnd(sidWidth))}  ${magenta(as.padEnd(asWidth))}  ` +
+        `${s.last_event === null ? dim(event.padEnd(eventWidth)) : paintEvent(event) + ' '.repeat(eventWidth - event.length)}  ` +
+        `${dim(when.padStart(7))}  ${s.last_event?.note ?? ''}`,
+    );
+    out(`   ${' '.repeat(sidWidth)}  ${dim([s.pane, s.branch].filter((x) => x !== '').join(' · '))}`);
   }
 
+  section('Log', show.log.total === 0 ? '' : `last ${show.log.lines.length} of ${show.log.total}`);
+  if (show.log.lines.length === 0) out(`   ${dim('nothing logged yet')}`);
+  for (const line of show.log.lines) out(`   ${logRow(line)}`);
   out('');
-  out(`── log  last ${show.log.lines.length} of ${show.log.total}`);
-  if (show.log.lines.length === 0) out('  (nothing logged yet)');
-  for (const line of show.log.lines) out(`  ${line.replace(/^- /, '')}`);
-
-  if (!show.complete && !show.session.running) {
-    out('');
-    out(`→ yan continue ${show.id}`);
-  }
 }
 
 /**
