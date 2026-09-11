@@ -128,7 +128,7 @@ investigates and answers, with no code meant to merge; `coding` produces code me
 merge; `uix` designs interfaces and interactions. It is not `mode` — `mode` is what a
 unit delivers, the scenario is what the work takes, so a scout that has to write code to
 prove a point is `coding`. The tier is how demanding the work is, and `user` wrote what
-each one is for; session start lists them with the CLI, model and effort each runs. Take
+each one is for; session start lists them with the CLI, model, effort and skills each runs. Take
 the scenario's default unless another tier's description fits better, and say so when you
 pick another, above all a heavier one, because that is where `user`'s money goes. A shift that failed at
 one tier is a reason to go up one, not to the top. Nothing outside these can be asked

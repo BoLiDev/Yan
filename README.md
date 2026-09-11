@@ -56,7 +56,7 @@ Which models run is the vault's `config.json`, starting from
 and `agents.shift` are the defaults — a CLI, and optionally a `model` and `effort`. Every
 shift is dispatched as one of three fixed scenarios, `explore`, `coding` and `uix`, and
 each needs at least one tier you define: a description the main agent chooses by, and
-the CLI, model or effort that tier overrides. The main agent can pick a tier; it cannot
+the CLI, model or effort that tier overrides, and the skills its shift invokes first. The main agent can pick a tier; it cannot
 name a model, so nothing runs that you did not configure. `yan doctor` lists every tier
 with what it really runs.
 

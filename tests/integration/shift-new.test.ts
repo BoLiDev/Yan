@@ -635,3 +635,28 @@ describe('scenario and tier', () => {
     expect(log).toContain('as coding/light (claude sonnet high in');
   });
 });
+
+describe('skills a tier loads', () => {
+  it('opens with them, before the brief, and writes them at the top of the brief', () => {
+    scenarios('claude', { normal: { skills: ['design', '/grilling'] } });
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    const prompt = terminal.startArgs[terminal.startArgs.length - 1] ?? '';
+    expect(prompt.startsWith('First invoke /design, /grilling')).toBe(true);
+    expect(prompt.indexOf('/grilling')).toBeLessThan(prompt.indexOf('brief.md'));
+    expect(prompt, 'a missing skill is not a reason to stop').toContain('carry on without it');
+
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body.indexOf('## Skills')).toBeGreaterThan(-1);
+    expect(body.indexOf('## Skills')).toBeLessThan(body.indexOf('## The work'));
+    expect(r.meta.skills).toEqual(['design', 'grilling']);
+    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toContain('/design /grilling in');
+  });
+
+  it('leaves the prompt and the brief as they were when a tier loads none', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(terminal.startArgs[terminal.startArgs.length - 1]?.startsWith('Read ')).toBe(true);
+    const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+    expect(body).not.toContain('## Skills');
+  });
+});

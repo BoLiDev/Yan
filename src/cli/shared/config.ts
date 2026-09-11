@@ -39,6 +39,8 @@ export interface AgentSpec {
 export interface Tier extends AgentSpec {
   readonly name: string;
   readonly description: string;
+  /** Skills the shift invokes before it reads its brief. Never inherited. */
+  readonly skills: readonly string[];
 }
 
 export interface ScenarioConfig {
@@ -58,6 +60,7 @@ export interface ScenarioReading {
 export interface ShiftSpec extends AgentSpec {
   readonly scenario: Scenario;
   readonly tier: string;
+  readonly skills: readonly string[];
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -115,12 +118,19 @@ export function readScenarios(): ScenarioReading {
         problems.push(`scenarios.${name}.tiers.${tierName} is not an object`);
         continue;
       }
+      const skills = tier.skills === undefined ? [] : tier.skills;
+      if (!Array.isArray(skills) || skills.some((s) => typeof s !== 'string' || s.trim() === '')) {
+        problems.push(`scenarios.${name}.tiers.${tierName}.skills is not a list of skill names - it is ignored`);
+      }
       tiers.push({
         name: tierName,
         description: text(tier.description),
         cli: text(tier.cli),
         model: text(tier.model),
         effort: text(tier.effort),
+        skills: Array.isArray(skills)
+          ? skills.filter((s): s is string => typeof s === 'string' && s.trim() !== '').map((s) => s.trim().replace(/^\//, ''))
+          : [],
       });
     }
     if (tiers.length === 0) {
@@ -184,7 +194,15 @@ export function resolveShift(command: string, scenario: string | undefined, tier
     cli,
     model: chosen.model !== '' ? chosen.model : sameCli ? base.model : '',
     effort: chosen.effort !== '' ? chosen.effort : sameCli ? base.effort : '',
+    skills: chosen.skills,
   };
+}
+
+/** What a spec runs, in one phrase: `claude claude-opus-5 high /design`. */
+export function runsAs(spec: AgentSpec & { readonly skills?: readonly string[] }): string {
+  return [spec.cli, spec.model, spec.effort, ...(spec.skills ?? []).map((s) => `/${s}`)]
+    .filter((x) => x !== '')
+    .join(' ');
 }
 
 /** The executable's name without directory or `.exe`: `claude`, `codex`, `agy`. */

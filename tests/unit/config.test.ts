@@ -41,7 +41,7 @@ const SCENARIOS = {
       elsewhere: { cli: 'codex', model: 'gpt-5' },
     },
   },
-  uix: { tiers: { only: { cli: 'agy', model: 'gemini-3.1-pro-high' } } },
+  uix: { tiers: { only: { cli: 'agy', model: 'gemini-3.1-pro-high', skills: ['/design', 'grilling'] } } },
 };
 
 beforeEach(() => {
@@ -79,7 +79,7 @@ describe('resolveShift', () => {
 
   it('uses the default tier when none is named, inheriting what the tier leaves out', () => {
     expect(resolveShift('t', 'explore', undefined)).toEqual({
-      scenario: 'explore', tier: 'normal', cli: 'claude', model: 'opus', effort: 'high',
+      scenario: 'explore', tier: 'normal', cli: 'claude', model: 'opus', effort: 'high', skills: [],
     });
   });
 
@@ -110,6 +110,20 @@ describe('resolveShift', () => {
     expect(() => resolveShift('t', 'coding', undefined)).toThrow(/scenarios\.coding is missing/);
     config({ version: 1, agents: { shift: 'claude' } });
     expect(() => resolveShift('t', 'explore', undefined)).toThrow(/no scenarios configured/);
+  });
+});
+
+describe('skills', () => {
+  it('belong to the tier alone, with a leading slash taken off', () => {
+    config({ version: 1, agents: { shift: 'claude' }, scenarios: SCENARIOS });
+    expect(resolveShift('t', 'uix', undefined).skills).toEqual(['design', 'grilling']);
+    expect(resolveShift('t', 'coding', undefined).skills).toEqual([]);
+  });
+
+  it('names a list that is not one, and loads nothing from it', () => {
+    config({ version: 1, agents: { shift: 'claude' }, scenarios: { ...SCENARIOS, uix: { tiers: { only: { skills: 'design' } } } } });
+    expect(readScenarios().problems.join('\n')).toContain('scenarios.uix.tiers.only.skills is not a list');
+    expect(resolveShift('t', 'uix', undefined).skills).toEqual([]);
   });
 });
 

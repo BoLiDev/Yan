@@ -410,7 +410,7 @@ describe('the scenarios reach the session', () => {
         scenarios: {
           explore: { default: 'normal', tiers: { light: { description: 'find it', model: 'sonnet' }, normal: {} } },
           coding: { tiers: { normal: { description: 'an ordinary change' } } },
-          uix: { tiers: { normal: { cli: 'agy', model: 'gemini-3.1-pro-high' } } },
+          uix: { tiers: { normal: { cli: 'agy', model: 'gemini-3.1-pro-high', skills: ['design'] } } },
         },
         remote_git: { kind: 'github' },
       }),
@@ -421,6 +421,6 @@ describe('the scenarios reach the session', () => {
     expect(r.stdout).toContain('explore — investigating');
     expect(r.stdout).toContain('light  claude sonnet high — find it');
     expect(r.stdout).toContain('normal (default)  claude opus high');
-    expect(r.stdout).toContain('normal (default)  agy gemini-3.1-pro-high');
+    expect(r.stdout).toContain('normal (default)  agy gemini-3.1-pro-high /design');
   });
 });

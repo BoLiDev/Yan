@@ -12,7 +12,7 @@ import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/
 import { configuredCli } from '../externals/remote-git/index.js';
 import { isYanError } from '../util/error.js';
 import { action, out } from './shared/action.js';
-import { agentSpecFor, cliKind, configPath, readScenarios, resolveShift, type AgentSpec } from './shared/config.js';
+import { agentSpecFor, cliKind, configPath, readScenarios, resolveShift, runsAs, type AgentSpec } from './shared/config.js';
 import { registry } from './shared/repo.js';
 
 /**
@@ -167,7 +167,7 @@ function checkYanOnPath(report: Report): void {
 
 /** How a CLI runs, in one phrase: `claude opus high`. */
 function describeSpec(spec: AgentSpec): string {
-  return [spec.cli, spec.model, spec.effort].filter((x) => x !== '').join(' ');
+  return runsAs(spec);
 }
 
 /** One configured CLI: on PATH, and able to take the model and effort it was given. */

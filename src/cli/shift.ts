@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { cliKind, modelFlags, resolveShift, type ShiftSpec } from './shared/config.js';
+import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from './shared/config.js';
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
@@ -171,8 +171,9 @@ function briefBody(options: {
   branch: string;
   taskDir: string;
   work: string;
+  skills: readonly string[];
 }): string {
-  const { sid, task, unit, data, tree, clone, branch, taskDir } = options;
+  const { sid, task, unit, data, tree, clone, branch, taskDir, skills } = options;
   const home = yanHome();
   const lines = [
     `# ${sid} ${unit} (task ${task})`,
@@ -187,6 +188,15 @@ function briefBody(options: {
     `| mode | ${data.mode} |`,
     `| scope | ${data.scope.length > 0 ? data.scope.join(' ') : '(the whole repository)'} |`,
     '',
+    ...(skills.length === 0
+      ? []
+      : [
+          '## Skills',
+          '',
+          `Invoke ${skills.map((s) => `/${s}`).join(', ')} before anything else, and work the way ${skills.length === 1 ? 'it says' : 'they say'}.`,
+          'If one is not available, carry on without it and say so in outcome.md.',
+          '',
+        ]),
     '## The work',
     '',
     options.work,
@@ -395,7 +405,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
     writeFileSync(
       join(shift.dir, 'brief.md'),
-      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work }),
+      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills }),
     );
 
     // --- 3. refuse the main clone -------------------------------------------
@@ -432,6 +442,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       mode: data.mode,
       agent,
       scenario: spec.scenario,
+      skills: [...spec.skills],
       tier: spec.tier,
       model: spec.model,
       effort: spec.effort,
@@ -442,7 +453,10 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     };
     writeJson(metaFile, meta);
 
-    const prompt = `Read ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
+    // The first words the shift sees, so the skills are invoked before the
+    // brief can pull it into the work.
+    const invoke = spec.skills.length === 0 ? '' : `First invoke ${spec.skills.map((s) => `/${s}`).join(', ')}; if one is not available, carry on without it. Then `;
+    const prompt = `${invoke}${invoke === '' ? 'Read' : 'read'} ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
     const startedAgent = terminal.startAgent({
       container,
       name: `${sid}-${unitName}`,
@@ -478,7 +492,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     });
 
     try {
-      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${[agent, spec.model, spec.effort].filter((x) => x !== '').join(' ')} in ${workdir})`, note));
+      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note));
     } catch { /* the shift is running; a missing log line is not worth failing for */ }
 
     return meta;
@@ -542,7 +556,7 @@ with its target and a shift has to reconcile it first.`,
       out(`branch   ${String(meta.branch)} (from ${String(meta.base)})`);
       out(`tree     ${String(meta.tree)}`);
       out(`workdir  ${String(meta.workdir)}`);
-      out(`agent    ${String(meta.scenario)}/${String(meta.tier)}: ${[meta.agent, meta.model, meta.effort].filter((x) => x !== '').map(String).join(' ')}  (${String(meta.pane)} in container ${String(meta.container)})`);
+      out(`agent    ${String(meta.scenario)}/${String(meta.tier)}: ${runsAs({ cli: String(meta.agent), model: String(meta.model), effort: String(meta.effort), skills: meta.skills as string[] })}  (${String(meta.pane)} in container ${String(meta.container)})`);
       out(`brief    ${join(new Shift(String(meta.task), String(meta.sid)).dir, 'brief.md')}`);
     }),
   );

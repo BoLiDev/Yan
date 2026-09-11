@@ -64,10 +64,12 @@ It has since grown two things. `agents.<role>` may be an object, `{ "cli", "mode
     "light":  { "description": "the answer is in one or two places", "model": "sonnet", "effort": "medium" },
     "normal": { "description": "it crosses modules" } } },
   "coding":  { "default": "normal", "tiers": { "normal": {}, "heavy": { "effort": "max" } } },
-  "uix":     { "tiers": { "normal": { "cli": "agy", "model": "gemini-3.1-pro-high" } } } }
+  "uix":     { "tiers": { "normal": { "model": "claude-opus-5", "effort": "high", "skills": ["design"] } } } }
 ```
 
 THE SCENARIOS ARE FIXED AND THE TIERS ARE NOT. The three scenarios are kinds of work, and what each covers is written into the instructions, where the main agent chooses by it; a scenario invented in a config file would have no such sentence behind it. The tiers are `user`'s: how many, what they are called, what each is for, and what it runs. Each scenario needs at least one, and `yan shift new` requires `--scenario`, so every dispatch is a stated judgement about the work. A tier overrides `agents.shift` field by field; one that switches CLI does not inherit a model meant for another.
+
+`skills` is the one field that is not about a model. Some work is only as good as the skill it runs under — a Claude shift designing an interface without `/design` produces something noticeably worse — and no CLI can preload a skill from its command line, so the shift is told: its opening prompt starts with the skills to invoke, and its brief says the same at the top. A skill that is not available is skipped and mentioned in `outcome.md`, not a reason to stop. Skills belong to the tier, never inherited, because a tier that switches CLI switches which skills exist.
 
 The main agent chooses a tier and never names a model. That is the cost control: whatever it decides, it runs something `user` configured. The main agent's own model is `agents.yan` alone, fixed for the session, because it cannot restart itself. The flags are spelled per CLI — `--model`/`--effort` for claude and agy, `-m` and `-c model_reasoning_effort=` for codex — by one function, for shifts and the main agent alike.
 

@@ -61,7 +61,7 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 - **选场景和档位**（每次派发必填场景）：
   - 场景看工作类型：`explore` 调研、读代码、回答问题，不产出要合入的代码；`coding` 产出要合入的代码；`uix` 界面与交互设计。
   - 场景不是 `mode`：`mode` 决定 unit 交付什么，场景决定这份活需要什么。需要写代码来验证思路的 scout，场景是 `coding`。
-  - 档位看工作难度：session start 列出了每个场景的档位、`user` 写的说明，以及实际用的 CLI、模型和 effort。默认用场景的 default 档；另一个档位的说明更贴切时才换。**不用默认档位时向 `user` 说明理由，尤其是更重的档位**——那是 `user` 花钱的地方。
+  - 档位看工作难度：session start 列出了每个场景的档位、`user` 写的说明，以及实际用的 CLI、模型、effort 和预加载的 skill。默认用场景的 default 档；另一个档位的说明更贴切时才换。**不用默认档位时向 `user` 说明理由，尤其是更重的档位**——那是 `user` 花钱的地方。
   - shift 在某一档失败了，是往上升一档的理由，不是直接升到最高档的理由。
   - 这些之外的模型没有办法指定，这是有意为之。
 

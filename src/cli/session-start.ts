@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { readScenarios, resolveShift } from './shared/config.js';
+import { readScenarios, resolveShift, runsAs } from './shared/config.js';
 import { CommandError } from './shared/errors.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
@@ -436,7 +436,7 @@ function renderScenarios(): void {
     out(`  ${scenario.name} — ${scenario.description}`);
     for (const tier of scenario.tiers) {
       const spec = resolveShift('session_start', scenario.name, tier.name);
-      const runs = [spec.cli, spec.model, spec.effort].filter((x) => x !== '').join(' ');
+      const runs = runsAs(spec);
       const mark = tier.name === scenario.defaultTier ? ' (default)' : '';
       out(`      ${tier.name}${mark}  ${runs}${tier.description === '' ? '' : ` — ${tier.description}`}`);
     }

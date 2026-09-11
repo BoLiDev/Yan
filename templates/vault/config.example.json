@@ -39,7 +39,8 @@
       "default": "normal",
       "tiers": {
         "normal": {
-          "description": "prototypes and visual proposals"
+          "description": "prototypes and visual proposals",
+          "skills": ["design"]
         }
       }
     }
