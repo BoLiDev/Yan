@@ -206,11 +206,12 @@ function logRow(line: string): string {
     const [, date, type, text] = typed as unknown as [string, string, string, string];
     return `${dim(date)}  ${(LOG_COLOURS[type] as (s: string) => string)(type.padEnd(9))}  ${text}`;
   }
+  // Written before entries carried a type, and by hand before they carried a
+  // date: named `legacy` rather than left blank, and a missing date is `--`.
+  const legacy = gray('legacy'.padEnd(9));
   const untyped = /^- (\d{2}-\d{2}) {2}(.*)$/.exec(line);
-  if (untyped !== null) return `${dim(untyped[1] as string)}  ${' '.repeat(9)}  ${untyped[2] as string}`;
-  // Written by hand before entries were dated: no date and no type, so the
-  // text starts in the column every other entry's text starts in.
-  return `${' '.repeat(5)}  ${' '.repeat(9)}  ${line.replace(/^- /, '')}`;
+  if (untyped !== null) return `${dim(untyped[1] as string)}  ${legacy}  ${untyped[2] as string}`;
+  return `${dim('--'.padEnd(5))}  ${legacy}  ${line.replace(/^- /, '')}`;
 }
 
 function section(label: string, aside = ''): void {
