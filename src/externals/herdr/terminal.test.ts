@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Terminal } from './index.js';
 import * as term from './index.js';
 import { herdrErrorCode, mapError } from './cli.js';
+import { parseIntegrationStatus } from './health.js';
 import { AGENT_STATUS, HERDR_PROTOCOL } from './schema.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 import { YanError } from '../../util/error.js';
@@ -484,5 +485,28 @@ describe('an agent that is not really there', () => {
     };
     new Terminal({ run }).send('w1:p2', 'here is your brief');
     expect(sent.some((a) => a[0] === 'agent' && a[1] === 'prompt')).toBe(true);
+  });
+});
+
+describe('integration status is read as a state, not as a first word', () => {
+  it("keeps `not installed` whole, so a caller can tell it from `installed`", () => {
+    const parsed = parseIntegrationStatus(
+      [
+        'claude: not installed (/home/u/.claude/hooks/herdr-agent-state.sh)',
+        'codex: installed (/home/u/.codex/herdr-agent-state.sh)',
+        'antigravity-cli: not installed (/home/u/.gemini/config/hooks/herdr-agent-state.sh)',
+        '',
+        'something else entirely',
+      ].join('\n'),
+    );
+    expect(parsed).toEqual({
+      claude: 'not installed',
+      codex: 'installed',
+      'antigravity-cli': 'not installed',
+    });
+  });
+
+  it('reads a line with no path too', () => {
+    expect(parseIntegrationStatus('claude: installed')).toEqual({ claude: 'installed' });
   });
 });

@@ -276,8 +276,10 @@ function checkHerdr(report: Report, agents: Record<string, string>): void {
   }
   for (const kind of kinds) {
     const name = integrationOf(kind);
+    // herdr lists every integration it knows, installed or not, so an entry is
+    // not the same as an installation.
     const state = installed[name];
-    if (state === undefined) {
+    if (state === undefined || state.startsWith('not ')) {
       line(report, 'warn', kind,
         `no herdr integration installed - 'herdr integration install ${name}' records the agent's session id`,
       );

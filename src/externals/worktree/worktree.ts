@@ -157,7 +157,7 @@ export class WorktreePool {
     const slot = this.pickSlot(size, name);
     if (slot === undefined) {
       throw new YanError('worktree_full',
-        `the pool is full - all ${size} trees are leased, cannot start a new shift. 'yan tree status' shows who holds them; raise pool_size in mem/repos.json only if this machine can afford another tree`,
+        `the pool is full - all ${size} trees are leased, cannot start a new shift. 'yan tree status' shows who holds them; raise pool_size in the vault's repos.json only if this machine can afford another tree`,
       );
     }
 

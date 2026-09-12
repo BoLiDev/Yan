@@ -92,7 +92,7 @@ One input changed shape. `alive | dead | unknown` needs **two** Herdr calls, bec
 
 ## 7. The records classes changed the writing, not the rules
 
-`unit set --branch` is one atomic operation — archive the current round into `history[]`, overwrite the branch, clear `mr`, in a single `tmp → mv` — because a task that crashed between the two would lose the round it was in. That is now `unit.rotate(end, newBranch)`, and the atomicity lives inside the record rather than in the command ([records/task](../../../src/records/task/index.ts)).
+`unit set --branch` is one atomic operation — archive the current round into `history[]`, overwrite the branch, clear `mr`, in a single `tmp → mv` — because a task that crashed between the two would lose the round it was in. That is now `Task.rotateUnit(unit, end, newBranch)`, and the atomicity lives inside the record rather than in the command ([records/task](../../../src/records/task/index.ts)).
 
 The commands get correspondingly thinner, and that is the test of whether the last five phases were worth it: `yan unit set` should read as argument handling plus one call.
 
