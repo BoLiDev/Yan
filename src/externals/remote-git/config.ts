@@ -14,16 +14,11 @@ function configPath(): string {
   return vaultConfigPath();
 }
 
-/**
- * The `remote_git` section, or `'legacy'` when the file still spells it
- * `forge` — which is reported so it can be renamed, never read.
- */
-function section(parsed: unknown): Record<string, unknown> | 'legacy' | undefined {
+/** The `remote_git` section, when the file has one. */
+function section(parsed: unknown): Record<string, unknown> | undefined {
   const root = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
   const current = root.remote_git;
   if (typeof current === 'object' && current !== null) return current as Record<string, unknown>;
-  const legacy = root.forge;
-  if (typeof legacy === 'object' && legacy !== null) return 'legacy';
   return undefined;
 }
 
@@ -44,12 +39,7 @@ export function readConfig(): RemoteGitConfig {
     throw RemoteGitError.config(`cannot read ${path} - it is not valid JSON; run 'yan doctor'`);
   }
 
-  const found = section(parsed);
-  if (found === 'legacy') {
-    throw RemoteGitError.config(`${path} configures the host under \`forge\`, which yan stopped reading in V2 - rename that section to \`remote_git\` (the keys inside it are unchanged), then run 'yan doctor'`,
-    );
-  }
-  const data = found ?? {};
+  const data = section(parsed) ?? {};
 
   const kind = typeof data.kind === 'string' ? data.kind : '';
   if (kind === '') {

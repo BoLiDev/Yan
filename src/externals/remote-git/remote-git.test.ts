@@ -90,14 +90,14 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('reads only the current config section, and says what to rename', () => {
-    // `remote_git` is the only spelling read; `forge` is looked for only so
-    // the refusal can say what to rename.
+  it('reads only the `remote_git` section', () => {
+    // A kind under any other key is not a configuration: it refuses as if the
+    // section were absent, rather than reaching for a second spelling.
     writeFileSync(
       join(home, 'config.json'),
       `${JSON.stringify({ version: 1, forge: { kind: 'github' } }, null, 2)}\n`,
     );
-    expect(() => host().mrState({ mr: '1' })).toThrow(/rename that section to `remote_git`/);
+    expect(() => host().mrState({ mr: '1' })).toThrow(/remote_git.kind is not set/);
     expect(calls).toHaveLength(0);
   });
 });

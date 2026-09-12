@@ -146,7 +146,7 @@ export function vaultConfigPath(): string {
   return join(vaultDir(), 'config.json');
 }
 
-/** `repos.json` — the portable half of the repo registry: name → url, mode_default, pool_size. */
+/** `repos.json` — the portable half of the repo registry: name → url, pool_size. */
 export function reposPath(): string {
   return join(vaultDir(), 'repos.json');
 }

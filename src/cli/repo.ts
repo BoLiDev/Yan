@@ -65,8 +65,7 @@ function checkName(name: string): void {
 
 /**
  * Write the tracked half. Merged into any entry already there: an empty `pool`
- * keeps what is recorded. A `mode_default` an older yan wrote is dropped: what
- * a shift delivers is decided by its scenario now, not per repository.
+ * keeps what is recorded.
  */
 function writePortable(name: string, url: string, pool: string): void {
   const file = reposPath();
@@ -75,7 +74,6 @@ function writePortable(name: string, url: string, pool: string): void {
   editJson(file, (raw) => {
     const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
     const before = { ...(typeof reg[name] === 'object' && reg[name] !== null ? reg[name] : {}) } as Record<string, unknown>;
-    delete before.mode_default;
     reg[name] = {
       ...before,
       url,
