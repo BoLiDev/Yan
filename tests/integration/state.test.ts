@@ -202,7 +202,7 @@ describe('the pulse says whether the terminal is moving', () => {
     const r = await runYan(home, ['state', 's1', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('pulse      unsampled');
-    expect(r.stdout).toContain('yan wait');
+    expect(r.stdout, 'and says why, without suggesting the watcher is broken').toContain('between yan');
   });
 
   it('and says so again when the last reading is too old to be about the shift', async () => {

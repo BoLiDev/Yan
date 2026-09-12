@@ -59,12 +59,21 @@ describe('one command, both effects', () => {
     expect(first).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
   });
 
-  it('re-touches the wake marker on every report, not only the first', async () => {
+  it('records started without touching the wake marker: there is nothing to act on', async () => {
     rmSync(join(run, 'signal'));
+    const r = await runYan(home, ['report', 'started', 'read the brief', '--sid', 's1', '--task', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(lines(join(run, 'status')), 'the event is still appended').toBe(2);
+    expect(status()).toContain('\tstarted\t');
+    expect(existsSync(join(run, 'signal')), 'but nobody is woken for it').toBe(false);
+  });
+
+  it('re-touches the wake marker on every other report, not only the first', async () => {
+    rmSync(join(run, 'signal'), { force: true });
     const r = await runYan(home, ['report', 'blocked', 'waiting for a credential', '--sid', 's1', '--task', 't042']);
     expect(r.code, r.out).toBe(0);
     expect(existsSync(join(run, 'signal')), 'signal is written again on the next report').toBe(true);
-    expect(lines(join(run, 'status')), 'run/status is appended, never replaced').toBe(2);
+    expect(lines(join(run, 'status')), 'run/status is appended, never replaced').toBe(3);
     expect(status(), 'the earlier event survived').toContain('merge_requests/1');
   });
 });
@@ -75,7 +84,7 @@ describe('exactly five states', () => {
       const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's1', '--task', 't042']);
       expect(r.code, `${state} must be accepted: ${r.out}`).toBe(0);
     }
-    expect(lines(join(run, 'status')), 'all five allowed states were accepted').toBe(5);
+    expect(lines(join(run, 'status')), 'all five allowed states were accepted').toBe(6);
   });
 
   it('refuses a sixth word loudly, and writes nothing at all', async () => {
@@ -111,7 +120,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
   it('reads all three spellings', async () => {
     const shiftDir = join(home, 'tasks', 't042', 'shifts', 's1');
     expect((await runYan(home, ['report', 'done', 'via YAN_SHIFT_DIR'], { YAN_SHIFT_DIR: shiftDir })).code).toBe(0);
-    expect(lines(join(run, 'status'))).toBe(6);
+    expect(lines(join(run, 'status'))).toBe(7);
 
     expect((await runYan(home, ['report', 'done', 'via YAN_TASK_DIR as the shift dir'], { YAN_TASK_DIR: shiftDir })).code).toBe(0);
     expect(
@@ -121,7 +130,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
       })).code,
     ).toBe(0);
     expect((await runYan(home, ['report', 'done', 'via ids only'], { YAN_TASK: 't042', YAN_SID: 's1' })).code).toBe(0);
-    expect(lines(join(run, 'status'))).toBe(9);
+    expect(lines(join(run, 'status'))).toBe(10);
   });
 
   it('says so rather than guessing when nothing identifies the shift', async () => {

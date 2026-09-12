@@ -18,7 +18,7 @@ import { action, out } from './shared/action.js';
  * `yan wait` — the watcher. Unbounded, or stopping dead at `--seconds N`; the
  * sources are the same either way.
  *
- *   signal        run/signal exists      the shift reported via `yan report`
+ *   signal        run/signal exists      the shift reported via `yan report` (not `started`)
  *   agent-status  a Herdr subscription   blocked / done, seen from outside
  *   agent-alive   a liveness poll        the agent died and cannot say so
  *

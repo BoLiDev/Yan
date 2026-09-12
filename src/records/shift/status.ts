@@ -50,6 +50,10 @@ export function reportedMr(run: string): string | undefined {
  * Append one event, then touch `run/signal` to wake a watcher. Safe against
  * concurrent writers: the line lands in a single append. Throws if `state` is
  * empty or either argument contains a newline.
+ *
+ * `started` is recorded and wakes nobody: it says the shift read its brief,
+ * which is nothing yan has to act on, and four shifts dispatched together
+ * would otherwise cost four wakes that each end in "nothing to do".
  */
 export function appendEvent(run: string, state: string, note = ''): void {
   if (!state) throw ShiftError.usage('an event needs a state');
@@ -60,6 +64,7 @@ export function appendEvent(run: string, state: string, note = ''): void {
 
   const ts = `${new Date().toISOString().slice(0, 19)}Z`;
   appendFileSync(statusFile(run), `${ts}\t${state}\t${note}\n`);
+  if (state === 'started') return;
 
   const signal = signalFile(run);
   if (existsSync(signal)) {
