@@ -228,7 +228,7 @@ describe('yan repo add', () => {
     // this disk, which is a normal state.
     const file = join(home, 'repos.json');
     const reg = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-    reg['from-elsewhere'] = { url: 'git@host:org/from-elsewhere.git', mode_default: 'mr', pool_size: 8 };
+    reg['from-elsewhere'] = { url: 'git@host:org/from-elsewhere.git', pool_size: 8 };
     writeFileSync(file, `${JSON.stringify(reg, null, 2)}\n`);
 
     const r = await yan(['repo', 'ls']);
