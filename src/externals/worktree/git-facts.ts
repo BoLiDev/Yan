@@ -1,6 +1,6 @@
 import * as git from '../../util/git.js';
-import { WorktreeError } from './errors.js';
 import { pathKey } from './layout.js';
+import { YanError } from '../../util/error.js';
 
 /** What the pool asks git. Reads only; nothing here writes. */
 
@@ -67,7 +67,7 @@ export function worktreeHolding(clone: string, branch: string): string | undefin
  * anything git can resolve. Never fetches, so the answer is only as fresh as
  * the clone.
  *
- * @throws WorktreeError when nothing resolves.
+ * @throws YanError when nothing resolves.
  */
 export function baseRef(clone: string, base: string): string {
   if (git.branchExists(clone, base)) return base;
@@ -75,8 +75,7 @@ export function baseRef(clone: string, base: string): string {
     return `origin/${base}`;
   }
   if (git.gitOk(clone, ['rev-parse', '--verify', '--quiet', `${base}^{commit}`])) return base;
-  throw new WorktreeError(
-    'failed',
+  throw new YanError('worktree_failed',
     `cannot resolve the base '${base}' in ${clone} - fetch it first, or pass a base that exists`,
   );
 }

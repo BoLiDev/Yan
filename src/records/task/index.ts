@@ -6,7 +6,6 @@
 
 export { Task } from './task.js';
 export { Unit } from './unit.js';
-export { TaskError } from './errors.js';
 export { ENDS } from './types.js';
 export type {
   AddUnitOptions,

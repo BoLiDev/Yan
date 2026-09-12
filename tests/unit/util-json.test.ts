@@ -1,16 +1,9 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  editJson,
-  initJson,
-  parseJson,
-  readJson,
-  readJsonIfPresent,
-  writeJson,
-} from '../../src/util/json.js';
-import { JsonError } from '../../src/util/json.js';
+import { editJson, initJson, parseJson, readJson, readJsonIfPresent, writeJson } from '../../src/util/json.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * JSON writes land tmp → rename, what the caller hands over is what lands, and
@@ -81,11 +74,11 @@ describe('writeJson', () => {
 
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(() => writeJson(f, circular)).toThrow(JsonError);
+    expect(() => writeJson(f, circular)).toThrow(YanError);
     expect(readJson(f)).toEqual({ a: 1 });
     expect(countTemps(tmp)).toBe(0);
 
-    expect(() => writeJson(f, undefined)).toThrow(JsonError);
+    expect(() => writeJson(f, undefined)).toThrow(YanError);
     expect(readJson(f)).toEqual({ a: 1 });
   });
 });
@@ -132,7 +125,7 @@ describe('editJson', () => {
 
   it('refuses a missing file', () => {
     const tmp = mkTempDir();
-    expect(() => editJson(join(tmp, 'missing.json'), (c) => c)).toThrow(JsonError);
+    expect(() => editJson(join(tmp, 'missing.json'), (c) => c)).toThrow(YanError);
   });
 });
 
@@ -151,7 +144,7 @@ describe('initJson', () => {
 describe('reading', () => {
   it('refuses a missing file, but readJsonIfPresent does not', () => {
     const tmp = mkTempDir();
-    expect(() => readJson(join(tmp, 'missing.json'))).toThrow(JsonError);
+    expect(() => readJson(join(tmp, 'missing.json'))).toThrow(YanError);
     expect(readJsonIfPresent(join(tmp, 'missing.json'))).toBeUndefined();
   });
 
@@ -159,11 +152,11 @@ describe('reading', () => {
     const tmp = mkTempDir();
     const f = join(tmp, 'broken.json');
     writeFileSync(f, '{oh no');
-    expect(() => readJson(f)).toThrow(JsonError);
+    expect(() => readJson(f)).toThrow(YanError);
   });
 
   it('parseJson refuses invalid text', () => {
-    expect(() => parseJson('{')).toThrow(JsonError);
+    expect(() => parseJson('{')).toThrow(YanError);
     expect(parseJson('{"a":1}')).toEqual({ a: 1 });
   });
 });

@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { readScenarios, resolveShift, runsAs } from './shared/config.js';
-import { CommandError } from './shared/errors.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
@@ -16,6 +15,7 @@ import { machineSkillsDir } from '../util/machine.js';
 import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
 import { normalizePath, samePath } from '../util/paths.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -480,7 +480,7 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
   .action(
     action('yan session-start', (positional: string | undefined, options: { all?: boolean; json?: boolean }) => {
       if (options.all === true && positional !== undefined && positional !== '') {
-        throw CommandError.usage('session_start', '--all and a task id are alternatives');
+        throw YanError.usage('session_start_usage', '--all and a task id are alternatives');
       }
       const id = options.all === true ? '' : (positional ?? process.env.YAN_TASK ?? '');
 
@@ -503,7 +503,7 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       }
 
       if (id !== '') {
-        if (!Task.exists(id)) throw CommandError.usage('session_start', `no such task: ${id}`);
+        if (!Task.exists(id)) throw YanError.usage('session_start_usage', `no such task: ${id}`);
       }
 
       const picture = rebuild(id !== '' ? [id] : Task.list());

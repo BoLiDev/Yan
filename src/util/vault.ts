@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { YanError, type YanErrorOptions } from './error.js';
+import { YanError } from './error.js';
 import { readJsonIfPresent } from './json.js';
 import { machineConfigPath, machineRevision, readMachine } from './machine.js';
 import { normalizePath } from './paths.js';
@@ -17,22 +17,6 @@ import { normalizePath } from './paths.js';
  * `doctor`, `vault init`, `vault clone`, `vault ls`, `--help` — asks
  * `vaultDirIfAny()`.
  */
-
-const CODES = {
-  missing: 'vault_missing',
-  invalid: 'vault_invalid',
-  ahead: 'vault_ahead',
-} as const;
-
-export type VaultErrorKind = keyof typeof CODES;
-
-export class VaultError extends YanError {
-  public static readonly codes = CODES;
-
-  public constructor(kind: VaultErrorKind, message: string, options?: YanErrorOptions) {
-    super(CODES[kind], message, options);
-  }
-}
 
 /** The newest `vault.json` version this build understands. */
 export const VAULT_VERSION = 1;
@@ -65,14 +49,13 @@ export function readVaultJson(dir: string): VaultIdentity {
 }
 
 /**
- * @throws VaultError `ahead` when vault.json's version is newer than this
+ * @throws YanError `ahead` when vault.json's version is newer than this
  *   build understands, so it is never written over with an older shape.
  */
 function checkVersion(dir: string): void {
   const { version } = readVaultJson(dir);
   if (version > VAULT_VERSION) {
-    throw new VaultError(
-      'ahead',
+    throw new YanError('vault_ahead',
       `${dir} was written by a newer yan (vault.json version ${version}, this build understands ${VAULT_VERSION}) - update the mechanics clone`,
     );
   }
@@ -116,7 +99,7 @@ let resolved: { key: string; dir: string } | undefined;
 /**
  * The active vault.
  *
- * @throws VaultError `missing` when none is registered, `invalid` when the
+ * @throws YanError `missing` when none is registered, `invalid` when the
  *   registered one is not there, `ahead` when it is too new for this build.
  */
 export function vaultDir(): string {
@@ -134,20 +117,17 @@ export function vaultDir(): string {
   // mid-process is found rather than denied a second time.
   const { active, vaults } = readMachine();
   if (active === undefined) {
-    throw new VaultError(
-      'missing',
+    throw new YanError('vault_missing',
       `no vault is registered on this machine - create one with 'yan vault init <name> --remote <url>', or take an existing one with 'yan vault clone <url>'`,
     );
   }
   const path = vaults[active];
   if (path === undefined) {
-    throw new VaultError(
-      'invalid',
+    throw new YanError('vault_invalid',
       `${machineConfigPath()} makes '${active}' active but records no path for it - fix it with 'yan vault use <name>', or 'yan vault ls' to see what is registered`,
     );
   }
-  throw new VaultError(
-    'invalid',
+  throw new YanError('vault_invalid',
     `the active vault '${active}' is not at ${path} any more - clone it again with 'yan vault clone <url>', or switch with 'yan vault use <name>'`,
   );
 }

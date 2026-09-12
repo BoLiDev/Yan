@@ -1,7 +1,7 @@
 import { asString } from '../../util/narrow.js';
-import { TaskError } from './errors.js';
 import { editUnitIn, readDocument } from './document.js';
 import { ENDS, type HistoryEnd, type HistoryEntry, type ScalarField, type UnitData } from './types.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * One `unit` of a task: one integration branch, one outbound merge request.
@@ -23,11 +23,11 @@ export class Unit {
   /**
    * This unit as it is on disk right now.
    *
-   * @throws TaskError `missing` when the unit is no longer in the document.
+   * @throws YanError `missing` when the unit is no longer in the document.
    */
   public read(): UnitData {
     const found = readDocument(this.file, this.taskId).units.find((u) => u.name === this.name);
-    if (found === undefined) throw new TaskError('missing', `no such unit: ${this.name}`);
+    if (found === undefined) throw new YanError('task_missing', `no such unit: ${this.name}`);
     return found;
   }
 
@@ -62,7 +62,7 @@ export class Unit {
    * Append one entry to `history[]`, leaving the existing ones untouched.
    *
    * @param at an ISO date, or `''` for today.
-   * @throws TaskError when branch, target or end is empty, or `end` is not one
+   * @throws YanError when branch, target or end is empty, or `end` is not one
    *   of ENDS.
    */
   public appendHistory(
@@ -84,10 +84,10 @@ export class Unit {
    * `history[]` under `end`, then move to `newBranch` and clear mr. One write,
    * so a crash leaves either the old round or the new one.
    *
-   * @throws TaskError when `newBranch` is empty or `end` is not one of ENDS.
+   * @throws YanError when `newBranch` is empty or `end` is not one of ENDS.
    */
   public rotate(end: string, newBranch: string, at = ''): void {
-    if (!newBranch) throw TaskError.usage('rotating a unit needs the new branch name');
+    if (!newBranch) throw YanError.usage('task_usage', 'rotating a unit needs the new branch name');
     editUnitIn(this.file, this.taskId, this.name, (unit) => {
       const entry = historyEntry(
         asString(unit.branch),
@@ -112,10 +112,10 @@ function historyEntry(
   mr?: string | null,
 ): HistoryEntry {
   if (!branch || !target || !end) {
-    throw TaskError.usage('a history entry needs at least branch, target and end');
+    throw YanError.usage('task_usage', 'a history entry needs at least branch, target and end');
   }
   if (!(ENDS as readonly string[]).includes(end)) {
-    throw TaskError.usage(`invalid end '${end}' - one of: ${ENDS.join(' ')}`);
+    throw YanError.usage('task_usage', `invalid end '${end}' - one of: ${ENDS.join(' ')}`);
   }
   const when = at === '' ? new Date().toISOString().slice(0, 10) : at;
   const entry: HistoryEntry = { branch, target, at: when, end: end as HistoryEnd };

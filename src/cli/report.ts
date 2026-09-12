@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { Shift } from '../records/shift/index.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan report <state> "<note>"` — the shift → yan channel, and the only
@@ -52,17 +52,17 @@ yan itself and for tests.`,
     action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
       // Checked first, so a refused state writes nothing at all.
       if (state === undefined || state === '') {
-        throw CommandError.usage('report', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
+        throw YanError.usage('report_usage', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
       }
       if (!(REPORT_STATES as readonly string[]).includes(state)) {
-        throw CommandError.usage('report', `'${state}' is not a shift state - use one of: ${REPORT_STATES.join(' ')}`,
+        throw YanError.usage('report_usage', `'${state}' is not a shift state - use one of: ${REPORT_STATES.join(' ')}`,
         );
       }
       if (note === undefined || note === '') {
-        throw CommandError.usage('report', 'a note is required - say in one line what yan has to act on');
+        throw YanError.usage('report_usage', 'a note is required - say in one line what yan has to act on');
       }
       if (note.includes('\n')) {
-        throw CommandError.usage('report', 'a note is one line - every line in run/status is one event, so a newline would forge a second one',
+        throw YanError.usage('report_usage', 'a note is one line - every line in run/status is one event, so a newline would forge a second one',
         );
       }
 
@@ -76,13 +76,13 @@ yan itself and for tests.`,
         shift = Shift.fromEnv();
       }
       if (shift === undefined) {
-        throw CommandError.usage('report', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
+        throw YanError.usage('report_usage', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
         );
       }
 
       // The handover has to exist before the event that sends yan to read it.
       if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
-        throw new CommandError('report', 'no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
+        throw new YanError('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
           { exitCode: 2 },
         );
       }

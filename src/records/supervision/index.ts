@@ -4,5 +4,4 @@
  */
 
 export { Supervision, GUARD_BUDGET } from './supervision.js';
-export { SupervisionError } from './errors.js';
 export type { Beacon, WatcherState } from './beacon.js';

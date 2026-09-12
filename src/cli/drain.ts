@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { Command } from 'commander';
-import { CommandError } from './shared/errors.js';
 import { Supervision } from '../records/supervision/index.js';
 import { action, out } from './shared/action.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan drain` — print the reasons `yan wait` wrote to `tasks/<id>/run/wake`,
@@ -20,7 +20,7 @@ import { action, out } from './shared/action.js';
 function wakeFile(task: string): string {
   const override = process.env.YAN_WAKE_FILE ?? '';
   if (task === '' && override === '') {
-    throw CommandError.usage('drain', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
+    throw YanError.usage('drain_usage', 'cannot tell whose wake file to drain - pass a task id, or set $YAN_TASK as the task container does',
     );
   }
   // Through the supervision record, which is also what `yan wait` writes.
@@ -31,7 +31,7 @@ function wakeFile(task: string): string {
  * Every reason waiting in the task's wake file, which is then cleared, or
  * `undefined` when there is no file. `peek` reads without clearing.
  *
- * @throws CommandError `failed` when the file cannot be read, or was printed
+ * @throws YanError `failed` when the file cannot be read, or was printed
  *   and could not be cleared.
  */
 export function drainWake(task: string, options: { peek?: boolean } = {}): string | undefined {
@@ -43,7 +43,7 @@ export function drainWake(task: string, options: { peek?: boolean } = {}): strin
   try {
     reason = readFileSync(wake, 'utf8');
   } catch (cause) {
-    throw new CommandError('drain', 'failed', `cannot read the wake file: ${wake}`, { cause });
+    throw new YanError('drain_failed', `cannot read the wake file: ${wake}`, { cause });
   }
   const trimmed = reason.replace(/\r?\n$/, '');
 
@@ -52,7 +52,7 @@ export function drainWake(task: string, options: { peek?: boolean } = {}): strin
   try {
     rmSync(wake, { force: true });
   } catch (cause) {
-    throw new CommandError('drain', 'failed', `the reason was printed but the wake file could not be cleared: ${wake}`,
+    throw new YanError('drain_failed', `the reason was printed but the wake file could not be cleared: ${wake}`,
       { cause },
     );
   }

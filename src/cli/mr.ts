@@ -2,13 +2,13 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { repoDir } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan mr` — open the outbound merge request, integration branch → target,
@@ -48,7 +48,7 @@ interface MrResult {
 /**
  * Open the unit's outbound merge request and record its URL.
  *
- * @throws CommandError `usage` for a missing or contradictory argument, an
+ * @throws YanError `usage` for a missing or contradictory argument, an
  *   unknown task or unit, one that already has an outbound MR, or one whose branch and target are the same; `no_branch`,
  *   `no_target` or `not_pushed` for a unit that is not ready.
  */
@@ -56,33 +56,33 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   const task = options.task ?? insideTask('mr');
   const unitName = options.unit ?? '';
 
-  if (unitName === '') throw CommandError.usage('mr', '--unit is required');
+  if (unitName === '') throw YanError.usage('mr_usage', '--unit is required');
   if (options.body !== undefined && options.bodyFile !== undefined) {
-    throw CommandError.usage('mr', '--body and --body-file are alternatives - pass one');
+    throw YanError.usage('mr_usage', '--body and --body-file are alternatives - pass one');
   }
 
-  if (!Task.exists(task)) throw CommandError.usage('mr', `no such task: ${task} - 'yan ls' lists them`);
+  if (!Task.exists(task)) throw YanError.usage('mr_usage', `no such task: ${task} - 'yan ls' lists them`);
   const record = new Task(task);
   const unit = record.findUnit(unitName);
   if (unit === undefined) {
-    throw CommandError.usage('mr', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);
+    throw YanError.usage('mr_usage', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);
   }
   const data = unit.read();
 
   if (data.mr !== null && data.mr !== '') {
-    throw CommandError.usage('mr', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
+    throw YanError.usage('mr_usage', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
     );
   }
   if (data.branch === '') {
-    throw new CommandError('mr', 'no_branch', `unit ${unitName} has no integration branch recorded - 'yan unit add' should have set one`,
+    throw new YanError('mr_no_branch', `unit ${unitName} has no integration branch recorded - 'yan unit add' should have set one`,
     );
   }
   if (data.target === '') {
-    throw new CommandError('mr', 'no_target', `unit ${unitName} has no target recorded, and yan never guesses one`,
+    throw new YanError('mr_no_target', `unit ${unitName} has no target recorded, and yan never guesses one`,
     );
   }
   if (data.branch === data.target) {
-    throw CommandError.usage('mr', `unit ${unitName}'s integration branch and target are both '${data.branch}' - there is nothing to merge into anything`,
+    throw YanError.usage('mr_usage', `unit ${unitName}'s integration branch and target are both '${data.branch}' - there is nothing to merge into anything`,
     );
   }
 
@@ -90,7 +90,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
 
   // Checked, never pushed: publishing a branch is its own decision.
   if (!remoteBranchExists(clone, data.branch)) {
-    throw new CommandError('mr', 'not_pushed', `${data.branch} is not on the remote yet, so there is nothing to open a merge request from - push it first (git push -u origin ${data.branch})`,
+    throw new YanError('mr_not_pushed', `${data.branch} is not on the remote yet, so there is nothing to open a merge request from - push it first (git push -u origin ${data.branch})`,
     );
   }
 
@@ -117,7 +117,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     ...(options.draft === true ? { draft: true } : {}),
   });
   if (url === '') {
-    throw new CommandError('mr', 'no_url', 'the host reported success but printed no merge request URL - nothing was recorded',
+    throw new YanError('mr_no_url', 'the host reported success but printed no merge request URL - nothing was recorded',
     );
   }
 
@@ -125,7 +125,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   try {
     unit.set('mr', url);
   } catch (err) {
-    throw new CommandError('mr', 'not_recorded', `the merge request is open at ${url} but task.json was not updated - record it with 'yan unit set' or re-run after fixing the error above`,
+    throw new YanError('mr_not_recorded', `the merge request is open at ${url} but task.json was not updated - record it with 'yan unit set' or re-run after fixing the error above`,
       { cause: err },
     );
   }

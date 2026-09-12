@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { YanError, type YanErrorOptions } from './error.js';
+import { YanError } from './error.js';
 import type { ProcessResult } from './process.js';
 
 /**
@@ -12,31 +12,9 @@ import type { ProcessResult } from './process.js';
  * src/ for it stays silent; tests/unit/util-git.test.ts checks that.)
  */
 
-const CODES = {
-  usage: 'git_usage',
-  failed: 'git_failed',
-  forceRefused: 'git_force_refused',
-} as const;
-
-export type GitErrorKind = keyof typeof CODES;
-
-/** What running git can fail with. */
-export class GitError extends YanError {
-  public static readonly codes = CODES;
-
-  public constructor(kind: GitErrorKind, message: string, options?: YanErrorOptions) {
-    super(CODES[kind], message, options);
-  }
-
-  /** The caller passed something impossible. Exit 2. */
-  public static usage(message: string): GitError {
-    return new GitError('usage', message, { exitCode: 2 });
-  }
-}
-
 function requireDir(dir: string | undefined): string {
   if (!dir) {
-    throw GitError.usage('a directory argument is required (this module never uses the current working directory)',
+    throw YanError.usage('git_usage', 'a directory argument is required (this module never uses the current working directory)',
     );
   }
   let isDir = false;
@@ -45,7 +23,7 @@ function requireDir(dir: string | undefined): string {
   } catch {
     isDir = false;
   }
-  if (!isDir) throw GitError.usage(`not a directory: ${dir}`);
+  if (!isDir) throw YanError.usage('git_usage', `not a directory: ${dir}`);
   return dir;
 }
 
@@ -57,13 +35,13 @@ function requireDir(dir: string | undefined): string {
  * guard was a worse copy of what git already reports.
  */
 function requireArg(value: string | undefined, message: string): string {
-  if (!value) throw GitError.usage(message);
+  if (!value) throw YanError.usage('git_usage', message);
   return value;
 }
 
 /**
  * Run git and hand back its result. A non-zero exit is a value, not a throw;
- * only git failing to start is a GitError. A `timeoutMs` that elapses comes
+ * only git failing to start is a YanError. A `timeoutMs` that elapses comes
  * back as a non-zero result.
  */
 export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): ProcessResult {
@@ -74,7 +52,7 @@ export function git(dir: string, args: readonly string[], options: { timeoutMs?:
     ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
   });
   if (r.error) {
-    throw new GitError('failed', `cannot run git: ${r.error.message}`, { cause: r.error });
+    throw new YanError('git_failed', `cannot run git: ${r.error.message}`, { cause: r.error });
   }
   return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -84,11 +62,11 @@ export function gitOk(dir: string, args: readonly string[]): boolean {
   return git(dir, args).code === 0;
 }
 
-/** Trimmed stdout, or a GitError carrying git's stderr when it exits non-zero. */
+/** Trimmed stdout, or a YanError carrying git's stderr when it exits non-zero. */
 export function gitOut(dir: string, args: readonly string[]): string {
   const r = git(dir, args);
   if (r.code !== 0) {
-    throw new GitError('failed', `git ${args.join(' ')} failed: ${r.stderr.trim()}`);
+    throw new YanError('git_failed', `git ${args.join(' ')} failed: ${r.stderr.trim()}`);
   }
   return r.stdout.trim();
 }
@@ -189,12 +167,12 @@ export function isForceFlag(arg: string): boolean {
 /**
  * Push.
  *
- * @throws GitError `forceRefused` (exit 2) when any argument is a force flag.
+ * @throws YanError `forceRefused` (exit 2) when any argument is a force flag.
  */
 export function push(dir: string, args: readonly string[] = []): ProcessResult {
   for (const a of args) {
     if (isForceFlag(a)) {
-      throw new GitError('forceRefused', 'refusing to force-push: it rewrites history other people have already pulled',
+      throw new YanError('git_force_refused', 'refusing to force-push: it rewrites history other people have already pulled',
         { exitCode: 2 },
       );
     }

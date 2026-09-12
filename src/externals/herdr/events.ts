@@ -1,10 +1,10 @@
 import { connect, type Socket } from 'node:net';
 import { asRecord, asString } from '../../util/narrow.js';
-import { EventsError } from './errors.js';
 import { isPaneId } from './ids.js';
 import { statusOf } from './parse.js';
 import { defaultEndpoint } from './socket.js';
 import { type AgentStatusEvent, type ClosedEvent } from './types.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * Herdr's event stream, spoken over the socket because `events.subscribe` has
@@ -76,7 +76,7 @@ export class TerminalEvents {
   /**
    * Open the connection, or return at once when it is already open.
    *
-   * @throws EventsError `unreachable` when nothing answers within
+   * @throws YanError `unreachable` when nothing answers within
    *   `connectTimeoutMs`.
    */
   public async open(): Promise<void> {
@@ -101,13 +101,13 @@ export class TerminalEvents {
    * Subscribe to the agent status of panes that are not subscribed already, so
    * this is safe to call repeatedly with an overlapping set.
    *
-   * @throws EventsError `usage` for anything that is not a pane id, `closed`
+   * @throws YanError `usage` for anything that is not a pane id, `closed`
    *   when the connection is not open.
    */
   public async subscribe(panes: readonly string[]): Promise<void> {
     const wanted = panes.filter((pane) => {
       if (!isPaneId(pane)) {
-        throw EventsError.usage(`a subscription needs a pane id like w1:p1, never a label: got '${pane}'`);
+        throw YanError.usage('events_usage', `a subscription needs a pane id like w1:p1, never a label: got '${pane}'`);
       }
       return !this.panes.has(pane);
     });
@@ -153,7 +153,7 @@ export class TerminalEvents {
       const timer = setTimeout(() => {
         socket.destroy();
         rejectDial(
-          new EventsError('unreachable', `herdr did not accept a connection at ${this.endpoint} within ${this.connectTimeoutMs}ms`),
+          new YanError('events_unreachable', `herdr did not accept a connection at ${this.endpoint} within ${this.connectTimeoutMs}ms`),
         );
       }, this.connectTimeoutMs);
       timer.unref();
@@ -167,7 +167,7 @@ export class TerminalEvents {
         clearTimeout(timer);
         socket.destroy();
         rejectDial(
-          new EventsError('unreachable', `cannot reach herdr's event socket at ${this.endpoint}: ${err.message}`, {
+          new YanError('events_unreachable', `cannot reach herdr's event socket at ${this.endpoint}: ${err.message}`, {
             cause: err,
           }),
         );
@@ -178,7 +178,7 @@ export class TerminalEvents {
   private request(method: string, params: unknown): Promise<unknown> {
     const socket = this.socket;
     if (socket === undefined) {
-      return Promise.reject(new EventsError('closed', `not connected to ${this.endpoint}`));
+      return Promise.reject(new YanError('events_closed', `not connected to ${this.endpoint}`));
     }
     this.seq += 1;
     const id = `yan:${this.seq}`;
@@ -187,7 +187,7 @@ export class TerminalEvents {
       socket.write(`${JSON.stringify({ id, method, params })}\n`, (err) => {
         if (err === undefined || err === null) return;
         this.pending.delete(id);
-        rejectRequest(new EventsError('closed', `could not send ${method}: ${err.message}`, { cause: err }));
+        rejectRequest(new YanError('events_closed', `could not send ${method}: ${err.message}`, { cause: err }));
       });
     });
   }
@@ -232,7 +232,7 @@ export class TerminalEvents {
     const error = body.error;
     if (error !== undefined && error !== null) {
       const code = typeof (error as { code?: unknown }).code === 'string' ? (error as { code: string }).code : 'unknown';
-      waiting.reject(new EventsError('refused', `herdr refused the subscription: ${code}`));
+      waiting.reject(new YanError('events_refused', `herdr refused the subscription: ${code}`));
       return;
     }
     waiting.resolve(body.result);
@@ -259,7 +259,7 @@ export class TerminalEvents {
   private failPending(reason: string): void {
     for (const [id, waiting] of this.pending) {
       this.pending.delete(id);
-      waiting.reject(new EventsError('closed', `the event connection ended before ${id} was answered: ${reason}`));
+      waiting.reject(new YanError('events_closed', `the event connection ended before ${id} was answered: ${reason}`));
     }
   }
 }

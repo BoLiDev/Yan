@@ -12,7 +12,7 @@ import { vaultConfigPath } from './vault.js';
  * parse throws, because a configuration someone wrote and got wrong is not the
  * same as no configuration, and each owner words that refusal its own way.
  *
- * @throws JsonError `invalid` when the file is not JSON.
+ * @throws YanError `invalid` when the file is not JSON.
  */
 export function readVaultConfig(): Record<string, unknown> | undefined {
   const raw = readJsonIfPresent(vaultConfigPath());

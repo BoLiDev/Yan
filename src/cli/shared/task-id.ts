@@ -1,6 +1,6 @@
-import { CommandError } from './errors.js';
 import { isTty } from './resolve.js';
 import { queueJson } from '../ls.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * Which task a command works on. There is no `--task` anywhere: a task id
@@ -15,13 +15,13 @@ import { queueJson } from '../ls.js';
 /**
  * The task this process is inside, from `$YAN_TASK`.
  *
- * @throws CommandError `usage` when it is unset, which means the caller is not
+ * @throws YanError `usage` when it is unset, which means the caller is not
  *   inside a task at all.
  */
 export function insideTask(command: string): string {
   const task = process.env.YAN_TASK ?? '';
   if (task === '') {
-    throw CommandError.usage(command, "which task? this command runs inside one, and $YAN_TASK is unset - 'yan continue <id>' sets it, and 'yan ls' lists the tasks");
+    throw YanError.usage(`${command}_usage`, "which task? this command runs inside one, and $YAN_TASK is unset - 'yan continue <id>' sets it, and 'yan ls' lists the tasks");
   }
   return task;
 }
@@ -49,7 +49,7 @@ export function openTasks(): Open[] {
  * and, with no terminal to ask in, a refusal naming the argument, so nothing
  * unattended hangs on an answer that is not coming.
  *
- * @throws CommandError `usage` when there is nothing to choose from, or no way
+ * @throws YanError `usage` when there is nothing to choose from, or no way
  *   to ask.
  */
 export async function chosenTask(
@@ -63,12 +63,12 @@ export async function chosenTask(
   if (fromEnv !== '') return fromEnv;
 
   if (!isTty()) {
-    throw CommandError.usage(command, `which task? pass it as the argument: '${ask.spelled} <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks`);
+    throw YanError.usage(`${command}_usage`, `which task? pass it as the argument: '${ask.spelled} <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks`);
   }
 
   const open = openTasks();
   if (open.length === 0) {
-    throw CommandError.usage(command, "there are no tasks in progress - 'yan ls' lists the finished ones");
+    throw YanError.usage(`${command}_usage`, "there are no tasks in progress - 'yan ls' lists the finished ones");
   }
 
   const { chooseTask } = await import('../../ui/prompts.js');

@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname } from 'node:path';
-import { YanError, type YanErrorOptions } from './error.js';
+import { YanError } from './error.js';
 
 /**
  * The one locking primitive in yan: a file created exclusively, holding the
@@ -14,19 +14,6 @@ import { YanError, type YanErrorOptions } from './error.js';
  * but only when it was taken on this machine: a pid from another host is not
  * ours to judge.
  */
-
-const CODES = { timeout: 'lock_timeout' } as const;
-
-export type LockErrorKind = keyof typeof CODES;
-
-/** What waiting for a lock can fail with. */
-export class LockError extends YanError {
-  public static readonly codes = CODES;
-
-  public constructor(kind: LockErrorKind, message: string, options?: YanErrorOptions) {
-    super(CODES[kind], message, options);
-  }
-}
 
 interface LockRecord {
   pid: number;
@@ -149,7 +136,7 @@ export function release(file: string): void {
  * Run `body` while holding `file`, releasing it however `body` ends. Waits for
  * a held lock and reclaims a stale one.
  *
- * @throws LockError `lock_timeout` when the lock was still held after
+ * @throws YanError `lock_timeout` when the lock was still held after
  *   `timeoutSeconds`. `body` never runs in that case.
  */
 export function withLock<T>(file: string, timeoutSeconds: number, body: () => T): T {
@@ -163,8 +150,7 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
     }
     if (Date.now() >= deadline) {
       const record = readRecord(file);
-      throw new LockError(
-        'timeout',
+      throw new YanError('lock_timeout',
         `timed out after ${timeoutSeconds}s waiting for ${file}` +
           (record === undefined ? '' : ` (held by pid ${record.pid} on ${record.host})`),
       );

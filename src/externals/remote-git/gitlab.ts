@@ -1,8 +1,8 @@
 import type { ProcessResult } from '../../util/process.js';
-import { RemoteGitError } from './errors.js';
 import type { Provider } from './provider.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
 import { asObject, extractUrl, lower } from './validate.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure, and
@@ -66,7 +66,7 @@ export function mapCiState(payload: string): CiState {
  * `glab`'s way of naming one merge request: an iid, plus the project taken
  * from `repo` or parsed out of a URL.
  *
- * @throws RemoteGitError `usage` when no number can be worked out.
+ * @throws YanError `usage` when no number can be worked out.
  */
 export function refArgs(mr: string, repo: string | undefined): string[] {
   let iid = mr;
@@ -88,7 +88,7 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
   }
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
-    throw new RemoteGitError('usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
+    throw new YanError('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
       { exitCode: 2 },
     );
   }

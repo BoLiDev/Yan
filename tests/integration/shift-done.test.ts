@@ -11,8 +11,9 @@ import {
 import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
-import { WorktreeError, type LeaseRow, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { type LeaseRow, type ReturnExpectation } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * `yan shift done`, and the order it has to keep: MR merged → outcome.md →
@@ -229,7 +230,7 @@ describe('a failed return stops before the branch is deleted', () => {
     // A tree that will not come back may hold the only copy of the work, so
     // the remote branch stays.
     dispatched('s2', { lease_id: 'not-the-one' });
-    returnRefusal = WorktreeError.mismatch('the lease id does not match');
+    returnRefusal = new YanError('worktree_mismatch', 'the lease id does not match', { exitCode: 3 });
 
     const r = run('s2');
     expect(r.code, "a lease identity that does not match is refused with the pool's own code").toBe(3);

@@ -2,12 +2,11 @@ import { existsSync, rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { display } from './shared/display.js';
-import { CommandError } from './shared/errors.js';
 import { repoDir } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
 import type { Closer } from './shared/terminal.js';
 import { queueJson } from './ls.js';
-import { isYanError } from '../util/error.js';
+import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
@@ -139,7 +138,7 @@ function kill(shift: Shift, terminal: Closer): KilledShift {
 /**
  * Finish one task: return its trees and mark it complete.
  *
- * @throws CommandError `usage` when no task is named, `missing` for an unknown
+ * @throws YanError `usage` when no task is named, `missing` for an unknown
  *   one, `live_shifts` (exit 4) when a shift is still live and `--force` was
  *   not given — nothing is touched in that case — and `tree_held` (exit 5)
  *   when a tree would not come back, after the others have been returned.
@@ -147,11 +146,11 @@ function kill(shift: Shift, terminal: Closer): KilledShift {
 export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResult {
   const task = options.task ?? process.env.YAN_TASK ?? '';
   if (task === '') {
-    throw CommandError.usage('done', 'which task? pass it as the argument, or set $YAN_TASK');
+    throw YanError.usage('done_usage', 'which task? pass it as the argument, or set $YAN_TASK');
   }
   if (!Task.exists(task)) {
     const where = Task.isId(task) ? new Task(task).file : `${task}/task.json`;
-    throw new CommandError('done', 'missing', `no such task: ${task} - ${where} does not exist`);
+    throw new YanError('done_missing', `no such task: ${task} - ${where} does not exist`);
   }
 
   const record = new Task(task);
@@ -167,7 +166,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
         return unit === '' ? s.sid : `${s.sid} (${unit})`;
       })
       .join(', ');
-    throw new CommandError('done', 'live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user is giving the task up - 'yan abandon ${task} --user-asked --reason ...', which closes their merge requests too; --force instead marks it done and discards their work`,
+    throw new YanError('done_live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user is giving the task up - 'yan abandon ${task} --user-asked --reason ...', which closes their merge requests too; --force instead marks it done and discards their work`,
       { exitCode: RC_LIVE_SHIFTS },
     );
   }
@@ -220,7 +219,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   }
 
   if (stuck.length > 0) {
-    throw new CommandError('done', 'tree_held', `${stuck.length} tree(s) could not be returned, so ${complete ? `${task} is marked done but the pool slot(s) are stranded` : `${task} is NOT marked done`}:\n${stuck
+    throw new YanError('done_tree_held', `${stuck.length} tree(s) could not be returned, so ${complete ? `${task} is marked done but the pool slot(s) are stranded` : `${task} is NOT marked done`}:\n${stuck
         .map((t) => `    ${t.path}\n      ${t.reason ?? ''}`)
         .join('\n')}`,
       { exitCode: RC_TREE_HELD },
@@ -263,7 +262,7 @@ async function whichTasks(named: string): Promise<string[]> {
   if (fromEnv !== '') return [fromEnv];
 
   if (!isTty()) {
-    throw CommandError.usage('done', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
+    throw YanError.usage('done_usage', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
   }
 
   const open = finishableTasks();

@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import { CommandError } from './shared/errors.js';
 import { DEFAULT_POOL_SIZE, poolSize, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan tree get | return | status` — the command layer over the worktree pool:
@@ -27,7 +27,7 @@ interface CommonOptions {
 
 function clone(options: CommonOptions): { clone: string; key: string } {
   if (options.repo === undefined || options.repo === '') {
-    throw CommandError.usage('tree', '--repo is required: a repository name under repos/, or the path to a clone',
+    throw YanError.usage('tree_usage', '--repo is required: a repository name under repos/, or the path to a clone',
     );
   }
   return repoTarget('tree', options.repo);
@@ -47,25 +47,25 @@ interface GetOptions extends CommonOptions {
  * makes it a standing tree rather than a new one: the branch already exists,
  * so the pool checks it out instead of cutting anything.
  *
- * @throws CommandError `usage` when the other flags were passed too, when
+ * @throws YanError `usage` when the other flags were passed too, when
  *   $YAN_TASK is unset, or when the unit is unknown or has no branch.
  */
 function standingTree(options: GetOptions): { repo: string; base: string; branch: string; holder: string } {
   const unit = options.unit ?? '';
   for (const [flag, value] of [['--repo', options.repo], ['--base', options.base], ['--branch', options.branch], ['--holder', options.holder]] as const) {
     if (value !== undefined && value !== '') {
-      throw CommandError.usage('tree', `${flag} and --unit are alternatives - --unit reads all four off task.json`);
+      throw YanError.usage('tree_usage', `${flag} and --unit are alternatives - --unit reads all four off task.json`);
     }
   }
   const task = insideTask('tree');
-  if (!Task.exists(task)) throw CommandError.usage('tree', `no such task: ${task}`);
+  if (!Task.exists(task)) throw YanError.usage('tree_usage', `no such task: ${task}`);
   const found = new Task(task).findUnit(unit);
   if (found === undefined) {
-    throw CommandError.usage('tree', `no such unit: ${unit} in ${task} - 'yan show ${task}' lists them`);
+    throw YanError.usage('tree_usage', `no such unit: ${unit} in ${task} - 'yan show ${task}' lists them`);
   }
   const data = found.read();
   if (data.branch === '') {
-    throw CommandError.usage('tree', `unit ${unit} has no integration branch yet - 'yan unit set --branch' sets one`);
+    throw YanError.usage('tree_usage', `unit ${unit} has no integration branch yet - 'yan unit set --branch' sets one`);
   }
   return { repo: data.repo, base: data.branch, branch: data.branch, holder: `${task}/${unit}` };
 }
@@ -99,14 +99,14 @@ running at once plus one per unit.`,
           ? repoTarget('tree', asked.repo)
           : clone(options);
         if (asked.base === '') {
-          throw CommandError.usage('tree', '--base is required: a tree is always cut from an explicit integration branch',
+          throw YanError.usage('tree_usage', '--base is required: a tree is always cut from an explicit integration branch',
           );
         }
         if (asked.branch === '') {
-          throw CommandError.usage('tree', '--branch is required: leasing a tree creates the shift branch');
+          throw YanError.usage('tree_usage', '--branch is required: leasing a tree creates the shift branch');
         }
         if (asked.holder === '') {
-          throw CommandError.usage('tree', '--holder is required, in the form <task>/<unit>/<sid>');
+          throw YanError.usage('tree_usage', '--holder is required, in the form <task>/<unit>/<sid>');
         }
 
         const grant = new WorktreePool(target.clone).get(
@@ -147,17 +147,17 @@ const returnTree = new Command('return')
         const target = clone(options);
         const which = options.path ?? positional ?? options.slot ?? '';
         if (which === '') {
-          throw CommandError.usage('tree', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
+          throw YanError.usage('tree_usage', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
           );
         }
         // Both flags: `--discard` says what to do, `--user-asked` says whose
         // decision it was. Neither alone gets past the guard.
         if (options.discard === true && options.userAsked !== true) {
-          throw CommandError.usage('tree', "--discard throws away work that exists nowhere else, so it needs `user`'s word: pass --user-asked once they have given it. Nothing was touched",
+          throw YanError.usage('tree_usage', "--discard throws away work that exists nowhere else, so it needs `user`'s word: pass --user-asked once they have given it. Nothing was touched",
           );
         }
         if (options.userAsked === true && options.discard !== true) {
-          throw CommandError.usage('tree', '--user-asked answers --discard, and there is nothing here to answer without it');
+          throw YanError.usage('tree_usage', '--user-asked answers --discard, and there is nothing here to answer without it');
         }
         // Compared before anything destructive happens: a mismatch exits 3 and
         // touches nothing.

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { normalizePath } from '../../util/paths.js';
-import { WorktreeError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * Where the pool keeps things:
@@ -53,8 +53,7 @@ export function rootDir(): string {
   try {
     mkdirSync(root, { recursive: true });
   } catch (cause) {
-    throw new WorktreeError(
-      'failed',
+    throw new YanError('worktree_failed',
       `cannot create the pool root: ${root} - set YAN_POOL_ROOT to a writable directory`,
       { cause },
     );
@@ -70,7 +69,7 @@ export function rootDir(): string {
  * so it is used for as long as no pool under the real key exists.
  */
 export function cloneDir(clone: string): string {
-  if (!clone) throw WorktreeError.usage('a main clone directory is required');
+  if (!clone) throw YanError.usage('worktree_usage', 'a main clone directory is required');
   const abs = absolute(clone);
   const root = rootDir();
   const dir = `${root}/${repoName(abs)}-${shortHash(pathKey(abs))}`;

@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { display } from './shared/display.js';
-import { CommandError } from './shared/errors.js';
 import { readNote } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
@@ -15,6 +14,7 @@ import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { readJsonIfPresent } from '../util/json.js';
+import { YanError } from '../util/error.js';
 
 /**
  * Giving work up: `yan shift abandon <sid>` for one shift, `yan abandon <id>`
@@ -55,11 +55,11 @@ interface AbandonedShift {
 
 function requireConsent(command: string, userAsked: boolean | undefined, reason: string | undefined): string {
   if (userAsked !== true) {
-    throw CommandError.usage(command, "abandoning destroys work that exists nowhere else and closes merge requests colleagues can see, so only user asks for it. Nothing was touched. When they have, re-run with --user-asked");
+    throw YanError.usage(`${command}_usage`, "abandoning destroys work that exists nowhere else and closes merge requests colleagues can see, so only user asks for it. Nothing was touched. When they have, re-run with --user-asked");
   }
   const text = readNote(command, reason);
   if (text === '') {
-    throw CommandError.usage(command, '--reason is required - one line saying why this is being given up, which is what the log keeps');
+    throw YanError.usage(`${command}_usage`, '--reason is required - one line saying why this is being given up, which is what the log keeps');
   }
   return text;
 }
@@ -176,15 +176,15 @@ interface ShiftAbandonOptions {
 /**
  * `yan shift abandon <sid>` without the process around it.
  *
- * @throws CommandError `usage` without `--user-asked` or `--reason`, for a
+ * @throws YanError `usage` without `--user-asked` or `--reason`, for a
  *   missing sid, or for a shift that has already clocked out.
  */
 export function abandonShift(sid: string | undefined, options: ShiftAbandonOptions, deps: AbandonDeps = {}): AbandonedShift {
-  if (sid === undefined || sid === '') throw CommandError.usage('shift_abandon', 'a shift id is required');
+  if (sid === undefined || sid === '') throw YanError.usage('shift_abandon_usage', 'a shift id is required');
   const reason = requireConsent('shift_abandon', options.userAsked, options.reason);
   const shift = Shift.resolve(sid, options.task ?? '');
   if (!shift.isLive()) {
-    throw CommandError.usage('shift_abandon', `shift ${shift.label()} is not live - run/ is gone, so there is nothing to abandon`);
+    throw YanError.usage('shift_abandon_usage', `shift ${shift.label()} is not live - run/ is gone, so there is nothing to abandon`);
   }
 
   const result = tearDown(shift, deps);
@@ -216,18 +216,18 @@ interface AbandonedTask {
  * down, every open outbound merge request closed, every tree returned, and the
  * task marked abandoned.
  *
- * @throws CommandError `usage` without `--user-asked` or `--reason`, or for a
+ * @throws YanError `usage` without `--user-asked` or `--reason`, or for a
  *   task that is missing, already abandoned, or already done.
  */
 export function abandonTask(options: TaskAbandonOptions, deps: AbandonDeps = {}): AbandonedTask {
   const task = options.task ?? '';
-  if (task === '') throw CommandError.usage('abandon', 'which task? pass its id, or set $YAN_TASK');
+  if (task === '') throw YanError.usage('abandon_usage', 'which task? pass its id, or set $YAN_TASK');
   const reason = requireConsent('abandon', options.userAsked, options.reason);
-  if (!Task.exists(task)) throw CommandError.usage('abandon', `no such task: ${task}`);
+  if (!Task.exists(task)) throw YanError.usage('abandon_usage', `no such task: ${task}`);
   const record = new Task(task);
   const data = record.read();
-  if (data.abandoned) throw CommandError.usage('abandon', `${task} is already abandoned`);
-  if (data.complete) throw CommandError.usage('abandon', `${task} is done - there is nothing left to give up`);
+  if (data.abandoned) throw YanError.usage('abandon_usage', `${task} is already abandoned`);
+  if (data.complete) throw YanError.usage('abandon_usage', `${task} is done - there is nothing left to give up`);
 
   const shifts = Shift.liveIn(task).map((s) => tearDown(s, deps));
 

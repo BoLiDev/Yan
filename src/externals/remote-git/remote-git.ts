@@ -1,7 +1,6 @@
 import type { ProcessResult } from '../../util/process.js';
 import { runCli, type CliInvocation } from './client.js';
 import { hostFor, readConfig } from './config.js';
-import { RemoteGitError } from './errors.js';
 import { githubProvider } from './github.js';
 import { gitlabProvider } from './gitlab.js';
 import type { Provider } from './provider.js';
@@ -14,6 +13,7 @@ import type {
   MrState,
 } from './types.js';
 import { bodyText, checkDir, requireMr, unreachable } from './validate.js';
+import { YanError } from '../../util/error.js';
 
 /** How a CLI is actually run. Replaceable so a test needs no module mocking. */
 export type CliRunner = (invocation: CliInvocation) => ProcessResult;
@@ -39,7 +39,7 @@ export interface RemoteGitOptions {
  * The two query verbs always return a member of their closed set — a host that
  * cannot be reached is `unknown` / `pending` plus a note on stderr — so a
  * caller branches on the value rather than catching. The three action verbs
- * throw a RemoteGitError when they did not work.
+ * throw a YanError when they did not work.
  */
 export class RemoteGit {
   private readonly provider: Provider;
@@ -57,20 +57,20 @@ export class RemoteGit {
    * Open a merge request and return its URL, which is what the other three
    * verbs take as `mr`.
    *
-   * @throws RemoteGitError `usage` for a missing or unknown option, `failed`
+   * @throws YanError `usage` for a missing or unknown option, `failed`
    *   when the host refused.
    */
   public createMr(options: MrCreateOptions): string {
     const cwd = checkDir(options);
     if (!options.source || !options.target) {
-      throw RemoteGitError.usage('source and target are both required - a merge request always says where it comes from and where it goes',
+      throw YanError.usage('remote_git_usage', 'source and target are both required - a merge request always says where it comes from and where it goes',
       );
     }
-    if (!options.title) throw RemoteGitError.usage('title is required');
+    if (!options.title) throw YanError.usage('remote_git_usage', 'title is required');
 
     const result = this.invoke(this.provider.createArgs(options, bodyText(options)), cwd);
     if (result.code !== 0) {
-      throw new RemoteGitError('failed', `could not open the merge request - ${result.stderr.trim().replace(/\n/g, ' ')}`,
+      throw new YanError('remote_git_failed', `could not open the merge request - ${result.stderr.trim().replace(/\n/g, ' ')}`,
       );
     }
     return this.provider.createdUrl(result);
@@ -94,21 +94,21 @@ export class RemoteGit {
    * Merge now, with `strategy` defaulting to `merge`. The source branch
    * survives unless `deleteSource` says otherwise.
    *
-   * @throws RemoteGitError `usage` for an unknown option or strategy, `failed`
+   * @throws YanError `usage` for an unknown option or strategy, `failed`
    *   when the merge did not happen.
    */
   public mergeMr(options: MrMergeOptions): void {
     const mr = requireMr(options);
     const strategy = options.strategy ?? 'merge';
     if (!['merge', 'squash', 'rebase'].includes(strategy)) {
-      throw RemoteGitError.usage(`unknown merge strategy '${strategy}' - use merge, squash or rebase`,
+      throw YanError.usage('remote_git_usage', `unknown merge strategy '${strategy}' - use merge, squash or rebase`,
       );
     }
 
     const args = this.provider.mergeArgs(mr, options.repo, strategy, options.deleteSource === true);
     const result = this.invoke(args, checkDir(options));
     if (result.code !== 0) {
-      throw new RemoteGitError('failed', `could not merge ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`,
+      throw new YanError('remote_git_failed', `could not merge ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`,
       );
     }
   }
@@ -117,14 +117,14 @@ export class RemoteGit {
    * Close without merging. The source branch is left where it is: an
    * abandoned piece of work may still be wanted.
    *
-   * @throws RemoteGitError `usage` for an unknown option, `failed` when the
+   * @throws YanError `usage` for an unknown option, `failed` when the
    *   host did not close it.
    */
   public closeMr(ref: MrRef): void {
     const mr = requireMr(ref);
     const result = this.invoke(this.provider.closeArgs(mr, ref.repo), checkDir(ref));
     if (result.code !== 0) {
-      throw new RemoteGitError('failed', `could not close ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`);
+      throw new YanError('remote_git_failed', `could not close ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`);
     }
   }
 

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import type { ProcessResult } from '../../util/process.js';
-import { TerminalError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The `herdr` executable, and the only module in yan that names it. Needs no
@@ -57,7 +57,7 @@ export type HerdrRunner = (args: readonly string[]) => ProcessResult;
  * Run a herdr command and return its parsed `.result`, or `undefined` when it
  * succeeded with an empty or unparseable body.
  *
- * @throws TerminalError when the command failed.
+ * @throws YanError when the command failed.
  */
 export function herdrCall(run: HerdrRunner, args: readonly string[], what: string): unknown {
   const result = run(args);
@@ -80,12 +80,12 @@ export function herdrCall(run: HerdrRunner, args: readonly string[], what: strin
  * pane not yet at its shell prompt, `unreachable` when herdr said nothing
  * structured, `refused` otherwise.
  */
-export function mapError(result: ProcessResult, what: string): TerminalError {
+export function mapError(result: ProcessResult, what: string): YanError {
   if (result.code === 2) {
-    return TerminalError.bug(`herdr refused the command shape (${what}): ${result.stderr.trim()}`);
+    return new YanError('term_bug', `herdr refused the command shape (${what}): ${result.stderr.trim()}`, { exitCode: 2 });
   }
   if (result.code === 127) {
-    return new TerminalError('unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
+    return new YanError('term_unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
   }
 
   const code = herdrErrorCode(result.stderr);
@@ -94,15 +94,15 @@ export function mapError(result: ProcessResult, what: string): TerminalError {
     case 'pane_not_found':
     case 'workspace_not_found':
     case 'tab_not_found':
-      return new TerminalError('notFound', `${what}: ${code}`);
+      return new YanError('term_not_found', `${what}: ${code}`);
     // `agent_pane_busy` is what `agent start` answers; the bare spelling is
     // kept for a herdr that names it without the prefix.
     case 'agent_pane_busy':
     case 'pane_busy':
-      return new TerminalError('busy', `${what}: ${code}`);
+      return new YanError('term_busy', `${what}: ${code}`);
     case undefined:
-      return new TerminalError('unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
+      return new YanError('term_unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);
     default:
-      return new TerminalError('refused', `${what}: ${code}`);
+      return new YanError('term_refused', `${what}: ${code}`);
   }
 }

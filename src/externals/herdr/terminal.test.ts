@@ -5,8 +5,8 @@ import { Terminal } from './index.js';
 import * as term from './index.js';
 import { herdrErrorCode, mapError } from './cli.js';
 import { AGENT_STATUS, HERDR_PROTOCOL } from './schema.js';
-import { TerminalError } from './errors.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The terminal seam's contract, true whether or not Herdr is installed: the
@@ -42,9 +42,9 @@ describe('ids are used, nothing is located by label alone', () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(TerminalError);
-    expect((thrown as TerminalError).exitCode).toBe(2);
-    expect((thrown as TerminalError).message).toContain('never a label');
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).exitCode).toBe(2);
+    expect((thrown as YanError).message).toContain('never a label');
   });
 
   it.each(notPaneIds)('read / agentAlive / close refuse %j', (bad) => {
@@ -59,8 +59,8 @@ describe('ids are used, nothing is located by label alone', () => {
       } catch (e) {
         thrown = e;
       }
-      expect(thrown).toBeInstanceOf(TerminalError);
-      expect((thrown as TerminalError).exitCode).toBe(2);
+      expect(thrown).toBeInstanceOf(YanError);
+      expect((thrown as YanError).exitCode).toBe(2);
     }
   });
 
@@ -73,8 +73,8 @@ describe('ids are used, nothing is located by label alone', () => {
       } catch (e) {
         thrown = e;
       }
-      expect(thrown).toBeInstanceOf(TerminalError);
-      expect((thrown as TerminalError).message).toContain('never a name');
+      expect(thrown).toBeInstanceOf(YanError);
+      expect((thrown as YanError).message).toContain('never a name');
     },
   );
 
@@ -87,14 +87,14 @@ describe('ids are used, nothing is located by label alone', () => {
       thrown = e;
     }
     if (thrown !== undefined) {
-      expect((thrown as TerminalError).exitCode).not.toBe(2);
+      expect((thrown as YanError).exitCode).not.toBe(2);
     }
   });
 });
 
 describe('usage errors', () => {
   it('are exit 2, which means you called this wrongly', () => {
-    expect(() => new Terminal().createContainer('')).toThrow(TerminalError);
+    expect(() => new Terminal().createContainer('')).toThrow(YanError);
     expect(() => new Terminal().read('w1:p1', 0)).toThrow(/whole number of lines/);
     expect(() => new Terminal().send('w1:p1', '')).toThrow(/nothing to send/);
     expect(() =>
@@ -167,13 +167,13 @@ describe('no Herdr error code escapes the seam', () => {
       { code: 1, stdout: '', stderr: '{"error":{"code":"agent_not_found","message":"x"}}' },
       'agent get',
     );
-    expect(notFound.code).toBe(TerminalError.codes.notFound);
+    expect(notFound.code).toBe('term_not_found');
 
     const refused = mapError(
       { code: 1, stdout: '', stderr: '{"error":{"code":"workspace_full","message":"x"}}' },
       'pane split',
     );
-    expect(refused.code).toBe(TerminalError.codes.refused);
+    expect(refused.code).toBe('term_refused');
 
     // The one refusal that is about timing rather than a verdict.
     // What herdr 0.8 really says, and the bare spelling beside it.
@@ -182,20 +182,20 @@ describe('no Herdr error code escapes the seam', () => {
         { code: 1, stdout: '', stderr: `{"error":{"code":"${herdrCode}","message":"x"}}` },
         'agent start',
       );
-      expect(busy.code, herdrCode).toBe(TerminalError.codes.busy);
+      expect(busy.code, herdrCode).toBe('term_busy');
     }
 
     // rc 2 is a CLI syntax error - a bug in yan, never a runtime condition.
     expect(mapError({ code: 2, stdout: '', stderr: 'usage: …' }, 'pane split').code).toBe(
-      TerminalError.codes.bug,
+      'term_bug',
     );
 
     // rc 1 with no structured error is a transport problem, not a verdict.
     expect(mapError({ code: 1, stdout: '', stderr: 'boom' }, 'agent list').code).toBe(
-      TerminalError.codes.unreachable,
+      'term_unreachable',
     );
     expect(mapError({ code: 127, stdout: '', stderr: 'no herdr' }, 'agent list').code).toBe(
-      TerminalError.codes.unreachable,
+      'term_unreachable',
     );
 
     for (const code of ['term_not_found', 'term_refused', 'term_bug', 'term_unreachable']) {
@@ -334,8 +334,8 @@ describe('an agent that is not really there', () => {
       } catch (err) {
         caught = err;
       }
-      expect((caught as TerminalError).code).toBe(TerminalError.codes.busy);
-      expect((caught as TerminalError).message).toContain('within 15s');
+      expect((caught as YanError).code).toBe('term_busy');
+      expect((caught as YanError).message).toContain('within 15s');
       // Once at the start, then every 500ms up to and including the fifteenth second.
       expect(herdr.calls.filter((c) => c.startsWith('agent start'))).toHaveLength(31);
       expect(herdr.calls.at(-1)).toBe('pane close w1:p2');

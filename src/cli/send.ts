@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import { action } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Shift } from '../records/shift/index.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan send <sid> "<line>"` — one line to a running shift, up to 1000
@@ -28,9 +28,9 @@ export interface Prompter {
 /**
  * Send one line to a shift's agent.
  *
- * @throws CommandError `usage` for a missing sid, an empty line, a line with a
+ * @throws YanError `usage` for a missing sid, an empty line, a line with a
  *   newline in it, or one over the limit; `clocked_out` when the shift has
- *   clocked out; `no_pane` when its pane was never recorded. TerminalError
+ *   clocked out; `no_pane` when its pane was never recorded. YanError
  *   `notFound` when the pane holds no live agent.
  */
 export function sendLine(
@@ -40,32 +40,32 @@ export function sendLine(
   terminal?: Prompter,
 ): void {
   if (sid === undefined || sid === '') {
-    throw CommandError.usage('send', 'a shift id is required');
+    throw YanError.usage('send_usage', 'a shift id is required');
   }
   if (line === undefined) {
-    throw CommandError.usage('send', 'a line is required - one instruction, in quotes');
+    throw YanError.usage('send_usage', 'a line is required - one instruction, in quotes');
   }
   if (line === '') {
-    throw CommandError.usage('send', 'refusing to send an empty line');
+    throw YanError.usage('send_usage', 'refusing to send an empty line');
   }
   if (line.includes('\n')) {
-    throw CommandError.usage('send', 'a line is one line - a newline would submit it early; write the rest to a file and name its path in the line');
+    throw YanError.usage('send_usage', 'a line is one line - a newline would submit it early; write the rest to a file and name its path in the line');
   }
   const max = sendMax();
   if (line.length > max) {
-    throw CommandError.usage('send', `that line is ${line.length} characters and the limit is ${max} - write the detail to a file and name its path in the line`,
+    throw YanError.usage('send_usage', `that line is ${line.length} characters and the limit is ${max} - write the detail to a file and name its path in the line`,
     );
   }
 
   const shift = Shift.resolve(sid, task);
   if (!shift.isLive()) {
-    throw new CommandError('send', 'clocked_out', `shift ${sid} has clocked out - its run/ directory is gone, so there is no terminal left to talk to`,
+    throw new YanError('send_clocked_out', `shift ${sid} has clocked out - its run/ directory is gone, so there is no terminal left to talk to`,
     );
   }
 
   const pane = shift.meta().agentId;
   if (pane === undefined) {
-    throw new CommandError('send', 'no_pane', `no terminal id in ${shift.run}/meta.json - dispatch records the id the seam printed, and a shift is never located by label`,
+    throw new YanError('send_no_pane', `no terminal id in ${shift.run}/meta.json - dispatch records the id the seam printed, and a shift is never located by label`,
     );
   }
 

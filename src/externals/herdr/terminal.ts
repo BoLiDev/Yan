@@ -1,9 +1,9 @@
-import { TerminalError } from './errors.js';
 import { nativePath } from '../../util/paths.js';
 import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
 import { isPaneId, paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { asRecord, asString } from '../../util/narrow.js';
 import { agentSessionOf, statusOf } from './parse.js';
+import { YanError, isYanError } from '../../util/error.js';
 import type {
   AgentStatus,
   StartAgentOptions,
@@ -93,7 +93,7 @@ export class Terminal {
   /**
    * Run a herdr command and return its parsed `.result`.
    *
-   * @throws TerminalError when the command failed.
+   * @throws YanError when the command failed.
    */
   private call(args: readonly string[], what: string): unknown {
     return herdrCall(this.run, args, what);
@@ -101,7 +101,7 @@ export class Terminal {
 
   /** Create a workspace to hold a task's agents. Does not focus it. */
   public createContainer(label: string, cwd?: string): Container {
-    if (label === '') throw TerminalError.usage('a container label is required');
+    if (label === '') throw YanError.usage('term_usage', 'a container label is required');
     const args = ['workspace', 'create', '--label', label, '--no-focus'];
     if (cwd !== undefined && cwd !== '') args.push('--cwd', nativePath(cwd));
 
@@ -131,13 +131,13 @@ export class Terminal {
    * the agent is running, so the caller keeps the tree and lets supervision
    * wake `user`.
    *
-   * @throws TerminalError `usage` for a missing argument, `notFound` when no
+   * @throws YanError `usage` for a missing argument, `notFound` when no
    *   agent is in the pane afterwards.
    */
   public startAgent(options: StartAgentOptions): StartedAgent {
     requireAgentName(options.name);
-    if (options.kind === '') throw TerminalError.usage('an agent kind is required');
-    if (options.cwd === '') throw TerminalError.usage('a working directory is required');
+    if (options.kind === '') throw YanError.usage('term_usage', 'an agent kind is required');
+    if (options.cwd === '') throw YanError.usage('term_usage', 'a working directory is required');
 
     const pane = this.createTab(options);
     const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
@@ -163,8 +163,7 @@ export class Terminal {
     const reported = asString(agent.pane_id) || pane;
 
     if (this.agentAlive(reported) !== 'alive') {
-      throw new TerminalError(
-        'notFound',
+      throw new YanError('term_not_found',
         `herdr reported '${options.name}' ready in ${reported}, but no agent is there - the CLI probably exited at once. Look at the pane before sending anything to it`,
       );
     }
@@ -246,7 +245,7 @@ export class Terminal {
    * when it has; nothing was started while it said busy, so asking again
    * cannot start a second agent.
    *
-   * @throws TerminalError `busy` once `busyRetryMs` has passed, or whatever
+   * @throws YanError `busy` once `busyRetryMs` has passed, or whatever
    *   else the start fails with, at once.
    */
   private startWhenReady(args: readonly string[]): unknown {
@@ -255,9 +254,9 @@ export class Terminal {
       try {
         return this.call(args, 'agent start');
       } catch (err) {
-        if (!(err instanceof TerminalError) || err.code !== TerminalError.codes.busy) throw err;
+        if (!(isYanError(err)) || err.code !== 'term_busy') throw err;
         if (Date.now() + BUSY_INTERVAL_MS > deadline) {
-          throw new TerminalError('busy', `the new pane was not at its shell prompt within ${Math.round(this.busyRetryMs / 1000)}s, so no agent was started in it`, { cause: err });
+          throw new YanError('term_busy', `the new pane was not at its shell prompt within ${Math.round(this.busyRetryMs / 1000)}s, so no agent was started in it`, { cause: err });
         }
         this.sleep(BUSY_INTERVAL_MS);
       }
@@ -277,7 +276,7 @@ export class Terminal {
    * or a question on its screen, `done` is unseen work that finished, and
    * `unknown` is Herdr declining to say — never a verdict about the shift.
    *
-   * @throws TerminalError `usage` when `pane` is not a pane id.
+   * @throws YanError `usage` when `pane` is not a pane id.
    */
   public agentStatus(pane: string): AgentStatus {
     requirePaneId(pane, 'agentStatus');
@@ -313,15 +312,14 @@ export class Terminal {
    * would run it. Liveness is screen-based, so it catches a pane whose agent
    * is visibly gone and cannot promise more.
    *
-   * @throws TerminalError `usage` for an empty pane or text, `notFound` when
+   * @throws YanError `usage` for an empty pane or text, `notFound` when
    *   no live agent is there.
    */
   public send(pane: string, text: string, waitMs?: number): void {
     requirePaneId(pane, 'send');
-    if (text === '') throw TerminalError.usage('there is nothing to send');
+    if (text === '') throw YanError.usage('term_usage', 'there is nothing to send');
     if (this.agentAlive(pane) !== 'alive') {
-      throw new TerminalError(
-        'notFound',
+      throw new YanError('term_not_found',
         `no live agent in ${pane} - refusing to send, because the text would be typed into whatever shell is there`,
       );
     }
@@ -387,12 +385,12 @@ export class Terminal {
    * that and the kebab-case form its --help lists, so the generated names go
    * through unchanged.
    *
-   * @throws TerminalError when the command failed.
+   * @throws YanError when the command failed.
    */
   public read(pane: string, lines = 80, source: ReadSource = 'recent_unwrapped'): string {
     requirePaneId(pane, 'read');
     if (!Number.isInteger(lines) || lines <= 0) {
-      throw TerminalError.usage(`a whole number of lines is required, got '${lines}'`);
+      throw YanError.usage('term_usage', `a whole number of lines is required, got '${lines}'`);
     }
     const result = this.run(['agent', 'read', pane, '--source', source, '--lines', String(lines)]);
     if (result.code !== 0) throw mapError(result, 'agent read');
@@ -418,11 +416,11 @@ export class Terminal {
 
     const agent = this.run(['agent', 'get', pane]);
     if (agent.code === 0) return 'alive';
-    if (mapError(agent, 'agent get').code !== TerminalError.codes.notFound) return 'unknown';
+    if (mapError(agent, 'agent get').code !== 'term_not_found') return 'unknown';
 
     const paneResult = this.run(['pane', 'get', pane]);
     if (paneResult.code === 0) return 'dead';
-    return mapError(paneResult, 'pane get').code === TerminalError.codes.notFound ? 'dead' : 'unknown';
+    return mapError(paneResult, 'pane get').code === 'term_not_found' ? 'dead' : 'unknown';
   }
 
   /**
@@ -505,7 +503,7 @@ export class Terminal {
   /**
    * Make a tab in the container and answer with its one pane.
    *
-   * @throws TerminalError when the container is not a workspace id, or herdr
+   * @throws YanError when the container is not a workspace id, or herdr
    *   reports no root pane.
    */
   private createTab(options: StartAgentOptions): string {
@@ -528,7 +526,7 @@ export class Terminal {
 
     const created = asRecord(this.call(args, 'tab create'));
     const pane = asString(asRecord(created.root_pane).pane_id) || asString(created.root_pane_id);
-    if (pane === '') throw TerminalError.usage('herdr did not report a root pane for the new tab');
+    if (pane === '') throw YanError.usage('term_usage', 'herdr did not report a root pane for the new tab');
     return pane;
   }
 }

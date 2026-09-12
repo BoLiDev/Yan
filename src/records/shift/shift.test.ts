@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
-import { Shift, ShiftError } from './index.js';
+import { Shift } from './index.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * What the record can be asked: finding a shift, reading its metadata once, and
@@ -57,7 +58,7 @@ describe('finding a shift', () => {
     } catch (e) {
       thrown = e;
     }
-    expect((thrown as ShiftError).code).toBe(ShiftError.codes.ambiguous);
+    expect((thrown as YanError).code).toBe('shift_ambiguous');
     expect((thrown as Error).message).toContain('more than one task');
 
     // …and naming the task resolves it.
@@ -73,7 +74,7 @@ describe('finding a shift', () => {
 
   it('says so when there is nothing to find', () => {
     expect(() => Shift.resolve('nope')).toThrow(/no such shift/);
-    expect(() => Shift.resolve('')).toThrow(ShiftError);
+    expect(() => Shift.resolve('')).toThrow(YanError);
   });
 
   it('recovers the task from a directory only when the layout says so', () => {

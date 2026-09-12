@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { insideTask } from './shared/task-id.js';
 import { Log, LOG_TYPES, isLogType } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan log <type> "<line>"` — append one entry to a task's log.md. The way
@@ -31,16 +31,16 @@ turns out to be wrong is answered by a later \`changed\` line.`,
   .action(
     action('yan log', (type: string | undefined, line: string | undefined) => {
       if (type === undefined || !isLogType(type)) {
-        throw CommandError.usage('log', `${type === undefined || type === '' ? 'a type is required' : `'${type}' is not a log type`} - one of: ${LOG_TYPES.join(' ')}`);
+        throw YanError.usage('log_usage', `${type === undefined || type === '' ? 'a type is required' : `'${type}' is not a log type`} - one of: ${LOG_TYPES.join(' ')}`);
       }
       if (line === undefined || line.trim() === '') {
-        throw CommandError.usage('log', 'the entry is required - say it in one line');
+        throw YanError.usage('log_usage', 'the entry is required - say it in one line');
       }
       if (/[\r\n]/.test(line)) {
-        throw CommandError.usage('log', 'an entry is one line - write several entries instead');
+        throw YanError.usage('log_usage', 'an entry is one line - write several entries instead');
       }
       const task = insideTask('log');
-      if (!Task.exists(task)) throw CommandError.usage('log', `no such task: ${task}`);
+      if (!Task.exists(task)) throw YanError.usage('log_usage', `no such task: ${task}`);
 
       const log = new Log(task);
       log.append(type, line);

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { editJson, readJson } from '../../util/json.js';
 import { asRecord, asString } from '../../util/narrow.js';
-import { TaskError } from './errors.js';
 import {type TaskData, type UnitData } from './types.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The JSON layer under task.json. Reads fill in a default for anything the
@@ -16,7 +16,7 @@ function asStringArray(value: unknown): string[] {
 
 export function requireFile(file: string, id: string): string {
   if (!existsSync(file)) {
-    throw new TaskError('missing', `no such task: ${id} - expected ${file}`);
+    throw new YanError('task_missing', `no such task: ${id} - expected ${file}`);
   }
   return file;
 }
@@ -67,7 +67,7 @@ export function editDocument(
 /**
  * The same, narrowed to one unit.
  *
- * @throws TaskError `missing` when no unit of that name exists; it is never
+ * @throws YanError `missing` when no unit of that name exists; it is never
  *   created.
  */
 export function editUnitIn(
@@ -79,7 +79,7 @@ export function editUnitIn(
   editDocument(file, id, (task) => {
     const units = Array.isArray(task.units) ? task.units : [];
     const unit = units.map(asRecord).find((u) => u.name === unitName);
-    if (unit === undefined) throw new TaskError('missing', `no such unit: ${unitName}`);
+    if (unit === undefined) throw new YanError('task_missing', `no such unit: ${unitName}`);
     edit(unit);
   });
 }

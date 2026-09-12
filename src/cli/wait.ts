@@ -11,10 +11,10 @@ import {
   type AgentStatus,
   type AgentStatusEvent,
 } from '../externals/herdr/index.js';
-import { CommandError } from './shared/errors.js';
 import { insideTask } from './shared/task-id.js';
 import { drainWake } from './drain.js';
 import { action, out } from './shared/action.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan wait` — the watcher. Unbounded, or stopping dead at `--seconds N`; the
@@ -390,7 +390,7 @@ function rest(ms: number, register: (wake: () => void) => void): Promise<void> {
 
 function wholeSeconds(value: string, what: string): number {
   if (!/^\d+$/.test(value)) {
-    throw CommandError.usage('wait', `${what} takes a whole number of seconds, got: ${value}`);
+    throw YanError.usage('wait_usage', `${what} takes a whole number of seconds, got: ${value}`);
   }
   return Number(value);
 }
@@ -416,7 +416,7 @@ export const command = new Command('wait')
 
         const task = id ?? insideTask('wait');
         if (!new Task(task).exists()) {
-          throw CommandError.usage('wait', `no such task: ${task}`);
+          throw YanError.usage('wait_usage', `no such task: ${task}`);
         }
 
         let seconds: number | undefined;
@@ -426,7 +426,7 @@ export const command = new Command('wait')
               ? wholeSeconds(process.env.YAN_CODEX_CHECKPOINT ?? String(DEFAULT_CHECKPOINT_SECONDS), '$YAN_CODEX_CHECKPOINT')
               : wholeSeconds(options.seconds, '--seconds');
           if (seconds < 1) {
-            throw CommandError.usage('wait', `--seconds takes at least 1 second, got: ${seconds}`);
+            throw YanError.usage('wait_usage', `--seconds takes at least 1 second, got: ${seconds}`);
           }
         }
 
@@ -435,7 +435,7 @@ export const command = new Command('wait')
             ? Number(process.env.YAN_WAIT_INTERVAL ?? DEFAULT_INTERVAL_SECONDS)
             : Number(options.interval);
         if (!Number.isFinite(intervalSeconds) || intervalSeconds <= 0) {
-          throw CommandError.usage('wait', `--interval takes seconds, got: ${String(options.interval)}`);
+          throw YanError.usage('wait_usage', `--interval takes seconds, got: ${String(options.interval)}`);
         }
 
         const result = await watch({ task, seconds, intervalSeconds });

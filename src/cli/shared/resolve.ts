@@ -1,4 +1,4 @@
-import { CommandError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * How a missing option is filled in: a prompt when stdin is a tty, and a
@@ -34,9 +34,7 @@ export function isTty(): boolean {
 
 function refuse(missing: readonly OptionSpec[]): never {
   const flags = missing.map((m) => `  ${m.flag} <value>   ${m.describe}`).join('\n');
-  throw new CommandError(
-    'missing',
-    'options',
+  throw new YanError('missing_options',
     `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`,
     { exitCode: 2 },
   );
@@ -45,7 +43,7 @@ function refuse(missing: readonly OptionSpec[]): never {
 /**
  * `values` with every spec'd option filled in.
  *
- * @throws CommandError `missing_options` (exit 2) when a value is absent and
+ * @throws YanError `missing_options` (exit 2) when a value is absent and
  *   there is no prompter or no tty, or the prompt did not fill it in.
  */
 export async function resolve<T extends Record<string, string | undefined>>(

@@ -5,7 +5,6 @@
 
 export { RemoteGit, configuredCli } from './remote-git.js';
 export type { CliRunner, RemoteGitOptions } from './remote-git.js';
-export { CI_STATES, MR_STATES } from './types.js';
 export type {
   CiState,
   HostKind,

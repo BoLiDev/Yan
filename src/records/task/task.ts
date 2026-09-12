@@ -5,9 +5,9 @@ import { initJson } from '../../util/json.js';
 import { normalizePath } from '../../util/paths.js';
 import { Log } from '../log/index.js';
 import { editDocument, readDocument } from './document.js';
-import { TaskError } from './errors.js';
 import { Unit } from './unit.js';
 import {type AddUnitOptions, type TaskData } from './types.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * One `tasks/<id>/task.json` — which branch a unit is on, where it is meant to
@@ -22,11 +22,11 @@ export class Task {
   /**
    * `dir` and `file` come back with forward slashes on every platform.
    *
-   * @throws TaskError when `id` is not a valid task id.
+   * @throws YanError when `id` is not a valid task id.
    */
   public constructor(id: string) {
     if (!Task.isId(id)) {
-      throw TaskError.usage(`invalid task id: '${id}' - use letters, digits, dot, dash or underscore`);
+      throw YanError.usage('task_usage', `invalid task id: '${id}' - use letters, digits, dot, dash or underscore`);
     }
     this.id = id;
     this.dir = normalizePath(taskDir(id));
@@ -94,27 +94,27 @@ export class Task {
       : undefined;
   }
 
-  /** As `findUnit`, but throws TaskError `missing` instead of returning undefined. */
+  /** As `findUnit`, but throws YanError `missing` instead of returning undefined. */
   public unit(name: string): Unit {
     const found = this.findUnit(name);
-    if (found === undefined) throw new TaskError('missing', `no such unit: ${name}`);
+    if (found === undefined) throw new YanError('task_missing', `no such unit: ${name}`);
     return found;
   }
 
   /**
    * Add a unit. `target` is required and never defaulted.
    *
-   * @throws TaskError when a field is missing or a unit of this name already
+   * @throws YanError when a field is missing or a unit of this name already
    *   exists.
    */
   public addUnit(name: string, repo: string, target: string, options: AddUnitOptions = {}): Unit {
     if (!name || !repo || !target) {
-      throw TaskError.usage('a unit needs a name, a repo and an explicit target');
+      throw YanError.usage('task_usage', 'a unit needs a name, a repo and an explicit target');
     }
     editDocument(this.file, this.id, (task) => {
       const units = Array.isArray(task.units) ? task.units : [];
       if (units.some((u) => (u as Record<string, unknown>).name === name)) {
-        throw new TaskError('exists', `unit already exists: ${name}`);
+        throw new YanError('task_exists', `unit already exists: ${name}`);
       }
       units.push({
         name,
@@ -145,11 +145,11 @@ export class Task {
    * Create task.json, brief.md and an empty log.md. Re-running it on an
    * existing task changes nothing.
    *
-   * @throws TaskError when `title` is empty.
+   * @throws YanError when `title` is empty.
    */
   public static create(id: string, title: string): Task {
     const task = new Task(id);
-    if (title === '') throw TaskError.usage('a task needs a title');
+    if (title === '') throw YanError.usage('task_usage', 'a task needs a title');
 
     mkdirSync(task.dir, { recursive: true });
     initJson(task.file, { version: 1, id, title, complete: false, units: [] });

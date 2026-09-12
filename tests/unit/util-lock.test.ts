@@ -3,8 +3,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { isHeld, isStale, withLock } from '../../src/util/lock.js';
-import { LockError } from '../../src/util/lock.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * The one locking primitive: an exclusive file create, with the owner's stamp
@@ -52,9 +52,9 @@ describe('holding a lock', () => {
       } catch (e) {
         thrown = e;
       }
-      expect(thrown).toBeInstanceOf(LockError);
-      expect((thrown as LockError).code).toBe('lock_timeout');
-      expect((thrown as LockError).message).toContain(`pid ${process.pid}`);
+      expect(thrown).toBeInstanceOf(YanError);
+      expect((thrown as YanError).code).toBe('lock_timeout');
+      expect((thrown as YanError).message).toContain(`pid ${process.pid}`);
     });
   });
 });
@@ -80,7 +80,7 @@ describe('stale locks', () => {
     writeFileSync(file, `${JSON.stringify({ pid: 4194304, host: 'some-other-host', at: 1 })}\n`);
     expect(isStale(file)).toBe(false);
     expect(isHeld(file)).toBe(true);
-    expect(() => withLock(file, 0, () => undefined)).toThrow(LockError);
+    expect(() => withLock(file, 0, () => undefined)).toThrow(YanError);
   });
 
   it('a lock with no stamp yet is left alone while it could still be a competitor', () => {
