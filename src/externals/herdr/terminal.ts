@@ -178,27 +178,30 @@ export class Terminal {
   }
 
   /**
-   * Wait for a freshly started agent to move off whatever Herdr called it at
-   * three seconds old, answering the startup dialogs in `STARTUP_DIALOGS` as
-   * they appear, and answer with the status it settled on.
+   * Wait for a freshly started agent to reach its input line, answering the
+   * startup dialogs in `STARTUP_DIALOGS` as they appear, then hand it
+   * `prompt` and answer with the status it settled on.
    *
-   * A harness that stopped to ask one of those discards the prompt it was
-   * started with and comes up at an empty input line, so `prompt` is given
-   * again — which is the difference between a shift that works and one that
-   * sits there having been asked nothing.
+   * The prompt is typed in here rather than passed on the command line
+   * because Herdr's `agent start` returns only once the agent is ready for
+   * input: one that already has its work order goes straight to work and is
+   * still working at the deadline, so the start was reported as a timeout and
+   * the pane closed on a shift that was fine. Typed in after the dialogs, the
+   * prompt also survives a harness that restarts behind one, which drops
+   * whatever it was started with.
    *
    * Never throws: the agent is already running, and every failure here is a
    * question about it rather than a reason to tear it down.
    */
   private settle(pane: string, reported: AgentStatus, prompt?: string): AgentStatus {
-    if (this.settleMs <= 0) return reported;
+    if (this.settleMs <= 0) return this.handOver(pane, reported, prompt);
 
     let status = reported;
     let answered = false;
     for (let round = 0; round <= STARTUP_DIALOG_ROUNDS; round += 1) {
-      // Returns the moment it is either, so a healthy agent costs a second
-      // rather than the whole budget.
-      this.waitFor(pane, ['working', 'blocked']);
+      // Returns the moment it is any of them, so a healthy agent costs a
+      // second rather than the whole budget.
+      this.waitFor(pane, ['idle', 'done', 'blocked']);
       status = this.statusOrUnknown(pane);
 
       if (status !== 'blocked') break;
@@ -210,14 +213,23 @@ export class Terminal {
       answered = true;
     }
 
-    if (!answered) return status;
+    if (answered) {
+      // The harness is restarting behind the dialog, and Herdr reads that
+      // screen as `blocked` too, so the status just taken says nothing yet.
+      this.waitFor(pane, ['idle', 'done']);
+      status = this.statusOrUnknown(pane);
+    }
 
-    // The harness is restarting behind the dialog, and Herdr reads that screen
-    // as `blocked` too, so the status just taken says nothing yet.
-    this.waitFor(pane, ['idle', 'working', 'done']);
-    status = this.statusOrUnknown(pane);
+    return this.handOver(pane, status, prompt);
+  }
+
+  /**
+   * Type the work order into an agent that is at its input line. A `blocked`
+   * agent is asking something nobody here recognises, and the prompt would be
+   * typed into that dialog; it is left standing for supervision to raise.
+   */
+  private handOver(pane: string, status: AgentStatus, prompt?: string): AgentStatus {
     if (status === 'blocked' || prompt === undefined || prompt === '') return status;
-
     try {
       this.send(pane, prompt);
       return this.statusOrUnknown(pane);

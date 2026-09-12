@@ -42,10 +42,10 @@ export interface StartAgentOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly argv?: readonly string[];
   /**
-   * The opening prompt, when `argv` carries one. Not passed to the harness —
-   * `argv` already has it, fenced however that harness needs. It is here so
-   * that a start which had to answer a trust dialog, and so lost the prompt it
-   * was given, can hand it over again.
+   * The opening prompt, typed in once the agent is at its input line and its
+   * startup dialogs are answered. Keep it out of `argv`: herdr's `agent start`
+   * returns only when the agent is ready for input, and one that already has
+   * its work order is still working at the deadline.
    */
   readonly prompt?: string;
   readonly timeoutMs?: number;

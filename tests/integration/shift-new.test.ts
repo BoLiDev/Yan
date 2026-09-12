@@ -51,6 +51,7 @@ class FakePool {
 
 class FakeTerminal implements Dispatcher {
   public startArgs: string[] = [];
+  public startPrompt: string | undefined;
   public startEnv: Record<string, string> = {};
   public cwd = '';
   public label = '';
@@ -77,11 +78,13 @@ class FakeTerminal implements Dispatcher {
     label?: string;
     env?: Record<string, string>;
     argv?: readonly string[];
+    prompt?: string;
   }): { pane: string; status: 'working' } {
     calls.push(
       `agent_start container=${options.container} name=${options.name} kind=${options.kind} cwd=${options.cwd} brief=${briefState()}`,
     );
     this.startArgs = [...(options.argv ?? [])];
+    this.startPrompt = options.prompt;
     this.startEnv = { ...(options.env ?? {}) };
     this.cwd = options.cwd;
     this.label = options.label ?? '';
@@ -287,17 +290,18 @@ describe('what the agent was started with', () => {
   });
 
   it('points the opening prompt at the brief', () => {
-    expect(terminal.startArgs[terminal.startArgs.length - 1]).toContain('brief.md');
+    expect(terminal.startPrompt).toContain('brief.md');
   });
 
-  it('fences the prompt off behind --, or --add-dir eats it', () => {
-    // --add-dir and --disallowed-tools take any number of values, so a prompt
-    // left bare after one is read as one more directory and the harness starts
-    // with no work order at all - which looks exactly like a shift that came
-    // up and did nothing.
+  it('keeps the prompt out of argv, so the start is reported before the work begins', () => {
+    // Herdr's `agent start` returns only once the agent is ready for input. A
+    // harness given its work order on the command line goes straight to work,
+    // is still working at the deadline, and the dispatch comes back as a
+    // timeout on a shift that was fine. The prompt is typed in afterwards.
     const args = terminal.startArgs;
     expect(args).toContain('--add-dir');
-    expect(args[args.length - 2]).toBe('--');
+    expect(args).not.toContain('--');
+    expect(args.some((a) => a.includes('brief.md'))).toBe(false);
   });
 });
 
@@ -603,12 +607,10 @@ describe('scenario and tier', () => {
     expect(calls).toEqual([]);
   });
 
-  it('puts the model and effort before the prompt fence for claude', () => {
+  it('spells the model and effort for claude', () => {
     scenarios({ cli: 'claude', model: 'opus', effort: 'high' }, { normal: {}, heavy: { effort: 'max' } });
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', tier: 'heavy' });
-    const args = terminal.startArgs;
-    expect(args.slice(0, 4)).toEqual(['--model', 'opus', '--effort', 'max']);
-    expect(args.indexOf('--effort')).toBeLessThan(args.indexOf('--'));
+    expect(terminal.startArgs.slice(0, 4)).toEqual(['--model', 'opus', '--effort', 'max']);
   });
 
   it('spells them for codex', () => {
@@ -623,7 +625,11 @@ describe('scenario and tier', () => {
     const args = terminal.startArgs;
     expect(args.slice(0, 2)).toEqual(['--model', 'gemini-3.1-pro-high']);
     expect(args[args.indexOf('--add-dir') + 1]).toBe(terminal.cwd);
+    // -i is what makes agy act on a prompt and stay open, so its prompt is the
+    // one that rides in argv, and is not typed in a second time.
     expect(args[args.length - 2]).toBe('-i');
+    expect(args[args.length - 1]).toContain('brief.md');
+    expect(terminal.startPrompt).toBeUndefined();
   });
 
   it('records what the shift runs, in meta.json and on its log line', () => {
@@ -641,7 +647,7 @@ describe('skills a tier loads', () => {
     scenarios('claude', { normal: { skills: ['design', '/grilling'] } });
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
     expect(r.code, r.message).toBe(0);
-    const prompt = terminal.startArgs[terminal.startArgs.length - 1] ?? '';
+    const prompt = terminal.startPrompt ?? '';
     expect(prompt.startsWith('First invoke /design, /grilling')).toBe(true);
     expect(prompt.indexOf('/grilling')).toBeLessThan(prompt.indexOf('brief.md'));
     expect(prompt, 'a missing skill is not a reason to stop').toContain('carry on without it');
@@ -655,7 +661,7 @@ describe('skills a tier loads', () => {
 
   it('leaves the prompt and the brief as they were when a tier loads none', () => {
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
-    expect(terminal.startArgs[terminal.startArgs.length - 1]?.startsWith('Read ')).toBe(true);
+    expect(terminal.startPrompt?.startsWith('Read ')).toBe(true);
     const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
     expect(body).not.toContain('## Skills');
   });
