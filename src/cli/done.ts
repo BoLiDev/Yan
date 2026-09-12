@@ -1,14 +1,13 @@
-import { existsSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { display } from './shared/display.js';
-import { repoDir } from './shared/repo.js';
+import { closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import { isTty } from './shared/resolve.js';
 import { openTasks } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import type { WorktreePool } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
@@ -73,52 +72,6 @@ export interface DoneResult {
   readonly trees: readonly ReturnedTree[];
 }
 
-/** A lease of this task, with the clone it belongs to. */
-interface Held extends LeaseRow {
-  readonly clone: string;
-}
-
-/**
- * Every tree the pool is holding for this task, sorted by holder. Looks in
- * every repository the units name and every one a live shift records, since a
- * re-pointed unit can leave a lease task.json no longer mentions. A repository
- * that cannot be resolved is skipped rather than fatal.
- */
-export function heldBy(task: string, deps: DoneDeps): Held[] {
-  const repos = new Set<string>();
-  for (const unit of new Task(task).read().units) {
-    if (typeof unit.repo === 'string' && unit.repo !== '') repos.add(unit.repo);
-  }
-  for (const shift of Shift.liveIn(task)) {
-    const clone = shift.meta().clone ?? '';
-    if (clone !== '' && existsSync(clone)) repos.add(clone);
-  }
-
-  const seen = new Set<string>();
-  const held: Held[] = [];
-  for (const repo of repos) {
-    let clone: string;
-    try {
-      clone = repoDir('done', repo);
-    } catch {
-      continue;
-    }
-    if (seen.has(clone)) continue;
-    seen.add(clone);
-
-    let leases: LeaseRow[];
-    try {
-      leases = (deps.pool?.(clone) ?? new WorktreePool(clone)).status();
-    } catch {
-      continue;
-    }
-    for (const lease of leases) {
-      if (lease.holder.startsWith(`${task}/`)) held.push({ ...lease, clone });
-    }
-  }
-  return held.sort((a, b) => (a.holder < b.holder ? -1 : a.holder > b.holder ? 1 : 0));
-}
-
 /**
  * Close a live shift's pane and delete its `run/`, leaving outcome.md, the
  * status log and the brief. Never throws for a pane it cannot close.
@@ -126,13 +79,9 @@ export function heldBy(task: string, deps: DoneDeps): Held[] {
 function kill(shift: Shift, terminal: Closer): KilledShift {
   const meta = shift.meta();
   const pane = meta.pane ?? '';
-  let closed = false;
-  if (pane !== '') {
-    display('could not clear the shift pane title', () => { terminal.clearPaneTitle(pane); });
-    display('could not close the shift pane', () => { terminal.close(pane); closed = true; });
-  }
+  const closed = closePane(pane, terminal);
   rmSync(shift.run, { recursive: true, force: true });
-  return { sid: shift.sid, unit: meta.unit ?? '', pane_closed: closed };
+  return { sid: shift.sid, unit: meta.unit ?? '', pane_closed: pane !== '' && closed };
 }
 
 /**
@@ -177,23 +126,14 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
 
   // --- 3. the trees ----------------------------------------------------------
   const trees: ReturnedTree[] = [];
-  for (const lease of heldBy(task, deps)) {
-    const pool = deps.pool?.(lease.clone) ?? new WorktreePool(lease.clone);
-    try {
-      const path = pool.return(lease.path, {
-        leaseId: lease.lease_id,
-        holder: lease.holder,
-        force,
-      });
-      trees.push({ holder: lease.holder, path: path === '' ? lease.path : path, returned: true });
-    } catch (err) {
-      trees.push({
-        holder: lease.holder,
-        path: lease.path,
-        returned: false,
-        reason: err instanceof Error ? err.message : String(err),
-      });
-    }
+  for (const lease of leasesHeldBy(task, deps.pool)) {
+    const back = returnLease(
+      lease.clone,
+      lease.path,
+      { leaseId: lease.lease_id, holder: lease.holder, force },
+      deps.pool,
+    );
+    trees.push({ holder: lease.holder, ...back });
   }
   const stuck = trees.filter((t) => !t.returned);
 

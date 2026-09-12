@@ -1,14 +1,12 @@
 import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { display } from './shared/display.js';
 import { readNote } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
-import { heldBy } from './done.js';
-import { Terminal } from '../externals/herdr/index.js';
+import type { Closer } from './shared/terminal.js';
+import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { WorktreePool } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { opensMr, Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
@@ -28,12 +26,8 @@ import { YanError } from '../util/error.js';
 
 /** What abandoning needs from the outside. Each defaults to the real one. */
 export interface AbandonDeps {
-  readonly terminal?: {
-    close(pane: string): void;
-    clearPaneTitle(pane: string): void;
-    agentAlive?(pane: string): 'alive' | 'dead' | 'unknown';
-  };
-  readonly pool?: (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
+  readonly terminal?: Closer;
+  readonly pool?: PoolFor;
   readonly mrStateOf?: (mr: string, dir: string | undefined) => MrState;
   readonly closeMr?: (mr: string, dir: string | undefined) => void;
 }
@@ -86,24 +80,6 @@ function closeIfOpen(mr: string, dir: string | undefined, deps: AbandonDeps): Mr
   }
 }
 
-/** Close a pane, and answer whether its agent really went. */
-function closePane(pane: string, deps: AbandonDeps): boolean {
-  if (pane === '') return true;
-  const terminal = deps.terminal ?? new Terminal();
-  display('could not clear the shift pane title', () => {
-    terminal.clearPaneTitle(pane);
-  });
-  display('could not close the shift pane', () => {
-    terminal.close(pane);
-  });
-  if (terminal.agentAlive === undefined) return true;
-  try {
-    return terminal.agentAlive(pane) !== 'alive';
-  } catch {
-    return true;
-  }
-}
-
 /**
  * Tear one live shift down without accepting its work. The caller has the
  * consent and the reason; this does the work and never throws for the forge,
@@ -114,31 +90,27 @@ function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
   const unit = meta.unit ?? '';
   const tree = meta.tree ?? '';
   const pane = meta.pane ?? '';
-  let clone = meta.clone ?? '';
-  if (clone === '' && shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
-    const repo = new Task(shift.task).findUnit(unit)?.read().repo ?? '';
-    clone = repo === '' ? '' : (repoDirIfKnown(repo) ?? '');
-  }
+  const clone = meta.clone ?? cloneOf(shift.task, unit);
 
   // Only coding opens merge requests.
   const mr = opensMr(meta.scenario) ? (meta.mr ?? shift.reportedMr() ?? '') : '';
   const mrClosing = closeIfOpen(mr, clone === '' ? undefined : clone, deps);
 
   // The agent first, so nothing is still writing into the tree being wiped.
-  const paneClosed = closePane(pane, deps);
+  const paneClosed = closePane(pane, deps.terminal);
   rmSync(shift.run, { recursive: true, force: true });
 
   let returned = false;
   if (tree !== '' && clone !== '') {
-    try {
-      (deps.pool?.(clone) ?? new WorktreePool(clone)).return(tree, {
-        ...(meta.lease_id === undefined ? {} : { leaseId: meta.lease_id }),
-        ...(meta.holder === undefined ? {} : { holder: meta.holder }),
-        force: true,
-      });
-      returned = true;
-    } catch (err) {
-      process.stderr.write(`yan abandon: the tree at ${tree} could not be returned - 'yan tree status' shows the lease (${err instanceof Error ? err.message : String(err)})\n`);
+    const back = returnLease(
+      clone,
+      tree,
+      { leaseId: meta.lease_id, holder: meta.holder, force: true },
+      deps.pool,
+    );
+    returned = back.returned;
+    if (!back.returned) {
+      process.stderr.write(`yan abandon: the tree at ${tree} could not be returned - 'yan tree status' shows the lease (${back.reason ?? ''})\n`);
     }
   }
 
@@ -233,17 +205,14 @@ export function abandonTask(options: TaskAbandonOptions, deps: AbandonDeps = {})
     });
 
   const trees: AbandonedTask['trees'][number][] = [];
-  for (const lease of heldBy(task, { ...(deps.pool === undefined ? {} : { pool: deps.pool }) })) {
-    try {
-      (deps.pool?.(lease.clone) ?? new WorktreePool(lease.clone)).return(lease.path, {
-        leaseId: lease.lease_id,
-        holder: lease.holder,
-        force: true,
-      });
-      trees.push({ holder: lease.holder, path: lease.path, returned: true });
-    } catch {
-      trees.push({ holder: lease.holder, path: lease.path, returned: false });
-    }
+  for (const lease of leasesHeldBy(task, deps.pool)) {
+    const back = returnLease(
+      lease.clone,
+      lease.path,
+      { leaseId: lease.lease_id, holder: lease.holder, force: true },
+      deps.pool,
+    );
+    trees.push({ holder: lease.holder, path: lease.path, returned: back.returned });
   }
 
   record.setAbandoned();

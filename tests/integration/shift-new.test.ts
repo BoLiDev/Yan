@@ -17,6 +17,7 @@ import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src
 import { Task } from '../../src/records/task/index.js';
 import { type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
+import type { ShiftMeta } from '../../src/records/shift/index.js';
 
 /**
  * `yan shift new`. Two properties are what this file is for: a dispatch whose
@@ -123,7 +124,7 @@ function enterLock(task: string, pane: string): void {
   );
 }
 
-function run(options: NewOptions): { code: number; message: string; meta: Record<string, unknown> } {
+function run(options: NewOptions): { code: number; message: string; meta: Partial<ShiftMeta> } {
   try {
     return { code: 0, message: '', meta: dispatch({ scenario: 'coding', ...options }, deps()) };
   } catch (err) {

@@ -8,8 +8,9 @@ import { display } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
 import { readLearnings } from './session-start.js';
-import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
+import { poolSize, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
+import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
 import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
@@ -555,14 +556,9 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       if (grant !== undefined) {
         // The lease id goes with it, so a slot somebody else now holds is
         // refused rather than wiped.
-        const held = grant;
-        try {
-          (deps.pool?.(clone) ?? new WorktreePool(clone)).return(held.path, {
-            leaseId: held.lease_id,
-            holder,
-          });
-        } catch {
-          process.stderr.write(`yan shift new: the tree at ${held.path} could not be returned - 'yan tree status --repo ${data.repo}' shows the lease\n`,
+        const back = returnLease(clone, grant.path, { leaseId: grant.lease_id, holder }, deps.pool);
+        if (!back.returned) {
+          process.stderr.write(`yan shift new: the tree at ${grant.path} could not be returned - 'yan tree status --repo ${data.repo}' shows the lease\n`,
           );
         }
       }
@@ -682,26 +678,20 @@ function resumeFromPool(
   deps: DoneDeps,
 ): { unit: string; clone: string; path: string; branch: string; holder: string; leaseId: string } | undefined {
   if (task === '' || !Task.exists(task)) return undefined;
-  for (const unit of new Task(task).read().units) {
-    const clone = repoDirIfKnown(unit.repo);
-    if (clone === undefined) continue;
-    let leases;
-    try {
-      leases = (deps.pool?.(clone) ?? new WorktreePool(clone)).status();
-    } catch {
-      continue;
-    }
-    const held = leases.find((l) => l.holder === `${task}/${unit.name}/${sid}`);
-    if (held !== undefined) {
-      return {
-        unit: unit.name,
-        clone,
-        path: held.path,
-        branch: held.branch,
-        holder: held.holder,
-        leaseId: held.lease_id,
-      };
-    }
+  // The holders are built from task.json rather than parsed out of the lease:
+  // which unit a tree belongs to is the document's answer, not a name's.
+  const units = new Map(new Task(task).read().units.map((u) => [`${task}/${u.name}/${sid}`, u.name]));
+  for (const lease of leasesHeldBy(task, deps.pool)) {
+    const unit = units.get(lease.holder);
+    if (unit === undefined) continue;
+    return {
+      unit,
+      clone: lease.clone,
+      path: lease.path,
+      branch: lease.branch,
+      holder: lease.holder,
+      leaseId: lease.lease_id,
+    };
   }
   return undefined;
 }
@@ -759,11 +749,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   }
 
   // The fallback for a shift dispatched before meta.json recorded the clone.
-  if (clone === '' && shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
-    const repo = new Task(shift.task).findUnit(unit)?.read().repo ?? '';
-    const guess = repo === '' ? undefined : repoDirIfKnown(repo);
-    if (guess !== undefined) clone = guess;
-  }
+  if (clone === '') clone = cloneOf(shift.task, unit);
 
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
@@ -868,15 +854,15 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     process.stderr.write(`yan shift done: the main clone of ${shift.label()} is not recorded, so the tree at ${tree} must be returned by hand\n`,
     );
   } else {
-    try {
-      returned = (deps.pool?.(clone) ?? new WorktreePool(clone)).return(tree, { leaseId, holder });
-    } catch (err) {
+    const back = returnLease(clone, tree, { leaseId, holder }, deps.pool);
+    if (!back.returned) {
       // Fatal: a refusal here means the commits may exist nowhere else, and
       // deleting the remote branch next would make that permanent.
-      throw new YanError('shift_done_return_refused', `the tree at ${tree} could not be returned, so the remote branch ${branch} has NOT been deleted - investigate before anything else touches it (${err instanceof Error ? err.message : String(err)})`,
-        { exitCode: isYanError(err) ? err.exitCode : 1, cause: err },
+      throw new YanError('shift_done_return_refused', `the tree at ${tree} could not be returned, so the remote branch ${branch} has NOT been deleted - investigate before anything else touches it (${back.reason ?? ''})`,
+        { exitCode: isYanError(back.cause) ? back.cause.exitCode : 1, cause: back.cause },
       );
     }
+    returned = back.path;
   }
 
   // --- 6. and only now, the remote shift branch -----------------------------
@@ -895,23 +881,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   // --- 7. the agent's pane, and then whether the agent really went ----------
   // Never fatal to the teardown, which is done by now; an agent still running
   // is reported as a failure of the command, because nobody else will notice.
-  let paneClosed = true;
-  if (options.keepPane !== true && pane !== '') {
-    const terminal = deps.terminal ?? new Terminal();
-    display('could not clear the shift pane title', () => {
-      terminal.clearPaneTitle(pane);
-    });
-    display('could not close the shift pane', () => {
-      terminal.close(pane);
-    });
-    if (terminal.agentAlive !== undefined) {
-      try {
-        paneClosed = terminal.agentAlive(pane) !== 'alive';
-      } catch {
-        paneClosed = true;
-      }
-    }
-  }
+  const paneClosed = options.keepPane === true ? true : closePane(pane, deps.terminal);
 
   return {
     version: 1,
