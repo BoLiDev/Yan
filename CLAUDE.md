@@ -53,7 +53,7 @@ yan session-start                  rebuild the picture (run at startup)
 yan ls                             the queue
 yan show [<id>]                    one task at a glance: session, branches, trees, shifts, log
 yan task new --title … --repo …    create a task and enter it
-yan unit add | set                 a unit's branch, target, mode, scope
+yan unit add | set                 a unit's branch, target, scope, needs
 yan shift new --task --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
 yan send <sid> "<line>"            one line, up to 1000 characters, to a running shift
@@ -78,12 +78,17 @@ exists nowhere else, needs `user` to say so first. The table is that test worked
 | run git in a registered clone, and resolve the conflicts that come with it | `yan unit set --target` — a wrong guess aims a merge request at the wrong branch, and only `user` knows whether this is a release week |
 | dispatch shifts; merge a shift's MR into the integration branch | commenting on an MR, or mentioning anyone: it interrupts colleagues |
 | push the integration branch; `yan mr`, which is reversible | `yan done --force`, `yan tree return --discard --user-asked`, `yan shift abandon`, `yan abandon` — all destroy work that exists nowhere else, and abandoning closes merge requests colleagues see |
-| `yan unit set --branch`, `--mode`, `--scope`, `--needs` — reversible and internal; the reason goes in `--note` | `yan vault push`; `yan vault init` / `clone` / `use` |
+| `yan unit set --branch`, `--scope`, `--needs` — reversible and internal; the reason goes in `--note` | `yan vault push`; `yan vault init` / `clone` / `use` |
 | `yan done` without `--force`; `yan vault pull`; `yan repo add` / `link` | |
 
 Never `git push --force`: it rewrites history colleagues have already pulled, and
 never delete a branch that has not merged. When the right-hand column is what the
 situation needs, say so and wait rather than doing half of it to save a round trip.
+
+The table is the authority for the repositories this task works on, over whatever the
+harness's own defaults say about committing and pushing. A repository outside the task —
+one `user` asks you to change in passing, yan's own included — is not under the table:
+edit it and verify the change, and commit or push only when `user` says so.
 
 **Splitting into units.** One `unit` is one sub-application, one integration branch, one
 outbound merge request. Two directories released together are one unit; two that ship
@@ -109,8 +114,8 @@ split in the wrong place, and saying so beats widening it again.
 competent who has never seen this task: the finished condition rather than an aim, the
 paths that matter and the ones that do not, the research and learnings that apply, what
 the log and earlier `outcome.md` files say was already tried, how to check it, and the
-deliverable its `mode` implies — `scout` reports and never pushes, `branch` leaves a
-clean local branch, `mr` opens a merge request. Leave out how you would have done it,
+deliverable its scenario implies — `explore` and `uix` deliver a report and artifacts and
+never push, `coding` opens a merge request. Leave out how you would have done it,
 conventions the code shows, and anything readable in a minute.
 
 **Deciding whether to dispatch.** A shift buys four things: your context stays small,
@@ -124,21 +129,23 @@ answers slowly what you could have answered. A one-line fix goes either way; the
 question is whether the brief costs more than the work. **Say which way you went when
 it is not obvious**, so `user` never has to work out where a change came from.
 
-**Getting the kind of shift right before dispatching it.** Settle what this shift is
-before `yan shift new`: the unit's `mode` — whether it ends in a merge request, a local
-branch or a report — and the scenario, because neither changes under a running shift.
-When it was still got wrong — an `mr` shift for what turns out to need no code, say —
-do not bend the shift to fit. Abandon it with `yan shift abandon <sid> --user-asked
---reason "<what was wrong>"`, set the unit's `mode` to what the work needs, and dispatch
-the right one. `user` has asked for exactly this in advance, so this one abandon needs no
-fresh word from them; tell them you did it, and why.
+**Getting the kind of shift right before dispatching it.** Settle the scenario before
+`yan shift new`, because it decides what the shift delivers and it does not change under
+a running shift. Getting it wrong is not a reason to abandon anything. A `coding` shift
+that did the work and concluded that nothing needs to change is done, not wrong: clock it
+out with `yan shift done <sid> --nothing-to-merge` once its `outcome.md` says why. An
+`explore` shift that finds the answer is a code change is done too, on its report; the
+change is a `coding` shift dispatched next, with that report in its brief. Abandoning is
+for work `user` no longer wants, and only when they say so.
 
 **Choosing a scenario and a tier.** Every dispatch names a scenario, `--scenario explore |
 coding | uix`, and may name a `--tier`. The scenario is the kind of work: `explore`
-investigates and answers, with no code meant to merge; `coding` produces code meant to
-merge; `uix` designs interfaces and interactions. It is not `mode` — `mode` is what a
-unit delivers, the scenario is what the work takes, so a scout that has to write code to
-prove a point is `coding`. The tier is how demanding the work is, and `user` wrote what
+investigates and answers, delivering a report and artifacts and pushing nothing;
+`coding` produces code meant to merge, delivering a merge request into the integration
+branch; `uix` designs interfaces and interactions, delivering artifacts that `user` alone
+accepts. The scenario is what the work takes and therefore what it delivers, so an
+investigation that has to write code to prove a point is still `explore` when nothing of
+it is meant to merge. The tier is how demanding the work is, and `user` wrote what
 each one is for; session start lists them with the CLI, model, effort and skills each
 runs. Take the scenario's default unless another tier's description fits better, and say
 so when you pick another, above all a heavier one, because that is where `user`'s money
@@ -196,7 +203,7 @@ this turn, before you reply.
 | --- | --- | --- | --- |
 | `brief.md` | what the task delivers now: goal, deliverables, what is not being done | after the first alignment; in the turn `user` adds, drops or replaces a deliverable, even in passing | session start, in full |
 | `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
-| `task.json` | each unit's branch, target, mode, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
+| `task.json` | each unit's branch, target, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
 | `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
 | `mem/learnings/` | what to do when X happens, true beyond this task | see below | its index at session start and in every shift's brief; a file when a problem matches it |
 | `mem/user.md` | judgements about `user` | only when `user` asks | session start |
@@ -234,7 +241,6 @@ unit or branch is meant.
 | the work is already on branch X, or carries on from it | `yan unit set --branch X` |
 | the outbound MR merged and new work begins | `yan unit set --branch`, before the next dispatch |
 | which branch this delivers into | `yan unit set --target`, only from `user`'s own words |
-| investigate only, or go ahead and change code | `yan unit set --mode` |
 | the work reaches other paths, or you agree a shift may leave scope | `yan unit set --scope` |
 | one unit has to land before another | `yan unit set --needs` |
 | another repository, or a sub-application released separately | `yan unit add` |

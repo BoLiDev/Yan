@@ -149,8 +149,9 @@ describe('yan repo add', () => {
     expect(first.code, first.stderr).toBe(0);
     expect(existsSync(join(into, 'monorepo-x', '.git'))).toBe(true);
 
-    expect(portable()['monorepo-x']?.mode_default).toBe('mr');
     expect(portable()['monorepo-x']?.pool_size).toBe(8);
+    // What a shift delivers is its scenario's business, not the repository's.
+    expect(portable()['monorepo-x']?.mode_default).toBeUndefined();
     // The split is the whole point: no path on the tracked side.
     expect(JSON.stringify(portable()['monorepo-x'])).not.toContain('path');
     expect(local()['monorepo-x']?.path).toBeTruthy();
@@ -163,11 +164,10 @@ describe('yan repo add', () => {
   it('never clobbers a tuned setting, and an explicit flag does', async () => {
     const url = await bareRemote();
     const into = join(home, 'repos');
-    await yan(['repo', 'add', url, '--name', 'r1', '--path', into, '--pool-size', '3', '--mode-default', 'branch']);
+    await yan(['repo', 'add', url, '--name', 'r1', '--path', into, '--pool-size', '3']);
     await yan(['repo', 'add', url, '--name', 'r1', '--path', into]);
 
     expect(portable().r1?.pool_size).toBe(3);
-    expect(portable().r1?.mode_default).toBe('branch');
   });
 
   it('refuses a second URL under a name that is already taken', async () => {

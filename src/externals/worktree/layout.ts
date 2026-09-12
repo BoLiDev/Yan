@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { normalizePath } from '../../util/paths.js';
@@ -62,11 +62,24 @@ export function rootDir(): string {
   return absolute(root);
 }
 
-/** This clone's pool: `<root>/<repo>-<hash>`. */
+/**
+ * This clone's pool: `<root>/<repo>-<hash>`, the hash taken over the clone's
+ * real path. A pool made by an earlier yan was keyed by the path as spelled,
+ * which differs from the real one when the clone is reached through a
+ * symlink; such a pool is kept as it is rather than orphaned with its trees,
+ * so it is used for as long as no pool under the real key exists.
+ */
 export function cloneDir(clone: string): string {
   if (!clone) throw WorktreeError.usage('a main clone directory is required');
   const abs = absolute(clone);
-  return `${rootDir()}/${repoName(abs)}-${shortHash(pathKey(abs))}`;
+  const root = rootDir();
+  const dir = `${root}/${repoName(abs)}-${shortHash(pathKey(abs))}`;
+  const spelled = normalizePath(resolve(clone));
+  if (spelled !== abs) {
+    const legacy = `${root}/${repoName(spelled)}-${shortHash(pathKey(spelled))}`;
+    if (!existsSync(dir) && existsSync(legacy)) return legacy;
+  }
+  return dir;
 }
 
 export function leasesDir(dir: string): string {

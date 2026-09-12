@@ -3,9 +3,6 @@
  * snapshot of one read; a `Task` or `Unit` re-reads on every call.
  */
 
-export const MODES = ['scout', 'branch', 'mr'] as const;
-export type Mode = (typeof MODES)[number];
-
 /**
  * How a round ended.
  *
@@ -34,7 +31,6 @@ export interface UnitData {
   needs: string[];
   branch: string;
   target: string;
-  mode: Mode;
   mr: string | null;
   history: HistoryEntry[];
   [key: string]: unknown;
@@ -52,11 +48,10 @@ export interface TaskData {
 }
 
 /** The fields `Unit.set` can write. */
-export type ScalarField = 'branch' | 'target' | 'mode' | 'mr';
+export type ScalarField = 'branch' | 'target' | 'mr';
 
 export interface AddUnitOptions {
   readonly branch?: string;
-  readonly mode?: string;
   readonly scope?: readonly string[];
   readonly needs?: readonly string[];
 }

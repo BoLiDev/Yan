@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { editJson, readJson } from '../../util/json.js';
 import { TaskError } from './errors.js';
-import { MODES, type Mode, type TaskData, type UnitData } from './types.js';
+import {type TaskData, type UnitData } from './types.js';
 
 /**
  * The JSON layer under task.json. Reads fill in a default for anything the
@@ -42,7 +42,6 @@ export function readDocument(file: string, id: string): TaskData {
     abandoned: raw.abandoned === true,
     units: units.map((u): UnitData => {
       const r = asRecord(u);
-      const mode = asString(r.mode, 'mr');
       return {
         ...r,
         name: asString(r.name),
@@ -51,7 +50,6 @@ export function readDocument(file: string, id: string): TaskData {
         needs: asStringArray(r.needs),
         branch: asString(r.branch),
         target: asString(r.target),
-        mode: (MODES as readonly string[]).includes(mode) ? (mode as Mode) : 'mr',
         mr: typeof r.mr === 'string' && r.mr !== '' ? r.mr : null,
         history: Array.isArray(r.history) ? (r.history as UnitData['history']) : [],
       };

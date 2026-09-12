@@ -1,6 +1,6 @@
 import { TaskError } from './errors.js';
 import { asString, editUnitIn, readDocument } from './document.js';
-import { ENDS, MODES, type HistoryEnd, type HistoryEntry, type ScalarField, type UnitData } from './types.js';
+import { ENDS, type HistoryEnd, type HistoryEntry, type ScalarField, type UnitData } from './types.js';
 
 /**
  * One `unit` of a task: one integration branch, one outbound merge request.
@@ -30,15 +30,8 @@ export class Unit {
     return found;
   }
 
-  /**
-   * Overwrite one scalar field, leaving `history[]` alone.
-   *
-   * @throws TaskError when setting `mode` to something outside MODES.
-   */
+  /** Overwrite one scalar field, leaving `history[]` alone. */
   public set(field: ScalarField, value: string): void {
-    if (field === 'mode' && !(MODES as readonly string[]).includes(value)) {
-      throw TaskError.usage(`invalid mode '${value}' - one of: ${MODES.join(' ')}`);
-    }
     editUnitIn(this.file, this.taskId, this.name, (unit) => {
       unit[field] = value;
     });

@@ -111,7 +111,7 @@ describe('what comes across', () => {
     // The registry, in two halves that mean different things.
     const portable = JSON.parse(readFileSync(join(vault, 'repos.json'), 'utf8')) as Record<string, { pool_size?: number; mode_default?: string }>;
     expect(portable.demo?.pool_size, 'tuning follows the repository').toBe(3);
-    expect(portable.demo?.mode_default).toBe('branch');
+    expect(portable.demo?.mode_default, 'an older registry\'s mode_default is left behind, not carried').toBeUndefined();
     expect(JSON.stringify(portable)).not.toContain('path');
 
     const local = JSON.parse(readFileSync(join(vault, '.local', 'repos.json'), 'utf8')) as Record<string, { path?: string }>;

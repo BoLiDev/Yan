@@ -209,7 +209,6 @@ export interface AddOptions {
   target?: string;
   branch?: string;
   base?: string;
-  mode?: string;
   scope: string[];
   needs: string[];
   note?: string;
@@ -274,7 +273,6 @@ export function addTaskUnit(options: AddOptions): AddResult {
   try {
     record.addUnit(unit, repo, target, {
       branch,
-      mode: options.mode,
       scope: options.scope,
       needs: options.needs,
     });
@@ -300,7 +298,6 @@ const add = new Command('add')
   .option('--target <branch>', 'REQUIRED: which branch this unit delivers into')
   .option('--branch <name>', "the integration branch's name")
   .option('--base <ref>', 'what to cut the branch from when it does not exist (default: --target)')
-  .option('--mode <mode>', 'scout | branch | mr')
   .option('--scope <path>', 'repeatable; the paths this unit may touch', collect, [])
   .option('--needs <unit>', 'repeatable; unit names that must land before this one', collect, [])
   .option('--note <text>', 'one line for log.md: why this unit exists')
@@ -354,7 +351,6 @@ export interface SetOptions {
   unit?: string;
   branch?: string | boolean;
   target?: string;
-  mode?: string;
   base?: string;
   end?: string;
   reason?: string;
@@ -379,14 +375,13 @@ export interface Labeller {
 }
 
 const set = new Command('set')
-  .description("change a unit's branch, target, mode or scope")
+  .description("change a unit's branch, target, scope or needs")
   .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
   // Bare `--branch` starts a new round under the built-in name; with a value
   // it starts one under that name.
   .option('--branch [name]', 'start a NEW ROUND on that integration branch')
   .option('--target <branch>', 'where this unit delivers')
-  .option('--mode <mode>', 'scout | branch | mr')
   .option('--base <ref>', 'what to cut the new branch from when it does not exist')
   .option('--end <end>', 'delivered | abandoned - how the round being replaced finished')
   .option('--reason <text>', 'REQUIRED when the round ends as abandoned')
@@ -431,8 +426,8 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
   if (task === '') throw CommandError.usage('unit_set', '--task is required');
   if (unitName === '') throw CommandError.usage('unit_set', '--unit is required');
-  if (!wantBranch && !options.target && !options.mode && !wantScope && !wantNeeds) {
-    throw CommandError.usage('unit_set', 'nothing to change - pass --branch, --target, --mode, --scope or --needs');
+  if (!wantBranch && !options.target && !wantScope && !wantNeeds) {
+    throw CommandError.usage('unit_set', 'nothing to change - pass --branch, --target, --scope or --needs');
   }
   const note = readNote('unit_set', options.note);
   const end0 = options.end ?? '';
@@ -564,15 +559,6 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
       new Log(task).append('changed', noted(`${unitName}  target ${old} → ${options.target}`, note));
     } catch { /* the change is recorded; a missing log line is not worth failing for */ }
     changed.push(`target=${options.target}`);
-  }
-
-  if (options.mode) {
-    const old = unit.read().mode;
-    unit.set('mode', options.mode);
-    try {
-      new Log(task).append('changed', noted(`${unitName}  mode ${old} → ${options.mode}`, note));
-    } catch { /* as above */ }
-    changed.push(`mode=${options.mode}`);
   }
 
   if (wantScope) {

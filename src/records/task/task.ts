@@ -7,7 +7,7 @@ import { Log } from '../log/index.js';
 import { editDocument, readDocument } from './document.js';
 import { TaskError } from './errors.js';
 import { Unit } from './unit.js';
-import { MODES, type AddUnitOptions, type TaskData } from './types.js';
+import {type AddUnitOptions, type TaskData } from './types.js';
 
 /**
  * One `tasks/<id>/task.json` — which branch a unit is on, where it is meant to
@@ -102,21 +102,15 @@ export class Task {
   }
 
   /**
-   * Add a unit. `target` is required and never defaulted; `mode` defaults to
-   * `mr`, so a caller wanting the repository's `mode_default` passes it in.
+   * Add a unit. `target` is required and never defaulted.
    *
-   * @throws TaskError when a field is missing, the mode is unknown, or a unit
-   *   of this name already exists.
+   * @throws TaskError when a field is missing or a unit of this name already
+   *   exists.
    */
   public addUnit(name: string, repo: string, target: string, options: AddUnitOptions = {}): Unit {
     if (!name || !repo || !target) {
       throw TaskError.usage('a unit needs a name, a repo and an explicit target');
     }
-    const mode = options.mode ?? 'mr';
-    if (!(MODES as readonly string[]).includes(mode)) {
-      throw TaskError.usage(`invalid mode '${mode}' - one of: ${MODES.join(' ')}`);
-    }
-
     editDocument(this.file, this.id, (task) => {
       const units = Array.isArray(task.units) ? task.units : [];
       if (units.some((u) => (u as Record<string, unknown>).name === name)) {
@@ -129,7 +123,6 @@ export class Task {
         needs: [...(options.needs ?? [])],
         branch: options.branch ?? '',
         target,
-        mode,
         mr: null,
         history: [],
       });
