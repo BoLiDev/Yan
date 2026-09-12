@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import {
   cleanupTempDirs,
   fxGit,
-  mkBareRemote,
   mkEmptyRemote,
   mkTempDir,
   mkYanHome,
@@ -24,7 +23,6 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let tmp = '';
-let machine = '';
 
 /** A fresh machine layer per test, so registrations never leak between them. */
 function isolated(name: string): Record<string, string | undefined> {
@@ -48,7 +46,6 @@ const identity = {
 beforeAll(async () => {
   tmp = mkTempDir('yan-vault-');
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  machine = join(tmp, 'machines');
   await Promise.resolve();
 });
 

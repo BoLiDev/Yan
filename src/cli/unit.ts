@@ -1,15 +1,16 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { containerOf } from './shared/container.js';
 import { display, unitTokens } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
 import { repoDir } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
 import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTree, push, revParse, updateRef } from '../util/git.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan unit add` / `yan unit set`.
@@ -60,14 +61,14 @@ export function normalizeBranchName(raw: string): string {
 }
 
 /**
- * @throws CommandError `usage` when `branch` is unusable as a git ref. The
+ * @throws YanError `<command>_usage` when `branch` is unusable as a git ref. The
  *   message quotes `raw` too, so a hook's own output is recognisable.
  */
 function checkRefName(command: string, branch: string, raw?: string): void {
   const bad = branch === '' || /\s/.test(branch) || branch.startsWith('-') || branch.endsWith('/');
   if (bad) {
     const from = raw !== undefined && raw !== branch ? ` (from '${raw}')` : '';
-    throw CommandError.usage(command, `'${branch}'${from} is not usable as a git ref - fix the hook, or pass --branch`,
+    throw YanError.usage(`${command}_usage`, `'${branch}'${from} is not usable as a git ref - fix the hook, or pass --branch`,
     );
   }
 }
@@ -98,14 +99,14 @@ export function freshenClone(command: string, clone: string, repo: string): void
  * that name before cutting a new one from `base`. Returns a line saying which
  * happened. Never fetches and never checks anything out.
  *
- * @throws CommandError `branch_failed` or `base_unresolved`.
+ * @throws YanError `<command>_branch_failed` or `<command>_base_unresolved`.
  */
 function ensureBranch(command: string, clone: string, branch: string, base: string): string {
   if (branchExists(clone, branch)) return 'adopted the existing local branch';
 
   if (remoteRef(clone, branch) !== '') {
     if (createBranch(clone, branch, `origin/${branch}`).code !== 0) {
-      throw new CommandError(command, 'branch_failed', `cannot create a local ref for the existing remote branch '${branch}'`,
+      throw new YanError(`${command}_branch_failed`, `cannot create a local ref for the existing remote branch '${branch}'`,
       );
     }
     return `adopted origin/${branch}`;
@@ -116,19 +117,19 @@ function ensureBranch(command: string, clone: string, branch: string, base: stri
     if (branchExists(clone, base)) baseRef = base;
     else if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `${base}^{commit}`])) baseRef = base;
     else {
-      throw new CommandError(command, 'base_unresolved', `cannot resolve the base '${base}' in ${clone} - fetch it, or pass --base with something that exists`,
+      throw new YanError(`${command}_base_unresolved`, `cannot resolve the base '${base}' in ${clone} - fetch it, or pass --base with something that exists`,
       );
     }
   }
   if (createBranch(clone, branch, baseRef).code !== 0) {
-    throw new CommandError(command, 'branch_failed', `cannot cut '${branch}' from '${baseRef}' in ${clone}`);
+    throw new YanError(`${command}_branch_failed`, `cannot cut '${branch}' from '${baseRef}' in ${clone}`);
   }
   return `cut from ${baseRef}`;
 }
 
 
 
-export interface Inherited {
+interface Inherited {
   /** What happened, in one line, for the caller to print and to log. */
   readonly said: string;
   /** True when commits were carried forward and the branch moved. */
@@ -217,7 +218,7 @@ export interface AddOptions {
   fetched?: boolean;
 }
 
-export interface AddResult {
+interface AddResult {
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
@@ -230,33 +231,32 @@ export interface AddResult {
  * `yan unit add` without the process around it: name the branch, make it
  * exist, record the unit, append the log line.
  *
- * @throws CommandError `usage` for a missing argument or unknown task,
+ * @throws YanError `unit_add_usage` for a missing argument or unknown task,
  *   `exists` when the unit is already there, `not_recorded` when the branch
  *   was made but task.json could not be written.
  */
 export function addTaskUnit(options: AddOptions): AddResult {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('unit_add');
   const unit = options.unit ?? '';
   const repo = options.repo ?? '';
   const target = options.target ?? '';
 
-  if (task === '') throw CommandError.usage('unit_add', '--task is required');
-  if (unit === '') throw CommandError.usage('unit_add', '--unit is required');
+  if (unit === '') throw YanError.usage('unit_add_usage', '--unit is required');
   if (repo === '') {
-    throw CommandError.usage('unit_add', '--repo is required: a repository under repos/, or the path to a clone');
+    throw YanError.usage('unit_add_usage', '--repo is required: a repository under repos/, or the path to a clone');
   }
   const note = readNote('unit_add', options.note);
   if (target === '') {
-    throw CommandError.usage('unit_add', '--target is required and is never guessed: say which branch this unit delivers into. A release period and a quiet period have different answers, so there is no safe default',
+    throw YanError.usage('unit_add_usage', '--target is required and is never guessed: say which branch this unit delivers into. A release period and a quiet period have different answers, so there is no safe default',
     );
   }
 
   if (!Task.exists(task)) {
-    throw CommandError.usage('unit_add', `no such task: ${task} - create it first`);
+    throw YanError.usage('unit_add_usage', `no such task: ${task} - create it first`);
   }
   const record = new Task(task);
   if (record.findUnit(unit) !== undefined) {
-    throw new CommandError('unit_add', 'exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan ls ${task}' shows them`,
+    throw new YanError('unit_add_exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan show ${task}' shows them`,
     );
   }
 
@@ -277,7 +277,7 @@ export function addTaskUnit(options: AddOptions): AddResult {
       needs: options.needs,
     });
   } catch (err) {
-    throw new CommandError('unit_add', 'not_recorded', `the branch '${branch}' is ready in ${clone}, but task.json was not updated: ${err instanceof Error ? err.message : String(err)}`,
+    throw new YanError('unit_add_not_recorded', `the branch '${branch}' is ready in ${clone}, but task.json was not updated: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
@@ -292,7 +292,6 @@ export function addTaskUnit(options: AddOptions): AddResult {
 
 const add = new Command('add')
   .description('add a unit and make its integration branch exist')
-  .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
   .option('--repo <repo>', 'a repository under repos/, or the path to a clone')
   .option('--target <branch>', 'REQUIRED: which branch this unit delivers into')
@@ -305,12 +304,10 @@ const add = new Command('add')
   .addHelpText(
     'after',
     `
-usage: yan unit add --task <id> --unit <name> --repo <repo> --target <branch>
-
   --target  REQUIRED, and never defaulted: which branch this unit's work is
-            ultimately delivered into. There is no safe default (a
-            §6.4) - during a release the team merges into a shared branch, in
-            quiet periods into master.
+            ultimately delivered into. There is no safe default - during a
+            release the team merges into a shared branch, in quiet periods
+            into the default one.
   --branch  omit it and the built-in default applies: yan/<task>-<unit>-r<n>,
             cut from --base (which defaults to --target). Give one and it is
             used as it stands - refs/heads/x, origin/x and a quoted name all
@@ -343,10 +340,7 @@ A team whose branches come from somewhere else says so in a skill
  *     open, or unreachable     → unknown
  */
 
-/** Nothing was changed; a person has to answer something first. */
-const RC_ASK_USER = 4;
-
-export interface SetOptions {
+interface SetOptions {
   task?: string;
   unit?: string;
   branch?: string | boolean;
@@ -376,7 +370,6 @@ export interface Labeller {
 
 const set = new Command('set')
   .description("change a unit's branch, target, scope or needs")
-  .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
   // Bare `--branch` starts a new round under the built-in name; with a value
   // it starts one under that name.
@@ -393,16 +386,13 @@ const set = new Command('set')
   .addHelpText(
     'after',
     `
-usage: yan unit set --task <id> --unit <name> [changes]
-
   --base defaults to --target when the old round was delivered, and to the OLD
   BRANCH when it was abandoned, so the abandoned work is not lost.
 
 Every one of these is a decision, and --note is where its reason goes: it is
 appended to each line this writes to log.md. --needs '' clears the list.
 
-Exit 4 means nothing was changed and \`user\`
-has to answer something first.`,
+Exit 4 means nothing was changed and \`user\` has to answer something first.`,
   )
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 
@@ -412,54 +402,52 @@ has to answer something first.`,
  * branch exist, carries any un-landed commits forward, and relabels the
  * workspace. Narrates to stdout.
  *
- * @throws CommandError `usage` for a missing argument, nothing to change, an
+ * @throws YanError `unit_set_usage` for a missing argument, nothing to change, an
  *   unknown task or unit, or a new branch equal to the current one;
- *   `no_branch` when there is no round to replace.
+ *   `unit_set_no_branch` when there is no round to replace.
  */
 export function setUnit(options: SetOptions, readMrState?: MrStateReader, terminal?: Labeller): void {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('unit_set');
   const unitName = options.unit ?? '';
   const wantBranch = options.branch !== undefined;
   const givenBranch = typeof options.branch === 'string' ? options.branch : undefined;
   const wantScope = options.scope !== undefined;
   const wantNeeds = options.needs !== undefined;
 
-  if (task === '') throw CommandError.usage('unit_set', '--task is required');
-  if (unitName === '') throw CommandError.usage('unit_set', '--unit is required');
+  if (unitName === '') throw YanError.usage('unit_set_usage', '--unit is required');
   if (!wantBranch && !options.target && !wantScope && !wantNeeds) {
-    throw CommandError.usage('unit_set', 'nothing to change - pass --branch, --target, --scope or --needs');
+    throw YanError.usage('unit_set_usage', 'nothing to change - pass --branch, --target, --scope or --needs');
   }
   const note = readNote('unit_set', options.note);
   const end0 = options.end ?? '';
   if (end0 !== '' && end0 !== 'delivered' && end0 !== 'abandoned') {
-    throw CommandError.usage('unit_set', `--end is 'delivered' or 'abandoned', not '${end0}'`);
+    throw YanError.usage('unit_set_usage', `--end is 'delivered' or 'abandoned', not '${end0}'`);
   }
   if (end0 !== '' && !wantBranch) {
-    throw CommandError.usage('unit_set', '--end only applies to --branch: it says how the round being replaced finished');
+    throw YanError.usage('unit_set_usage', '--end only applies to --branch: it says how the round being replaced finished');
   }
 
-  if (!Task.exists(task)) throw CommandError.usage('unit_set', `no such task: ${task}`);
+  if (!Task.exists(task)) throw YanError.usage('unit_set_usage', `no such task: ${task}`);
   const record = new Task(task);
-  const unit = record.findUnit(unitName);
-  if (unit === undefined) {
-    throw CommandError.usage('unit_set', `no such unit: ${unitName} in ${task}`);
+  if (record.findUnit(unitName) === undefined) {
+    throw YanError.usage('unit_set_usage', `no such unit: ${unitName} in ${task}`);
   }
   const needs = (options.needs ?? []).filter((n) => n !== '');
   if (wantNeeds) {
     const known = record.read().units.map((u) => u.name);
     const unknown = needs.filter((n) => !known.includes(n));
     if (unknown.length > 0) {
-      throw CommandError.usage('unit_set', `--needs names no unit of ${task}: ${unknown.join(' ')}`);
+      throw YanError.usage('unit_set_usage', `--needs names no unit of ${task}: ${unknown.join(' ')}`);
     }
     if (needs.includes(unitName)) {
-      throw CommandError.usage('unit_set', `a unit cannot need itself: ${unitName}`);
+      throw YanError.usage('unit_set_usage', `a unit cannot need itself: ${unitName}`);
     }
   }
 
   const changed: string[] = [];
 
   if (wantBranch) {
-    const before = unit.read();
+    const before = record.unit(unitName);
     const clone = repoDir('unit_set', before.repo, 'the unit names it, but nothing on this machine says where it is');
     // The rotation appends one history entry, so the round being started is
     // two past what history holds now.
@@ -467,7 +455,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     const round = before.history.length + 2;
 
     if (before.branch === '') {
-      throw new CommandError('unit_set', 'no_branch', "this unit has no current branch to replace - 'yan unit add' should have set one",
+      throw new YanError('unit_set_no_branch', "this unit has no current branch to replace - 'yan unit add' should have set one",
       );
     }
 
@@ -505,7 +493,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
     const { branch, from: nameFrom, raw } = decideBranchName(givenBranch, { task, unit: unitName, round });
     if (branch === before.branch) {
-      throw CommandError.usage('unit_set', `the new integration branch is the same as the current one (${branch}) - a round is replaced by a DIFFERENT branch`,
+      throw YanError.usage('unit_set_usage', `the new integration branch is the same as the current one (${branch}) - a round is replaced by a DIFFERENT branch`,
       );
     }
     checkRefName('unit_set', branch, raw);
@@ -517,7 +505,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     freshenClone('yan unit set', clone, before.repo);
     const how = ensureBranch('yan unit set', clone, branch, base);
 
-    unit.rotate(end, branch, options.at ?? '');
+    record.rotateUnit(unitName, end, branch, options.at ?? '');
 
     // After the rotation is recorded, so a failure here cannot undo it.
     const carried = inheritRound(clone, before.branch, branch);
@@ -553,8 +541,11 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   // After the rotation, so the history entry records the target the retired
   // round used rather than the new one.
   if (options.target) {
-    const old = unit.read().target;
-    unit.set('target', options.target);
+    const old = record.unit(unitName).target;
+    const target = options.target;
+    record.editUnit(unitName, (u) => {
+      u.target = target;
+    });
     try {
       new Log(task).append('changed', noted(`${unitName}  target ${old} → ${options.target}`, note));
     } catch { /* the change is recorded; a missing log line is not worth failing for */ }
@@ -563,7 +554,9 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
   if (wantScope) {
     const scope = options.scope ?? [];
-    unit.setScope(scope);
+    record.editUnit(unitName, (u) => {
+      u.scope = [...scope];
+    });
     try {
       new Log(task).append('changed', noted(`${unitName}  scope → ${scope.join(' ')}`, note));
     } catch { /* as above */ }
@@ -571,14 +564,16 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   }
 
   if (wantNeeds) {
-    unit.setNeeds(needs);
+    record.editUnit(unitName, (u) => {
+      u.needs = [...needs];
+    });
     try {
       new Log(task).append('changed', noted(`${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note));
     } catch { /* as above */ }
     changed.push(`needs=${needs.join(' ')}`);
   }
 
-  if (options.json === true) out(JSON.stringify(unit.read(), null, 2));
+  if (options.json === true) out(JSON.stringify(record.unit(unitName), null, 2));
   else out(`${task} ${unitName}  ${changed.join(' ')}`);
 }
 

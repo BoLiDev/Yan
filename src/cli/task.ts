@@ -2,7 +2,6 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { registry, repoDir } from './shared/repo.js';
 import { tasksDir } from '../util/vault.js';
 import { isTty } from './shared/resolve.js';
@@ -10,8 +9,8 @@ import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit, freshenClone } from './unit.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
-import { yanHome } from '../util/home.js';
 import { withLock } from '../util/lock.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan task new` — create a task with its units and end inside it, by handing
@@ -32,7 +31,7 @@ import { withLock } from '../util/lock.js';
  * Exit codes: 0 fine, 2 you called this wrongly, 1 it did not work.
  */
 
-export interface UnitSpec {
+interface UnitSpec {
   repo: string;
   unit?: string;
   target?: string;
@@ -64,11 +63,11 @@ export class UnitBuilder {
     this.last(`--${flag}`)[flag].push(value);
   }
 
-  /** @throws CommandError `usage` when no `--repo` has opened a unit yet. */
+  /** @throws YanError `task_new_usage` when no `--repo` has opened a unit yet. */
   private last(flag: string): UnitSpec {
     const unit = this.units[this.units.length - 1];
     if (unit === undefined) {
-      throw CommandError.usage('task_new', `${flag} belongs to a unit, so it has to come after a --repo`);
+      throw YanError.usage('task_new_usage', `${flag} belongs to a unit, so it has to come after a --repo`);
     }
     return unit;
   }
@@ -84,7 +83,7 @@ export function unitNameFrom(repo: string, firstScope: string): string {
   return cleaned === '' ? 'unit' : cleaned;
 }
 
-export interface TaskNewOptions {
+interface TaskNewOptions {
   title?: string;
   description?: string;
   id?: string;
@@ -93,7 +92,7 @@ export interface TaskNewOptions {
   units: readonly UnitSpec[];
 }
 
-export interface TaskNewResult {
+interface TaskNewResult {
   readonly version: 1;
   readonly task: string;
   readonly title: string;
@@ -101,7 +100,7 @@ export interface TaskNewResult {
   readonly dir: string;
 }
 
-export interface TaskNewDeps {
+interface TaskNewDeps {
   readonly add?: typeof addTaskUnit;
   /** Replaceable so a test can count fetches without a network or a real clone. */
   readonly freshen?: typeof freshenClone;
@@ -119,7 +118,7 @@ export function missingForTaskNew(options: TaskNewOptions): string[] {
  * Create the task directory and add every unit, fetching each distinct clone
  * once first. The task id is taken or derived under a lock.
  *
- * @throws CommandError `usage` when a title, a unit or a unit's target is
+ * @throws YanError `task_new_usage` when a title, a unit or a unit's target is
  *   missing, or the id is taken; `unit_failed` when the task was created but a
  *   unit could not be added — the task stays.
  */
@@ -127,7 +126,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   const title = options.title ?? '';
   const missing = missingForTaskNew(options);
   if (missing.length > 0) {
-    throw CommandError.usage('task_new', `missing: ${missing.join(' ')} - pass them, or run this from a terminal to be asked`,
+    throw YanError.usage('task_new_usage', `missing: ${missing.join(' ')} - pass them, or run this from a terminal to be asked`,
     );
   }
 
@@ -135,14 +134,14 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   // collect a whole task and would drop the --repo flags already typed.
   for (const unit of options.units) {
     if ((unit.target ?? '') === '') {
-      throw CommandError.usage('task_new', `--target is required for --repo ${unit.repo}, and yan never guesses it: say which branch that unit delivers into`,
+      throw YanError.usage('task_new_usage', `--target is required for --repo ${unit.repo}, and yan never guesses it: say which branch that unit delivers into`,
       );
     }
   }
 
   let id = options.id ?? '';
   if (id !== '' && Task.exists(id)) {
-    throw CommandError.usage('task_new', `task ${id} already exists - 'yan ls' lists them`);
+    throw YanError.usage('task_new_usage', `task ${id} already exists - 'yan ls' lists them`);
   }
 
   // The lock covers only the gap between deriving the id and taking it.
@@ -152,7 +151,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
   withLock(join(dir, '.new.lock'), Number.isFinite(timeout) ? timeout : 30, () => {
     if (id === '') id = nextId();
     if (Task.exists(id)) {
-      throw CommandError.usage('task_new', `task ${id} already exists - 'yan ls' lists them`);
+      throw YanError.usage('task_new_usage', `task ${id} already exists - 'yan ls' lists them`);
     }
     Task.create(id, title);
   });
@@ -212,7 +211,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
         fetched: !unresolved.has(spec.repo),
       });
     } catch (err) {
-      throw new CommandError('task_new', 'unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue --task ${id}'`,
+      throw new YanError('task_new_unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue --task ${id}'`,
       );
     }
     added.push(name);

@@ -2,9 +2,10 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { yanHome } from '../../util/home.js';
 import { readJsonIfPresent } from '../../util/json.js';
+import { asRecord } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../../util/vault.js';
-import { CommandError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 export const DEFAULT_POOL_SIZE = 8;
 
@@ -27,9 +28,7 @@ export interface RepoEntry {
 }
 
 function record(file: string): Record<string, unknown> {
-  const raw = readJsonIfPresent(file);
-  if (typeof raw !== 'object' || raw === null) return {};
-  return raw as Record<string, unknown>;
+  return asRecord(readJsonIfPresent(file));
 }
 
 function entriesOf(file: string): Record<string, Record<string, unknown>> {
@@ -86,7 +85,7 @@ function isDir(path: string): boolean {
  * Which clone a `--repo` names: what this machine linked, or the argument
  * itself when it is the path of a directory.
  *
- * @throws CommandError `repo_missing` when the linked path is gone,
+ * @throws YanError `repo_missing` when the linked path is gone,
  *   `repo_unlinked` when it is registered but not linked here, `usage` when
  *   the name is unknown — or whatever `vaultDir()` throws when there is no
  *   vault to be registered in.
@@ -95,28 +94,20 @@ export function repoDir(command: string, name: string, hint?: string): string {
   const entry = lookup(name);
   if (entry?.path !== undefined) {
     if (isDir(entry.path)) return entry.path;
-    throw new CommandError(
-      command,
-      'repo_missing',
-      `'${name}' is registered but ${entry.path} is not there any more - 'yan repo link ${name} <path>' says where it went`,
+    throw new YanError(`${command}_repo_missing`, `'${name}' is registered but ${entry.path} is not there any more - 'yan repo link ${name} <path>' says where it went`,
     );
   }
 
   if (name !== '' && isDir(name)) return normalizePath(resolve(name));
 
   if (entry !== undefined) {
-    throw new CommandError(
-      command,
-      'repo_unlinked',
-      `'${name}' is registered (${entry.url}) but not linked on this machine - 'yan repo add' where your clones live, or 'yan repo link ${name} <path>'`,
+    throw new YanError(`${command}_repo_unlinked`, `'${name}' is registered (${entry.url}) but not linked on this machine - 'yan repo add' where your clones live, or 'yan repo link ${name} <path>'`,
     );
   }
 
   // Throws first when the real problem is that there is no vault at all.
   vaultDir();
-  throw CommandError.usage(
-    command,
-    `unknown repository: ${name} - ${hint ?? "register it with 'yan repo add', or pass the path to a clone"}`,
+  throw YanError.usage(`${command}_usage`, `unknown repository: ${name} - ${hint ?? "register it with 'yan repo add', or pass the path to a clone"}`,
   );
 }
 

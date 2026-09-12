@@ -70,8 +70,12 @@ beforeEach(() => {
   const t = new Task('t042');
   t.addUnit('web', 'monorepo-x', 'master', { branch: 'feat/web', needs: ['api'] });
   t.addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });
-  t.unit('web').set('mr', MR_WEB);
-  t.unit('api').set('mr', MR_API);
+  t.editUnit('web', (u) => {
+    u.mr = MR_WEB;
+  });
+  t.editUnit('api', (u) => {
+    u.mr = MR_API;
+  });
 
   host = new RecordingHost();
 });
@@ -91,7 +95,7 @@ describe('without `user` asking, nothing happens at all', () => {
   });
 
   it('is not softened by a terminal, because no prompt can supply it', async () => {
-    const r = await runYan(home, ['land', '--task', 't042']);
+    const r = await runYan(home, ['land'], { YAN_TASK: 't042' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('--user-asked');
   });
@@ -170,8 +174,12 @@ describe('a cycle in `needs` is refused, and nothing is merged', () => {
     const t = new Task('t099');
     t.addUnit('a', 'monorepo-x', 'master', { branch: 'feat/a', needs: ['b'] });
     t.addUnit('b', 'monorepo-x', 'master', { branch: 'feat/b', needs: ['a'] });
-    t.unit('a').set('mr', 'https://forge.invalid/x/-/merge_requests/9');
-    t.unit('b').set('mr', 'https://forge.invalid/x/-/merge_requests/10');
+    t.editUnit('a', (u) => {
+    u.mr = 'https://forge.invalid/x/-/merge_requests/9';
+  });
+    t.editUnit('b', (u) => {
+    u.mr = 'https://forge.invalid/x/-/merge_requests/10';
+  });
 
     const r = run({ task: 't099', userAsked: true });
     expect(r.code).toBe(2);
@@ -187,15 +195,15 @@ describe('nothing to land', () => {
 
     expect(run({ task: 't100', userAsked: true }).message).toContain('nothing to land');
     expect(run({ task: 't100', unit: ['solo'], userAsked: true }).message).toContain(
-      'yan mr --task t100 --unit solo',
+      'yan mr --unit solo',
     );
   });
 });
 
 describe('usage errors', () => {
   it('needs a task and a strategy it understands', async () => {
-    expect((await runYan(home, ['land', '--user-asked'])).out).toContain('--task is required');
-    const bad = await runYan(home, ['land', '--task', 't042', '--user-asked', '--strategy', 'nonsense']);
+    expect((await runYan(home, ['land', '--user-asked'])).out).toContain('$YAN_TASK is unset');
+    const bad = await runYan(home, ['land', '--user-asked', '--strategy', 'nonsense'], { YAN_TASK: 't042' });
     expect(bad.code).toBe(2);
     expect(bad.out).toContain('--strategy');
   });

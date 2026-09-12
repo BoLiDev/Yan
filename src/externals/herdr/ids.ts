@@ -1,4 +1,4 @@
-import { TerminalError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * Herdr's identifiers — `w1` for a workspace, `w1:p1` for a pane — and the
@@ -22,21 +22,21 @@ export function isPaneId(value: string): boolean {
 
 export function requirePaneId(value: string, what: string): string {
   if (!isPaneId(value)) {
-    throw TerminalError.usage(`${what} needs a pane id like w1:p1, never a label: got '${value}'`);
+    throw YanError.usage('term_usage', `${what} needs a pane id like w1:p1, never a label: got '${value}'`);
   }
   return value;
 }
 
 export function requireWorkspaceId(value: string, what: string): string {
   if (!WORKSPACE_ID.test(value)) {
-    throw TerminalError.usage(`${what} needs a workspace id like w1, never a name: got '${value}'`);
+    throw YanError.usage('term_usage', `${what} needs a workspace id like w1, never a name: got '${value}'`);
   }
   return value;
 }
 
 export function requireAgentName(value: string): string {
   if (!AGENT_NAME.test(value)) {
-    throw TerminalError.usage(`an agent name is [a-z][a-z0-9_-]{0,31}: got '${value}'`);
+    throw YanError.usage('term_usage', `an agent name is [a-z][a-z0-9_-]{0,31}: got '${value}'`);
   }
   return value;
 }

@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { Shift } from '../records/shift/index.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan report <state> "<note>"` — the shift → yan channel, and the only
@@ -26,11 +26,8 @@ import { Shift } from '../records/shift/index.js';
 
 export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
 
-export type ReportState = (typeof REPORT_STATES)[number];
-
 interface ReportOptions {
   sid?: string;
-  task?: string;
   dir?: string;
 }
 
@@ -39,13 +36,10 @@ export const command = new Command('report')
   .argument('[state]', `one of: ${REPORT_STATES.join(' ')}`)
   .argument('[note]', 'one short line saying what happened')
   .option('--sid <sid>', 'which shift is reporting (yan and tests only)')
-  .option('--task <id>', 'the task it belongs to')
   .option('--dir <shift-dir>', 'the shift directory outright')
   .addHelpText(
     'after',
     `
-usage: yan report <state> "<note>" [--sid <sid>] [--task <id>] [--dir <dir>]
-
 Appends the event to run/status and touches run/signal in one go - except
 \`started\`, which is recorded without waking yan. \`done\` is refused, and
 nothing is written, until the shift directory has outcome.md.
@@ -58,17 +52,17 @@ yan itself and for tests.`,
     action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
       // Checked first, so a refused state writes nothing at all.
       if (state === undefined || state === '') {
-        throw CommandError.usage('report', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
+        throw YanError.usage('report_usage', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
       }
       if (!(REPORT_STATES as readonly string[]).includes(state)) {
-        throw CommandError.usage('report', `'${state}' is not a shift state - use one of: ${REPORT_STATES.join(' ')}`,
+        throw YanError.usage('report_usage', `'${state}' is not a shift state - use one of: ${REPORT_STATES.join(' ')}`,
         );
       }
       if (note === undefined || note === '') {
-        throw CommandError.usage('report', 'a note is required - say in one line what yan has to act on');
+        throw YanError.usage('report_usage', 'a note is required - say in one line what yan has to act on');
       }
       if (note.includes('\n')) {
-        throw CommandError.usage('report', 'a note is one line - every line in run/status is one event, so a newline would forge a second one',
+        throw YanError.usage('report_usage', 'a note is one line - every line in run/status is one event, so a newline would forge a second one',
         );
       }
 
@@ -77,18 +71,18 @@ yan itself and for tests.`,
       if (options.dir !== undefined && options.dir !== '') {
         shift = Shift.fromDir(options.dir);
       } else if (options.sid !== undefined && options.sid !== '') {
-        shift = Shift.resolve(options.sid, options.task ?? '');
+        shift = Shift.resolve(options.sid);
       } else {
         shift = Shift.fromEnv();
       }
       if (shift === undefined) {
-        throw CommandError.usage('report', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
+        throw YanError.usage('report_usage', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
         );
       }
 
       // The handover has to exist before the event that sends yan to read it.
       if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
-        throw new CommandError('report', 'no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
+        throw new YanError('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
           { exitCode: 2 },
         );
       }

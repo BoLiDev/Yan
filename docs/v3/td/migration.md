@@ -1,5 +1,7 @@
 # Migration
 
+> **The code this describes was removed on 2026-09-12.** The migration ran once, on one machine, and no pre-V3 `$YAN_HOME` is left anywhere, so `yan vault init --from-home` and `yan vault drop-home` were deleted rather than carried. What follows is the record of how the move was designed and done.
+
 > One machine, one existing `$YAN_HOME`, five tasks and one registered repository. This document says how that becomes mechanics plus a vault, and why the migration is a command rather than a wiki page.
 
 ---
@@ -25,7 +27,7 @@ The state on this machine today, and its destination:
 | `repos/poe-tools/` (a clone) | `clone_root/poe-tools` — i.e. `C:/workspace/project/poe-tools` | see §3 |
 | `~/.yan-trees/*` | stays | the pool is machine state and already lives outside the home |
 
-`conf/` does not survive the move at all. Once the real config and the real hooks are in the vault, everything left in it — `config.sample.json` and `hooks.sample/` — is a template, so both go under `templates/`: the sample config becomes `templates/vault/config.json` (the file a new vault is born with, so the sample and the real starting point cannot drift), and the example hook became `templates/hooks.sample/branch-name`. (The hook seam was removed later in the same cut — [vault.md](vault.md) says why — so that second half is history: what ships now is `templates/skills.sample/`.)
+`conf/` does not survive the move at all. Once the real config and the real hooks are in the vault, everything left in it — `config.sample.json` and `hooks.sample/` — is a template, so both go under `templates/`: the sample config becomes `templates/vault/config.example.json` (the file a new vault is born with, so the sample and the real starting point cannot drift), and the example hook became `templates/hooks.sample/branch-name`. (The hook seam was removed later in the same cut — [vault.md](vault.md) says why — so that second half is history: what ships now is `templates/skills.sample/`.)
 
 Defaults for this machine: vault name `personal`, path `C:/workspace/project/yan-vault`, `clone_root` `C:/workspace/project` — the mechanics clone's own parent, so both the vault and the registered clones end up as siblings of `yan` rather than hidden inside it.
 

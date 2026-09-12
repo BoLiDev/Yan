@@ -41,9 +41,10 @@ $YAN_HOME/
                               which is the harness's Stop hooks: one is a thing
                               yan calls, the other is a thing that calls yan
     records/                  yan's own file formats, one directory each
-      task/                   task.json — Task and Unit
+      task/                   task.json — Task
       shift/                  shifts/<sid>/run/ — Shift
       log/                    log.md, append only
+      memory/                 skills/ and mem/learnings/, indexed
       supervision/            run/{lock,wake,beacon,guard-failures}
     util/
       json.ts                 atomic write + version field

@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
-import { Shift, ShiftError } from './index.js';
+import { Shift } from './index.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * What the record can be asked: finding a shift, reading its metadata once, and
@@ -57,7 +58,7 @@ describe('finding a shift', () => {
     } catch (e) {
       thrown = e;
     }
-    expect((thrown as ShiftError).code).toBe(ShiftError.codes.ambiguous);
+    expect((thrown as YanError).code).toBe('shift_ambiguous');
     expect((thrown as Error).message).toContain('more than one task');
 
     // …and naming the task resolves it.
@@ -73,7 +74,7 @@ describe('finding a shift', () => {
 
   it('says so when there is nothing to find', () => {
     expect(() => Shift.resolve('nope')).toThrow(/no such shift/);
-    expect(() => Shift.resolve('')).toThrow(ShiftError);
+    expect(() => Shift.resolve('')).toThrow(YanError);
   });
 
   it('recovers the task from a directory only when the layout says so', () => {
@@ -92,19 +93,19 @@ describe('finding a shift', () => {
 describe('run/meta.json is read once, and defensively', () => {
   it('answers "I do not know" for anything it cannot read', () => {
     seed('t042', 's1');
-    expect(Shift.resolve('s1').meta()).toEqual({});
+    expect(Shift.resolve('s1').meta()).toEqual({ scenario: 'coding' });
 
     seed('t043', 's2', { unit: 'auth' } as Record<string, unknown>);
     writeFileSync(join(home, 'tasks', 't043', 'shifts', 's2', 'run', 'meta.json'), '{ half');
-    expect(Shift.resolve('s2', 't043').meta()).toEqual({});
+    expect(Shift.resolve('s2', 't043').meta()).toEqual({ scenario: 'coding' });
   });
 
-  it('accepts either spelling of the terminal id, and reports absence as absence', () => {
-    seed('t042', 's1', { unit: 'auth', tree: '/trees/1/demo', pane_id: 'w1:p2' });
+  it('reads the keys dispatch writes, and reports absence as absence', () => {
+    seed('t042', 's1', { unit: 'auth', tree: '/trees/1/demo', pane: 'w1:p2' });
     const meta = Shift.resolve('s1').meta();
     expect(meta.unit).toBe('auth');
     expect(meta.tree).toBe('/trees/1/demo');
-    expect(meta.agentId).toBe('w1:p2');
+    expect(meta.pane).toBe('w1:p2');
     // Not present, and not present as a key either.
     expect('branch' in meta).toBe(false);
   });

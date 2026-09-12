@@ -175,7 +175,9 @@ describe('yan abandon', () => {
   it('abandons every shift, closes the outbound request, returns every tree, and marks the task', async () => {
     liveShift('s1');
     liveShift('s2');
-    new Task('t042').unit('auth').set('mr', OUTBOUND);
+    new Task('t042').editUnit('auth', (u) => {
+      u.mr = OUTBOUND;
+    });
     const standing = join(home, 'trees', 'standing');
     leases.push({ slot: 9, path: standing, branch: 'feat/auth', base: 'feat/auth', holder: 't042/auth', lease_id: 'lease-standing', at: 0 });
 

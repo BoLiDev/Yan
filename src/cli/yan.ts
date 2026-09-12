@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
-import { queueJson } from './ls.js';
+import { openTasks } from './shared/task-id.js';
 import { isTty, setPrompter } from './shared/resolve.js';
 import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
@@ -14,10 +15,24 @@ import { yanHome, subcommands } from '../util/home.js';
  * Commander would exit before `shared/resolve.ts` could ask for it.
  */
 
-export const YAN_VERSION = '0.1.0';
+/**
+ * Read from the package.json beside `dist/`, so the number has one home and a
+ * release cannot leave a copy behind. A home without one still gets a working
+ * CLI: the version is the least of what `yan --version` is asked for.
+ */
+function yanVersion(home: string): string {
+  try {
+    const pkg: unknown = JSON.parse(readFileSync(join(home, 'package.json'), 'utf8'));
+    const version = (pkg as { version?: unknown } | null)?.version;
+    if (typeof version === 'string' && version !== '') return version;
+  } catch {
+    // Unreadable or not JSON.
+  }
+  return 'unknown';
+}
 
 /** What every ported subcommand module must export. */
-export interface CommandModule {
+interface CommandModule {
   readonly command: Command;
 }
 
@@ -51,7 +66,7 @@ export async function buildProgram(home: string): Promise<Command> {
   program
     .name('yan')
     .description('one main agent per task, orchestrating single-use shifts')
-    .version(`yan ${YAN_VERSION}`, '-V, --version')
+    .version(`yan ${yanVersion(home)}`, '-V, --version')
     .enablePositionalOptions()
     .showHelpAfterError();
 
@@ -91,31 +106,13 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/** One row of the select bare `yan` shows on a terminal. */
-export interface EntryChoice {
-  readonly id: string;
-  readonly title: string;
-  readonly units: number;
-  readonly shifts: number;
-}
-
-/** The rows that select offers: every task in the queue not yet complete. */
-export function liveTaskChoices(): EntryChoice[] {
-  const queue = queueJson() as {
-    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
-  };
-  return queue.tasks
-    .filter((t) => !t.complete)
-    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
-}
-
 /** The argv the chosen entry point becomes, re-entering this same program. */
 async function chooseEntryPoint(): Promise<string[]> {
   const { chooseEntry, CREATE_NEW } = await import('../ui/prompts.js');
   const { readVaultJson, vaultDirIfAny } = await import('../util/vault.js');
   const dir = vaultDirIfAny();
-  const chosen = await chooseEntry(liveTaskChoices(), dir === undefined ? '' : readVaultJson(dir).name);
-  return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', '--task', chosen];
+  const chosen = await chooseEntry(openTasks(), dir === undefined ? '' : readVaultJson(dir).name);
+  return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', chosen];
 }
 
 /**

@@ -8,9 +8,11 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
-import { finishTask, type Closer, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
+import { finishTask, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
+import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
-import { WorktreeError, type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
+import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * `yan done` — the command that finishes a task.
@@ -233,7 +235,7 @@ describe('--force is user\'s answer, and it is the whole authority', () => {
 describe('a tree that will not come back', () => {
   it('exits 5 and leaves the task OPEN, because the work exists in one place', () => {
     held('s1');
-    returnRefusal = new WorktreeError('failed', 'refusing to return: it has uncommitted changes');
+    returnRefusal = new YanError('worktree_failed', 'refusing to return: it has uncommitted changes');
 
     const r = run();
     expect(r.code).toBe(5);
@@ -245,7 +247,7 @@ describe('a tree that will not come back', () => {
   it('under --force, says the task IS done and the slot is stranded', () => {
     // Both halves are said: the task is finished, and a slot is stranded.
     held('s1');
-    returnRefusal = new WorktreeError('failed', 'cannot reset the tree');
+    returnRefusal = new YanError('worktree_failed', 'cannot reset the tree');
 
     const r = run({ force: true });
     expect(r.code).toBe(5);
@@ -258,10 +260,10 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   const yan = (args: readonly string[], env: Record<string, string | undefined> = {}) =>
     runYan(home, args, env);
 
-  it('takes the task as an argument, as --task, or from $YAN_TASK', async () => {
+  it('takes the task as an argument, or from $YAN_TASK', async () => {
     expect((await yan(['done', 't042'])).code).toBe(0);
     expect(new Task('t042').isComplete()).toBe(true);
-    expect((await yan(['done', '--task', 't042'])).code).toBe(0);
+    expect((await yan(['done'], { YAN_TASK: 't042' })).code).toBe(0);
     expect((await yan(['done'], { YAN_TASK: 't042' })).code).toBe(0);
   });
 
@@ -272,31 +274,30 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
     expect(none.out).toContain('which task?');
   });
 
-  it('refuses an unknown task and two different names', async () => {
-
+  it('refuses an unknown task, and takes the argument over the environment', async () => {
     const nope = await yan(['done', 'nosuch']);
     expect(nope.code).not.toBe(0);
     expect(nope.out).toContain('no such task');
 
-    const two = await yan(['done', 't042', '--task', 't999']);
-    expect(two.code).toBe(2);
-    expect(two.out).toContain('two different tasks named');
+    // An explicit id is somebody saying which, so it wins rather than clashing.
+    expect((await yan(['done', 't042'], { YAN_TASK: 't999' })).code).toBe(0);
+    expect(new Task('t042').isComplete()).toBe(true);
   });
 
   it('offers exactly the tasks that are still open, and drops them as they finish', async () => {
     // The rows of the multi-select, which come from `yan ls`'s own scan.
     // Clack itself is not driven here; the choices are.
-    const { finishableTasks } = await import('../../src/cli/done.js');
+    const { openTasks } = await import('../../src/cli/shared/task-id.js');
     Task.create('t043', 'the second one');
 
-    expect(finishableTasks().map((t) => t.id)).toEqual(['t042', 't043']);
-    expect(finishableTasks()[0]).toMatchObject({ title: 'unify the auth header', units: 1, shifts: 0 });
+    expect(openTasks().map((t) => t.id)).toEqual(['t042', 't043']);
+    expect(openTasks()[0]).toMatchObject({ title: 'unify the auth header', units: 1, shifts: 0 });
 
     expect((await yan(['done', 't042'])).code).toBe(0);
-    expect(finishableTasks().map((t) => t.id), 'a finished task is no longer on offer').toEqual(['t043']);
+    expect(openTasks().map((t) => t.id), 'a finished task is no longer on offer').toEqual(['t043']);
 
     expect((await yan(['done', 't043'])).code).toBe(0);
-    expect(finishableTasks()).toEqual([]);
+    expect(openTasks()).toEqual([]);
   });
 
   it('turns the queue entry from open to done, which nothing could do before', async () => {

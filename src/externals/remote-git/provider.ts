@@ -1,4 +1,4 @@
-import type { CliResult } from './client.js';
+import type { ProcessResult } from '../../util/process.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
 
 /**
@@ -16,9 +16,9 @@ export interface Provider {
    * The URL out of a successful create, taken from whichever stream this CLI
    * prints it on.
    *
-   * @throws RemoteGitError `failed` when there is no URL to find.
+   * @throws YanError `remote_git_failed` when there is no URL to find.
    */
-  createdUrl(result: CliResult): string;
+  createdUrl(result: ProcessResult): string;
 
   /** Arguments that ask for a merge request's state. */
   stateArgs(mr: string, repo: string | undefined): string[];

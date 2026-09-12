@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
-import type { CliInvocation, CliResult } from './client.js';
+import type { ProcessResult } from '../../util/process.js';
+import type { CliInvocation } from './client.js';
 import { RemoteGit, configuredCli } from './index.js';
 
 /**
@@ -12,8 +13,7 @@ import { RemoteGit, configuredCli } from './index.js';
  * calls somewhere else, so the test uses the same door a caller would. What is
  * asserted here is the part the mappers cannot cover:
  *
- *   - callers see only yan vocabulary; no gh / glab flag leaks upward, and none
- *     can be smuggled downward either;
+ *   - callers see only yan vocabulary; no gh / glab flag leaks upward;
  *   - only the CLI named by the configured kind is ever invoked;
  *   - an unreachable host is `unknown` / `pending`, never a crash;
  *   - glab's `--auto-merge` default of true is turned off, or "merge it" would
@@ -21,9 +21,9 @@ import { RemoteGit, configuredCli } from './index.js';
  */
 
 const calls: CliInvocation[] = [];
-let nextResult: CliResult = { code: 0, stdout: '', stderr: '' };
+let nextResult: ProcessResult = { code: 0, stdout: '', stderr: '' };
 
-const run = (invocation: CliInvocation): CliResult => {
+const run = (invocation: CliInvocation): ProcessResult => {
   calls.push(invocation);
   return nextResult;
 };
@@ -90,14 +90,14 @@ describe('only the CLI named by the configured kind is ever invoked', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('reads only the current config section, and says what to rename', () => {
-    // `remote_git` is the only spelling read; `forge` is looked for only so
-    // the refusal can say what to rename.
+  it('reads only the `remote_git` section', () => {
+    // A kind under any other key is not a configuration: it refuses as if the
+    // section were absent, rather than reaching for a second spelling.
     writeFileSync(
       join(home, 'config.json'),
       `${JSON.stringify({ version: 1, forge: { kind: 'github' } }, null, 2)}\n`,
     );
-    expect(() => host().mrState({ mr: '1' })).toThrow(/rename that section to `remote_git`/);
+    expect(() => host().mrState({ mr: '1' })).toThrow(/remote_git.kind is not set/);
     expect(calls).toHaveLength(0);
   });
 });
@@ -116,16 +116,7 @@ describe('host routing is routing, not authentication', () => {
   });
 });
 
-describe('no gh or glab flag can be smuggled through', () => {
-  it('refuses an option the verb did not declare', () => {
-    configure({ kind: 'github' });
-    // The compiler refuses this too; this is the runtime half, for a caller
-    // that arrived through JSON or through `unknown`.
-    const smuggled = { mr: '1', admin: true } as unknown as { mr: string };
-    expect(() => host().mrState(smuggled)).toThrow(/never gh's or glab's/);
-    expect(calls).toHaveLength(0);
-  });
-
+describe('a reference is required', () => {
   it('requires an mr reference at all', () => {
     configure({ kind: 'github' });
     expect(() => host().mrState({ mr: '' })).toThrow(/mr is required/);

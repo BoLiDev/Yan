@@ -155,22 +155,6 @@ describe('is anybody on duty', () => {
     expect(sup.healthy()).toBe(false);
     expect(sup.why()).toContain('424242');
   });
-
-  it('reads a directory-shaped lock, so a guard meeting one does not call the task unwatched', () => {
-    // The other lock shape: a directory holding pid and identity, rather than
-    // the single file util/lock.ts writes.
-    clearAll();
-    mkdirSync(sup.lock, { recursive: true });
-    writeFileSync(join(sup.lock, 'pid'), `${process.pid}\n`);
-    writeFileSync(join(sup.lock, 'identity'), 'yan-wait t1\n');
-    freshBeacon();
-    expect(sup.lockTaken()).toBe(true);
-    expect(sup.healthy()).toBe(true);
-
-    // And it is never reclaimed as if it were a stale file of ours.
-    expect(sup.claimLock()).toBe(false);
-    expect(existsSync(join(sup.lock, 'pid'))).toBe(true);
-  });
 });
 
 describe('the single-flight lock', () => {
@@ -270,7 +254,7 @@ describe('what is still being supervised', () => {
     liveShift('s1');
     expect(sup.liveCount()).toBe(1);
     expect(sup.liveShifts()[0]?.sid).toBe('s1');
-    expect(sup.liveShifts()[0]?.meta().agentId).toBe('w1:p2');
+    expect(sup.liveShifts()[0]?.meta().pane).toBe('w1:p2');
 
     liveShift('s2', 'w1:p3');
     expect(sup.liveCount()).toBe(2);

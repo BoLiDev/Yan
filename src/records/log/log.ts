@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join } from 'node:path';
 import { taskDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
-import { LogError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * What a line records. Every line carries exactly one.
@@ -42,7 +42,7 @@ export class Log {
   public readonly file: string;
 
   public constructor(taskId: string) {
-    if (!taskId) throw LogError.usage('a task id is required');
+    if (!taskId) throw YanError.usage('log_usage', 'a task id is required');
     this.id = taskId;
     this.file = normalizePath(join(taskDir(taskId), 'log.md'));
   }
@@ -61,22 +61,22 @@ export class Log {
    * Append one line, creating the file if needed.
    *
    * @param when the mm-dd date to stamp; defaults to today.
-   * @throws LogError when `type` is not one of LOG_TYPES, or `text` is empty
+   * @throws YanError when `type` is not one of LOG_TYPES, or `text` is empty
    *   or contains a newline.
    */
   public append(type: LogType, text: string, when = ''): void {
     if (!isLogType(type)) {
-      throw LogError.usage(`'${String(type)}' is not a log type - one of: ${LOG_TYPES.join(' ')}`);
+      throw YanError.usage('log_usage', `'${String(type)}' is not a log type - one of: ${LOG_TYPES.join(' ')}`);
     }
-    if (!text || text.trim() === '') throw LogError.usage('usage: append(type, text, [MM-DD])');
+    if (!text || text.trim() === '') throw YanError.usage('log_usage', 'usage: append(type, text, [MM-DD])');
     if (text.includes('\n') || text.includes('\r')) {
-      throw LogError.usage('a log entry is one line - write several entries instead');
+      throw YanError.usage('log_usage', 'a log entry is one line - write several entries instead');
     }
     this.init();
     try {
       appendFileSync(this.file, `- ${when === '' ? today() : when}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
     } catch (cause) {
-      throw new LogError('failed', `cannot append to ${this.file}`, { cause });
+      throw new YanError('log_failed', `cannot append to ${this.file}`, { cause });
     }
   }
 

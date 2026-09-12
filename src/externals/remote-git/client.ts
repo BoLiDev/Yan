@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import type { ProcessResult } from '../../util/process.js';
 
 /**
  * The one place a host CLI is executed. stdout and stderr come back separately
@@ -6,12 +7,6 @@ import { spawnSync } from 'node:child_process';
  * JSON. Authentication is the CLI's own; naming a host only picks which of its
  * stored logins to use.
  */
-
-export interface CliResult {
-  readonly code: number;
-  readonly stdout: string;
-  readonly stderr: string;
-}
 
 export interface CliInvocation {
   readonly cli: 'gh' | 'glab';
@@ -26,7 +21,7 @@ export interface CliInvocation {
 export const CLI_MISSING = 127;
 
 /** Never throws: a CLI that will not start comes back as `CLI_MISSING`. */
-export function runCli(invocation: CliInvocation): CliResult {
+export function runCli(invocation: CliInvocation): ProcessResult {
   const env = { ...process.env };
   if (invocation.host !== undefined && invocation.host !== '') {
     if (invocation.cli === 'gh') env.GH_HOST = invocation.host;

@@ -1,32 +1,35 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import type { CliResult } from './client.js';
-import { RemoteGitError } from './errors.js';
+import { recordOrNone } from '../../util/narrow.js';
+import type { ProcessResult } from '../../util/process.js';
 import type { MrCreateOptions, MrRef, RepoRef } from './types.js';
+import { YanError } from '../../util/error.js';
 
 /**
- * Everything the verbs check before they talk to a CLI, and the two small
- * readers of what comes back.
+ * Everything the verbs check before they talk to a CLI, and the readers of
+ * what comes back — including the two both providers map their payloads with.
  */
 
 /**
- * @throws RemoteGitError `usage` when `input` carries a defined key outside
- *   `allowed`, so no CLI flag can reach a provider.
+ * A CLI's JSON object, or `undefined` when the payload is neither. Both
+ * mappers treat those the same: nothing usable came back.
  */
-export function only(input: object, allowed: readonly string[]): void {
-  const options = input as Record<string, unknown>;
-  for (const key of Object.keys(options)) {
-    if (options[key] === undefined) continue;
-    if (!allowed.includes(key)) {
-      throw RemoteGitError.usage(`'${key}' is not accepted here - these verbs take yan's own options only, never gh's or glab's`,
-      );
-    }
+export function asObject(text: string): Record<string, unknown> | undefined {
+  try {
+    return recordOrNone(JSON.parse(text));
+  } catch {
+    return undefined;
   }
+}
+
+/** A field lower-cased for comparison; `''` for anything that is not a string. */
+export function lower(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase() : '';
 }
 
 /**
  * The directory to run in, or undefined when the ref names none.
  *
- * @throws RemoteGitError `usage` when `dir` is set but is not a directory.
+ * @throws YanError `remote_git_usage` when `dir` is set but is not a directory.
  */
 export function checkDir(ref: RepoRef): string | undefined {
   if (ref.dir === undefined || ref.dir === '') return undefined;
@@ -36,18 +39,18 @@ export function checkDir(ref: RepoRef): string | undefined {
   } catch {
     isDir = false;
   }
-  if (!isDir) throw RemoteGitError.usage(`dir is not a directory: ${ref.dir}`);
+  if (!isDir) throw YanError.usage('remote_git_usage', `dir is not a directory: ${ref.dir}`);
   return ref.dir;
 }
 
 /**
  * The merge request reference, CR-stripped.
  *
- * @throws RemoteGitError `usage` when it is missing.
+ * @throws YanError `remote_git_usage` when it is missing.
  */
 export function requireMr(ref: MrRef): string {
   if (ref.mr === undefined || ref.mr === '') {
-    throw RemoteGitError.usage('mr is required - pass the merge request URL createMr returned, or its number',
+    throw YanError.usage('remote_git_usage', 'mr is required - pass the merge request URL createMr returned, or its number',
     );
   }
   return ref.mr.replace(/\r/g, '');
@@ -56,15 +59,15 @@ export function requireMr(ref: MrRef): string {
 /**
  * The merge request body: `bodyFile`'s contents, `body`, or `''`.
  *
- * @throws RemoteGitError `usage` when both are given, or the file is missing.
+ * @throws YanError `remote_git_usage` when both are given, or the file is missing.
  */
 export function bodyText(options: MrCreateOptions): string {
   if (options.bodyFile !== undefined && options.bodyFile !== '') {
     if (options.body !== undefined && options.body !== '') {
-      throw RemoteGitError.usage('body and bodyFile are alternatives - pass one');
+      throw YanError.usage('remote_git_usage', 'body and bodyFile are alternatives - pass one');
     }
     if (!existsSync(options.bodyFile)) {
-      throw RemoteGitError.usage(`bodyFile does not exist: ${options.bodyFile}`);
+      throw YanError.usage('remote_git_usage', `bodyFile does not exist: ${options.bodyFile}`);
     }
     return readFileSync(options.bodyFile, 'utf8');
   }
@@ -74,19 +77,19 @@ export function bodyText(options: MrCreateOptions): string {
 /**
  * The last match of `pattern` in `text`, CR-stripped.
  *
- * @throws RemoteGitError `failed` when nothing matches.
+ * @throws YanError `remote_git_failed` when nothing matches.
  */
 export function extractUrl(text: string, pattern: RegExp): string {
   const matches = text.match(pattern);
   if (matches === null || matches.length === 0) {
-    throw new RemoteGitError('failed', 'the host did not print a merge request URL - check the repository by hand',
+    throw new YanError('remote_git_failed', 'the host did not print a merge request URL - check the repository by hand',
     );
   }
   return (matches[matches.length - 1] ?? '').replace(/\r/g, '');
 }
 
 /** Write one line on stderr saying the host could not be asked. */
-export function unreachable(what: string, fallback: string, result: CliResult): void {
+export function unreachable(what: string, fallback: string, result: ProcessResult): void {
   const detail = result.stderr.trim().replace(/\n/g, ' ');
   process.stderr.write(
     `remote-git: cannot ask the host about ${what} - reporting ${fallback}${detail === '' ? '' : ` (${detail})`}\n`,

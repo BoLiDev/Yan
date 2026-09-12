@@ -1,6 +1,6 @@
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { ShiftError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * `run/status` is an append-only log of `<ts>\t<state>\t<note>` lines, one per
@@ -56,9 +56,9 @@ export function reportedMr(run: string): string | undefined {
  * would otherwise cost four wakes that each end in "nothing to do".
  */
 export function appendEvent(run: string, state: string, note = ''): void {
-  if (!state) throw ShiftError.usage('an event needs a state');
+  if (!state) throw YanError.usage('shift_usage', 'an event needs a state');
   if (`${state}${note}`.includes('\n')) {
-    throw ShiftError.usage('an event is one line - a newline would forge a second event');
+    throw YanError.usage('shift_usage', 'an event is one line - a newline would forge a second event');
   }
   mkdirSync(run, { recursive: true });
 

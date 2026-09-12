@@ -8,10 +8,12 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
-import { clockOut, type Closer, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
+import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
+import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
-import { WorktreeError, type LeaseRow, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { type LeaseRow, type ReturnExpectation } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * `yan shift done`, and the order it has to keep: MR merged → outcome.md →
@@ -71,7 +73,7 @@ function deps(): DoneDeps {
       calls.push(`mr_state mr=${mr}`);
       return hostSays;
     },
-    deleteBranch: (c, b) => {
+    deleteBranch: (_c, b) => {
       calls.push(`git push origin --delete ${b}`);
       return true;
     },
@@ -228,7 +230,7 @@ describe('a failed return stops before the branch is deleted', () => {
     // A tree that will not come back may hold the only copy of the work, so
     // the remote branch stays.
     dispatched('s2', { lease_id: 'not-the-one' });
-    returnRefusal = WorktreeError.mismatch('the lease id does not match');
+    returnRefusal = new YanError('worktree_mismatch', 'the lease id does not match', { exitCode: 3 });
 
     const r = run('s2');
     expect(r.code, "a lease identity that does not match is refused with the pool's own code").toBe(3);
@@ -287,7 +289,7 @@ describe('a teardown that stopped at the tree return can be finished', () => {
 describe('usage', () => {
   it('needs a shift id, and is reachable as `yan shift done`', async () => {
     expect(run('').code).toBe(2);
-    const r = await runYan(home, ['shift', 'done', '--task', 't042']);
+    const r = await runYan(home, ['shift', 'done'], { YAN_TASK: 't042' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('a shift id is required');
   });

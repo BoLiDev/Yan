@@ -148,7 +148,7 @@ describe('`unit set --branch` rewrites the tokens for the new round', () => {
       labeller,
     );
     // task.json moved on regardless: the work is correct with ugly labels.
-    const unit = new Task('t042').unit('auth').read();
+    const unit = new Task('t042').unit('auth');
     expect(unit.branch).toBe('feat/auth-r2');
     expect(unit.history).toHaveLength(1);
   });
@@ -171,7 +171,7 @@ describe('every metadata call goes through the one door that cannot throw', () =
 
 describe('`target` is never defaulted by any command', () => {
   it('is required outright by `unit add`', async () => {
-    const r = await runYan(home, ['unit', 'add', '--task', 't042', '--unit', 'x', '--repo', 'monorepo-x']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'x', '--repo', 'monorepo-x'], { YAN_TASK: 't042' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('never guessed');
   });

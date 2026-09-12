@@ -4,6 +4,6 @@
  */
 
 export { Shift } from './shift.js';
-export { ShiftError } from './errors.js';
+export { opensMr } from './scenario.js';
 export { readPulse, writePulse, type Pulse } from './pulse.js';
-export type { ShiftMeta } from './types.js';
+export type { ShiftMeta, ShiftMetaPlaceholder } from './types.js';

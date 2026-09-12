@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { readStamp, stampNumber } from '../../util/stamp.js';
 
 /**
  * `run/pulse` holds one line, `<changed> <seen> <hash>`, digesting a shift's
@@ -25,18 +26,12 @@ export function digestOf(text: string): string {
 }
 
 export function readPulse(run: string): Pulse | undefined {
-  const file = pulseFile(run);
-  if (!existsSync(file)) return undefined;
-  let line: string;
-  try {
-    line = readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')[0] ?? '';
-  } catch {
-    return undefined;
-  }
-  const [changed, seen, hash] = line.split(' ');
-  if (changed === undefined || !/^\d+$/.test(changed)) return undefined;
-  if (seen === undefined || !/^\d+$/.test(seen)) return undefined;
-  return { changed: Number(changed), seen: Number(seen), hash: hash ?? '' };
+  const fields = readStamp(pulseFile(run));
+  if (fields === undefined) return undefined;
+  const changed = stampNumber(fields, 0);
+  const seen = stampNumber(fields, 1);
+  if (changed === undefined || seen === undefined) return undefined;
+  return { changed, seen, hash: fields[2] ?? '' };
 }
 
 /**

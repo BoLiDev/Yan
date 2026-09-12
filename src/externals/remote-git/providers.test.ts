@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as github from './github.js';
 import * as gitlab from './gitlab.js';
-import { CI_STATES, MR_STATES, gateCiState, gateMrState } from './types.js';
+import { CI_STATES, MR_STATES } from './types.js';
 import type { CiState, MrState } from './types.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
@@ -221,13 +221,6 @@ describe('every fixture, all four mappers, against the recorded verdicts', () =>
     expect(github.mapCiState(body), `${name} github ci`).toBe(ghCi);
     expect(gitlab.mapMrState(body), `${name} gitlab mr`).toBe(glMr);
     expect(gitlab.mapCiState(body), `${name} gitlab ci`).toBe(glCi);
-  });
-});
-
-describe('the gates themselves', () => {
-  it('are the last statement on every path out', () => {
-    expect(gateMrState('banana')).toBe('unknown');
-    expect(gateCiState('banana')).toBe('pending');
   });
 });
 

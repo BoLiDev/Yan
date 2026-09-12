@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { readStdin } from './stdin.js';
 import { GUARD_BUDGET, Supervision } from '../records/supervision/index.js';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
@@ -27,11 +28,16 @@ import { normalizePath } from '../util/paths.js';
  *
  * It fails open after GUARD_BUDGET blocked attempts, with a loud warning: a
  * guard that can wedge a session is worse than no guard.
+ *
+ * It guards the main agent's turn and nobody else's. A shift working on the
+ * yan repository inherits this repository's hook registrations, so its harness
+ * fires this guard too; `YAN_SID`, which only a shift's environment carries,
+ * is what tells that turn apart, and it is always let through.
  */
 
-export type Harness = 'claude' | 'codex' | 'agy';
+type Harness = 'claude' | 'codex' | 'agy';
 
-export interface GuardIo {
+interface GuardIo {
   /** stderr: what the Claude model reads, and where a warning goes. */
   readonly note: (line: string) => void;
   /** stdout: the Codex and agy decision objects. */
@@ -82,6 +88,9 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
     io.note('say which harness this is - --claude, --codex or --agy');
     return 2;
   }
+
+  // A shift's turn is never the main agent's to hold.
+  if ((process.env.YAN_SID ?? '') !== '') return letThrough(harness, io);
 
   // A guard that cannot tell whose turn this is must not hold it hostage.
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) {
@@ -173,7 +182,7 @@ function failOpen(harness: Harness, io: GuardIo, count: number, task: string): n
     `yan guard: AUTOMATIC SUPERVISION IS BROKEN - ${count} attempts to arm a watcher for task ${task} have failed, so this turn is being let through.`,
   );
   io.note(
-    `yan guard: nothing is watching the live shifts. Check them by hand with 'yan ls ${task}', or restart yan.`,
+    `yan guard: nothing is watching the live shifts. Check them by hand with 'yan show ${task}', or restart yan.`,
   );
   return letThrough(harness, io);
 }
@@ -182,30 +191,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * The harness payload, or `''` when none arrives within `timeoutMs` — never a
- * read to EOF, which a pipe nobody closes would block for ever.
- */
-export function readStdin(timeoutMs: number): Promise<string> {
-  if (process.stdin.isTTY === true) return Promise.resolve('');
-  return new Promise<string>((resolve) => {
-    let text = '';
-    const done = (): void => {
-      clearTimeout(timer);
-      process.stdin.removeAllListeners('data');
-      process.stdin.removeAllListeners('end');
-      process.stdin.pause();
-      resolve(text);
-    };
-    const timer = setTimeout(done, timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk: string) => {
-      text += chunk;
-    });
-    process.stdin.on('end', done);
-    process.stdin.on('error', done);
-  });
-}
 
 const invokedDirectly =
   process.argv[1] !== undefined && /[\\/]turnend-guard\.js$/.test(process.argv[1]);

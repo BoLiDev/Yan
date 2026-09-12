@@ -1,28 +1,13 @@
-import type { CliResult } from './client.js';
-import { RemoteGitError } from './errors.js';
+import type { ProcessResult } from '../../util/process.js';
 import type { Provider } from './provider.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
-import { extractUrl } from './validate.js';
+import { asObject, extractUrl, lower } from './validate.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure, and
  * anything unrecognised lands on the safe member of the set.
  */
-
-function asObject(text: string): Record<string, unknown> | undefined {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function lower(value: unknown): string {
-  return typeof value === 'string' ? value.toLowerCase() : '';
-}
 
 /**
  * `glab mr view --output json` → yan vocabulary. `locked` reads as `open`, and
@@ -81,7 +66,7 @@ export function mapCiState(payload: string): CiState {
  * `glab`'s way of naming one merge request: an iid, plus the project taken
  * from `repo` or parsed out of a URL.
  *
- * @throws RemoteGitError `usage` when no number can be worked out.
+ * @throws YanError `remote_git_usage` when no number can be worked out.
  */
 export function refArgs(mr: string, repo: string | undefined): string[] {
   let iid = mr;
@@ -103,7 +88,7 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
   }
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
-    throw new RemoteGitError('usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
+    throw new YanError('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
       { exitCode: 2 },
     );
   }
@@ -138,7 +123,7 @@ export const gitlabProvider: Provider = {
   },
 
   /** Searches both streams: glab picks one by version. */
-  createdUrl(result: CliResult): string {
+  createdUrl(result: ProcessResult): string {
     return extractUrl(
       `${result.stdout}${result.stderr}`,
       /https?:\/\/\S+\/merge_requests\/[0-9]+/g,

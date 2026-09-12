@@ -2,10 +2,11 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { CommandError } from './shared/errors.js';
+import { chosenTask } from './shared/task-id.js';
 import { nativePath } from '../util/paths.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan open <id> [--artifacts]` — print a task directory's absolute path, and
@@ -31,14 +32,15 @@ function onPath(cmd: string): boolean {
 
 export const command = new Command('open')
   .description('open a task directory, or its artifacts/')
-  .argument('[task-id]')
+  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--artifacts', 'open tasks/<id>/artifacts/ instead')
   .action(
-    action('open', (id: string | undefined, options: { artifacts?: boolean }) => {
-      if (id === undefined || id === '') {
-        throw new CommandError('open', 'usage', 'a task id is required', { exitCode: 2 });
-      }
-      if (!Task.exists(id)) throw new CommandError('task', 'missing', `no such task: ${id}`);
+    action('open', async (given: string | undefined, options: { artifacts?: boolean }) => {
+      const id = await chosenTask('open', given, {
+        spelled: 'yan open',
+        question: 'Which task directory do you want to open?',
+      });
+      if (!Task.exists(id)) throw new YanError('task_missing', `no such task: ${id}`);
 
       let dir = new Task(id).dir;
       if (options.artifacts === true) {
@@ -46,7 +48,7 @@ export const command = new Command('open')
         mkdirSync(dir, { recursive: true });
       }
       if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-        throw new CommandError('open', 'failed', `not a directory: ${dir}`);
+        throw new YanError('open_failed', `not a directory: ${dir}`);
       }
 
       out(dir);

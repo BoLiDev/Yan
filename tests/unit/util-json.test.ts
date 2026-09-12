@@ -1,20 +1,12 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  editJson,
-  initJson,
-  parseJson,
-  readJson,
-  readJsonIfPresent,
-  writeJson,
-  writeJsonText,
-} from '../../src/util/json.js';
-import { JsonError } from '../../src/util/json.js';
+import { editJson, initJson, parseJson, readJson, readJsonIfPresent, writeJson } from '../../src/util/json.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
- * JSON writes land tmp → rename, every object written carries `version`, and
+ * JSON writes land tmp → rename, what the caller hands over is what lands, and
  * a value that cannot be serialised is refused before the target is touched.
  */
 
@@ -25,27 +17,27 @@ function countTemps(dir: string): number {
 }
 
 describe('writeJson', () => {
-  it('injects version, leaves no temp file, and round-trips', () => {
+  it('writes exactly what it was given, leaves no temp file, and round-trips', () => {
     const tmp = mkTempDir();
     const f = join(tmp, 'a.json');
     writeJson(f, { a: 1 });
 
-    expect(readJson(f)).toEqual({ a: 1, version: 1 });
+    expect(readJson(f)).toEqual({ a: 1 });
     expect(countTemps(tmp)).toBe(0);
   });
 
-  it('respects an explicit version rather than overwriting it', () => {
+  it('adds no field of its own, `version` included', () => {
     const tmp = mkTempDir();
     const g = join(tmp, 'b.json');
     writeJson(g, { version: 7, b: 2 });
-    expect((readJson(g) as { version: number }).version).toBe(7);
+    expect(readJson(g)).toEqual({ version: 7, b: 2 });
   });
 
   it('creates nested directories', () => {
     const tmp = mkTempDir();
     const deep = join(tmp, 'x', 'y', 'z', 'deep.json');
     writeJson(deep, { d: 1 });
-    expect(readJson(deep)).toEqual({ d: 1, version: 1 });
+    expect(readJson(deep)).toEqual({ d: 1 });
   });
 
   it('writes the temp file beside the target, not in TMPDIR', () => {
@@ -72,7 +64,7 @@ describe('writeJson', () => {
     expect(raw).not.toContain('\r');
     expect(raw.endsWith('\n')).toBe(true);
     // Two-space indent and a trailing newline, so the formatting is stable.
-    expect(raw).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ],\n  "version": 1\n}\n');
+    expect(raw).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}\n');
   });
 
   it('refuses a value that is not JSON and leaves the target intact (NEW)', () => {
@@ -82,38 +74,17 @@ describe('writeJson', () => {
 
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(() => writeJson(f, circular)).toThrow(JsonError);
-    expect(readJson(f)).toEqual({ a: 1, version: 1 });
+    expect(() => writeJson(f, circular)).toThrow(YanError);
+    expect(readJson(f)).toEqual({ a: 1 });
     expect(countTemps(tmp)).toBe(0);
 
-    expect(() => writeJson(f, undefined)).toThrow(JsonError);
-    expect(readJson(f)).toEqual({ a: 1, version: 1 });
-  });
-});
-
-describe('writeJsonText', () => {
-  it('refuses invalid JSON and the old content survives', () => {
-    const tmp = mkTempDir();
-    const f = join(tmp, 'a.json');
-    writeJson(f, { a: 1 });
-
-    for (const bad of ['{"a":', 'not json at all', '']) {
-      expect(() => writeJsonText(f, bad)).toThrow(JsonError);
-      expect(readJson(f)).toEqual({ a: 1, version: 1 });
-    }
-    expect(countTemps(tmp)).toBe(0);
-  });
-
-  it('accepts valid JSON text', () => {
-    const tmp = mkTempDir();
-    const f = join(tmp, 'text.json');
-    writeJsonText(f, '{"a": 1}');
-    expect(readJson(f)).toEqual({ a: 1, version: 1 });
+    expect(() => writeJson(f, undefined)).toThrow(YanError);
+    expect(readJson(f)).toEqual({ a: 1 });
   });
 });
 
 describe('editJson', () => {
-  it('preserves version and never leaves a temp file', () => {
+  it('writes back what the edit returned, and never leaves a temp file', () => {
     const tmp = mkTempDir();
     const g = join(tmp, 'b.json');
     writeJson(g, { version: 7, b: 2 });
@@ -127,7 +98,7 @@ describe('editJson', () => {
     expect(countTemps(tmp)).toBe(0);
   });
 
-  it('gives version back to a program that deleted it', () => {
+  it('drops what the edit dropped: nothing is put back behind it', () => {
     const tmp = mkTempDir();
     const g = join(tmp, 'b.json');
     writeJson(g, { version: 7, b: 2 });
@@ -136,7 +107,7 @@ describe('editJson', () => {
       delete copy.version;
       return copy;
     });
-    expect((readJson(g) as { version: number }).version).toBe(7);
+    expect(readJson(g)).toEqual({ b: 2 });
   });
 
   it('leaves the file untouched when the edit throws', () => {
@@ -154,7 +125,7 @@ describe('editJson', () => {
 
   it('refuses a missing file', () => {
     const tmp = mkTempDir();
-    expect(() => editJson(join(tmp, 'missing.json'), (c) => c)).toThrow(JsonError);
+    expect(() => editJson(join(tmp, 'missing.json'), (c) => c)).toThrow(YanError);
   });
 });
 
@@ -166,14 +137,14 @@ describe('initJson', () => {
     expect((readJson(i) as { first: boolean }).first).toBe(true);
 
     expect(initJson(i, { second: true })).toBe(false);
-    expect(readJson(i)).toEqual({ first: true, version: 1 });
+    expect(readJson(i)).toEqual({ first: true });
   });
 });
 
 describe('reading', () => {
   it('refuses a missing file, but readJsonIfPresent does not', () => {
     const tmp = mkTempDir();
-    expect(() => readJson(join(tmp, 'missing.json'))).toThrow(JsonError);
+    expect(() => readJson(join(tmp, 'missing.json'))).toThrow(YanError);
     expect(readJsonIfPresent(join(tmp, 'missing.json'))).toBeUndefined();
   });
 
@@ -181,11 +152,11 @@ describe('reading', () => {
     const tmp = mkTempDir();
     const f = join(tmp, 'broken.json');
     writeFileSync(f, '{oh no');
-    expect(() => readJson(f)).toThrow(JsonError);
+    expect(() => readJson(f)).toThrow(YanError);
   });
 
   it('parseJson refuses invalid text', () => {
-    expect(() => parseJson('{')).toThrow(JsonError);
+    expect(() => parseJson('{')).toThrow(YanError);
     expect(parseJson('{"a":1}')).toEqual({ a: 1 });
   });
 });

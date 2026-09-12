@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname } from 'node:path';
-import { YanError, type YanErrorOptions } from './error.js';
+import { YanError } from './error.js';
 
 /**
  * The one locking primitive in yan: a file created exclusively, holding the
@@ -14,19 +14,6 @@ import { YanError, type YanErrorOptions } from './error.js';
  * but only when it was taken on this machine: a pid from another host is not
  * ours to judge.
  */
-
-const CODES = { timeout: 'lock_timeout' } as const;
-
-export type LockErrorKind = keyof typeof CODES;
-
-/** What waiting for a lock can fail with. */
-export class LockError extends YanError {
-  public static readonly codes = CODES;
-
-  public constructor(kind: LockErrorKind, message: string, options?: YanErrorOptions) {
-    super(CODES[kind], message, options);
-  }
-}
 
 interface LockRecord {
   pid: number;
@@ -65,25 +52,13 @@ function readRecord(file: string): LockRecord | undefined {
  * Is this process still there? A process running as another user counts as
  * alive, so the answer errs towards "held".
  */
-export function pidAlive(pid: number): boolean {
+function pidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
     return (err as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
-/**
- * True when a directory sits at the lock path — the older scheme, which
- * nothing here writes and which is never reclaimed as stale.
- */
-function isShellLock(file: string): boolean {
-  try {
-    return statSync(file).isDirectory();
-  } catch {
-    return false;
   }
 }
 
@@ -96,13 +71,11 @@ export function owner(file: string): LockOwner | undefined {
 }
 
 /**
- * True when the file exists but nobody owns it any more. A directory-shaped
- * lock, one held on another host, and one whose stamp is younger than ten
- * seconds all count as held.
+ * True when the file exists but nobody owns it any more. One held on another
+ * host and one whose stamp is younger than ten seconds both count as held.
  */
 export function isStale(file: string): boolean {
   if (!existsSync(file)) return false;
-  if (isShellLock(file)) return false;
   const record = readRecord(file);
   if (record === undefined || typeof record.pid !== 'number') {
     // Unstamped: a competitor may be between its create and its write.
@@ -163,7 +136,7 @@ export function release(file: string): void {
  * Run `body` while holding `file`, releasing it however `body` ends. Waits for
  * a held lock and reclaims a stale one.
  *
- * @throws LockError `lock_timeout` when the lock was still held after
+ * @throws YanError `lock_timeout` when the lock was still held after
  *   `timeoutSeconds`. `body` never runs in that case.
  */
 export function withLock<T>(file: string, timeoutSeconds: number, body: () => T): T {
@@ -172,13 +145,12 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
   for (;;) {
     if (claim(file)) break;
     if (isStale(file)) {
-      rmSync(file, { force: true });
+      release(file);
       continue;
     }
     if (Date.now() >= deadline) {
       const record = readRecord(file);
-      throw new LockError(
-        'timeout',
+      throw new YanError('lock_timeout',
         `timed out after ${timeoutSeconds}s waiting for ${file}` +
           (record === undefined ? '' : ` (held by pid ${record.pid} on ${record.host})`),
       );
@@ -189,6 +161,6 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
   try {
     return body();
   } finally {
-    rmSync(file, { force: true });
+    release(file);
   }
 }

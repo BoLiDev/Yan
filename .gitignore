@@ -2,8 +2,8 @@
 node_modules/
 *.log
 
-# Build output. The dual dispatcher falls back to the shell half when it is
-# absent, so a fresh clone works before it is ever built.
+# Build output. bin/yan.mjs says to run `npm run build` when it is absent,
+# so a fresh clone fails with an instruction rather than a stack trace.
 dist/
 
 # Scratch git worktrees used when several agents work on the checkout at once.

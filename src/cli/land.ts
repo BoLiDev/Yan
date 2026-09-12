@@ -1,14 +1,11 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
-import { yanHome } from '../util/home.js';
-import { normalizePath } from '../util/paths.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan land` — merge the outbound merge requests into `target`, in `needs`
@@ -39,13 +36,13 @@ export interface LandOptions {
   json?: boolean;
 }
 
-export interface Landed {
+interface Landed {
   readonly unit: string;
   readonly mr: string;
   readonly result: 'merged' | 'already merged';
 }
 
-export interface LandResult {
+interface LandResult {
   readonly version: 1;
   readonly task: string;
   readonly strategy: MergeStrategy;
@@ -96,7 +93,7 @@ export function topoSort(
  * Merge each unit's outbound MR into its target, in `needs` order, stopping at
  * the first that does not land. Narrates through `say`.
  *
- * @throws CommandError `usage` when a task, a strategy or `--user-asked` is
+ * @throws YanError `land_usage` when a task, a strategy or `--user-asked` is
  *   missing, or a named unit does not exist; `cycle` when `needs` has one.
  */
 export function land(
@@ -104,28 +101,27 @@ export function land(
   host?: Host,
   say: (line: string) => void = () => {},
 ): LandResult {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('land');
   const want = options.unit ?? [];
   const strategy = (options.strategy ?? 'merge') as MergeStrategy;
 
-  if (task === '') throw CommandError.usage('land', '--task is required');
   if (!STRATEGIES.includes(strategy)) {
-    throw CommandError.usage('land', `--strategy is merge, squash or rebase, not '${String(options.strategy)}'`);
+    throw YanError.usage('land_usage', `--strategy is merge, squash or rebase, not '${String(options.strategy)}'`);
   }
 
   // Before anything is read, and never softened on a terminal.
   if (options.userAsked !== true) {
-    throw CommandError.usage('land', "merging into target is the one thing 'user' has to ask for. Nothing was merged. When they have asked, re-run with --user-asked",
+    throw YanError.usage('land_usage', "merging into target is the one thing 'user' has to ask for. Nothing was merged. When they have asked, re-run with --user-asked",
     );
   }
 
-  if (!Task.exists(task)) throw CommandError.usage('land', `no such task: ${task} - 'yan ls' lists them`);
+  if (!Task.exists(task)) throw YanError.usage('land_usage', `no such task: ${task} - 'yan ls' lists them`);
   const record = new Task(task);
   const units = record.read().units;
-  if (units.length === 0) throw CommandError.usage('land', `task ${task} has no units`);
+  if (units.length === 0) throw YanError.usage('land_usage', `task ${task} has no units`);
   for (const u of want) {
     if (!units.some((x) => x.name === u)) {
-      throw CommandError.usage('land', `no such unit: ${u} in ${task}`);
+      throw YanError.usage('land_usage', `no such unit: ${u} in ${task}`);
     }
   }
 
@@ -135,7 +131,7 @@ export function land(
     task,
   );
   if (cycle.length > 0) {
-    throw CommandError.usage('land', `the 'needs' of ${cycle.join(' ')} form a cycle, so there is no order to land them in. Nothing was merged - 'user' has to break the cycle with 'yan unit set'`,
+    throw YanError.usage('land_usage', `the 'needs' of ${cycle.join(' ')} form a cycle, so there is no order to land them in. Nothing was merged - 'user' has to break the cycle with 'yan unit set'`,
     );
   }
 
@@ -146,7 +142,7 @@ export function land(
     const mr = byName.get(name)?.mr ?? null;
     if (mr === null || mr === '') {
       if (want.length > 0) {
-        throw CommandError.usage('land', `unit ${name} has no outbound merge request - open it with 'yan mr --task ${task} --unit ${name}' first. Nothing was merged`,
+        throw YanError.usage('land_usage', `unit ${name} has no outbound merge request - open it with 'yan mr --unit ${name}' first. Nothing was merged`,
         );
       }
       continue;
@@ -154,7 +150,7 @@ export function land(
     plan.push(name);
   }
   if (plan.length === 0) {
-    throw CommandError.usage('land', `nothing to land: no unit of ${task} has an outbound merge request yet - 'yan mr' opens one`,
+    throw YanError.usage('land_usage', `nothing to land: no unit of ${task} has an outbound merge request yet - 'yan mr' opens one`,
     );
   }
 
@@ -181,11 +177,11 @@ export function land(
       continue;
     }
     if (state === 'closed') {
-      throw new CommandError('land', 'closed', `unit ${name}'s merge request ${mr} is closed, not merged, so it cannot land. Stopping here so that nothing lands out of 'needs' order - 'user' has to decide whether this round is abandoned ('yan unit set --branch')`,
+      throw new YanError('land_closed', `unit ${name}'s merge request ${mr} is closed, not merged, so it cannot land. Stopping here so that nothing lands out of 'needs' order - 'user' has to decide whether this round is abandoned ('yan unit set --branch')`,
       );
     }
     if (state !== 'open') {
-      throw new CommandError('land', 'unknown_state', `cannot tell what state unit ${name}'s merge request ${mr} is in - the forge could not be reached, or the merge request has been deleted. Stopping here so that nothing lands out of 'needs' order`,
+      throw new YanError('land_unknown_state', `cannot tell what state unit ${name}'s merge request ${mr} is in - the forge could not be reached, or the merge request has been deleted. Stopping here so that nothing lands out of 'needs' order`,
       );
     }
 
@@ -193,7 +189,7 @@ export function land(
     try {
       remote.mergeMr({ ...ref, strategy });
     } catch (err) {
-      throw new CommandError('land', 'refused', `unit ${name}'s merge request ${mr} did not merge (${err instanceof Error ? err.message : String(err)}). Stopping here so that nothing lands out of 'needs' order`,
+      throw new YanError('land_refused', `unit ${name}'s merge request ${mr} did not merge (${err instanceof Error ? err.message : String(err)}). Stopping here so that nothing lands out of 'needs' order`,
       );
     }
 
@@ -215,7 +211,6 @@ function collect(value: string, previous: string[]): string[] {
 
 export const command = new Command('land')
   .description('merge the outbound merge requests into target, in `needs` order')
-  .option('--task <id>', 'the task whose units are landing')
   .option('--unit <name>', 'repeatable; land only these', collect, [])
   .option('--strategy <how>', 'merge (default), squash or rebase')
   .option('--user-asked', "REQUIRED: `user` asked for this")
@@ -223,9 +218,6 @@ export const command = new Command('land')
   .addHelpText(
     'after',
     `
-usage: yan land --task <id> --user-asked [--unit <name>]...
-                [--strategy merge|squash|rebase] [--json]
-
 Merges each unit's outbound merge request into its target, topologically
 sorted by \`needs\`. With no --unit, every unit that has an outbound MR.
 

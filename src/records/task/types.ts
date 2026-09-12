@@ -1,6 +1,7 @@
 /**
- * The shape of `tasks/<id>/task.json`. A `TaskData` or `UnitData` is a
- * snapshot of one read; a `Task` or `Unit` re-reads on every call.
+ * The shape of `tasks/<id>/task.json`. A `TaskData` is one read of the file:
+ * `Task.read()` hands it back with a default filled in for anything the file
+ * omits or mistypes, and `Task.edit` hands the same shape to a writer.
  */
 
 /**
@@ -33,7 +34,6 @@ export interface UnitData {
   target: string;
   mr: string | null;
   history: HistoryEntry[];
-  [key: string]: unknown;
 }
 
 export interface TaskData {
@@ -44,11 +44,7 @@ export interface TaskData {
   /** Given up on rather than finished: also `complete`, since nothing more will happen to it. */
   abandoned: boolean;
   units: UnitData[];
-  [key: string]: unknown;
 }
-
-/** The fields `Unit.set` can write. */
-export type ScalarField = 'branch' | 'target' | 'mr';
 
 export interface AddUnitOptions {
   readonly branch?: string;

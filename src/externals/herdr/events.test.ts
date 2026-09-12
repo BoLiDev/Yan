@@ -4,9 +4,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TerminalEvents } from './events.js';
-import { EventsError } from './errors.js';
 import { defaultEndpoint, endpointFor, herdrSocketPath } from './socket.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The socket client, against a real server speaking Herdr's protocol.
@@ -207,7 +207,7 @@ describe('events.subscribe over the socket', () => {
     await events.open();
     for (const bad of ['yan', 's3-auth', '%7', 'w1', '']) {
       await expect(events.subscribe([bad])).rejects.toMatchObject({
-        code: EventsError.codes.usage,
+        code: 'events_usage',
       });
     }
   });
@@ -219,8 +219,8 @@ describe('events.subscribe over the socket', () => {
     await events.open();
 
     const thrown = await events.subscribe(['w1:p2']).catch((e: unknown) => e);
-    expect(thrown).toBeInstanceOf(EventsError);
-    expect((thrown as EventsError).code).toBe(EventsError.codes.refused);
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).code).toBe('events_refused');
     // The pane is not remembered, so a reconnect does not restore a
     // subscription that was never established.
     expect(events.subscribed).toEqual([]);
@@ -232,8 +232,8 @@ describe('events.subscribe over the socket', () => {
       connectTimeoutMs: 2_000,
     });
     const thrown = await events.open().catch((e: unknown) => e);
-    expect(thrown).toBeInstanceOf(EventsError);
-    expect((thrown as EventsError).code).toBe(EventsError.codes.unreachable);
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).code).toBe('events_unreachable');
   });
 });
 
@@ -344,8 +344,8 @@ describe('a subscription that ends', () => {
     await until(() => herdr.received.length === 1, 'the request to arrive');
     herdr.dropClient();
     const thrown = await inFlight.catch((e: unknown) => e);
-    expect(thrown).toBeInstanceOf(EventsError);
-    expect((thrown as EventsError).code).toBe(EventsError.codes.closed);
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).code).toBe('events_closed');
   });
 });
 

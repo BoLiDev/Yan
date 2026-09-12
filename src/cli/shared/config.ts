@@ -1,6 +1,7 @@
+import { readVaultConfig } from '../../util/config.js';
+import { recordOrNone } from '../../util/narrow.js';
 import { vaultConfigPath } from '../../util/vault.js';
-import { readJsonIfPresent } from '../../util/json.js';
-import { CommandError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The `agents.*` and `scenarios.*` sections of the vault's `config.json`.
@@ -63,36 +64,25 @@ export interface ShiftSpec extends AgentSpec {
   readonly skills: readonly string[];
 }
 
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 function readConfig(): Record<string, unknown> {
-  return record(readJsonIfPresent(configPath())) ?? {};
+  return readVaultConfig() ?? {};
 }
 
 /** `agents.<role>` in full. Every field is `''` when it is not configured. */
 export function agentSpecFor(role: string): AgentSpec {
-  const value = record(readConfig().agents)?.[role];
+  const value = recordOrNone(readConfig().agents)?.[role];
   if (typeof value === 'string') return { cli: value.trim(), model: '', effort: '' };
-  const spec = record(value);
+  const spec = recordOrNone(value);
   return { cli: text(spec?.cli), model: text(spec?.model), effort: text(spec?.effort) };
-}
-
-/** `agents.<role>`'s CLI, or the empty string when it is not configured. */
-export function agentFor(role: string): string {
-  return agentSpecFor(role).cli;
 }
 
 /** `scenarios`, read without throwing: whatever cannot be used is named in `problems`. */
 export function readScenarios(): ScenarioReading {
-  const raw = record(readConfig().scenarios);
+  const raw = recordOrNone(readConfig().scenarios);
   const problems: string[] = [];
   const scenarios: ScenarioConfig[] = [];
   if (raw === undefined) {
@@ -106,14 +96,14 @@ export function readScenarios(): ScenarioReading {
   }
 
   for (const name of SCENARIOS) {
-    const entry = record(raw[name]);
+    const entry = recordOrNone(raw[name]);
     if (entry === undefined) {
       problems.push(`scenarios.${name} is missing`);
       continue;
     }
     const tiers: Tier[] = [];
-    for (const [tierName, value] of Object.entries(record(entry.tiers) ?? {})) {
-      const tier = record(value);
+    for (const [tierName, value] of Object.entries(recordOrNone(entry.tiers) ?? {})) {
+      const tier = recordOrNone(value);
       if (tier === undefined) {
         problems.push(`scenarios.${name}.tiers.${tierName} is not an object`);
         continue;
@@ -157,34 +147,34 @@ export function readScenarios(): ScenarioReading {
  * `agents.shift`'s. Only a configured scenario and tier can be named, so a
  * dispatch can never run a model `user` did not configure.
  *
- * @throws CommandError `usage` for a missing or unknown scenario or tier, a
+ * @throws YanError `<command>_usage` for a missing or unknown scenario or tier, a
  *   scenario the configuration cannot supply, or no CLI at all.
  */
 export function resolveShift(command: string, scenario: string | undefined, tier: string | undefined): ShiftSpec {
   const asked = (scenario ?? '').trim();
   if (asked === '') {
-    throw CommandError.usage(command, `--scenario is required - one of: ${SCENARIOS.join(' ')}`);
+    throw YanError.usage(`${command}_usage`, `--scenario is required - one of: ${SCENARIOS.join(' ')}`);
   }
   if (!(SCENARIOS as readonly string[]).includes(asked)) {
-    throw CommandError.usage(command, `'${asked}' is not a scenario - one of: ${SCENARIOS.join(' ')}`);
+    throw YanError.usage(`${command}_usage`, `'${asked}' is not a scenario - one of: ${SCENARIOS.join(' ')}`);
   }
   const { scenarios, problems } = readScenarios();
   const found = scenarios.find((s) => s.name === asked);
   if (found === undefined) {
     const why = problems.filter((p) => p.includes(`scenarios.${asked}`) || p.startsWith('no scenarios'));
-    throw CommandError.usage(command, `scenario '${asked}' cannot be used: ${why.join('; ')} - fix it in ${configPath()}`);
+    throw YanError.usage(`${command}_usage`, `scenario '${asked}' cannot be used: ${why.join('; ')} - fix it in ${configPath()}`);
   }
 
   const tierName = (tier ?? '').trim() === '' ? found.defaultTier : (tier as string).trim();
   const chosen = found.tiers.find((t) => t.name === tierName);
   if (chosen === undefined) {
-    throw CommandError.usage(command, `'${tierName}' is not a tier of ${asked} - one of: ${found.tiers.map((t) => t.name).join(' ')}`);
+    throw YanError.usage(`${command}_usage`, `'${tierName}' is not a tier of ${asked} - one of: ${found.tiers.map((t) => t.name).join(' ')}`);
   }
 
   const base = agentSpecFor('shift');
   const cli = chosen.cli !== '' ? chosen.cli : base.cli;
   if (cli === '') {
-    throw CommandError.usage(command, `${asked}/${tierName} names no cli and agents.shift is not set - set one in ${configPath()}`);
+    throw YanError.usage(`${command}_usage`, `${asked}/${tierName} names no cli and agents.shift is not set - set one in ${configPath()}`);
   }
   // A tier that changes the CLI does not inherit a model meant for another one.
   const sameCli = chosen.cli === '' || chosen.cli === base.cli;

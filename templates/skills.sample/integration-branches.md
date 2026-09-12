@@ -22,7 +22,7 @@ Before adding a unit or starting a new round:
 1. run `ticket-cli branch --for <ticket>`; it opens the branch on the forge and
    prints the name
 2. pass that name straight through: `yan unit add … --branch <the name>`, or
-   `yan unit set --task … --unit … --branch <the name>` for a new round
+   `yan unit set --unit … --branch <the name>` for a new round
 
 If `ticket-cli` refuses, **stop and tell me**. Do not fall back to the built-in
 `yan/...` name — a branch this team's tooling has just declined is one that will

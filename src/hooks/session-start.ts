@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
+import { readStdin } from './stdin.js';
 
 /**
  * Agy's stand-in for the `SessionStart` hook it does not have.
@@ -20,13 +21,18 @@ import { yanHome } from '../util/home.js';
  * transient system message: yan reads its own startup report rather than
  * having it printed past it into a pane nobody is reading.
  *
+ * The picture it rebuilds is the main agent's. A shift working on the yan
+ * repository inherits this repository's hook registrations and would have that
+ * picture injected into its own context; `YAN_SID` is set in a shift's
+ * environment and never in the main agent's, so it is what tells them apart.
+ *
  * Every path prints an object, because a `PreInvocation` hook that says
  * nothing is a hook whose contract was broken. Nothing here is worth failing a
  * turn for: a session that starts without its picture is a session that runs
  * `yan session-start` by hand.
  */
 
-export interface SessionStartIo {
+interface SessionStartIo {
   /** stderr: where a failure goes, for the agy log rather than the model. */
   readonly note: (line: string) => void;
   /** stdout: the `PreInvocation` decision object. */
@@ -54,6 +60,9 @@ export async function sessionStart(io: SessionStartIo): Promise<number> {
     io.say('{}');
     return 0;
   };
+
+  // A shift's agy, not the main agent's: the task picture is not its business.
+  if ((process.env.YAN_SID ?? '') !== '') return nothing();
 
   const task = process.env.YAN_TASK ?? '';
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) return nothing();
@@ -107,31 +116,6 @@ export async function sessionStart(io: SessionStartIo): Promise<number> {
   return 0;
 }
 
-/**
- * The payload, or what arrived before `timeoutMs`. Agy's hooks block its loop,
- * so a stdin that is never closed would stall the session rather than this
- * process alone.
- */
-function readStdin(timeoutMs: number): Promise<string> {
-  return new Promise((resolve) => {
-    let text = '';
-    let settled = false;
-    const done = (): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      process.stdin.pause();
-      resolve(text);
-    };
-    const timer = setTimeout(done, timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk: string) => {
-      text += chunk;
-    });
-    process.stdin.on('end', done);
-    process.stdin.on('error', done);
-  });
-}
 
 const invokedDirectly =
   process.argv[1] !== undefined && /[\\/]session-start\.js$/.test(process.argv[1]);

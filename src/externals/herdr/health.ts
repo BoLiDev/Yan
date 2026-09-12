@@ -1,5 +1,5 @@
 import { runHerdr } from './cli.js';
-import { asRecord } from './parse.js';
+import { asRecord } from '../../util/narrow.js';
 import type { HerdrHealth } from './types.js';
 
 /**
@@ -34,10 +34,22 @@ export function herdrHealth(): HerdrHealth | undefined {
 /** `herdr integration status` parsed into name → state; `{}` when it fails. */
 function integrationStatus(): Record<string, string> {
   const result = runHerdr(['integration', 'status']);
-  if (result.code !== 0) return {};
+  return result.code === 0 ? parseIntegrationStatus(result.stdout) : {};
+}
+
+/**
+ * One line per integration, `<name>: <state> (<path>)`. The state is two words
+ * as often as one — `not installed` — so it is read up to the path rather than
+ * as the next token, which used to leave every caller holding `not`.
+ *
+ * The path is dropped: where the hook file would go is herdr's business, and
+ * every entry herdr knows about is listed whether it is installed or not, so
+ * the state is the whole of the answer.
+ */
+export function parseIntegrationStatus(text: string): Record<string, string> {
   const status: Record<string, string> = {};
-  for (const line of result.stdout.split(/\r?\n/)) {
-    const match = /^\s*([a-z0-9_-]+):\s+(\S+)/.exec(line);
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*([a-z0-9_-]+):\s+([^(]+?)\s*(?:\(.*\))?$/.exec(line);
     if (match !== null) status[match[1] as string] = match[2] as string;
   }
   return status;

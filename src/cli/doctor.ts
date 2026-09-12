@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { gitOut, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
-import { activeVaultName, cloneRoot, machineConfigPath } from '../util/machine.js';
+import { cloneRoot, machineConfigPath, readMachine } from '../util/machine.js';
 import { VAULT_VERSION, readVaultJson, vaultDirIfAny } from '../util/vault.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
 import { configuredCli } from '../externals/remote-git/index.js';
@@ -107,7 +107,7 @@ function checkRequired(report: Report): void {
 function checkVault(report: Report): void {
   const dir = vaultDirIfAny();
   if (dir === undefined) {
-    const active = activeVaultName();
+    const active = readMachine().active;
     line(report, 'fail', 'vault',
       active === undefined
         ? `none registered in ${machineConfigPath()} - 'yan vault init <name> --remote <url>', or 'yan vault clone <url>'`
@@ -276,8 +276,10 @@ function checkHerdr(report: Report, agents: Record<string, string>): void {
   }
   for (const kind of kinds) {
     const name = integrationOf(kind);
+    // herdr lists every integration it knows, installed or not, so an entry is
+    // not the same as an installation.
     const state = installed[name];
-    if (state === undefined) {
+    if (state === undefined || state.startsWith('not ')) {
       line(report, 'warn', kind,
         `no herdr integration installed - 'herdr integration install ${name}' records the agent's session id`,
       );
@@ -414,11 +416,14 @@ export const command = new Command('doctor')
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7
       // the Claude and Codex integrations report session identity only and
-      // never push state, so `blocked` and `done` are screen matches either way
+      // never push state, so `blocked` and `done` are screen matches either
+      // way, and a shift's own report is the half that does not depend on a
+      // screen being recognised.
       out('');
       out('  note  an installed integration records the agent session id. It does not');
       out('        make agent state authoritative: for claude and codex, Herdr classifies');
-      out('        state by matching the screen, so `run/signal` stays the other half of');
+      out('        state by matching the screen, so `run/signal` - what a shift reports');
+      out('        with `yan report` - stays the other half of supervision.');
 
       out('');
       out(`${report.ok} ok, ${report.warn} warn, ${report.fail} failed`);

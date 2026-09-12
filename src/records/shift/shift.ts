@@ -3,10 +3,10 @@ import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import { tasksDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { Task } from '../task/index.js';
-import { ShiftError } from './errors.js';
 import { readMeta } from './meta.js';
 import { appendEvent, countEvents, reportedMr } from './status.js';
 import type { ShiftMeta } from './types.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory. Holds
@@ -22,11 +22,11 @@ export class Shift {
   /**
    * @param task the task id, or '' when it is unknown.
    * @param dir overrides the standard `<task>/shifts/<sid>` location.
-   * @throws ShiftError when `sid` is not a valid id.
+   * @throws YanError when `sid` is not a valid id.
    */
   public constructor(task: string, sid: string, dir?: string) {
     if (!Shift.isId(sid)) {
-      throw ShiftError.usage(
+      throw YanError.usage('shift_usage',
         `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
       );
     }
@@ -74,12 +74,12 @@ export class Shift {
    * Find an existing shift by id, scanning `tasks/*​/shifts/<sid>`.
    *
    * @param task narrows the search; defaults to `$YAN_TASK`.
-   * @throws ShiftError `missing` when nothing matches, `ambiguous` when the id
+   * @throws YanError `shift_missing` when nothing matches, `shift_ambiguous` when the id
    *   exists under more than one task and no task was named.
    */
   public static resolve(sid: string, task = ''): Shift {
     if (!Shift.isId(sid)) {
-      throw ShiftError.usage(
+      throw YanError.usage('shift_usage',
         `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
       );
     }
@@ -88,8 +88,7 @@ export class Shift {
     if (want !== '') {
       const shift = new Shift(want, sid);
       if (!existsSync(shift.dir)) {
-        throw new ShiftError(
-          'missing',
+        throw new YanError('shift_missing',
           `no such shift: ${sid} in task ${want} - ${shift.dir} does not exist`,
         );
       }
@@ -106,15 +105,13 @@ export class Shift {
     const hits = ids.filter((id) => existsSync(join(dir, id, 'shifts', sid)));
 
     if (hits.length === 0) {
-      throw new ShiftError(
-        'missing',
+      throw new YanError('shift_missing',
         `no such shift: ${sid} - nothing matches ${dir}/*/shifts/${sid}`,
       );
     }
     if (hits.length > 1) {
-      throw new ShiftError(
-        'ambiguous',
-        `shift id '${sid}' exists in more than one task - name the task, for example --task <id>\n${hits
+      throw new YanError('shift_ambiguous',
+        `shift id '${sid}' exists in more than one task - set $YAN_TASK to say which\n${hits
           .map((h) => `  ${h}`)
           .join('\n')}`,
       );
@@ -126,11 +123,11 @@ export class Shift {
    * Point at a shift given its directory. The task id is recovered only from a
    * `…/<task>/shifts/<sid>` path and is `''` otherwise.
    *
-   * @throws ShiftError when `dir` is empty or does not exist.
+   * @throws YanError when `dir` is empty or does not exist.
    */
   public static fromDir(dir: string): Shift {
-    if (!dir) throw ShiftError.usage('a shift directory is required');
-    if (!existsSync(dir)) throw new ShiftError('missing', `no such directory: ${dir}`);
+    if (!dir) throw YanError.usage('shift_usage', 'a shift directory is required');
+    if (!existsSync(dir)) throw new YanError('shift_missing', `no such directory: ${dir}`);
     const abs = normalizePath(resolvePath(dir));
     const parent = dirname(abs);
     const task = basename(parent) === 'shifts' ? basename(dirname(parent)) : '';

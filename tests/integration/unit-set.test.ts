@@ -89,7 +89,7 @@ beforeAll(async () => {
   process.env.YAN_HOME = home;
   Task.create('t1', 'a demo task');
   for (const name of ['auth', 'proto']) {
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', name, '--repo', 'demo', '--target', 'main']);
+    const r = await runYan(home, ['unit', 'add', '--unit', name, '--repo', 'demo', '--target', 'main'], { YAN_TASK: 't1' });
     expect(r.code, r.out).toBe(0);
   }
   expect(unitField('auth', 'branch')).toBe('yan/t1-auth-r1');
@@ -106,20 +106,20 @@ afterAll(() => {
 
 describe('what it refuses before it touches anything', () => {
   it('changes nothing unless asked, and names the missing identifiers', async () => {
-    const r = await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth']);
+    const r = await runYan(home, ['unit', 'set', '--unit', 'auth'], { YAN_TASK: 't1' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('nothing to change');
-    expect((await runYan(home, ['unit', 'set', '--unit', 'auth', '--branch', 'x'])).out).toContain('--task is required');
+    expect((await runYan(home, ['unit', 'set', '--unit', 'auth', '--branch', 'x'])).out).toContain('$YAN_TASK is unset');
   });
 
   it("takes 'delivered' or 'abandoned' for --end; the host's own words never leak in", async () => {
-    const r = await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth', '--end', 'merged', '--branch', 'x']);
+    const r = await runYan(home, ['unit', 'set', '--unit', 'auth', '--end', 'merged', '--branch', 'x'], { YAN_TASK: 't1' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('delivered');
   });
 
   it('refuses --end without --branch: it says how the round being replaced finished', async () => {
-    const r = await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'auth', '--end', 'delivered', '--target', 'main']);
+    const r = await runYan(home, ['unit', 'set', '--unit', 'auth', '--end', 'delivered', '--target', 'main'], { YAN_TASK: 't1' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('only applies to --branch');
   });
@@ -163,7 +163,9 @@ describe('a round with nothing on it is replaced without an interrogation', () =
 
 describe('an open MR does not block the rotation any more', () => {
   it('rotates, records the round as `unknown`, and says the MR is still open', async () => {
-    new Task('t1').unit('auth').set('mr', MR);
+    new Task('t1').editUnit('auth', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'open';
 
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r3', at: '2026-08-26' });
@@ -182,7 +184,9 @@ describe('an open MR does not block the rotation any more', () => {
   });
 
   it("still takes `user`'s own answer through --end, and needs no reason for it", () => {
-    new Task('t1').unit('proto').set('mr', MR);
+    new Task('t1').editUnit('proto', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'open';
     const r = run({ task: 't1', unit: 'proto', branch: 'feat/proto-r2', end: 'abandoned' });
     expect(r.code, r.message).toBe(0);
@@ -194,7 +198,9 @@ describe('an open MR does not block the rotation any more', () => {
 
 describe('a host that cannot answer is recorded, not obeyed', () => {
   it('writes `unknown` and carries on', () => {
-    new Task('t1').unit('auth').set('mr', MR);
+    new Task('t1').editUnit('auth', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'unknown';
 
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r4' });
@@ -210,7 +216,9 @@ describe('a host that cannot answer is recorded, not obeyed', () => {
 describe('merged means delivered', () => {
   it('starts the next round from target, which already contains the old one', async () => {
     hostSays = 'merged';
-    new Task('t1').unit('auth').set('mr', MR);
+    new Task('t1').editUnit('auth', (u) => {
+      u.mr = MR;
+    });
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r5', at: '2026-08-27' });
     expect(r.code, r.message).toBe(0);
 
@@ -235,7 +243,9 @@ describe('merged means delivered', () => {
 
 describe('closed means abandoned', () => {
   it('is decided by the host, not by the caller', () => {
-    new Task('t1').unit('proto').set('mr', MR);
+    new Task('t1').editUnit('proto', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'closed';
     const r = run({
       task: 't1',
@@ -269,10 +279,10 @@ describe("the built-in default carries the NEXT round's number", () => {
 
 describe('the three plain scalars, each of them a decision', () => {
   it('sets target and scope', async () => {
-    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--target', 'release/8'])).code).toBe(0);
+    expect((await runYan(home, ['unit', 'set', '--unit', 'proto', '--target', 'release/8'], { YAN_TASK: 't1' })).code).toBe(0);
     expect(unitField('proto', 'target')).toBe('release/8');
 
-    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--scope', 'libs/proto', '--scope', 'libs/shared'])).code).toBe(0);
+    expect((await runYan(home, ['unit', 'set', '--unit', 'proto', '--scope', 'libs/proto', '--scope', 'libs/shared'], { YAN_TASK: 't1' })).code).toBe(0);
     expect(unitField('proto', 'scope')).toEqual(['libs/proto', 'libs/shared']);
   });
 });
@@ -304,7 +314,7 @@ describe('the work on the old round is carried forward', () => {
 
   beforeAll(async () => {
     work = await mkClone(bare, join(mkTempDir('yan-work-'), 'work'));
-    await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'carry', '--repo', 'demo', '--target', 'main']);
+    await runYan(home, ['unit', 'add', '--unit', 'carry', '--repo', 'demo', '--target', 'main'], { YAN_TASK: 't1' });
 
     // Real work on the round that is about to be replaced.
     await fxGit(['checkout', '-b', 'yan/t1-carry-r1', 'origin/main'], work);
@@ -351,7 +361,9 @@ describe('the work on the old round is carried forward', () => {
 
     await fxGit(['fetch', 'origin'], clone);
     await fxGit(['branch', '--force', 'side', 'origin/side'], clone);
-    new Task('t1').unit('carry').set('branch', 'side');
+    new Task('t1').editUnit('carry', (u) => {
+      u.branch = 'side';
+    });
 
     const r = run({ task: 't1', unit: 'carry', branch: 'feat/carry-r3', base: 'main' });
     expect(r.code, 'a conflict does not fail the rotation: the branch and the history are right').toBe(0);

@@ -6,6 +6,6 @@
   // test run would say so. `npm run typecheck` uses this one.
   "extends": "./tsconfig.json",
   "compilerOptions": { "noEmit": true, "rootDir": "." },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": []
 }

@@ -42,7 +42,7 @@ async function yan(args: readonly string[]) {
 }
 
 async function detail(id: string): Promise<{ title: string; units: Array<Record<string, unknown>> }> {
-  const r = await yan(['ls', id, '--json']);
+  const r = await yan(['show', id, '--json']);
   expect(r.code, r.out).toBe(0);
   return JSON.parse(r.stdout) as { title: string; units: Array<Record<string, unknown>> };
 }

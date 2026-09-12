@@ -27,9 +27,16 @@ import { yanHome } from '../util/home.js';
  *
  * Reads no stdin, and never blocks a turn: `turnend-guard.ts` is what notices
  * an autoarm that did not run at all.
+ *
+ * This hook is the main agent's, and only the main agent's. A shift working on
+ * the yan repository sits in a worktree carrying this repository's own hook
+ * registrations, so its harness fires this file too — and an autoarm that runs
+ * for a shift takes the task's single-flight lock and swallows the wake meant
+ * for yan. `YAN_SID` is set in a shift's environment and never in the main
+ * agent's, so it is what tells the two apart.
  */
 
-export interface AutoarmIo {
+interface AutoarmIo {
   /** stderr: what the Claude model reads, and where a warning goes. */
   readonly note: (line: string) => void;
   /** stdout: agy's decision object, and nothing at all for Claude. */
@@ -56,6 +63,9 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
     return 2;
   };
 
+  // A shift's harness, not the main agent's: supervision is not its business.
+  if ((process.env.YAN_SID ?? '') !== '') return quiet();
+
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) return quiet();
 
   const sup = new Supervision(task);
@@ -71,10 +81,21 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
 
   // No --seconds: the unbounded shape. Its stdout is the reason, which becomes
   // the banner Claude shows the model.
-  const watcher = spawnSync(process.execPath, [yan, 'wait', '--task', task], {
+  // The task goes through the environment, which is where every command
+  // reads it from: `yan wait <id>` would work too, and then there would be
+  // two places a hook could name the wrong task.
+  //
+  // A subprocess rather than an imported `watch()`, on purpose. `watch()`
+  // registers process-wide `exit`, SIGINT and SIGTERM handlers that release
+  // the single-flight lock and then call `process.exit`, so an interrupted
+  // watcher inside this process would take the hook with it before it could
+  // say `stop` or `continue` — and the harness would read an empty stdout as a
+  // broken contract. A child also means the harness owns the process group,
+  // which is what keeps a watcher from outliving the session.
+  const watcher = spawnSync(process.execPath, [yan, 'wait'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
-    env: { ...process.env, YAN_HOME: home },
+    env: { ...process.env, YAN_HOME: home, YAN_TASK: task },
     windowsHide: true,
   });
 
@@ -96,7 +117,7 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
     default:
       // Supervision did not start, and the turn is let through anyway.
       io.note(
-        `'yan wait' exited ${String(watcher.status)} without arming supervision - 'yan ls ${task}' shows what is live`,
+        `'yan wait' exited ${String(watcher.status)} without arming supervision - 'yan show ${task}' shows what is live`,
       );
       return quiet();
   }

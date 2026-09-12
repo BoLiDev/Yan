@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import {
   cleanupTempDirs,
+  fxGit,
+  mkBareRemote,
+  mkClone,
   mkTempDir,
   mkYanHome,
   registerRepo,
@@ -12,7 +15,9 @@ import {
 } from '../helpers/fixtures.js';
 import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
 import { Task } from '../../src/records/task/index.js';
-import { WorktreeError, type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { YanError } from '../../src/util/error.js';
+import type { ShiftMeta } from '../../src/records/shift/index.js';
 
 /**
  * `yan shift new`. Two properties are what this file is for: a dispatch whose
@@ -37,9 +42,9 @@ class FakePool {
   public full = false;
   public lease = 'lease-abc123';
 
-  public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
+  public get(_size: number, base: string, branch: string, holder: string): LeaseGrant {
     calls.push(`pool_get base=${base} branch=${branch} holder=${holder} brief=${briefState()}`);
-    if (this.full) throw new WorktreeError('full', 'the pool is full');
+    if (this.full) throw new YanError('worktree_full', 'the pool is full');
     return { path: this.path, lease_id: this.lease, holder };
   }
 
@@ -119,7 +124,7 @@ function enterLock(task: string, pane: string): void {
   );
 }
 
-function run(options: NewOptions): { code: number; message: string; meta: Record<string, unknown> } {
+function run(options: NewOptions): { code: number; message: string; meta: Partial<ShiftMeta> } {
   try {
     return { code: 0, message: '', meta: dispatch({ scenario: 'coding', ...options }, deps()) };
   } catch (err) {
@@ -579,7 +584,7 @@ describe('dispatching does not touch target', () => {
 
 describe('usage', () => {
   it('names what is missing', () => {
-    expect(run({ unit: 'auth' }).message).toContain('--task is required');
+    expect(run({ unit: 'auth' }).message).toContain('$YAN_TASK is unset');
     expect(run({ task: 't042' }).message).toContain('--unit is required');
     const r = run({ task: 't042', unit: 'nosuch' });
     expect(r.code).toBe(2);
@@ -588,7 +593,7 @@ describe('usage', () => {
 
   it('is reachable as `yan shift new` through the dispatcher', async () => {
     writeFileSync(join(home, 'config.json'), readFileSync(join(home, 'config.json'), 'utf8'));
-    const r = await runYan(home, ['shift', 'new', '--task', 't042']);
+    const r = await runYan(home, ['shift', 'new'], { YAN_TASK: 't042' });
     expect(r.out).toContain('--unit is required');
   });
 });
@@ -677,5 +682,50 @@ describe('a shift stays for the rounds of rework', () => {
     expect(body).toContain('reset yan/t042-auth-s1 onto origin/feat/auth');
     expect(body).toContain('open a new merge request');
     expect(body).toContain('may name a file');
+  });
+});
+
+describe('the integration branch is on origin before anything is cut from it', () => {
+  /**
+   * `yan unit add` makes the branch in the clone alone, so without this the
+   * first shift of a round opens its merge request against a base the forge
+   * has never heard of - and ends up pushing somebody else's branch itself.
+   */
+  async function realRepo(branchOnOrigin: boolean): Promise<{ bare: string; dir: string }> {
+    const tmp = mkTempDir();
+    const bare = await mkBareRemote(join(tmp, 'origin.git'));
+    const dir = await mkClone(bare, join(tmp, 'clone'));
+    await fxGit(['branch', 'feat/solo', 'main'], dir);
+    if (branchOnOrigin) await fxGit(['push', 'origin', 'feat/solo'], dir);
+    registerRepo(home, 'solo-repo', dir);
+    new Task('t042').addUnit('solo', 'solo-repo', 'main', { branch: 'feat/solo' });
+    return { bare, dir };
+  }
+
+  async function headsOn(bare: string): Promise<string> {
+    return (await fxGit(['ls-remote', '--heads', bare])).stdout;
+  }
+
+  it('pushes it when only the clone has it', async () => {
+    const { bare } = await realRepo(false);
+    expect(await headsOn(bare)).not.toContain('feat/solo');
+
+    const r = run({ task: 't042', unit: 'solo', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(await headsOn(bare)).toContain('refs/heads/feat/solo');
+  });
+
+  it('leaves one that is already there alone, and never forces', async () => {
+    const { bare, dir } = await realRepo(true);
+    const before = await headsOn(bare);
+    // A commit the remote has not seen: a push here would move the branch
+    // under whoever else is working on it.
+    await fxGit(['checkout', 'feat/solo'], dir);
+    await fxGit(['commit', '--allow-empty', '-m', 'local only'], dir);
+    await fxGit(['checkout', 'main'], dir);
+
+    const r = run({ task: 't042', unit: 'solo', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(await headsOn(bare)).toBe(before);
   });
 });

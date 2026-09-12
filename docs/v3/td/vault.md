@@ -180,7 +180,7 @@ which clones, reads `vault.json` for the name, registers, activates — and then
 
 ## 5. Sync
 
-Two commands, and they are deliberately not one. `yan sync` already means something else entirely — bring a unit's integration branch up to date with its target — and a `yan vault sync` sitting next to it would be a name collision in the only place it matters, which is a tired person's memory.
+Two commands, and they are deliberately not one. `sync` already reads as something else entirely — bring a unit's integration branch up to date with its target — and a `yan vault sync` would be a name collision in the only place it matters, which is a tired person's memory. (No `yan sync` was ever built: catching a branch up is done by hand in the registered clone.)
 
 ```
 yan vault pull          fetch + rebase. Read-only with respect to the remote
