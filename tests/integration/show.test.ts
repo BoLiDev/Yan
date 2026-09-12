@@ -200,8 +200,9 @@ describe('one task at a glance', () => {
     expect(narrow.stdout).toContain('…');
   });
 
-  it('is what yan ls <id> prints', async () => {
-    expect((await show(['ls', 't042'])).stdout).toBe((await show(['show', 't042'])).stdout);
+  it('is the only command that prints it: yan ls is the queue alone', async () => {
+    const r = await show(['ls', 't042']);
+    expect(r.code, 'one task in depth is yan show').toBe(2);
   });
 });
 
@@ -209,7 +210,13 @@ describe('choosing, and refusing', () => {
   it('needs an id when there is no terminal to choose on', async () => {
     const r = await show(['show']);
     expect(r.code).toBe(2);
-    expect(r.out).toContain("pass 'yan show <id>'");
+    expect(r.out).toContain("'yan show <task-id>'");
+  });
+
+  it('falls back to the task this session is in', async () => {
+    const r = await show(['show'], { YAN_TASK: 't042' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('unify the auth header');
   });
 
   it('refuses a task that does not exist', async () => {

@@ -62,7 +62,7 @@ beforeAll(async () => {
 
 describe('target is never defaulted', () => {
   it('refuses an add with no --target, and writes nothing', async () => {
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'auth', '--repo', 'demo'], { YAN_TASK: 't1' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('--target is required');
     expect(r.out).toContain('no safe default');
@@ -70,14 +70,14 @@ describe('target is never defaulted', () => {
   });
 
   it('names the other missing arguments too', async () => {
-    expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main'])).out).toContain('--task is required');
-    expect((await runYan(home, ['unit', 'add', '--task', 't1', '--repo', 'demo', '--target', 'main'])).out).toContain('--unit is required');
-    expect((await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'a', '--target', 'main'])).out).toContain('--repo is required');
+    expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main'])).out).toContain('$YAN_TASK is unset');
+    expect((await runYan(home, ['unit', 'add', '--repo', 'demo', '--target', 'main'], { YAN_TASK: 't1' })).out).toContain('--unit is required');
+    expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--target', 'main'], { YAN_TASK: 't1' })).out).toContain('--repo is required');
   });
 
   it('refuses an unknown option and an unknown task', async () => {
-    expect((await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'a', '--repo', 'demo', '--target', 'main', '--bogus'])).code).not.toBe(0);
-    const r = await runYan(home, ['unit', 'add', '--task', 'nope', '--unit', 'a', '--repo', 'demo', '--target', 'main']);
+    expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main', '--bogus'], { YAN_TASK: 't1' })).code).not.toBe(0);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main'], { YAN_TASK: 'nope' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('no such task');
   });
@@ -85,7 +85,7 @@ describe('target is never defaulted', () => {
 
 describe('with no hook installed, the built-in default applies', () => {
   it('cuts yan/<task>-<unit>-r1 from the target', async () => {
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo', '--target', 'main', '--scope', 'apps/auth']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'auth', '--repo', 'demo', '--target', 'main', '--scope', 'apps/auth'], { YAN_TASK: 't1' });
     expect(r.code, r.out).toBe(0);
     expect(unitField('t1', 'auth', 'branch')).toBe('yan/t1-auth-r1');
     expect(unitField('t1', 'auth', 'target')).toBe('main');
@@ -102,7 +102,7 @@ describe('with no hook installed, the built-in default applies', () => {
   });
 
   it('refuses a second unit of the same name', async () => {
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'auth', '--repo', 'demo', '--target', 'main']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'auth', '--repo', 'demo', '--target', 'main'], { YAN_TASK: 't1' });
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('already exists');
   });
@@ -120,7 +120,7 @@ describe('a name of your own, however it is spelled', () => {
       ['origin/team/AUTH-124', 'team/AUTH-124', 'spelled-origin'],
       ['"team/AUTH-125"', 'team/AUTH-125', 'spelled-quoted'],
     ] as const) {
-      const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', unit, '--repo', 'demo', '--target', 'main', '--branch', given]);
+      const r = await runYan(home, ['unit', 'add', '--unit', unit, '--repo', 'demo', '--target', 'main', '--branch', given], { YAN_TASK: 't1' });
       expect(r.code, r.out).toBe(0);
       expect(unitField('t1', unit, 'branch'), given).toBe(expected);
       expect(await hasBranch(expected)).toBe(true);
@@ -128,7 +128,7 @@ describe('a name of your own, however it is spelled', () => {
   });
 
   it('refuses a name no normalisation can rescue, and quotes what was given', async () => {
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'bad', '--repo', 'demo', '--target', 'main', '--branch', 'refs/heads/']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'bad', '--repo', 'demo', '--target', 'main', '--branch', 'refs/heads/'], { YAN_TASK: 't1' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('not usable as a git ref');
     expect(r.out, 'the raw text, or the reader hunts for a name their tool never printed').toContain('refs/heads/');
@@ -142,7 +142,7 @@ describe('making the branch exist', () => {
     await fxGit(['-C', clone, 'update-ref', '-d', 'refs/remotes/origin/already/there']);
     expect(await hasBranch('already/there')).toBe(false);
 
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'legacy', '--repo', 'demo', '--target', 'main', '--branch', 'already/there']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'legacy', '--repo', 'demo', '--target', 'main', '--branch', 'already/there'], { YAN_TASK: 't1' });
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain('adopted');
     expect(await hasBranch('already/there')).toBe(true);
@@ -152,7 +152,7 @@ describe('making the branch exist', () => {
   });
 
   it('refuses a base that does not exist rather than inventing one', async () => {
-    const r = await runYan(home, ['unit', 'add', '--task', 't1', '--unit', 'ghost', '--repo', 'demo', '--target', 'no/such/branch']);
+    const r = await runYan(home, ['unit', 'add', '--unit', 'ghost', '--repo', 'demo', '--target', 'no/such/branch'], { YAN_TASK: 't1' });
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('cannot resolve the base');
     expect(unitField('t1', 'ghost', 'branch')).toBe('');

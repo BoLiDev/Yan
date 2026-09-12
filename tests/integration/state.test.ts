@@ -164,7 +164,7 @@ describe('run/ gone means clocked out', () => {
 describe('through bin/yan', () => {
   it('renders the human view without surfacing the newest event', async () => {
     meta({ unit: 'auth', branch: 'yan/t042/s1', agent: 'claude' });
-    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('state      unknown');
     expect(r.stdout).not.toContain(TRAP_NOTE);
@@ -174,7 +174,7 @@ describe('through bin/yan', () => {
 
   it('reports the same derivation as JSON', async () => {
     meta({ unit: 'auth' });
-    const r = await runYan(home, ['state', 's1', '--task', 't042', '--json']);
+    const r = await runYan(home, ['state', 's1', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
     expect(parsed.state).toBe('unknown');
@@ -184,9 +184,9 @@ describe('through bin/yan', () => {
 
   it('refuses a missing id, both output flags at once, and an unknown shift', async () => {
     expect((await runYan(home, ['state'])).code, 'a shift id is required').toBe(2);
-    const both = await runYan(home, ['state', 's1', '--json', '--verdict', '--task', 't042']);
+    const both = await runYan(home, ['state', 's1', '--json', '--verdict'], { YAN_TASK: 't042' });
     expect(both.code, '--json and --verdict are alternatives').toBe(2);
-    expect((await runYan(home, ['state', 'nosuchshift', '--task', 't042'])).code).toBe(1);
+    expect((await runYan(home, ['state', 'nosuchshift'], { YAN_TASK: 't042' })).code).toBe(1);
   });
 });
 
@@ -199,7 +199,7 @@ describe('the pulse says whether the terminal is moving', () => {
   it('says nothing at all when no watcher has taken a reading', async () => {
     // With nobody sampling, "unchanged" is a fact about the watcher rather
     // than about the shift.
-    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('pulse      unsampled');
     expect(r.stdout, 'and says why, without suggesting the watcher is broken').toContain('between yan');
@@ -207,20 +207,20 @@ describe('the pulse says whether the terminal is moving', () => {
 
   it('and says so again when the last reading is too old to be about the shift', async () => {
     pulse(600, 600);
-    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.stdout).toContain('pulse      unsampled');
     expect(r.stdout, 'and how stale it is, so the reason is visible').toContain('last read');
   });
 
   it('reports movement, with how long ago', async () => {
     pulse(2, 0);
-    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.stdout).toContain('pulse      moving');
   });
 
   it('reports stillness as a duration, and never as a verdict', async () => {
     pulse(380, 0);
-    const r = await runYan(home, ['state', 's1', '--task', 't042']);
+    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.stdout).toContain('pulse      still');
     expect(r.stdout).toMatch(/6m\d\ds/);
     // An install is still for minutes and so is a model thinking, so the line
@@ -231,7 +231,7 @@ describe('the pulse says whether the terminal is moving', () => {
 
   it('carries the numbers into the JSON, so nothing has to parse the prose', async () => {
     pulse(380, 1);
-    const r = await runYan(home, ['state', 's1', '--task', 't042', '--json']);
+    const r = await runYan(home, ['state', 's1', '--json'], { YAN_TASK: 't042' });
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
     expect(parsed.motion).toBe('still');
     // Ranges, not equalities: spawning the command costs real wall clock.

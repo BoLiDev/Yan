@@ -181,7 +181,7 @@ function failOpen(harness: Harness, io: GuardIo, count: number, task: string): n
     `yan guard: AUTOMATIC SUPERVISION IS BROKEN - ${count} attempts to arm a watcher for task ${task} have failed, so this turn is being let through.`,
   );
   io.note(
-    `yan guard: nothing is watching the live shifts. Check them by hand with 'yan ls ${task}', or restart yan.`,
+    `yan guard: nothing is watching the live shifts. Check them by hand with 'yan show ${task}', or restart yan.`,
   );
   return letThrough(harness, io);
 }

@@ -6,8 +6,8 @@ import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
+import { chosenTask } from './shared/task-id.js';
 import { tasksDir, vaultDir } from '../util/vault.js';
-import { queueJson } from './ls.js';
 import { isTty } from './shared/resolve.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Task } from '../records/task/index.js';
@@ -15,8 +15,7 @@ import { yanHome } from '../util/home.js';
 import { claim, isStale, owner, release } from '../util/lock.js';
 
 /**
- * `yan continue --task <id>` — start the main agent in the pane this was typed
- * in, as a child sharing its stdin, stdout and stderr. Creates no container
+ * `yan continue <id>` — start the main agent in the pane this was typed in, as a child sharing its stdin, stdout and stderr. Creates no container
  * and focuses nothing.
  *
  * One yan per task: a per-task lock, whose live pid is the fact, holds for
@@ -156,7 +155,7 @@ function currentPane(): string {
 export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Session {
   const id = options.task ?? '';
   if (id === '') {
-    throw CommandError.usage('continue', "which task? pass 'yan continue <id>' or 'yan continue --task <id>'. Choosing from the incomplete tasks interactively needs a terminal; 'yan ls' lists them",
+    throw CommandError.usage('continue', "which task? pass 'yan continue <id>'. Choosing from the incomplete tasks interactively needs a terminal; 'yan ls' lists them",
     );
   }
   if (!Task.exists(id)) {
@@ -269,29 +268,6 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
   };
 }
 
-/**
- * `given`, or a task chosen from the incomplete ones when there is a tty. With
- * no tty it hands `given` straight back for `enterTask` to refuse.
- *
- * @throws CommandError `usage` when there is nothing incomplete to offer.
- */
-async function chooseWhenMissing(given: string): Promise<string> {
-  if (given !== '' || !isTty()) return given;
-
-  const queue = queueJson() as {
-    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
-  };
-  const live = queue.tasks.filter((t) => !t.complete);
-  if (live.length === 0) {
-    throw CommandError.usage('continue', "there are no incomplete tasks to continue - 'yan task new' starts one");
-  }
-
-  const { chooseTask } = await import('../ui/prompts.js');
-  return chooseTask(
-    live.map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts })),
-  );
-}
-
 /** Print the enter record for a person. */
 export function renderEntered(record: Entered): void {
   if (record.refused === 'no-terminal') {
@@ -310,33 +286,29 @@ export function renderEntered(record: Entered): void {
 
 export const command = new Command('continue')
   .description('start yan for a task, in this pane')
-  .argument('[task-id]')
-  .option('--task <id>', 'the task to continue')
+  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--agent <cli>', 'override agents.yan for this run')
   .option('--json', 'print what happened instead of a summary')
   .addHelpText(
     'after',
     `
-usage: yan continue <task-id> [--agent <cli>] [--json]
-       yan continue --task <task-id> [--agent <cli>] [--json]
-
 Starts the main agent in THIS pane. No workspace is created and there is
 nothing to join: yan is already in the multiplexer \`user\` is already in.
 
 A second yan on the same task is refused: when one is already running this
 says where it is rather than spawning a duplicate.
 
-With no id and a terminal, this asks which of the incomplete tasks to open.
-Without a terminal it refuses: pass --task <id>.`,
+With no id and a terminal, this asks which of the tasks in progress to open.
+Without a terminal it refuses: pass the id.`,
   )
   .action(
     action('yan continue', async (positional: string | undefined, options: ContinueOptions) => {
-      if (positional !== undefined && positional !== '' && options.task !== undefined && options.task !== '') {
-        throw CommandError.usage('continue', 'only one task id may be given');
-      }
       const session = enterTask({
         ...options,
-        task: await chooseWhenMissing(options.task ?? positional ?? ''),
+        task: await chosenTask('continue', positional, {
+          spelled: 'yan continue',
+          question: 'Which task do you want to continue?',
+        }),
       });
       const { record } = session;
 

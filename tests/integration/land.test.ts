@@ -91,7 +91,7 @@ describe('without `user` asking, nothing happens at all', () => {
   });
 
   it('is not softened by a terminal, because no prompt can supply it', async () => {
-    const r = await runYan(home, ['land', '--task', 't042']);
+    const r = await runYan(home, ['land'], { YAN_TASK: 't042' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('--user-asked');
   });
@@ -187,15 +187,15 @@ describe('nothing to land', () => {
 
     expect(run({ task: 't100', userAsked: true }).message).toContain('nothing to land');
     expect(run({ task: 't100', unit: ['solo'], userAsked: true }).message).toContain(
-      'yan mr --task t100 --unit solo',
+      'yan mr --unit solo',
     );
   });
 });
 
 describe('usage errors', () => {
   it('needs a task and a strategy it understands', async () => {
-    expect((await runYan(home, ['land', '--user-asked'])).out).toContain('--task is required');
-    const bad = await runYan(home, ['land', '--task', 't042', '--user-asked', '--strategy', 'nonsense']);
+    expect((await runYan(home, ['land', '--user-asked'])).out).toContain('$YAN_TASK is unset');
+    const bad = await runYan(home, ['land', '--user-asked', '--strategy', 'nonsense'], { YAN_TASK: 't042' });
     expect(bad.code).toBe(2);
     expect(bad.out).toContain('--strategy');
   });

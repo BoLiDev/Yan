@@ -136,8 +136,14 @@ describe('Clack is an ordinary dependency', () => {
     for (const name of ['askFor', 'chooseEntry', 'chooseTask', 'askTaskNew', 'CREATE_NEW']) {
       expect(prompts[name], name).toBeDefined();
     }
-    for (const source of ['yan.ts', 'continue.ts', 'task.ts']) {
-      expect(read('src', 'cli', source), source).toContain("await import('../ui/prompts.js')");
+    // Every file that reaches for a prompt, with the specifier its own depth
+    // needs: `shared/task-id.ts` is one level further down than the rest.
+    for (const [source, specifier] of [
+      ['yan.ts', "await import('../ui/prompts.js')"],
+      ['task.ts', "await import('../ui/prompts.js')"],
+      ['shared/task-id.ts', "await import('../../ui/prompts.js')"],
+    ] as const) {
+      expect(read('src', 'cli', ...source.split('/')), source).toContain(specifier);
     }
   });
 });

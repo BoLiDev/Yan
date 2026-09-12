@@ -460,15 +460,12 @@ function renderSkills(skills: readonly Skill[]): void {
 
 export const command = new Command('session-start')
   .description('rebuild the picture from disk, the terminal, the pool and the forge')
-  .argument('[task]')
-  .option('--task <id>', 'the task to rebuild')
+  .argument('[task-id]', 'the task; defaults to $YAN_TASK, and to every task when that is unset')
   .option('--all', 'every task, even when $YAN_TASK is set')
   .option('--json', 'the same facts, machine readable')
   .addHelpText(
     'after',
     `
-usage: yan session-start [<task-id>] [--task <id>] [--all] [--json]
-
   (no id)   the task in $YAN_TASK, or every task when that is unset
   --all     every task, even when $YAN_TASK is set
 
@@ -481,11 +478,11 @@ treated as an error: a fresh machine has no Herdr server yet, and a train has
 no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
   )
   .action(
-    action('yan session-start', (positional: string | undefined, options: { task?: string; all?: boolean; json?: boolean }) => {
+    action('yan session-start', (positional: string | undefined, options: { all?: boolean; json?: boolean }) => {
       if (options.all === true && positional !== undefined && positional !== '') {
         throw CommandError.usage('session_start', '--all and a task id are alternatives');
       }
-      const id = options.all === true ? '' : (options.task ?? positional ?? process.env.YAN_TASK ?? '');
+      const id = options.all === true ? '' : (positional ?? process.env.YAN_TASK ?? '');
 
       // Registered as the SessionStart hook, so a shift working on this
       // repository fires it too and would start with the main agent's whole

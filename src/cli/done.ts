@@ -23,8 +23,8 @@ import { Task } from '../records/task/index.js';
  * halfway is found too. `run/` is read for one thing only: which pane an agent
  * is in.
  *
- * Which task: an explicit id or `--task`, then `$YAN_TASK`, then a
- * multi-select when there is a tty, then a refusal. Several tasks are all
+ * Which task: an explicit id, then `$YAN_TASK`, then a multi-select when
+ * there is a tty, then a refusal. Several tasks are all
  * attempted and all reported, and the exit code is the first failure's.
  *
  * Without `--force` it refuses rather than destroys. With it, live shifts are
@@ -263,7 +263,7 @@ async function whichTasks(named: string): Promise<string[]> {
   if (fromEnv !== '') return [fromEnv];
 
   if (!isTty()) {
-    throw CommandError.usage('done', 'which task? pass it as the argument, or set $YAN_TASK');
+    throw CommandError.usage('done', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
   }
 
   const open = finishableTasks();
@@ -296,22 +296,20 @@ function render(o: Outcome): void {
 export const command = new Command('done')
   .description('mark a task done and give its worktrees back')
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
-  .option('--task <id>', 'the task, as a flag instead of the argument')
   .option('--force', "user has said the uncommitted changes can be thrown away")
   .option('--json', 'print the record instead of a summary')
   .addHelpText(
     'after',
     `
-usage: yan done [<task-id>] [--task <id>] [--force] [--json]
-
 Sets complete in task.json and returns every tree the pool is holding for this
 task. The two are one event: a finished task whose trees are still leased
 shrinks the pool by a slot, and the pool refuses rather than grows.
 
 With no id and a terminal, it asks - and it is a MULTI-select, because a round
 that lands usually finishes more than one task. With no id and no terminal it
-refuses and names the flag, so nothing ever hangs waiting for an answer that is
-not coming. An explicit id always wins, then $YAN_TASK, then the prompt.
+refuses and names the argument, so nothing ever hangs waiting for an answer
+that is not coming. An explicit id always wins, then $YAN_TASK, then the
+prompt.
 
 Which trees belong to the task is asked of the pool, whose holder is
 <task>/<unit>/<sid> - so a tree left behind by a teardown that stopped halfway
@@ -333,10 +331,7 @@ yan must not reach for --force on its own initiative.`,
   )
   .action(
     action('yan done', async (positional: string | undefined, options: DoneOptions) => {
-      if (positional !== undefined && options.task !== undefined && positional !== options.task) {
-        throw CommandError.usage('done', `two different tasks named: '${positional}' and '--task ${options.task}' - pass one`);
-      }
-      const tasks = await whichTasks(options.task ?? positional ?? '');
+      const tasks = await whichTasks(positional ?? '');
 
       // Nothing to offer is one line and exit 0, not a failure.
       if (tasks.length === 0) {

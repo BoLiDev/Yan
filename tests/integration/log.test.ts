@@ -31,8 +31,8 @@ describe('yan log', () => {
     expect(log()).toMatch(/\n- \d{2}-\d{2} {2}agreed {5}user chose copy-at-creation over live inheritance\n$/);
   });
 
-  it('takes --task over the environment', async () => {
-    const r = await runYan(home, ['log', 'paused', 'user is away; s3 still running', '--task', 't042'], { YAN_TASK: '' });
+  it('takes the task from the environment', async () => {
+    const r = await runYan(home, ['log', 'paused', 'user is away; s3 still running'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(log()).toContain('paused     user is away; s3 still running');
   });
@@ -48,7 +48,7 @@ describe('yan log', () => {
   it('refuses no entry, no task, and a task that does not exist', async () => {
     expect((await runYan(home, ['log', 'agreed'], { YAN_TASK: 't042' })).code).toBe(2);
     expect((await runYan(home, ['log', 'agreed', 'x'], { YAN_TASK: '' })).code).toBe(2);
-    expect((await runYan(home, ['log', 'agreed', 'x', '--task', 't404'])).code).toBe(2);
+    expect((await runYan(home, ['log', 'agreed', 'x'], { YAN_TASK: 't404' })).code).toBe(2);
   });
 
   it('refuses an entry on more than one line', () => {

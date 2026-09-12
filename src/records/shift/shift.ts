@@ -114,7 +114,7 @@ export class Shift {
     if (hits.length > 1) {
       throw new ShiftError(
         'ambiguous',
-        `shift id '${sid}' exists in more than one task - name the task, for example --task <id>\n${hits
+        `shift id '${sid}' exists in more than one task - set $YAN_TASK to say which\n${hits
           .map((h) => `  ${h}`)
           .join('\n')}`,
       );

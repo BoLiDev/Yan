@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { repoDir } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
@@ -52,10 +53,9 @@ interface MrResult {
  *   `no_target` or `not_pushed` for a unit that is not ready.
  */
 export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('mr');
   const unitName = options.unit ?? '';
 
-  if (task === '') throw CommandError.usage('mr', '--task is required');
   if (unitName === '') throw CommandError.usage('mr', '--unit is required');
   if (options.body !== undefined && options.bodyFile !== undefined) {
     throw CommandError.usage('mr', '--body and --body-file are alternatives - pass one');
@@ -65,7 +65,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   const record = new Task(task);
   const unit = record.findUnit(unitName);
   if (unit === undefined) {
-    throw CommandError.usage('mr', `no such unit: ${unitName} in ${task} - 'yan ls ${task}' lists them`);
+    throw CommandError.usage('mr', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);
   }
   const data = unit.read();
 
@@ -149,7 +149,6 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
 
 export const command = new Command('mr')
   .description('open the outbound merge request: integration branch → target')
-  .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
   .option('--title <text>', "defaults to the task's title")
   .option('--body <text>', 'the merge request body')
@@ -159,9 +158,6 @@ export const command = new Command('mr')
   .addHelpText(
     'after',
     `
-usage: yan mr --task <id> --unit <name> [--title <text>]
-              [--body <text> | --body-file <path>] [--draft] [--json]
-
 Opens the outbound merge request for one unit: its integration branch into its
 target. The URL is recorded in unit.mr.
 

@@ -1,13 +1,20 @@
 import { Command } from 'commander';
 import { CommandError } from './shared/errors.js';
 import { DEFAULT_POOL_SIZE, poolSize, repoTarget } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import { WorktreePool } from '../externals/worktree/index.js';
+import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
 
 /**
  * `yan tree get | return | status` — the command layer over the worktree pool:
  * it resolves which repository is meant, reads its `pool_size` from the
  * registry, and formats what the pool reports.
+ *
+ * `get` has two shapes. `--unit <name>` is the standing tree yan and `user`
+ * share for one unit of the task they are in: every value is read off
+ * task.json, so there is nothing to get wrong. The four explicit flags are
+ * what a shift's dispatch and the tests use, and cut a new branch.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 a conditional return was
  * refused because the lease identity did not match (nothing was touched),
@@ -26,34 +33,87 @@ function clone(options: CommonOptions): { clone: string; key: string } {
   return repoTarget('tree', options.repo);
 }
 
+interface GetOptions extends CommonOptions {
+  unit?: string;
+  base?: string;
+  branch?: string;
+  holder?: string;
+  json?: boolean;
+}
+
+/**
+ * The four values `--unit` stands for, read off the unit of the task this is
+ * running in. Both branch flags are the integration branch, which is what
+ * makes it a standing tree rather than a new one: the branch already exists,
+ * so the pool checks it out instead of cutting anything.
+ *
+ * @throws CommandError `usage` when the other flags were passed too, when
+ *   $YAN_TASK is unset, or when the unit is unknown or has no branch.
+ */
+function standingTree(options: GetOptions): { repo: string; base: string; branch: string; holder: string } {
+  const unit = options.unit ?? '';
+  for (const [flag, value] of [['--repo', options.repo], ['--base', options.base], ['--branch', options.branch], ['--holder', options.holder]] as const) {
+    if (value !== undefined && value !== '') {
+      throw CommandError.usage('tree', `${flag} and --unit are alternatives - --unit reads all four off task.json`);
+    }
+  }
+  const task = insideTask('tree');
+  if (!Task.exists(task)) throw CommandError.usage('tree', `no such task: ${task}`);
+  const found = new Task(task).findUnit(unit);
+  if (found === undefined) {
+    throw CommandError.usage('tree', `no such unit: ${unit} in ${task} - 'yan show ${task}' lists them`);
+  }
+  const data = found.read();
+  if (data.branch === '') {
+    throw CommandError.usage('tree', `unit ${unit} has no integration branch yet - 'yan unit set --branch' sets one`);
+  }
+  return { repo: data.repo, base: data.branch, branch: data.branch, holder: `${task}/${unit}` };
+}
+
 const get = new Command('get')
-  .description('lease a tree and cut the shift branch in it')
+  .description('lease a tree: the unit\'s standing tree, or a new branch cut from a base')
+  .option('--unit <name>', "the unit whose standing tree this is; reads the rest off task.json")
   .option('--repo <repo>', 'a repository registered under repos/, or the path to a clone')
   .option('--base <branch>', 'the integration branch the shift branch is cut from')
   .option('--branch <branch>', 'the shift branch to create')
   .option('--holder <holder>', 'who is taking it, in the form <task>/<unit>/<sid>')
   .option('--json', 'print {path, lease_id, holder}')
+  .addHelpText(
+    'after',
+    `
+'yan tree get --unit <name>' is the standing tree: the unit's integration
+branch, held as <task>/<unit> for as long as the task lasts, and where yan and
+\`user\` both work. It takes a pool slot, so pool_size has to cover the shifts
+running at once plus one per unit.`,
+  )
   .action(
     action(
       'yan tree',
-      (options: CommonOptions & { base?: string; branch?: string; holder?: string; json?: boolean }) => {
-        const target = clone(options);
-        if (!options.base) {
+      (options: GetOptions) => {
+        const asked =
+          options.unit !== undefined && options.unit !== ''
+            ? standingTree(options)
+            : { repo: '', base: options.base ?? '', branch: options.branch ?? '', holder: options.holder ?? '' };
+
+        const target = options.unit !== undefined && options.unit !== ''
+          ? repoTarget('tree', asked.repo)
+          : clone(options);
+        if (asked.base === '') {
           throw CommandError.usage('tree', '--base is required: a tree is always cut from an explicit integration branch',
           );
         }
-        if (!options.branch) {
+        if (asked.branch === '') {
           throw CommandError.usage('tree', '--branch is required: leasing a tree creates the shift branch');
         }
-        if (!options.holder) {
+        if (asked.holder === '') {
           throw CommandError.usage('tree', '--holder is required, in the form <task>/<unit>/<sid>');
         }
 
         const grant = new WorktreePool(target.clone).get(
           poolSize(target.key),
-          options.base,
-          options.branch,
-          options.holder,
+          asked.base,
+          asked.branch,
+          asked.holder,
         );
         out(options.json === true ? JSON.stringify(grant, null, 2) : grant.path);
       },
@@ -148,7 +208,7 @@ second is not a confirmation prompt: it records whose decision this was, and a
 single flag would look like a retry.
 
 The pool lives under ~/.yan-trees (YAN_POOL_ROOT overrides it) and its size is
-pool_size in mem/repos.json, default ${DEFAULT_POOL_SIZE}.`,
+pool_size in the vault's repos.json, default ${DEFAULT_POOL_SIZE}.`,
   )
   .addCommand(get)
   .addCommand(returnTree)

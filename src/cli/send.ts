@@ -76,21 +76,18 @@ export const command = new Command('send')
   .description('one line, up to 1000 characters, to a running shift')
   .argument('[sid]')
   .argument('[line]')
-  .option('--task <id>', 'the task the shift belongs to')
   .addHelpText(
     'after',
     `
-usage: yan send <sid> "<line>" [--task <id>]
-
-  one line of up to 1000 characters, never a newline. For more, write it to a
-  file and name the path in the line: "round 2 feedback is in <path>".
+One line of up to 1000 characters, never a newline. For more, write it to a
+file and name the path in the line: "round 2 feedback is in <path>".
 
 Herdr's \`agent prompt\` submits the text and the Enter together, so there is no
 --enter / --no-enter to retry, and no first Enter for the agent to swallow.
 A pane with no live agent is refused rather than typed into.`,
   )
   .action(
-    action('send', (sid: string | undefined, line: string | undefined, options: { task?: string }) => {
-      sendLine(sid, line, options.task ?? '');
+    action('send', (sid: string | undefined, line: string | undefined) => {
+      sendLine(sid, line);
     }),
   );

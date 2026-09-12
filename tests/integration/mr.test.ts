@@ -152,11 +152,11 @@ describe('a host that refuses records nothing', () => {
 
 describe('usage errors', () => {
   it('names what is missing, and refuses two ways of giving a body', async () => {
-    expect((await runYan(home, ['mr', '--task', 't042'])).out).toContain('--unit is required');
-    expect((await runYan(home, ['mr', '--task', 'nosuch', '--unit', 'auth'])).out).toContain('no such task');
-    expect((await runYan(home, ['mr', '--task', 't042', '--unit', 'nosuch'])).out).toContain('no such unit');
+    expect((await runYan(home, ['mr'], { YAN_TASK: 't042' })).out).toContain('--unit is required');
+    expect((await runYan(home, ['mr', '--unit', 'auth'], { YAN_TASK: 'nosuch' })).out).toContain('no such task');
+    expect((await runYan(home, ['mr', '--unit', 'nosuch'], { YAN_TASK: 't042' })).out).toContain('no such unit');
 
-    const both = await runYan(home, ['mr', '--task', 't042', '--unit', 'auth', '--body', 'a', '--body-file', 'b']);
+    const both = await runYan(home, ['mr', '--unit', 'auth', '--body', 'a', '--body-file', 'b'], { YAN_TASK: 't042' });
     expect(both.code).toBe(2);
     expect(both.out).toContain('alternatives');
   });

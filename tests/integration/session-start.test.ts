@@ -143,10 +143,10 @@ describe('it writes nothing, anywhere', () => {
   it('leaves $YAN_HOME byte-for-byte identical, on every path', async () => {
     const before = snapshot();
 
-    expect((await runYan(home, ['session-start', '--task', 't042'])).code).toBe(0);
+    expect((await runYan(home, ['session-start'], { YAN_TASK: 't042' })).code).toBe(0);
     expect(snapshot(), 'session-start must not create or change a single file').toBe(before);
 
-    expect((await runYan(home, ['session-start', '--task', 't042', '--json'])).code).toBe(0);
+    expect((await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' })).code).toBe(0);
     expect(snapshot(), 'nor on the --json path').toBe(before);
 
     expect((await runYan(home, ['session-start', '--all'])).code).toBe(0);
@@ -156,7 +156,7 @@ describe('it writes nothing, anywhere', () => {
 
 describe('through bin/yan', () => {
   it('renders the task, its unit and its shifts', async () => {
-    const r = await runYan(home, ['session-start', '--task', 't042']);
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('t042  unify the auth header');
     expect(r.stdout).toContain('unit auth');
@@ -177,7 +177,7 @@ describe('through bin/yan', () => {
   });
 
   it('is machine readable, with the same derivation', async () => {
-    const r = await runYan(home, ['session-start', '--task', 't042', '--json']);
+    const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     const picture = JSON.parse(r.stdout) as { tasks: { id: string; shifts: { sid: string; live: boolean }[] }[] };
     expect(picture.tasks[0].id).toBe('t042');
@@ -188,19 +188,19 @@ describe('through bin/yan', () => {
   it('tells a shift whose picture this is, and prints nothing else', async () => {
     // Registered as the SessionStart hook, so a shift working on the yan
     // repository fires it too; only a shift's environment carries YAN_SID.
-    const r = await runYan(home, ['session-start', '--task', 't042'], { YAN_SID: 's2' });
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 't042', YAN_SID: 's2' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('shift s2 of task t042');
     expect(r.stdout, 'the picture itself is the main agent\'s').not.toContain('unit auth');
 
     // A caller asking for --json asked on purpose.
-    const json = await runYan(home, ['session-start', '--task', 't042', '--json'], { YAN_SID: 's2' });
+    const json = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042', YAN_SID: 's2' });
     expect(json.code, json.out).toBe(0);
     expect((JSON.parse(json.stdout) as { tasks: { id: string }[] }).tasks[0].id).toBe('t042');
   });
 
   it('refuses a task that does not exist', async () => {
-    const r = await runYan(home, ['session-start', '--task', 'nosuchtask']);
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 'nosuchtask' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('no such task');
   });
@@ -238,14 +238,14 @@ describe('a source that will not answer costs one fact, never the command', () =
 describe('a half-written meta.json is one lost fact, never a crash', () => {
   it('survives a file that is not JSON', async () => {
     writeFileSync(join(run, 'meta.json'), 'not json at all\n');
-    const r = await runYan(home, ['session-start', '--task', 't042']);
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('shift s2');
   });
 
   it('survives a missing file', async () => {
     rmSync(join(run, 'meta.json'));
-    expect((await runYan(home, ['session-start', '--task', 't042'])).code).toBe(0);
+    expect((await runYan(home, ['session-start'], { YAN_TASK: 't042' })).code).toBe(0);
   });
 });
 

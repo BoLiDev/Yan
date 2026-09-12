@@ -6,6 +6,7 @@ import { display } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
 import { readNote } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
+import { chosenTask } from './shared/task-id.js';
 import { heldBy } from './done.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
@@ -219,7 +220,7 @@ interface AbandonedTask {
  *   task that is missing, already abandoned, or already done.
  */
 export function abandonTask(options: TaskAbandonOptions, deps: AbandonDeps = {}): AbandonedTask {
-  const task = options.task ?? process.env.YAN_TASK ?? '';
+  const task = options.task ?? '';
   if (task === '') throw CommandError.usage('abandon', 'which task? pass its id, or set $YAN_TASK');
   const reason = requireConsent('abandon', options.userAsked, options.reason);
   if (!Task.exists(task)) throw CommandError.usage('abandon', `no such task: ${task}`);
@@ -277,15 +278,12 @@ function describeShift(r: AbandonedShift): { lines: string[]; leftover: boolean 
 export const shiftAbandonCommand = new Command('abandon')
   .description("give a shift up: close its merge request, kill its agent, discard its tree - only when user asks")
   .argument('[sid]')
-  .option('--task <id>', 'the task; defaults to $YAN_TASK')
   .option('--reason <text>', 'REQUIRED: one line saying why, for log.md')
   .option('--user-asked', 'REQUIRED: user said this work is to be given up')
   .option('--json', 'print the record instead of a summary')
   .addHelpText(
     'after',
     `
-usage: yan shift abandon <sid> --user-asked --reason "<why>" [--task <id>] [--json]
-
 Closes the shift's merge request if it is still open, closes its pane and
 checks the agent went, deletes run/, and returns its tree with anything
 uncommitted in it. The brief, outcome.md and any pushed branch stay. Exit 1
@@ -303,23 +301,25 @@ when something is left to do by hand.`,
 
 export const command = new Command('abandon')
   .description('give a whole task up - only when user asks')
-  .argument('[task-id]', 'defaults to $YAN_TASK')
+  .argument('[task-id]', 'defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--reason <text>', 'REQUIRED: one line saying why, for log.md')
   .option('--user-asked', 'REQUIRED: user said this task is to be given up')
   .option('--json', 'print the record instead of a summary')
   .addHelpText(
     'after',
     `
-usage: yan abandon <task-id> --user-asked --reason "<why>" [--json]
-
 Abandons every live shift as 'yan shift abandon' does, closes every outbound
 merge request still open, returns every tree the task holds - the standing
 trees included - and marks the task abandoned, which 'yan ls' and 'yan show'
 say. Branches stay. Exit 1 when something is left to do by hand.`,
   )
   .action(
-    action('yan abandon', (id: string | undefined, options: TaskAbandonOptions) => {
-      const r = abandonTask({ ...options, task: id ?? options.task });
+    action('yan abandon', async (id: string | undefined, options: TaskAbandonOptions) => {
+      const task = await chosenTask('abandon', id, {
+        spelled: 'yan abandon',
+        question: 'Which task is being given up?',
+      });
+      const r = abandonTask({ ...options, task });
       let leftover = false;
       if (options.json === true) {
         out(JSON.stringify(r));

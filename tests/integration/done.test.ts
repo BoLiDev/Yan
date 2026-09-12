@@ -259,10 +259,10 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   const yan = (args: readonly string[], env: Record<string, string | undefined> = {}) =>
     runYan(home, args, env);
 
-  it('takes the task as an argument, as --task, or from $YAN_TASK', async () => {
+  it('takes the task as an argument, or from $YAN_TASK', async () => {
     expect((await yan(['done', 't042'])).code).toBe(0);
     expect(new Task('t042').isComplete()).toBe(true);
-    expect((await yan(['done', '--task', 't042'])).code).toBe(0);
+    expect((await yan(['done'], { YAN_TASK: 't042' })).code).toBe(0);
     expect((await yan(['done'], { YAN_TASK: 't042' })).code).toBe(0);
   });
 
@@ -273,15 +273,14 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
     expect(none.out).toContain('which task?');
   });
 
-  it('refuses an unknown task and two different names', async () => {
-
+  it('refuses an unknown task, and takes the argument over the environment', async () => {
     const nope = await yan(['done', 'nosuch']);
     expect(nope.code).not.toBe(0);
     expect(nope.out).toContain('no such task');
 
-    const two = await yan(['done', 't042', '--task', 't999']);
-    expect(two.code).toBe(2);
-    expect(two.out).toContain('two different tasks named');
+    // An explicit id is somebody saying which, so it wins rather than clashing.
+    expect((await yan(['done', 't042'], { YAN_TASK: 't999' })).code).toBe(0);
+    expect(new Task('t042').isComplete()).toBe(true);
   });
 
   it('offers exactly the tasks that are still open, and drops them as they finish', async () => {

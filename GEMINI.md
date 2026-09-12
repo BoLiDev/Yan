@@ -61,7 +61,7 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 - **派错了也不用 abandon**：`coding` shift 做完活得出"不用改"的结论，不算派错，算做完，等它的 `outcome.md` 写清原因，用 `yan shift done <sid> --nothing-to-merge` 收工；`explore` shift 发现答案是"要改代码"，也是按报告收工，再派一个 `coding` 去改，把报告写进 brief。abandon 只用于 `user` 不要了的活，而且只在 `user` 说了之后。
 - 派发 Shift：
   ```bash
-  yan shift new --task $YAN_TASK --unit <unit> --scenario <explore|coding|uix> [--tier <档位>] --brief-text "<brief 内容>" --note "<这个 shift 要做什么，一句话>"
+  yan shift new --unit <unit> --scenario <explore|coding|uix> [--tier <档位>] --brief-text "<brief 内容>" --note "<这个 shift 要做什么，一句话>"
   ```
 - **选场景和档位**（每次派发必填场景）：
   - 场景看工作类型：`explore` 调研、读代码、回答问题，不产出要合入的代码；`coding` 产出要合入的代码；`uix` 界面与交互设计。
@@ -162,17 +162,19 @@ description: Claude parks on the trust dialog in a new repo's worktrees
 
 ## 常用命令速查
 
+没有任何命令带 `--task`：你所在的任务就是 `$YAN_TASK`，每条命令都从那里读；少数人从任何地方运行的命令改成把任务 id 当参数传。
+
 ```bash
 yan session-start                  # 恢复上下文（启动必跑）
 yan ls                             # 查看当前任务与状态
 yan show [<id>]                    # 一个任务的概况：会话、分支、tree、shift、最近 log
-yan tree get                       # 租借 standing worktree
-yan shift new --task --unit --scenario [--tier]   # 派发 shift
+yan tree get --unit <unit>         # 租借这个 unit 的 standing worktree
+yan shift new --unit --scenario [--tier]   # 派发 shift
 yan wait [--seconds N]             # 监护 shift 运行
 yan state <sid>                    # 查看 shift 运行状态
 yan shift done <sid>               # 验收通过后结束 shift（uix 要加 --user-accepted）
 yan send <sid> "<一行>"            # 给 shift 发返工意见，最多 1000 字符，更长的附文件路径
-yan land --task --user-asked       # 将集成分支合入 target (需 user 同意)
+yan land --user-asked              # 将集成分支合入 target (需 user 同意)
 yan shift abandon <sid> / yan abandon <id>   # 放弃 shift / 整个任务（需 user 要求，带 --user-asked --reason）
 yan log <type> "<一行>"            # 记录命令不会自动记的事件（见「记忆」）
 ```

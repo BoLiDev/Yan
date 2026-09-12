@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
@@ -100,11 +101,10 @@ export function land(
   host?: Host,
   say: (line: string) => void = () => {},
 ): LandResult {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('land');
   const want = options.unit ?? [];
   const strategy = (options.strategy ?? 'merge') as MergeStrategy;
 
-  if (task === '') throw CommandError.usage('land', '--task is required');
   if (!STRATEGIES.includes(strategy)) {
     throw CommandError.usage('land', `--strategy is merge, squash or rebase, not '${String(options.strategy)}'`);
   }
@@ -142,7 +142,7 @@ export function land(
     const mr = byName.get(name)?.mr ?? null;
     if (mr === null || mr === '') {
       if (want.length > 0) {
-        throw CommandError.usage('land', `unit ${name} has no outbound merge request - open it with 'yan mr --task ${task} --unit ${name}' first. Nothing was merged`,
+        throw CommandError.usage('land', `unit ${name} has no outbound merge request - open it with 'yan mr --unit ${name}' first. Nothing was merged`,
         );
       }
       continue;
@@ -211,7 +211,6 @@ function collect(value: string, previous: string[]): string[] {
 
 export const command = new Command('land')
   .description('merge the outbound merge requests into target, in `needs` order')
-  .option('--task <id>', 'the task whose units are landing')
   .option('--unit <name>', 'repeatable; land only these', collect, [])
   .option('--strategy <how>', 'merge (default), squash or rebase')
   .option('--user-asked', "REQUIRED: `user` asked for this")
@@ -219,9 +218,6 @@ export const command = new Command('land')
   .addHelpText(
     'after',
     `
-usage: yan land --task <id> --user-asked [--unit <name>]...
-                [--strategy merge|squash|rebase] [--json]
-
 Merges each unit's outbound merge request into its target, topologically
 sorted by \`needs\`. With no --unit, every unit that has an outbound MR.
 
