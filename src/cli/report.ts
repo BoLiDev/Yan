@@ -13,7 +13,7 @@ import { Shift } from '../records/shift/index.js';
  * Five states, and any other is refused:
  *
  *   started         the agent booted and read its brief
- *   done            with the mode's deliverable in the note, e.g. `mr <url>`;
+ *   done            with the scenario's deliverable in the note, e.g. `mr <url>`;
  *                   refused until the shift has written outcome.md
  *   blocked         it is waiting on something
  *   needs-decision  it needs an answer from yan

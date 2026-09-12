@@ -62,7 +62,7 @@ function liveShift(sid: string, extra: Record<string, unknown> = {}): string {
   const tree = join(home, 'trees', sid);
   writeFileSync(
     join(dir, 'run', 'meta.json'),
-    JSON.stringify({ version: 1, task: 't042', sid, unit: 'auth', branch: `yan/t042-auth-${sid}`, tree, clone, holder: `t042/auth/${sid}`, lease_id: `lease-${sid}`, pane: 'w1:p7', mode: 'mr', ...extra }),
+    JSON.stringify({ version: 1, task: 't042', sid, unit: 'auth', branch: `yan/t042-auth-${sid}`, tree, clone, holder: `t042/auth/${sid}`, lease_id: `lease-${sid}`, pane: 'w1:p7', scenario: 'coding', ...extra }),
   );
   writeFileSync(join(dir, 'run', 'status'), `2026-09-11T08:00:00Z\tdone\tmr ${MR}\n`);
   leases.push({ slot: leases.length + 1, path: tree, branch: `yan/t042-auth-${sid}`, base: 'feat/auth', holder: `t042/auth/${sid}`, lease_id: `lease-${sid}`, at: 0 });
@@ -151,8 +151,8 @@ describe('yan shift abandon', () => {
     expect(log()).toContain('could NOT be closed');
   });
 
-  it('asks the host nothing about a scout, which opened no request', () => {
-    liveShift('s1', { mode: 'scout' });
+  it('asks the host nothing about an explore shift, which opened no request', () => {
+    liveShift('s1', { scenario: 'explore' });
     expect(abandonShift('s1', { userAsked: true, reason: 'enough' }, deps()).mr_closing).toBe('none');
     expect(calls.some((c) => c.startsWith('mr_'))).toBe(false);
   });

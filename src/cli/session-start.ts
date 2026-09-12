@@ -58,7 +58,6 @@ export interface TaskRow {
     repo: string;
     branch: string;
     target: string;
-    mode: string;
     mr: string | null;
     scope: string[];
   }[];
@@ -207,7 +206,6 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
         repo: u.repo,
         branch: u.branch,
         target: u.target,
-        mode: u.mode,
         mr: u.mr,
         scope: u.scope,
       })),
@@ -394,7 +392,7 @@ function render(picture: Picture, pulled: PullResult, memoryOf?: string): void {
     out('');
     out(`${t.id}  ${dash(t.title)}   [${t.complete ? 'done' : 'open'}]`);
     for (const u of t.units) {
-      out(`  unit ${dash(u.name)}  branch ${dash(u.branch)}  target ${dash(u.target)}  mode ${dash(u.mode)}  mr ${dash(u.mr)}`,
+      out(`  unit ${dash(u.name)}  branch ${dash(u.branch)}  target ${dash(u.target)}  mr ${dash(u.mr)}`,
       );
     }
     if (t.shifts.length === 0) {

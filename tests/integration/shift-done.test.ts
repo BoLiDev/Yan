@@ -303,9 +303,14 @@ describe('uix work is accepted by user alone', () => {
     expect(calls, 'not even the host was asked').toEqual([]);
   });
 
-  it('clocks out once user has accepted', () => {
-    dispatched('s1', { scenario: 'uix', tier: 'normal' });
+  it('clocks out once user has accepted, on its artifacts and report rather than a merge request', () => {
+    const run_ = dispatched('s1', { scenario: 'uix', tier: 'normal', mr: '' });
+    expect(run('s1', { userAccepted: true }).code, 'no report yet').toBe(4);
+    writeFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md'), '# s1\n\nResult: three proposals in artifacts/.\n');
     expect(run('s1', { userAccepted: true }).code).toBe(0);
+    expect(existsSync(run_)).toBe(false);
+    expect(calls.some((c) => c.startsWith('mr_state')), 'a uix shift opens no merge request').toBe(false);
+    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toMatch(/delivered {2}s1 auth {2}artifacts accepted by user/);
   });
 
   it('asks nothing of a coding shift, which the main agent accepts', () => {
@@ -314,24 +319,60 @@ describe('uix work is accepted by user alone', () => {
   });
 });
 
-describe('a scout or branch shift opens no merge request', () => {
+describe('an explore shift opens no merge request', () => {
   it('clocks out on its outcome.md, never asking the host or deleting a branch', () => {
-    const run_ = dispatched('s1', { mode: 'scout', mr: '' });
+    const run_ = dispatched('s1', { scenario: 'explore', mr: '' });
     writeFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md'), '# s1\n\nResult: the overlay needs a layered window.\n');
     const r = run('s1');
     expect(r.code, r.message).toBe(0);
     expect(existsSync(run_)).toBe(false);
     expect(calls.some((c) => c.startsWith('mr_state')), 'there is no merge request to ask about').toBe(false);
-    expect(calls.some((c) => c.startsWith('git push origin --delete')), 'a scout never pushed').toBe(false);
+    expect(calls.some((c) => c.startsWith('git push origin --delete')), 'an explore shift never pushed').toBe(false);
     expect(calls.some((c) => c.startsWith('pool_return'))).toBe(true);
     expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toMatch(/delivered {2}s1 auth {2}report accepted/);
   });
 
   it('refuses while there is no report to accept', () => {
-    const run_ = dispatched('s1', { mode: 'branch', mr: '' });
+    const run_ = dispatched('s1', { scenario: 'explore', mr: '' });
     const r = run('s1');
     expect(r.code).toBe(4);
     expect(r.message).toContain('outcome.md');
+    expect(existsSync(run_)).toBe(true);
+  });
+});
+
+describe('a coding shift with nothing to merge', () => {
+  // Merging is the floor for coding, not the definition of done. A coding
+  // shift that did the work and concluded that no change is needed is not
+  // abandoned - it is clocked out on its report, and the flag is user's word.
+  it('is refused without the flag, since no merge request was recorded', () => {
+    const run_ = dispatched('s1', { scenario: 'coding', mr: '' });
+    const r = run('s1');
+    expect(r.code).toBe(2);
+    expect(r.message).toContain('no merge request recorded');
+    expect(existsSync(run_)).toBe(true);
+  });
+
+  it('and with the flag, is refused until there is a report, then clocks out on it', () => {
+    const run_ = dispatched('s1', { scenario: 'coding', mr: '' });
+    const refused = run('s1', { nothingToMerge: true });
+    expect(refused.code).toBe(4);
+    expect(refused.message).toContain('nothing to merge');
+    expect(refused.message).toContain('outcome.md');
+
+    writeFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'outcome.md'), '# s1\n\nResult: the header is already parsed upstream; nothing to change.\n');
+    const r = clockOut('s1', { nothingToMerge: true }, deps());
+    expect(r.mr_state).toBe('none');
+    expect(existsSync(run_)).toBe(false);
+    expect(calls.some((c) => c.startsWith('mr_state')), 'there is no merge request to ask about').toBe(false);
+    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toMatch(/delivered {2}s1 auth {2}nothing to merge, report accepted/);
+  });
+
+  it('a dispatch record from before scenarios existed is a coding shift', () => {
+    const run_ = dispatched('s1', { mr: '' });
+    const r = run('s1');
+    expect(r.code).toBe(2);
+    expect(r.message).toContain('no merge request recorded');
     expect(existsSync(run_)).toBe(true);
   });
 });

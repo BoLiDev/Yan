@@ -98,6 +98,16 @@ function claimSid(task: string, asked: string | undefined): string {
 }
 
 /**
+ * What a scenario delivers. `coding` ends in a merge request into the
+ * integration branch; `explore` and `uix` end in a report and artifacts, and
+ * never push. There is no third shape: a coding shift that finds nothing to
+ * change says so and is clocked out with --nothing-to-merge.
+ */
+export function opensMr(scenario: string): boolean {
+  return scenario === 'coding';
+}
+
+/**
  * The whole argv one harness needs: the extra directories and running
  * unattended. An unflagged harness would stop at its first permission prompt
  * in a pane nobody is watching.
@@ -109,18 +119,18 @@ function claimSid(task: string, asked: string | undefined): string {
  * back as `timeout`. Agy keeps its prompt on the command line, because `-i`
  * is what makes it act on one and then stay open.
  *
- * A `scout` runs unattended too. Read-only by permission mode is the one thing
+ * A shift that delivers a report rather than a merge request - `explore` and
+ * `uix` - runs unattended too. Read-only by permission mode is the one thing
  * it must not be: `--permission-mode plan` ends at "ready to execute - would
  * you like to proceed?", which is an approval nobody is there to give, so
- * every scout parked there and delivered nothing. What keeps a scout from
- * pushing is its brief, plus a deny rule that makes the obvious way to do it
- * fail; what makes that affordable is that a scout's tree is thrown away and
- * its branch is never pushed. The gain is that a scout can now run the build
- * and the test suite it is reporting on.
+ * every scout parked there and delivered nothing. What keeps it from pushing
+ * is its brief, plus a deny rule that makes the obvious way to do it fail;
+ * what makes that affordable is that its tree is thrown away and its branch is
+ * never pushed. The gain is that it can run the build and the test suite it is
+ * reporting on.
  */
 function harnessArgv(
   spec: ShiftSpec,
-  mode: string,
   workdir: string,
   addDirs: readonly string[],
   prompt: string,
@@ -131,10 +141,10 @@ function harnessArgv(
     args.push(...modelFlags(spec.cli, spec));
     for (const d of addDirs) args.push('--add-dir', d);
     args.push('--dangerously-skip-permissions');
-    if (mode === 'scout') args.push('--disallowed-tools', 'Bash(git push:*)');
+    if (!opensMr(spec.scenario)) args.push('--disallowed-tools', 'Bash(git push:*)');
   } else if (kind === 'codex') {
     args.push(...modelFlags(spec.cli, spec));
-    if (mode === 'scout') args.push('--sandbox', 'read-only');
+    if (!opensMr(spec.scenario)) args.push('--sandbox', 'read-only');
     else args.push('--dangerously-bypass-approvals-and-sandbox');
 
     // Hooks the target repository ships run without review. Codex's
@@ -174,6 +184,7 @@ function briefBody(options: {
   taskDir: string;
   work: string;
   skills: readonly string[];
+  scenario: string;
 }): string {
   const { sid, task, unit, data, tree, clone, branch, taskDir, skills } = options;
   const home = yanHome();
@@ -187,7 +198,7 @@ function briefBody(options: {
     `| worktree | ${tree} |`,
     `| shift branch | ${branch} |`,
     `| integration branch | ${data.branch} |`,
-    `| mode | ${data.mode} |`,
+    `| scenario | ${options.scenario} |`,
     `| scope | ${data.scope.length > 0 ? data.scope.join(' ') : '(the whole repository)'} |`,
     '',
     ...(skills.length === 0
@@ -212,7 +223,7 @@ function briefBody(options: {
     '## How this shift works',
     '',
     `- Work only inside ${tree}. Never touch ${clone}: it is the main clone.`,
-    `- You are on ${branch}, which was cut from ${data.branch}. Push it and open a merge request into ${data.branch}.`,
+    `- You are on ${branch}, which was cut from ${data.branch}.${opensMr(options.scenario) ? ` Push it and open a merge request into ${data.branch}.` : ' It stays local: nothing is pushed.'}`,
     `- Run the project's install step first, every time. The tree may be warm from an`,
     '  earlier shift, in which case it finishes in seconds with nothing to do.',
     '- Artifacts go in $YAN_TASK_DIR/artifacts',
@@ -241,7 +252,7 @@ function briefBody(options: {
     '- Report only when yan has to act:',
     `      ${home}/bin/yan report <started|done|blocked|needs-decision|conflict> "<one line>"`,
   ];
-  if (data.mode === 'mr') {
+  if (opensMr(options.scenario)) {
     lines.push(
       '  When you are done, the note must carry the merge request URL, because that',
       '  is how yan learns the address to ask the host about:',
@@ -253,7 +264,7 @@ function briefBody(options: {
     '  the same - a fix, a change, another pass - it sends you the next round here, since',
     '  you already know the work. Stay until yan clocks you out.',
   );
-  if (data.mode === 'mr') {
+  if (opensMr(options.scenario)) {
     lines.push(
       `  A new round starts from ${data.branch} as it now is: once yan says your last merge`,
       `  request merged, fetch and reset ${branch} onto origin/${data.branch} - what you had`,
@@ -269,12 +280,19 @@ function briefBody(options: {
     "  forbidden, but it is not yours to decide quietly: report it, say what you need and",
     '  why, and let yan answer.',
   );
-  if (data.mode === 'scout') {
+  if (options.scenario === 'explore') {
     lines.push(
-      '- mode is scout: investigate and write it up. Build it, run it, break it if that is what',
-      '  answering the question takes - the tree is thrown away. What you must not do is leave',
-      '  anything behind: do not push, do not open a merge request. The report goes in',
-      '  $YAN_TASK_DIR/artifacts, and that is the whole deliverable.',
+      '- This is an explore shift: investigate and write it up. Build it, run it, break it if',
+      '  that is what answering the question takes - the tree is thrown away. What you must',
+      '  not do is leave anything behind: do not push, do not open a merge request. The',
+      '  report goes in $YAN_TASK_DIR/artifacts and outcome.md, and that is the whole deliverable.',
+    );
+  } else if (options.scenario === 'uix') {
+    lines.push(
+      '- This is a uix shift: the deliverable is what you put in $YAN_TASK_DIR/artifacts -',
+      '  designs, prototypes, visual proposals - and outcome.md describing it. Nothing is',
+      '  pushed and no merge request is opened; user looks at the artifacts and accepts',
+      '  them or asks for another round.',
     );
   }
   lines.push('- Do not talk to other shifts, and do not talk to user. Everything goes through yan.');
@@ -423,7 +441,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
     writeFileSync(
       join(shift.dir, 'brief.md'),
-      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills }),
+      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills, scenario: spec.scenario }),
     );
 
     // --- 3. refuse the main clone -------------------------------------------
@@ -457,7 +475,6 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       workdir,
       holder,
       lease_id: grant.lease_id,
-      mode: data.mode,
       agent,
       scenario: spec.scenario,
       skills: [...spec.skills],
@@ -490,7 +507,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
         YAN_SID: sid,
         YAN_SHIFT_DIR: shift.dir,
       },
-      argv: harnessArgv(spec, data.mode, workdir, addDirs, prompt),
+      argv: harnessArgv(spec, workdir, addDirs, prompt),
       // Typed in once the harness is idle; agy already has it in argv.
       ...(cliKind(agent) === 'agy' ? {} : { prompt }),
     });
@@ -610,6 +627,8 @@ export interface DoneOptions {
   note?: string;
   keepPane?: boolean;
   userAccepted?: boolean;
+  /** A coding shift concluded that nothing needs merging; its outcome.md is the deliverable. */
+  nothingToMerge?: boolean;
   json?: boolean;
 }
 
@@ -634,10 +653,10 @@ export interface DoneResult {
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
-  /** The last round's merge request, or '' for a mode that opens none. */
+  /** The last round's merge request, or '' for a scenario that opens none. */
   readonly mr: string;
   readonly mr_state: 'merged' | 'none';
-  readonly mode: string;
+  readonly scenario: string;
   readonly tree: string;
   readonly outcome_by: string;
   readonly run_removed: true;
@@ -745,12 +764,15 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
 
-  // What the dispatch recorded beyond the typed fields: an older meta.json
-  // carries neither, and was an `mr` shift outside any scenario.
+  // What the dispatch recorded beyond the typed fields. A meta.json from
+  // before scenarios existed carries none, and was a coding shift.
   const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
   const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  const mode = typeof extra.mode === 'string' && extra.mode !== '' ? extra.mode : 'mr';
-  const opensMr = mode === 'mr';
+  const scenario = typeof extra.scenario === 'string' && extra.scenario !== '' ? extra.scenario : 'coding';
+  // Merging is the floor for coding, not the definition of done - whether the
+  // merged work is accepted is yan's and user's judgement - unless the shift
+  // concluded that nothing needs merging, which user says with the flag.
+  const needsMerge = opensMr(scenario) && options.nothingToMerge !== true;
 
   // Steps 1 to 4 already ran in the attempt that stopped, and the URL they
   // needed went with run/, so a resume starts at the tree return.
@@ -765,7 +787,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     }
 
     // --- 1. is its last round merged? ---------------------------------------
-    if (opensMr) {
+    if (needsMerge) {
       if (mr === '') {
         throw CommandError.usage('shift_done', `no merge request recorded for ${shift.label()} - pass --mr <url>. Whether the work landed is the host's answer, and yan will not guess it from git history`,
         );
@@ -779,11 +801,12 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
         );
       }
     } else {
-      // A scout or a branch opens no merge request; what it delivered is its
+      // An explore or uix shift opens no merge request, and a coding shift
+      // that had nothing to merge has none either; what it delivered is its
       // handover, and without one there is nothing to have accepted.
       mr = '';
       if (!existsSync(outcomeFile) && options.outcome === undefined) {
-        throw new CommandError('shift_done', 'no_outcome', `${shift.label()} is a ${mode} shift and has written no outcome.md - there is no deliverable to accept yet. Pass --outcome <file> if its report lives elsewhere`,
+        throw new CommandError('shift_done', 'no_outcome', `${shift.label()} is ${options.nothingToMerge === true ? 'a coding shift with nothing to merge' : `${scenario === 'uix' ? 'a' : 'an'} ${scenario} shift`} and has written no outcome.md - there is no deliverable to accept yet. Pass --outcome <file> if its report lives elsewhere`,
           { exitCode: RC_NOT_MERGED },
         );
       }
@@ -818,9 +841,9 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     // --- 3. the log line ----------------------------------------------------
     if (shift.task !== '') {
       try {
-        const what = opensMr
+        const what = needsMerge
           ? `${mr} merged into the integration branch`
-          : mode === 'scout' ? 'report accepted' : `branch ${branch} accepted`;
+          : options.nothingToMerge === true ? 'nothing to merge, report accepted' : scenario === 'uix' ? 'artifacts accepted by user' : 'report accepted';
         new Log(shift.task).append('delivered', noted(`${shift.sid} ${unit}  ${what}`, note));
       } catch { /* the teardown matters more than its log line */ }
     }
@@ -859,7 +882,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   // --- 6. and only now, the remote shift branch -----------------------------
   let deleted = false;
   // Only a merge request's branch was ever pushed.
-  if (opensMr && clone !== '' && existsSync(clone)) {
+  if (needsMerge && clone !== '' && existsSync(clone)) {
     const drop =
       deps.deleteBranch ?? ((c: string, b: string) => deleteRemoteBranch(c, 'origin', b).code === 0);
     deleted = drop(clone, branch);
@@ -897,8 +920,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     unit,
     branch,
     mr,
-    mr_state: opensMr ? 'merged' : 'none',
-    mode,
+    mr_state: needsMerge ? 'merged' : 'none',
+    scenario,
     tree: returned !== '' ? returned : tree,
     outcome_by: outcomeBy,
     run_removed: true,
@@ -917,25 +940,29 @@ const doneShift = new Command('done')
   .option('--outcome <file>', 'a file whose contents become outcome.md if the shift wrote none')
   .option('--note <text>', 'one line for log.md: what the accepted work changed')
   .option('--user-accepted', 'user has said they are satisfied - required for uix work')
+  .option('--nothing-to-merge', 'a coding shift concluded that no change is needed; its outcome.md is accepted instead of a merge request')
   .option('--keep-pane', "leave the agent's pane open")
   .option('--json', 'print the teardown record instead of a summary')
   .addHelpText(
     'after',
     `
 usage: yan shift done <sid> [--task <id>] [--mr <url>] [--outcome <file>]
-                      [--note <text>] [--user-accepted] [--keep-pane] [--json]
+                      [--note <text>] [--user-accepted] [--nothing-to-merge]
+                      [--keep-pane] [--json]
 
 Running it says the shift's work is accepted: a shift carries on through as
 many rounds of rework as that takes, and is clocked out once, at the end. uix
 work is accepted by user alone, so it needs --user-accepted.
 
-An mr shift clocks out once its last round's merge request has merged, in the
-one order that survives a squash merge:
+A coding shift clocks out once its last round's merge request has merged -
+the floor, not the definition, of accepted - or with --nothing-to-merge when
+it concluded that no change is needed, in the one order that survives a
+squash merge:
 
   merged -> outcome.md -> the log line -> rm -rf run/ -> return the tree
     -> delete the remote shift branch -> close the pane
 
-A scout or branch shift opens none, and needs its outcome.md instead. Whether
+An explore or uix shift opens none, and needs its outcome.md instead. Whether
 a request merged is asked of the host, never inferred from git ancestry.
 
 Exit code 4 means nothing was clocked out yet: the merge request has not

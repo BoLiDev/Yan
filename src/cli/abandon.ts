@@ -114,7 +114,9 @@ function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
   const meta = shift.meta();
   const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
   const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  const mode = typeof extra.mode === 'string' && extra.mode !== '' ? extra.mode : 'mr';
+  // Only coding opens merge requests; a dispatch record from before scenarios
+  // existed was a coding shift.
+  const scenario = typeof extra.scenario === 'string' && extra.scenario !== '' ? extra.scenario : 'coding';
   const unit = meta.unit ?? '';
   const tree = meta.tree ?? '';
   const pane = meta.agentId ?? '';
@@ -124,7 +126,7 @@ function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
     clone = repo === '' ? '' : (repoDirIfKnown(repo) ?? '');
   }
 
-  const mr = mode === 'mr' ? (meta.mr ?? shift.reportedMr() ?? '') : '';
+  const mr = scenario === 'coding' ? (meta.mr ?? shift.reportedMr() ?? '') : '';
   const mrClosing = closeIfOpen(mr, clone === '' ? undefined : clone, deps);
 
   // The agent first, so nothing is still writing into the tree being wiped.

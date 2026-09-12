@@ -11,7 +11,7 @@ export const DEFAULT_POOL_SIZE = 8;
 /**
  * The repository registry, in two halves:
  *
- *   <vault>/repos.json          url, mode_default, pool_size   — tracked
+ *   <vault>/repos.json          url, pool_size                 — tracked
  *   <vault>/.local/repos.json   path                           — this machine
  *
  * "Registered but not linked here" is an ordinary state — it is what a freshly
@@ -21,7 +21,6 @@ export const DEFAULT_POOL_SIZE = 8;
 export interface RepoEntry {
   readonly name: string;
   readonly url: string;
-  readonly modeDefault: string;
   readonly poolSize: number;
   /** Where it is on this machine, or `undefined` when nothing has said. */
   readonly path?: string;
@@ -65,7 +64,6 @@ export function registry(): RepoEntry[] {
       return {
         name,
         url: typeof entry.url === 'string' ? entry.url : '',
-        modeDefault: typeof entry.mode_default === 'string' ? entry.mode_default : 'mr',
         poolSize: typeof size === 'number' && Number.isInteger(size) && size > 0 ? size : DEFAULT_POOL_SIZE,
         ...(typeof path === 'string' && path !== '' ? { path: normalizePath(path) } : {}),
       };

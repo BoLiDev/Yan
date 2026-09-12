@@ -128,7 +128,11 @@ function run(options: NewOptions): { code: number; message: string; meta: Record
   }
 }
 
-/** Configure the coding scenario's one tier, and agents.shift beside it. */
+/**
+ * Configure the coding scenario's one tier, and agents.shift beside it. The
+ * explore tier is the same one, so a test can dispatch either scenario on the
+ * CLI it configured.
+ */
 function scenarios(shift: unknown, coding: Record<string, unknown>): void {
   const tiers = { normal: {} };
   writeFileSync(
@@ -136,7 +140,7 @@ function scenarios(shift: unknown, coding: Record<string, unknown>): void {
     `${JSON.stringify({
       version: 1,
       agents: { yan: 'claude', shift },
-      scenarios: { explore: { tiers }, coding: { default: 'normal', tiers: coding }, uix: { tiers } },
+      scenarios: { explore: { default: 'normal', tiers: coding }, coding: { default: 'normal', tiers: coding }, uix: { tiers } },
       remote_git: { kind: 'github' },
     })}\n`,
   );
@@ -311,10 +315,9 @@ describe('codex, and the gate yan cannot survive', () => {
   // `idle`, so a shift would park on it in silence. `user` decided to pass the
   // flag that clears the second, knowing hooks shipped by the target
   // repository then run without review — so it is reversed on purpose.
-  it('never parks silently on hook review, in either mode', () => {
+  it('never parks silently on hook review, in either scenario', () => {
     new Task('t042').addUnit('api', 'monorepo-x', 'master', {
       branch: 'feat/api',
-      mode: 'mr',
       scope: ['apps/auth'],
     });
     useCli('codex');
@@ -323,14 +326,13 @@ describe('codex, and the gate yan cannot survive', () => {
     expect(terminal.startArgs).toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
-  it('and a scout gets it too, because a scout is just as unattended', () => {
+  it('and an explore shift gets it too, because it is just as unattended', () => {
     new Task('t042').addUnit('look', 'monorepo-x', 'master', {
       branch: 'feat/look',
-      mode: 'scout',
       scope: ['apps/auth'],
     });
     useCli('codex');
-    run({ task: 't042', unit: 'look', sid: 's81', briefText: 'just look' });
+    run({ task: 't042', unit: 'look', sid: 's81', scenario: 'explore', briefText: 'just look' });
     expect(terminal.startArgs).toContain('--dangerously-bypass-hook-trust');
     // What keeps a scout honest is containment, not a prompt.
     expect(terminal.startArgs).toContain('--sandbox');
@@ -374,14 +376,13 @@ describe('the sid is claimed by making its directory', () => {
   });
 });
 
-describe('a scout is the exception', () => {
+describe('an explore shift is the exception', () => {
   it('runs unattended too, and is kept from pushing by a deny rule', () => {
     new Task('t042').addUnit('probe', 'monorepo-x', 'master', {
       branch: 'feat/probe',
-      mode: 'scout',
       scope: ['apps/auth'],
     });
-    run({ task: 't042', unit: 'probe', sid: 's90', briefText: 'just look' });
+    run({ task: 't042', unit: 'probe', sid: 's90', scenario: 'explore', briefText: 'just look' });
     // Plan mode ends at an approval nobody is there to give, so a scout that
     // had it delivered nothing at all. What a scout must not do is leave
     // something behind, and that is a deny rule and a brief, not a mode.
