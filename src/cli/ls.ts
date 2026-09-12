@@ -5,13 +5,12 @@ import { tasksDir } from '../util/vault.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
-import { printTask } from './show.js';
 import { dash, renderTable } from './shared/table.js';
 
 /**
- * `yan ls [<id>] [--json]` — the queue, produced by scanning
- * `tasks/*​/task.json` on every call, or one task through `yan show`. Stores
- * nothing.
+ * `yan ls [--json]` — the queue, produced by scanning `tasks/*​/task.json` on
+ * every call. Stores nothing. One task in depth is `yan show <id>`: two
+ * commands printing the same thing is two commands to keep in step.
  */
 
 /** A string field: null, absent and false all become the empty string. */
@@ -123,18 +122,17 @@ function renderQueue(json: ReturnType<typeof queueJson>): void {
 }
 
 export const command = new Command('ls')
-  .description('the queue, or one task in depth (the same as yan show <id>)')
-  .argument('[task-id]', 'one task, exactly as yan show prints it')
-  .option('--json', 'machine readable output for either form')
+  .description('the queue: every task, one line each')
+  .option('--json', 'machine readable output')
+  .addHelpText(
+    'after',
+    `
+One task in depth is 'yan show <id>'.`,
+  )
   .action(
-    action('ls', (id: string | undefined, options: { json?: boolean }) => {
-      if (id === undefined) {
-        const json = queueJson();
-        if (options.json === true) out(JSON.stringify(json));
-        else renderQueue(json);
-        return;
-      }
-
-      printTask(id, options.json === true);
+    action('ls', (options: { json?: boolean }) => {
+      const json = queueJson();
+      if (options.json === true) out(JSON.stringify(json));
+      else renderQueue(json);
     }),
   );

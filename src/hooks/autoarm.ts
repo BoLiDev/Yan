@@ -81,10 +81,13 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
 
   // No --seconds: the unbounded shape. Its stdout is the reason, which becomes
   // the banner Claude shows the model.
-  const watcher = spawnSync(process.execPath, [yan, 'wait', '--task', task], {
+  // The task goes through the environment, which is where every command
+  // reads it from: `yan wait <id>` would work too, and then there would be
+  // two places a hook could name the wrong task.
+  const watcher = spawnSync(process.execPath, [yan, 'wait'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
-    env: { ...process.env, YAN_HOME: home },
+    env: { ...process.env, YAN_HOME: home, YAN_TASK: task },
     windowsHide: true,
   });
 
@@ -106,7 +109,7 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
     default:
       // Supervision did not start, and the turn is let through anyway.
       io.note(
-        `'yan wait' exited ${String(watcher.status)} without arming supervision - 'yan ls ${task}' shows what is live`,
+        `'yan wait' exited ${String(watcher.status)} without arming supervision - 'yan show ${task}' shows what is live`,
       );
       return quiet();
   }

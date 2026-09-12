@@ -47,7 +47,7 @@ describe('one command, both effects', () => {
   it('appends the event and touches the wake marker', async () => {
     expect(existsSync(join(run, 'status'))).toBe(false);
 
-    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/1', '--sid', 's1', '--task', 't042']);
+    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/1', '--sid', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(existsSync(join(run, 'status')), 'the event was appended').toBe(true);
     expect(existsSync(join(run, 'signal')), 'the wake marker was touched by the same command').toBe(true);
@@ -61,7 +61,7 @@ describe('one command, both effects', () => {
 
   it('records started without touching the wake marker: there is nothing to act on', async () => {
     rmSync(join(run, 'signal'));
-    const r = await runYan(home, ['report', 'started', 'read the brief', '--sid', 's1', '--task', 't042']);
+    const r = await runYan(home, ['report', 'started', 'read the brief', '--sid', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(lines(join(run, 'status')), 'the event is still appended').toBe(2);
     expect(status()).toContain('\tstarted\t');
@@ -70,7 +70,7 @@ describe('one command, both effects', () => {
 
   it('re-touches the wake marker on every other report, not only the first', async () => {
     rmSync(join(run, 'signal'), { force: true });
-    const r = await runYan(home, ['report', 'blocked', 'waiting for a credential', '--sid', 's1', '--task', 't042']);
+    const r = await runYan(home, ['report', 'blocked', 'waiting for a credential', '--sid', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(existsSync(join(run, 'signal')), 'signal is written again on the next report').toBe(true);
     expect(lines(join(run, 'status')), 'run/status is appended, never replaced').toBe(3);
@@ -81,7 +81,7 @@ describe('one command, both effects', () => {
 describe('exactly five states', () => {
   it('accepts the other three', async () => {
     for (const state of ['started', 'needs-decision', 'conflict']) {
-      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's1', '--task', 't042']);
+      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's1'], { YAN_TASK: 't042' });
       expect(r.code, `${state} must be accepted: ${r.out}`).toBe(0);
     }
     expect(lines(join(run, 'status')), 'all five allowed states were accepted').toBe(6);
@@ -90,7 +90,7 @@ describe('exactly five states', () => {
   it('refuses a sixth word loudly, and writes nothing at all', async () => {
     const before = status();
     for (const bad of ['progress', 'DONE', 'finished', 'failed', 'stuck', 'note', '']) {
-      const r = await runYan(home, ['report', bad, 'a note', '--sid', 's1', '--task', 't042']);
+      const r = await runYan(home, ['report', bad, 'a note', '--sid', 's1'], { YAN_TASK: 't042' });
       expect(r.code, `'${bad}' is not one of the five and must be refused loudly`).toBe(2);
       expect(r.out, 'the refusal names the whole allowed set').toContain('started done blocked needs-decision conflict');
     }
@@ -101,14 +101,14 @@ describe('exactly five states', () => {
 describe('a note is required, and it is one line', () => {
   it('refuses a state with no note, and a note with a newline in it', async () => {
     const before = status();
-    expect((await runYan(home, ['report', 'done', '--sid', 's1', '--task', 't042'])).code).toBe(2);
+    expect((await runYan(home, ['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' })).code).toBe(2);
 
     // Built inside bash: on Windows a literal newline in argv is re-split
     // before it reaches the process, which would test the harness.
     const r = spawnSync(
       bashCommand(),
-      ['-c', `bash "$1" report done $'two\\nlines' --sid s1 --task t042`, '_', join(home, 'bin', 'yan')],
-      { encoding: 'utf8', env: { ...process.env, YAN_HOME: home }, windowsHide: true },
+      ['-c', `bash "$1" report done $'two\\nlines' --sid s1`, '_', join(home, 'bin', 'yan')],
+      { encoding: 'utf8', env: { ...process.env, YAN_HOME: home, YAN_TASK: 't042' }, windowsHide: true },
     );
     expect(r.status, 'a newline would forge a second event').toBe(2);
     expect(`${r.stdout ?? ''}${r.stderr ?? ''}`).toContain('one line');
@@ -152,7 +152,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
       YAN_SHIFT_DIR: '',
     });
     expect(r.code).not.toBe(0);
-    expect(r.out).toContain('--task');
+    expect(r.out).toContain('$YAN_TASK');
   });
 });
 
@@ -161,7 +161,7 @@ describe('done waits for the handover', () => {
 
   it('refuses done while outcome.md is missing, names the file, and writes nothing', async () => {
     mkdirSync(dir(), { recursive: true });
-    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2', '--task', 't042']);
+    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('outcome.md');
     expect(existsSync(join(dir(), 'run', 'status')), 'no event').toBe(false);
@@ -170,14 +170,14 @@ describe('done waits for the handover', () => {
 
   it('still takes every other state without one', async () => {
     for (const state of ['started', 'blocked', 'needs-decision', 'conflict']) {
-      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's2', '--task', 't042']);
+      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's2'], { YAN_TASK: 't042' });
       expect(r.code, `${state}: ${r.out}`).toBe(0);
     }
   });
 
   it('takes done once the file exists', async () => {
     writeFileSync(join(dir(), 'outcome.md'), '# s2 auth\n\nResult: done.\n');
-    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2', '--task', 't042']);
+    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(readFileSync(join(dir(), 'run', 'status'), 'utf8')).toContain('\tdone\t');
   });

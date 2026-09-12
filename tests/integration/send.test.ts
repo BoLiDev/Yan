@@ -104,7 +104,7 @@ describe('the pane id comes from meta.json, and it is an id', () => {
   it('refuses a label rather than looking a shift up by one', async () => {
     // The seam is what enforces this; the command must not work around it.
     meta({ agent: 'claude', pane: 's3-auth' });
-    const real = await runYan(home, ['send', 's3', 'hello', '--task', 't042']);
+    const real = await runYan(home, ['send', 's3', 'hello'], { YAN_TASK: 't042' });
     expect(real.code).not.toBe(0);
     expect(real.out, 'a label is not a source of truth').toContain('never a label');
   });
@@ -144,8 +144,8 @@ describe('a shift that has clocked out has no terminal', () => {
 describe('usage', () => {
   it('needs a shift id and a line, and an unknown shift is an error', async () => {
     expect((await runYan(home, ['send'])).code).toBe(2);
-    expect((await runYan(home, ['send', 's3', '--task', 't042'])).code, 'a line is required').toBe(2);
-    expect((await runYan(home, ['send', 'nosuchshift', 'hello', '--task', 't042'])).code).toBe(1);
+    expect((await runYan(home, ['send', 's3'], { YAN_TASK: 't042' })).code, 'a line is required').toBe(2);
+    expect((await runYan(home, ['send', 'nosuchshift', 'hello'], { YAN_TASK: 't042' })).code).toBe(1);
   });
 
   it('no longer offers --enter or --no-enter', async () => {
@@ -154,6 +154,6 @@ describe('usage', () => {
     const options = /Options:\n([\s\S]*?)\n\n/.exec((await runYan(home, ['send', '--help'])).out)?.[1] ?? '';
     expect(options).not.toContain('--no-enter');
     expect(options).not.toContain('--enter');
-    expect((await runYan(home, ['send', 's3', '--enter', '--task', 't042'])).code).not.toBe(0);
+    expect((await runYan(home, ['send', 's3', '--enter'], { YAN_TASK: 't042' })).code).not.toBe(0);
   });
 });

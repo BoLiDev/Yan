@@ -10,6 +10,7 @@ import { shiftAbandonCommand } from './abandon.js';
 import { readLearnings } from './session-start.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
@@ -21,7 +22,7 @@ import { isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent, writeJson } from '../util/json.js';
 import { withLock } from '../util/lock.js';
-import { deleteRemoteBranch } from '../util/git.js';
+import { branchExists, deleteRemoteBranch, push, remoteBranchExists } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
 import { vaultDir } from '../util/vault.js';
 
@@ -96,6 +97,27 @@ function claimSid(task: string, asked: string | undefined): string {
       sid = `s${Number.parseInt(sid.slice(1), 10) + 1}`;
     }
   }
+}
+
+/**
+ * Make sure the unit's integration branch is on origin before a shift is cut
+ * from it. `unit add` creates the branch in the clone alone, so the first
+ * shift of a round finds no base on the forge and has to push somebody else's
+ * branch before it can open its merge request.
+ *
+ * Never forced, and never fatal: a push that fails costs a line on stderr, and
+ * the branch is still there to cut from locally.
+ *
+ * @returns what it found or did, for the caller to report.
+ */
+export function publishBase(clone: string, branch: string): 'on-origin' | 'pushed' | 'failed' | 'local-only' {
+  if (remoteBranchExists(clone, branch)) return 'on-origin';
+  if (!branchExists(clone, branch)) return 'local-only';
+
+  const pushed = push(clone, ['-u', 'origin', branch]);
+  if (pushed.code === 0) return 'pushed';
+  process.stderr.write(`yan shift new: ${branch} is not on origin and could not be pushed (${pushed.stderr.trim()}) - the shift's merge request will have no base until it is\n`);
+  return 'failed';
 }
 
 /**
@@ -343,10 +365,9 @@ export interface Deps {
  *   have started inside the main clone.
  */
 export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, unknown> {
-  const task = options.task ?? process.env.YAN_TASK ?? '';
+  const task = options.task ?? insideTask('shift_new');
   const unitName = options.unit ?? '';
 
-  if (task === '') throw CommandError.usage('shift_new', '--task is required (or set YAN_TASK)');
   if (unitName === '') {
     throw CommandError.usage('shift_new', '--unit is required - a shift always works on one unit of a task');
   }
@@ -371,6 +392,10 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
   }
 
   const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
+
+  // Before anything is claimed: the shift's merge request needs this branch on
+  // origin to have a base, and pushing it is yan's to do.
+  publishBase(clone, data.branch);
 
   const spec = resolveShift('shift_new', options.scenario, options.tier);
   const agent = spec.cli;
@@ -558,8 +583,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
 const newShift = new Command('new')
   .description('dispatch a shift')
-  .option('--task <id>', 'the task; defaults to $YAN_TASK')
-  .option('--unit <name>', 'which unit of that task this shift works on')
+  .option('--unit <name>', 'which unit of the task this shift works on')
   .option('--sid <sid>', 'the shift id; derived as the next free s<n> when omitted')
   .option('--scenario <name>', 'REQUIRED: explore | coding | uix - the kind of work')
   .option('--tier <name>', "one of the scenario's tiers in config.json; defaults to its default")
@@ -570,17 +594,12 @@ const newShift = new Command('new')
   .addHelpText(
     'after',
     `
-usage: yan shift new --task <id> --unit <name>
-                     --scenario <explore|coding|uix> [--tier <name>] [--sid <sid>]
-                     [--brief <file> | --brief-text <text>]
-                     [--note <text>] [--json]
-
 The shift branch is always yan/<task>-<unit>-<sid> and is never derived from
-the integration branch's name.
+the integration branch's name. The integration branch is pushed to origin
+first when it is not there yet, so the shift's merge request has a base.
 
 Exit codes: 3 the pool is full, 4 the working directory would have been the
-main clone and the dispatch was refused, 5 the integration branch conflicts
-with its target and a shift has to reconcile it first.`,
+main clone and the dispatch was refused.`,
   )
   .action(
     action('yan shift new', (options: NewOptions) => {
@@ -928,7 +947,6 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
 const doneShift = new Command('done')
   .description('clock a shift out once its work is accepted')
   .argument('[sid]')
-  .option('--task <id>', 'the task; defaults to $YAN_TASK')
   .option('--mr <url>', "the last round's merge request, when the shift reported none")
   .option('--outcome <file>', 'a file whose contents become outcome.md if the shift wrote none')
   .option('--note <text>', 'one line for log.md: what the accepted work changed')
@@ -939,10 +957,6 @@ const doneShift = new Command('done')
   .addHelpText(
     'after',
     `
-usage: yan shift done <sid> [--task <id>] [--mr <url>] [--outcome <file>]
-                      [--note <text>] [--user-accepted] [--nothing-to-merge]
-                      [--keep-pane] [--json]
-
 Running it says the shift's work is accepted: a shift carries on through as
 many rounds of rework as that takes, and is clocked out once, at the end. uix
 work is accepted by user alone, so it needs --user-accepted.

@@ -20,11 +20,6 @@ interface Queue {
   tasks: { id: string; title: string; complete: boolean; units: unknown[]; scope: string[]; shifts: number }[];
 }
 
-interface Detail {
-  units: Record<string, unknown>[];
-  shifts: { sid: string; unit: string; branch: string; tree: string }[];
-}
-
 async function json<T>(args: readonly string[]): Promise<T> {
   const r = await runYan(home, args);
   expect(r.code, r.out).toBe(0);
@@ -119,31 +114,11 @@ describe('the queue', () => {
   });
 });
 
-describe('one task: yan show, reached through ls', () => {
-  it('renders the branches, the targets and the live shift', async () => {
+describe('one task is yan show, and only yan show', () => {
+  // Two commands printing the same page is two commands to keep in step.
+  it('refuses an id rather than printing the task', async () => {
     const r = await runYan(home, ['ls', 't042']);
-    expect(r.code, r.out).toBe(0);
-    for (const needle of ['unify the auth header', 'feat/auth', 'feat/gw', 'master', 'apps/auth', 'yan/t042-auth-s3']) {
-      expect(r.stdout, needle).toContain(needle);
-    }
-  });
-
-  it('lists only the shift whose run/ is still there', async () => {
-    const d = await json<Detail>(['ls', 't042', '--json']);
-    expect(d.units).toHaveLength(2);
-    expect(d.shifts).toHaveLength(1);
-    expect(d.shifts[0]?.sid).toBe('s3');
-    expect(d.shifts[0]?.unit).toBe('auth');
-    expect(d.shifts[0]?.branch).toBe('yan/t042-auth-s3');
-    expect(d.shifts[0]?.tree).toBe(treePath);
-
-    const gateway = d.units.find((u) => u.name === 'gateway');
-    expect(gateway?.scope).toEqual(['apps/gateway']);
-    expect(gateway?.needs).toEqual(['auth']);
-  });
-
-  it('says so when a task has no live shift', async () => {
-    expect((await runYan(home, ['ls', 't007'])).stdout).toContain('none running');
+    expect(r.code).toBe(2);
   });
 });
 
@@ -152,8 +127,6 @@ describe('nothing is stored', () => {
     const before = snapshot(home);
     await runYan(home, ['ls']);
     await runYan(home, ['ls', '--json']);
-    await runYan(home, ['ls', 't042']);
-    await runYan(home, ['ls', 't042', '--json']);
     expect(snapshot(home)).toEqual(before);
   });
 
@@ -165,12 +138,8 @@ describe('nothing is stored', () => {
 });
 
 describe('errors', () => {
-  it('refuses an unknown task, two ids and an unknown option', async () => {
-    const missing = await runYan(home, ['ls', 'nosuchtask']);
-    expect(missing.code).not.toBe(0);
-    expect(missing.out).toContain('no such task');
-
-    expect((await runYan(home, ['ls', 't042', 't007'])).code).not.toBe(0);
+  it('refuses an argument and an unknown option alike', async () => {
+    expect((await runYan(home, ['ls', 'nosuchtask'])).code).toBe(2);
     expect((await runYan(home, ['ls', '--nope'])).code).toBe(2);
   });
 });

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { Supervision, type WatcherState } from '../records/supervision/index.js';
@@ -12,6 +12,8 @@ import {
   type AgentStatusEvent,
 } from '../externals/herdr/index.js';
 import { CommandError } from './shared/errors.js';
+import { insideTask } from './shared/task-id.js';
+import { drainWake } from './drain.js';
 import { action, out } from './shared/action.js';
 
 /**
@@ -386,24 +388,6 @@ function rest(ms: number, register: (wake: () => void) => void): Promise<void> {
   });
 }
 
-/**
- * Every reason waiting in the task's wake file, which is then cleared: read
- * first and cleared second, so a crash in between repeats a wake rather than
- * losing one. `undefined` when there is no file.
- */
-export function drainWake(task: string): string | undefined {
-  const wake = new Supervision(task).wake;
-  if (!existsSync(wake)) return undefined;
-  let text: string;
-  try {
-    text = readFileSync(wake, 'utf8').replace(/\r?\n$/, '');
-  } catch {
-    return undefined;
-  }
-  rmSync(wake, { force: true });
-  return text;
-}
-
 function wholeSeconds(value: string, what: string): number {
   if (!/^\d+$/.test(value)) {
     throw CommandError.usage('wait', `${what} takes a whole number of seconds, got: ${value}`);
@@ -414,7 +398,6 @@ function wholeSeconds(value: string, what: string): number {
 export const command = new Command('wait')
   .description('watch the live shifts until something actionable happens')
   .argument('[task-id]', 'defaults to $YAN_TASK')
-  .option('--task <id>', 'the task to watch')
   .option('--seconds [n]', 'stop after N seconds whatever happens (the Codex checkpoint slice)')
   .option('--interval <s>', 'how often to look')
   .option('--drain', 'on a wake, print every waiting reason and clear the wake file, as yan drain does')
@@ -424,20 +407,14 @@ export const command = new Command('wait')
       'wait',
       async (
         id: string | undefined,
-        options: { task?: string; seconds?: string | boolean; interval?: string; sources?: boolean; drain?: boolean },
+        options: { seconds?: string | boolean; interval?: string; sources?: boolean; drain?: boolean },
       ) => {
         if (options.sources === true) {
           for (const source of WAIT_SOURCES) out(source);
           return;
         }
 
-        const task = id ?? options.task ?? process.env.YAN_TASK ?? '';
-        if (task === '') {
-          throw CommandError.usage(
-            'wait',
-            'cannot tell which task to watch - pass a task id, or set $YAN_TASK as the task container does',
-          );
-        }
+        const task = id ?? insideTask('wait');
         if (!new Task(task).exists()) {
           throw CommandError.usage('wait', `no such task: ${task}`);
         }
@@ -464,7 +441,15 @@ export const command = new Command('wait')
         const result = await watch({ task, seconds, intervalSeconds });
 
         if (result.code === 0 && options.drain === true) {
-          out(drainWake(task) ?? result.reason ?? '');
+          // The watch is over and its reason is safe in the wake file; a
+          // failure to read it back must not turn a wake into an error exit.
+          let drained: string | undefined;
+          try {
+            drained = drainWake(task);
+          } catch {
+            drained = undefined;
+          }
+          out(drained ?? result.reason ?? '');
         } else if (result.code === 0 && result.reason !== undefined) {
           out(result.reason);
         }

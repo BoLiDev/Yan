@@ -89,7 +89,7 @@ describe('there has to be a terminal for the agent to take over', () => {
   // of this. Starting the agent is this command's whole job, so not doing it
   // is a failure - unlike `yan task new`, where the task was still created.
   it('says so, fails, and leaves no lock behind', async () => {
-    const r = await yan(['continue', '--task', 't042', '--json']);
+    const r = await yan(['continue', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(2);
     const seen = JSON.parse(r.stdout) as {
       task: string;
@@ -116,7 +116,7 @@ describe('a second yan on the same task', () => {
   it('is refused, and says where the live one is', async () => {
     liveLock('t042', 'yan t042 pane=w9:p9');
 
-    const r = await yan(['continue', '--task', 't042']);
+    const r = await yan(['continue'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('a second yan on the same task is refused');
     expect(r.stdout).toContain('w9:p9');
@@ -126,7 +126,7 @@ describe('a second yan on the same task', () => {
   it('does not refuse a yan on a DIFFERENT task: the lock is per task', async () => {
     // t042's lock is live from the test above, and t099 must get straight past
     // it - to the terminal question, which is as far as a piped stdio goes.
-    const r = await yan(['continue', '--task', 't099']);
+    const r = await yan(['continue'], { YAN_TASK: 't099' });
     expect(r.stdout).not.toContain('a second yan on the same task');
     expect(r.stdout).toContain('no terminal');
 
@@ -139,27 +139,30 @@ describe('a second yan on the same task', () => {
       lockOf('t042'),
       `${JSON.stringify({ pid: 999999, host: hostname(), at: 1, identity: 'yan t042' })}\n`,
     );
-    const r = await yan(['continue', '--task', 't042']);
+    const r = await yan(['continue'], { YAN_TASK: 't042' });
     expect(r.stdout, 'a dead holder is not obeyed').not.toContain('a second yan on the same task');
     expect(existsSync(lockOf('t042')), 'and the reclaimed lock goes back').toBe(false);
   });
 });
 
 describe('what it refuses', () => {
-  it('names the flag when there is no id and no terminal to ask in', async () => {
+  it('names the argument when there is no id and no terminal to ask in', async () => {
     const r = await yan(['continue']);
     expect(r.code).toBe(2);
-    expect(r.out).toContain('--task');
+    expect(r.out).toContain('yan continue <task-id>');
     expect(r.out).toContain('yan ls');
   });
 
-  it('refuses an unknown task and two ids', async () => {
-    expect((await yan(['continue', '--task', 'nosuchtask'])).code).toBe(2);
-    expect((await yan(['continue', '--task', 'nosuchtask'])).out).toContain('no such task');
+  it('refuses an unknown task, however it was named', async () => {
+    expect((await yan(['continue'], { YAN_TASK: 'nosuchtask' })).code).toBe(2);
+    expect((await yan(['continue'], { YAN_TASK: 'nosuchtask' })).out).toContain('no such task');
+    expect((await yan(['continue', 'nosuchtask'])).out).toContain('no such task');
+  });
 
-    const two = await yan(['continue', 't042', '--task', 't099']);
-    expect(two.code).toBe(2);
-    expect(two.out).toContain('only one task id');
+  it('takes the argument over the task this session is in', async () => {
+    // Not a conflict to refuse: an explicit id is somebody saying which.
+    const r = await yan(['continue', 't042', '--json'], { YAN_TASK: 't099' });
+    expect((JSON.parse(r.stdout) as { task: string }).task).toBe('t042');
   });
 
   it('refuses when the home configures no agents.yan, and names it', async () => {
@@ -176,7 +179,7 @@ describe('what it refuses', () => {
       `${JSON.stringify({ version: 1, id: 'tx', title: 'x', complete: false, units: [] })}\n`,
     );
 
-    const r = await runYan(other, ['continue', '--task', 'tx'], { HERDR_PANE_ID: '' });
+    const r = await runYan(other, ['continue'], { YAN_TASK: 'tx', HERDR_PANE_ID: '' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('agents.yan');
     expect(existsSync(join(other, 'tasks', 'tx', '.enter.lock'))).toBe(false);

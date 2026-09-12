@@ -262,7 +262,7 @@ describe('the guard on Claude', () => {
     const failed = await hook('hook-turnend-guard.sh', ['--claude'], { env: { YAN_TASK: 't1' } });
     expect(failed.code).toBe(0);
     expect(failed.stderr).toContain('AUTOMATIC SUPERVISION IS BROKEN');
-    expect(failed.stderr).toContain('yan ls t1');
+    expect(failed.stderr).toContain('yan show t1');
   });
 
   it('lets the turn end when the watcher is healthy, and resets the count', async () => {

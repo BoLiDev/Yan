@@ -5,10 +5,9 @@ import { action, out } from './shared/action.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { isTty } from './shared/resolve.js';
+import { chosenTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
-import { queueJson } from './ls.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
@@ -310,28 +309,7 @@ export function renderShow(show: ShowJson): void {
   out('');
 }
 
-/**
- * `given`, or a task chosen from the incomplete ones when there is a terminal.
- *
- * @throws CommandError `usage` when no id was given and nothing can be chosen.
- */
-async function chooseWhenMissing(given: string): Promise<string> {
-  if (given !== '') return given;
-  if (!isTty()) {
-    throw CommandError.usage('show', "which task? pass 'yan show <id>' - choosing interactively needs a terminal, and 'yan ls' lists the tasks");
-  }
-  const queue = queueJson() as { tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[] };
-  const live = queue.tasks.filter((t) => !t.complete);
-  if (live.length === 0) throw CommandError.usage('show', "there are no tasks in progress - 'yan ls' lists the finished ones");
-  const { chooseTask } = await import('../ui/prompts.js');
-  return chooseTask(
-    live.map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts })),
-    'yan show',
-    'Which task do you want to see?',
-  );
-}
-
-/** Print one task, as `yan show` does. Shared with `yan ls <id>`. */
+/** Print one task. */
 export function printTask(id: string, json: boolean): void {
   if (!Task.exists(id)) {
     const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
@@ -344,19 +322,21 @@ export function printTask(id: string, json: boolean): void {
 
 export const command = new Command('show')
   .description('one task at a glance: its session, branches, trees, shifts and last log entries')
-  .argument('[task-id]', 'the task; with none and a terminal, choose among those in progress')
+  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--json', 'machine readable output')
   .addHelpText(
     'after',
     `
-usage: yan show [<task-id>] [--json]
-
 Everything shown is read from this machine: no forge and no terminal is asked.
 A shift's line is the last event it reported - 'yan state <sid>' says what is
 true now - and "ahead" counts commits by the refs the clone last fetched.`,
   )
   .action(
     action('show', async (id: string | undefined, options: { json?: boolean }) => {
-      printTask(await chooseWhenMissing(id ?? ''), options.json === true);
+      const task = await chosenTask('show', id, {
+        spelled: 'yan show',
+        question: 'Which task do you want to see?',
+      });
+      printTask(task, options.json === true);
     }),
   );

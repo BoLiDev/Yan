@@ -33,20 +33,22 @@ there to answer is a hang. `yan --help` lists what is missing below.
 it once, before the first shift, and hold it for the whole task:
 
 ```
-yan tree get --repo <repo> --base <integration branch> \
-             --branch <integration branch> --holder <task>/<unit>
+yan tree get --unit <unit>
 ```
 
-Same branch on both flags is the point — the integration branch already exists, so
-the tree is checked out on it rather than cutting anything new. `yan done` returns
-it with the rest, because it collects every lease whose holder starts with the task
-id, and the holder has no `sid` because no shift owns it. Print the path when you
-take it: it is where `user` works too, and neither of you should be reading a
-registered clone to see what a round currently looks like. It costs a pool slot for
+The repository, the branch and the holder all come off `task.json`, and the tree is
+checked out on the integration branch rather than cutting anything new. `yan done`
+returns it with the rest, because it collects every lease whose holder starts with
+the task id, and the holder has no `sid` because no shift owns it. Print the path
+when you take it: it is where `user` works too, and neither of you should be reading
+a registered clone to see what a round currently looks like. It costs a pool slot for
 the task's lifetime, so `pool_size` has to cover the shifts you intend to run
 concurrently plus one per unit. If it is already checked out somewhere, the pool
 says so and names the holder — switch that clone off the branch rather than asking
 the pool to, which it will not do.
+
+No command takes `--task`: the one you are in is `$YAN_TASK`, which every command
+reads, and the few a person runs from anywhere take the id as an argument instead.
 
 ```
 yan session-start                  rebuild the picture (run at startup)
@@ -54,17 +56,17 @@ yan ls                             the queue
 yan show [<id>]                    one task at a glance: session, branches, trees, shifts, log
 yan task new --title … --repo …    create a task and enter it
 yan unit add | set                 a unit's branch, target, scope, needs
-yan shift new --task --unit --scenario [--tier]   dispatch a shift
+yan shift new --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
 yan send <sid> "<line>"            one line, up to 1000 characters, to a running shift
 yan shift done <sid>               clock a shift out once its work is accepted
 yan shift abandon <sid>            give a shift up, when user asks · yan abandon <id> for a task
-yan tree get | return              lease a worktree, and give it back
-yan mr --task --unit               open the outbound MR (integration branch → target)
-yan land --task --user-asked       merge the outbound MR into target
+yan tree get --unit <unit>         the standing tree · yan tree return gives it back
+yan mr --unit                      open the outbound MR (integration branch → target)
+yan land --user-asked              merge the outbound MR into target
 yan done [<id>] [--force]          mark the task done and give its trees back
 yan log <type> "<line>"            record what no command records (Memory)
-yan wait [--seconds N] · yan drain supervision
+yan wait [--seconds N]             watch the live shifts · yan drain reads what it wrote
 ```
 
 ## Authority

@@ -28,7 +28,6 @@ export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'c
 
 interface ReportOptions {
   sid?: string;
-  task?: string;
   dir?: string;
 }
 
@@ -37,13 +36,10 @@ export const command = new Command('report')
   .argument('[state]', `one of: ${REPORT_STATES.join(' ')}`)
   .argument('[note]', 'one short line saying what happened')
   .option('--sid <sid>', 'which shift is reporting (yan and tests only)')
-  .option('--task <id>', 'the task it belongs to')
   .option('--dir <shift-dir>', 'the shift directory outright')
   .addHelpText(
     'after',
     `
-usage: yan report <state> "<note>" [--sid <sid>] [--task <id>] [--dir <dir>]
-
 Appends the event to run/status and touches run/signal in one go - except
 \`started\`, which is recorded without waking yan. \`done\` is refused, and
 nothing is written, until the shift directory has outcome.md.
@@ -75,7 +71,7 @@ yan itself and for tests.`,
       if (options.dir !== undefined && options.dir !== '') {
         shift = Shift.fromDir(options.dir);
       } else if (options.sid !== undefined && options.sid !== '') {
-        shift = Shift.resolve(options.sid, options.task ?? '');
+        shift = Shift.resolve(options.sid);
       } else {
         shift = Shift.fromEnv();
       }

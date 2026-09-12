@@ -414,11 +414,14 @@ export const command = new Command('doctor')
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7
       // the Claude and Codex integrations report session identity only and
-      // never push state, so `blocked` and `done` are screen matches either way
+      // never push state, so `blocked` and `done` are screen matches either
+      // way, and a shift's own report is the half that does not depend on a
+      // screen being recognised.
       out('');
       out('  note  an installed integration records the agent session id. It does not');
       out('        make agent state authoritative: for claude and codex, Herdr classifies');
-      out('        state by matching the screen, so `run/signal` stays the other half of');
+      out('        state by matching the screen, so `run/signal` - what a shift reports');
+      out('        with `yan report` - stays the other half of supervision.');
 
       out('');
       out(`${report.ok} ok, ${report.warn} warn, ${report.fail} failed`);

@@ -93,7 +93,7 @@ export interface StateDeps {
  *
  * @throws ShiftError when `sid` names no shift, or more than one.
  */
-export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateFacts {
+export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFacts {
   const shift = Shift.resolve(sid, task);
   const meta = shift.meta();
   const live = shift.isLive();
@@ -248,14 +248,11 @@ function row(label: string, value: string): void {
 export const command = new Command('state')
   .description('what is true about a shift right now')
   .argument('[sid]')
-  .option('--task <id>', 'the task the shift belongs to')
   .option('--json', 'every fact this derived, machine readable')
   .option('--verdict', 'print only the derived state word')
   .addHelpText(
     'after',
     `
-usage: yan state <sid> [--task <id>] [--json | --verdict]
-
 Verdicts: clocked-out | merged | dead | blocked | running | unknown
 
 The state is derived from the live sources every time. Lines in run/status are
@@ -268,7 +265,7 @@ with no watcher running it says so instead of guessing. 'still' is a duration,
 never a verdict: an install is still for minutes and so is a model thinking.`,
   )
   .action(
-    action('state', (sid: string | undefined, options: { task?: string; json?: boolean; verdict?: boolean }) => {
+    action('state', (sid: string | undefined, options: { json?: boolean; verdict?: boolean }) => {
       if (sid === undefined || sid === '') {
         throw CommandError.usage('state', 'a shift id is required');
       }
@@ -276,7 +273,7 @@ never a verdict: an install is still for minutes and so is a model thinking.`,
         throw CommandError.usage('state', '--json and --verdict are alternatives - pass one');
       }
 
-      const facts = stateOf(sid, options.task ?? '');
+      const facts = stateOf(sid);
 
       if (options.verdict === true) {
         out(facts.state);

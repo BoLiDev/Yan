@@ -5,6 +5,7 @@ import { containerOf } from './shared/container.js';
 import { display, unitTokens } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
 import { repoDir } from './shared/repo.js';
+import { insideTask } from './shared/task-id.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
@@ -235,12 +236,11 @@ interface AddResult {
  *   was made but task.json could not be written.
  */
 export function addTaskUnit(options: AddOptions): AddResult {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('unit_add');
   const unit = options.unit ?? '';
   const repo = options.repo ?? '';
   const target = options.target ?? '';
 
-  if (task === '') throw CommandError.usage('unit_add', '--task is required');
   if (unit === '') throw CommandError.usage('unit_add', '--unit is required');
   if (repo === '') {
     throw CommandError.usage('unit_add', '--repo is required: a repository under repos/, or the path to a clone');
@@ -256,7 +256,7 @@ export function addTaskUnit(options: AddOptions): AddResult {
   }
   const record = new Task(task);
   if (record.findUnit(unit) !== undefined) {
-    throw new CommandError('unit_add', 'exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan ls ${task}' shows them`,
+    throw new CommandError('unit_add', 'exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan show ${task}' shows them`,
     );
   }
 
@@ -292,7 +292,6 @@ export function addTaskUnit(options: AddOptions): AddResult {
 
 const add = new Command('add')
   .description('add a unit and make its integration branch exist')
-  .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
   .option('--repo <repo>', 'a repository under repos/, or the path to a clone')
   .option('--target <branch>', 'REQUIRED: which branch this unit delivers into')
@@ -305,12 +304,10 @@ const add = new Command('add')
   .addHelpText(
     'after',
     `
-usage: yan unit add --task <id> --unit <name> --repo <repo> --target <branch>
-
   --target  REQUIRED, and never defaulted: which branch this unit's work is
-            ultimately delivered into. There is no safe default (a
-            §6.4) - during a release the team merges into a shared branch, in
-            quiet periods into master.
+            ultimately delivered into. There is no safe default - during a
+            release the team merges into a shared branch, in quiet periods
+            into the default one.
   --branch  omit it and the built-in default applies: yan/<task>-<unit>-r<n>,
             cut from --base (which defaults to --target). Give one and it is
             used as it stands - refs/heads/x, origin/x and a quoted name all
@@ -373,7 +370,6 @@ export interface Labeller {
 
 const set = new Command('set')
   .description("change a unit's branch, target, scope or needs")
-  .option('--task <id>', 'the task the unit belongs to')
   .option('--unit <name>', 'the unit name')
   // Bare `--branch` starts a new round under the built-in name; with a value
   // it starts one under that name.
@@ -390,16 +386,13 @@ const set = new Command('set')
   .addHelpText(
     'after',
     `
-usage: yan unit set --task <id> --unit <name> [changes]
-
   --base defaults to --target when the old round was delivered, and to the OLD
   BRANCH when it was abandoned, so the abandoned work is not lost.
 
 Every one of these is a decision, and --note is where its reason goes: it is
 appended to each line this writes to log.md. --needs '' clears the list.
 
-Exit 4 means nothing was changed and \`user\`
-has to answer something first.`,
+Exit 4 means nothing was changed and \`user\` has to answer something first.`,
   )
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 
@@ -414,14 +407,13 @@ has to answer something first.`,
  *   `no_branch` when there is no round to replace.
  */
 export function setUnit(options: SetOptions, readMrState?: MrStateReader, terminal?: Labeller): void {
-  const task = options.task ?? '';
+  const task = options.task ?? insideTask('unit_set');
   const unitName = options.unit ?? '';
   const wantBranch = options.branch !== undefined;
   const givenBranch = typeof options.branch === 'string' ? options.branch : undefined;
   const wantScope = options.scope !== undefined;
   const wantNeeds = options.needs !== undefined;
 
-  if (task === '') throw CommandError.usage('unit_set', '--task is required');
   if (unitName === '') throw CommandError.usage('unit_set', '--unit is required');
   if (!wantBranch && !options.target && !wantScope && !wantNeeds) {
     throw CommandError.usage('unit_set', 'nothing to change - pass --branch, --target, --scope or --needs');
