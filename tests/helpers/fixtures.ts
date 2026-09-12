@@ -163,7 +163,7 @@ export function registerRepo(
   vault: string,
   name: string,
   dir: string,
-  entry: { url?: string; mode_default?: string; pool_size?: number } = {},
+  entry: { url?: string; pool_size?: number } = {},
 ): void {
   const portable = join(vault, 'repos.json');
   const local = join(vault, '.local', 'repos.json');
@@ -178,7 +178,6 @@ export function registerRepo(
   const reg = read(portable);
   reg[name] = {
     url: entry.url ?? `file://${dir}`,
-    mode_default: entry.mode_default ?? 'mr',
     pool_size: entry.pool_size ?? 8,
   };
   writeFileSync(portable, `${JSON.stringify(reg, null, 2)}\n`);

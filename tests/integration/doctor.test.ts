@@ -141,11 +141,11 @@ describe('the shipped template config', () => {
   it('is valid and carries what doctor asks for', () => {
     const sample = JSON.parse(
       readFileSync(join(repoRoot, 'templates', 'vault', 'config.example.json'), 'utf8'),
-    ) as { version: number; agents?: Record<string, string>; forge?: { kind?: string }; remote_git?: { kind?: string } };
+    ) as { version: number; agents?: Record<string, string>; remote_git?: { kind?: string } };
     expect(sample.version).toBe(1);
     expect(sample.agents?.yan).toBeTruthy();
     expect(sample.agents?.shift).toBeTruthy();
-    expect(sample.remote_git?.kind ?? sample.forge?.kind).toBeTruthy();
+    expect(sample.remote_git?.kind).toBeTruthy();
   });
 });
 

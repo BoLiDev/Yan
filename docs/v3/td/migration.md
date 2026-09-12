@@ -1,5 +1,7 @@
 # Migration
 
+> **The code this describes was removed on 2026-09-12.** The migration ran once, on one machine, and no pre-V3 `$YAN_HOME` is left anywhere, so `yan vault init --from-home` and `yan vault drop-home` were deleted rather than carried. What follows is the record of how the move was designed and done.
+
 > One machine, one existing `$YAN_HOME`, five tasks and one registered repository. This document says how that becomes mechanics plus a vault, and why the migration is a command rather than a wiki page.
 
 ---

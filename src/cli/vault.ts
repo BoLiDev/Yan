@@ -18,7 +18,6 @@ import { normalizePath } from '../util/paths.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './shared/action.js';
-import { dropHome, migrate, planMigration, preflight, stillOnlyInHome } from './shared/migrate.js';
 import { CommandError } from './shared/errors.js';
 import { resolve } from './shared/resolve.js';
 
@@ -108,17 +107,6 @@ interface InitOptions {
   readonly remote?: string;
   readonly path?: string;
   readonly cloneRoot?: string;
-  readonly fromHome?: boolean;
-  readonly dropHome?: boolean;
-}
-
-/** How many trees the pool holds for a clone; 0 when it cannot be asked. */
-function leasesFor(clone: string): number {
-  try {
-    return new WorktreePool(clone).status().length;
-  } catch {
-    return 0;
-  }
 }
 
 const initVault = new Command('init')
@@ -127,8 +115,6 @@ const initVault = new Command('init')
   .option('--remote <url>', 'the empty repository this vault is pushed to')
   .option('--path <dir>', 'where the vault lives on this machine')
   .option('--clone-root <dir>', 'where `yan repo add <url>` clones into on this machine')
-  .option('--from-home', "move this $YAN_HOME's tasks, memory, config and clones into the new vault")
-  .option('--drop-home', 'with --from-home: delete the old copies once the vault is written')
   .action(
     action('vault_init', async (name: string | undefined, options: InitOptions) => {
       const answers = await resolve(
@@ -160,12 +146,7 @@ const initVault = new Command('init')
 
       const root = normalizePath(resolvePath(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
 
-      // Before the skeleton exists, so a refusal leaves nothing behind.
-      const plan = options.fromHome === true ? planMigration(dir, root) : undefined;
-      if (plan !== undefined) preflight(plan, leasesFor);
-
       layDownSkeleton(dir, answers.name);
-      if (plan !== undefined) migrate(plan);
       gitOrThrow(dir, ['init', '--initial-branch=main'], 'git init');
       gitOrThrow(dir, ['add', '-A'], 'staging the skeleton');
       gitOrThrow(dir, ['commit', '-m', `vault: ${answers.name}`], 'the first commit');
@@ -178,11 +159,6 @@ const initVault = new Command('init')
       out(`vault init: ${answers.name}  ${dir}`);
       out(`vault init: pushed to ${answers.remote}, and it is now the active vault`);
       out(`vault init: clones on this machine go under ${root}`);
-
-      if (plan !== undefined) {
-        if (options.dropHome === true) dropHome(plan);
-        else out(`vault init: the old data is still in ${plan.home} - check 'yan ls' and 'yan doctor', then re-run with --drop-home, or delete tasks/ mem/ repos/ conf/config.json by hand`);
-      }
     }),
   );
 
@@ -410,30 +386,6 @@ const pushCommand = new Command('push')
   );
 
 /**
- * `yan vault drop-home` — delete what `--from-home` copied out of the old
- * home, refusing unless every task and registry entry it holds is already in
- * the active vault.
- */
-const dropHomeCommand = new Command('drop-home')
-  .description('remove the pre-V3 data from $YAN_HOME, once the vault has it')
-  .action(
-    action('vault_drop_home', () => {
-      const vault = vaultDir();
-      const plan = planMigration(vault, cloneRoot() ?? dirname(yanHome()));
-
-      const missing = stillOnlyInHome(plan);
-      if (missing.length > 0) {
-        throw new CommandError('vault', 'incomplete', `${plan.home} still holds things the vault does not:\n${missing.map((m) => `  - ${m}`).join('\n')}\nnothing was removed - run 'yan vault init <name> --remote <url> --from-home' first`);
-      }
-      if (plan.tasks.length === 0 && !plan.config && plan.repos.length === 0) {
-        out(`vault drop-home: nothing left in ${plan.home} to remove`);
-        return;
-      }
-      dropHome(plan);
-    }),
-  );
-
-/**
  * `yan vault where` — the active vault's path, or the same refusal every other
  * command would have given.
  */
@@ -448,7 +400,6 @@ export const command = new Command('vault')
   .addCommand(lsVaults)
   .addCommand(linkCommand)
   .addCommand(useCommand)
-  .addCommand(dropHomeCommand)
   .addCommand(pullCommand)
   .addCommand(pushCommand)
   .addCommand(whereCommand);
