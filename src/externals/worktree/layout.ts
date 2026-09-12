@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { normalizePath } from '../../util/paths.js';
@@ -16,7 +16,17 @@ import { WorktreeError } from './errors.js';
  */
 
 export function absolute(path: string): string {
-  return normalizePath(resolve(path));
+  // As git will spell it: `git worktree list` reports real paths, and the pool
+  // is keyed by the clone's path, so a clone or a pool root reached through a
+  // symlink (macOS's /var -> /private/var, every $TMPDIR) would otherwise get
+  // one key when spelled one way and another key the other way. A path that
+  // does not exist yet is kept as given.
+  const abs = resolve(path);
+  try {
+    return normalizePath(realpathSync(abs));
+  } catch {
+    return normalizePath(abs);
+  }
 }
 
 /** Short and non-cryptographic: it only keeps same-named clones in different pools. */

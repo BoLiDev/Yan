@@ -18,6 +18,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'tests/{unit,integration,e2e}/**/*.test.ts'],
+    setupFiles: ['tests/helpers/setup-env.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // Git and worktree fixtures are real directories on disk; running files in

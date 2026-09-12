@@ -220,7 +220,7 @@ describe('what it refuses, before anything moves', () => {
       ['vault', 'init', 'personal', '--remote', remote, '--path', join(tmp, 'vault'), '--clone-root', join(tmp, 'code'), '--from-home'],
       { ...identity, YAN_POOL_ROOT: poolRoot, YAN_VAULT: undefined, YAN_MACHINE_DIR: join(tmp, 'machine') },
     );
-    expect(r.code).not.toBe(0);
+    expect(r.code, r.out).not.toBe(0);
     expect(r.out).toContain('leased tree');
     expect(r.out, 'the pool is keyed by the path, so the fix is to give the tree back').toContain('yan tree return');
     expect(existsSync(join(home, 'repos', 'demo'))).toBe(true);

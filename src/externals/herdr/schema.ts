@@ -2,9 +2,9 @@
 //
 // Source: `herdr api schema --json`. Re-run the generator after a Herdr
 // upgrade; `yan doctor` compares the two stamps below against the installed
-// binary and says so when they have drifted.
+// binary and says so when they have drifted (runtime.md §4, sources.md §2).
 
-export const HERDR_PROTOCOL = 19;
+export const HERDR_PROTOCOL = 22;
 export const HERDR_SCHEMA_VERSION = 1;
 
 export type AgentSessionRefKind = 'id' | 'path';
@@ -101,7 +101,14 @@ export const EVENT_KIND: readonly EventKind[] = [
   'layout_updated',
 ];
 
-export type IntegrationTarget = 'pi' | 'omp' | 'claude' | 'codex' | 'copilot' | 'devin' | 'droid' | 'kimi' | 'opencode' | 'kilo' | 'hermes' | 'qodercli' | 'cursor' | 'mastracode' | 'antigravity_cli' | 'grok';
+export type IntegrationState = 'not_installed' | 'current' | 'outdated';
+export const INTEGRATION_STATE: readonly IntegrationState[] = [
+  'not_installed',
+  'current',
+  'outdated',
+];
+
+export type IntegrationTarget = 'pi' | 'omp' | 'claude' | 'codex' | 'copilot' | 'devin' | 'droid' | 'kimi' | 'opencode' | 'kilo' | 'hermes' | 'qodercli' | 'qwen' | 'cursor' | 'mastracode' | 'antigravity_cli' | 'grok';
 export const INTEGRATION_TARGET: readonly IntegrationTarget[] = [
   'pi',
   'omp',
@@ -115,6 +122,7 @@ export const INTEGRATION_TARGET: readonly IntegrationTarget[] = [
   'kilo',
   'hermes',
   'qodercli',
+  'qwen',
   'cursor',
   'mastracode',
   'antigravity_cli',
@@ -145,6 +153,26 @@ export const PANE_AGENT_STATE: readonly PaneAgentState[] = [
   'unknown',
 ];
 
+export type PaneCopyMotion = 'line_end' | 'first_non_blank' | 'next_word_start' | 'previous_word_start' | 'next_word_end' | 'next_big_word_start' | 'previous_big_word_start' | 'next_big_word_end' | 'previous_paragraph' | 'next_paragraph';
+export const PANE_COPY_MOTION: readonly PaneCopyMotion[] = [
+  'line_end',
+  'first_non_blank',
+  'next_word_start',
+  'previous_word_start',
+  'next_word_end',
+  'next_big_word_start',
+  'previous_big_word_start',
+  'next_big_word_end',
+  'previous_paragraph',
+  'next_paragraph',
+];
+
+export type PaneCopySearchDirection = 'forward' | 'backward';
+export const PANE_COPY_SEARCH_DIRECTION: readonly PaneCopySearchDirection[] = [
+  'forward',
+  'backward',
+];
+
 export type PaneDirection = 'left' | 'right' | 'up' | 'down';
 export const PANE_DIRECTION: readonly PaneDirection[] = [
   'left',
@@ -158,11 +186,12 @@ export const PANE_FOCUS_DIRECTION_REASON: readonly PaneFocusDirectionReason[] = 
   'no_neighbor',
 ];
 
-export type PaneGraphicsFormat = 'png' | 'rgb' | 'rgba';
+export type PaneGraphicsFormat = 'png' | 'rgb' | 'rgba' | 'bgra';
 export const PANE_GRAPHICS_FORMAT: readonly PaneGraphicsFormat[] = [
   'png',
   'rgb',
   'rgba',
+  'bgra',
 ];
 
 export type PaneMoveReason = 'same_tab' | 'zoomed_tab';
@@ -174,6 +203,12 @@ export const PANE_MOVE_REASON: readonly PaneMoveReason[] = [
 export type PaneResizeReason = 'unchanged';
 export const PANE_RESIZE_REASON: readonly PaneResizeReason[] = [
   'unchanged',
+];
+
+export type PaneRightClickTarget = 'herdr' | 'pane';
+export const PANE_RIGHT_CLICK_TARGET: readonly PaneRightClickTarget[] = [
+  'herdr',
+  'pane',
 ];
 
 export type PaneSwapReason = 'no_neighbor' | 'same_pane' | 'not_found' | 'cross_tab';
