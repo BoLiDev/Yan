@@ -429,8 +429,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
   if (!Task.exists(task)) throw YanError.usage('unit_set_usage', `no such task: ${task}`);
   const record = new Task(task);
-  const unit = record.findUnit(unitName);
-  if (unit === undefined) {
+  if (record.findUnit(unitName) === undefined) {
     throw YanError.usage('unit_set_usage', `no such unit: ${unitName} in ${task}`);
   }
   const needs = (options.needs ?? []).filter((n) => n !== '');
@@ -448,7 +447,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   const changed: string[] = [];
 
   if (wantBranch) {
-    const before = unit.read();
+    const before = record.unit(unitName);
     const clone = repoDir('unit_set', before.repo, 'the unit names it, but nothing on this machine says where it is');
     // The rotation appends one history entry, so the round being started is
     // two past what history holds now.
@@ -506,7 +505,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     freshenClone('yan unit set', clone, before.repo);
     const how = ensureBranch('yan unit set', clone, branch, base);
 
-    unit.rotate(end, branch, options.at ?? '');
+    record.rotateUnit(unitName, end, branch, options.at ?? '');
 
     // After the rotation is recorded, so a failure here cannot undo it.
     const carried = inheritRound(clone, before.branch, branch);
@@ -542,8 +541,11 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   // After the rotation, so the history entry records the target the retired
   // round used rather than the new one.
   if (options.target) {
-    const old = unit.read().target;
-    unit.set('target', options.target);
+    const old = record.unit(unitName).target;
+    const target = options.target;
+    record.editUnit(unitName, (u) => {
+      u.target = target;
+    });
     try {
       new Log(task).append('changed', noted(`${unitName}  target ${old} → ${options.target}`, note));
     } catch { /* the change is recorded; a missing log line is not worth failing for */ }
@@ -552,7 +554,9 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
 
   if (wantScope) {
     const scope = options.scope ?? [];
-    unit.setScope(scope);
+    record.editUnit(unitName, (u) => {
+      u.scope = [...scope];
+    });
     try {
       new Log(task).append('changed', noted(`${unitName}  scope → ${scope.join(' ')}`, note));
     } catch { /* as above */ }
@@ -560,14 +564,16 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   }
 
   if (wantNeeds) {
-    unit.setNeeds(needs);
+    record.editUnit(unitName, (u) => {
+      u.needs = [...needs];
+    });
     try {
       new Log(task).append('changed', noted(`${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note));
     } catch { /* as above */ }
     changed.push(`needs=${needs.join(' ')}`);
   }
 
-  if (options.json === true) out(JSON.stringify(unit.read(), null, 2));
+  if (options.json === true) out(JSON.stringify(record.unit(unitName), null, 2));
   else out(`${task} ${unitName}  ${changed.join(' ')}`);
 }
 

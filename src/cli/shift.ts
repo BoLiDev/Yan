@@ -370,11 +370,10 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
 
   if (!Task.exists(task)) throw YanError.usage('shift_new_usage', `no such task: ${task}`);
   const record = new Task(task);
-  const unit = record.findUnit(unitName);
-  if (unit === undefined) {
+  const data = record.findUnit(unitName);
+  if (data === undefined) {
     throw YanError.usage('shift_new_usage', `no such unit: ${unitName} in task ${task}`);
   }
-  const data = unit.read();
   if (data.branch === '') {
     throw YanError.usage('shift_new_usage', `unit ${unitName} has no integration branch yet - 'yan unit add' or 'yan unit set --branch' sets one`,
     );

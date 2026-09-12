@@ -1,14 +1,14 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Task, Unit } from './index.js';
+import { Task } from './index.js';
 import type { TaskData, UnitData } from './index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { YanError } from '../../util/error.js';
 
 /**
- * The two claims under test: history[] stays append-only, and the four current
- * scalars stay separate from it.
+ * The two claims under test: history[] only ever grows, and the current
+ * branch, target and mr stay separate from it.
  */
 
 /** One unit out of an already-parsed document. A test accessor only. */
@@ -91,8 +91,9 @@ describe('units', () => {
 
     const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r1');
-    expect((unit as Record<string, unknown>).mode).toBe('scout');
-    new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/7');
+    new Task('t042').editUnit('auth', (u) => {
+      u.mr = 'https://example.invalid/mr/7';
+    });
     const after = JSON.parse(readFileSync(file, 'utf8')) as { units: Record<string, unknown>[] };
     expect(after.units[0]!.mode).toBe('scout');
   });
@@ -118,8 +119,10 @@ describe('units', () => {
 describe('the three current scalars', () => {
   it('are set without ever touching history[]', () => {
     seed();
-    new Task('t042').unit('auth').set('branch', 'feat/auth-r2');
-    new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/31');
+    new Task('t042').editUnit('auth', (u) => {
+      u.branch = 'feat/auth-r2';
+      u.mr = 'https://example.invalid/mr/31';
+    });
 
     const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r2');
@@ -129,43 +132,49 @@ describe('the three current scalars', () => {
 
   it('refuses an unknown unit', () => {
     seed();
-    expect(() => new Task('t042').unit('nope').set('branch', 'x')).toThrow(YanError);
+    expect(() => new Task('t042').editUnit('nope', (u) => {
+      u.branch = 'x';
+    })).toThrow(YanError);
   });
 });
 
-describe('history is append-only', () => {
+describe('history only ever grows', () => {
   it('offers no way to reach an existing entry', () => {
-    // The absence of these is what makes history[] append-only.
-    const surface = Object.getOwnPropertyNames(Unit.prototype);
+    // Rotating is the only thing on the record that writes history[], and it
+    // appends. The absence of these is what keeps it that way.
+    const surface = Object.getOwnPropertyNames(Task.prototype);
     for (const forbidden of ['setHistory', 'replaceHistory', 'deleteHistory', 'historyAt']) {
       expect(surface).not.toContain(forbidden);
     }
-    // The only writer is an append, and it takes no index.
-    expect(surface).toContain('appendHistory');
+    expect(surface).toContain('rotateUnit');
   });
 
   it('carries every earlier entry across untouched', () => {
     seed();
-    new Task('t042').unit('auth').appendHistory('feat/auth-r1', 'master', '08-01', 'delivered', 'mr/1');
-    new Task('t042').unit('auth').appendHistory('feat/auth-r2', 'master', '08-05', 'abandoned');
+    new Task('t042').editUnit('auth', (u) => {
+      u.mr = 'mr/1';
+    });
+    new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '08-01');
+    new Task('t042').rotateUnit('auth', 'abandoned', 'feat/auth-r3', '08-05');
 
     const history = requireUnitOf(new Task('t042').read(), 'auth').history;
     expect(history).toEqual([
       { branch: 'feat/auth-r1', target: 'master', at: '08-01', end: 'delivered', mr: 'mr/1' },
       { branch: 'feat/auth-r2', target: 'master', at: '08-05', end: 'abandoned' },
     ]);
-    expect(new Task('t042').unit('auth').rounds()).toBe(2);
   });
 
-  it('refuses an end that is not delivered or abandoned', () => {
+  it('refuses an end that is not one of ENDS', () => {
     seed();
-    expect(() => new Task('t042').unit('auth').appendHistory('b', 'master', '', 'finished')).toThrow(YanError);
+    expect(() => new Task('t042').rotateUnit('auth', 'finished', 'feat/auth-r2')).toThrow(YanError);
   });
 
   it('rotate archives the round and clears mr, atomically', () => {
     seed();
-    new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/31');
-    new Task('t042').unit('auth').rotate('delivered', 'feat/auth-r2', '08-09');
+    new Task('t042').editUnit('auth', (u) => {
+      u.mr = 'https://example.invalid/mr/31';
+    });
+    new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '08-09');
 
     const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r2');

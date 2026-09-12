@@ -153,6 +153,6 @@ export function leasesHeldBy(task: string, pool?: Statuser): Held[] {
  */
 export function cloneOf(task: string, unit: string): string {
   if (task === '' || unit === '' || !Task.exists(task)) return '';
-  const repo = new Task(task).findUnit(unit)?.read().repo ?? '';
+  const repo = new Task(task).findUnit(unit)?.repo ?? '';
   return repo === '' ? '' : (repoDirIfKnown(repo) ?? '');
 }

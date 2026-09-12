@@ -63,11 +63,10 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
 
   if (!Task.exists(task)) throw YanError.usage('mr_usage', `no such task: ${task} - 'yan ls' lists them`);
   const record = new Task(task);
-  const unit = record.findUnit(unitName);
-  if (unit === undefined) {
+  const data = record.findUnit(unitName);
+  if (data === undefined) {
     throw YanError.usage('mr_usage', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);
   }
-  const data = unit.read();
 
   if (data.mr !== null && data.mr !== '') {
     throw YanError.usage('mr_usage', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
@@ -123,7 +122,9 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
 
   // Recorded only once the host has answered with a URL.
   try {
-    unit.set('mr', url);
+    record.editUnit(unitName, (u) => {
+      u.mr = url;
+    });
   } catch (err) {
     throw new YanError('mr_not_recorded', `the merge request is open at ${url} but task.json was not updated - record it with 'yan unit set' or re-run after fixing the error above`,
       { cause: err },

@@ -163,7 +163,9 @@ describe('a round with nothing on it is replaced without an interrogation', () =
 
 describe('an open MR does not block the rotation any more', () => {
   it('rotates, records the round as `unknown`, and says the MR is still open', async () => {
-    new Task('t1').unit('auth').set('mr', MR);
+    new Task('t1').editUnit('auth', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'open';
 
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r3', at: '2026-08-26' });
@@ -182,7 +184,9 @@ describe('an open MR does not block the rotation any more', () => {
   });
 
   it("still takes `user`'s own answer through --end, and needs no reason for it", () => {
-    new Task('t1').unit('proto').set('mr', MR);
+    new Task('t1').editUnit('proto', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'open';
     const r = run({ task: 't1', unit: 'proto', branch: 'feat/proto-r2', end: 'abandoned' });
     expect(r.code, r.message).toBe(0);
@@ -194,7 +198,9 @@ describe('an open MR does not block the rotation any more', () => {
 
 describe('a host that cannot answer is recorded, not obeyed', () => {
   it('writes `unknown` and carries on', () => {
-    new Task('t1').unit('auth').set('mr', MR);
+    new Task('t1').editUnit('auth', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'unknown';
 
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r4' });
@@ -210,7 +216,9 @@ describe('a host that cannot answer is recorded, not obeyed', () => {
 describe('merged means delivered', () => {
   it('starts the next round from target, which already contains the old one', async () => {
     hostSays = 'merged';
-    new Task('t1').unit('auth').set('mr', MR);
+    new Task('t1').editUnit('auth', (u) => {
+      u.mr = MR;
+    });
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r5', at: '2026-08-27' });
     expect(r.code, r.message).toBe(0);
 
@@ -235,7 +243,9 @@ describe('merged means delivered', () => {
 
 describe('closed means abandoned', () => {
   it('is decided by the host, not by the caller', () => {
-    new Task('t1').unit('proto').set('mr', MR);
+    new Task('t1').editUnit('proto', (u) => {
+      u.mr = MR;
+    });
     hostSays = 'closed';
     const r = run({
       task: 't1',
@@ -351,7 +361,9 @@ describe('the work on the old round is carried forward', () => {
 
     await fxGit(['fetch', 'origin'], clone);
     await fxGit(['branch', '--force', 'side', 'origin/side'], clone);
-    new Task('t1').unit('carry').set('branch', 'side');
+    new Task('t1').editUnit('carry', (u) => {
+      u.branch = 'side';
+    });
 
     const r = run({ task: 't1', unit: 'carry', branch: 'feat/carry-r3', base: 'main' });
     expect(r.code, 'a conflict does not fail the rotation: the branch and the history are right').toBe(0);

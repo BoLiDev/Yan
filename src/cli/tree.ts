@@ -59,11 +59,10 @@ function standingTree(options: GetOptions): { repo: string; base: string; branch
   }
   const task = insideTask('tree');
   if (!Task.exists(task)) throw YanError.usage('tree_usage', `no such task: ${task}`);
-  const found = new Task(task).findUnit(unit);
-  if (found === undefined) {
+  const data = new Task(task).findUnit(unit);
+  if (data === undefined) {
     throw YanError.usage('tree_usage', `no such unit: ${unit} in ${task} - 'yan show ${task}' lists them`);
   }
-  const data = found.read();
   if (data.branch === '') {
     throw YanError.usage('tree_usage', `unit ${unit} has no integration branch yet - 'yan unit set --branch' sets one`);
   }
