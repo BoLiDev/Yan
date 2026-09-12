@@ -303,9 +303,9 @@ function checkCodex(report: Report, agents: Record<string, string>): void {
   try {
     config = readFileSync(join(home, 'config.toml'), 'utf8');
   } catch {
+    // Both gates below are then armed, which is exactly when they need naming.
     line(report, 'warn', 'codex config', `${join(home, 'config.toml')} is not readable - codex has not been run on this machine yet, so both first-run gates are still armed`,
     );
-    return;
   }
 
   // The key is `<path to the hooks file>:<event>:<n>:<n>`; the path spelling is

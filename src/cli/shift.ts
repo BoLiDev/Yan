@@ -98,9 +98,16 @@ function claimSid(task: string, asked: string | undefined): string {
 }
 
 /**
- * The whole argv one harness needs: the extra directories, running unattended,
- * and the work order last. An unflagged harness would stop at its first
- * permission prompt in a pane nobody is watching.
+ * The whole argv one harness needs: the extra directories and running
+ * unattended. An unflagged harness would stop at its first permission prompt
+ * in a pane nobody is watching.
+ *
+ * The work order is not in here for claude and codex: it is typed in once the
+ * harness is up, by `startAgent`. Herdr's `agent start` returns only when the
+ * agent is ready for input, and one started with its prompt in argv goes
+ * straight to work and is still working at the deadline - every shift came
+ * back as `timeout`. Agy keeps its prompt on the command line, because `-i`
+ * is what makes it act on one and then stay open.
  *
  * A `scout` runs unattended too. Read-only by permission mode is the one thing
  * it must not be: `--permission-mode plan` ends at "ready to execute - would
@@ -110,10 +117,6 @@ function claimSid(task: string, asked: string | undefined): string {
  * fail; what makes that affordable is that a scout's tree is thrown away and
  * its branch is never pushed. The gain is that a scout can now run the build
  * and the test suite it is reporting on.
- *
- * `--add-dir` and `--disallowed-tools` take any number of values, so the
- * prompt has to be fenced off behind `--` or it is read as one more of them
- * and the harness starts with no work order at all.
  */
 function harnessArgv(
   spec: ShiftSpec,
@@ -129,7 +132,6 @@ function harnessArgv(
     for (const d of addDirs) args.push('--add-dir', d);
     args.push('--dangerously-skip-permissions');
     if (mode === 'scout') args.push('--disallowed-tools', 'Bash(git push:*)');
-    args.push('--');
   } else if (kind === 'codex') {
     args.push(...modelFlags(spec.cli, spec));
     if (mode === 'scout') args.push('--sandbox', 'read-only');
@@ -145,9 +147,8 @@ function harnessArgv(
     // names. A prompt it should act on and then stay open for is -i's.
     args.push(...modelFlags(spec.cli, spec));
     for (const d of [workdir, ...addDirs]) args.push('--add-dir', d);
-    args.push('--dangerously-skip-permissions', '-i');
+    args.push('--dangerously-skip-permissions', '-i', prompt);
   }
-  args.push(prompt);
   return args;
 }
 
@@ -490,7 +491,8 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
         YAN_SHIFT_DIR: shift.dir,
       },
       argv: harnessArgv(spec, data.mode, workdir, addDirs, prompt),
-      prompt,
+      // Typed in once the harness is idle; agy already has it in argv.
+      ...(cliKind(agent) === 'agy' ? {} : { prompt }),
     });
     started = true;
 

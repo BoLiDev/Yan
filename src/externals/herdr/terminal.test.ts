@@ -353,12 +353,54 @@ describe('an agent that is not really there', () => {
     expect(herdr.calls).toEqual(['tab create --workspace', 'agent start s1', 'pane close w1:p2']);
   });
 
-  it('answers the trust dialog, and gives back the prompt it swallowed', () => {
-    // Herdr calls an agent ready as soon as it recognises one, which it does
-    // while the harness is still holding up "is this a project you trust?".
-    // The harness then comes up at an empty input line, having dropped the
-    // prompt it was started with — a shift that looks alive and was asked
-    // nothing.
+  it('hands the work order over once the agent is at its input line', () => {
+    // Herdr's `agent start` returns only when the agent is ready for input, so
+    // the prompt cannot ride in argv: a shift that had it there was still
+    // working at the deadline and came back as a timeout. It is typed in
+    // afterwards, and the status handed back is the one taken after that.
+    const sent: string[][] = [];
+    let prompted = false;
+
+    const run = (args: readonly string[]) => {
+      sent.push([...args]);
+      const verb = `${args[0]} ${args[1]}`;
+      if (verb === 'tab create') {
+        return ok({ tab: { tab_id: 'w1:t2' }, root_pane: { pane_id: 'w1:p2' } });
+      }
+      if (verb === 'agent start') {
+        return ok({ agent: { name: 's1', pane_id: 'w1:p2', agent_status: 'idle' } });
+      }
+      if (verb === 'agent prompt') {
+        prompted = true;
+        return ok({});
+      }
+      if (verb === 'agent get') {
+        return ok({ agent: { pane_id: 'w1:p2', agent_status: prompted ? 'working' : 'idle' } });
+      }
+      return ok({});
+    };
+
+    const started = new Terminal({ run }).startAgent({
+      container: 'w1',
+      name: 's1',
+      kind: 'claude',
+      cwd: '.',
+      argv: ['--dangerously-skip-permissions'],
+      prompt: 'read the brief',
+    });
+
+    const prompt = sent.find((a) => a[1] === 'prompt');
+    expect(prompt, 'the work order is typed in after the start').toEqual(['agent', 'prompt', 'w1:p2', 'read the brief']);
+    expect(sent.some((a) => a[1] === 'send-keys'), 'nothing was answered blind').toBe(false);
+    expect(started.status, 'the status is the one after the hand-over').toBe('working');
+  });
+
+  it('answers the trust dialog, then hands the work order over', () => {
+    // Herdr can call an agent ready while the harness is still holding up
+    // "is this a project you trust?". The harness restarts behind that dialog
+    // and comes up at an empty input line, so the prompt is typed in only
+    // once it is there — a shift that looks alive and was asked nothing is
+    // the failure this guards.
     const trustScreen = ' ❯ 1. Yes, I trust this folder\n   2. No, exit';
     const sent: string[][] = [];
     let cleared = false;
@@ -390,7 +432,7 @@ describe('an agent that is not really there', () => {
       name: 's1',
       kind: 'claude',
       cwd: '.',
-      argv: ['--dangerously-skip-permissions', '--', 'read the brief'],
+      argv: ['--dangerously-skip-permissions'],
       prompt: 'read the brief',
     });
 
@@ -399,7 +441,7 @@ describe('an agent that is not really there', () => {
       'agent', 'send-keys', 'w1:p2', 'enter',
     ]);
     const prompt = sent.find((a) => a[1] === 'prompt');
-    expect(prompt?.[3], 'and the work order is handed over again').toBe('read the brief');
+    expect(prompt?.[3], 'and the work order is handed over after it').toBe('read the brief');
     expect(started.status, 'the status is the settled one, not the three-second one').toBe('working');
   });
 
