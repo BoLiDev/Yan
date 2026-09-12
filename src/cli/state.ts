@@ -209,7 +209,7 @@ export function stateOf(sid: string, task: string, deps: StateDeps = {}): StateF
 function motionLine(facts: StateFacts): string {
   if (facts.motion === 'unsampled') {
     return facts.sampled_ago === undefined
-      ? 'unsampled  (no watcher has read this terminal - is `yan wait` running?)'
+      ? 'unsampled  (not read yet - the watcher runs between yan\'s turns, not during one)'
       : `unsampled  (last read ${duration(facts.sampled_ago)} ago, so this says nothing about the shift)`;
   }
   const been = duration(facts.still_for ?? 0);

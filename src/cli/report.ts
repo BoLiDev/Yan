@@ -12,7 +12,8 @@ import { Shift } from '../records/shift/index.js';
  *
  * Five states, and any other is refused:
  *
- *   started         the agent booted and read its brief
+ *   started         the agent booted and read its brief; recorded, but wakes
+ *                   nobody, since there is nothing for yan to act on
  *   done            with the scenario's deliverable in the note, e.g. `mr <url>`;
  *                   refused until the shift has written outcome.md
  *   blocked         it is waiting on something
@@ -45,8 +46,9 @@ export const command = new Command('report')
     `
 usage: yan report <state> "<note>" [--sid <sid>] [--task <id>] [--dir <dir>]
 
-Appends the event to run/status and touches run/signal in one go. \`done\` is
-refused, and nothing is written, until the shift directory has outcome.md.
+Appends the event to run/status and touches run/signal in one go - except
+\`started\`, which is recorded without waking yan. \`done\` is refused, and
+nothing is written, until the shift directory has outcome.md.
 
 Which shift is reporting is normally taken from the environment the spawn
 step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid / --dir are for
