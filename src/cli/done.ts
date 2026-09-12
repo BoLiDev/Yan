@@ -1,15 +1,13 @@
-import { existsSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { display } from './shared/display.js';
-import { CommandError } from './shared/errors.js';
-import { repoDir } from './shared/repo.js';
+import { closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import { isTty } from './shared/resolve.js';
+import { openTasks } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
-import { queueJson } from './ls.js';
-import { isYanError } from '../util/error.js';
+import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import type { WorktreePool } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
@@ -74,84 +72,34 @@ export interface DoneResult {
   readonly trees: readonly ReturnedTree[];
 }
 
-/** A lease of this task, with the clone it belongs to. */
-interface Held extends LeaseRow {
-  readonly clone: string;
-}
-
-/**
- * Every tree the pool is holding for this task, sorted by holder. Looks in
- * every repository the units name and every one a live shift records, since a
- * re-pointed unit can leave a lease task.json no longer mentions. A repository
- * that cannot be resolved is skipped rather than fatal.
- */
-export function heldBy(task: string, deps: DoneDeps): Held[] {
-  const repos = new Set<string>();
-  for (const unit of new Task(task).read().units) {
-    if (typeof unit.repo === 'string' && unit.repo !== '') repos.add(unit.repo);
-  }
-  for (const shift of Shift.liveIn(task)) {
-    const clone = shift.meta().clone ?? '';
-    if (clone !== '' && existsSync(clone)) repos.add(clone);
-  }
-
-  const seen = new Set<string>();
-  const held: Held[] = [];
-  for (const repo of repos) {
-    let clone: string;
-    try {
-      clone = repoDir('done', repo);
-    } catch {
-      continue;
-    }
-    if (seen.has(clone)) continue;
-    seen.add(clone);
-
-    let leases: LeaseRow[];
-    try {
-      leases = (deps.pool?.(clone) ?? new WorktreePool(clone)).status();
-    } catch {
-      continue;
-    }
-    for (const lease of leases) {
-      if (lease.holder.startsWith(`${task}/`)) held.push({ ...lease, clone });
-    }
-  }
-  return held.sort((a, b) => (a.holder < b.holder ? -1 : a.holder > b.holder ? 1 : 0));
-}
-
 /**
  * Close a live shift's pane and delete its `run/`, leaving outcome.md, the
  * status log and the brief. Never throws for a pane it cannot close.
  */
 function kill(shift: Shift, terminal: Closer): KilledShift {
   const meta = shift.meta();
-  const pane = meta.agentId ?? '';
-  let closed = false;
-  if (pane !== '') {
-    display('could not clear the shift pane title', () => { terminal.clearPaneTitle(pane); });
-    display('could not close the shift pane', () => { terminal.close(pane); closed = true; });
-  }
+  const pane = meta.pane ?? '';
+  const closed = closePane(pane, terminal);
   rmSync(shift.run, { recursive: true, force: true });
-  return { sid: shift.sid, unit: meta.unit ?? '', pane_closed: closed };
+  return { sid: shift.sid, unit: meta.unit ?? '', pane_closed: pane !== '' && closed };
 }
 
 /**
  * Finish one task: return its trees and mark it complete.
  *
- * @throws CommandError `usage` when no task is named, `missing` for an unknown
- *   one, `live_shifts` (exit 4) when a shift is still live and `--force` was
- *   not given — nothing is touched in that case — and `tree_held` (exit 5)
+ * @throws YanError `done_usage` when no task is named, `done_missing` for an unknown
+ *   one, `done_live_shifts` (exit 4) when a shift is still live and `--force` was
+ *   not given — nothing is touched in that case — and `done_tree_held` (exit 5)
  *   when a tree would not come back, after the others have been returned.
  */
 export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResult {
   const task = options.task ?? process.env.YAN_TASK ?? '';
   if (task === '') {
-    throw CommandError.usage('done', 'which task? pass it as the argument, or set $YAN_TASK');
+    throw YanError.usage('done_usage', 'which task? pass it as the argument, or set $YAN_TASK');
   }
   if (!Task.exists(task)) {
     const where = Task.isId(task) ? new Task(task).file : `${task}/task.json`;
-    throw new CommandError('done', 'missing', `no such task: ${task} - ${where} does not exist`);
+    throw new YanError('done_missing', `no such task: ${task} - ${where} does not exist`);
   }
 
   const record = new Task(task);
@@ -167,7 +115,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
         return unit === '' ? s.sid : `${s.sid} (${unit})`;
       })
       .join(', ');
-    throw new CommandError('done', 'live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user is giving the task up - 'yan abandon ${task} --user-asked --reason ...', which closes their merge requests too; --force instead marks it done and discards their work`,
+    throw new YanError('done_live_shifts', `${task} still has live shifts: ${named}\n    they are holding trees and may be mid-edit. Clock them out with 'yan shift done <sid>' once their work is accepted, or - if user is giving the task up - 'yan abandon ${task} --user-asked --reason ...', which closes their merge requests too; --force instead marks it done and discards their work`,
       { exitCode: RC_LIVE_SHIFTS },
     );
   }
@@ -178,23 +126,14 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
 
   // --- 3. the trees ----------------------------------------------------------
   const trees: ReturnedTree[] = [];
-  for (const lease of heldBy(task, deps)) {
-    const pool = deps.pool?.(lease.clone) ?? new WorktreePool(lease.clone);
-    try {
-      const path = pool.return(lease.path, {
-        leaseId: lease.lease_id,
-        holder: lease.holder,
-        force,
-      });
-      trees.push({ holder: lease.holder, path: path === '' ? lease.path : path, returned: true });
-    } catch (err) {
-      trees.push({
-        holder: lease.holder,
-        path: lease.path,
-        returned: false,
-        reason: err instanceof Error ? err.message : String(err),
-      });
-    }
+  for (const lease of leasesHeldBy(task, deps.pool)) {
+    const back = returnLease(
+      lease.clone,
+      lease.path,
+      { leaseId: lease.lease_id, holder: lease.holder, force },
+      deps.pool,
+    );
+    trees.push({ holder: lease.holder, ...back });
   }
   const stuck = trees.filter((t) => !t.returned);
 
@@ -220,7 +159,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   }
 
   if (stuck.length > 0) {
-    throw new CommandError('done', 'tree_held', `${stuck.length} tree(s) could not be returned, so ${complete ? `${task} is marked done but the pool slot(s) are stranded` : `${task} is NOT marked done`}:\n${stuck
+    throw new YanError('done_tree_held', `${stuck.length} tree(s) could not be returned, so ${complete ? `${task} is marked done but the pool slot(s) are stranded` : `${task} is NOT marked done`}:\n${stuck
         .map((t) => `    ${t.path}\n      ${t.reason ?? ''}`)
         .join('\n')}`,
       { exitCode: RC_TREE_HELD },
@@ -239,23 +178,6 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   };
 }
 
-interface Finishable {
-  readonly id: string;
-  readonly title: string;
-  readonly units: number;
-  readonly shifts: number;
-}
-
-/** The rows the multi-select offers: every task in the queue not yet complete. */
-export function finishableTasks(): Finishable[] {
-  const queue = queueJson() as {
-    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
-  };
-  return queue.tasks
-    .filter((t) => !t.complete)
-    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
-}
-
 async function whichTasks(named: string): Promise<string[]> {
   if (named !== '') return [named];
 
@@ -263,10 +185,10 @@ async function whichTasks(named: string): Promise<string[]> {
   if (fromEnv !== '') return [fromEnv];
 
   if (!isTty()) {
-    throw CommandError.usage('done', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
+    throw YanError.usage('done_usage', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
   }
 
-  const open = finishableTasks();
+  const open = openTasks();
   if (open.length === 0) return [];
 
   const { chooseTasksToFinish } = await import('../ui/prompts.js');

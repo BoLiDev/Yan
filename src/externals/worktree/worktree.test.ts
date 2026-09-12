@@ -12,7 +12,6 @@ import {
   runYan,
 } from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
-import { WorktreeError } from './errors.js';
 import { cloneDir } from './layout.js';
 import { WorktreePool } from './index.js';
 
@@ -243,7 +242,7 @@ describe('the conditional return', () => {
     } catch (e) {
       thrown = e;
     }
-    expect((thrown as { code: string }).code).toBe(WorktreeError.codes.mismatch);
+    expect((thrown as { code: string }).code).toBe('worktree_mismatch');
     expect((thrown as { exitCode: number }).exitCode).toBe(3);
     expect((thrown as Error).message).toContain('nothing was touched');
     expect(existsSync(join(grant.path, 'stray2.txt'))).toBe(true);
@@ -254,7 +253,7 @@ describe('the conditional return', () => {
     } catch (e) {
       thrown = e;
     }
-    expect((thrown as { code: string }).code).toBe(WorktreeError.codes.mismatch);
+    expect((thrown as { code: string }).code).toBe('worktree_mismatch');
     expect((thrown as Error).message).toContain('holder does not match');
 
     // With a matching identity the guard is what refuses.

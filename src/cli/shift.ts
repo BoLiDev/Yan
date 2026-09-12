@@ -7,20 +7,20 @@ import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
-import { readLearnings } from './session-start.js';
-import { CommandError } from './shared/errors.js';
-import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
+import { poolSize, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
+import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
 import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { WorktreePool, WorktreeError, type LeaseGrant } from '../externals/worktree/index.js';
+import { WorktreePool, type LeaseGrant } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift } from '../records/shift/index.js';
+import { readLearnings } from '../records/memory/index.js';
+import { opensMr, Shift, type ShiftMeta, type ShiftMetaPlaceholder } from '../records/shift/index.js';
 import { Task, type UnitData } from '../records/task/index.js';
-import { isYanError } from '../util/error.js';
+import { YanError, isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
-import { readJsonIfPresent, writeJson } from '../util/json.js';
+import { writeJson } from '../util/json.js';
 import { withLock } from '../util/lock.js';
 import { branchExists, deleteRemoteBranch, push, remoteBranchExists } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
@@ -71,7 +71,7 @@ const DISPATCH_LOCK_SECONDS = 120;
  * same `s<n>` cannot both walk away believing they hold it — which is how they
  * used to end up cutting the same shift branch.
  *
- * @throws CommandError `usage` when an explicitly named sid is already taken.
+ * @throws YanError `shift_new_usage` when an explicitly named sid is already taken.
  */
 function claimSid(task: string, asked: string | undefined): string {
   const shifts = join(new Task(task).dir, 'shifts');
@@ -81,8 +81,7 @@ function claimSid(task: string, asked: string | undefined): string {
     try {
       mkdirSync(join(shifts, asked));
     } catch {
-      throw CommandError.usage('shift_new',
-        `shift ${asked} already exists in task ${task} - ${join(shifts, asked)} is there already`,
+      throw YanError.usage('shift_new_usage', `shift ${asked} already exists in task ${task} - ${join(shifts, asked)} is there already`,
       );
     }
     return asked;
@@ -118,16 +117,6 @@ export function publishBase(clone: string, branch: string): 'on-origin' | 'pushe
   if (pushed.code === 0) return 'pushed';
   process.stderr.write(`yan shift new: ${branch} is not on origin and could not be pushed (${pushed.stderr.trim()}) - the shift's merge request will have no base until it is\n`);
   return 'failed';
-}
-
-/**
- * What a scenario delivers. `coding` ends in a merge request into the
- * integration branch; `explore` and `uix` end in a report and artifacts, and
- * never push. There is no third shape: a coding shift that finds nothing to
- * change says so and is clocked out with --nothing-to-merge.
- */
-export function opensMr(scenario: string): boolean {
-  return scenario === 'coding';
 }
 
 /**
@@ -360,34 +349,33 @@ export interface Deps {
 /**
  * Dispatch one shift and return the record written to `run/meta.json`.
  *
- * @throws CommandError `usage` for a missing task, unit or agent, `pool_full`
- *   (exit 3) when no tree is free, `main_clone` (exit 4) when the agent would
+ * @throws YanError `shift_new_usage` for a missing task, unit or agent, `shift_new_pool_full`
+ *   (exit 3) when no tree is free, `shift_new_main_clone` (exit 4) when the agent would
  *   have started inside the main clone.
  */
-export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, unknown> {
+export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
   const task = options.task ?? insideTask('shift_new');
   const unitName = options.unit ?? '';
 
   if (unitName === '') {
-    throw CommandError.usage('shift_new', '--unit is required - a shift always works on one unit of a task');
+    throw YanError.usage('shift_new_usage', '--unit is required - a shift always works on one unit of a task');
   }
   if (options.brief !== undefined && options.briefText !== undefined) {
-    throw CommandError.usage('shift_new', '--brief and --brief-text are alternatives - pass one');
+    throw YanError.usage('shift_new_usage', '--brief and --brief-text are alternatives - pass one');
   }
   const note = readNote('shift_new', options.note);
   if (options.brief !== undefined && !existsSync(options.brief)) {
-    throw CommandError.usage('shift_new', `no such brief file: ${options.brief}`);
+    throw YanError.usage('shift_new_usage', `no such brief file: ${options.brief}`);
   }
 
-  if (!Task.exists(task)) throw CommandError.usage('shift_new', `no such task: ${task}`);
+  if (!Task.exists(task)) throw YanError.usage('shift_new_usage', `no such task: ${task}`);
   const record = new Task(task);
-  const unit = record.findUnit(unitName);
-  if (unit === undefined) {
-    throw CommandError.usage('shift_new', `no such unit: ${unitName} in task ${task}`);
+  const data = record.findUnit(unitName);
+  if (data === undefined) {
+    throw YanError.usage('shift_new_usage', `no such unit: ${unitName} in task ${task}`);
   }
-  const data = unit.read();
   if (data.branch === '') {
-    throw CommandError.usage('shift_new', `unit ${unitName} has no integration branch yet - 'yan unit add' or 'yan unit set --branch' sets one`,
+    throw YanError.usage('shift_new_usage', `unit ${unitName} has no integration branch yet - 'yan unit add' or 'yan unit set --branch' sets one`,
     );
   }
 
@@ -417,7 +405,8 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     const shift = new Shift(task, sid);
     const container = resolveContainer(task, terminal, record.containerName());
     mkdirSync(shift.run, { recursive: true });
-    writeJson(join(shift.run, 'meta.json'), { version: 1, task, sid, unit: unitName, container, pane: '' });
+    const placeholder: ShiftMetaPlaceholder = { version: 1, task, sid, unit: unitName, container, pane: '' };
+    writeJson(join(shift.run, 'meta.json'), placeholder);
     return { sid, shift, container };
   });
   const { sid, shift, container } = claimed;
@@ -435,8 +424,8 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     try {
       grant = pool.get(poolSize(key), data.branch, branch, holder);
     } catch (err) {
-      if (err instanceof WorktreeError && err.code === WorktreeError.codes.full) {
-        throw new CommandError('shift_new', 'pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
+      if (isYanError(err) && err.code === 'worktree_full') {
+        throw new YanError('shift_new_pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
           { exitCode: RC_POOL_FULL, cause: err },
         );
       }
@@ -474,12 +463,12 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     if (isInside(clone, workdir)) {
       process.stderr.write(`yan shift new: the sub-agent would have started in ${workdir}\n`);
       process.stderr.write(`yan shift new: that is the main clone (${clone}), which yan only ever fetches into\n`);
-      throw new CommandError('shift_new', 'main_clone', "refusing to start a shift in the main clone - a shift works only in a leased worktree. The tree has been returned; check the pool's configuration before retrying",
+      throw new YanError('shift_new_main_clone', "refusing to start a shift in the main clone - a shift works only in a leased worktree. The tree has been returned; check the pool's configuration before retrying",
         { exitCode: RC_MAIN_CLONE },
       );
     }
     if (isInside(clone, tree)) {
-      throw new CommandError('shift_new', 'main_clone', `refusing to start a shift: the pool handed out ${tree}, which is inside the main clone ${clone}`,
+      throw new YanError('shift_new_main_clone', `refusing to start a shift: the pool handed out ${tree}, which is inside the main clone ${clone}`,
         { exitCode: RC_MAIN_CLONE },
       );
     }
@@ -488,7 +477,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     // Filled in over the placeholder step 1 wrote; the pane follows
     // immediately afterwards, so a running agent is always recorded.
     const metaFile = join(shift.run, 'meta.json');
-    const meta: Record<string, unknown> = {
+    let meta: ShiftMeta = {
       version: 1,
       task,
       sid,
@@ -539,9 +528,12 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     });
     started = true;
 
-    meta.pane = startedAgent.pane;
-    meta.status = startedAgent.status;
-    if (startedAgent.agent_session !== undefined) meta.agent_session = startedAgent.agent_session;
+    meta = {
+      ...meta,
+      pane: startedAgent.pane,
+      status: startedAgent.status,
+      ...(startedAgent.agent_session === undefined ? {} : { agent_session: startedAgent.agent_session }),
+    };
     writeJson(metaFile, meta);
 
     if (startedAgent.status === 'blocked') {
@@ -563,14 +555,9 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
       if (grant !== undefined) {
         // The lease id goes with it, so a slot somebody else now holds is
         // refused rather than wiped.
-        const held = grant;
-        try {
-          (deps.pool?.(clone) ?? new WorktreePool(clone)).return(held.path, {
-            leaseId: held.lease_id,
-            holder,
-          });
-        } catch {
-          process.stderr.write(`yan shift new: the tree at ${held.path} could not be returned - 'yan tree status --repo ${data.repo}' shows the lease\n`,
+        const back = returnLease(clone, grant.path, { leaseId: grant.lease_id, holder }, deps.pool);
+        if (!back.returned) {
+          process.stderr.write(`yan shift new: the tree at ${grant.path} could not be returned - 'yan tree status --repo ${data.repo}' shows the lease\n`,
           );
         }
       }
@@ -608,12 +595,12 @@ main clone and the dispatch was refused.`,
         out(JSON.stringify(meta, null, 2));
         return;
       }
-      out(`${String(meta.sid)}  ${String(meta.unit)}`);
-      out(`branch   ${String(meta.branch)} (from ${String(meta.base)})`);
-      out(`tree     ${String(meta.tree)}`);
-      out(`workdir  ${String(meta.workdir)}`);
-      out(`agent    ${String(meta.scenario)}/${String(meta.tier)}: ${runsAs({ cli: String(meta.agent), model: String(meta.model), effort: String(meta.effort), skills: meta.skills as string[] })}  (${String(meta.pane)} in container ${String(meta.container)})`);
-      out(`brief    ${join(new Shift(String(meta.task), String(meta.sid)).dir, 'brief.md')}`);
+      out(`${meta.sid}  ${meta.unit}`);
+      out(`branch   ${meta.branch} (from ${meta.base})`);
+      out(`tree     ${meta.tree}`);
+      out(`workdir  ${meta.workdir}`);
+      out(`agent    ${meta.scenario}/${meta.tier}: ${runsAs({ cli: meta.agent ?? '', model: meta.model ?? '', effort: meta.effort ?? '', skills: meta.skills })}  (${meta.pane} in container ${meta.container})`);
+      out(`brief    ${join(new Shift(meta.task ?? '', meta.sid ?? '').dir, 'brief.md')}`);
     }),
   );
 
@@ -690,26 +677,20 @@ function resumeFromPool(
   deps: DoneDeps,
 ): { unit: string; clone: string; path: string; branch: string; holder: string; leaseId: string } | undefined {
   if (task === '' || !Task.exists(task)) return undefined;
-  for (const unit of new Task(task).read().units) {
-    const clone = repoDirIfKnown(unit.repo);
-    if (clone === undefined) continue;
-    let leases;
-    try {
-      leases = (deps.pool?.(clone) ?? new WorktreePool(clone)).status();
-    } catch {
-      continue;
-    }
-    const held = leases.find((l) => l.holder === `${task}/${unit.name}/${sid}`);
-    if (held !== undefined) {
-      return {
-        unit: unit.name,
-        clone,
-        path: held.path,
-        branch: held.branch,
-        holder: held.holder,
-        leaseId: held.lease_id,
-      };
-    }
+  // The holders are built from task.json rather than parsed out of the lease:
+  // which unit a tree belongs to is the document's answer, not a name's.
+  const units = new Map(new Task(task).read().units.map((u) => [`${task}/${u.name}/${sid}`, u.name]));
+  for (const lease of leasesHeldBy(task, deps.pool)) {
+    const unit = units.get(lease.holder);
+    if (unit === undefined) continue;
+    return {
+      unit,
+      clone: lease.clone,
+      path: lease.path,
+      branch: lease.branch,
+      holder: lease.holder,
+      leaseId: lease.lease_id,
+    };
   }
   return undefined;
 }
@@ -718,18 +699,18 @@ function resumeFromPool(
  * Clock a shift out, resuming an interrupted teardown when `run/` is already
  * gone but a tree is still leased.
  *
- * @throws CommandError `usage` for a missing sid, an unknown outcome file, no
+ * @throws YanError `shift_done_usage` for a missing sid, an unknown outcome file, no
  *   recorded merge request, or a shift that has fully clocked out;
- *   `not_merged` (exit 4) when the host says it has not merged;
- *   `return_refused` when the tree could not go back, in which case the remote
+ *   `shift_done_not_merged` (exit 4) when the host says it has not merged;
+ *   `shift_done_return_refused` when the tree could not go back, in which case the remote
  *   branch is left alone.
  */
 export function clockOut(sid: string | undefined, options: DoneOptions, deps: DoneDeps = {}): DoneResult {
   if (sid === undefined || sid === '') {
-    throw CommandError.usage('shift_done', 'a shift id is required');
+    throw YanError.usage('shift_done_usage', 'a shift id is required');
   }
   if (options.outcome !== undefined && !existsSync(options.outcome)) {
-    throw CommandError.usage('shift_done', `no such outcome file: ${options.outcome}`);
+    throw YanError.usage('shift_done_usage', `no such outcome file: ${options.outcome}`);
   }
   const note = readNote('shift_done', options.note);
 
@@ -741,8 +722,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   let tree = meta.tree ?? '';
   let clone = meta.clone ?? '';
   let holder = meta.holder ?? '';
-  let leaseId = meta.leaseId ?? '';
-  let pane = meta.agentId ?? '';
+  let leaseId = meta.lease_id ?? '';
+  let pane = meta.pane ?? '';
   // The shift opens its own MR, so the URL usually arrives on its `done` event.
   let mr = options.mr ?? meta.mr ?? shift.reportedMr() ?? '';
 
@@ -750,7 +731,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   if (!shift.isLive()) {
     const resume = resumeFromPool(shift.task, shift.sid, deps);
     if (resume === undefined) {
-      throw CommandError.usage('shift_done', `shift ${shift.label()} has already clocked out - run/ is gone, which is the fact that says so`,
+      throw YanError.usage('shift_done_usage', `shift ${shift.label()} has already clocked out - run/ is gone, which is the fact that says so`,
       );
     }
     ({ unit, branch, clone, holder } = resume);
@@ -762,25 +743,17 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     );
   }
   if (branch === '') {
-    throw new CommandError('shift_done', 'no_branch', `run/meta.json does not say which shift branch ${shift.label()} is on - it cannot be cleaned up automatically`,
+    throw new YanError('shift_done_no_branch', `run/meta.json does not say which shift branch ${shift.label()} is on - it cannot be cleaned up automatically`,
     );
   }
 
   // The fallback for a shift dispatched before meta.json recorded the clone.
-  if (clone === '' && shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
-    const repo = new Task(shift.task).findUnit(unit)?.read().repo ?? '';
-    const guess = repo === '' ? undefined : repoDirIfKnown(repo);
-    if (guess !== undefined) clone = guess;
-  }
+  if (clone === '') clone = cloneOf(shift.task, unit);
 
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
 
-  // What the dispatch recorded beyond the typed fields. A meta.json from
-  // before scenarios existed carries none, and was a coding shift.
-  const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
-  const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  const scenario = typeof extra.scenario === 'string' && extra.scenario !== '' ? extra.scenario : 'coding';
+  const scenario = meta.scenario;
   // Merging is the floor for coding, not the definition of done - whether the
   // merged work is accepted is yan's and user's judgement - unless the shift
   // concluded that nothing needs merging, which user says with the flag.
@@ -792,8 +765,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     // --- 0. accepted, and by whom -------------------------------------------
     // Clocking out is the statement that the work is accepted. Interface work
     // is accepted by user alone, so that is a flag rather than a judgement.
-    if (extra.scenario === 'uix' && options.userAccepted !== true) {
-      throw new CommandError('shift_done', 'needs_user', `${shift.label()} is uix work, and only user accepts it - nothing was clocked out. When they have said they are satisfied, re-run with --user-accepted`,
+    if (scenario === 'uix' && options.userAccepted !== true) {
+      throw new YanError('shift_done_needs_user', `${shift.label()} is uix work, and only user accepts it - nothing was clocked out. When they have said they are satisfied, re-run with --user-accepted`,
         { exitCode: RC_NOT_MERGED },
       );
     }
@@ -801,14 +774,14 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     // --- 1. is its last round merged? ---------------------------------------
     if (needsMerge) {
       if (mr === '') {
-        throw CommandError.usage('shift_done', `no merge request recorded for ${shift.label()} - pass --mr <url>. Whether the work landed is the host's answer, and yan will not guess it from git history`,
+        throw YanError.usage('shift_done_usage', `no merge request recorded for ${shift.label()} - pass --mr <url>. Whether the work landed is the host's answer, and yan will not guess it from git history`,
         );
       }
       const dir = tree !== '' && existsSync(tree) ? tree : clone !== '' && existsSync(clone) ? clone : undefined;
       const ask = deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
       const state = ask(mr, dir);
       if (state !== 'merged') {
-        throw new CommandError('shift_done', 'not_merged', `${mr} is '${state}', not merged - a shift clocks out once its last round's merge request has merged into the integration branch, and nothing sooner`,
+        throw new YanError('shift_done_not_merged', `${mr} is '${state}', not merged - a shift clocks out once its last round's merge request has merged into the integration branch, and nothing sooner`,
           { exitCode: RC_NOT_MERGED },
         );
       }
@@ -818,7 +791,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
       // handover, and without one there is nothing to have accepted.
       mr = '';
       if (!existsSync(outcomeFile) && options.outcome === undefined) {
-        throw new CommandError('shift_done', 'no_outcome', `${shift.label()} is ${options.nothingToMerge === true ? 'a coding shift with nothing to merge' : `${scenario === 'uix' ? 'a' : 'an'} ${scenario} shift`} and has written no outcome.md - there is no deliverable to accept yet. Pass --outcome <file> if its report lives elsewhere`,
+        throw new YanError('shift_done_no_outcome', `${shift.label()} is ${options.nothingToMerge === true ? 'a coding shift with nothing to merge' : `${scenario === 'uix' ? 'a' : 'an'} ${scenario} shift`} and has written no outcome.md - there is no deliverable to accept yet. Pass --outcome <file> if its report lives elsewhere`,
           { exitCode: RC_NOT_MERGED },
         );
       }
@@ -880,15 +853,15 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     process.stderr.write(`yan shift done: the main clone of ${shift.label()} is not recorded, so the tree at ${tree} must be returned by hand\n`,
     );
   } else {
-    try {
-      returned = (deps.pool?.(clone) ?? new WorktreePool(clone)).return(tree, { leaseId, holder });
-    } catch (err) {
+    const back = returnLease(clone, tree, { leaseId, holder }, deps.pool);
+    if (!back.returned) {
       // Fatal: a refusal here means the commits may exist nowhere else, and
       // deleting the remote branch next would make that permanent.
-      throw new CommandError('shift_done', 'return_refused', `the tree at ${tree} could not be returned, so the remote branch ${branch} has NOT been deleted - investigate before anything else touches it (${err instanceof Error ? err.message : String(err)})`,
-        { exitCode: isYanError(err) ? err.exitCode : 1, cause: err },
+      throw new YanError('shift_done_return_refused', `the tree at ${tree} could not be returned, so the remote branch ${branch} has NOT been deleted - investigate before anything else touches it (${back.reason ?? ''})`,
+        { exitCode: isYanError(back.cause) ? back.cause.exitCode : 1, cause: back.cause },
       );
     }
+    returned = back.path;
   }
 
   // --- 6. and only now, the remote shift branch -----------------------------
@@ -907,23 +880,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   // --- 7. the agent's pane, and then whether the agent really went ----------
   // Never fatal to the teardown, which is done by now; an agent still running
   // is reported as a failure of the command, because nobody else will notice.
-  let paneClosed = true;
-  if (options.keepPane !== true && pane !== '') {
-    const terminal = deps.terminal ?? new Terminal();
-    display('could not clear the shift pane title', () => {
-      terminal.clearPaneTitle(pane);
-    });
-    display('could not close the shift pane', () => {
-      terminal.close(pane);
-    });
-    if (terminal.agentAlive !== undefined) {
-      try {
-        paneClosed = terminal.agentAlive(pane) !== 'alive';
-      } catch {
-        paneClosed = true;
-      }
-    }
-  }
+  const paneClosed = options.keepPane === true ? true : closePane(pane, deps.terminal);
 
   return {
     version: 1,

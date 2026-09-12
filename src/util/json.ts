@@ -11,7 +11,7 @@ import {
   writeSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { YanError, type YanErrorOptions } from './error.js';
+import { YanError } from './error.js';
 
 /**
  * Read and write JSON. Every write lands through a temporary file in the
@@ -22,28 +22,6 @@ import { YanError, type YanErrorOptions } from './error.js';
  * platforms.
  */
 
-const CODES = {
-  missing: 'json_missing',
-  invalid: 'json_invalid',
-  writeFailed: 'json_write_failed',
-} as const;
-
-export type JsonErrorKind = keyof typeof CODES;
-
-/** What reading or writing one of yan's JSON files can fail with. */
-export class JsonError extends YanError {
-  public static readonly codes = CODES;
-
-  public constructor(kind: JsonErrorKind, message: string, options?: YanErrorOptions) {
-    super(CODES[kind], message, options);
-  }
-
-  /** The caller passed something impossible. Exit 2. */
-  public static usage(kind: JsonErrorKind, message: string): JsonError {
-    return new JsonError(kind, message, { exitCode: 2 });
-  }
-}
-
 let tmpCounter = 0;
 
 function serialize(value: unknown): string {
@@ -51,16 +29,16 @@ function serialize(value: unknown): string {
   try {
     text = JSON.stringify(value, null, 2);
   } catch (cause) {
-    throw new JsonError('invalid', 'refusing to write a value that is not JSON', { cause });
+    throw new YanError('json_invalid', 'refusing to write a value that is not JSON', { cause });
   }
   if (text === undefined) {
-    throw new JsonError('invalid', 'refusing to write a value that is not JSON');
+    throw new YanError('json_invalid', 'refusing to write a value that is not JSON');
   }
   return `${text}\n`;
 }
 
 function atomicWrite(file: string, value: unknown): void {
-  if (!file) throw JsonError.usage('writeFailed', 'a target file is required');
+  if (!file) throw YanError.usage('json_write_failed', 'a target file is required');
 
   const text = serialize(value);
 
@@ -68,7 +46,7 @@ function atomicWrite(file: string, value: unknown): void {
   try {
     mkdirSync(dir, { recursive: true });
   } catch (cause) {
-    throw new JsonError('writeFailed', `cannot create directory: ${dir}`, { cause });
+    throw new YanError('json_write_failed', `cannot create directory: ${dir}`, { cause });
   }
 
   tmpCounter += 1;
@@ -92,41 +70,41 @@ function atomicWrite(file: string, value: unknown): void {
     } catch {
       // The temp file may never have been created.
     }
-    throw new JsonError('writeFailed', `cannot replace ${file}`, { cause });
+    throw new YanError('json_write_failed', `cannot replace ${file}`, { cause });
   }
 }
 
 /**
  * Parse text.
  *
- * @throws JsonError `invalid` when it is not JSON.
+ * @throws YanError `json_invalid` when it is not JSON.
  */
 export function parseJson(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
   } catch (cause) {
-    throw new JsonError('invalid', 'not valid JSON', { cause });
+    throw new YanError('json_invalid', 'not valid JSON', { cause });
   }
 }
 
 /**
  * The whole file, parsed.
  *
- * @throws JsonError `missing` when it cannot be read, `invalid` when it does
+ * @throws YanError `json_missing` when it cannot be read, `json_invalid` when it does
  *   not parse.
  */
 export function readJson(file: string): unknown {
-  if (!file) throw JsonError.usage('missing', 'a file is required');
+  if (!file) throw YanError.usage('json_missing', 'a file is required');
   let text: string;
   try {
     text = readFileSync(file, 'utf8');
   } catch (cause) {
-    throw new JsonError('missing', `no such file: ${file}`, { cause });
+    throw new YanError('json_missing', `no such file: ${file}`, { cause });
   }
   try {
     return parseJson(text);
   } catch (cause) {
-    throw new JsonError('invalid', `not valid JSON: ${file}`, { cause });
+    throw new YanError('json_invalid', `not valid JSON: ${file}`, { cause });
   }
 }
 

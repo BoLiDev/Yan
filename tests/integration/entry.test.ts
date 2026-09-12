@@ -63,8 +63,8 @@ describe('the rows the select offers', () => {
     const previous = process.env.YAN_HOME;
     process.env.YAN_HOME = home;
     try {
-      const { liveTaskChoices } = await import('../../src/cli/yan.js');
-      const rows = liveTaskChoices();
+      const { openTasks } = await import('../../src/cli/shared/task-id.js');
+      const rows = openTasks();
       // t003 is complete, so it is not something to continue.
       expect(rows.map((r) => r.id)).toEqual(['t001', 't002']);
       expect(rows[0]).toEqual({ id: 't001', title: 'unify the auth header', units: 1, shifts: 1 });

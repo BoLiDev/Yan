@@ -4,7 +4,6 @@ import { action, out } from './shared/action.js';
 import { agentSpecFor, cliKind, configPath, modelFlags, type AgentSpec } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
-import { CommandError } from './shared/errors.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
 import { tasksDir, vaultDir } from '../util/vault.js';
@@ -13,6 +12,7 @@ import { Terminal } from '../externals/herdr/index.js';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
 import { claim, isStale, owner, release } from '../util/lock.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan continue <id>` — start the main agent in the pane this was typed in, as a child sharing its stdin, stdout and stderr. Creates no container
@@ -149,17 +149,17 @@ function currentPane(): string {
 /**
  * Take the task's enter lock and prepare its main agent.
  *
- * @throws CommandError `usage` when no task is named, the task does not exist,
+ * @throws YanError `continue_usage` when no task is named, the task does not exist,
  *   or no main agent is configured.
  */
 export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Session {
   const id = options.task ?? '';
   if (id === '') {
-    throw CommandError.usage('continue', "which task? pass 'yan continue <id>'. Choosing from the incomplete tasks interactively needs a terminal; 'yan ls' lists them",
+    throw YanError.usage('continue_usage', "which task? pass 'yan continue <id>'. Choosing from the incomplete tasks interactively needs a terminal; 'yan ls' lists them",
     );
   }
   if (!Task.exists(id)) {
-    throw CommandError.usage('continue', `no such task: ${id} - 'yan ls' lists the tasks in ${tasksDir()}`,
+    throw YanError.usage('continue_usage', `no such task: ${id} - 'yan ls' lists the tasks in ${tasksDir()}`,
     );
   }
 
@@ -172,7 +172,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       : configured;
   const agent = spec.cli;
   if (agent === '') {
-    throw CommandError.usage('continue', `no main agent configured - set agents.yan in ${configPath()}, or pass --agent`,
+    throw YanError.usage('continue_usage', `no main agent configured - set agents.yan in ${configPath()}, or pass --agent`,
     );
   }
 

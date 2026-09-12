@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { claim, isHeld, isStale, owner, release } from '../../util/lock.js';
 import { Shift } from '../shift/index.js';
 import { Task } from '../task/index.js';
-import { SupervisionError } from './errors.js';
 import { beaconAge, readBeacon, writeBeacon, type WatcherState } from './beacon.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The four files under `tasks/<id>/run/` that supervision keeps, and the
@@ -40,10 +40,10 @@ export class Supervision {
    * `$YAN_WATCH_DIR` and `$YAN_WAKE_FILE` override where the files are looked
    * for, and `yan drain` honours the same two.
    *
-   * @throws SupervisionError when `task` is empty.
+   * @throws YanError when `task` is empty.
    */
   public constructor(task: string) {
-    if (task === '') throw SupervisionError.usage('a task id is required');
+    if (task === '') throw YanError.usage('supervision_usage', 'a task id is required');
     this.task = task;
     this.run = process.env.YAN_WATCH_DIR ?? join(new Task(task).dir, 'run');
     this.wake = process.env.YAN_WAKE_FILE ?? join(this.run, 'wake');
@@ -147,15 +147,15 @@ export class Supervision {
   /**
    * Append one reason to the wake file, keeping any already waiting there.
    *
-   * @throws SupervisionError when `reason` is empty or the file cannot be written.
+   * @throws YanError when `reason` is empty or the file cannot be written.
    */
   public wakeWrite(reason: string): void {
-    if (reason === '') throw SupervisionError.usage('a wake needs a reason');
+    if (reason === '') throw YanError.usage('supervision_usage', 'a wake needs a reason');
     this.ensureRun();
     try {
       appendFileSync(this.wake, `${reason}\n`);
     } catch (cause) {
-      throw new SupervisionError('unwritable', `cannot write the wake file at ${this.wake}`, {
+      throw new YanError('supervision_unwritable', `cannot write the wake file at ${this.wake}`, {
         cause,
       });
     }
@@ -210,7 +210,7 @@ export class Supervision {
     try {
       mkdirSync(this.run, { recursive: true });
     } catch (cause) {
-      throw new SupervisionError('unwritable', `cannot create ${this.run}`, { cause });
+      throw new YanError('supervision_unwritable', `cannot create ${this.run}`, { cause });
     }
   }
 }

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
+import { readStdin } from './stdin.js';
 
 /**
  * Agy's stand-in for the `SessionStart` hook it does not have.
@@ -115,31 +116,6 @@ export async function sessionStart(io: SessionStartIo): Promise<number> {
   return 0;
 }
 
-/**
- * The payload, or what arrived before `timeoutMs`. Agy's hooks block its loop,
- * so a stdin that is never closed would stall the session rather than this
- * process alone.
- */
-function readStdin(timeoutMs: number): Promise<string> {
-  return new Promise((resolve) => {
-    let text = '';
-    let settled = false;
-    const done = (): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      process.stdin.pause();
-      resolve(text);
-    };
-    const timer = setTimeout(done, timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk: string) => {
-      text += chunk;
-    });
-    process.stdin.on('end', done);
-    process.stdin.on('error', done);
-  });
-}
 
 const invokedDirectly =
   process.argv[1] !== undefined && /[\\/]session-start\.js$/.test(process.argv[1]);

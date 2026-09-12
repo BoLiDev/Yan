@@ -1,4 +1,4 @@
-import { CommandError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * A command's `--note`: what the line it writes to log.md cannot say by
@@ -7,12 +7,12 @@ import { CommandError } from './errors.js';
  * after the work and a failure there is swallowed.
  *
  * @returns the note trimmed, or `''` when none was given.
- * @throws CommandError `usage` when the note spans more than one line.
+ * @throws YanError `<command>_usage` when the note spans more than one line.
  */
 export function readNote(command: string, note: string | undefined): string {
   const text = (note ?? '').trim();
   if (/[\r\n]/.test(text)) {
-    throw CommandError.usage(command, '--note is one line - it becomes part of a single log.md entry');
+    throw YanError.usage(`${command}_usage`, '--note is one line - it becomes part of a single log.md entry');
   }
   return text;
 }

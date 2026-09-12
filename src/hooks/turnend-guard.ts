@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { readStdin } from './stdin.js';
 import { GUARD_BUDGET, Supervision } from '../records/supervision/index.js';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
@@ -190,30 +191,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * The harness payload, or `''` when none arrives within `timeoutMs` — never a
- * read to EOF, which a pipe nobody closes would block for ever.
- */
-export function readStdin(timeoutMs: number): Promise<string> {
-  if (process.stdin.isTTY === true) return Promise.resolve('');
-  return new Promise<string>((resolve) => {
-    let text = '';
-    const done = (): void => {
-      clearTimeout(timer);
-      process.stdin.removeAllListeners('data');
-      process.stdin.removeAllListeners('end');
-      process.stdin.pause();
-      resolve(text);
-    };
-    const timer = setTimeout(done, timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk: string) => {
-      text += chunk;
-    });
-    process.stdin.on('end', done);
-    process.stdin.on('error', done);
-  });
-}
 
 const invokedDirectly =
   process.argv[1] !== undefined && /[\\/]turnend-guard\.js$/.test(process.argv[1]);

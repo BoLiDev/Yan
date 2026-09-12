@@ -15,7 +15,9 @@ import {
 } from '../helpers/fixtures.js';
 import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
 import { Task } from '../../src/records/task/index.js';
-import { WorktreeError, type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { YanError } from '../../src/util/error.js';
+import type { ShiftMeta } from '../../src/records/shift/index.js';
 
 /**
  * `yan shift new`. Two properties are what this file is for: a dispatch whose
@@ -42,7 +44,7 @@ class FakePool {
 
   public get(_size: number, base: string, branch: string, holder: string): LeaseGrant {
     calls.push(`pool_get base=${base} branch=${branch} holder=${holder} brief=${briefState()}`);
-    if (this.full) throw new WorktreeError('full', 'the pool is full');
+    if (this.full) throw new YanError('worktree_full', 'the pool is full');
     return { path: this.path, lease_id: this.lease, holder };
   }
 
@@ -122,7 +124,7 @@ function enterLock(task: string, pane: string): void {
   );
 }
 
-function run(options: NewOptions): { code: number; message: string; meta: Record<string, unknown> } {
+function run(options: NewOptions): { code: number; message: string; meta: Partial<ShiftMeta> } {
   try {
     return { code: 0, message: '', meta: dispatch({ scenario: 'coding', ...options }, deps()) };
   } catch (err) {

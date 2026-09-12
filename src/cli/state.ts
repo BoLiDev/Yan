@@ -1,12 +1,12 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { dash } from './shared/table.js';
 import { Terminal, type AgentStatus, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Shift, readPulse } from '../records/shift/index.js';
 import { currentBranch, isClean } from '../util/git.js';
 import { existsSync } from 'node:fs';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan state <sid>` — what is true about a shift right now, derived on every
@@ -91,7 +91,7 @@ export interface StateDeps {
  * Everything this command establishes. A source that cannot answer costs one
  * fact rather than throwing.
  *
- * @throws ShiftError when `sid` names no shift, or more than one.
+ * @throws YanError when `sid` names no shift, or more than one.
  */
 export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFacts {
   const shift = Shift.resolve(sid, task);
@@ -102,7 +102,7 @@ export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFact
   const branch = meta.branch ?? '';
   const tree = meta.tree ?? '';
   const agent = meta.agent ?? '';
-  const agentId = meta.agentId ?? '';
+  const agentId = meta.pane ?? '';
   const mr = meta.mr ?? '';
 
   // Source 1: the terminal.
@@ -267,10 +267,10 @@ never a verdict: an install is still for minutes and so is a model thinking.`,
   .action(
     action('state', (sid: string | undefined, options: { json?: boolean; verdict?: boolean }) => {
       if (sid === undefined || sid === '') {
-        throw CommandError.usage('state', 'a shift id is required');
+        throw YanError.usage('state_usage', 'a shift id is required');
       }
       if (options.json === true && options.verdict === true) {
-        throw CommandError.usage('state', '--json and --verdict are alternatives - pass one');
+        throw YanError.usage('state_usage', '--json and --verdict are alternatives - pass one');
       }
 
       const facts = stateOf(sid);

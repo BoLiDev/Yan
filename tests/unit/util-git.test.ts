@@ -2,8 +2,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import * as g from '../../src/util/git.js';
-import { GitError } from '../../src/util/git.js';
 import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * `util/git.ts` refuses to run without an explicit directory, and never
@@ -45,10 +45,10 @@ describe('the explicit-directory invariant', () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(GitError);
-    expect((thrown as GitError).code).toBe(g.GitError.codes.usage);
-    expect((thrown as GitError).message).toContain('a directory argument is required');
-    expect((thrown as GitError).message).toContain('never uses the current working directory');
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).code).toBe('git_usage');
+    expect((thrown as YanError).message).toContain('a directory argument is required');
+    expect((thrown as YanError).message).toContain('never uses the current working directory');
   });
 
   it.each(directoryFirst)('%s refuses a directory that does not exist', (_name, call) => {
@@ -59,8 +59,8 @@ describe('the explicit-directory invariant', () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(GitError);
-    expect((thrown as GitError).message).toContain('not a directory');
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).message).toContain('not a directory');
   });
 });
 
@@ -69,11 +69,11 @@ describe('required arguments beyond the directory', () => {
   // refused: git's own error is the guard everywhere else.
   it('refuses what git would silently accept', () => {
     const tmp = mkTempDir();
-    expect(() => g.branchExists(tmp, '')).toThrow(GitError);
-    expect(() => g.remoteBranchExists(tmp, '')).toThrow(GitError);
-    expect(() => g.checkout(tmp, [])).toThrow(GitError);
-    expect(() => g.rebase(tmp, [])).toThrow(GitError);
-    expect(() => g.revParse(tmp, [])).toThrow(GitError);
+    expect(() => g.branchExists(tmp, '')).toThrow(YanError);
+    expect(() => g.remoteBranchExists(tmp, '')).toThrow(YanError);
+    expect(() => g.checkout(tmp, [])).toThrow(YanError);
+    expect(() => g.rebase(tmp, [])).toThrow(YanError);
+    expect(() => g.revParse(tmp, [])).toThrow(YanError);
   });
 });
 
@@ -133,9 +133,9 @@ describe('push actively refuses a force flag handed to it', () => {
       } catch (e) {
         thrown = e;
       }
-      expect(thrown).toBeInstanceOf(GitError);
-      expect((thrown as GitError).code).toBe(g.GitError.codes.forceRefused);
-      expect((thrown as GitError).message).toContain('refusing to force-push');
+      expect(thrown).toBeInstanceOf(YanError);
+      expect((thrown as YanError).code).toBe('git_force_refused');
+      expect((thrown as YanError).message).toContain('refusing to force-push');
     },
   );
 

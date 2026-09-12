@@ -254,7 +254,7 @@ describe('what is still being supervised', () => {
     liveShift('s1');
     expect(sup.liveCount()).toBe(1);
     expect(sup.liveShifts()[0]?.sid).toBe('s1');
-    expect(sup.liveShifts()[0]?.meta().agentId).toBe('w1:p2');
+    expect(sup.liveShifts()[0]?.meta().pane).toBe('w1:p2');
 
     liveShift('s2', 'w1:p3');
     expect(sup.liveCount()).toBe(2);

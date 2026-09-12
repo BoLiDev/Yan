@@ -7,9 +7,9 @@ import { cloneRoot } from '../util/machine.js';
 import { normalizePath, samePath } from '../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
-import { CommandError } from './shared/errors.js';
 import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
+import { YanError } from '../util/error.js';
 
 /**
  * `yan repo add | link | ls` — which repositories this context knows about,
@@ -55,11 +55,11 @@ export function sameUrl(a: string, b: string): boolean {
 
 function checkName(name: string): void {
   if (name === '' || !/^[A-Za-z0-9._-]+$/.test(name)) {
-    throw CommandError.usage('repo', `'${name}' is not a usable repository name - pass --name`);
+    throw YanError.usage('repo_usage', `'${name}' is not a usable repository name - pass --name`);
   }
   if (name === 'version') {
     // Repositories sit at the registry's top level, beside `version`.
-    throw CommandError.usage('repo', "'version' is not a usable repository name - pass --name");
+    throw YanError.usage('repo_usage', "'version' is not a usable repository name - pass --name");
   }
 }
 
@@ -96,20 +96,20 @@ function writeLocal(name: string, dir: string): void {
 }
 
 /**
- * @throws CommandError `conflict` when `name` is registered to a different
+ * @throws YanError `<command>_conflict` when `name` is registered to a different
  *   URL. Called before anything is cloned or written.
  */
 function checkConflict(name: string, url: string): void {
   const existing = lookup(name);
   if (existing !== undefined && existing.url !== '' && url !== '' && !sameUrl(existing.url, url)) {
-    throw new CommandError('repo', 'conflict', `'${name}' is already registered as ${existing.url} - pass --name to register ${url} under a different name`);
+    throw new YanError('repo_conflict', `'${name}' is already registered as ${existing.url} - pass --name to register ${url} under a different name`);
   }
 }
 
 /**
  * Register one clone that is already on this disk, writing both halves.
  *
- * @throws CommandError `usage` for an unusable name, `conflict` when it is
+ * @throws YanError `<command>_usage` for an unusable name, `<command>_conflict` when it is
  *   taken by another URL.
  */
 function registerClone(name: string, dir: string, url: string, pool = ''): void {
@@ -128,7 +128,7 @@ interface AddOptions {
 function checkFlags(options: AddOptions): { pool: string } {
   const pool = options.poolSize ?? '';
   if (pool !== '' && (!/^[0-9]+$/.test(pool) || Number(pool) <= 0)) {
-    throw CommandError.usage('repo', `invalid --pool-size '${pool}' - a positive integer`);
+    throw YanError.usage('repo_usage', `invalid --pool-size '${pool}' - a positive integer`);
   }
   return { pool };
 }
@@ -146,14 +146,14 @@ export interface Candidate {
  * blocks it. Never recursive, and a clone with no `origin` is listed as
  * blocked rather than left out.
  *
- * @throws CommandError `usage` when `dir` cannot be read.
+ * @throws YanError `<command>_usage` when `dir` cannot be read.
  */
 export function scan(dir: string): Candidate[] {
   let names: string[];
   try {
     names = readdirSync(dir);
   } catch {
-    throw CommandError.usage('repo', `cannot read ${dir}`);
+    throw YanError.usage('repo_usage', `cannot read ${dir}`);
   }
 
   const found: Candidate[] = [];
@@ -187,12 +187,12 @@ async function addByScan(dir: string, options: AddOptions): Promise<void> {
 
   // Checked before the scan, so the refusal is about the missing argument.
   if (!isTty()) {
-    throw CommandError.usage('repo', `there is no terminal to select in: pass a path or a URL. 'yan repo add' with no argument is the interactive form`);
+    throw YanError.usage('repo_usage', `there is no terminal to select in: pass a path or a URL. 'yan repo add' with no argument is the interactive form`);
   }
 
   const candidates = scan(dir);
   if (candidates.length === 0) {
-    throw new CommandError('repo', 'empty', `no git clones directly under ${dir} - the scan is one level deep, so cd to the directory that holds them`);
+    throw new YanError('repo_empty', `no git clones directly under ${dir} - the scan is one level deep, so cd to the directory that holds them`);
   }
 
   const { chooseReposToAdd } = await import('../ui/prompts.js');
@@ -210,11 +210,11 @@ function addByPath(dir: string, options: AddOptions): void {
   const { pool } = checkFlags(options);
   const full = normalizePath(resolvePath(dir));
   if (!isClone(full)) {
-    throw CommandError.usage('repo', `${full} is not a git clone - there is no .git in it`);
+    throw YanError.usage('repo_usage', `${full} is not a git clone - there is no .git in it`);
   }
   const url = remoteUrl(full) ?? '';
   if (url === '' && (options.name ?? '') === '') {
-    throw CommandError.usage('repo', `${full} has no origin, so its name cannot be derived - pass --name`);
+    throw YanError.usage('repo_usage', `${full} has no origin, so its name cannot be derived - pass --name`);
   }
   const name = options.name !== undefined && options.name !== '' ? options.name : repoNameFromUrl(url);
   registerClone(name, full, url, pool);
@@ -233,14 +233,14 @@ function addByUrl(url: string, options: AddOptions): void {
   if (existsSync(dest)) {
     const existing = remoteUrl(dest) ?? '';
     if (!sameUrl(existing, url)) {
-      throw new CommandError('repo', 'conflict', `${dest} already exists and is not a clone of ${url} (origin: ${existing === '' ? 'none' : existing}) - move it aside first; repo add never clones over an existing directory`);
+      throw new YanError('repo_conflict', `${dest} already exists and is not a clone of ${url} (origin: ${existing === '' ? 'none' : existing}) - move it aside first; repo add never clones over an existing directory`);
     }
     out(`repo add: ${dest} already exists, keeping it (no re-clone)`);
   } else {
     mkdirSync(root, { recursive: true });
     out(`repo add: cloning ${url} into ${dest}`);
     if (clone(root, url, name).code !== 0) {
-      throw new CommandError('repo', 'clone_failed', `clone failed: ${url}`);
+      throw new YanError('repo_clone_failed', `clone failed: ${url}`);
     }
   }
 
@@ -282,7 +282,7 @@ const addRepo = new Command('add')
         addByPath(target, options);
         return;
       }
-      throw CommandError.usage('repo', `${target} is neither a clone URL nor a directory that exists`);
+      throw YanError.usage('repo_usage', `${target} is neither a clone URL nor a directory that exists`);
     }),
   );
 
@@ -293,15 +293,15 @@ const linkRepo = new Command('link')
   .action(
     action('repo_link', (name: string | undefined, path: string | undefined) => {
       if (name === undefined || name === '' || path === undefined || path === '') {
-        throw CommandError.usage('repo', "both a name and a path are required: 'yan repo link <name> <path>'");
+        throw YanError.usage('repo_usage', "both a name and a path are required: 'yan repo link <name> <path>'");
       }
       const entry = lookup(name);
       if (entry === undefined) {
-        throw new CommandError('repo', 'missing', `'${name}' is not registered in this vault - 'yan repo add' registers it, 'yan repo ls' lists what is there`);
+        throw new YanError('repo_missing', `'${name}' is not registered in this vault - 'yan repo add' registers it, 'yan repo ls' lists what is there`);
       }
       const full = normalizePath(resolvePath(path));
       if (!isClone(full)) {
-        throw CommandError.usage('repo', `${full} is not a git clone - there is no .git in it`);
+        throw YanError.usage('repo_usage', `${full} is not a git clone - there is no .git in it`);
       }
       writeLocal(name, full);
       out(`repo link: ${name}  ${full}`);

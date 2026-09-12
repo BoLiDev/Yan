@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolve, setPrompter } from '../../src/cli/shared/resolve.js';
-import { CommandError } from '../../src/cli/shared/errors.js';
+import { YanError } from '../../src/util/error.js';
 
 /**
  * How a missing option is filled in. The half that matters is the refusal:
@@ -39,17 +39,17 @@ describe('resolve', () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(CommandError);
-    expect((thrown as CommandError).code).toBe('missing_options');
-    expect((thrown as CommandError).exitCode).toBe(2);
-    expect((thrown as CommandError).message).toContain('--task');
-    expect((thrown as CommandError).message).toContain('--unit');
+    expect(thrown).toBeInstanceOf(YanError);
+    expect((thrown as YanError).code).toBe('missing_options');
+    expect((thrown as YanError).exitCode).toBe(2);
+    expect((thrown as YanError).message).toContain('--task');
+    expect((thrown as YanError).message).toContain('--unit');
   });
 
   it('refuses with a TTY when no prompter is installed', async () => {
     // With no prompter installed there is no soft path at all.
     setTty(true);
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
+    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
   });
 
   it('prompts only for what is missing, and only with a TTY', async () => {
@@ -70,18 +70,18 @@ describe('resolve', () => {
     const prompter = vi.fn(async () => ({ task: 'nope' }));
     setPrompter(prompter);
 
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
+    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
     expect(prompter).not.toHaveBeenCalled();
   });
 
   it('refuses when the prompt came back empty', async () => {
     setTty(true);
     setPrompter(async () => ({}));
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(CommandError);
+    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
   });
 
   it('treats an empty string as missing', async () => {
     setTty(false);
-    await expect(resolve({ task: '', unit: 'auth' }, SPEC)).rejects.toBeInstanceOf(CommandError);
+    await expect(resolve({ task: '', unit: 'auth' }, SPEC)).rejects.toBeInstanceOf(YanError);
   });
 });

@@ -148,7 +148,7 @@ describe('`unit set --branch` rewrites the tokens for the new round', () => {
       labeller,
     );
     // task.json moved on regardless: the work is correct with ugly labels.
-    const unit = new Task('t042').unit('auth').read();
+    const unit = new Task('t042').unit('auth');
     expect(unit.branch).toBe('feat/auth-r2');
     expect(unit.history).toHaveLength(1);
   });

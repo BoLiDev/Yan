@@ -1,7 +1,7 @@
 import { readVaultConfig } from '../../util/config.js';
 import { recordOrNone } from '../../util/narrow.js';
 import { vaultConfigPath } from '../../util/vault.js';
-import { CommandError } from './errors.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The `agents.*` and `scenarios.*` sections of the vault's `config.json`.
@@ -147,34 +147,34 @@ export function readScenarios(): ScenarioReading {
  * `agents.shift`'s. Only a configured scenario and tier can be named, so a
  * dispatch can never run a model `user` did not configure.
  *
- * @throws CommandError `usage` for a missing or unknown scenario or tier, a
+ * @throws YanError `<command>_usage` for a missing or unknown scenario or tier, a
  *   scenario the configuration cannot supply, or no CLI at all.
  */
 export function resolveShift(command: string, scenario: string | undefined, tier: string | undefined): ShiftSpec {
   const asked = (scenario ?? '').trim();
   if (asked === '') {
-    throw CommandError.usage(command, `--scenario is required - one of: ${SCENARIOS.join(' ')}`);
+    throw YanError.usage(`${command}_usage`, `--scenario is required - one of: ${SCENARIOS.join(' ')}`);
   }
   if (!(SCENARIOS as readonly string[]).includes(asked)) {
-    throw CommandError.usage(command, `'${asked}' is not a scenario - one of: ${SCENARIOS.join(' ')}`);
+    throw YanError.usage(`${command}_usage`, `'${asked}' is not a scenario - one of: ${SCENARIOS.join(' ')}`);
   }
   const { scenarios, problems } = readScenarios();
   const found = scenarios.find((s) => s.name === asked);
   if (found === undefined) {
     const why = problems.filter((p) => p.includes(`scenarios.${asked}`) || p.startsWith('no scenarios'));
-    throw CommandError.usage(command, `scenario '${asked}' cannot be used: ${why.join('; ')} - fix it in ${configPath()}`);
+    throw YanError.usage(`${command}_usage`, `scenario '${asked}' cannot be used: ${why.join('; ')} - fix it in ${configPath()}`);
   }
 
   const tierName = (tier ?? '').trim() === '' ? found.defaultTier : (tier as string).trim();
   const chosen = found.tiers.find((t) => t.name === tierName);
   if (chosen === undefined) {
-    throw CommandError.usage(command, `'${tierName}' is not a tier of ${asked} - one of: ${found.tiers.map((t) => t.name).join(' ')}`);
+    throw YanError.usage(`${command}_usage`, `'${tierName}' is not a tier of ${asked} - one of: ${found.tiers.map((t) => t.name).join(' ')}`);
   }
 
   const base = agentSpecFor('shift');
   const cli = chosen.cli !== '' ? chosen.cli : base.cli;
   if (cli === '') {
-    throw CommandError.usage(command, `${asked}/${tierName} names no cli and agents.shift is not set - set one in ${configPath()}`);
+    throw YanError.usage(`${command}_usage`, `${asked}/${tierName} names no cli and agents.shift is not set - set one in ${configPath()}`);
   }
   // A tier that changes the CLI does not inherit a model meant for another one.
   const sameCli = chosen.cli === '' || chosen.cli === base.cli;

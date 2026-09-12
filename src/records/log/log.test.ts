@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { LogError } from './errors.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Log, LOG_TYPES, type LogType } from './index.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * The log cannot rewrite an existing line through its API, which is a claim
@@ -86,18 +86,18 @@ describe('append', () => {
   });
 
   it('refuses a multi-line entry, which would forge a second event', () => {
-    expect(() => new Log('t042').append('agreed', 'one\ntwo')).toThrow(LogError);
-    expect(() => new Log('t042').append('agreed', 'one\rtwo')).toThrow(LogError);
+    expect(() => new Log('t042').append('agreed', 'one\ntwo')).toThrow(YanError);
+    expect(() => new Log('t042').append('agreed', 'one\rtwo')).toThrow(YanError);
   });
 
   it('refuses a type it does not know', () => {
-    expect(() => new Log('t042').append('decided' as LogType, 'x')).toThrow(LogError);
+    expect(() => new Log('t042').append('decided' as LogType, 'x')).toThrow(YanError);
   });
 
   it('refuses empty arguments', () => {
-    expect(() => new Log('')).toThrow(LogError);
-    expect(() => new Log('t042').append('agreed', '')).toThrow(LogError);
-    expect(() => new Log('t042').append('agreed', '   ')).toThrow(LogError);
+    expect(() => new Log('')).toThrow(YanError);
+    expect(() => new Log('t042').append('agreed', '')).toThrow(YanError);
+    expect(() => new Log('t042').append('agreed', '   ')).toThrow(YanError);
   });
 
   it('defaults the date to today as MM-DD', () => {

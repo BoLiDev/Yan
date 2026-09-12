@@ -84,6 +84,14 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
   // The task goes through the environment, which is where every command
   // reads it from: `yan wait <id>` would work too, and then there would be
   // two places a hook could name the wrong task.
+  //
+  // A subprocess rather than an imported `watch()`, on purpose. `watch()`
+  // registers process-wide `exit`, SIGINT and SIGTERM handlers that release
+  // the single-flight lock and then call `process.exit`, so an interrupted
+  // watcher inside this process would take the hook with it before it could
+  // say `stop` or `continue` — and the harness would read an empty stdout as a
+  // broken contract. A child also means the harness owns the process group,
+  // which is what keeps a watcher from outliving the session.
   const watcher = spawnSync(process.execPath, [yan, 'wait'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
