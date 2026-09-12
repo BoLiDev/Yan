@@ -36,7 +36,6 @@ export interface UnitSpec {
   repo: string;
   unit?: string;
   target?: string;
-  mode?: string;
   branch?: string;
   base?: string;
   scope: string[];
@@ -44,7 +43,7 @@ export interface UnitSpec {
 }
 
 /** The keys a unit flag may set, other than the repeatable two. */
-type UnitScalar = 'unit' | 'target' | 'mode' | 'branch' | 'base';
+type UnitScalar = 'unit' | 'target' | 'branch' | 'base';
 
 /**
  * Accumulates the unit flags in argv order. One instance per parsed command
@@ -206,7 +205,6 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
         unit: name,
         repo: spec.repo,
         target: spec.target ?? '',
-        mode: spec.mode,
         branch: spec.branch,
         base: spec.base,
         scope: spec.scope,
@@ -306,7 +304,6 @@ export function buildTaskCommand(): Command {
     .option('--repo <name>', 'OPENS A UNIT: a repository under repos/, or a path to a clone', opens)
     .option('--unit <name>', 'the unit name; derived from the scope when omitted', sets('unit'))
     .option('--target <branch>', 'REQUIRED per unit: which branch it delivers into', sets('target'))
-    .option('--mode <mode>', 'scout | branch | mr', sets('mode'))
     .option('--branch <name>', "the unit's integration branch", sets('branch'))
     .option('--base <ref>', 'what to cut the integration branch from', sets('base'))
     .option('--scope <path>', 'repeatable within a unit; omit for the repo root', pushes('scope'))
@@ -317,7 +314,7 @@ export function buildTaskCommand(): Command {
       `
 usage: yan task new --title <text> [--description <text>] [--id <id>]
                     --repo <name> [--unit <name>] [--scope <path>]...
-                                  --target <branch> [--mode scout|branch|mr]
+                                  --target <branch>
                                   [--needs <unit>]... [--branch <name>] [--base <ref>]
                     [--repo <name> ...]...
                     [--agent <cli>] [--json]

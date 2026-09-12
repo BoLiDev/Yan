@@ -103,7 +103,7 @@ describe('one task at a glance', () => {
     expect(text).toContain('t042  unify the auth header');
     expect(text).toContain('● open   ○ no yan running — resume with yan continue t042');
     expect(text, 'the brief is not shown').not.toContain('One parser');
-    expect(text).toContain('auth  feat/auth → main   ↑2   mr');
+    expect(text).toContain('auth  feat/auth → main   ↑2');
     expect(text).toContain('scope  apps/auth');
     expect(text).toContain(`tree   ${tildePath(tree)}   ● 1 uncommitted`);
     expect(text).toContain('s3  coding/normal  blocked');

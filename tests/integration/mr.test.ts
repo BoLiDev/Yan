@@ -73,8 +73,7 @@ beforeEach(async () => {
   Task.create('t042', 'unify the auth header');
   const t = new Task('t042');
   t.addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
-  t.addUnit('proto', 'monorepo-x', 'master', { branch: 'feat/proto', mode: 'branch' });
-  t.addUnit('probe', 'monorepo-x', 'master', { branch: 'feat/probe', mode: 'scout' });
+  t.addUnit('proto', 'monorepo-x', 'master', { branch: 'feat/proto' });
 
   Task.create('t043', 'not pushed yet');
   new Task('t043').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/later' });
@@ -128,20 +127,6 @@ describe('a round has ONE outbound MR', () => {
     expect(again.code).toBe(2);
     expect(again.message).toContain('already has an outbound merge request');
     expect(again.message, 'a new round is how a second one is opened').toContain('unit set --branch');
-  });
-});
-
-describe('mode decides whether an MR is even the deliverable', () => {
-  it('refuses a branch unit and a scout unit, and never asks the host', () => {
-    const branchUnit = open({ task: 't042', unit: 'proto' });
-    expect(branchUnit.code).toBe(2);
-    expect(branchUnit.message).toContain("mode 'branch'");
-
-    const scout = open({ task: 't042', unit: 'probe' });
-    expect(scout.code).toBe(2);
-    expect(scout.message).toContain('scout');
-
-    expect(created, 'and the host was never asked').toEqual([]);
   });
 });
 

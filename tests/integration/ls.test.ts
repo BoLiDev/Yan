@@ -61,7 +61,7 @@ beforeAll(async () => {
 
   Task.create('t007', 'retire the legacy client');
   new Task('t007').addUnit('client', 'service-y', 'release/2026.9', {
-    branch: 'chore/retire', scope: ['src/client'], mode: 'branch',
+    branch: 'chore/retire', scope: ['src/client'],
   });
   new Task('t007').setComplete(true);
   if (previous === undefined) delete process.env.YAN_HOME;

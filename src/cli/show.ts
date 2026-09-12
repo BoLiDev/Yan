@@ -42,7 +42,6 @@ export interface ShowJson {
     readonly repo: string;
     readonly branch: string;
     readonly target: string;
-    readonly mode: string;
     readonly mr: string | null;
     readonly scope: readonly string[];
     readonly needs: readonly string[];
@@ -140,7 +139,6 @@ export function showJson(id: string): ShowJson {
       repo: u.repo,
       branch: u.branch,
       target: u.target,
-      mode: u.mode,
       mr: u.mr,
       scope: u.scope,
       needs: u.needs,
@@ -247,7 +245,7 @@ export function renderShow(show: ShowJson): void {
   const indent = ' '.repeat(nameWidth + 5);
   for (const u of show.units) {
     const ahead = u.ahead === null ? '' : `   ${u.ahead === 0 ? dim('↑0') : green(`↑${u.ahead}`)}`;
-    out(`   ${bold(u.name.padEnd(nameWidth))}  ${cyan(dash(u.branch))} ${dim('→')} ${dash(u.target)}${ahead}   ${dim(u.mode)}`);
+    out(`   ${bold(u.name.padEnd(nameWidth))}  ${cyan(dash(u.branch))} ${dim('→')} ${dash(u.target)}${ahead}`);
     if (u.scope.length > 0 || u.needs.length > 0) {
       const needs = u.needs.length > 0 ? `   ${dim('needs')} ${u.needs.join(' ')}` : '';
       out(`${indent}${dim('scope')}  ${u.scope.length > 0 ? u.scope.join(' ') : dim('whole repository')}${needs}`);

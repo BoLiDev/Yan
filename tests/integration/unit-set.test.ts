@@ -268,14 +268,9 @@ describe("the built-in default carries the NEXT round's number", () => {
 });
 
 describe('the three plain scalars, each of them a decision', () => {
-  it('sets target, mode and scope, and refuses a mode outside the closed set', async () => {
+  it('sets target and scope', async () => {
     expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--target', 'release/8'])).code).toBe(0);
     expect(unitField('proto', 'target')).toBe('release/8');
-
-    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--mode', 'branch'])).code).toBe(0);
-    expect(unitField('proto', 'mode')).toBe('branch');
-
-    expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--mode', 'sideways'])).code).not.toBe(0);
 
     expect((await runYan(home, ['unit', 'set', '--task', 't1', '--unit', 'proto', '--scope', 'libs/proto', '--scope', 'libs/shared'])).code).toBe(0);
     expect(unitField('proto', 'scope')).toEqual(['libs/proto', 'libs/shared']);
@@ -394,7 +389,7 @@ describe('--needs, and --note', () => {
 
   it('refuses a note on more than one line before it changes anything', () => {
     snap();
-    const r = run({ task: 't1', unit: 'auth', mode: 'scout', note: 'one\ntwo' });
+    const r = run({ task: 't1', unit: 'auth', target: 'release/9', note: 'one\ntwo' });
     expect(r.code).toBe(2);
     expect(r.message).toContain('one line');
     assertUntouched();

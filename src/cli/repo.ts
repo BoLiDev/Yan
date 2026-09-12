@@ -24,11 +24,10 @@ import { isTty } from './shared/resolve.js';
  *   yan repo add ../poe-tools       register a clone that is already there
  *   yan repo add git@host:org/x     clone into clone_root, then register
  *
- * Re-adding keeps a tuned `mode_default` or `pool_size` unless a flag changes
- * it, and nothing here ever clones over an existing directory.
+ * Re-adding keeps a tuned `pool_size` unless a flag changes it, and nothing
+ * here ever clones over an existing directory.
  */
 
-const MODE_DEFAULT = 'mr';
 const POOL_SIZE = 8;
 
 /**
@@ -66,20 +65,21 @@ function checkName(name: string): void {
 }
 
 /**
- * Write the tracked half. Merged into any entry already there: an empty `mode`
- * or `pool` keeps what is recorded.
+ * Write the tracked half. Merged into any entry already there: an empty `pool`
+ * keeps what is recorded. A `mode_default` an older yan wrote is dropped: what
+ * a shift delivers is decided by its scenario now, not per repository.
  */
-function writePortable(name: string, url: string, mode: string, pool: string): void {
+function writePortable(name: string, url: string, pool: string): void {
   const file = reposPath();
   mkdirSync(vaultDir(), { recursive: true });
   initJson(file, { version: 1 });
   editJson(file, (raw) => {
     const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    const before = (typeof reg[name] === 'object' && reg[name] !== null ? reg[name] : {}) as Record<string, unknown>;
+    const before = { ...(typeof reg[name] === 'object' && reg[name] !== null ? reg[name] : {}) } as Record<string, unknown>;
+    delete before.mode_default;
     reg[name] = {
       ...before,
       url,
-      mode_default: mode !== '' ? mode : (before.mode_default ?? MODE_DEFAULT),
       pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? POOL_SIZE),
     };
     return reg;
@@ -115,30 +115,25 @@ function checkConflict(name: string, url: string): void {
  * @throws CommandError `usage` for an unusable name, `conflict` when it is
  *   taken by another URL.
  */
-function registerClone(name: string, dir: string, url: string, mode = '', pool = ''): void {
+function registerClone(name: string, dir: string, url: string, pool = ''): void {
   checkName(name);
   checkConflict(name, url);
-  writePortable(name, url, mode, pool);
+  writePortable(name, url, pool);
   writeLocal(name, dir);
 }
 
 interface AddOptions {
   readonly name?: string;
-  readonly modeDefault?: string;
   readonly poolSize?: string;
   readonly path?: string;
 }
 
-function checkFlags(options: AddOptions): { mode: string; pool: string } {
-  const mode = options.modeDefault ?? '';
-  if (mode !== '' && !['scout', 'branch', 'mr'].includes(mode)) {
-    throw CommandError.usage('repo', `invalid --mode-default '${mode}' - one of: scout branch mr`);
-  }
+function checkFlags(options: AddOptions): { pool: string } {
   const pool = options.poolSize ?? '';
   if (pool !== '' && (!/^[0-9]+$/.test(pool) || Number(pool) <= 0)) {
     throw CommandError.usage('repo', `invalid --pool-size '${pool}' - a positive integer`);
   }
-  return { mode, pool };
+  return { pool };
 }
 
 export interface Candidate {
@@ -191,7 +186,7 @@ export function scan(dir: string): Candidate[] {
 }
 
 async function addByScan(dir: string, options: AddOptions): Promise<void> {
-  const { mode, pool } = checkFlags(options);
+  const { pool } = checkFlags(options);
 
   // Checked before the scan, so the refusal is about the missing argument.
   if (!isTty()) {
@@ -208,14 +203,14 @@ async function addByScan(dir: string, options: AddOptions): Promise<void> {
   for (const name of chosen) {
     const candidate = candidates.find((c) => c.name === name);
     if (candidate === undefined) continue;
-    registerClone(candidate.name, candidate.dir, candidate.url, mode, pool);
+    registerClone(candidate.name, candidate.dir, candidate.url, pool);
     out(`repo add: ${candidate.name}  ${candidate.dir}`);
   }
   if (chosen.length === 0) out('repo add: nothing selected');
 }
 
 function addByPath(dir: string, options: AddOptions): void {
-  const { mode, pool } = checkFlags(options);
+  const { pool } = checkFlags(options);
   const full = normalizePath(resolvePath(dir));
   if (!isClone(full)) {
     throw CommandError.usage('repo', `${full} is not a git clone - there is no .git in it`);
@@ -225,12 +220,12 @@ function addByPath(dir: string, options: AddOptions): void {
     throw CommandError.usage('repo', `${full} has no origin, so its name cannot be derived - pass --name`);
   }
   const name = options.name !== undefined && options.name !== '' ? options.name : repoNameFromUrl(url);
-  registerClone(name, full, url, mode, pool);
+  registerClone(name, full, url, pool);
   out(`repo add: ${name}  ${full}  ${url === '' ? '(no origin)' : url}`);
 }
 
 function addByUrl(url: string, options: AddOptions): void {
-  const { mode, pool } = checkFlags(options);
+  const { pool } = checkFlags(options);
   const name = options.name !== undefined && options.name !== '' ? options.name : repoNameFromUrl(url);
   checkName(name);
   checkConflict(name, url);
@@ -252,9 +247,9 @@ function addByUrl(url: string, options: AddOptions): void {
     }
   }
 
-  registerClone(name, normalizePath(dest), url, mode, pool);
+  registerClone(name, normalizePath(dest), url, pool);
   const after = lookup(name);
-  out(`repo add: ${name}  url=${after?.url ?? url}  mode_default=${after?.modeDefault ?? MODE_DEFAULT}  pool_size=${String(after?.poolSize ?? POOL_SIZE)}`);
+  out(`repo add: ${name}  url=${after?.url ?? url}  pool_size=${String(after?.poolSize ?? POOL_SIZE)}`);
 }
 
 /** Does this argument look like a clone URL rather than a path? */
@@ -274,7 +269,6 @@ const addRepo = new Command('add')
   .description('register a repository: scan this directory, take a path, or clone a URL')
   .argument('[target]', 'a clone URL, a path to a clone, or nothing to scan the current directory')
   .option('--name <name>', 'register under this name instead of one derived from the URL')
-  .option('--mode-default <mode>', 'scout | branch | mr')
   .option('--pool-size <n>', 'how many worktrees this repository may lease at once')
   .option('--path <dir>', 'clone into this directory instead of clone_root')
   .action(
@@ -332,7 +326,7 @@ const lsRepos = new Command('ls')
         const where = repo.path ?? 'NOT LINKED on this machine';
         if (repo.path === undefined) unlinked += 1;
         out(`${repo.name.padEnd(20)}${where}`);
-        out(`${' '.repeat(20)}${repo.url}  mode=${repo.modeDefault}  pool=${String(repo.poolSize)}`);
+        out(`${' '.repeat(20)}${repo.url}  pool=${String(repo.poolSize)}`);
       }
       if (unlinked > 0) {
         out('');

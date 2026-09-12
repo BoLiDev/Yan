@@ -179,7 +179,6 @@ export function migrate(plan: MigrationPlan): void {
       const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
       reg[repo.name] = {
         url: typeof entry.url === 'string' ? entry.url : '',
-        mode_default: typeof entry.mode_default === 'string' ? entry.mode_default : 'mr',
         pool_size: typeof entry.pool_size === 'number' ? entry.pool_size : 8,
       };
       return reg;
@@ -198,7 +197,6 @@ export function migrate(plan: MigrationPlan): void {
       const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
       reg[name] = {
         url: typeof entry.url === 'string' ? entry.url : '',
-        mode_default: typeof entry.mode_default === 'string' ? entry.mode_default : 'mr',
         pool_size: typeof entry.pool_size === 'number' ? entry.pool_size : 8,
       };
       return reg;

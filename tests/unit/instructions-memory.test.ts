@@ -32,7 +32,7 @@ describe.each(FILES)('%s', (name) => {
   });
 
   it('keeps task.json in step with what user says', () => {
-    for (const flag of ['--branch', '--target', '--mode', '--scope', '--needs']) expect(text, flag).toContain(flag);
+    for (const flag of ['--branch', '--target', '--scope', '--needs']) expect(text, flag).toContain(flag);
     expect(text).toContain('yan unit add');
   });
 

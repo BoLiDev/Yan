@@ -48,8 +48,7 @@ export interface MrResult {
  * Open the unit's outbound merge request and record its URL.
  *
  * @throws CommandError `usage` for a missing or contradictory argument, an
- *   unknown task or unit, a unit not in `mr` mode, one that already has an
- *   outbound MR, or one whose branch and target are the same; `no_branch`,
+ *   unknown task or unit, one that already has an outbound MR, or one whose branch and target are the same; `no_branch`,
  *   `no_target` or `not_pushed` for a unit that is not ready.
  */
 export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
@@ -70,18 +69,6 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   }
   const data = unit.read();
 
-  // `mode` decides whether an MR is the deliverable at all.
-  if (data.mode === 'scout') {
-    throw CommandError.usage('mr', `unit ${unitName} is a scout: it delivers a report and artifacts, and never pushes or opens an MR. If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
-    );
-  }
-  if (data.mode === 'branch') {
-    throw CommandError.usage('mr', `unit ${unitName} is mode 'branch': its deliverable is a clean local branch and it does not open an MR. If that is wrong, 'user' has to ask for 'yan unit set --mode mr'`,
-    );
-  }
-  if (data.mode !== 'mr') {
-    throw CommandError.usage('mr', `unit ${unitName} has an unusable mode '${String(data.mode)}'`);
-  }
   if (data.mr !== null && data.mr !== '') {
     throw CommandError.usage('mr', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
     );

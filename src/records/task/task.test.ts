@@ -66,22 +66,37 @@ describe('creation', () => {
 });
 
 describe('units', () => {
-  it('requires an explicit target and defaults mode to mr', () => {
+  it('requires an explicit target', () => {
     Task.create('t042', 'x');
     expect(() => new Task('t042').addUnit('auth', 'monorepo-x', '')).toThrow(TaskError);
     new Task('t042').addUnit('auth', 'monorepo-x', 'master');
-    expect(requireUnitOf(new Task('t042').read(), 'auth').mode).toBe('mr');
+    expect(requireUnitOf(new Task('t042').read(), 'auth').target).toBe('master');
   });
 
-  it('refuses a duplicate unit and an invalid mode', () => {
+  it('refuses a duplicate unit', () => {
     seed();
     expect(() => new Task('t042').addUnit('auth', 'monorepo-x', 'master')).toThrow(TaskError);
-    expect(() => new Task('t042').addUnit('other', 'monorepo-x', 'master', { mode: 'nope' })).toThrow(
-      TaskError,
-    );
   });
 
-  it('writes the five unit fields in a fixed key order', () => {
+  it('reads a task.json an older yan wrote, mode and all, and leaves the field alone', () => {
+    // A unit used to carry a `mode`; what a shift delivers is its scenario's
+    // now. A vault shared with a machine still on the older yan keeps such
+    // files around, and they must neither refuse to load nor be rewritten.
+    seed();
+    const file = new Task('t042').file;
+    const raw = JSON.parse(readFileSync(file, 'utf8')) as { units: Record<string, unknown>[] };
+    raw.units[0]!.mode = 'scout';
+    writeFileSync(file, `${JSON.stringify(raw, null, 2)}\n`);
+
+    const unit = requireUnitOf(new Task('t042').read(), 'auth');
+    expect(unit.branch).toBe('feat/auth-r1');
+    expect((unit as Record<string, unknown>).mode).toBe('scout');
+    new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/7');
+    const after = JSON.parse(readFileSync(file, 'utf8')) as { units: Record<string, unknown>[] };
+    expect(after.units[0]!.mode).toBe('scout');
+  });
+
+  it('writes the unit fields in a fixed key order', () => {
     seed();
     const raw = JSON.parse(readFileSync(new Task('t042').file, 'utf8')) as {
       units: Record<string, unknown>[];
@@ -93,30 +108,22 @@ describe('units', () => {
       'needs',
       'branch',
       'target',
-      'mode',
       'mr',
       'history',
     ]);
   });
 });
 
-describe('the four current scalars', () => {
+describe('the three current scalars', () => {
   it('are set without ever touching history[]', () => {
     seed();
     new Task('t042').unit('auth').set('branch', 'feat/auth-r2');
     new Task('t042').unit('auth').set('mr', 'https://example.invalid/mr/31');
-    new Task('t042').unit('auth').set('mode', 'branch');
 
     const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r2');
     expect(unit.mr).toBe('https://example.invalid/mr/31');
-    expect(unit.mode).toBe('branch');
     expect(unit.history).toEqual([]);
-  });
-
-  it('refuses an invalid mode', () => {
-    seed();
-    expect(() => new Task('t042').unit('auth').set('mode', 'nope')).toThrow(TaskError);
   });
 
   it('refuses an unknown unit', () => {
