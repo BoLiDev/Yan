@@ -74,7 +74,7 @@ export class Shift {
    * Find an existing shift by id, scanning `tasks/*​/shifts/<sid>`.
    *
    * @param task narrows the search; defaults to `$YAN_TASK`.
-   * @throws YanError `missing` when nothing matches, `ambiguous` when the id
+   * @throws YanError `shift_missing` when nothing matches, `shift_ambiguous` when the id
    *   exists under more than one task and no task was named.
    */
   public static resolve(sid: string, task = ''): Shift {

@@ -93,7 +93,7 @@ export function topoSort(
  * Merge each unit's outbound MR into its target, in `needs` order, stopping at
  * the first that does not land. Narrates through `say`.
  *
- * @throws YanError `usage` when a task, a strategy or `--user-asked` is
+ * @throws YanError `land_usage` when a task, a strategy or `--user-asked` is
  *   missing, or a named unit does not exist; `cycle` when `needs` has one.
  */
 export function land(

@@ -7,7 +7,7 @@ import { YanError } from '../../util/error.js';
  * after the work and a failure there is swallowed.
  *
  * @returns the note trimmed, or `''` when none was given.
- * @throws YanError `usage` when the note spans more than one line.
+ * @throws YanError `<command>_usage` when the note spans more than one line.
  */
 export function readNote(command: string, note: string | undefined): string {
   const text = (note ?? '').trim();

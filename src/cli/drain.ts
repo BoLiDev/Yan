@@ -31,7 +31,7 @@ function wakeFile(task: string): string {
  * Every reason waiting in the task's wake file, which is then cleared, or
  * `undefined` when there is no file. `peek` reads without clearing.
  *
- * @throws YanError `failed` when the file cannot be read, or was printed
+ * @throws YanError `drain_failed` when the file cannot be read, or was printed
  *   and could not be cleared.
  */
 export function drainWake(task: string, options: { peek?: boolean } = {}): string | undefined {

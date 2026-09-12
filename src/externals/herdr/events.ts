@@ -76,7 +76,7 @@ export class TerminalEvents {
   /**
    * Open the connection, or return at once when it is already open.
    *
-   * @throws YanError `unreachable` when nothing answers within
+   * @throws YanError `events_unreachable` when nothing answers within
    *   `connectTimeoutMs`.
    */
   public async open(): Promise<void> {
@@ -101,7 +101,7 @@ export class TerminalEvents {
    * Subscribe to the agent status of panes that are not subscribed already, so
    * this is safe to call repeatedly with an overlapping set.
    *
-   * @throws YanError `usage` for anything that is not a pane id, `closed`
+   * @throws YanError `events_usage` for anything that is not a pane id, `events_closed`
    *   when the connection is not open.
    */
   public async subscribe(panes: readonly string[]): Promise<void> {

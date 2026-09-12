@@ -16,7 +16,7 @@ import { YanError } from '../../util/error.js';
 /**
  * The task this process is inside, from `$YAN_TASK`.
  *
- * @throws YanError `usage` when it is unset, which means the caller is not
+ * @throws YanError `<command>_usage` when it is unset, which means the caller is not
  *   inside a task at all.
  */
 export function insideTask(command: string): string {
@@ -42,7 +42,7 @@ export function openTasks(): TaskChoice[] {
  * and, with no terminal to ask in, a refusal naming the argument, so nothing
  * unattended hangs on an answer that is not coming.
  *
- * @throws YanError `usage` when there is nothing to choose from, or no way
+ * @throws YanError `<command>_usage` when there is nothing to choose from, or no way
  *   to ask.
  */
 export async function chosenTask(

@@ -96,7 +96,7 @@ function writeLocal(name: string, dir: string): void {
 }
 
 /**
- * @throws YanError `conflict` when `name` is registered to a different
+ * @throws YanError `<command>_conflict` when `name` is registered to a different
  *   URL. Called before anything is cloned or written.
  */
 function checkConflict(name: string, url: string): void {
@@ -109,7 +109,7 @@ function checkConflict(name: string, url: string): void {
 /**
  * Register one clone that is already on this disk, writing both halves.
  *
- * @throws YanError `usage` for an unusable name, `conflict` when it is
+ * @throws YanError `<command>_usage` for an unusable name, `<command>_conflict` when it is
  *   taken by another URL.
  */
 function registerClone(name: string, dir: string, url: string, pool = ''): void {
@@ -146,7 +146,7 @@ export interface Candidate {
  * blocks it. Never recursive, and a clone with no `origin` is listed as
  * blocked rather than left out.
  *
- * @throws YanError `usage` when `dir` cannot be read.
+ * @throws YanError `<command>_usage` when `dir` cannot be read.
  */
 export function scan(dir: string): Candidate[] {
   let names: string[];

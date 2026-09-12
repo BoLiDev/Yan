@@ -77,7 +77,7 @@ function atomicWrite(file: string, value: unknown): void {
 /**
  * Parse text.
  *
- * @throws YanError `invalid` when it is not JSON.
+ * @throws YanError `json_invalid` when it is not JSON.
  */
 export function parseJson(text: string): unknown {
   try {
@@ -90,7 +90,7 @@ export function parseJson(text: string): unknown {
 /**
  * The whole file, parsed.
  *
- * @throws YanError `missing` when it cannot be read, `invalid` when it does
+ * @throws YanError `json_missing` when it cannot be read, `json_invalid` when it does
  *   not parse.
  */
 export function readJson(file: string): unknown {

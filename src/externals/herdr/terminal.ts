@@ -131,7 +131,7 @@ export class Terminal {
    * the agent is running, so the caller keeps the tree and lets supervision
    * wake `user`.
    *
-   * @throws YanError `usage` for a missing argument, `notFound` when no
+   * @throws YanError `term_usage` for a missing argument, `term_not_found` when no
    *   agent is in the pane afterwards.
    */
   public startAgent(options: StartAgentOptions): StartedAgent {
@@ -245,7 +245,7 @@ export class Terminal {
    * when it has; nothing was started while it said busy, so asking again
    * cannot start a second agent.
    *
-   * @throws YanError `busy` once `busyRetryMs` has passed, or whatever
+   * @throws YanError `term_busy` once `busyRetryMs` has passed, or whatever
    *   else the start fails with, at once.
    */
   private startWhenReady(args: readonly string[]): unknown {
@@ -276,7 +276,7 @@ export class Terminal {
    * or a question on its screen, `done` is unseen work that finished, and
    * `unknown` is Herdr declining to say — never a verdict about the shift.
    *
-   * @throws YanError `usage` when `pane` is not a pane id.
+   * @throws YanError `term_usage` when `pane` is not a pane id.
    */
   public agentStatus(pane: string): AgentStatus {
     requirePaneId(pane, 'agentStatus');
@@ -312,7 +312,7 @@ export class Terminal {
    * would run it. Liveness is screen-based, so it catches a pane whose agent
    * is visibly gone and cannot promise more.
    *
-   * @throws YanError `usage` for an empty pane or text, `notFound` when
+   * @throws YanError `term_usage` for an empty pane or text, `term_not_found` when
    *   no live agent is there.
    */
   public send(pane: string, text: string, waitMs?: number): void {

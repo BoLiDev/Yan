@@ -48,7 +48,7 @@ interface MrResult {
 /**
  * Open the unit's outbound merge request and record its URL.
  *
- * @throws YanError `usage` for a missing or contradictory argument, an
+ * @throws YanError `mr_usage` for a missing or contradictory argument, an
  *   unknown task or unit, one that already has an outbound MR, or one whose branch and target are the same; `no_branch`,
  *   `no_target` or `not_pushed` for a unit that is not ready.
  */

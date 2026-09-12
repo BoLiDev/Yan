@@ -16,7 +16,7 @@ export interface Provider {
    * The URL out of a successful create, taken from whichever stream this CLI
    * prints it on.
    *
-   * @throws YanError `failed` when there is no URL to find.
+   * @throws YanError `remote_git_failed` when there is no URL to find.
    */
   createdUrl(result: ProcessResult): string;
 

@@ -12,7 +12,7 @@ export interface RemoteGitConfig {
 }
 
 /**
- * @throws YanError `config` (exit 2) when the file is missing, unparseable,
+ * @throws YanError `remote_git_config` (exit 2) when the file is missing, unparseable,
  *   names no supported `kind`, or is a gitlab config with no `host`.
  */
 export function readConfig(): RemoteGitConfig {

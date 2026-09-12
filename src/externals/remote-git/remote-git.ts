@@ -57,7 +57,7 @@ export class RemoteGit {
    * Open a merge request and return its URL, which is what the other three
    * verbs take as `mr`.
    *
-   * @throws YanError `usage` for a missing or unknown option, `failed`
+   * @throws YanError `remote_git_usage` for a missing or unknown option, `remote_git_failed`
    *   when the host refused.
    */
   public createMr(options: MrCreateOptions): string {
@@ -94,7 +94,7 @@ export class RemoteGit {
    * Merge now, with `strategy` defaulting to `merge`. The source branch
    * survives unless `deleteSource` says otherwise.
    *
-   * @throws YanError `usage` for an unknown option or strategy, `failed`
+   * @throws YanError `remote_git_usage` for an unknown option or strategy, `remote_git_failed`
    *   when the merge did not happen.
    */
   public mergeMr(options: MrMergeOptions): void {
@@ -117,7 +117,7 @@ export class RemoteGit {
    * Close without merging. The source branch is left where it is: an
    * abandoned piece of work may still be wanted.
    *
-   * @throws YanError `usage` for an unknown option, `failed` when the
+   * @throws YanError `remote_git_usage` for an unknown option, `remote_git_failed` when the
    *   host did not close it.
    */
   public closeMr(ref: MrRef): void {

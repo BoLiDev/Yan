@@ -29,7 +29,7 @@ export function lower(value: unknown): string {
 /**
  * The directory to run in, or undefined when the ref names none.
  *
- * @throws YanError `usage` when `dir` is set but is not a directory.
+ * @throws YanError `remote_git_usage` when `dir` is set but is not a directory.
  */
 export function checkDir(ref: RepoRef): string | undefined {
   if (ref.dir === undefined || ref.dir === '') return undefined;
@@ -46,7 +46,7 @@ export function checkDir(ref: RepoRef): string | undefined {
 /**
  * The merge request reference, CR-stripped.
  *
- * @throws YanError `usage` when it is missing.
+ * @throws YanError `remote_git_usage` when it is missing.
  */
 export function requireMr(ref: MrRef): string {
   if (ref.mr === undefined || ref.mr === '') {
@@ -59,7 +59,7 @@ export function requireMr(ref: MrRef): string {
 /**
  * The merge request body: `bodyFile`'s contents, `body`, or `''`.
  *
- * @throws YanError `usage` when both are given, or the file is missing.
+ * @throws YanError `remote_git_usage` when both are given, or the file is missing.
  */
 export function bodyText(options: MrCreateOptions): string {
   if (options.bodyFile !== undefined && options.bodyFile !== '') {
@@ -77,7 +77,7 @@ export function bodyText(options: MrCreateOptions): string {
 /**
  * The last match of `pattern` in `text`, CR-stripped.
  *
- * @throws YanError `failed` when nothing matches.
+ * @throws YanError `remote_git_failed` when nothing matches.
  */
 export function extractUrl(text: string, pattern: RegExp): string {
   const matches = text.match(pattern);

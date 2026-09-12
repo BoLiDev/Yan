@@ -47,7 +47,7 @@ interface GetOptions extends CommonOptions {
  * makes it a standing tree rather than a new one: the branch already exists,
  * so the pool checks it out instead of cutting anything.
  *
- * @throws YanError `usage` when the other flags were passed too, when
+ * @throws YanError `tree_usage` when the other flags were passed too, when
  *   $YAN_TASK is unset, or when the unit is unknown or has no branch.
  */
 function standingTree(options: GetOptions): { repo: string; base: string; branch: string; holder: string } {

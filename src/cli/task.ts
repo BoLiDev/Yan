@@ -63,7 +63,7 @@ export class UnitBuilder {
     this.last(`--${flag}`)[flag].push(value);
   }
 
-  /** @throws YanError `usage` when no `--repo` has opened a unit yet. */
+  /** @throws YanError `task_new_usage` when no `--repo` has opened a unit yet. */
   private last(flag: string): UnitSpec {
     const unit = this.units[this.units.length - 1];
     if (unit === undefined) {
@@ -118,7 +118,7 @@ export function missingForTaskNew(options: TaskNewOptions): string[] {
  * Create the task directory and add every unit, fetching each distinct clone
  * once first. The task id is taken or derived under a lock.
  *
- * @throws YanError `usage` when a title, a unit or a unit's target is
+ * @throws YanError `task_new_usage` when a title, a unit or a unit's target is
  *   missing, or the id is taken; `unit_failed` when the task was created but a
  *   unit could not be added — the task stays.
  */

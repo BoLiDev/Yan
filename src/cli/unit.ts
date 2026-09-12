@@ -61,7 +61,7 @@ export function normalizeBranchName(raw: string): string {
 }
 
 /**
- * @throws YanError `usage` when `branch` is unusable as a git ref. The
+ * @throws YanError `<command>_usage` when `branch` is unusable as a git ref. The
  *   message quotes `raw` too, so a hook's own output is recognisable.
  */
 function checkRefName(command: string, branch: string, raw?: string): void {
@@ -99,7 +99,7 @@ export function freshenClone(command: string, clone: string, repo: string): void
  * that name before cutting a new one from `base`. Returns a line saying which
  * happened. Never fetches and never checks anything out.
  *
- * @throws YanError `branch_failed` or `base_unresolved`.
+ * @throws YanError `<command>_branch_failed` or `<command>_base_unresolved`.
  */
 function ensureBranch(command: string, clone: string, branch: string, base: string): string {
   if (branchExists(clone, branch)) return 'adopted the existing local branch';
@@ -231,7 +231,7 @@ interface AddResult {
  * `yan unit add` without the process around it: name the branch, make it
  * exist, record the unit, append the log line.
  *
- * @throws YanError `usage` for a missing argument or unknown task,
+ * @throws YanError `unit_add_usage` for a missing argument or unknown task,
  *   `exists` when the unit is already there, `not_recorded` when the branch
  *   was made but task.json could not be written.
  */
@@ -402,7 +402,7 @@ Exit 4 means nothing was changed and \`user\` has to answer something first.`,
  * branch exist, carries any un-landed commits forward, and relabels the
  * workspace. Narrates to stdout.
  *
- * @throws YanError `usage` for a missing argument, nothing to change, an
+ * @throws YanError `unit_set_usage` for a missing argument, nothing to change, an
  *   unknown task or unit, or a new branch equal to the current one;
  *   `no_branch` when there is no round to replace.
  */

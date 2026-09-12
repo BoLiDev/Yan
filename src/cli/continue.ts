@@ -149,7 +149,7 @@ function currentPane(): string {
 /**
  * Take the task's enter lock and prepare its main agent.
  *
- * @throws YanError `usage` when no task is named, the task does not exist,
+ * @throws YanError `continue_usage` when no task is named, the task does not exist,
  *   or no main agent is configured.
  */
 export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Session {

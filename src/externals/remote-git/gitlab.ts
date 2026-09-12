@@ -66,7 +66,7 @@ export function mapCiState(payload: string): CiState {
  * `glab`'s way of naming one merge request: an iid, plus the project taken
  * from `repo` or parsed out of a URL.
  *
- * @throws YanError `usage` when no number can be worked out.
+ * @throws YanError `remote_git_usage` when no number can be worked out.
  */
 export function refArgs(mr: string, repo: string | undefined): string[] {
   let iid = mr;

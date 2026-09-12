@@ -49,7 +49,7 @@ export function readVaultJson(dir: string): VaultIdentity {
 }
 
 /**
- * @throws YanError `ahead` when vault.json's version is newer than this
+ * @throws YanError `vault_ahead` when vault.json's version is newer than this
  *   build understands, so it is never written over with an older shape.
  */
 function checkVersion(dir: string): void {
@@ -99,8 +99,8 @@ let resolved: { key: string; dir: string } | undefined;
 /**
  * The active vault.
  *
- * @throws YanError `missing` when none is registered, `invalid` when the
- *   registered one is not there, `ahead` when it is too new for this build.
+ * @throws YanError `vault_missing` when none is registered, `vault_invalid` when the
+ *   registered one is not there, `vault_ahead` when it is too new for this build.
  */
 export function vaultDir(): string {
   const key = vaultKey();

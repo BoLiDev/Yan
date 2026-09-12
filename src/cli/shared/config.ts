@@ -147,7 +147,7 @@ export function readScenarios(): ScenarioReading {
  * `agents.shift`'s. Only a configured scenario and tier can be named, so a
  * dispatch can never run a model `user` did not configure.
  *
- * @throws YanError `usage` for a missing or unknown scenario or tier, a
+ * @throws YanError `<command>_usage` for a missing or unknown scenario or tier, a
  *   scenario the configuration cannot supply, or no CLI at all.
  */
 export function resolveShift(command: string, scenario: string | undefined, tier: string | undefined): ShiftSpec {

@@ -46,8 +46,8 @@ export class WorktreePool {
    *
    * @param size how many slots this pool may use; the caller reads it from
    *   repos.json.
-   * @throws YanError `usage` for a missing or whitespace-carrying
-   *   argument, `full` when every slot is leased, `failed` when the branch is
+   * @throws YanError `worktree_usage` for a missing or whitespace-carrying
+   *   argument, `worktree_full` when every slot is leased, `worktree_failed` when the branch is
    *   checked out elsewhere or the tree cannot be placed.
    */
   public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
@@ -86,7 +86,7 @@ export class WorktreePool {
    *   mismatch costs nothing and a retry is safe. An absent field is not
    *   compared; `force` skips the orphan-commit guard but never the identity
    *   check.
-   * @throws YanError `mismatch` when `expect` disagrees, `failed` when no
+   * @throws YanError `worktree_mismatch` when `expect` disagrees, `worktree_failed` when no
    *   lease matches `target` or the guard refuses.
    */
   public return(target: string, expect: ReturnOptions = {}): string {

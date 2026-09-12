@@ -142,7 +142,7 @@ interface ShiftAbandonOptions {
 /**
  * `yan shift abandon <sid>` without the process around it.
  *
- * @throws YanError `usage` without `--user-asked` or `--reason`, for a
+ * @throws YanError `shift_abandon_usage` without `--user-asked` or `--reason`, for a
  *   missing sid, or for a shift that has already clocked out.
  */
 export function abandonShift(sid: string | undefined, options: ShiftAbandonOptions, deps: AbandonDeps = {}): AbandonedShift {
@@ -182,7 +182,7 @@ interface AbandonedTask {
  * down, every open outbound merge request closed, every tree returned, and the
  * task marked abandoned.
  *
- * @throws YanError `usage` without `--user-asked` or `--reason`, or for a
+ * @throws YanError `abandon_usage` without `--user-asked` or `--reason`, or for a
  *   task that is missing, already abandoned, or already done.
  */
 export function abandonTask(options: TaskAbandonOptions, deps: AbandonDeps = {}): AbandonedTask {

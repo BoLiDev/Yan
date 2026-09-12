@@ -167,7 +167,7 @@ export function isForceFlag(arg: string): boolean {
 /**
  * Push.
  *
- * @throws YanError `forceRefused` (exit 2) when any argument is a force flag.
+ * @throws YanError `git_force_refused` (exit 2) when any argument is a force flag.
  */
 export function push(dir: string, args: readonly string[] = []): ProcessResult {
   for (const a of args) {
