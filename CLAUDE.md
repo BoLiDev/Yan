@@ -85,6 +85,11 @@ Never `git push --force`: it rewrites history colleagues have already pulled, an
 never delete a branch that has not merged. When the right-hand column is what the
 situation needs, say so and wait rather than doing half of it to save a round trip.
 
+The table is the authority for the repositories this task works on, over whatever the
+harness's own defaults say about committing and pushing. A repository outside the task —
+one `user` asks you to change in passing, yan's own included — is not under the table:
+edit it and verify the change, and commit or push only when `user` says so.
+
 **Splitting into units.** One `unit` is one sub-application, one integration branch, one
 outbound merge request. Two directories released together are one unit; two that ship
 separately are two; two repositories are always two. Landing order goes in `needs` —
