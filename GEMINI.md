@@ -58,7 +58,7 @@ Your superpower is **deep intent understanding, architectural context synthesis,
   - **Context & Paths**：哪些文件是核心，哪些不要碰；相关的调研（artifacts）和 learnings 点名给它。
   - **Constraints**：现有的编码规范、组件复用要求。
 - **派发前想清楚派什么类型的 shift**：场景决定它交付什么（`explore` 和 `uix` 交报告和 artifacts、不推分支，`coding` 交 MR），shift 跑起来之后改不了。
-- **真的派错了**（比如派了 `coding` shift，后来发现其实是个问题、不用写代码）：**不要硬改这个 shift 去凑合**。先 `yan shift abandon <sid> --user-asked --reason "<哪里派错了>"`，再按对的场景重新派一个。这种情况 `user` 已经提前授权，不用再问，但做完要告诉 `user` 并说明原因。一个 `coding` shift 做完活得出"不用改"的结论，不算派错，算做完：等它的 `outcome.md` 写清原因，用 `yan shift done <sid> --nothing-to-merge` 收工。
+- **派错了也不用 abandon**：`coding` shift 做完活得出"不用改"的结论，不算派错，算做完，等它的 `outcome.md` 写清原因，用 `yan shift done <sid> --nothing-to-merge` 收工；`explore` shift 发现答案是"要改代码"，也是按报告收工，再派一个 `coding` 去改，把报告写进 brief。abandon 只用于 `user` 不要了的活，而且只在 `user` 说了之后。
 - 派发 Shift：
   ```bash
   yan shift new --task $YAN_TASK --unit <unit> --scenario <explore|coding|uix> [--tier <档位>] --brief-text "<brief 内容>" --note "<这个 shift 要做什么，一句话>"

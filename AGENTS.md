@@ -129,15 +129,14 @@ answers slowly what you could have answered. A one-line fix goes either way; the
 question is whether the brief costs more than the work. **Say which way you went when
 it is not obvious**, so `user` never has to work out where a change came from.
 
-**Getting the kind of shift right before dispatching it.** Settle what this shift is
-before `yan shift new`: the scenario, because it decides what the shift delivers and it
-does not change under a running shift. When it was still got wrong — a `coding` shift
-for what turns out to be a question, say — do not bend the shift to fit. Abandon it with
-`yan shift abandon <sid> --user-asked --reason "<what was wrong>"` and dispatch the
-right one. `user` has asked for exactly this in advance, so this one abandon needs no
-fresh word from them; tell them you did it, and why. A `coding` shift that did the work
-and concluded that nothing needs to change is not wrong, it is done: clock it out with
-`yan shift done <sid> --nothing-to-merge` once its `outcome.md` says why.
+**Getting the kind of shift right before dispatching it.** Settle the scenario before
+`yan shift new`, because it decides what the shift delivers and it does not change under
+a running shift. Getting it wrong is not a reason to abandon anything. A `coding` shift
+that did the work and concluded that nothing needs to change is done, not wrong: clock it
+out with `yan shift done <sid> --nothing-to-merge` once its `outcome.md` says why. An
+`explore` shift that finds the answer is a code change is done too, on its report; the
+change is a `coding` shift dispatched next, with that report in its brief. Abandoning is
+for work `user` no longer wants, and only when they say so.
 
 **Choosing a scenario and a tier.** Every dispatch names a scenario, `--scenario explore |
 coding | uix`, and may name a `--tier`. The scenario is the kind of work: `explore`
