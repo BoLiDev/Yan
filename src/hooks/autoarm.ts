@@ -27,6 +27,13 @@ import { yanHome } from '../util/home.js';
  *
  * Reads no stdin, and never blocks a turn: `turnend-guard.ts` is what notices
  * an autoarm that did not run at all.
+ *
+ * This hook is the main agent's, and only the main agent's. A shift working on
+ * the yan repository sits in a worktree carrying this repository's own hook
+ * registrations, so its harness fires this file too — and an autoarm that runs
+ * for a shift takes the task's single-flight lock and swallows the wake meant
+ * for yan. `YAN_SID` is set in a shift's environment and never in the main
+ * agent's, so it is what tells the two apart.
  */
 
 interface AutoarmIo {
@@ -55,6 +62,9 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
     io.note(reason);
     return 2;
   };
+
+  // A shift's harness, not the main agent's: supervision is not its business.
+  if ((process.env.YAN_SID ?? '') !== '') return quiet();
 
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) return quiet();
 

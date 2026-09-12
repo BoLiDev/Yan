@@ -27,6 +27,11 @@ import { normalizePath } from '../util/paths.js';
  *
  * It fails open after GUARD_BUDGET blocked attempts, with a loud warning: a
  * guard that can wedge a session is worse than no guard.
+ *
+ * It guards the main agent's turn and nobody else's. A shift working on the
+ * yan repository inherits this repository's hook registrations, so its harness
+ * fires this guard too; `YAN_SID`, which only a shift's environment carries,
+ * is what tells that turn apart, and it is always let through.
  */
 
 type Harness = 'claude' | 'codex' | 'agy';
@@ -82,6 +87,9 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
     io.note('say which harness this is - --claude, --codex or --agy');
     return 2;
   }
+
+  // A shift's turn is never the main agent's to hold.
+  if ((process.env.YAN_SID ?? '') !== '') return letThrough(harness, io);
 
   // A guard that cannot tell whose turn this is must not hold it hostage.
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) {

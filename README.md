@@ -87,6 +87,15 @@ model, agy chooses its own). Two things differ from the other two:
   which `--dangerously-skip-permissions` does not cover and Herdr reads as `idle` rather
   than `blocked`. The main agent meets it in your own pane, so answer it once.
 
+The hooks in `.claude/settings.json`, `.codex/hooks.json` and `.agents/hooks.json` are the
+MAIN AGENT's: they rebuild its picture at session start, arm its watcher and guard its
+turn. A shift working on this repository sits in a worktree that carries those same
+registrations, so its own harness fires them too — and an autoarm running for a shift takes
+the task's single-flight lock, which is the wake the main agent never gets. `YAN_SID` is
+what tells the two apart: the spawn step sets it in every shift's environment and the main
+agent never has it. Every hook checks it first and gets out of the way, and `yan
+session-start` prints one line saying whose picture this is instead of the picture.
+
 Tests: `npm test`. That is the whole suite — unit, integration, and the e2e tests that
 skip loudly when Herdr or a real forge is absent.
 
