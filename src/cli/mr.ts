@@ -49,8 +49,8 @@ interface MrResult {
  * Open the unit's outbound merge request and record its URL.
  *
  * @throws YanError `mr_usage` for a missing or contradictory argument, an
- *   unknown task or unit, one that already has an outbound MR, or one whose branch and target are the same; `no_branch`,
- *   `no_target` or `not_pushed` for a unit that is not ready.
+ *   unknown task or unit, one that already has an outbound MR, or one whose branch and target are the same; `mr_no_branch`,
+ *   `mr_no_target` or `mr_not_pushed` for a unit that is not ready.
  */
 export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   const task = options.task ?? insideTask('mr');

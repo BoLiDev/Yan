@@ -350,7 +350,7 @@ export interface Deps {
  * Dispatch one shift and return the record written to `run/meta.json`.
  *
  * @throws YanError `shift_new_usage` for a missing task, unit or agent, `shift_new_pool_full`
- *   (exit 3) when no tree is free, `main_clone` (exit 4) when the agent would
+ *   (exit 3) when no tree is free, `shift_new_main_clone` (exit 4) when the agent would
  *   have started inside the main clone.
  */
 export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
@@ -701,8 +701,8 @@ function resumeFromPool(
  *
  * @throws YanError `shift_done_usage` for a missing sid, an unknown outcome file, no
  *   recorded merge request, or a shift that has fully clocked out;
- *   `not_merged` (exit 4) when the host says it has not merged;
- *   `return_refused` when the tree could not go back, in which case the remote
+ *   `shift_done_not_merged` (exit 4) when the host says it has not merged;
+ *   `shift_done_return_refused` when the tree could not go back, in which case the remote
  *   branch is left alone.
  */
 export function clockOut(sid: string | undefined, options: DoneOptions, deps: DoneDeps = {}): DoneResult {

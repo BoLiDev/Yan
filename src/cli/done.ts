@@ -88,8 +88,8 @@ function kill(shift: Shift, terminal: Closer): KilledShift {
  * Finish one task: return its trees and mark it complete.
  *
  * @throws YanError `done_usage` when no task is named, `done_missing` for an unknown
- *   one, `live_shifts` (exit 4) when a shift is still live and `--force` was
- *   not given — nothing is touched in that case — and `tree_held` (exit 5)
+ *   one, `done_live_shifts` (exit 4) when a shift is still live and `--force` was
+ *   not given — nothing is touched in that case — and `done_tree_held` (exit 5)
  *   when a tree would not come back, after the others have been returned.
  */
 export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResult {

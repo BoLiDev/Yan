@@ -55,12 +55,12 @@ export class WorktreePool {
       throw YanError.usage('worktree_usage', `the pool size must be a positive whole number, got: ${size}`);
     }
     if (!base) {
-      throw YanError.usage('worktree_usage', 
+      throw YanError.usage('worktree_usage',
         'a base ref is required - a tree is always cut from an explicit base',
       );
     }
     if (!branch) {
-      throw YanError.usage('worktree_usage', 
+      throw YanError.usage('worktree_usage',
         'a branch name is required - a leased tree is never left on a detached HEAD',
       );
     }
@@ -91,7 +91,7 @@ export class WorktreePool {
    */
   public return(target: string, expect: ReturnOptions = {}): string {
     if (!target) {
-      throw YanError.usage('worktree_usage', 
+      throw YanError.usage('worktree_usage',
         "which tree? pass the path 'yan tree get' printed, or its slot number",
       );
     }
@@ -109,13 +109,13 @@ export class WorktreePool {
     const tree = lease?.path ?? '';
 
     if (expect.leaseId !== undefined && expect.leaseId !== '' && expect.leaseId !== haveId) {
-      throw new YanError('worktree_mismatch', 
+      throw new YanError('worktree_mismatch',
         `lease id does not match: slot ${slot} is held under '${haveId}', not '${expect.leaseId}' - nothing was touched`,
         { exitCode: 3 },
       );
     }
     if (expect.holder !== undefined && expect.holder !== '' && expect.holder !== haveHolder) {
-      throw new YanError('worktree_mismatch', 
+      throw new YanError('worktree_mismatch',
         `holder does not match: slot ${slot} is held by '${haveHolder}', not '${expect.holder}' - nothing was touched`,
         { exitCode: 3 },
       );

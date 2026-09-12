@@ -404,7 +404,7 @@ Exit 4 means nothing was changed and \`user\` has to answer something first.`,
  *
  * @throws YanError `unit_set_usage` for a missing argument, nothing to change, an
  *   unknown task or unit, or a new branch equal to the current one;
- *   `no_branch` when there is no round to replace.
+ *   `unit_set_no_branch` when there is no round to replace.
  */
 export function setUnit(options: SetOptions, readMrState?: MrStateReader, terminal?: Labeller): void {
   const task = options.task ?? insideTask('unit_set');

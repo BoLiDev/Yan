@@ -29,9 +29,9 @@ export interface Prompter {
  * Send one line to a shift's agent.
  *
  * @throws YanError `send_usage` for a missing sid, an empty line, a line with a
- *   newline in it, or one over the limit; `clocked_out` when the shift has
- *   clocked out; `no_pane` when its pane was never recorded. YanError
- *   `notFound` when the pane holds no live agent.
+ *   newline in it, or one over the limit; `send_clocked_out` when the shift has
+ *   clocked out; `send_no_pane` when its pane was never recorded, and
+ *   `term_not_found` when the pane holds no live agent.
  */
 export function sendLine(
   sid: string | undefined,

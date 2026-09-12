@@ -26,7 +26,7 @@ export class Shift {
    */
   public constructor(task: string, sid: string, dir?: string) {
     if (!Shift.isId(sid)) {
-      throw YanError.usage('shift_usage', 
+      throw YanError.usage('shift_usage',
         `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
       );
     }
@@ -79,7 +79,7 @@ export class Shift {
    */
   public static resolve(sid: string, task = ''): Shift {
     if (!Shift.isId(sid)) {
-      throw YanError.usage('shift_usage', 
+      throw YanError.usage('shift_usage',
         `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
       );
     }
