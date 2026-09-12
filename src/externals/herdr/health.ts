@@ -1,5 +1,5 @@
 import { runHerdr } from './cli.js';
-import { asRecord } from './parse.js';
+import { asRecord } from '../../util/narrow.js';
 import type { HerdrHealth } from './types.js';
 
 /**

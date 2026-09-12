@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { YanError, type YanErrorOptions } from './error.js';
+import type { ProcessResult } from './process.js';
 
 /**
  * Run git in a given directory. Every function takes that directory as its
@@ -31,12 +32,6 @@ export class GitError extends YanError {
   public static usage(message: string): GitError {
     return new GitError('usage', message, { exitCode: 2 });
   }
-}
-
-export interface GitResult {
-  readonly code: number;
-  readonly stdout: string;
-  readonly stderr: string;
 }
 
 function requireDir(dir: string | undefined): string {
@@ -71,7 +66,7 @@ function requireArg(value: string | undefined, message: string): string {
  * only git failing to start is a GitError. A `timeoutMs` that elapses comes
  * back as a non-zero result.
  */
-export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): GitResult {
+export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): ProcessResult {
   const d = requireDir(dir);
   const r = spawnSync('git', ['-C', d, ...args], {
     encoding: 'utf8',
@@ -164,21 +159,21 @@ export function branchesContainingHead(dir: string): string[] {
 
 // --- branches --------------------------------------------------------------
 
-export function fetch(dir: string, remote = 'origin', args: readonly string[] = []): GitResult {
+export function fetch(dir: string, remote = 'origin', args: readonly string[] = []): ProcessResult {
   return git(dir, ['fetch', '--prune', remote, ...args]);
 }
 
-export function checkout(dir: string, args: readonly string[]): GitResult {
+export function checkout(dir: string, args: readonly string[]): ProcessResult {
   requireArg(args[0], 'checkout needs a ref');
   return git(dir, ['checkout', ...args]);
 }
 
 /** Cut a branch. `base` is passed through — git is never left to pick HEAD. */
-export function createBranch(dir: string, branch: string, base: string): GitResult {
+export function createBranch(dir: string, branch: string, base: string): ProcessResult {
   return git(dir, ['branch', branch, base]);
 }
 
-export function rebase(dir: string, args: readonly string[]): GitResult {
+export function rebase(dir: string, args: readonly string[]): ProcessResult {
   requireArg(args[0], 'rebase needs an upstream');
   return git(dir, ['rebase', ...args]);
 }
@@ -196,7 +191,7 @@ export function isForceFlag(arg: string): boolean {
  *
  * @throws GitError `forceRefused` (exit 2) when any argument is a force flag.
  */
-export function push(dir: string, args: readonly string[] = []): GitResult {
+export function push(dir: string, args: readonly string[] = []): ProcessResult {
   for (const a of args) {
     if (isForceFlag(a)) {
       throw new GitError('forceRefused', 'refusing to force-push: it rewrites history other people have already pulled',
@@ -211,13 +206,13 @@ export function push(dir: string, args: readonly string[] = []): GitResult {
  * Delete a branch on the remote. Nothing here checks whether it merged, so the
  * caller must have.
  */
-export function deleteRemoteBranch(dir: string, remote: string, branch: string): GitResult {
+export function deleteRemoteBranch(dir: string, remote: string, branch: string): ProcessResult {
   return git(dir, ['push', remote, '--delete', branch]);
 }
 
 // --- worktrees -------------------------------------------------------------
 
-export function worktreeAdd(dir: string, args: readonly string[]): GitResult {
+export function worktreeAdd(dir: string, args: readonly string[]): ProcessResult {
   return git(dir, ['worktree', 'add', ...args]);
 }
 
@@ -225,7 +220,7 @@ export function worktreeAdd(dir: string, args: readonly string[]): GitResult {
  * Drop the administrative records of worktrees whose directory is already
  * gone. A directory that still exists is left alone.
  */
-export function worktreePrune(dir: string): GitResult {
+export function worktreePrune(dir: string): ProcessResult {
   return git(dir, ['worktree', 'prune']);
 }
 
@@ -235,7 +230,7 @@ export function worktreeList(dir: string): string {
 
 // --- destructive, but bounded ---------------------------------------------
 
-export function resetHard(dir: string, ref = 'HEAD'): GitResult {
+export function resetHard(dir: string, ref = 'HEAD'): ProcessResult {
   return git(dir, ['reset', '--hard', ref]);
 }
 
@@ -243,14 +238,14 @@ export function resetHard(dir: string, ref = 'HEAD'): GitResult {
  * `git clean -fd`: untracked files go, gitignored ones — node_modules, build
  * caches — stay, so a returned tree stays warm.
  */
-export function cleanFd(dir: string): GitResult {
+export function cleanFd(dir: string): ProcessResult {
   return git(dir, ['clean', '-fd']);
 }
 
 // --- cloning ---------------------------------------------------------------
 
 /** <dir> is the directory the clone is created in. */
-export function clone(dir: string, url: string, dest: string, args: readonly string[] = []): GitResult {
+export function clone(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
   return git(dir, ['clone', ...args, url, dest]);
 }
 
@@ -273,7 +268,7 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
  * code is non-zero and `stdout` is a conflict report. Nothing is left behind
  * either way.
  */
-export function mergeTree(dir: string, ours: string, theirs: string): GitResult {
+export function mergeTree(dir: string, ours: string, theirs: string): ProcessResult {
   return git(dir, ['merge-tree', '--write-tree', ours, theirs]);
 }
 
@@ -283,7 +278,7 @@ export function commitTree(
   tree: string,
   parents: readonly string[],
   message: string,
-): GitResult {
+): ProcessResult {
   const args = ['commit-tree', tree];
   for (const parent of parents) args.push('-p', parent);
   args.push('-m', message);
@@ -294,6 +289,6 @@ export function commitTree(
  * Move a ref to `to`, failing rather than moving it if it is not currently at
  * `expect` — so anything that landed in between is not discarded.
  */
-export function updateRef(dir: string, ref: string, to: string, expect: string): GitResult {
+export function updateRef(dir: string, ref: string, to: string, expect: string): ProcessResult {
   return git(dir, ['update-ref', ref, to, expect]);
 }

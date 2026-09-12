@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { YanError, type YanErrorOptions } from './error.js';
 import { readJsonIfPresent } from './json.js';
-import { activeVaultName, machineConfigPath, vaultPathOf } from './machine.js';
+import { machineConfigPath, machineRevision, readMachine } from './machine.js';
 import { normalizePath } from './paths.js';
 
 /**
@@ -87,12 +87,31 @@ export function vaultDirIfAny(): string | undefined {
   if (fromEnv !== undefined && fromEnv !== '' && isVault(fromEnv)) {
     return normalizePath(resolve(fromEnv));
   }
-  const active = activeVaultName();
+  const { active, vaults } = readMachine();
   if (active === undefined) return undefined;
-  const path = vaultPathOf(active);
+  const path = vaults[active];
   if (path === undefined || !isVault(path)) return undefined;
   return normalizePath(resolve(path));
 }
+
+/**
+ * What the answer depends on. `Task`, `Shift` and `Supervision` each ask in
+ * their constructor and `yan wait` builds them every few seconds, so the
+ * resolved directory is cached against this rather than re-read three times a
+ * call. A process never switches vaults of its own accord, and the two
+ * variables plus the registry revision cover everything that could move the
+ * answer under one that does — `yan vault use`, `init` and `clone` all write
+ * through `editMachine`.
+ */
+function vaultKey(): string {
+  return [
+    process.env.YAN_VAULT ?? '',
+    process.env.YAN_MACHINE_DIR ?? '',
+    machineRevision(),
+  ].join('\u0000');
+}
+
+let resolved: { key: string; dir: string } | undefined;
 
 /**
  * The active vault.
@@ -101,20 +120,26 @@ export function vaultDirIfAny(): string | undefined {
  *   registered one is not there, `ahead` when it is too new for this build.
  */
 export function vaultDir(): string {
+  const key = vaultKey();
+  if (resolved !== undefined && resolved.key === key) return resolved.dir;
+
   const found = vaultDirIfAny();
   if (found !== undefined) {
     checkVersion(found);
+    resolved = { key, dir: found };
     return found;
   }
 
-  const active = activeVaultName();
+  // Only an answer is cached: a refusal is re-derived, so a vault that appears
+  // mid-process is found rather than denied a second time.
+  const { active, vaults } = readMachine();
   if (active === undefined) {
     throw new VaultError(
       'missing',
       `no vault is registered on this machine - create one with 'yan vault init <name> --remote <url>', or take an existing one with 'yan vault clone <url>'`,
     );
   }
-  const path = vaultPathOf(active);
+  const path = vaults[active];
   if (path === undefined) {
     throw new VaultError(
       'invalid',

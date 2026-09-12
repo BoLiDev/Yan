@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { readJsonIfPresent } from '../../util/json.js';
+import { recordOrNone } from '../../util/narrow.js';
 import type { ShiftMeta } from './types.js';
 
 /**
@@ -14,31 +15,30 @@ export function readMeta(run: string): ShiftMeta {
   } catch {
     return {};
   }
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
-  const meta = raw as Record<string, unknown>;
+  const meta = recordOrNone(raw);
+  if (meta === undefined) return {};
 
-  const first = (...keys: readonly string[]): string | undefined => {
-    for (const k of keys) {
-      const v = meta[k];
-      if (typeof v === 'string' && v !== '') return v;
-      if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-    }
+  // The keys `yan shift new` writes, and nothing else: a second spelling that
+  // no writer produces is a reader guessing.
+  const field = (key: string): string | undefined => {
+    const v = meta[key];
+    if (typeof v === 'string' && v !== '') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
     return undefined;
   };
 
-  // A field is taken from the first spelling present, in the order listed.
   return strip({
-    unit: first('unit'),
-    branch: first('branch'),
-    tree: first('tree'),
-    agent: first('agent'),
-    agentId: first('pane', 'pane_id', 'window', 'window_id', 'agent_id', 'term_id'),
-    mr: first('mr', 'mr_url'),
-    agentSession: first('agent_session', 'session_id'),
-    clone: first('clone'),
-    leaseId: first('lease_id', 'leaseId'),
-    holder: first('holder'),
-    container: first('container'),
+    unit: field('unit'),
+    branch: field('branch'),
+    tree: field('tree'),
+    agent: field('agent'),
+    agentId: field('pane'),
+    mr: field('mr'),
+    agentSession: field('agent_session'),
+    clone: field('clone'),
+    leaseId: field('lease_id'),
+    holder: field('holder'),
+    container: field('container'),
   });
 }
 

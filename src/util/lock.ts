@@ -65,25 +65,13 @@ function readRecord(file: string): LockRecord | undefined {
  * Is this process still there? A process running as another user counts as
  * alive, so the answer errs towards "held".
  */
-export function pidAlive(pid: number): boolean {
+function pidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
     return (err as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
-/**
- * True when a directory sits at the lock path — the older scheme, which
- * nothing here writes and which is never reclaimed as stale.
- */
-function isShellLock(file: string): boolean {
-  try {
-    return statSync(file).isDirectory();
-  } catch {
-    return false;
   }
 }
 
@@ -96,13 +84,11 @@ export function owner(file: string): LockOwner | undefined {
 }
 
 /**
- * True when the file exists but nobody owns it any more. A directory-shaped
- * lock, one held on another host, and one whose stamp is younger than ten
- * seconds all count as held.
+ * True when the file exists but nobody owns it any more. One held on another
+ * host and one whose stamp is younger than ten seconds both count as held.
  */
 export function isStale(file: string): boolean {
   if (!existsSync(file)) return false;
-  if (isShellLock(file)) return false;
   const record = readRecord(file);
   if (record === undefined || typeof record.pid !== 'number') {
     // Unstamped: a competitor may be between its create and its write.
@@ -172,7 +158,7 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
   for (;;) {
     if (claim(file)) break;
     if (isStale(file)) {
-      rmSync(file, { force: true });
+      release(file);
       continue;
     }
     if (Date.now() >= deadline) {
@@ -189,6 +175,6 @@ export function withLock<T>(file: string, timeoutSeconds: number, body: () => T)
   try {
     return body();
   } finally {
-    rmSync(file, { force: true });
+    release(file);
   }
 }

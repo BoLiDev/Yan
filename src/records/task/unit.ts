@@ -1,5 +1,6 @@
+import { asString } from '../../util/narrow.js';
 import { TaskError } from './errors.js';
-import { asString, editUnitIn, readDocument } from './document.js';
+import { editUnitIn, readDocument } from './document.js';
 import { ENDS, type HistoryEnd, type HistoryEntry, type ScalarField, type UnitData } from './types.js';
 
 /**

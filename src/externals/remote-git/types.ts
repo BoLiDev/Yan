@@ -35,17 +35,3 @@ export interface MrMergeOptions extends MrRef {
   readonly strategy?: MergeStrategy;
   readonly deleteSource?: boolean;
 }
-
-/** Anything outside the set becomes `unknown`, with a note on stderr. */
-export function gateMrState(value: string): MrState {
-  if ((MR_STATES as readonly string[]).includes(value)) return value as MrState;
-  process.stderr.write(`remote-git: internal: '${value}' is not a merge request state - reporting unknown\n`);
-  return 'unknown';
-}
-
-/** Anything outside the set becomes `pending`, with a note on stderr. */
-export function gateCiState(value: string): CiState {
-  if ((CI_STATES as readonly string[]).includes(value)) return value as CiState;
-  process.stderr.write(`remote-git: internal: '${value}' is not a CI state - reporting pending\n`);
-  return 'pending';
-}

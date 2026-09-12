@@ -1,26 +1,29 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import type { CliResult } from './client.js';
+import { recordOrNone } from '../../util/narrow.js';
+import type { ProcessResult } from '../../util/process.js';
 import { RemoteGitError } from './errors.js';
 import type { MrCreateOptions, MrRef, RepoRef } from './types.js';
 
 /**
- * Everything the verbs check before they talk to a CLI, and the two small
- * readers of what comes back.
+ * Everything the verbs check before they talk to a CLI, and the readers of
+ * what comes back — including the two both providers map their payloads with.
  */
 
 /**
- * @throws RemoteGitError `usage` when `input` carries a defined key outside
- *   `allowed`, so no CLI flag can reach a provider.
+ * A CLI's JSON object, or `undefined` when the payload is neither. Both
+ * mappers treat those the same: nothing usable came back.
  */
-export function only(input: object, allowed: readonly string[]): void {
-  const options = input as Record<string, unknown>;
-  for (const key of Object.keys(options)) {
-    if (options[key] === undefined) continue;
-    if (!allowed.includes(key)) {
-      throw RemoteGitError.usage(`'${key}' is not accepted here - these verbs take yan's own options only, never gh's or glab's`,
-      );
-    }
+export function asObject(text: string): Record<string, unknown> | undefined {
+  try {
+    return recordOrNone(JSON.parse(text));
+  } catch {
+    return undefined;
   }
+}
+
+/** A field lower-cased for comparison; `''` for anything that is not a string. */
+export function lower(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase() : '';
 }
 
 /**
@@ -86,7 +89,7 @@ export function extractUrl(text: string, pattern: RegExp): string {
 }
 
 /** Write one line on stderr saying the host could not be asked. */
-export function unreachable(what: string, fallback: string, result: CliResult): void {
+export function unreachable(what: string, fallback: string, result: ProcessResult): void {
   const detail = result.stderr.trim().replace(/\n/g, ' ');
   process.stderr.write(
     `remote-git: cannot ask the host about ${what} - reporting ${fallback}${detail === '' ? '' : ` (${detail})`}\n`,
