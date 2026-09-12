@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { editJson, initJson, readJsonIfPresent } from './json.js';
+import { asRecord, asString, recordOrNone } from './narrow.js';
 import { normalizePath } from './paths.js';
 
 /**
@@ -45,33 +46,42 @@ export function machineConfigPath(): string {
   return join(machineDir(), 'config.json');
 }
 
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined;
+/** A configured value: a non-empty string, or nothing at all. */
+function set(value: unknown): string | undefined {
+  const text = asString(value);
+  return text === '' ? undefined : text;
 }
 
 /** The registry, or an empty one when the file is missing or unreadable. Never throws. */
 export function readMachine(): MachineConfig {
-  const raw = readJsonIfPresent(machineConfigPath());
-  if (typeof raw !== 'object' || raw === null) return EMPTY;
-  const record = raw as Record<string, unknown>;
+  const record = recordOrNone(readJsonIfPresent(machineConfigPath()));
+  if (record === undefined) return EMPTY;
 
   const vaults: Record<string, string> = {};
-  const declared = record.vaults;
-  if (typeof declared === 'object' && declared !== null) {
-    for (const [name, path] of Object.entries(declared as Record<string, unknown>)) {
-      const p = asString(path);
-      if (p !== undefined) vaults[name] = normalizePath(p);
-    }
+  for (const [name, path] of Object.entries(asRecord(record.vaults))) {
+    const p = set(path);
+    if (p !== undefined) vaults[name] = normalizePath(p);
   }
 
+  const active = set(record.active);
+  const root = set(record.clone_root);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
-    ...(asString(record.active) === undefined ? {} : { active: asString(record.active) as string }),
-    ...(asString(record.clone_root) === undefined
-      ? {}
-      : { clone_root: normalizePath(asString(record.clone_root) as string) }),
+    ...(active === undefined ? {} : { active }),
+    ...(root === undefined ? {} : { clone_root: normalizePath(root) }),
     vaults,
   };
+}
+
+let revision = 0;
+
+/**
+ * How many times this process has rewritten the registry. `util/vault.ts`
+ * caches the vault it resolved and carries this in the key, so `yan vault use`
+ * and `yan vault init` are seen by anything that asked before them.
+ */
+export function machineRevision(): number {
+  return revision;
 }
 
 /** Read-modify-write, atomically, creating the config and its directory if needed. */
@@ -79,6 +89,7 @@ export function editMachine(edit: (current: MachineConfig) => MachineConfig): vo
   mkdirSync(machineDir(), { recursive: true });
   initJson(machineConfigPath(), EMPTY);
   editJson(machineConfigPath(), () => edit(readMachine()));
+  revision += 1;
 }
 
 export function registeredVaults(): { name: string; path: string }[] {
@@ -86,14 +97,6 @@ export function registeredVaults(): { name: string; path: string }[] {
   return Object.keys(vaults)
     .sort()
     .map((name) => ({ name, path: vaults[name] as string }));
-}
-
-export function activeVaultName(): string | undefined {
-  return readMachine().active;
-}
-
-export function vaultPathOf(name: string): string | undefined {
-  return readMachine().vaults[name];
 }
 
 /** Where `yan repo add <url>` clones into, or undefined when it was never set. */

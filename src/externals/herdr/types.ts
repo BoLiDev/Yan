@@ -2,7 +2,7 @@ import type { AgentStatus } from './schema.js';
 
 /** The vocabulary a caller of this module sees. */
 
-export type { AgentStatus } from './schema.js';
+export type { AgentStatus, ReadSource } from './schema.js';
 
 /** `unknown` means yan could not find out, never that the agent is confusing. */
 export type Alive = 'alive' | 'dead' | 'unknown';
@@ -31,8 +31,6 @@ export interface ListedAgent {
   readonly title?: string;
   readonly agent_session?: string;
 }
-
-export type ReadSource = 'visible' | 'recent' | 'recent-unwrapped' | 'detection';
 
 export interface StartAgentOptions {
   readonly container: string;

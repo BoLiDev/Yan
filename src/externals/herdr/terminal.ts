@@ -2,7 +2,8 @@ import { TerminalError } from './errors.js';
 import { nativePath } from '../../util/paths.js';
 import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
 import { isPaneId, paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
-import { agentSessionOf, asRecord, statusOf, str } from './parse.js';
+import { asRecord, asString } from '../../util/narrow.js';
+import { agentSessionOf, statusOf } from './parse.js';
 import type {
   AgentStatus,
   StartAgentOptions,
@@ -107,9 +108,9 @@ export class Terminal {
     const result = asRecord(this.call(args, 'workspace create'));
     const workspace = asRecord(result.workspace);
     return {
-      workspace: str(workspace.workspace_id) || str(result.workspace_id),
-      tab: str(asRecord(result.tab).tab_id) || str(result.tab_id),
-      pane: str(asRecord(result.root_pane).pane_id) || str(result.root_pane_id),
+      workspace: asString(workspace.workspace_id) || asString(result.workspace_id),
+      tab: asString(asRecord(result.tab).tab_id) || asString(result.tab_id),
+      pane: asString(asRecord(result.root_pane).pane_id) || asString(result.root_pane_id),
     };
   }
 
@@ -159,7 +160,7 @@ export class Terminal {
       throw err;
     }
     const agent = asRecord(started.agent);
-    const reported = str(agent.pane_id) || pane;
+    const reported = asString(agent.pane_id) || pane;
 
     if (this.agentAlive(reported) !== 'alive') {
       throw new TerminalError(
@@ -170,7 +171,7 @@ export class Terminal {
 
     const session = agentSessionOf(agent.agent_session);
     return {
-      name: str(agent.name) || options.name,
+      name: asString(agent.name) || options.name,
       pane: reported,
       status: this.settle(reported, statusOf(agent.agent_status), options.prompt),
       ...(session === undefined ? {} : { agent_session: session }),
@@ -382,9 +383,13 @@ export class Terminal {
    * successful read, because a screen does not parse as JSON. A body that does
    * parse is still unwrapped, so a Herdr that starts wrapping it is read too.
    *
+   * `source` is spelled as the API schema spells it; `herdr agent read` takes
+   * that and the kebab-case form its --help lists, so the generated names go
+   * through unchanged.
+   *
    * @throws TerminalError when the command failed.
    */
-  public read(pane: string, lines = 80, source: ReadSource = 'recent-unwrapped'): string {
+  public read(pane: string, lines = 80, source: ReadSource = 'recent_unwrapped'): string {
     requirePaneId(pane, 'read');
     if (!Number.isInteger(lines) || lines <= 0) {
       throw TerminalError.usage(`a whole number of lines is required, got '${lines}'`);
@@ -397,7 +402,7 @@ export class Terminal {
     try {
       const body = asRecord(asRecord(JSON.parse(raw)).result ?? JSON.parse(raw));
       if (typeof body.text === 'string') return body.text;
-      if (Array.isArray(body.lines)) return body.lines.map((l) => str(l)).join('\n');
+      if (Array.isArray(body.lines)) return body.lines.map((l) => asString(l)).join('\n');
       return raw;
     } catch {
       return raw;
@@ -431,7 +436,7 @@ export class Terminal {
     if (result.code !== 0) return undefined;
     try {
       const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
-      const id = str(asRecord(body.pane).workspace_id) || str(body.workspace_id);
+      const id = asString(asRecord(body.pane).workspace_id) || asString(body.workspace_id);
       return id === '' ? undefined : id;
     } catch {
       return undefined;
@@ -450,7 +455,7 @@ export class Terminal {
     let pane = '';
     try {
       const agent = asRecord(asRecord(JSON.parse(byName.stdout)).result);
-      pane = str(asRecord(agent.agent).pane_id) || str(agent.pane_id);
+      pane = asString(asRecord(agent.agent).pane_id) || asString(agent.pane_id);
     } catch {
       return undefined;
     }
@@ -481,15 +486,15 @@ export class Terminal {
     const agents: ListedAgent[] = [];
     for (const entry of raw) {
       const agent = asRecord(entry);
-      const pane = str(agent.pane_id);
+      const pane = asString(agent.pane_id);
       if (scoped && !paneIsIn(pane, container)) continue;
-      const title = str(agent.terminal_title_stripped) || str(agent.terminal_title);
+      const title = asString(agent.terminal_title_stripped) || asString(agent.terminal_title);
       const session = agentSessionOf(agent.agent_session);
       agents.push({
-        name: str(agent.name),
+        name: asString(agent.name),
         pane,
         status: statusOf(agent.agent_status),
-        kind: str(agent.agent),
+        kind: asString(agent.agent),
         ...(title === '' ? {} : { title }),
         ...(session === undefined ? {} : { agent_session: session }),
       });
@@ -522,7 +527,7 @@ export class Terminal {
     }
 
     const created = asRecord(this.call(args, 'tab create'));
-    const pane = str(asRecord(created.root_pane).pane_id) || str(created.root_pane_id);
+    const pane = asString(asRecord(created.root_pane).pane_id) || asString(created.root_pane_id);
     if (pane === '') throw TerminalError.usage('herdr did not report a root pane for the new tab');
     return pane;
   }

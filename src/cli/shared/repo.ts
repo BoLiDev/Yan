@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { yanHome } from '../../util/home.js';
 import { readJsonIfPresent } from '../../util/json.js';
+import { asRecord } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../../util/vault.js';
 import { CommandError } from './errors.js';
@@ -27,9 +28,7 @@ export interface RepoEntry {
 }
 
 function record(file: string): Record<string, unknown> {
-  const raw = readJsonIfPresent(file);
-  if (typeof raw !== 'object' || raw === null) return {};
-  return raw as Record<string, unknown>;
+  return asRecord(readJsonIfPresent(file));
 }
 
 function entriesOf(file: string): Record<string, Record<string, unknown>> {

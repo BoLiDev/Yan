@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import type { ProcessResult } from '../../util/process.js';
 import { TerminalError } from './errors.js';
 
 /**
@@ -14,13 +15,6 @@ import { TerminalError } from './errors.js';
  * No Herdr `error.code` escapes this file; `mapError` turns each into yan's
  * own vocabulary.
  */
-
-
-export interface HerdrResult {
-  readonly code: number;
-  readonly stdout: string;
-  readonly stderr: string;
-}
 
 /** The `error.code` Herdr reported, when it reported one. */
 export function herdrErrorCode(stderr: string): string | undefined {
@@ -41,7 +35,7 @@ export function herdrErrorCode(stderr: string): string | undefined {
  * Run a herdr command. Never throws: a failure is a non-zero `code`, and a
  * herdr that will not start is 127.
  */
-export function runHerdr(args: readonly string[]): HerdrResult {
+export function runHerdr(args: readonly string[]): ProcessResult {
   const spawned = spawnSync('herdr', [...args], {
     encoding: 'utf8',
     windowsHide: true,
@@ -57,7 +51,7 @@ export function runHerdr(args: readonly string[]): HerdrResult {
 }
 
 /** How a herdr command is run; replaceable in a test. */
-export type HerdrRunner = (args: readonly string[]) => HerdrResult;
+export type HerdrRunner = (args: readonly string[]) => ProcessResult;
 
 /**
  * Run a herdr command and return its parsed `.result`, or `undefined` when it
@@ -86,7 +80,7 @@ export function herdrCall(run: HerdrRunner, args: readonly string[], what: strin
  * pane not yet at its shell prompt, `unreachable` when herdr said nothing
  * structured, `refused` otherwise.
  */
-export function mapError(result: HerdrResult, what: string): TerminalError {
+export function mapError(result: ProcessResult, what: string): TerminalError {
   if (result.code === 2) {
     return TerminalError.bug(`herdr refused the command shape (${what}): ${result.stderr.trim()}`);
   }

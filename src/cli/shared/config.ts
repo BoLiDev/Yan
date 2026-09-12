@@ -1,5 +1,6 @@
+import { readVaultConfig } from '../../util/config.js';
+import { recordOrNone } from '../../util/narrow.js';
 import { vaultConfigPath } from '../../util/vault.js';
-import { readJsonIfPresent } from '../../util/json.js';
 import { CommandError } from './errors.js';
 
 /**
@@ -63,31 +64,25 @@ export interface ShiftSpec extends AgentSpec {
   readonly skills: readonly string[];
 }
 
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 function readConfig(): Record<string, unknown> {
-  return record(readJsonIfPresent(configPath())) ?? {};
+  return readVaultConfig() ?? {};
 }
 
 /** `agents.<role>` in full. Every field is `''` when it is not configured. */
 export function agentSpecFor(role: string): AgentSpec {
-  const value = record(readConfig().agents)?.[role];
+  const value = recordOrNone(readConfig().agents)?.[role];
   if (typeof value === 'string') return { cli: value.trim(), model: '', effort: '' };
-  const spec = record(value);
+  const spec = recordOrNone(value);
   return { cli: text(spec?.cli), model: text(spec?.model), effort: text(spec?.effort) };
 }
 
 /** `scenarios`, read without throwing: whatever cannot be used is named in `problems`. */
 export function readScenarios(): ScenarioReading {
-  const raw = record(readConfig().scenarios);
+  const raw = recordOrNone(readConfig().scenarios);
   const problems: string[] = [];
   const scenarios: ScenarioConfig[] = [];
   if (raw === undefined) {
@@ -101,14 +96,14 @@ export function readScenarios(): ScenarioReading {
   }
 
   for (const name of SCENARIOS) {
-    const entry = record(raw[name]);
+    const entry = recordOrNone(raw[name]);
     if (entry === undefined) {
       problems.push(`scenarios.${name} is missing`);
       continue;
     }
     const tiers: Tier[] = [];
-    for (const [tierName, value] of Object.entries(record(entry.tiers) ?? {})) {
-      const tier = record(value);
+    for (const [tierName, value] of Object.entries(recordOrNone(entry.tiers) ?? {})) {
+      const tier = recordOrNone(value);
       if (tier === undefined) {
         problems.push(`scenarios.${name}.tiers.${tierName} is not an object`);
         continue;

@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claim, isHeld, isStale, owner, pidAlive, release } from '../../util/lock.js';
+import { claim, isHeld, isStale, owner, release } from '../../util/lock.js';
 import { Shift } from '../shift/index.js';
 import { Task } from '../task/index.js';
 import { SupervisionError } from './errors.js';
@@ -93,14 +93,12 @@ export class Supervision {
       return false;
     }
 
-    const shellPid = this.shellLockPid();
-    const alive = shellPid === undefined ? isHeld(this.lock) : pidAlive(shellPid);
-    if (!alive) {
+    if (!isHeld(this.lock)) {
       this.lastWhy = `the lock at ${this.lock} is there but its owner is gone`;
       return false;
     }
 
-    const got = shellPid === undefined ? owner(this.lock)?.identity : this.shellLockIdentity();
+    const got = owner(this.lock)?.identity;
     if (got !== this.identity()) {
       this.lastWhy = `the lock at ${this.lock} belongs to '${got === undefined || got === '' ? 'something unstamped' : got}', not to '${this.identity()}'`;
       return false;
@@ -126,7 +124,7 @@ export class Supervision {
       return false;
     }
 
-    const held = owner(this.lock)?.pid ?? this.shellLockPid();
+    const held = owner(this.lock)?.pid;
     const wrote = readBeacon(this.beacon)?.pid;
     if (held !== undefined && wrote !== undefined && held !== wrote) {
       this.lastWhy = `the beacon was written by pid ${wrote} but the lock is held by pid ${held}`;
@@ -213,27 +211,6 @@ export class Supervision {
       mkdirSync(this.run, { recursive: true });
     } catch (cause) {
       throw new SupervisionError('unwritable', `cannot create ${this.run}`, { cause });
-    }
-  }
-
-  /**
-   * The identity of a directory-shaped lock — a directory holding `pid` and
-   * `identity` files, which older watchers wrote. Read, never written.
-   */
-  private shellLockIdentity(): string | undefined {
-    return this.readShellLockFile('identity');
-  }
-
-  private shellLockPid(): number | undefined {
-    const raw = this.readShellLockFile('pid');
-    return raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : undefined;
-  }
-
-  private readShellLockFile(name: string): string | undefined {
-    try {
-      return readFileSync(join(this.lock, name), 'utf8').replace(/\r/g, '').split('\n')[0];
-    } catch {
-      return undefined;
     }
   }
 }

@@ -4,19 +4,54 @@ import { pathKey } from './layout.js';
 
 /** What the pool asks git. Reads only; nothing here writes. */
 
-/** True when git knows `path` as a worktree of `clone`. */
-export function isRegisteredWorktree(clone: string, path: string): boolean {
+/** One entry of `git worktree list --porcelain`; `branch` is absent on a detached HEAD. */
+interface Worktree {
+  readonly path: string;
+  readonly branch?: string;
+}
+
+/**
+ * Every working tree git knows about for `clone`, the main clone included.
+ * `[]` when git cannot be asked, so both callers below answer "no" rather than
+ * throwing.
+ */
+function worktrees(clone: string): Worktree[] {
   let porcelain: string;
   try {
     porcelain = git.worktreeList(clone);
   } catch {
-    return false;
+    return [];
   }
+
+  // A blank line ends each entry, and `worktree <path>` opens the next one.
+  const found: Worktree[] = [];
+  let path = '';
+  let branch: string | undefined;
+  const close = (): void => {
+    if (path !== '') found.push({ path, ...(branch === undefined ? {} : { branch }) });
+    path = '';
+    branch = undefined;
+  };
+
+  for (const raw of porcelain.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('worktree ')) {
+      close();
+      path = line.slice('worktree '.length);
+    } else if (line.startsWith('branch refs/heads/')) {
+      branch = line.slice('branch refs/heads/'.length);
+    } else if (line === '') {
+      close();
+    }
+  }
+  close();
+  return found;
+}
+
+/** True when git knows `path` as a worktree of `clone`. */
+export function isRegisteredWorktree(clone: string, path: string): boolean {
   const want = pathKey(path);
-  return porcelain
-    .split(/\r?\n/)
-    .filter((l) => l.startsWith('worktree '))
-    .some((l) => pathKey(l.slice('worktree '.length)) === want);
+  return worktrees(clone).some((w) => pathKey(w.path) === want);
 }
 
 /**
@@ -24,20 +59,7 @@ export function isRegisteredWorktree(clone: string, path: string): boolean {
  * so the answer can be a directory the pool does not own.
  */
 export function worktreeHolding(clone: string, branch: string): string | undefined {
-  let porcelain: string;
-  try {
-    porcelain = git.worktreeList(clone);
-  } catch {
-    return undefined;
-  }
-  let path = '';
-  for (const raw of porcelain.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (line.startsWith('worktree ')) path = line.slice('worktree '.length);
-    else if (line === `branch refs/heads/${branch}` && path !== '') return path;
-    else if (line === '') path = '';
-  }
-  return undefined;
+  return worktrees(clone).find((w) => w.branch === branch)?.path;
 }
 
 /**

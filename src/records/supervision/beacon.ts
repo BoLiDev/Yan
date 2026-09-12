@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { readStamp, stampNumber } from '../../util/stamp.js';
 
 /**
  * `tasks/<id>/run/beacon` holds one line, `<epoch> <pid> <task> <state>`,
@@ -27,20 +28,16 @@ export function writeBeacon(file: string, task: string, state: WatcherState, now
 }
 
 export function readBeacon(file: string): Beacon | undefined {
-  if (!existsSync(file)) return undefined;
-  let line: string;
-  try {
-    line = readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')[0] ?? '';
-  } catch {
-    return undefined;
-  }
-  const [at, pid, task, state] = line.split(' ');
-  if (at === undefined || !/^\d+$/.test(at)) return undefined;
-  if (pid === undefined || !/^\d+$/.test(pid)) return undefined;
+  const fields = readStamp(file);
+  if (fields === undefined) return undefined;
+  const at = stampNumber(fields, 0);
+  const pid = stampNumber(fields, 1);
+  if (at === undefined || pid === undefined) return undefined;
+  const state = fields[3];
   return {
-    at: Number(at),
-    pid: Number(pid),
-    task: task ?? '',
+    at,
+    pid,
+    task: fields[2] ?? '',
     ...(state !== undefined && STATES.includes(state) ? { state: state as WatcherState } : {}),
   };
 }

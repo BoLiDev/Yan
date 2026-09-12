@@ -1,28 +1,13 @@
-import type { CliResult } from './client.js';
+import type { ProcessResult } from '../../util/process.js';
 import { RemoteGitError } from './errors.js';
 import type { Provider } from './provider.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
-import { extractUrl } from './validate.js';
+import { asObject, extractUrl, lower } from './validate.js';
 
 /**
  * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure, and
  * anything unrecognised lands on the safe member of the set.
  */
-
-function asObject(text: string): Record<string, unknown> | undefined {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function lower(value: unknown): string {
-  return typeof value === 'string' ? value.toLowerCase() : '';
-}
 
 /**
  * `glab mr view --output json` → yan vocabulary. `locked` reads as `open`, and
@@ -138,7 +123,7 @@ export const gitlabProvider: Provider = {
   },
 
   /** Searches both streams: glab picks one by version. */
-  createdUrl(result: CliResult): string {
+  createdUrl(result: ProcessResult): string {
     return extractUrl(
       `${result.stdout}${result.stderr}`,
       /https?:\/\/\S+\/merge_requests\/[0-9]+/g,

@@ -99,8 +99,8 @@ describe('run/meta.json is read once, and defensively', () => {
     expect(Shift.resolve('s2', 't043').meta()).toEqual({});
   });
 
-  it('accepts either spelling of the terminal id, and reports absence as absence', () => {
-    seed('t042', 's1', { unit: 'auth', tree: '/trees/1/demo', pane_id: 'w1:p2' });
+  it('reads the keys dispatch writes, and reports absence as absence', () => {
+    seed('t042', 's1', { unit: 'auth', tree: '/trees/1/demo', pane: 'w1:p2' });
     const meta = Shift.resolve('s1').meta();
     expect(meta.unit).toBe('auth');
     expect(meta.tree).toBe('/trees/1/demo');
