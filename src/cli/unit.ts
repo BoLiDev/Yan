@@ -392,8 +392,7 @@ const set = new Command('set')
 Every one of these is a decision, and --note is where its reason goes: it is
 appended to each line this writes to log.md. --needs '' clears the list.
 
-Exit 4 means nothing was changed and \`user\`
-has to answer something first.`,
+Exit 4 means nothing was changed and \`user\` has to answer something first.`,
   )
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 

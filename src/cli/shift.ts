@@ -583,7 +583,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
 
 const newShift = new Command('new')
   .description('dispatch a shift')
-  .option('--unit <name>', 'which unit of that task this shift works on')
+  .option('--unit <name>', 'which unit of the task this shift works on')
   .option('--sid <sid>', 'the shift id; derived as the next free s<n> when omitted')
   .option('--scenario <name>', 'REQUIRED: explore | coding | uix - the kind of work')
   .option('--tier <name>', "one of the scenario's tiers in config.json; defaults to its default")
