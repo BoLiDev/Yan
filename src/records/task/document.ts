@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { editJson, readJson } from '../../util/json.js';
+import { asRecord, asString } from '../../util/narrow.js';
 import { TaskError } from './errors.js';
 import {type TaskData, type UnitData } from './types.js';
 
@@ -8,16 +9,6 @@ import {type TaskData, type UnitData } from './types.js';
  * file omits or mistypes, so only a missing file throws; writes go through
  * `util/json.ts`, landing tmp → mv with key order preserved.
  */
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-export function asString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback;
-}
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];

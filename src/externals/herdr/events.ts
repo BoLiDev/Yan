@@ -1,9 +1,10 @@
 import { connect, type Socket } from 'node:net';
+import { asRecord, asString } from '../../util/narrow.js';
 import { EventsError } from './errors.js';
 import { isPaneId } from './ids.js';
+import { statusOf } from './parse.js';
 import { defaultEndpoint } from './socket.js';
-import { AGENT_STATUS } from './schema.js';
-import { type AgentStatus, type AgentStatusEvent, type ClosedEvent } from './types.js';
+import { type AgentStatusEvent, type ClosedEvent } from './types.js';
 
 /**
  * Herdr's event stream, spoken over the socket because `events.subscribe` has
@@ -238,16 +239,11 @@ export class TerminalEvents {
   }
 
   private statusEvent(data: unknown): AgentStatusEvent | undefined {
-    if (typeof data !== 'object' || data === null) return undefined;
-    const body = data as Record<string, unknown>;
-    const pane = typeof body.pane_id === 'string' ? body.pane_id : '';
+    const body = asRecord(data);
+    const pane = asString(body.pane_id);
     if (pane === '') return undefined;
-    const raw = typeof body.agent_status === 'string' ? body.agent_status : '';
-    // An unrecognised status is `unknown`, never the string Herdr sent.
-    const status: AgentStatus = (AGENT_STATUS as readonly string[]).includes(raw)
-      ? (raw as AgentStatus)
-      : 'unknown';
-    return { pane, status, kind: typeof body.agent === 'string' ? body.agent : '' };
+    // `statusOf` makes an unrecognised status `unknown`, never the string Herdr sent.
+    return { pane, status: statusOf(body.agent_status), kind: asString(body.agent) };
   }
 
   private dropped(reason: string): void {

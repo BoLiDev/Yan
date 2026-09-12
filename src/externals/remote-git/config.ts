@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readVaultConfig } from '../../util/config.js';
+import { asRecord } from '../../util/narrow.js';
 import { vaultConfigPath } from '../../util/vault.js';
 import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';
@@ -10,36 +11,24 @@ export interface RemoteGitConfig {
   readonly host: string;
 }
 
-function configPath(): string {
-  return vaultConfigPath();
-}
-
-/** The `remote_git` section, when the file has one. */
-function section(parsed: unknown): Record<string, unknown> | undefined {
-  const root = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
-  const current = root.remote_git;
-  if (typeof current === 'object' && current !== null) return current as Record<string, unknown>;
-  return undefined;
-}
-
 /**
  * @throws RemoteGitError `config` (exit 2) when the file is missing, unparseable,
  *   names no supported `kind`, or is a gitlab config with no `host`.
  */
 export function readConfig(): RemoteGitConfig {
-  const path = configPath();
-  if (!existsSync(path)) {
-    throw RemoteGitError.config(`no configuration at ${path} - copy templates/vault/config.example.json there and set remote_git.kind`,
-    );
-  }
-  let parsed: unknown;
+  const path = vaultConfigPath();
+  let root: Record<string, unknown> | undefined;
   try {
-    parsed = JSON.parse(readFileSync(path, 'utf8'));
+    root = readVaultConfig();
   } catch {
     throw RemoteGitError.config(`cannot read ${path} - it is not valid JSON; run 'yan doctor'`);
   }
+  if (root === undefined) {
+    throw RemoteGitError.config(`no configuration at ${path} - copy templates/vault/config.example.json there and set remote_git.kind`,
+    );
+  }
 
-  const data = section(parsed) ?? {};
+  const data = asRecord(root.remote_git);
 
   const kind = typeof data.kind === 'string' ? data.kind : '';
   if (kind === '') {

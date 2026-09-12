@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { gitOut, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
-import { activeVaultName, cloneRoot, machineConfigPath } from '../util/machine.js';
+import { cloneRoot, machineConfigPath, readMachine } from '../util/machine.js';
 import { VAULT_VERSION, readVaultJson, vaultDirIfAny } from '../util/vault.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
 import { configuredCli } from '../externals/remote-git/index.js';
@@ -107,7 +107,7 @@ function checkRequired(report: Report): void {
 function checkVault(report: Report): void {
   const dir = vaultDirIfAny();
   if (dir === undefined) {
-    const active = activeVaultName();
+    const active = readMachine().active;
     line(report, 'fail', 'vault',
       active === undefined
         ? `none registered in ${machineConfigPath()} - 'yan vault init <name> --remote <url>', or 'yan vault clone <url>'`

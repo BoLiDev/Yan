@@ -1,20 +1,9 @@
-import type { CliResult } from './client.js';
+import type { ProcessResult } from '../../util/process.js';
 import type { Provider } from './provider.js';
 import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
-import { extractUrl } from './validate.js';
+import { asObject, extractUrl, lower } from './validate.js';
 
 /** GitHub's JSON, mapped into yan's vocabulary. Both mappers are pure. */
-
-function asObject(text: string): Record<string, unknown> | undefined {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function asArray(text: string): unknown[] | undefined {
   try {
@@ -23,10 +12,6 @@ function asArray(text: string): unknown[] | undefined {
   } catch {
     return undefined;
   }
-}
-
-function lower(value: unknown): string {
-  return typeof value === 'string' ? value.toLowerCase() : '';
 }
 
 /**
@@ -140,7 +125,7 @@ export const githubProvider: Provider = {
     return args;
   },
 
-  createdUrl(result: CliResult): string {
+  createdUrl(result: ProcessResult): string {
     return extractUrl(result.stdout, /https?:\/\/\S+\/pull\/[0-9]+/g);
   },
 
