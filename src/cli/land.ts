@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
@@ -7,8 +5,6 @@ import { repoDirIfKnown } from './shared/repo.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
-import { yanHome } from '../util/home.js';
-import { normalizePath } from '../util/paths.js';
 
 /**
  * `yan land` — merge the outbound merge requests into `target`, in `needs`
@@ -39,13 +35,13 @@ export interface LandOptions {
   json?: boolean;
 }
 
-export interface Landed {
+interface Landed {
   readonly unit: string;
   readonly mr: string;
   readonly result: 'merged' | 'already merged';
 }
 
-export interface LandResult {
+interface LandResult {
   readonly version: 1;
   readonly task: string;
   readonly strategy: MergeStrategy;

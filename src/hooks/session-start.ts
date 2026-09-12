@@ -26,7 +26,7 @@ import { yanHome } from '../util/home.js';
  * `yan session-start` by hand.
  */
 
-export interface SessionStartIo {
+interface SessionStartIo {
   /** stderr: where a failure goes, for the agy log rather than the model. */
   readonly note: (line: string) => void;
   /** stdout: the `PreInvocation` decision object. */

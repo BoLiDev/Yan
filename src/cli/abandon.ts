@@ -40,9 +40,9 @@ export interface AbandonDeps {
 }
 
 /** What became of a merge request that was asked to close. */
-export type MrClosing = 'closed' | 'already-closed' | 'merged' | 'unknown' | 'failed' | 'none';
+type MrClosing = 'closed' | 'already-closed' | 'merged' | 'unknown' | 'failed' | 'none';
 
-export interface AbandonedShift {
+interface AbandonedShift {
   readonly sid: string;
   readonly unit: string;
   readonly mr: string;
@@ -165,7 +165,7 @@ function mrPhrase(r: { mr: string; mr_closing: MrClosing }): string {
   }
 }
 
-export interface ShiftAbandonOptions {
+interface ShiftAbandonOptions {
   task?: string;
   reason?: string;
   userAsked?: boolean;
@@ -195,14 +195,14 @@ export function abandonShift(sid: string | undefined, options: ShiftAbandonOptio
   return result;
 }
 
-export interface TaskAbandonOptions {
+interface TaskAbandonOptions {
   task?: string;
   reason?: string;
   userAsked?: boolean;
   json?: boolean;
 }
 
-export interface AbandonedTask {
+interface AbandonedTask {
   readonly version: 1;
   readonly task: string;
   readonly shifts: readonly AbandonedShift[];

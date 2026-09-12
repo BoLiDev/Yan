@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
@@ -14,10 +15,24 @@ import { yanHome, subcommands } from '../util/home.js';
  * Commander would exit before `shared/resolve.ts` could ask for it.
  */
 
-export const YAN_VERSION = '0.1.0';
+/**
+ * Read from the package.json beside `dist/`, so the number has one home and a
+ * release cannot leave a copy behind. A home without one still gets a working
+ * CLI: the version is the least of what `yan --version` is asked for.
+ */
+function yanVersion(home: string): string {
+  try {
+    const pkg: unknown = JSON.parse(readFileSync(join(home, 'package.json'), 'utf8'));
+    const version = (pkg as { version?: unknown } | null)?.version;
+    if (typeof version === 'string' && version !== '') return version;
+  } catch {
+    // Unreadable or not JSON.
+  }
+  return 'unknown';
+}
 
 /** What every ported subcommand module must export. */
-export interface CommandModule {
+interface CommandModule {
   readonly command: Command;
 }
 
@@ -51,7 +66,7 @@ export async function buildProgram(home: string): Promise<Command> {
   program
     .name('yan')
     .description('one main agent per task, orchestrating single-use shifts')
-    .version(`yan ${YAN_VERSION}`, '-V, --version')
+    .version(`yan ${yanVersion(home)}`, '-V, --version')
     .enablePositionalOptions()
     .showHelpAfterError();
 
@@ -92,7 +107,7 @@ function commanderExitCode(err: CommanderError): number {
 }
 
 /** One row of the select bare `yan` shows on a terminal. */
-export interface EntryChoice {
+interface EntryChoice {
   readonly id: string;
   readonly title: string;
   readonly units: number;

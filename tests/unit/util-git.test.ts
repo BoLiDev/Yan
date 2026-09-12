@@ -26,15 +26,12 @@ const directoryFirst: Array<[string, (dir: string) => unknown]> = [
   ['push', (d) => g.push(d)],
   ['deleteRemoteBranch', (d) => g.deleteRemoteBranch(d, 'origin', 'x')],
   ['rebase', (d) => g.rebase(d, ['main'])],
-  ['merge', (d) => g.merge(d, ['main'])],
   ['worktreeAdd', (d) => g.worktreeAdd(d, ['p'])],
-  ['worktreeRemove', (d) => g.worktreeRemove(d, ['p'])],
   ['worktreeList', (d) => g.worktreeList(d)],
   ['worktreePrune', (d) => g.worktreePrune(d)],
   ['resetHard', (d) => g.resetHard(d)],
   ['cleanFd', (d) => g.cleanFd(d)],
   ['branchesContainingHead', (d) => g.branchesContainingHead(d)],
-  ['diffNameOnly', (d) => g.diffNameOnly(d)],
   ['revParse', (d) => g.revParse(d, ['HEAD'])],
   ['clone', (d) => g.clone(d, 'https://example.invalid/x.git', 'dest')],
   ['remoteUrl', (d) => g.remoteUrl(d)],
@@ -68,13 +65,14 @@ describe('the explicit-directory invariant', () => {
 });
 
 describe('required arguments beyond the directory', () => {
-  it('refuses the ones the shell version refuses', () => {
+  // Only where a missing argument would otherwise be answered rather than
+  // refused: git's own error is the guard everywhere else.
+  it('refuses what git would silently accept', () => {
     const tmp = mkTempDir();
     expect(() => g.branchExists(tmp, '')).toThrow(GitError);
-    expect(() => g.createBranch(tmp, 'newbranch', '')).toThrow(GitError);
-    expect(() => g.deleteRemoteBranch(tmp, 'origin', '')).toThrow(GitError);
-    expect(() => g.worktreeAdd(tmp, [])).toThrow(GitError);
-    expect(() => g.clone(tmp, 'https://example.invalid/x.git', '')).toThrow(GitError);
+    expect(() => g.remoteBranchExists(tmp, '')).toThrow(GitError);
+    expect(() => g.checkout(tmp, [])).toThrow(GitError);
+    expect(() => g.rebase(tmp, [])).toThrow(GitError);
     expect(() => g.revParse(tmp, [])).toThrow(GitError);
   });
 });
@@ -148,7 +146,6 @@ describe('push actively refuses a force flag handed to it', () => {
     expect(g.push(tmp, ['origin', 'main']).code).not.toBe(0);
   });
 });
-
 describe('the default branch is asked for, never assumed', () => {
   it('reads what the clone already knows, without touching the network', async () => {
     // Deliberately neither main nor master: a detection that works only for

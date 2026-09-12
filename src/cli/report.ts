@@ -26,8 +26,6 @@ import { Shift } from '../records/shift/index.js';
 
 export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
 
-export type ReportState = (typeof REPORT_STATES)[number];
-
 interface ReportOptions {
   sid?: string;
   task?: string;

@@ -37,7 +37,7 @@ class FakePool {
   public full = false;
   public lease = 'lease-abc123';
 
-  public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
+  public get(_size: number, base: string, branch: string, holder: string): LeaseGrant {
     calls.push(`pool_get base=${base} branch=${branch} holder=${holder} brief=${briefState()}`);
     if (this.full) throw new WorktreeError('full', 'the pool is full');
     return { path: this.path, lease_id: this.lease, holder };

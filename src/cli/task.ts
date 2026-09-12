@@ -10,7 +10,6 @@ import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit, freshenClone } from './unit.js';
 import { Log } from '../records/log/index.js';
 import { Task } from '../records/task/index.js';
-import { yanHome } from '../util/home.js';
 import { withLock } from '../util/lock.js';
 
 /**
@@ -32,7 +31,7 @@ import { withLock } from '../util/lock.js';
  * Exit codes: 0 fine, 2 you called this wrongly, 1 it did not work.
  */
 
-export interface UnitSpec {
+interface UnitSpec {
   repo: string;
   unit?: string;
   target?: string;
@@ -84,7 +83,7 @@ export function unitNameFrom(repo: string, firstScope: string): string {
   return cleaned === '' ? 'unit' : cleaned;
 }
 
-export interface TaskNewOptions {
+interface TaskNewOptions {
   title?: string;
   description?: string;
   id?: string;
@@ -93,7 +92,7 @@ export interface TaskNewOptions {
   units: readonly UnitSpec[];
 }
 
-export interface TaskNewResult {
+interface TaskNewResult {
   readonly version: 1;
   readonly task: string;
   readonly title: string;
@@ -101,7 +100,7 @@ export interface TaskNewResult {
   readonly dir: string;
 }
 
-export interface TaskNewDeps {
+interface TaskNewDeps {
   readonly add?: typeof addTaskUnit;
   /** Replaceable so a test can count fetches without a network or a real clone. */
   readonly freshen?: typeof freshenClone;

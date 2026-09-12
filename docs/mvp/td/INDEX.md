@@ -2,9 +2,11 @@
 
 > This document records design decisions. It is not an implementation specification. Each decision tries to carry its "why" with it, because when you come back to change something six months later, the reasoning matters more than the conclusion.
 >
-> **STILL GOVERNING, BUT READ THE MECHANISMS AS HISTORY.** V2 replaced the runtime this describes and kept the design ([`../../v2/td/INDEX.md`](../../v2/td/INDEX.md) says which rows moved and which did not). What survives here unchanged and still wins any argument: the design principles, the glossary, the storage criteria, the directory layout, the two-level branch model, `mode`, the forge layer, the authority table, `log.md` as the narrative, and "ask, do not infer".
+> **STILL GOVERNING, BUT READ THE MECHANISMS AS HISTORY.** V2 replaced the runtime this describes and kept the design ([`../../v2/td/INDEX.md`](../../v2/td/INDEX.md) says which rows moved and which did not). What survives here unchanged and still wins any argument: the design principles, the glossary, the storage criteria, the directory layout, the two-level branch model, the forge layer, the authority table, `log.md` as the narrative, and "ask, do not infer".
 >
 > What is history, everywhere it appears below: **bash** — `bin/` is three shell stubs and everything else is TypeScript under `src/`; **tmux** — the multiplexer is Herdr, so a task container is a workspace and an agent is a pane, not a session and a window; **`jq`** and **`winpty`** — both gone with the shell that needed them. A file path of the form `bin/lib-*.sh` or `bin/yan-*.sh` names something that no longer exists; the V2 document linked from each V2 index says what replaced it.
+
+> **`mode` is history too.** A unit's delivery mode was removed on 2026-09-11: what a shift delivers is decided by its `scenario`, so "Delivery modes" below and every `mode` passage that follows from it describe something yan no longer has.
 
 This is the backbone. It starts with three things the rest of the design keeps referring back to — the design principles, the glossary, and the storage criteria — and then walks through the system one part at a time, saying what each part is responsible for and where it sits in the overall flow.
 

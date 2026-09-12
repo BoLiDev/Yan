@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { basename, join, resolve as resolvePath } from 'node:path';
+import { join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { clone, remoteUrl } from '../util/git.js';
 import { editJson, initJson } from '../util/json.js';
@@ -8,7 +8,7 @@ import { normalizePath, samePath } from '../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
-import { defaultCloneRoot, isClone, lookup, registry } from './shared/repo.js';
+import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
 
 /**
@@ -28,7 +28,6 @@ import { isTty } from './shared/resolve.js';
  * here ever clones over an existing directory.
  */
 
-const POOL_SIZE = 8;
 
 /**
  * The repository's own name out of a clone URL, in either spelling a forge
@@ -80,7 +79,7 @@ function writePortable(name: string, url: string, pool: string): void {
     reg[name] = {
       ...before,
       url,
-      pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? POOL_SIZE),
+      pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? DEFAULT_POOL_SIZE),
     };
     return reg;
   });
@@ -249,7 +248,7 @@ function addByUrl(url: string, options: AddOptions): void {
 
   registerClone(name, normalizePath(dest), url, pool);
   const after = lookup(name);
-  out(`repo add: ${name}  url=${after?.url ?? url}  pool_size=${String(after?.poolSize ?? POOL_SIZE)}`);
+  out(`repo add: ${name}  url=${after?.url ?? url}  pool_size=${String(after?.poolSize ?? DEFAULT_POOL_SIZE)}`);
 }
 
 /** Does this argument look like a clone URL rather than a path? */
@@ -340,8 +339,3 @@ export const command = new Command('repo')
   .addCommand(addRepo)
   .addCommand(linkRepo)
   .addCommand(lsRepos);
-
-/** Kept for the one caller that still asks: the clone directory's own name. */
-export function repoBasename(dir: string): string {
-  return basename(normalizePath(dir));
-}

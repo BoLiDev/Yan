@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -43,38 +43,6 @@ function unitCount(task: string): number {
 
 async function hasBranch(branch: string): Promise<boolean> {
   return (await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`])).code === 0;
-}
-
-/** A shell `branch-create` hook. `$ctx` holds the JSON yan sent on stdin. */
-function writeHook(body: string): void {
-  const dir = join(home, 'hooks');
-  mkdirSync(dir, { recursive: true });
-  const file = join(dir, 'branch-create');
-  writeFileSync(file, `#!/usr/bin/env bash\nctx=$(cat)\n${body}\n`);
-  chmodSync(file, 0o755);
-}
-
-/** The same hook in JavaScript. The .mjs extension is what picks node. */
-function writeJsHook(body: string): void {
-  const dir = join(home, 'hooks');
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, 'branch-create.mjs'),
-    [
-      "import { execFileSync } from 'node:child_process';",
-      "import { readFileSync } from 'node:fs';",
-      "const ctx = JSON.parse(readFileSync(0, 'utf8'));",
-      "const git = (...a) => execFileSync('git', a, { cwd: ctx.repo_dir, encoding: 'utf8' });",
-      body,
-      '',
-    ].join('\n'),
-  );
-}
-
-function removeHooks(): void {
-  for (const name of ['branch-create', 'branch-create.mjs']) {
-    rmSync(join(home, 'hooks', name), { force: true });
-  }
 }
 
 beforeAll(async () => {

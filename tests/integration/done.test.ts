@@ -8,7 +8,8 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
-import { finishTask, type Closer, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
+import { finishTask, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
+import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
 import { WorktreeError, type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 

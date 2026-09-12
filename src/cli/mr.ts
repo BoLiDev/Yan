@@ -22,7 +22,7 @@ import { remoteBranchExists } from '../util/git.js';
  */
 
 /** What `yan mr` needs from the host. `RemoteGit.createMr` is the real one. */
-export type MrCreator = (options: MrCreateOptions) => string;
+type MrCreator = (options: MrCreateOptions) => string;
 
 export interface MrOptions {
   task?: string;
@@ -34,7 +34,7 @@ export interface MrOptions {
   json?: boolean;
 }
 
-export interface MrResult {
+interface MrResult {
   readonly version: 1;
   readonly task: string;
   readonly unit: string;

@@ -1,7 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { CommandError } from './shared/errors.js';
 import { tasksDir } from '../util/vault.js';
 import { readJson, readJsonIfPresent } from '../util/json.js';
 import { Task } from '../records/task/index.js';

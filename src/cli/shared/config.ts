@@ -85,11 +85,6 @@ export function agentSpecFor(role: string): AgentSpec {
   return { cli: text(spec?.cli), model: text(spec?.model), effort: text(spec?.effort) };
 }
 
-/** `agents.<role>`'s CLI, or the empty string when it is not configured. */
-export function agentFor(role: string): string {
-  return agentSpecFor(role).cli;
-}
-
 /** `scenarios`, read without throwing: whatever cannot be used is named in `problems`. */
 export function readScenarios(): ScenarioReading {
   const raw = record(readConfig().scenarios);

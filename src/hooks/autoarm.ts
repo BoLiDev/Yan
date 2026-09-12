@@ -29,7 +29,7 @@ import { yanHome } from '../util/home.js';
  * an autoarm that did not run at all.
  */
 
-export interface AutoarmIo {
+interface AutoarmIo {
   /** stderr: what the Claude model reads, and where a warning goes. */
   readonly note: (line: string) => void;
   /** stdout: agy's decision object, and nothing at all for Claude. */

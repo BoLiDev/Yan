@@ -54,6 +54,13 @@ function requireDir(dir: string | undefined): string {
   return dir;
 }
 
+/**
+ * Kept only where git would answer a missing argument with something other
+ * than a refusal: `show-ref` on an empty ref says "no", `checkout` with no
+ * ref prints the branch, `rev-parse` with none exits 0 saying nothing, and
+ * bare `git rebase` rebases onto the configured upstream. Everywhere else the
+ * guard was a worse copy of what git already reports.
+ */
 function requireArg(value: string | undefined, message: string): string {
   if (!value) throw GitError.usage(message);
   return value;
@@ -126,10 +133,6 @@ export function revParse(dir: string, args: readonly string[]): string {
   return gitOut(dir, ['rev-parse', ...args]);
 }
 
-export function diffNameOnly(dir: string, args: readonly string[] = []): string[] {
-  return gitLines(dir, ['diff', '--name-only', ...args]);
-}
-
 /**
  * The branch the remote calls its default: `refs/remotes/<remote>/HEAD` when
  * the clone has it, otherwise `ls-remote --symref` over the network with a
@@ -170,21 +173,14 @@ export function checkout(dir: string, args: readonly string[]): GitResult {
   return git(dir, ['checkout', ...args]);
 }
 
-/** Cut a branch. `base` is required — never HEAD by default. */
+/** Cut a branch. `base` is passed through — git is never left to pick HEAD. */
 export function createBranch(dir: string, branch: string, base: string): GitResult {
-  requireArg(branch, 'a new branch name is required');
-  requireArg(base, 'an explicit base ref is required');
   return git(dir, ['branch', branch, base]);
 }
 
 export function rebase(dir: string, args: readonly string[]): GitResult {
   requireArg(args[0], 'rebase needs an upstream');
   return git(dir, ['rebase', ...args]);
-}
-
-export function merge(dir: string, args: readonly string[]): GitResult {
-  requireArg(args[0], 'merge needs a ref');
-  return git(dir, ['merge', ...args]);
 }
 
 // --- remote writes ---------------------------------------------------------
@@ -216,21 +212,13 @@ export function push(dir: string, args: readonly string[] = []): GitResult {
  * caller must have.
  */
 export function deleteRemoteBranch(dir: string, remote: string, branch: string): GitResult {
-  requireArg(remote, 'a remote is required');
-  requireArg(branch, 'a branch name is required');
   return git(dir, ['push', remote, '--delete', branch]);
 }
 
 // --- worktrees -------------------------------------------------------------
 
 export function worktreeAdd(dir: string, args: readonly string[]): GitResult {
-  requireArg(args[0], 'a worktree path is required');
   return git(dir, ['worktree', 'add', ...args]);
-}
-
-export function worktreeRemove(dir: string, args: readonly string[]): GitResult {
-  requireArg(args[0], 'a worktree path is required');
-  return git(dir, ['worktree', 'remove', ...args]);
 }
 
 /**
@@ -263,8 +251,6 @@ export function cleanFd(dir: string): GitResult {
 
 /** <dir> is the directory the clone is created in. */
 export function clone(dir: string, url: string, dest: string, args: readonly string[] = []): GitResult {
-  requireArg(url, 'a clone URL is required');
-  requireArg(dest, 'a destination directory name is required');
   return git(dir, ['clone', ...args, url, dest]);
 }
 
@@ -288,8 +274,6 @@ export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
  * either way.
  */
 export function mergeTree(dir: string, ours: string, theirs: string): GitResult {
-  requireArg(ours, 'a branch to merge into is required');
-  requireArg(theirs, 'a branch to merge is required');
   return git(dir, ['merge-tree', '--write-tree', ours, theirs]);
 }
 
@@ -300,7 +284,6 @@ export function commitTree(
   parents: readonly string[],
   message: string,
 ): GitResult {
-  requireArg(tree, 'a tree object is required');
   const args = ['commit-tree', tree];
   for (const parent of parents) args.push('-p', parent);
   args.push('-m', message);
@@ -312,7 +295,5 @@ export function commitTree(
  * `expect` — so anything that landed in between is not discarded.
  */
 export function updateRef(dir: string, ref: string, to: string, expect: string): GitResult {
-  requireArg(ref, 'a ref name is required');
-  requireArg(to, 'a new value is required');
   return git(dir, ['update-ref', ref, to, expect]);
 }

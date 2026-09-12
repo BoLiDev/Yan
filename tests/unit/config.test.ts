@@ -3,7 +3,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
 import {
-  agentFor,
   agentSpecFor,
   modelFlags,
   readScenarios,
@@ -62,13 +61,13 @@ describe('agents.<role>', () => {
   it('takes a bare string as the CLI alone', () => {
     config({ version: 1, agents: { yan: 'claude', shift: 'codex' } });
     expect(agentSpecFor('shift')).toEqual({ cli: 'codex', model: '', effort: '' });
-    expect(agentFor('yan')).toBe('claude');
+    expect(agentSpecFor('yan')).toEqual({ cli: 'claude', model: '', effort: '' });
   });
 
   it('takes an object with a model and an effort', () => {
     config({ version: 1, agents: { yan: { cli: 'agy', model: 'gemini-3.8-flash-high', effort: 'high' } } });
     expect(agentSpecFor('yan')).toEqual({ cli: 'agy', model: 'gemini-3.8-flash-high', effort: 'high' });
-    expect(agentFor('shift')).toBe('');
+    expect(agentSpecFor('shift')).toEqual({ cli: '', model: '', effort: '' });
   });
 });
 

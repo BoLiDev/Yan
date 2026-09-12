@@ -11,7 +11,8 @@ import {
   mkYanHome,
   registerRepo,
 } from '../helpers/fixtures.js';
-import { clockOut, type Closer, type DoneDeps } from '../../src/cli/shift.js';
+import { clockOut, type DoneDeps } from '../../src/cli/shift.js';
+import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
 import { WorktreePool } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';

@@ -22,7 +22,6 @@ function sgr(open: string, close: string): Paint {
 
 export const bold = sgr('1', '22');
 export const dim = sgr('2', '22');
-export const italic = sgr('3', '23');
 export const red = sgr('31', '39');
 export const green = sgr('32', '39');
 export const yellow = sgr('33', '39');

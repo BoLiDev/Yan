@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { agentSpecFor, cliKind, configPath, modelFlags, type AgentSpec } from './shared/config.js';
@@ -33,13 +32,13 @@ import { claim, isStale, owner, release } from '../util/lock.js';
  * called this wrongly, otherwise the main agent's own status.
  */
 
-export interface ContinueOptions {
+interface ContinueOptions {
   task?: string;
   agent?: string;
   json?: boolean;
 }
 
-export interface Entered {
+interface Entered {
   readonly version: 1;
   readonly task: string;
   readonly agent: string;
@@ -59,20 +58,20 @@ export interface Entered {
 }
 
 /** What entering needs from the terminal. `Terminal` is the real one. */
-export interface Screen {
+interface Screen {
   workspaceOfPane(pane: string): string | undefined;
   setWorkspaceTokens(workspace: string, tokens: Record<string, string>): void;
   clearWorkspaceTokens(workspace: string, names: readonly string[]): void;
 }
 
 /** Starting the main agent; returns its exit status. */
-export type StartMain = (
+type StartMain = (
   cli: string,
   argv: readonly string[],
   options: { cwd: string; env: Record<string, string> },
 ) => number;
 
-export interface EnterDeps {
+interface EnterDeps {
   readonly terminal?: Screen;
   readonly start?: StartMain;
   /** Whether this stdio is a terminal; the real one reads `process.stdin`. */
@@ -84,7 +83,7 @@ export interface EnterDeps {
  * live yan already holds the task; calling it takes over the pane until the
  * agent exits, then clears the tokens and releases the lock.
  */
-export interface Session {
+interface Session {
   readonly record: Entered;
   readonly run?: () => number;
 }
