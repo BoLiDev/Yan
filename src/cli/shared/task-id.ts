@@ -1,5 +1,6 @@
 import { isTty } from './resolve.js';
 import { queueJson } from '../ls.js';
+import type { TaskChoice } from '../../ui/prompts.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -26,21 +27,13 @@ export function insideTask(command: string): string {
   return task;
 }
 
-/** One incomplete task, as the select offers it. */
-interface Open {
-  readonly id: string;
-  readonly title: string;
-  readonly units: number;
-  readonly shifts: number;
-}
-
-/** Every task in the queue that is not finished. */
-export function openTasks(): Open[] {
-  const queue = queueJson() as {
-    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
-  };
-  return queue.tasks
-    .filter((t) => !t.complete)
+/**
+ * Every task in the queue that is not finished, in the shape every select
+ * offers: bare `yan`, `yan done`, `yan continue` and `yan show` all ask this.
+ */
+export function openTasks(): TaskChoice[] {
+  return queueJson()
+    .tasks.filter((t) => !t.complete)
     .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
 }
 

@@ -1,5 +1,4 @@
 import { rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { display } from './shared/display.js';
@@ -11,9 +10,8 @@ import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift } from '../records/shift/index.js';
+import { opensMr, Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
-import { readJsonIfPresent } from '../util/json.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -113,21 +111,17 @@ function closePane(pane: string, deps: AbandonDeps): boolean {
  */
 function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
   const meta = shift.meta();
-  const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
-  const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  // Only coding opens merge requests; a dispatch record from before scenarios
-  // existed was a coding shift.
-  const scenario = typeof extra.scenario === 'string' && extra.scenario !== '' ? extra.scenario : 'coding';
   const unit = meta.unit ?? '';
   const tree = meta.tree ?? '';
-  const pane = meta.agentId ?? '';
+  const pane = meta.pane ?? '';
   let clone = meta.clone ?? '';
   if (clone === '' && shift.task !== '' && unit !== '' && Task.exists(shift.task)) {
     const repo = new Task(shift.task).findUnit(unit)?.read().repo ?? '';
     clone = repo === '' ? '' : (repoDirIfKnown(repo) ?? '');
   }
 
-  const mr = scenario === 'coding' ? (meta.mr ?? shift.reportedMr() ?? '') : '';
+  // Only coding opens merge requests.
+  const mr = opensMr(meta.scenario) ? (meta.mr ?? shift.reportedMr() ?? '') : '';
   const mrClosing = closeIfOpen(mr, clone === '' ? undefined : clone, deps);
 
   // The agent first, so nothing is still writing into the tree being wiped.
@@ -138,7 +132,7 @@ function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
   if (tree !== '' && clone !== '') {
     try {
       (deps.pool?.(clone) ?? new WorktreePool(clone)).return(tree, {
-        ...(meta.leaseId === undefined ? {} : { leaseId: meta.leaseId }),
+        ...(meta.lease_id === undefined ? {} : { leaseId: meta.lease_id }),
         ...(meta.holder === undefined ? {} : { holder: meta.holder }),
         force: true,
       });

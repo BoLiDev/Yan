@@ -287,17 +287,17 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   it('offers exactly the tasks that are still open, and drops them as they finish', async () => {
     // The rows of the multi-select, which come from `yan ls`'s own scan.
     // Clack itself is not driven here; the choices are.
-    const { finishableTasks } = await import('../../src/cli/done.js');
+    const { openTasks } = await import('../../src/cli/shared/task-id.js');
     Task.create('t043', 'the second one');
 
-    expect(finishableTasks().map((t) => t.id)).toEqual(['t042', 't043']);
-    expect(finishableTasks()[0]).toMatchObject({ title: 'unify the auth header', units: 1, shifts: 0 });
+    expect(openTasks().map((t) => t.id)).toEqual(['t042', 't043']);
+    expect(openTasks()[0]).toMatchObject({ title: 'unify the auth header', units: 1, shifts: 0 });
 
     expect((await yan(['done', 't042'])).code).toBe(0);
-    expect(finishableTasks().map((t) => t.id), 'a finished task is no longer on offer').toEqual(['t043']);
+    expect(openTasks().map((t) => t.id), 'a finished task is no longer on offer').toEqual(['t043']);
 
     expect((await yan(['done', 't043'])).code).toBe(0);
-    expect(finishableTasks()).toEqual([]);
+    expect(openTasks()).toEqual([]);
   });
 
   it('turns the queue entry from open to done, which nothing could do before', async () => {

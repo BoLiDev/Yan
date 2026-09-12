@@ -93,11 +93,11 @@ describe('finding a shift', () => {
 describe('run/meta.json is read once, and defensively', () => {
   it('answers "I do not know" for anything it cannot read', () => {
     seed('t042', 's1');
-    expect(Shift.resolve('s1').meta()).toEqual({});
+    expect(Shift.resolve('s1').meta()).toEqual({ scenario: 'coding' });
 
     seed('t043', 's2', { unit: 'auth' } as Record<string, unknown>);
     writeFileSync(join(home, 'tasks', 't043', 'shifts', 's2', 'run', 'meta.json'), '{ half');
-    expect(Shift.resolve('s2', 't043').meta()).toEqual({});
+    expect(Shift.resolve('s2', 't043').meta()).toEqual({ scenario: 'coding' });
   });
 
   it('reads the keys dispatch writes, and reports absence as absence', () => {
@@ -105,7 +105,7 @@ describe('run/meta.json is read once, and defensively', () => {
     const meta = Shift.resolve('s1').meta();
     expect(meta.unit).toBe('auth');
     expect(meta.tree).toBe('/trees/1/demo');
-    expect(meta.agentId).toBe('w1:p2');
+    expect(meta.pane).toBe('w1:p2');
     // Not present, and not present as a key either.
     expect('branch' in meta).toBe(false);
   });

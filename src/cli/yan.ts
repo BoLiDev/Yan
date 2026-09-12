@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
-import { queueJson } from './ls.js';
+import { openTasks } from './shared/task-id.js';
 import { isTty, setPrompter } from './shared/resolve.js';
 import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
@@ -106,30 +106,12 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/** One row of the select bare `yan` shows on a terminal. */
-interface EntryChoice {
-  readonly id: string;
-  readonly title: string;
-  readonly units: number;
-  readonly shifts: number;
-}
-
-/** The rows that select offers: every task in the queue not yet complete. */
-export function liveTaskChoices(): EntryChoice[] {
-  const queue = queueJson() as {
-    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
-  };
-  return queue.tasks
-    .filter((t) => !t.complete)
-    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
-}
-
 /** The argv the chosen entry point becomes, re-entering this same program. */
 async function chooseEntryPoint(): Promise<string[]> {
   const { chooseEntry, CREATE_NEW } = await import('../ui/prompts.js');
   const { readVaultJson, vaultDirIfAny } = await import('../util/vault.js');
   const dir = vaultDirIfAny();
-  const chosen = await chooseEntry(liveTaskChoices(), dir === undefined ? '' : readVaultJson(dir).name);
+  const chosen = await chooseEntry(openTasks(), dir === undefined ? '' : readVaultJson(dir).name);
   return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', chosen];
 }
 

@@ -63,7 +63,7 @@ export function sendLine(
     );
   }
 
-  const pane = shift.meta().agentId;
+  const pane = shift.meta().pane;
   if (pane === undefined) {
     throw new YanError('send_no_pane', `no terminal id in ${shift.run}/meta.json - dispatch records the id the seam printed, and a shift is never located by label`,
     );

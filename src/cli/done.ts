@@ -4,8 +4,8 @@ import { action, out } from './shared/action.js';
 import { display } from './shared/display.js';
 import { repoDir } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
+import { openTasks } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
-import { queueJson } from './ls.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
@@ -125,7 +125,7 @@ export function heldBy(task: string, deps: DoneDeps): Held[] {
  */
 function kill(shift: Shift, terminal: Closer): KilledShift {
   const meta = shift.meta();
-  const pane = meta.agentId ?? '';
+  const pane = meta.pane ?? '';
   let closed = false;
   if (pane !== '') {
     display('could not clear the shift pane title', () => { terminal.clearPaneTitle(pane); });
@@ -238,23 +238,6 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   };
 }
 
-interface Finishable {
-  readonly id: string;
-  readonly title: string;
-  readonly units: number;
-  readonly shifts: number;
-}
-
-/** The rows the multi-select offers: every task in the queue not yet complete. */
-export function finishableTasks(): Finishable[] {
-  const queue = queueJson() as {
-    tasks: { id: string; title: string; complete: boolean; units: unknown[]; shifts: number }[];
-  };
-  return queue.tasks
-    .filter((t) => !t.complete)
-    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
-}
-
 async function whichTasks(named: string): Promise<string[]> {
   if (named !== '') return [named];
 
@@ -265,7 +248,7 @@ async function whichTasks(named: string): Promise<string[]> {
     throw YanError.usage('done_usage', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
   }
 
-  const open = finishableTasks();
+  const open = openTasks();
   if (open.length === 0) return [];
 
   const { chooseTasksToFinish } = await import('../ui/prompts.js');

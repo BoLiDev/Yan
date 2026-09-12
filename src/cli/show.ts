@@ -12,7 +12,6 @@ import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
-import { readJsonIfPresent } from '../util/json.js';
 import { isStale, owner } from '../util/lock.js';
 import { YanError } from '../util/error.js';
 
@@ -148,17 +147,14 @@ export function showJson(id: string): ShowJson {
 
   const shifts = Shift.liveIn(id).map((shift) => {
     const meta = shift.meta();
-    const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
-    const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    const text = (v: unknown): string => (typeof v === 'string' ? v : '');
     return {
       sid: shift.sid,
       unit: meta.unit ?? '',
       branch: meta.branch ?? '',
       tree: meta.tree ?? '',
-      scenario: text(extra.scenario),
-      tier: text(extra.tier),
-      pane: meta.agentId ?? '',
+      scenario: meta.scenario,
+      tier: meta.tier ?? '',
+      pane: meta.pane ?? '',
       last_event: lastEvent(shift),
       leftover: data.complete,
       awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',

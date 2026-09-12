@@ -15,11 +15,11 @@ import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseGrant } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift } from '../records/shift/index.js';
+import { opensMr, Shift, type ShiftMeta, type ShiftMetaPlaceholder } from '../records/shift/index.js';
 import { Task, type UnitData } from '../records/task/index.js';
 import { YanError, isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
-import { readJsonIfPresent, writeJson } from '../util/json.js';
+import { writeJson } from '../util/json.js';
 import { withLock } from '../util/lock.js';
 import { branchExists, deleteRemoteBranch, push, remoteBranchExists } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
@@ -116,16 +116,6 @@ export function publishBase(clone: string, branch: string): 'on-origin' | 'pushe
   if (pushed.code === 0) return 'pushed';
   process.stderr.write(`yan shift new: ${branch} is not on origin and could not be pushed (${pushed.stderr.trim()}) - the shift's merge request will have no base until it is\n`);
   return 'failed';
-}
-
-/**
- * What a scenario delivers. `coding` ends in a merge request into the
- * integration branch; `explore` and `uix` end in a report and artifacts, and
- * never push. There is no third shape: a coding shift that finds nothing to
- * change says so and is clocked out with --nothing-to-merge.
- */
-export function opensMr(scenario: string): boolean {
-  return scenario === 'coding';
 }
 
 /**
@@ -362,7 +352,7 @@ export interface Deps {
  *   (exit 3) when no tree is free, `main_clone` (exit 4) when the agent would
  *   have started inside the main clone.
  */
-export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, unknown> {
+export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
   const task = options.task ?? insideTask('shift_new');
   const unitName = options.unit ?? '';
 
@@ -415,7 +405,8 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     const shift = new Shift(task, sid);
     const container = resolveContainer(task, terminal, record.containerName());
     mkdirSync(shift.run, { recursive: true });
-    writeJson(join(shift.run, 'meta.json'), { version: 1, task, sid, unit: unitName, container, pane: '' });
+    const placeholder: ShiftMetaPlaceholder = { version: 1, task, sid, unit: unitName, container, pane: '' };
+    writeJson(join(shift.run, 'meta.json'), placeholder);
     return { sid, shift, container };
   });
   const { sid, shift, container } = claimed;
@@ -486,7 +477,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     // Filled in over the placeholder step 1 wrote; the pane follows
     // immediately afterwards, so a running agent is always recorded.
     const metaFile = join(shift.run, 'meta.json');
-    const meta: Record<string, unknown> = {
+    let meta: ShiftMeta = {
       version: 1,
       task,
       sid,
@@ -537,9 +528,12 @@ export function dispatch(options: NewOptions, deps: Deps = {}): Record<string, u
     });
     started = true;
 
-    meta.pane = startedAgent.pane;
-    meta.status = startedAgent.status;
-    if (startedAgent.agent_session !== undefined) meta.agent_session = startedAgent.agent_session;
+    meta = {
+      ...meta,
+      pane: startedAgent.pane,
+      status: startedAgent.status,
+      ...(startedAgent.agent_session === undefined ? {} : { agent_session: startedAgent.agent_session }),
+    };
     writeJson(metaFile, meta);
 
     if (startedAgent.status === 'blocked') {
@@ -606,12 +600,12 @@ main clone and the dispatch was refused.`,
         out(JSON.stringify(meta, null, 2));
         return;
       }
-      out(`${String(meta.sid)}  ${String(meta.unit)}`);
-      out(`branch   ${String(meta.branch)} (from ${String(meta.base)})`);
-      out(`tree     ${String(meta.tree)}`);
-      out(`workdir  ${String(meta.workdir)}`);
-      out(`agent    ${String(meta.scenario)}/${String(meta.tier)}: ${runsAs({ cli: String(meta.agent), model: String(meta.model), effort: String(meta.effort), skills: meta.skills as string[] })}  (${String(meta.pane)} in container ${String(meta.container)})`);
-      out(`brief    ${join(new Shift(String(meta.task), String(meta.sid)).dir, 'brief.md')}`);
+      out(`${meta.sid}  ${meta.unit}`);
+      out(`branch   ${meta.branch} (from ${meta.base})`);
+      out(`tree     ${meta.tree}`);
+      out(`workdir  ${meta.workdir}`);
+      out(`agent    ${meta.scenario}/${meta.tier}: ${runsAs({ cli: meta.agent ?? '', model: meta.model ?? '', effort: meta.effort ?? '', skills: meta.skills })}  (${meta.pane} in container ${meta.container})`);
+      out(`brief    ${join(new Shift(meta.task ?? '', meta.sid ?? '').dir, 'brief.md')}`);
     }),
   );
 
@@ -739,8 +733,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   let tree = meta.tree ?? '';
   let clone = meta.clone ?? '';
   let holder = meta.holder ?? '';
-  let leaseId = meta.leaseId ?? '';
-  let pane = meta.agentId ?? '';
+  let leaseId = meta.lease_id ?? '';
+  let pane = meta.pane ?? '';
   // The shift opens its own MR, so the URL usually arrives on its `done` event.
   let mr = options.mr ?? meta.mr ?? shift.reportedMr() ?? '';
 
@@ -774,11 +768,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
 
-  // What the dispatch recorded beyond the typed fields. A meta.json from
-  // before scenarios existed carries none, and was a coding shift.
-  const raw = readJsonIfPresent(join(shift.run, 'meta.json'));
-  const extra = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  const scenario = typeof extra.scenario === 'string' && extra.scenario !== '' ? extra.scenario : 'coding';
+  const scenario = meta.scenario;
   // Merging is the floor for coding, not the definition of done - whether the
   // merged work is accepted is yan's and user's judgement - unless the shift
   // concluded that nothing needs merging, which user says with the flag.
@@ -790,7 +780,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     // --- 0. accepted, and by whom -------------------------------------------
     // Clocking out is the statement that the work is accepted. Interface work
     // is accepted by user alone, so that is a flag rather than a judgement.
-    if (extra.scenario === 'uix' && options.userAccepted !== true) {
+    if (scenario === 'uix' && options.userAccepted !== true) {
       throw new YanError('shift_done_needs_user', `${shift.label()} is uix work, and only user accepts it - nothing was clocked out. When they have said they are satisfied, re-run with --user-accepted`,
         { exitCode: RC_NOT_MERGED },
       );

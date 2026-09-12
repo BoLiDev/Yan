@@ -364,8 +364,8 @@ function snapshot(terminal: StatusReader, into: Map<string, AgentStatus>): void 
   }
 }
 
-function toWatched(shift: { sid: string; run: string; meta: () => { agentId?: string } }): Watched {
-  return { sid: shift.sid, run: shift.run, pane: shift.meta().agentId ?? '' };
+function toWatched(shift: { sid: string; run: string; meta: () => { pane?: string } }): Watched {
+  return { sid: shift.sid, run: shift.run, pane: shift.meta().pane ?? '' };
 }
 
 /**

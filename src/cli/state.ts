@@ -102,7 +102,7 @@ export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFact
   const branch = meta.branch ?? '';
   const tree = meta.tree ?? '';
   const agent = meta.agent ?? '';
-  const agentId = meta.agentId ?? '';
+  const agentId = meta.pane ?? '';
   const mr = meta.mr ?? '';
 
   // Source 1: the terminal.
