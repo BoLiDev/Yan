@@ -10,8 +10,8 @@ import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
-import { memDir, skillsDir, vaultDir } from '../util/vault.js';
-import { machineSkillsDir } from '../util/machine.js';
+import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
+import { memDir, vaultDir } from '../util/vault.js';
 import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
 import { normalizePath, samePath } from '../util/paths.js';
@@ -217,90 +217,6 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
 }
 
 
-interface Skill {
-  /** Relative to the directory it was found in, so it can be opened. */
-  readonly path: string;
-  /** From the front matter, or the file name when it declares none. */
-  readonly name: string;
-  /** From the front matter. Empty when it declares none. */
-  readonly description: string;
-}
-
-/**
- * The `name` and `description` a skill declares in its front matter:
- *
- * ```
- * ---
- * name: Integration branches
- * description: branches come from the ticket system, not from yan
- * ---
- * ```
- *
- * Understands `key: value` on one line, optionally quoted, inside a leading
- * `---` fence, and nothing else of YAML. A file with no front matter takes
- * `fileName` as its name and an empty description.
- */
-export function frontMatter(fileName: string, text: string): { name: string; description: string } {
-  const lines = text.split(/\r?\n/);
-  const fields: Record<string, string> = {};
-
-  if (lines[0]?.trim() === '---') {
-    for (const raw of lines.slice(1)) {
-      const line = raw.trim();
-      if (line === '---') break;
-      const match = /^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(line);
-      if (match === null) continue;
-      let value = (match[2] ?? '').trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
-        (value.startsWith("'") && value.endsWith("'") && value.length > 1)
-      ) {
-        value = value.slice(1, -1);
-      }
-      fields[(match[1] as string).toLowerCase()] = value;
-    }
-  }
-
-  const name = fields.name !== undefined && fields.name !== '' ? fields.name : fileName;
-  return { name, description: fields.description ?? '' };
-}
-
-/**
- * Index the `*.md` files in one skills directory — path, name and description,
- * never the text. An unreadable directory or file is skipped.
- */
-function readSkillsFrom(dir: string, label: string): Skill[] {
-  let names: string[];
-  try {
-    names = readdirSync(dir).filter((n) => n.endsWith('.md')).sort();
-  } catch {
-    return [];
-  }
-  const found: Skill[] = [];
-  for (const name of names) {
-    let text: string;
-    try {
-      text = readFileSync(join(dir, name), 'utf8').trim();
-    } catch {
-      continue;
-    }
-    if (text === '') continue;
-    found.push({ path: `${label}/${name}`, ...frontMatter(name, text) });
-  }
-  return found;
-}
-
-/** Every skill, the vault's before this machine's. */
-export function readSkills(): Skill[] {
-  let fromVault: Skill[] = [];
-  try {
-    fromVault = readSkillsFrom(skillsDir(), 'skills');
-  } catch {
-    fromVault = [];
-  }
-  return [...fromVault, ...readSkillsFrom(machineSkillsDir(), 'machine skills')];
-}
-
 /** How many of the most recent log entries a session starts with. */
 export const LOG_TAIL = 20;
 
@@ -312,15 +228,6 @@ function readTrimmed(file: string): string {
     return readFileSync(file, 'utf8').replace(/^﻿/, '').trim();
   } catch {
     return '';
-  }
-}
-
-/** The index of `mem/learnings/`, read the way skills are. */
-export function readLearnings(): Skill[] {
-  try {
-    return readSkillsFrom(join(memDir(), 'learnings'), 'mem/learnings');
-  } catch {
-    return [];
   }
 }
 
@@ -443,7 +350,7 @@ function renderScenarios(): void {
 }
 
 /** Print the skills index: a path, a name and a sentence each. Silent when empty. */
-function renderSkills(skills: readonly Skill[]): void {
+function renderSkills(skills: readonly Indexed[]): void {
   if (skills.length === 0) return;
   out('');
   out('What you may do yourself here.');
