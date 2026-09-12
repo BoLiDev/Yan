@@ -25,7 +25,7 @@ import { existsSync } from 'node:fs';
  *   unknown      nothing above could be established — which is not `dead`
  */
 
-export type Verdict = 'clocked-out' | 'merged' | 'dead' | 'blocked' | 'running' | 'unknown';
+type Verdict = 'clocked-out' | 'merged' | 'dead' | 'blocked' | 'running' | 'unknown';
 
 /**
  * Whether the shift's terminal is moving.
@@ -38,7 +38,7 @@ export type Verdict = 'clocked-out' | 'merged' | 'dead' | 'blocked' | 'running' 
  * `still` is a duration, not a verdict: an install and a model thinking are
  * both still.
  */
-export type Motion = 'moving' | 'still' | 'unsampled';
+type Motion = 'moving' | 'still' | 'unsampled';
 
 /** How stale a pulse reading may be before it stops being about the shift. */
 const PULSE_FRESH_SECONDS = 30;
@@ -52,7 +52,7 @@ export interface AliveReader {
 /** What `yan state` needs from the host. `RemoteGit` is the real one. */
 export type MrStateReader = (mr: string, dir: string | undefined) => MrState;
 
-export interface StateFacts {
+interface StateFacts {
   readonly version: 1;
   readonly sid: string;
   readonly task: string;

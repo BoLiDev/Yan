@@ -16,7 +16,6 @@ import {
 } from '../util/machine.js';
 import { normalizePath } from '../util/paths.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
-import { WorktreePool } from '../externals/worktree/index.js';
 import { action, out } from './shared/action.js';
 import { CommandError } from './shared/errors.js';
 import { resolve } from './shared/resolve.js';

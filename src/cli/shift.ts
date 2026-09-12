@@ -10,6 +10,7 @@ import { shiftAbandonCommand } from './abandon.js';
 import { readLearnings } from './session-start.js';
 import { CommandError } from './shared/errors.js';
 import { poolSize, repoDirIfKnown, repoTarget } from './shared/repo.js';
+import type { Closer } from './shared/terminal.js';
 import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, WorktreeError, type LeaseGrant } from '../externals/worktree/index.js';
@@ -630,14 +631,6 @@ export interface DoneOptions {
   /** A coding shift concluded that nothing needs merging; its outcome.md is the deliverable. */
   nothingToMerge?: boolean;
   json?: boolean;
-}
-
-/** What `shift done` needs from the terminal. `Terminal` is the real one. */
-export interface Closer {
-  close(pane: string): void;
-  clearPaneTitle(pane: string): void;
-  /** Asked after the close, so an agent still running is reported, not assumed gone. */
-  agentAlive?(pane: string): 'alive' | 'dead' | 'unknown';
 }
 
 export interface DoneDeps {

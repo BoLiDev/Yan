@@ -1,6 +1,6 @@
 # Repositories without `repos/`
 
-> Today `yan repo-add <url>` clones into `$YAN_HOME/repos/<name>/` and records the URL in `mem/repos.json`. V3 keeps the registry and deletes the directory. This document says what the registry looks like afterwards, why it is two files, and what changes when the main clone is one you also work in.
+> Today `yan repo add <url>` clones into `$YAN_HOME/repos/<name>/` and records the URL in `mem/repos.json`. V3 keeps the registry and deletes the directory. This document says what the registry looks like afterwards, why it is two files, and what changes when the main clone is one you also work in.
 
 ---
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "yan - one main agent per task, orchestrating single-use shifts. V2 runtime: TypeScript on Herdr.",
+  "description": "yan - one main agent per task, orchestrating single-use shifts. TypeScript on Herdr.",
   "engines": {
     "node": ">=20.12.0"
   },

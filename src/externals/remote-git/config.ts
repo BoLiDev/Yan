@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { vaultConfigPath } from '../../util/vault.js';
 import { RemoteGitError } from './errors.js';
 import type { HostKind } from './types.js';

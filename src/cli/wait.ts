@@ -79,7 +79,7 @@ export interface EventSource {
   close(): void;
 }
 
-export interface WatchOptions {
+interface WatchOptions {
   readonly task: string;
   /** Unbounded when absent. */
   readonly seconds?: number;
@@ -90,7 +90,7 @@ export interface WatchOptions {
   readonly note?: (line: string) => void;
 }
 
-export interface WatchResult {
+interface WatchResult {
   readonly code: 0 | 3 | 4 | 124;
   readonly reason?: string;
 }

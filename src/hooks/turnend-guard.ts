@@ -29,9 +29,9 @@ import { normalizePath } from '../util/paths.js';
  * guard that can wedge a session is worse than no guard.
  */
 
-export type Harness = 'claude' | 'codex' | 'agy';
+type Harness = 'claude' | 'codex' | 'agy';
 
-export interface GuardIo {
+interface GuardIo {
   /** stderr: what the Claude model reads, and where a warning goes. */
   readonly note: (line: string) => void;
   /** stdout: the Codex and agy decision objects. */

@@ -128,7 +128,7 @@ function ensureBranch(command: string, clone: string, branch: string, base: stri
 
 
 
-export interface Inherited {
+interface Inherited {
   /** What happened, in one line, for the caller to print and to log. */
   readonly said: string;
   /** True when commits were carried forward and the branch moved. */
@@ -217,7 +217,7 @@ export interface AddOptions {
   fetched?: boolean;
 }
 
-export interface AddResult {
+interface AddResult {
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
@@ -343,10 +343,7 @@ A team whose branches come from somewhere else says so in a skill
  *     open, or unreachable     → unknown
  */
 
-/** Nothing was changed; a person has to answer something first. */
-const RC_ASK_USER = 4;
-
-export interface SetOptions {
+interface SetOptions {
   task?: string;
   unit?: string;
   branch?: string | boolean;

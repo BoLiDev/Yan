@@ -1,11 +1,11 @@
 import { existsSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { display } from './shared/display.js';
 import { CommandError } from './shared/errors.js';
 import { repoDir } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
+import type { Closer } from './shared/terminal.js';
 import { queueJson } from './ls.js';
 import { isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
@@ -45,24 +45,18 @@ export interface DoneOptions {
   json?: boolean;
 }
 
-/** What `yan done` needs from the terminal. `Terminal` is the real one. */
-export interface Closer {
-  close(pane: string): void;
-  clearPaneTitle(pane: string): void;
-}
-
 export interface DoneDeps {
   readonly terminal?: Closer;
   readonly pool?: (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
 }
 
-export interface KilledShift {
+interface KilledShift {
   readonly sid: string;
   readonly unit: string;
   readonly pane_closed: boolean;
 }
 
-export interface ReturnedTree {
+interface ReturnedTree {
   readonly holder: string;
   readonly path: string;
   readonly returned: boolean;
@@ -81,7 +75,7 @@ export interface DoneResult {
 }
 
 /** A lease of this task, with the clone it belongs to. */
-export interface Held extends LeaseRow {
+interface Held extends LeaseRow {
   readonly clone: string;
 }
 
@@ -245,7 +239,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   };
 }
 
-export interface Finishable {
+interface Finishable {
   readonly id: string;
   readonly title: string;
   readonly units: number;

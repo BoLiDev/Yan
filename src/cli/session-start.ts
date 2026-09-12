@@ -49,7 +49,7 @@ export interface ShiftRow {
   readonly events: number;
 }
 
-export interface TaskRow {
+interface TaskRow {
   readonly id: string;
   readonly title: string;
   readonly complete: boolean;
@@ -68,13 +68,13 @@ export interface TaskRow {
  * A repository this context knows about. `path` is absent when nothing on this
  * machine has said where its clone is.
  */
-export interface RepoRow {
+interface RepoRow {
   readonly name: string;
   readonly url: string;
   readonly path?: string;
 }
 
-export interface Picture {
+interface Picture {
   readonly version: 1;
   readonly home: string;
   readonly repos: RepoRow[];
@@ -217,7 +217,7 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
 }
 
 
-export interface Skill {
+interface Skill {
   /** Relative to the directory it was found in, so it can be opened. */
   readonly path: string;
   /** From the front matter, or the file name when it declares none. */
