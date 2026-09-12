@@ -185,6 +185,20 @@ describe('through bin/yan', () => {
     expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')?.live).toBe(false);
   });
 
+  it('tells a shift whose picture this is, and prints nothing else', async () => {
+    // Registered as the SessionStart hook, so a shift working on the yan
+    // repository fires it too; only a shift's environment carries YAN_SID.
+    const r = await runYan(home, ['session-start', '--task', 't042'], { YAN_SID: 's2' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('shift s2 of task t042');
+    expect(r.stdout, 'the picture itself is the main agent\'s').not.toContain('unit auth');
+
+    // A caller asking for --json asked on purpose.
+    const json = await runYan(home, ['session-start', '--task', 't042', '--json'], { YAN_SID: 's2' });
+    expect(json.code, json.out).toBe(0);
+    expect((JSON.parse(json.stdout) as { tasks: { id: string }[] }).tasks[0].id).toBe('t042');
+  });
+
   it('refuses a task that does not exist', async () => {
     const r = await runYan(home, ['session-start', '--task', 'nosuchtask']);
     expect(r.code).toBe(2);

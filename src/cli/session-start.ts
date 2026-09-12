@@ -487,6 +487,16 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       }
       const id = options.all === true ? '' : (options.task ?? positional ?? process.env.YAN_TASK ?? '');
 
+      // Registered as the SessionStart hook, so a shift working on this
+      // repository fires it too and would start with the main agent's whole
+      // picture in its context. `YAN_SID` is set in a shift's environment and
+      // never in the main agent's. `--json` is a caller asking on purpose.
+      const sid = process.env.YAN_SID ?? '';
+      if (sid !== '' && options.json !== true) {
+        out(`shift ${sid} of task ${id === '' ? '(unknown)' : id}: the task picture belongs to the main agent, not to you - your brief is your work order.`);
+        return;
+      }
+
       // Caught up before the picture is rebuilt. Never fatal: a pull that
       // fails costs one line on stderr and the session continues on local
       // state.

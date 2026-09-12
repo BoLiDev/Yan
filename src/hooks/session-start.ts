@@ -20,6 +20,11 @@ import { yanHome } from '../util/home.js';
  * transient system message: yan reads its own startup report rather than
  * having it printed past it into a pane nobody is reading.
  *
+ * The picture it rebuilds is the main agent's. A shift working on the yan
+ * repository inherits this repository's hook registrations and would have that
+ * picture injected into its own context; `YAN_SID` is set in a shift's
+ * environment and never in the main agent's, so it is what tells them apart.
+ *
  * Every path prints an object, because a `PreInvocation` hook that says
  * nothing is a hook whose contract was broken. Nothing here is worth failing a
  * turn for: a session that starts without its picture is a session that runs
@@ -54,6 +59,9 @@ export async function sessionStart(io: SessionStartIo): Promise<number> {
     io.say('{}');
     return 0;
   };
+
+  // A shift's agy, not the main agent's: the task picture is not its business.
+  if ((process.env.YAN_SID ?? '') !== '') return nothing();
 
   const task = process.env.YAN_TASK ?? '';
   if (task === '' || !Task.isId(task) || !new Task(task).exists()) return nothing();

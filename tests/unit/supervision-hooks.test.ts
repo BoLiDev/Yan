@@ -164,6 +164,58 @@ describe('autoarm', () => {
   });
 });
 
+/**
+ * A shift working on this repository sits in a worktree that carries the
+ * repository's own hook registrations, so its harness fires the main agent's
+ * hooks. `YAN_SID` is set in a shift's environment and never in the main
+ * agent's; on that evidence every hook has to get out of the way.
+ */
+describe('the hooks belong to the main agent, not to a shift', () => {
+  it('autoarm arms nothing for a shift, and leaves the wake for yan', async () => {
+    const run = liveShift('s1');
+    writeFileSync(join(run, 'signal'), '');
+    noWatcher();
+
+    const r = await hook('hook-autoarm.sh', [], {
+      env: { YAN_TASK: 't1', YAN_SID: 's1', YAN_WAIT_INTERVAL: '0.1' },
+    });
+    expect(r.code, r.out).toBe(0);
+    expect(existsSync(sup.lock), 'the lock a shift took is a wake yan never gets').toBe(false);
+    expect(existsSync(sup.wake)).toBe(false);
+    expect(existsSync(join(run, 'signal')), 'the event is still there for yan').toBe(true);
+  });
+
+  it('autoarm says `stop` for a shift on agy, where silence is not an answer', async () => {
+    const run = liveShift('s1');
+    writeFileSync(join(run, 'signal'), '');
+
+    const r = await hook('hook-autoarm.sh', ['--agy'], { env: { YAN_TASK: 't1', YAN_SID: 's1' } });
+    expect(r.code, r.out).toBe(0);
+    expect((JSON.parse(r.stdout.trim()) as { decision?: string }).decision).toBe('stop');
+  });
+
+  it('the guard lets a shift\'s turn end, on every harness', async () => {
+    liveShift('s1');
+    noWatcher();
+
+    for (const harness of ['--claude', '--codex']) {
+      const r = await hook('hook-turnend-guard.sh', [harness], {
+        env: { YAN_TASK: 't1', YAN_SID: 's1' },
+      });
+      expect(r.code, r.out).toBe(0);
+      expect(r.stdout, harness).toBe('');
+      expect(sup.guardCount(), 'a shift never spends the main agent\'s budget').toBe(0);
+    }
+
+    const agy = await hook('hook-turnend-guard.sh', ['--agy'], {
+      env: { YAN_TASK: 't1', YAN_SID: 's1' },
+    });
+    expect(agy.code, agy.out).toBe(0);
+    expect((JSON.parse(agy.stdout.trim()) as { decision?: string }).decision).toBe('stop');
+    expect(sup.guardCount()).toBe(0);
+  });
+});
+
 describe('the turn-end guard', () => {
   it('has to be told which harness it is', async () => {
     const r = await hook('hook-turnend-guard.sh', [], { env: { YAN_TASK: 't1' } });
