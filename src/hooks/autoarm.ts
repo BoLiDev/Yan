@@ -70,7 +70,9 @@ export function autoarm(argv: readonly string[], io: AutoarmIo): number {
 
   const sup = new Supervision(task);
   if (sup.liveCount() === 0) return quiet();
-  if (sup.lockTaken()) return quiet();
+  // A watcher that holds the lock but has stopped looping is not on duty:
+  // `yan wait` evicts it and takes its place.
+  if (sup.onDuty()) return quiet();
 
   const home = yanHome();
   const yan = join(home, 'dist', 'cli', 'yan.js');

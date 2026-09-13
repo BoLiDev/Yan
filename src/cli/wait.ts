@@ -117,8 +117,9 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
 
   if (sup.liveCount() === 0) return { code: 3 };
 
-  // Single flight: one watcher per task, or the model is woken twice over.
-  if (sup.lockTaken()) {
+  // Single flight: one watcher per task, or the model is woken twice over. A
+  // watcher that has stopped looping is not on duty, and claimLock replaces it.
+  if (sup.onDuty()) {
     return { code: 4, reason: `another watcher is already on duty for task ${options.task}` };
   }
   if (!sup.claimLock()) {

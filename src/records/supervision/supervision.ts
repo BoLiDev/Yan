@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claim, isHeld, isStale, owner, release } from '../../util/lock.js';
+import { claim, evict, isHeld, isStale, owner, release } from '../../util/lock.js';
 import { Shift } from '../shift/index.js';
 import { Task } from '../task/index.js';
 import { beaconAge, readBeacon, writeBeacon, type WatcherState } from './beacon.js';
@@ -67,18 +67,64 @@ export class Supervision {
 
   /**
    * Take the single-flight lock, stamped with `identity()`. A lock whose owner
-   * is gone is reclaimed rather than obeyed.
+   * is gone is reclaimed rather than obeyed, and so is one whose owner is a
+   * watcher that has stopped looping: it is killed first, because a watcher
+   * holds nothing that a fresh one cannot rebuild from disk, and a session
+   * with a hung watcher is a session nothing is supervising.
    */
   public claimLock(): boolean {
     this.ensureRun();
     if (claim(this.lock, this.identity())) return true;
-    if (!isStale(this.lock)) return false;
+    if (!isStale(this.lock)) {
+      if (this.stoppedLooping() === '' || !evict(this.lock)) return false;
+    }
     release(this.lock);
     return claim(this.lock, this.identity());
   }
 
+  /**
+   * Give the lock back, when it is this process's to give. A watcher on its
+   * way out after being evicted must not take the lock its replacement holds.
+   */
   public releaseLock(): void {
-    release(this.lock);
+    if (owner(this.lock)?.pid === process.pid) release(this.lock);
+  }
+
+  /**
+   * `lockTaken()`, and the holder has not stopped looping. This is the
+   * question before arming a watcher: a lock held by a hung one is not a
+   * reason to stand down, since `claimLock()` will replace it. Sets `why()`.
+   */
+  public onDuty(): boolean {
+    if (!this.lockTaken()) return false;
+    const why = this.stoppedLooping();
+    this.lastWhy = why;
+    return why === '';
+  }
+
+  /**
+   * Why the lock's holder, alive and stamped as this task's watcher, is not
+   * looping any more — or `''` when it is, or when the holder is this
+   * process, which cannot judge itself. A watcher's first act in its loop is
+   * to write the beacon, so a lock older than the beacon's limit with no
+   * beacon at all is a watcher that hung before its first turn.
+   */
+  private stoppedLooping(maxBeaconAge = beaconMaxSeconds()): string {
+    const holder = owner(this.lock);
+    if (holder === undefined || holder.pid === process.pid || holder.identity !== this.identity()) return '';
+
+    // A beacon from another pid is a previous watcher's, not this holder's.
+    const age = readBeacon(this.beacon)?.pid === holder.pid ? beaconAge(this.beacon, Date.now()) : undefined;
+    if (age === undefined) {
+      const lockAge = Math.floor(Date.now() / 1000) - holder.at;
+      return lockAge > maxBeaconAge
+        ? `the watcher (pid ${holder.pid}) took the lock ${lockAge}s ago and has never written a beacon`
+        : '';
+    }
+    if (age > maxBeaconAge) {
+      return `the watcher (pid ${holder.pid}) last wrote its beacon ${age}s ago (more than ${maxBeaconAge}s)`;
+    }
+    return '';
   }
 
   /**

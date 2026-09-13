@@ -123,6 +123,30 @@ export function claim(file: string, identity?: string): boolean {
   return true;
 }
 
+/**
+ * Kill the holder and wait for it to go, so that `isStale` comes true. For an
+ * owner on this host only, and never this process. Says whether the lock is
+ * reclaimable now.
+ *
+ * SIGKILL, because a holder being evicted is one that stopped answering, and
+ * a blocked event loop never runs a SIGTERM handler.
+ */
+export function evict(file: string, graceMs = 2000): boolean {
+  const record = owner(file);
+  if (record === undefined || record.host !== hostname() || record.pid === process.pid) return false;
+  try {
+    process.kill(record.pid, 'SIGKILL');
+  } catch {
+    return isStale(file);
+  }
+  const deadline = Date.now() + graceMs;
+  while (pidAlive(record.pid)) {
+    if (Date.now() >= deadline) return false;
+    sleepMs(50);
+  }
+  return true;
+}
+
 /** Give the lock back. Never throws, including for a lock already gone. */
 export function release(file: string): void {
   try {

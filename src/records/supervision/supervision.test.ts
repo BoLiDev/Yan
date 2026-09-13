@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -65,6 +66,61 @@ function liveShift(sid: string, pane = 'w1:p2'): void {
   mkdirSync(run, { recursive: true });
   writeFileSync(join(run, 'meta.json'), `{ "version": 1, "pane": "${pane}" }\n`);
 }
+
+/**
+ * A separate process that is alive and does nothing, standing in for a
+ * watcher: its pid is what the lock and the beacon carry. Not a child of this
+ * worker, because a real hung watcher is never a child of the one replacing
+ * it — and a killed child stays a zombie, and so "alive" to a signal-0 probe,
+ * until its parent's event loop reaps it, which `evict`'s synchronous wait
+ * never lets happen. Started through a parent that exits at once, so it is
+ * reparented and reaped by the system. Killed after the test whether or not
+ * the code under test got there first.
+ */
+const idle: number[] = [];
+function idleProcess(): number {
+  const launcher = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      "const c = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore', windowsHide: true }); c.unref(); process.stdout.write(String(c.pid));",
+    ],
+    { encoding: 'utf8', windowsHide: true },
+  );
+  const pid = Number(launcher.stdout);
+  if (!Number.isInteger(pid) || pid <= 0) throw new Error(`could not start an idle process: ${launcher.stderr}`);
+  idle.push(pid);
+  return pid;
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Wait until `pid` is gone, or `ms` have passed. */
+async function gone(pid: number, ms = 2000): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (alive(pid)) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return true;
+}
+
+afterEach(() => {
+  for (const pid of idle.splice(0)) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Already gone, which is what most of these tests expect.
+    }
+  }
+});
 
 describe('where the four files are', () => {
   it('is under the task, beside the wake file yan drain already reads', () => {
@@ -179,6 +235,87 @@ describe('the single-flight lock', () => {
     liveLock('yan-wait t1', 999_999);
     expect(sup.claimLock()).toBe(true);
     expect(sup.lockTaken()).toBe(true);
+  });
+
+  it('evicts a holder that is alive but has stopped looping', async () => {
+    // The beacon is a heartbeat. A live pid with an old one is a watcher that
+    // hung, and a session with a hung watcher is a session nothing supervises;
+    // the watcher holds nothing a fresh one cannot rebuild, so it is killed.
+    clearAll();
+    const pid = idleProcess();
+    liveLock('yan-wait t1', pid);
+    agedBeacon(4_000, pid);
+
+    expect(sup.onDuty()).toBe(false);
+    expect(sup.why()).toContain(`pid ${pid}`);
+    expect(sup.claimLock()).toBe(true);
+    expect(await gone(pid)).toBe(true);
+    expect(readFileSync(sup.lock, 'utf8')).toContain(`"pid":${process.pid}`);
+  });
+
+  it('evicts a holder that never wrote a beacon after the lock grew old', () => {
+    // A watcher's first act in its loop is the beacon. One that took the lock
+    // minutes ago and never got that far hung before its first turn.
+    clearAll();
+    const pid = idleProcess();
+    writeFileSync(
+      sup.lock,
+      `${JSON.stringify({ pid, host: hostname(), at: Math.floor(Date.now() / 1000) - 4_000, identity: 'yan-wait t1' })}\n`,
+    );
+    expect(sup.onDuty()).toBe(false);
+    expect(sup.why()).toContain('never written a beacon');
+    expect(sup.claimLock()).toBe(true);
+  });
+
+  it('leaves a holder that is looping alone', () => {
+    clearAll();
+    const pid = idleProcess();
+    liveLock('yan-wait t1', pid);
+    freshBeacon(pid);
+
+    expect(sup.onDuty()).toBe(true);
+    expect(sup.claimLock()).toBe(false);
+    expect(alive(pid)).toBe(true);
+    expect(readFileSync(sup.lock, 'utf8')).toContain(`"pid":${pid}`);
+  });
+
+  it('does not judge a holder that has just taken the lock and has no beacon yet', () => {
+    // The guard's 800 ms question again: a young lock with no beacon is a
+    // watcher mid-first-loop, not a hung one.
+    clearAll();
+    const pid = idleProcess();
+    writeFileSync(
+      sup.lock,
+      `${JSON.stringify({ pid, host: hostname(), at: Math.floor(Date.now() / 1000), identity: 'yan-wait t1' })}\n`,
+    );
+    expect(sup.onDuty()).toBe(true);
+    expect(sup.claimLock()).toBe(false);
+    expect(alive(pid)).toBe(true);
+  });
+
+  it('never evicts itself', () => {
+    // A process cannot judge whether it is hung, and the test worker would be
+    // the casualty.
+    clearAll();
+    liveLock();
+    agedBeacon(4_000);
+    expect(sup.claimLock()).toBe(false);
+    expect(readFileSync(sup.lock, 'utf8')).toContain(`"pid":${process.pid}`);
+  });
+
+  it('is released only by the process that holds it', () => {
+    // A watcher on its way out after eviction runs its exit handler, and the
+    // lock by then is its replacement's.
+    clearAll();
+    const pid = idleProcess();
+    liveLock('yan-wait t1', pid);
+    sup.releaseLock();
+    expect(existsSync(sup.lock)).toBe(true);
+
+    clearAll();
+    expect(sup.claimLock()).toBe(true);
+    sup.releaseLock();
+    expect(existsSync(sup.lock)).toBe(false);
   });
 });
 

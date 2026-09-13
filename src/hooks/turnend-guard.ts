@@ -114,7 +114,7 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
     // Kept now, because every later predicate overwrites it.
     const why = sup.why() === '' ? 'no watcher on duty' : sup.why();
 
-    const takenBefore = sup.lockTaken();
+    const onDutyBefore = sup.onDuty();
 
     // Polled rather than slept through, so a healthy turn pays milliseconds.
     const settleMs = Number(process.env.YAN_GUARD_SETTLE ?? '0.8') * 1000;
@@ -124,8 +124,9 @@ export async function guard(argv: readonly string[], io: GuardIo): Promise<numbe
         sup.guardReset();
         return letThrough(harness, io);
       }
-      if (!takenBefore && sup.lockTaken()) {
-        // A lock claimed while we waited is a watcher starting up.
+      if (!onDutyBefore && sup.onDuty()) {
+        // A lock claimed while we waited is a watcher starting up — or one
+        // that has just replaced a hung watcher, which is the same thing.
         return letThrough(harness, io);
       }
     }

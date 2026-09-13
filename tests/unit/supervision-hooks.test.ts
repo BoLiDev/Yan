@@ -162,6 +162,33 @@ describe('autoarm', () => {
     expect(existsSync(join(run, 'signal'))).toBe(true);
     expect(readFileSync(sup.lock, 'utf8')).toContain(String(process.pid));
   });
+
+  it('replaces a watcher that is alive but has stopped looping', async () => {
+    // A live pid with a stale beacon held the lock and nobody could take it
+    // from it: autoarm stood down, `yan wait` stood down, and the guard could
+    // only say so. Now the hung watcher is killed and a fresh one takes over.
+    const run = liveShift('s1');
+    writeFileSync(join(run, 'signal'), '');
+    const hung = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const pid = hung.pid ?? 0;
+    writeFileSync(
+      sup.lock,
+      `${JSON.stringify({ pid, host: hostname(), at: 1, identity: 'yan-wait t1' })}\n`,
+    );
+    writeFileSync(sup.beacon, `${Math.floor(Date.now() / 1000) - 4000} ${pid} t1 polling\n`);
+
+    try {
+      const r = await hook('hook-autoarm.sh', [], { env: { YAN_TASK: 't1', YAN_WAIT_INTERVAL: '0.1' } });
+      expect(r.code, r.out).toBe(2);
+      expect(r.stderr).toContain('signal: s1');
+      expect(hung.exitCode ?? hung.signalCode).not.toBeNull();
+    } finally {
+      hung.kill('SIGKILL');
+    }
+  });
 });
 
 /**
@@ -314,11 +341,12 @@ describe('the guard on Claude', () => {
     liveShift('s1');
     noWatcher();
 
-    // A separate process, as it is in the real thing.
+    // A separate process, as it is in the real thing. Stamped now: a lock that
+    // is old with no beacon is a hung watcher, not one starting up.
     const record = JSON.stringify({
       pid: process.pid,
       host: hostname(),
-      at: 1,
+      at: Math.floor(Date.now() / 1000),
       identity: 'yan-wait t1',
     });
     const late = spawn(
