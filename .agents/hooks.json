@@ -3,7 +3,7 @@
     "PreInvocation": [
       {
         "type": "command",
-        "command": "node ../dist/hooks/session-start.js",
+        "command": "node ../dist/hooks/agy-session-start.js",
         "timeout": 120
       }
     ],

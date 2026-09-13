@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { sessionStart } from '../../src/hooks/session-start.js';
+import { agySessionStart } from '../../src/hooks/agy-session-start.js';
 
 /**
  * Agy's `PreInvocation` stand-in for a `SessionStart` hook. What matters here
@@ -22,7 +22,7 @@ describe('the agy session-start hook', () => {
     const noted: string[] = [];
     let readStdin = false;
 
-    const code = await sessionStart({
+    const code = await agySessionStart({
       note: (line) => noted.push(line),
       say: (line) => said.push(line),
       stdin: () => {
