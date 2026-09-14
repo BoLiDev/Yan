@@ -16,7 +16,7 @@ export type { TerminalOptions } from './terminal.js';
 export { TerminalEvents } from './events.js';
 export type { TerminalEventsOptions } from './events.js';
 export { herdrHealth } from './health.js';
-export { isPaneId } from './ids.js';
+export { agentNameFor, isPaneId } from './ids.js';
 export { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, AGENT_STATUS } from './schema.js';
 export type {
   AgentStatus,

@@ -11,7 +11,7 @@ import { poolSize, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
-import { Terminal, type AgentStatus } from '../externals/herdr/index.js';
+import { agentNameFor, Terminal, type AgentStatus } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseGrant } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
@@ -509,7 +509,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     const prompt = `${invoke}${invoke === '' ? 'Read' : 'read'} ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
     const startedAgent = terminal.startAgent({
       container,
-      name: `${sid}-${unitName}`,
+      name: agentNameFor(sid, unitName),
       kind: agent,
       cwd: workdir,
       label: `${sid}-${unitName}`,

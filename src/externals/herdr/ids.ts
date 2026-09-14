@@ -41,6 +41,22 @@ export function requireAgentName(value: string): string {
   return value;
 }
 
+/**
+ * The agent name a shift runs under: `<sid>-<unit>`, folded to what Herdr
+ * accepts. Unit names come from repository names, which may carry capitals or
+ * dots (`Cli-Kit`), and Herdr refuses those, so the shape is normalised here
+ * rather than at `unit add` — the unit keeps the name `user` gave it.
+ */
+export function agentNameFor(sid: string, unit: string): string {
+  const folded = `${sid}-${unit}`
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[^a-z]+/, '')
+    .replace(/-+$/, '')
+    .slice(0, 32);
+  return requireAgentName(folded === '' ? sid.toLowerCase() : folded);
+}
+
 /** A pane belongs to a workspace when its id carries that prefix. */
 export function paneIsIn(pane: string, container: string): boolean {
   return pane.startsWith(`${container}:`);
