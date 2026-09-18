@@ -78,9 +78,10 @@ describe('where a shift goes in the main agent tab', () => {
       's3: s1 right',
       's4: s2 right',
       's5: s1 down',
-      // s2, s3 and s4 are all quarters now: the tie goes to the lowest number.
-      's6: s2 down',
-      's7: s3 down',
+      // s2, s3 and s4 are all quarters now: the tie goes to the topmost, then
+      // the leftmost, so the top row fills first.
+      's6: s3 down',
+      's7: s2 down',
       's8: s4 down',
     ]);
     // The main agent keeps the left half however many shifts there are.
@@ -114,18 +115,19 @@ describe('where a shift goes in the main agent tab', () => {
     expect(at).toEqual({ pane: MAIN, direction: 'right' });
   });
 
-  it('breaks a tie by shift number, not by how the ids sort as text', () => {
+  it('breaks a tie by position, top then left, never by shift number', () => {
     const layout: TabLayout = {
       workspace: 'w1',
       tab: 'w1:t1',
       panes: [
         { pane: MAIN, rect: { x: 0, y: 0, width: 100, height: 40 } },
-        { pane: 'w1:pa', rect: { x: 100, y: 0, width: 100, height: 20 } },
-        { pane: 'w1:pb', rect: { x: 100, y: 20, width: 100, height: 20 } },
+        { pane: 'w1:pa', rect: { x: 100, y: 20, width: 50, height: 20 } },
+        { pane: 'w1:pb', rect: { x: 150, y: 0, width: 50, height: 20 } },
+        { pane: 'w1:pc', rect: { x: 100, y: 0, width: 50, height: 20 } },
       ],
     };
-    const at = placeShift(MAIN, layout, [{ sid: 's10', pane: 'w1:pa' }, { sid: 's9', pane: 'w1:pb' }]);
-    expect(at?.pane).toBe('w1:pb');
+    const shifts = [{ sid: 's1', pane: 'w1:pa' }, { sid: 's2', pane: 'w1:pb' }, { sid: 's3', pane: 'w1:pc' }];
+    expect(placeShift(MAIN, layout, shifts)?.pane).toBe('w1:pc');
   });
 
   it('declines when the main pane is not in the layout, so the caller makes a tab', () => {

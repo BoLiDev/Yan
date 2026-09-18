@@ -7,9 +7,10 @@ import { paneOfEnterLock } from './enter-lock.js';
  * shifts sharing its right half and the main agent keeping the left.
  *
  * The first shift halves the main pane to the right. After that the largest
- * shift pane in the tab is halved — ties to the lowest shift number — and the
- * direction alternates with how many halvings that pane is from the main
- * pane's size: `down` at an even count, `right` at an odd one. That gives
+ * shift pane in the tab is halved — ties to the topmost, then the leftmost,
+ * so the top row fills first — and the direction alternates with how many
+ * halvings that pane is from the main pane's size: `down` at an even count,
+ * `right` at an odd one. That gives
  * `user`'s own sequence (s2 under s1, s3 beside s1, s4 beside s2) and keeps
  * working after panes close in any order, because it reads the tab as it is
  * rather than counting shifts.
@@ -25,10 +26,9 @@ function area(rect: PaneRect): number {
   return rect.width * rect.height;
 }
 
-/** `s12` → 12, for ordering ties the way a person counts. */
-function shiftNumber(sid: string): number {
-  const n = Number.parseInt(sid.replace(/^\D+/, ''), 10);
-  return Number.isNaN(n) ? Number.POSITIVE_INFINITY : n;
+/** Whether `a` comes first reading the tab: higher up, then further left. */
+function readsBefore(a: PaneRect, b: PaneRect): boolean {
+  return a.y !== b.y ? a.y < b.y : a.x < b.x;
 }
 
 /**
@@ -45,13 +45,13 @@ export function placeShift(
   const main = rects.get(mainPane);
   if (main === undefined) return undefined;
 
-  let target: { pane: string; area: number; n: number } | undefined;
+  let target: { pane: string; area: number; rect: PaneRect } | undefined;
   for (const shift of shifts) {
     const rect = shift.pane === mainPane ? undefined : rects.get(shift.pane);
     if (rect === undefined) continue;
-    const candidate = { pane: shift.pane, area: area(rect), n: shiftNumber(shift.sid) };
+    const candidate = { pane: shift.pane, area: area(rect), rect };
     if (target === undefined || candidate.area > target.area ||
-        (candidate.area === target.area && candidate.n < target.n)) {
+        (candidate.area === target.area && readsBefore(rect, target.rect))) {
       target = candidate;
     }
   }
