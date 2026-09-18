@@ -358,7 +358,7 @@ describe('the module cannot move the user or close anything', () => {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
   it('never spells focus, close or stop as a herdr verb', () => {
-    // Focusing marks a tab seen, which turns the `done` yan is waiting for
+    // Focusing marks a pane seen, which turns the `done` yan is waiting for
     // into an `idle` it ignores.
     expect(source).not.toContain('agent focus');
     expect(source).not.toContain('pane.focus');

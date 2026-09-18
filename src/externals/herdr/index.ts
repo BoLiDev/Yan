@@ -5,7 +5,7 @@
  * arrives and means reconnect.
  *
  * Two traps for callers. Record the pane id, never the label, and never focus
- * a shift's pane — focusing marks the tab seen, which turns the `done` that
+ * a shift's pane — focusing marks the pane seen, which turns the `done` that
  * would have woken yan into an `idle` it ignores. And check `isPaneId` before
  * subscribing: one unknown pane is refused whole, taking every other
  * subscription on that connection with it.

@@ -25,8 +25,9 @@ import type {
  * Nothing here closes a workspace or a tab — the one pane closed is either
  * named by its caller or the pane `startAgent` just made, by a new tab or a
  * split, and could not start its agent in — and nothing here focuses — a
- * focused tab is marked seen, which turns a `done` yan would be woken by into
- * an `idle` it ignores.
+ * focused pane is marked seen, which turns a `done` yan would be woken by into
+ * an `idle` it ignores. Seen is per pane, not per tab, so a shift split into
+ * the tab `user` is looking at still finishes as `done`.
  */
 export interface TerminalOptions {
   /** Defaults to the real `herdr`. */
@@ -377,7 +378,7 @@ export class Terminal {
 
   /**
    * The last `lines` lines of an agent's terminal, or `''` when Herdr reports
-   * none. Does not mark the tab seen.
+   * none. Does not mark the pane seen.
    *
    * The one command whose answer is the screen itself rather than JSON, so it
    * does not go through `call`: putting it there returned `''` for every
