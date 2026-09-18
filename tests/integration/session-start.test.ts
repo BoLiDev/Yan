@@ -431,6 +431,8 @@ describe('the task memory reaches the session', () => {
     expect(r.stdout).toContain('── drafts  10 of 12');
     expect(r.stdout).toContain("user's own notes about this task");
     expect(r.stdout).toContain('yan draft cat <id>');
+    expect(r.stdout, 'how to dig deeper').toContain("'yan draft ls --plain --limit <n>'");
+    expect(r.stdout, 'where other tasks keep theirs').toContain('/tasks/<id>/artifacts/drafts/');
     expect(r.stdout).toContain('  2026-09-12_090000  2026-09-12 09:00  note 11');
     expect(r.stdout).toContain('note 2\n');
     expect(r.stdout, 'only the newest ten').not.toContain('note 1\n');

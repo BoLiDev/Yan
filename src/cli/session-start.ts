@@ -253,6 +253,9 @@ function renderDrafts(id: string): void {
   out(`── drafts  ${shown.length < total ? `${shown.length} of ${total}` : `${total}`}  ${drafts.dir}`);
   out("user's own notes about this task, written outside this conversation. Read one");
   out("with 'yan draft cat <id>' when it looks relevant; yan never writes them.");
+  out(`Past the newest ${DRAFTS_SHOWN}: 'yan draft ls --plain --limit <n>' lists more and 'yan draft`);
+  out("search <words>' finds a phrase. Other tasks' drafts are plain markdown under");
+  out(`${normalizePath(vaultDir())}/tasks/<id>/artifacts/drafts/ - grep there when an earlier task's note might apply.`);
   out('');
   for (const d of shown) out(`  ${d.id}  ${localStamp(d.updated)}  ${d.title}`);
 }

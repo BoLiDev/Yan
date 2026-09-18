@@ -209,7 +209,7 @@ this turn, before you reply.
 | `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
 | `task.json` | each unit's branch, target, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
 | `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
-| `artifacts/drafts/` | `user`'s own notes about the task, written outside the conversation: ideas, scratch, what to raise | by `user` only, with `yan draft`; never by you or a shift | session start lists the newest; `yan draft cat <id>` when one looks relevant |
+| `artifacts/drafts/` | `user`'s own notes about the task, written outside the conversation: ideas, scratch, what to raise | by `user` only, with `yan draft`; never by you or a shift | session start lists the newest; `yan draft cat <id>` when one looks relevant; `ls --plain --limit` and `search` dig past the index, and other tasks' drafts are plain markdown under `<vault>/tasks/<id>/artifacts/drafts/` to grep |
 | `mem/learnings/` | what to do when X happens, true beyond this task | see below | its index at session start and in every shift's brief; a file when a problem matches it |
 | `mem/user.md` | judgements about `user` | only when `user` asks | session start |
 
