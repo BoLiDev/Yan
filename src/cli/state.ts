@@ -228,7 +228,7 @@ function attentionLine(attention: AgentStatus): string {
     case 'working':
       return 'working';
     case 'idle':
-      return 'idle  (waiting for input, and its tab has been seen)';
+      return 'idle  (waiting for input, and its pane has been focused)';
     default:
       return 'unknown  (an agent is there and herdr will not classify it)';
   }
