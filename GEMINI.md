@@ -102,7 +102,7 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 | `log.md` | 任务的历程，一个事件一行，只追加 | 命令自动记自己的事件；其余用 `yan log` 记 | session start 注入全部 `agreed`、`changed` 行和最后 20 行 |
 | `task.json` | 每个 unit 的 branch、target、scope、needs；命令按它执行 | 只通过 `yan unit`、`yan mr`、`yan land`、`yan done` | 命令执行时；你通过 session start |
 | `artifacts/` | 帮助你和 `user` 理解工作的**副产出**：调研、原型、设计、截图、为了和 `user` 对齐做的可视化。不放代码、构建产物、运行残留 | 有产出时 | log 里有行指向它时 |
-| `artifacts/drafts/` | `user` 自己关于这个任务的笔记，在对话之外写的：想法、草稿、要提的事 | 只由 `user` 用 `yan draft` 写；你和 shift 都不写 | session start 列出最新的几条；看起来相关时用 `yan draft cat <id>` 读 |
+| `artifacts/drafts/` | `user` 自己关于这个任务的笔记，在对话之外写的：想法、草稿、要提的事 | 只由 `user` 用 `yan draft` 写；你和 shift 都不写 | session start 列出最新的几条；看起来相关时用 `yan draft cat <id>` 读；`ls --plain --limit` 和 `search` 能往前翻、全文找，别的任务的草稿是 `<vault>/tasks/<id>/artifacts/drafts/` 下的纯 markdown，直接 grep |
 | `mem/learnings/` | 遇到 X 该怎么办，跨任务成立 | 见下文 | session start 注入索引，每个 shift 的工单里也会附上；遇到匹配的问题时读正文 |
 | `mem/user.md` | 关于 `user` 的判断 | 只在 `user` 要求时 | session start |
 
