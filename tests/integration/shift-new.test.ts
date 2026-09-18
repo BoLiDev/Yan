@@ -18,6 +18,7 @@ import { Task } from '../../src/records/task/index.js';
 import { type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
 import type { ShiftMeta } from '../../src/records/shift/index.js';
+import type { SplitAt, TabLayout } from '../../src/externals/herdr/index.js';
 
 /**
  * `yan shift new`. Two properties are what this file is for: a dispatch whose
@@ -64,6 +65,12 @@ class FakeTerminal implements Dispatcher {
   public titleThrows = false;
   /** What the main agent's pane resolves to; undefined means "not under Herdr". */
   public paneWorkspace: string | undefined = undefined;
+  /** The main agent's tab; undefined means herdr would not say. */
+  public layout: TabLayout | undefined = undefined;
+  /** The split the last start asked for, if it asked for one. */
+  public split: SplitAt | undefined = undefined;
+  /** The pane the next start answers with. */
+  public nextPane = 'w1:p2';
 
   public createContainer(label: string): { workspace: string } {
     calls.push(`container_create name=${label}`);
@@ -75,8 +82,14 @@ class FakeTerminal implements Dispatcher {
     return this.paneWorkspace;
   }
 
+  public tabLayout(pane: string): TabLayout | undefined {
+    calls.push(`tab_layout pane=${pane}`);
+    return this.layout;
+  }
+
   public startAgent(options: {
     container: string;
+    split?: SplitAt;
     name: string;
     kind: string;
     cwd: string;
@@ -93,7 +106,8 @@ class FakeTerminal implements Dispatcher {
     this.startEnv = { ...(options.env ?? {}) };
     this.cwd = options.cwd;
     this.label = options.label ?? '';
-    return { pane: 'w1:p2', status: 'working' };
+    this.split = options.split;
+    return { pane: this.nextPane, status: 'working' };
   }
 
   public setPaneTitle(pane: string, title: string): void {
@@ -268,6 +282,72 @@ describe('one task is one container', () => {
   it('labels the tab so `user` can pick the shift out of the row', () => {
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
     expect(terminal.label).toBe('s1-auth');
+  });
+});
+
+describe('a shift is a split of the main agent tab', () => {
+  const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
+
+  it('halves the main pane to the right for the first shift', () => {
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = 'w7';
+    terminal.layout = { workspace: 'w7', tab: 'w7:t1', panes: [{ pane: 'w7:p1', rect: rect(0, 0, 200, 50) }] };
+
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(terminal.split).toEqual({ pane: 'w7:p1', direction: 'right' });
+    expect(r.meta.container).toBe('w7');
+  });
+
+  it('splits the first shift down for the second, reading the pane it recorded', () => {
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = 'w7';
+    terminal.layout = { workspace: 'w7', tab: 'w7:t1', panes: [{ pane: 'w7:p1', rect: rect(0, 0, 200, 50) }] };
+    terminal.nextPane = 'w7:p2';
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+
+    terminal.layout = {
+      workspace: 'w7',
+      tab: 'w7:t1',
+      panes: [{ pane: 'w7:p1', rect: rect(0, 0, 100, 50) }, { pane: 'w7:p2', rect: rect(100, 0, 100, 50) }],
+    };
+    terminal.nextPane = 'w7:p3';
+    const second = run({ task: 't042', unit: 'auth', sid: 's2', briefText: 'x' });
+    expect(second.code, second.message).toBe(0);
+    expect(terminal.split).toEqual({ pane: 'w7:p2', direction: 'down' });
+  });
+
+  it('makes a tab when the main agent tab cannot be read', () => {
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = 'w7';
+    terminal.layout = undefined;
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(terminal.split).toBeUndefined();
+    expect(calls.find((c) => c.startsWith('agent_start'))).toContain('container=w7');
+  });
+
+  it('makes a tab when no main agent is on record', () => {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+    expect(r.code, r.message).toBe(0);
+    expect(terminal.split).toBeUndefined();
+    expect(calls.some((c) => c.startsWith('tab_layout'))).toBe(false);
+  });
+
+  it('makes a tab when the main agent is in another workspace than the task container', () => {
+    // s1 put the container in w7; the main agent has since been restarted in
+    // w9. Splitting its pane would put the shift outside the container it is
+    // recorded in.
+    enterLock('t042', 'w7:p1');
+    terminal.paneWorkspace = 'w7';
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
+
+    enterLock('t042', 'w9:p1');
+    terminal.layout = { workspace: 'w9', tab: 'w9:t1', panes: [{ pane: 'w9:p1', rect: rect(0, 0, 200, 50) }] };
+    const second = run({ task: 't042', unit: 'auth', sid: 's2', briefText: 'x' });
+    expect(second.code, second.message).toBe(0);
+    expect(second.meta.container).toBe('w7');
+    expect(terminal.split).toBeUndefined();
   });
 });
 

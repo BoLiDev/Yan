@@ -472,6 +472,114 @@ describe('an agent that is not really there', () => {
     expect(started.status).toBe('blocked');
   });
 
+  /**
+   * A herdr that splits panes: `pane split` answers with the new pane, and
+   * `agent start` is refused with `code` when one is given.
+   */
+  function splittingHerdr(code?: string) {
+    const sent: string[][] = [];
+    const run = (args: readonly string[]) => {
+      sent.push([...args]);
+      const verb = `${args[0]} ${args[1]}`;
+      if (verb === 'pane split') return ok({ pane: { pane_id: 'w1:p5', workspace_id: 'w1' } });
+      if (verb === 'agent start') {
+        if (code !== undefined) return { code: 1, stdout: '', stderr: `{"error":{"code":"${code}","message":"x"}}` };
+        return ok({ agent: { name: 's2', pane_id: 'w1:p5', agent_status: 'idle' } });
+      }
+      if (verb === 'agent get') return ok({ agent: { pane_id: 'w1:p5' } });
+      return ok({});
+    };
+    return { run, sent };
+  }
+
+  it('splits the named pane instead of making a tab, carrying cwd and env, unfocused', () => {
+    const herdr = splittingHerdr();
+    const started = new Terminal({ run: herdr.run, settleMs: 0 }).startAgent({
+      container: 'w1',
+      split: { pane: 'w1:p2', direction: 'down' },
+      name: 's2',
+      kind: 'claude',
+      cwd: '/trees/2',
+      label: 's2-yan',
+      env: { YAN_TASK: 't1', YAN_SID: 's2' },
+    });
+    expect(herdr.sent.some((a) => a[0] === 'tab'), 'no tab is made').toBe(false);
+    expect(herdr.sent[0]).toEqual([
+      'pane', 'split', 'w1:p2', '--direction', 'down', '--ratio', '0.5', '--no-focus',
+      '--cwd', '/trees/2', '--env', 'YAN_TASK=t1', '--env', 'YAN_SID=s2',
+    ]);
+    const start = herdr.sent.find((a) => a[1] === 'start');
+    expect(start?.slice(0, 7), 'the agent goes into the pane the split answered with').toEqual([
+      'agent', 'start', 's2', '--kind', 'claude', '--pane', 'w1:p5',
+    ]);
+    expect(started.pane).toBe('w1:p5');
+  });
+
+  it('closes the pane it split off when the agent never starts in it', () => {
+    const herdr = splittingHerdr('unsupported_kind');
+    const term = new Terminal({ run: herdr.run, settleMs: 0 });
+    expect(() => term.startAgent({
+      container: 'w1', split: { pane: 'w1:p1', direction: 'right' }, name: 's1', kind: 'claude', cwd: '.',
+    })).toThrow(/unsupported_kind/);
+    expect(herdr.sent.at(-1)).toEqual(['pane', 'close', 'w1:p5']);
+    expect(herdr.sent.some((a) => a[1] === 'close' && a[2] === 'w1:p1'), 'never the pane it split').toBe(false);
+  });
+
+  it('lets a refused split surface, rather than falling back to a tab', () => {
+    const sent: string[][] = [];
+    const run = (args: readonly string[]) => {
+      sent.push([...args]);
+      if (args[0] === 'pane' && args[1] === 'split') {
+        return { code: 1, stdout: '', stderr: '{"error":{"code":"pane_not_found","message":"x"}}' };
+      }
+      return ok({});
+    };
+    let caught: unknown;
+    try {
+      new Terminal({ run, settleMs: 0 }).startAgent({
+        container: 'w1', split: { pane: 'w1:p9', direction: 'right' }, name: 's1', kind: 'claude', cwd: '.',
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as YanError).code).toBe('term_not_found');
+    expect(sent.map((a) => `${a[0]} ${a[1]}`)).toEqual(['pane split']);
+  });
+
+  it('reads a tab layout into panes and cells', () => {
+    const run = (args: readonly string[]) => {
+      expect(args).toEqual(['pane', 'layout', '--pane', 'w1:p1']);
+      return ok({
+        layout: {
+          area: { x: 0, y: 0, width: 200, height: 50 },
+          panes: [
+            { pane_id: 'w1:p1', rect: { x: 0, y: 0, width: 100, height: 50 }, focused: true },
+            { pane_id: 'w1:p4', rect: { x: 100, y: 0, width: 100, height: 50 }, focused: false },
+          ],
+          splits: [],
+          tab_id: 'w1:t1',
+          workspace_id: 'w1',
+          zoomed: false,
+        },
+      });
+    };
+    expect(new Terminal({ run }).tabLayout('w1:p1')).toEqual({
+      workspace: 'w1',
+      tab: 'w1:t1',
+      panes: [
+        { pane: 'w1:p1', rect: { x: 0, y: 0, width: 100, height: 50 } },
+        { pane: 'w1:p4', rect: { x: 100, y: 0, width: 100, height: 50 } },
+      ],
+    });
+  });
+
+  it('answers no layout, never a throw, when herdr will not give one', () => {
+    const refused = () => ({ code: 1, stdout: '', stderr: '{"error":{"code":"pane_not_found","message":"x"}}' });
+    expect(new Terminal({ run: refused }).tabLayout('w1:p1')).toBeUndefined();
+    expect(new Terminal({ run: () => ok({ layout: { panes: [{ pane_id: 'w1:p1' }] } }) }).tabLayout('w1:p1')).toBeUndefined();
+    expect(new Terminal({ run: refused }).tabLayout('not-a-pane')).toBeUndefined();
+  });
+
   it('send refuses, because the text would be typed into the shell', () => {
     const term = new Terminal({ run: pretendingHerdr(false) });
     expect(() => term.send('w1:p2', 'here is your brief')).toThrow(/refusing to send/);

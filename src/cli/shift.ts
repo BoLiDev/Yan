@@ -5,13 +5,14 @@ import { action, out } from './shared/action.js';
 import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from './shared/config.js';
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
+import { placementOf } from './shared/placement.js';
 import { noted, readNote } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
 import { poolSize, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
-import { agentNameFor, Terminal, type AgentStatus } from '../externals/herdr/index.js';
+import { agentNameFor, Terminal, type AgentStatus, type SplitAt, type TabLayout } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseGrant } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
@@ -328,8 +329,11 @@ export interface Dispatcher {
   createContainer(label: string): { workspace: string };
   /** How the task's existing container is found before one is created. */
   workspaceOfPane(pane: string): string | undefined;
+  /** How the main agent's tab is read, to place the shift in it. */
+  tabLayout(pane: string): TabLayout | undefined;
   startAgent(options: {
     container: string;
+    split?: SplitAt;
     name: string;
     kind: string;
     cwd: string;
@@ -391,25 +395,32 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
   const taskDir = record.dir;
   const terminal = deps.terminal ?? new Terminal();
 
-  // --- 1. claim the sid and the container, one dispatch of this task at a
-  // time ---------------------------------------------------------------------
+  // --- 1. claim the sid, the container and the placement, one dispatch of
+  // this task at a time ------------------------------------------------------
   //
-  // Both answers are read off what the task already has, so two dispatches
+  // All three are read off what the task already has, so two dispatches
   // reading at once agree and then diverge: the same `s<n>`, and so the same
   // shift branch, and a container each because neither can see a shift the
   // other has not written down yet. The lock makes the read and the write one
   // step; the placeholder run/meta.json is the write, because a container is
   // found by asking this task's live shifts which one they are in.
+  //
+  // The placement is not fully covered: the placeholder records no pane, and
+  // the split happens in `startAgent`, after the lock is released, so two
+  // dispatches started together can both pick the same pane to split. Each
+  // still gets a pane of its own; the tab is only less even than the rule
+  // makes it.
   const claimed = withLock(join(taskDir, 'dispatch.lock'), DISPATCH_LOCK_SECONDS, () => {
     const sid = claimSid(task, options.sid);
     const shift = new Shift(task, sid);
     const container = resolveContainer(task, terminal, record.containerName());
+    const split = placementOf(task, container, terminal);
     mkdirSync(shift.run, { recursive: true });
     const placeholder: ShiftMetaPlaceholder = { version: 1, task, sid, unit: unitName, container, pane: '' };
     writeJson(join(shift.run, 'meta.json'), placeholder);
-    return { sid, shift, container };
+    return { sid, shift, container, split };
   });
-  const { sid, shift, container } = claimed;
+  const { sid, shift, container, split } = claimed;
 
   const branch = `yan/${task}-${unitName}-${sid}`;
   const holder = `${task}/${unitName}/${sid}`;
@@ -509,6 +520,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     const prompt = `${invoke}${invoke === '' ? 'Read' : 'read'} ${join(shift.dir, 'brief.md')} and do what it says. It is your whole work order.`;
     const startedAgent = terminal.startAgent({
       container,
+      ...(split === undefined ? {} : { split }),
       name: agentNameFor(sid, unitName),
       kind: agent,
       cwd: workdir,
