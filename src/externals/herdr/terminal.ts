@@ -11,7 +11,9 @@ import type {
   Container,
   ListedAgent,
   ReadSource,
+  SplitAt,
   StartedAgent,
+  TabLayout,
 } from './types.js';
 
 /**
@@ -21,8 +23,8 @@ import type {
  * Everything is addressed by id, never by label or `--current`: a name is
  * cleared when its agent exits, which is when yan most needs to identify it.
  * Nothing here closes a workspace or a tab — the one pane closed is either
- * named by its caller or the root pane of a tab `startAgent` just made and
- * could not start its agent in — and nothing here focuses — a
+ * named by its caller or the pane `startAgent` just made, by a new tab or a
+ * split, and could not start its agent in — and nothing here focuses — a
  * focused tab is marked seen, which turns a `done` yan would be woken by into
  * an `idle` it ignores.
  */
@@ -36,7 +38,7 @@ export interface TerminalOptions {
    */
   readonly settleMs?: number;
   /**
-   * How long `startAgent` keeps asking a new tab's pane to take its agent
+   * How long `startAgent` keeps asking a new pane to take its agent
    * while herdr answers that the pane is not at its shell prompt yet, in
    * milliseconds.
    */
@@ -45,7 +47,7 @@ export interface TerminalOptions {
   readonly sleep?: (ms: number) => void;
 }
 
-/** How long a new tab's shell is given to reach its prompt. */
+/** How long a new pane's shell is given to reach its prompt. */
 const BUSY_RETRY_MS = 15000;
 
 /** The pause between asking a busy pane again. */
@@ -115,8 +117,9 @@ export class Terminal {
   }
 
   /**
-   * Create a tab in the container, carrying `env` and `cwd`, and start an
-   * agent in its pane. Does not focus.
+   * Make a pane carrying `env` and `cwd` — a new tab in the container, or,
+   * with `split`, the new half of that pane — and start an agent in it. Does
+   * not focus.
    *
    * Only returns a pane whose agent was still alive a moment later — Herdr's
    * own readiness check is screen-based and matches a bare shell prompt too.
@@ -139,7 +142,7 @@ export class Terminal {
     if (options.kind === '') throw YanError.usage('term_usage', 'an agent kind is required');
     if (options.cwd === '') throw YanError.usage('term_usage', 'a working directory is required');
 
-    const pane = this.createTab(options);
+    const pane = options.split === undefined ? this.createTab(options) : this.splitPane(options.split, options);
     const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
     if (options.timeoutMs !== undefined) startArgs.push('--timeout', String(options.timeoutMs));
     // Everything after `--` reaches the agent as argv, with no shell in
@@ -150,8 +153,8 @@ export class Terminal {
     try {
       started = asRecord(this.startWhenReady(startArgs));
     } catch (err) {
-      // The pane came with the tab this call made, and it never took its
-      // agent, so it is not left behind as an empty tab.
+      // This call made the pane, and it never took its agent, so it is not
+      // left behind as an empty tab or an empty half of one.
       try {
         this.call(['pane', 'close', pane], 'pane close');
       } catch {
@@ -240,7 +243,7 @@ export class Terminal {
   }
 
   /**
-   * `agent start`, asked again while herdr says the pane is busy. A new tab's
+   * `agent start`, asked again while herdr says the pane is busy. A new pane's
    * shell takes a moment to reach its prompt, and herdr is the one that knows
    * when it has; nothing was started while it said busy, so asking again
    * cannot start a second agent.
@@ -498,6 +501,66 @@ export class Terminal {
       });
     }
     return agents;
+  }
+
+  /**
+   * The panes of the tab `pane` is in, and where each sits. `undefined` when
+   * Herdr cannot say, never a throw: a caller without a layout does what it
+   * did before there was one.
+   */
+  public tabLayout(pane: string): TabLayout | undefined {
+    if (!isPaneId(pane)) return undefined;
+    const result = this.run(['pane', 'layout', '--pane', pane]);
+    if (result.code !== 0) return undefined;
+    try {
+      const layout = asRecord(asRecord(asRecord(JSON.parse(result.stdout)).result).layout);
+      if (!Array.isArray(layout.panes)) return undefined;
+      const panes = [];
+      for (const entry of layout.panes) {
+        const listed = asRecord(entry);
+        const id = asString(listed.pane_id);
+        const rect = asRecord(listed.rect);
+        const [x, y, width, height] = [rect.x, rect.y, rect.width, rect.height];
+        if (id === '' || typeof x !== 'number' || typeof y !== 'number' ||
+            typeof width !== 'number' || typeof height !== 'number') return undefined;
+        panes.push({ pane: id, rect: { x, y, width, height } });
+      }
+      return { workspace: asString(layout.workspace_id), tab: asString(layout.tab_id), panes };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Split `at.pane` in half, carrying the agent's `env` and `cwd`, and answer
+   * with the new pane. A pane too small to split is Herdr's refusal and
+   * surfaces as one; it is never turned into a tab here.
+   *
+   * @throws YanError when `at.pane` is not a pane id, the split was refused,
+   *   or herdr reports no new pane.
+   */
+  private splitPane(at: SplitAt, options: StartAgentOptions): string {
+    requirePaneId(at.pane, 'pane split');
+    const args = [
+      'pane',
+      'split',
+      at.pane,
+      '--direction',
+      at.direction,
+      '--ratio',
+      '0.5',
+      '--no-focus',
+      '--cwd',
+      nativePath(options.cwd),
+    ];
+    for (const [key, value] of Object.entries(options.env ?? {})) {
+      args.push('--env', `${key}=${value}`);
+    }
+
+    const split = asRecord(this.call(args, 'pane split'));
+    const pane = asString(asRecord(split.pane).pane_id) || asString(split.pane_id);
+    if (pane === '') throw YanError.usage('term_usage', `herdr did not report the pane it split off ${at.pane}`);
+    return pane;
   }
 
   /**

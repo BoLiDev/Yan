@@ -329,6 +329,100 @@ describe('source 2: what herdr reports about the agent', () => {
   });
 });
 
+describe('blocked and done wake once per entry, across re-armed watchers', () => {
+  /** One watcher run, as the Stop hook arms it, then the drain the main agent does. */
+  async function turn(terminal: FakeTerminal, events = new FakeEvents(), seconds = 0.5): Promise<number> {
+    const result = await watch({ task: 't1', seconds, intervalSeconds: 0.05, terminal, events });
+    drainWake('t1');
+    return result.code;
+  }
+
+  it('wakes once for a done that sits there, however many turns go by', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.status.set('w1:p2', 'done');
+
+    expect(await turn(terminal)).toBe(0);
+    expect(readFileSync(join(run, 'woken'), 'utf8').trim()).toBe('done');
+    // Drained, and still done: the old behaviour woke again here.
+    expect(await turn(terminal)).toBe(124);
+    expect(await turn(terminal)).toBe(124);
+    expect(existsSync(sup.wake)).toBe(false);
+  });
+
+  it('wakes again for a done that left and came back, and clears the stamp in between', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.status.set('w1:p2', 'done');
+    expect(await turn(terminal)).toBe(0);
+
+    terminal.status.set('w1:p2', 'working');
+    expect(await turn(terminal)).toBe(124);
+    expect(existsSync(join(run, 'woken')), 'the stamp goes once the status moves on').toBe(false);
+
+    terminal.status.set('w1:p2', 'done');
+    expect(await turn(terminal)).toBe(0);
+  });
+
+  it('sees a done → working → done that happens inside one watcher run', async () => {
+    liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.status.set('w1:p2', 'done');
+    expect(await turn(terminal)).toBe(0);
+
+    // The next pass sees both events at once, and the map keeps only `done`.
+    const events = new FakeEvents();
+    const watcher = watch({ task: 't1', seconds: 5, intervalSeconds: 0.2, terminal, events });
+    setTimeout(() => {
+      events.emit('w1:p2', 'working');
+      events.emit('w1:p2', 'done');
+    }, 50);
+    const result = await watcher;
+    expect(result.code).toBe(0);
+    expect(result.reason).toContain('done: s1');
+  });
+
+  it('wakes for a blocked that follows a done', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.status.set('w1:p2', 'done');
+    expect(await turn(terminal)).toBe(0);
+
+    terminal.status.set('w1:p2', 'blocked');
+    const result = await watch({ task: 't1', seconds: 5, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    expect(result.code).toBe(0);
+    expect(result.reason).toContain('blocked: s1');
+    expect(readFileSync(join(run, 'woken'), 'utf8').trim()).toBe('blocked');
+  });
+
+  it('stamps a reason a stopped watcher wrote but never stamped, rather than repeating it', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.status.set('w1:p2', 'blocked');
+    sup.wakeWrite('blocked: s1 - herdr sees an approval or a question on its terminal');
+
+    const result = await watch({ task: 't1', seconds: 0.5, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    expect(result.code).toBe(124);
+    expect(readFileSync(join(run, 'woken'), 'utf8').trim()).toBe('blocked');
+  });
+
+  it('leaves a dead agent and a signal as they were', async () => {
+    const run = liveShift('s1');
+    const terminal = new FakeTerminal();
+    terminal.status.set('w1:p2', 'done');
+    expect(await turn(terminal)).toBe(0);
+
+    writeFileSync(join(run, 'signal'), '');
+    const signal = await watch({ task: 't1', seconds: 5, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    expect(signal.reason).toContain('signal: s1');
+    drainWake('t1');
+
+    terminal.alive.set('w1:p2', 'dead');
+    const died = await watch({ task: 't1', seconds: 5, intervalSeconds: 0.05, terminal, events: new FakeEvents() });
+    expect(died.reason).toContain('died: s1');
+  });
+});
+
 describe('source 3: the liveness poll that has no push channel', () => {
   it('reports an agent that died, and does not repeat an undrained reason', async () => {
     liveShift('s1');

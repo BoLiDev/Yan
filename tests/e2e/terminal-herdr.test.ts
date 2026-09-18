@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { Terminal } from '../../src/externals/herdr/index.js';
 import * as term from '../../src/externals/herdr/index.js';
 import { repoRoot } from '../helpers/fixtures.js';
+import { placeShift } from '../../src/cli/shared/placement.js';
 
 /**
  * The seven functions against a real Herdr session.
@@ -112,6 +113,49 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     });
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
     new Terminal().close(started.pane);
+  });
+
+  it('splits shifts into the right half of the main tab, where the rule says', () => {
+    const container = new Terminal().createContainer('yan-e2e-split', repoRoot);
+    const previous = created;
+    created = container.workspace;
+    if (previous !== undefined) {
+      spawnSync('herdr', ['workspace', 'close', previous], { encoding: 'utf8', windowsHide: true });
+    }
+    // The container's root pane stands in for the main agent's.
+    const main = container.pane;
+    const before = new Terminal().tabLayout(main);
+    expect(before?.workspace).toBe(container.workspace);
+    expect(before?.panes.map((p) => p.pane)).toEqual([main]);
+    const whole = before?.panes[0]?.rect;
+
+    // s1: the rule halves the main pane to the right.
+    const first = placeShift(main, before!, []);
+    expect(first).toEqual({ pane: main, direction: 'right' });
+    const s1 = new Terminal().startAgent({
+      container: container.workspace, split: first, name: 'yane2es1', kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
+    });
+    const afterOne = new Terminal().tabLayout(main);
+    const rect = (pane: string) => afterOne?.panes.find((p) => p.pane === pane)?.rect;
+    expect(afterOne?.tab, 'the same tab, not a new one').toBe(before?.tab);
+    expect(rect(s1.pane)?.x).toBeGreaterThan(rect(main)?.x ?? 0);
+    expect(Math.abs((rect(main)?.width ?? 0) * 2 - (whole?.width ?? 0))).toBeLessThanOrEqual(2);
+
+    // s2: under s1.
+    const second = placeShift(main, afterOne!, [{ sid: 's1', pane: s1.pane }]);
+    expect(second).toEqual({ pane: s1.pane, direction: 'down' });
+    const s2 = new Terminal().startAgent({
+      container: container.workspace, split: second, name: 'yane2es2', kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
+    });
+    const afterTwo = new Terminal().tabLayout(main);
+    const top = afterTwo?.panes.find((p) => p.pane === s1.pane)?.rect;
+    const bottom = afterTwo?.panes.find((p) => p.pane === s2.pane)?.rect;
+    expect(bottom?.x).toBe(top?.x);
+    expect(bottom?.y).toBeGreaterThan(top?.y ?? 0);
+
+    new Terminal().close(s2.pane);
+    new Terminal().close(s1.pane);
+    expect(new Terminal().tabLayout(main)?.panes.map((p) => p.pane)).toEqual([main]);
   });
 
   it('reports the installed version and the integrations, without claiming authority', () => {

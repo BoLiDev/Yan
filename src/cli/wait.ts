@@ -2,7 +2,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { Supervision, type WatcherState } from '../records/supervision/index.js';
-import { readPulse, writePulse } from '../records/shift/index.js';
+import { clearWoken, readPulse, readWoken, writePulse, writeWoken, type WokenFor } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { Terminal } from '../externals/herdr/index.js';
 import {
@@ -24,15 +24,18 @@ import { YanError } from '../util/error.js';
  *   agent-status  a Herdr subscription   blocked / done, seen from outside
  *   agent-alive   a liveness poll        the agent died and cannot say so
  *
- * A pure observer, holding no durable state: killing it loses nothing. It
- * writes only other people's channels — the wake file, the single-flight lock,
- * the beacon — plus each shift's `run/pulse`, which nothing here ever decides
- * from.
+ * An observer: killing it loses nothing. It writes other people's channels —
+ * the wake file, the single-flight lock, the beacon — and two of its own in
+ * each shift's `run/`: `run/pulse`, which nothing here ever decides from, and
+ * `run/woken`, the one piece of durable state it keeps.
  *
  * `signal` is edge-triggered, so its marker is removed once the reason is
- * written down. The others are level-triggered and stay true until somebody
- * acts, so an identical reason still undrained in the wake file suppresses a
- * second one.
+ * written down. `blocked` and `done` are made edges by `run/woken`: once a
+ * shift's status has woken the main agent it does not again until the status
+ * is seen to be something else, because the watcher is re-armed every turn and
+ * a shift can sit on `done` for hours. A dead agent is a level that stays true
+ * until somebody acts. For all of them an identical reason still undrained in
+ * the wake file suppresses a second one.
  *
  * `--drain` reads and clears the wake file on the way out, the way `yan drain`
  * does, so a checkpoint loop spends one call per event rather than two.
@@ -205,7 +208,14 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
 
       const live = sup.liveShifts().map(toWatched);
       takePulses(terminal, live);
-      for (const event of arrived.splice(0)) status.set(event.pane, event.status);
+      for (const event of arrived.splice(0)) {
+        status.set(event.pane, event.status);
+        // Per event, not per pass: a done → working → done between two passes
+        // is two entries into `done`, and the map only keeps the last.
+        for (const shift of live) {
+          if (shift.pane === event.pane) settle(shift.run, event.status);
+        }
+      }
       // Without a subscription the status has to be asked for: same facts, one
       // poll late.
       if (state !== 'subscribed') snapshot(terminal, status);
@@ -215,6 +225,7 @@ export async function watch(options: WatchOptions): Promise<WatchResult> {
         // Written down before the marker is consumed: a crash in between
         // repeats a wake, where the other order would lose one.
         sup.wakeWrite(found.reason);
+        if (found.woken !== undefined) writeWoken(found.woken.run, found.woken.status);
         if (found.consume !== undefined) rmSync(found.consume, { force: true });
         return { code: 0, reason: found.reason };
       }
@@ -269,6 +280,8 @@ interface Found {
   readonly reason: string;
   /** A file to remove once the reason is safely written down. */
   readonly consume?: string;
+  /** The status to stamp into `run/woken` once the reason is written down. */
+  readonly woken?: { readonly run: string; readonly status: WokenFor };
 }
 
 /**
@@ -279,7 +292,9 @@ interface Found {
  *   done     → wake, to look; never a verdict
  *   idle | working | unknown  → not actionable
  *
- * A reason already waiting undrained in the wake file is skipped.
+ * `blocked` and `done` wake once per entry: a status already in `run/woken` is
+ * skipped, and any other status seen clears the stamp. A reason already waiting
+ * undrained in the wake file is skipped as well.
  */
 function look(
   sup: Supervision,
@@ -312,22 +327,35 @@ function look(
     }
 
     const seen = status.get(shift.pane);
-    if (seen === 'blocked') {
-      const reason = `blocked: ${shift.sid} - herdr sees an approval or a question on its terminal`;
-      if (!sup.wakeHas(reason)) return { reason };
+    if (seen === undefined) continue;
+    settle(shift.run, seen);
+    if (seen !== 'blocked' && seen !== 'done') continue;
+    if (readWoken(shift.run) === seen) continue;
+
+    const reason =
+      seen === 'blocked'
+        ? `blocked: ${shift.sid} - herdr sees an approval or a question on its terminal`
+        : // A plan-approval prompt also arrives as `done`, so this is a
+          // reason to look and never a verdict.
+          `done: ${shift.sid} - herdr reports unseen work finished. Look before acting: ` +
+          `a shift clocks out only once its merge request has merged into the integration branch`;
+    if (sup.wakeHas(reason)) {
+      // Written by a watcher that stopped before it could stamp it.
+      writeWoken(shift.run, seen);
       continue;
     }
-    if (seen === 'done') {
-      // A plan-approval prompt also arrives as `done`, so this is a reason to
-      // look and never a verdict.
-      const reason =
-        `done: ${shift.sid} - herdr reports unseen work finished. Look before acting: ` +
-        `a shift clocks out only once its merge request has merged into the integration branch`;
-      if (!sup.wakeHas(reason)) return { reason };
-      continue;
-    }
+    return { reason, woken: { run: shift.run, status: seen } };
   }
   return undefined;
+}
+
+/**
+ * Forget the wake a shift's status was stamped with once the status is seen to
+ * be something else, so its next `blocked` or `done` is news.
+ */
+function settle(run: string, seen: AgentStatus): void {
+  const woken = readWoken(run);
+  if (woken !== undefined && woken !== seen) clearWoken(run);
 }
 
 /**
