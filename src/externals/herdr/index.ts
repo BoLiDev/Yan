@@ -26,7 +26,11 @@ export type {
   Container,
   HerdrHealth,
   ListedAgent,
+  PaneRect,
   ReadSource,
+  SplitAt,
+  SplitDirection,
   StartAgentOptions,
   StartedAgent,
+  TabLayout,
 } from './types.js';

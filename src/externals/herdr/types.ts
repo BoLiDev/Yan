@@ -32,8 +32,38 @@ export interface ListedAgent {
   readonly agent_session?: string;
 }
 
+/** Which way a split puts the new pane: beside its target, or under it. */
+export type SplitDirection = 'right' | 'down';
+
+/** Start the agent in a new pane split off `pane`, rather than in a new tab. */
+export interface SplitAt {
+  readonly pane: string;
+  readonly direction: SplitDirection;
+}
+
+/** Where a pane sits in its tab, in cells. */
+export interface PaneRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** The panes of one tab and where each sits, as `pane layout` reports them. */
+export interface TabLayout {
+  readonly workspace: string;
+  readonly tab: string;
+  readonly panes: readonly { readonly pane: string; readonly rect: PaneRect }[];
+}
+
 export interface StartAgentOptions {
+  /** The workspace a new tab is made in. Unused when `split` is given. */
   readonly container: string;
+  /**
+   * Split this pane and start the agent in the new half, instead of making a
+   * tab in `container`.
+   */
+  readonly split?: SplitAt;
   readonly name: string;
   readonly kind: string;
   readonly cwd: string;
@@ -47,7 +77,7 @@ export interface StartAgentOptions {
    */
   readonly prompt?: string;
   readonly timeoutMs?: number;
-  /** What to call the agent's tab. Display only. */
+  /** What to call the agent's tab. Display only, and unused for a split. */
   readonly label?: string;
 }
 

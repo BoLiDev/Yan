@@ -27,7 +27,7 @@ Under Herdr it is backwards. Herdr *is* the multiplexer, and it is where `user` 
    choosing "create new task" walks the create prompts, then does the same
 ```
 
-Step 4 is where the change bites. The MVP would have made a session; V2 starts the main agent **in the pane the user typed in**. A shift dispatched later becomes a sibling **tab** in that same workspace via `tab create --no-focus`, so the task stays one thing to look at and `user`'s focus never moves ([terminal.md §1](terminal.md#1-topology)).
+Step 4 is where the change bites. The MVP would have made a session; V2 starts the main agent **in the pane the user typed in**. A shift dispatched later becomes a **split** of that pane's tab via `pane split --no-focus` — the main agent keeps the left half, the shifts share the right — so the task stays one thing to look at and `user`'s focus never moves ([terminal.md §1](terminal.md#1-topology)).
 
 ### Bare `yan`
 

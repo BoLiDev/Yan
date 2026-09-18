@@ -3,7 +3,9 @@ import { paneOfEnterLock } from './enter-lock.js';
 
 /**
  * Which terminal container a task's work belongs in: one workspace per task,
- * holding the main agent's pane and a tab per shift.
+ * holding the main agent's pane with each shift in a split of that pane's tab
+ * (`placement.ts` says where), or in a tab of its own when the main agent's
+ * tab cannot be read.
  *
  * Answered by id and never by label, which Herdr does not keep unique — first
  * from what a live shift of this task recorded, then from the workspace the

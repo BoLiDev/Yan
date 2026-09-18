@@ -7,21 +7,23 @@
 
 ## 1. Topology
 
-The MVP's concept table survives; only the middle row moves.
+The MVP's concept table survives; only the middle row moves, and it has moved twice.
 
 | Concept | tmux (MVP) | Herdr (V2) |
 | --- | --- | --- |
 | the `task` container | session | **workspace** |
-| one agent | window | **tab** (one pane in it) |
+| one agent | window | **pane** — a split of the main agent's tab |
 | a terminal | pane | pane |
 
-One task is one workspace, and everything the task has on screen is inside it: the main agent in the pane `user` typed in, and each shift in a tab of its own beside it. `user` watches one workspace and sees the whole task.
+One task is one workspace, and everything the task has on screen is inside it: the main agent in the pane `user` typed in, and each shift in a split of that pane's tab. `user` watches one tab and sees the whole task.
 
 **Which workspace is resolved, never searched for.** Herdr does not enforce that workspace labels are unique, so a label can never decide where a shift goes — a search for `t103 alter blade` can find `user`'s own workspace that happens to carry it. `src/cli/shared/container.ts` owns the order: the container a live shift of this task recorded, then the workspace the main agent's pane is in (stamped on the enter lock by `yan continue`), then — only for a `yan` running outside Herdr, or one whose pane has gone — a created one. Both of the first two answers are ids.
 
-**A tab per agent is a deliberate departure from Herdr's default**, which is *"Default to a sibling pane in the current tab… Do not create a workspace, tab, worktree, or different cwd unless the user explicitly requests that topology"* (`herdr --skill`; see [sources.md](sources.md) for why that file outranks the website on protocol). `user` requested it, which is the exception that guidance names. The reason is legibility at four shifts: splitting gives the fourth agent a quarter of the window, while tabs cost a keystroke to switch between and stay whole-screen however many are running.
+**Shifts share the right half of the main agent's tab.** This is Herdr's own default — *"Default to a sibling pane in the current tab"* (`herdr --skill`; see [sources.md](sources.md) for why that file outranks the website on protocol) — and `user` asked for it. It replaces an earlier decision to give every shift a tab of its own, whose reason was legibility at four shifts: splitting freely gives the fourth agent a sliver of the window. The answer to that is a fixed shape rather than tabs. The main agent keeps the left half however many shifts run, and the shifts divide the right half between them, the largest shift pane halved each time, alternating `down` and `right` so every pane stays close to the shape of the one it came from. `src/cli/shared/placement.ts` owns the rule and says it exactly; it reads the tab as it is (`pane layout`), not a count of shifts, so it keeps working after panes close in any order.
 
-Container lifetime is unchanged: `user` opens and closes it. `yan` never closes a workspace, a tab, or a pane it did not create. A shift's tab needs no exception to that — closing its one pane empties the tab and Herdr removes the tab itself, so `tab close` stays unspelled (`pane close` on a tab's only pane leaves the workspace intact; measured on 0.8.0-preview, protocol 19).
+A shift still gets a tab of its own when there is no tab to split: the main agent's pane is not on the enter lock, Herdr will not give its layout, or it is in a different workspace than the task's container. That is the path a `yan` outside Herdr takes. A pane too small to split is not one of those: Herdr's refusal surfaces as the dispatch failing, because a silent tab would hide that the tab is full.
+
+Container lifetime is unchanged: `user` opens and closes it. `yan` never closes a workspace, a tab, or a pane it did not create. A shift's pane needs no exception to that — closing a split pane gives its space to its sibling, and closing a tab's only pane empties the tab and Herdr removes the tab itself, so `tab close` stays unspelled (`pane close` on a tab's only pane leaves the workspace intact; measured on 0.8.0-preview, protocol 19).
 
 ---
 
@@ -30,7 +32,7 @@ Container lifetime is unchanged: `user` opens and closes it. `yan` never closes 
 | Function | Herdr | Note |
 | --- | --- | --- |
 | `term_container_create` | `workspace create` → `.result.workspace` / `.tab` / `.root_pane` | the last resort of container resolution, not the normal path; `yan` joins the workspace it is already in |
-| `term_agent_start` | `tab create --workspace <w> --cwd <leased tree> --label <sid-unit> --no-focus --env …` → `agent start <name> --kind <k> --pane <root_pane>` → **confirm** | **three steps.** `agent start` requires an existing pane already at an interactive prompt and never creates layout. A new tab comes with exactly one pane, reported as `.result.root_pane`, and that is the pane the agent starts in. The container is addressed by id, so unlike a split this needs no existing pane to work from. The confirm step is not optional either — see below |
+| `term_agent_start` | `pane split <target> --direction right\|down --ratio 0.5 --no-focus --cwd <leased tree> --env …` → `agent start <name> --kind <k> --pane <new pane>` → **confirm**; without a target, `tab create --workspace <w> --cwd … --label <sid-unit> --no-focus --env …` in place of the split | **three steps.** `agent start` requires an existing pane already at an interactive prompt and never creates layout. The split answers with its new pane as `.result.pane`; a new tab comes with exactly one pane, reported as `.result.root_pane`. Either way that is the pane the agent starts in, and the one closed again if it never does. The target is chosen by reading `pane layout --pane <main>` (§1). The confirm step is not optional either — see below |
 | `term_send` | `agent prompt <target> <text> [--wait]` | atomic: text and Enter in one submission, honouring the pane's live bracketed-paste mode |
 | `term_read` | `agent read <target> --source <s> --lines N` | `s ∈ visible \| recent \| recent-unwrapped \| detection`; use `recent-unwrapped` for transcripts |
 | `term_agent_alive` | `agent get` + `pane get` — see [§5](#5-alive-dead-unknown) | the one function that needs more than a single call |
@@ -45,7 +47,7 @@ Three things `term_agent_start` gains that are worth naming, because each delete
 
    **And there is a second failure the guards cannot see, which is the more common one.** An agent that is *parked on a first-run prompt* is alive by every question this seam can ask: `agent get` finds it, `agentAlive` says `alive`, and `interactive_ready` was true. Only the agent's own lifecycle state distinguishes it, and only when Herdr's manifest recognises the prompt — which for Codex's hook-review gate it does not ([evidence §13.3](evidence.md#133-which-of-codexs-prompts-herdr-recognises)). `startAgent` confirming the agent is *there* is not, and cannot be made into, a promise that it is *working*.
 2. **Arguments are an argv array, not a command line.** `agent start … -- --append-system-prompt "…"` echoes back `argv: ["claude","--append-system-prompt","…"]`. No shell in between, so no quoting layer.
-3. **`--env KEY=VALUE` on `tab create`** carries `YAN_TASK`, `YAN_TASK_DIR` and friends into the shift's environment without a wrapper script.
+3. **`--env KEY=VALUE` on `pane split` and `tab create`** carries `YAN_TASK`, `YAN_TASK_DIR` and friends into the shift's environment without a wrapper script.
 
 Herdr recognises 21 agent kinds, including `claude` and `codex`. `conf/config.json`'s `agents.shift` maps onto `--kind` plus trailing argv.
 
