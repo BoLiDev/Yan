@@ -124,12 +124,12 @@ This is what Herdr has and tmux does not, and it is the reason the supervision d
 | State | Herdr's definition | What `yan` does with it |
 | --- | --- | --- |
 | `working` | the agent is mid-turn | nothing; this is the normal case |
-| `idle` | ready for input, **and** its tab has been seen in the focused UI | nothing |
+| `idle` | ready for input, **and** its pane has been focused in the UI | nothing |
 | `done` | the same underlying idle state, after **unseen** background work finished | a shift finished something while `user` was not looking → wake `yan` |
 | `blocked` | Herdr recognised an approval or question UI | escalate: this is a `needs-decision` that the shift did not have to remember to report |
 | `unknown` | an agent is present but Herdr cannot classify it confidently | **not** a completion signal; treat as no information |
 
-`done` versus `idle` turns on whether the tab has been *seen*. Focusing it marks it seen; a CLI read does not. That is exactly the semantics `yan` wants — "there is something here you have not looked at" — and `yan` must therefore keep reading with `agent read` and never with `agent focus`, or it will mark its own escalations as seen.
+`done` versus `idle` turns on whether the *pane* has been focused, not the tab it sits in. Focusing the pane marks it seen; a CLI read does not. That was measured on 2026-09-18: a claude agent started with `--no-focus` in a `pane split` of the focused main pane went `working` → `done` when it finished, with `focused: false` on the pane, although its tab was the one on screen the whole time. It is what lets shifts live in the main agent's tab ([§1](#1-topology)) without a finished shift coming back as `idle`. That is exactly the semantics `yan` wants — "there is something here you have not looked at" — and `yan` must therefore keep reading with `agent read` and never with `agent focus`, or it will mark its own escalations as seen.
 
 `blocked` is the single most valuable state in this document. [supervision.md](../../mvp/td/supervision.md) records that forgetting to report is the most common agent failure; `blocked` is an external observation of exactly that failure, so it no longer depends on the shift's cooperation.
 

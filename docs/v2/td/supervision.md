@@ -76,11 +76,11 @@ The seam translates; `yan wait` decides. The mapping is small enough to state co
 | `agent_status → blocked` | `blocked: <sid>` | the shift is sitting on an approval or a question |
 | `agent_status → done` | `done: <sid>` | unseen work finished; `yan` should look — **but see below** |
 | `pane_exited` | `died: <sid>` | the agent is gone and could not report |
-| `agent_status → idle` | *not actionable* | it was seen; `user` is already looking at it |
+| `agent_status → idle` | *not actionable* | its pane was focused; `user` is already looking at it |
 | `agent_status → working` | *not actionable* | normal |
 | `agent_status → unknown` | *not actionable* | explicitly not a completion signal |
 
-`idle` being non-actionable is deliberate and is the subtle half of the `done` / `idle` split: if the tab has been seen, `user` already knows. This also means **`yan` must never call `agent focus` on a shift's pane**, because focusing marks it seen and converts a `done` it was about to be woken by into an `idle` it will ignore. Reading with `agent read` does not mark it seen. This is a real footgun and belongs in the seam as a comment, not only here.
+`idle` being non-actionable is deliberate and is the subtle half of the `done` / `idle` split: if the pane has been focused, `user` already knows. Seen is per pane, not per tab: a shift in a split of the tab `user` is looking at still reports `done` ([terminal.md §6](terminal.md#6-agent-lifecycle-states)). This also means **`yan` must never call `agent focus` on a shift's pane**, because focusing marks it seen and converts a `done` it was about to be woken by into an `idle` it will ignore. Reading with `agent read` does not mark it seen. This is a real footgun and belongs in the seam as a comment, not only here.
 
 ### `done` does not mean finished
 

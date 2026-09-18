@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
   cleanupTempDirs,
@@ -406,8 +406,51 @@ describe('the task memory reaches the session', () => {
     expect(r.stdout).not.toContain('── user');
   });
 
+  it("says in one line that there are no drafts, and creates no folder for them", async () => {
+    const r = await runYan(home, ['session-start', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain("── drafts  none yet (user writes them with 'yan draft')");
+    expect(r.stdout.indexOf('── drafts'), 'after the brief').toBeGreaterThan(r.stdout.indexOf('── brief'));
+    expect(r.stdout.indexOf('── drafts'), 'before the log').toBeLessThan(r.stdout.indexOf('── log'));
+    expect(existsSync(join(home, 'tasks', 't042', 'artifacts', 'drafts'))).toBe(false);
+  });
+
+  it("lists the newest ten of user's drafts by id, date and title, and none of their text", async () => {
+    const dir = join(home, 'tasks', 't042', 'artifacts', 'drafts');
+    mkdirSync(dir, { recursive: true });
+    for (let i = 0; i < 12; i += 1) {
+      const id = `2026-09-${String(i + 1).padStart(2, '0')}_090000`;
+      const file = join(dir, `${id}.md`);
+      writeFileSync(file, `# note ${i}\n\nthe body of note ${i}\n`);
+      const t = new Date(2026, 8, i + 1, 9, 0, 0).getTime() / 1000;
+      utimesSync(file, t, t);
+    }
+
+    const r = await runYan(home, ['session-start', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('── drafts  10 of 12');
+    expect(r.stdout).toContain("user's own notes about this task");
+    expect(r.stdout).toContain('yan draft cat <id>');
+    expect(r.stdout).toContain('  2026-09-12_090000  2026-09-12 09:00  note 11');
+    expect(r.stdout).toContain('note 2\n');
+    expect(r.stdout, 'only the newest ten').not.toContain('note 1\n');
+    expect(r.stdout, 'an index, not the text').not.toContain('the body of note');
+  });
+
+  it('leaves the drafts out of --json, which carries the queue rather than the memory', async () => {
+    const dir = join(home, 'tasks', 't042', 'artifacts', 'drafts');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, '2026-09-16_051516.md'), '# a note\n');
+    const r = await runYan(home, ['session-start', 't042', '--json']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).not.toContain('a note');
+    expect(Object.keys(JSON.parse(r.stdout) as object).sort()).toEqual(['home', 'repos', 'tasks', 'version']);
+  });
+
   it('still writes nothing', async () => {
     logLines(['- 08-01  agreed     x']);
+    mkdirSync(join(home, 'tasks', 't042', 'artifacts', 'drafts'), { recursive: true });
+    writeFileSync(join(home, 'tasks', 't042', 'artifacts', 'drafts', '2026-09-16_051516.md'), '# a note\n');
     const before = snapshot();
     await runYan(home, ['session-start', 't042']);
     expect(snapshot()).toBe(before);

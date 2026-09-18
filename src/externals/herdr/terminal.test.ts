@@ -130,7 +130,7 @@ describe('yan never calls agent focus on a shift pane', () => {
   const source = seamSource();
 
   it('the string is absent from the seam', () => {
-    // Focusing marks the tab seen, which turns the `done` yan was about to be
+    // Focusing marks the pane seen, which turns the `done` yan was about to be
     // woken by into an `idle` it ignores.
     expect(source).not.toMatch(/'agent',\s*'focus'/);
     expect(source).not.toContain('agent focus');
