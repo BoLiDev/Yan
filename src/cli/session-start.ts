@@ -11,6 +11,8 @@ import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
+import { Drafts } from '../records/drafts/index.js';
+import { localStamp } from './draft.js';
 import { memDir, vaultDir } from '../util/vault.js';
 import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
@@ -220,6 +222,9 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
 /** How many of the most recent log entries a session starts with. */
 export const LOG_TAIL = 20;
 
+/** How many of the newest drafts a session starts with. */
+export const DRAFTS_SHOWN = 10;
+
 /** The log entries a session starts with in full, however old. */
 const LOG_KEPT: readonly LogType[] = ['agreed', 'changed'];
 
@@ -229,6 +234,27 @@ function readTrimmed(file: string): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * `user`'s drafts: how many, and the newest by id, date and title. Their text
+ * stays out, since a draft is read when it looks relevant rather than every
+ * session.
+ */
+function renderDrafts(id: string): void {
+  const drafts = new Drafts(id);
+  const total = drafts.count();
+  out('');
+  if (total === 0) {
+    out("── drafts  none yet (user writes them with 'yan draft')");
+    return;
+  }
+  const shown = drafts.list({ limit: DRAFTS_SHOWN });
+  out(`── drafts  ${shown.length < total ? `${shown.length} of ${total}` : `${total}`}  ${drafts.dir}`);
+  out("user's own notes about this task, written outside this conversation. Read one");
+  out("with 'yan draft cat <id>' when it looks relevant; yan never writes them.");
+  out('');
+  for (const d of shown) out(`  ${d.id}  ${localStamp(d.updated)}  ${d.title}`);
 }
 
 /**
@@ -243,6 +269,8 @@ function renderMemory(id: string): void {
   out('What this task delivers, as it stands now.');
   out('');
   out(readTrimmed(join(record.dir, 'brief.md')) || '(empty)');
+
+  renderDrafts(id);
 
   const log = new Log(id).excerpt(LOG_KEPT, LOG_TAIL);
   out('');
@@ -376,9 +404,9 @@ export const command = new Command('session-start')
   (no id)   the task in $YAN_TASK, or every task when that is unset
   --all     every task, even when $YAN_TASK is set
 
-For one task it also prints what the task remembers: brief.md, every agreed
-and changed entry in log.md with the last ${LOG_TAIL} of any kind, the index of
-mem/learnings/, and mem/user.md.
+For one task it also prints what the task remembers: brief.md, the newest
+${DRAFTS_SHOWN} of user's drafts, every agreed and changed entry in log.md with
+the last ${LOG_TAIL} of any kind, the index of mem/learnings/, and mem/user.md.
 
 A source that cannot be reached is reported as \`unknown\` rather than being
 treated as an error: a fresh machine has no Herdr server yet, and a train has

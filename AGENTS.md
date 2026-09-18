@@ -67,6 +67,8 @@ yan land --user-asked              merge the outbound MR into target
 yan done [<id>] [--force]          mark the task done and give its trees back
 yan log <type> "<line>"            record what no command records (Memory)
 yan wait [--seconds N]             watch the live shifts · yan drain reads what it wrote
+yan draft cat <draft-id>           read one of user's drafts · yan draft ls --plain lists them,
+                                   yan draft search <words...> finds them; user alone writes them
 ```
 
 ## Authority
@@ -207,6 +209,7 @@ this turn, before you reply.
 | `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
 | `task.json` | each unit's branch, target, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
 | `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
+| `artifacts/drafts/` | `user`'s own notes about the task, written outside the conversation: ideas, scratch, what to raise | by `user` only, with `yan draft`; never by you or a shift | session start lists the newest; `yan draft cat <id>` when one looks relevant |
 | `mem/learnings/` | what to do when X happens, true beyond this task | see below | its index at session start and in every shift's brief; a file when a problem matches it |
 | `mem/user.md` | judgements about `user` | only when `user` asks | session start |
 

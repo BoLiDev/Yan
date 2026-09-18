@@ -23,6 +23,7 @@ A vault is *not* a workspace and not a worktree — those words are taken, and t
       brief.md             what user asked for
       log.md               the task's story: typed lines, append-only
       artifacts/           by-products: research, prototypes, designs, screenshots
+        drafts/            user's own notes about the task, written with `yan draft`; never by yan
       shifts/
         s1/
           brief.md         what the shift was told
