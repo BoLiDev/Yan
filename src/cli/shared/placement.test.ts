@@ -19,6 +19,20 @@ function freshTab(): Tab {
   return { rects: new Map([[MAIN, { x: 0, y: 0, width: 240, height: 64 }]]), shifts: [] };
 }
 
+const USER = 'w1:pu';
+
+/** Main on one half of the tab, `user`'s own shell on the other. */
+function tabWithUser(side: 'right' | 'left'): Tab {
+  const [mainX, userX] = side === 'right' ? [0, 120] : [120, 0];
+  return {
+    rects: new Map([
+      [MAIN, { x: mainX, y: 0, width: 120, height: 64 }],
+      [USER, { x: userX, y: 0, width: 120, height: 64 }],
+    ]),
+    shifts: [],
+  };
+}
+
 function layoutOf(tab: Tab): TabLayout {
   return { workspace: 'w1', tab: 'w1:t1', panes: [...tab.rects].map(([pane, rect]) => ({ pane, rect })) };
 }
@@ -45,7 +59,7 @@ function dispatch(tab: Tab, sid: string): string {
   const at = placeShift(MAIN, layoutOf(tab), tab.shifts);
   if (at === undefined) throw new Error('the rule declined');
   split(tab, at, sid);
-  const target = at.pane === MAIN ? 'main' : at.pane.replace('w1:p', '');
+  const target = at.pane === MAIN ? 'main' : at.pane === USER ? 'user' : at.pane.replace('w1:p', '');
   return `${sid}: ${target} ${at.direction}`;
 }
 
@@ -55,7 +69,7 @@ function dispatch(tab: Tab, sid: string): string {
  */
 function close(tab: Tab, sid: string, sibling: string): void {
   const pane = `w1:p${sid}`;
-  const into = sibling === 'main' ? MAIN : `w1:p${sibling}`;
+  const into = sibling === 'main' ? MAIN : sibling === 'user' ? USER : `w1:p${sibling}`;
   const gone = tab.rects.get(pane);
   const r = tab.rects.get(into);
   if (gone === undefined || r === undefined) throw new Error(`no pane ${pane} or ${into}`);
@@ -133,5 +147,68 @@ describe('where a shift goes in the main agent tab', () => {
   it('declines when the main pane is not in the layout, so the caller makes a tab', () => {
     const tab = freshTab();
     expect(placeShift('w1:p7', layoutOf(tab), [])).toBeUndefined();
+  });
+});
+
+describe("where a shift goes when the tab holds a pane of user's", () => {
+  it("puts s1 under user's pane and leaves the main pane its half", () => {
+    const tab = tabWithUser('right');
+    const steps = ['s1', 's2', 's3', 's4', 's5'].map((sid) => dispatch(tab, sid));
+    expect(steps).toEqual([
+      's1: user down',
+      // s1 is a quarter of the tab, one halving from main's half: beside.
+      's2: s1 right',
+      's3: s1 down',
+      's4: s2 down',
+      's5: s1 right',
+    ]);
+    expect(tab.rects.get(MAIN)).toEqual({ x: 0, y: 0, width: 120, height: 64 });
+    // user's pane is split once, and not again while shift panes are there.
+    expect(tab.rects.get(USER)).toEqual({ x: 120, y: 0, width: 120, height: 32 });
+    expect(tab.rects.get('w1:ps1')).toEqual({ x: 120, y: 32, width: 30, height: 16 });
+  });
+
+  it("splits user's pane when it is on the left of main", () => {
+    const tab = tabWithUser('left');
+    expect(['s1', 's2'].map((sid) => dispatch(tab, sid))).toEqual(['s1: user down', 's2: s1 right']);
+    expect(tab.rects.get(MAIN)).toEqual({ x: 120, y: 0, width: 120, height: 64 });
+    expect(tab.rects.get('w1:ps1')).toEqual({ x: 0, y: 32, width: 60, height: 32 });
+  });
+
+  it("splits the larger of two panes of user's", () => {
+    const layout: TabLayout = {
+      workspace: 'w1',
+      tab: 'w1:t1',
+      panes: [
+        { pane: MAIN, rect: { x: 0, y: 0, width: 120, height: 64 } },
+        { pane: 'w1:pa', rect: { x: 120, y: 0, width: 120, height: 24 } },
+        { pane: 'w1:pb', rect: { x: 120, y: 24, width: 120, height: 40 } },
+      ],
+    };
+    expect(placeShift(MAIN, layout, [])).toEqual({ pane: 'w1:pb', direction: 'down' });
+  });
+
+  it("breaks a tie between user's panes by position, top then left", () => {
+    const layout: TabLayout = {
+      workspace: 'w1',
+      tab: 'w1:t1',
+      panes: [
+        { pane: MAIN, rect: { x: 0, y: 0, width: 120, height: 64 } },
+        { pane: 'w1:pa', rect: { x: 120, y: 32, width: 120, height: 32 } },
+        { pane: 'w1:pb', rect: { x: 120, y: 0, width: 120, height: 32 } },
+      ],
+    };
+    expect(placeShift(MAIN, layout, [])).toEqual({ pane: 'w1:pb', direction: 'down' });
+  });
+
+  it("goes back under user's pane once every shift pane is gone", () => {
+    const tab = tabWithUser('right');
+    dispatch(tab, 's1');
+    dispatch(tab, 's2');
+    close(tab, 's2', 's1');
+    close(tab, 's1', 'user');
+    expect(tab.rects.get(USER)).toEqual({ x: 120, y: 0, width: 120, height: 64 });
+    expect(dispatch(tab, 's3')).toBe('s3: user down');
+    expect(tab.rects.get(MAIN)).toEqual({ x: 0, y: 0, width: 120, height: 64 });
   });
 });
