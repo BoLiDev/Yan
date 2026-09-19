@@ -82,8 +82,9 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(existsSync(join(home, 'tasks', 't001', 'task.json'))).toBe(true);
     const d = await detail('t001');
     expect(d.title).toBe('unify the auth header');
-    expect(readFileSync(join(home, 'tasks', 't001', 'brief.md'), 'utf8')).toContain(
-      'the same header, everywhere',
+    // The description goes under the brief's Description, above an empty Deliverables.
+    expect(readFileSync(join(home, 'tasks', 't001', 'brief.md'), 'utf8')).toBe(
+      '# t001 unify the auth header\n\n## Description\n\nthe same header, everywhere\n\n## Deliverables\n',
     );
     expect(readFileSync(join(home, 'tasks', 't001', 'log.md'), 'utf8')).toContain('task created');
 
@@ -123,6 +124,12 @@ describe('the id', () => {
 
     expect((await yan(['task', 'new', '--title', 'after t042', '--repo', 'proto', '--target', 'main'])).code).toBe(0);
     expect(existsSync(join(home, 'tasks', 't043', 'task.json'))).toBe(true);
+  });
+
+  it('seeds the brief with both headings and an empty Description when there is no --description', () => {
+    expect(readFileSync(join(home, 'tasks', 't002', 'brief.md'), 'utf8')).toBe(
+      '# t002 something else\n\n## Description\n\n## Deliverables\n',
+    );
   });
 
   it('refuses an id that is already taken, before anything is written', async () => {
