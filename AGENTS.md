@@ -54,6 +54,8 @@ reads, and the few a person runs from anywhere take the id as an argument instea
 yan session-start                  rebuild the picture (run at startup)
 yan ls                             the queue
 yan show [<id>]                    one task at a glance: session, branches, trees, shifts, log
+yan ui [--since D] [--until D]     the work report user shows people, as one HTML page; D is
+                                   YYYY-MM-DD, so "the past month" is dates you work out
 yan task new --title … --repo …    create a task and enter it
 yan unit add | set                 a unit's branch, target, scope, needs
 yan shift new --unit --scenario [--tier]   dispatch a shift
@@ -225,6 +227,11 @@ three marks: `- [ ]` to do, `- [x]` delivered, with the date, `- [-]` decided ag
 with the reason. A `[-]` line stays, since it stops the next session raising the same
 thing again. That line is also the only record of what is not being done: there is no
 separate section for it, and an item goes back to `[ ]` when `user` changes their mind.
+A deliverable states the outcome, what exists once it is done, in a sentence or two
+someone outside the task can read: the goal and what was achieved, not the work, because
+`yan ui` prints these lines to people. A delivered one is `- [x] MM-DD · PR #n · text`,
+with the reference only when one merge request delivered it, and nothing else before the
+text. Which shift did it, how it was verified and what is still in doubt go in `log.md`.
 
 **`log.md`.** Six kinds of line. Log in the turn the event happens.
 
