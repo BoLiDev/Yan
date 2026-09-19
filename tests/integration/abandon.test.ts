@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo, runYan } from '../helpers/fixtures.js';
-import { abandonShift, abandonTask, type AbandonDeps } from '../../src/cli/abandon.js';
+import { abandonAtTerminal, abandonShift, abandonTask, type AbandonAsk, type AbandonDeps } from '../../src/cli/abandon.js';
+import { YanError } from '../../src/util/error.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 import type { LeaseRow, ReturnOptions } from '../../src/externals/worktree/index.js';
@@ -193,8 +194,8 @@ describe('yan abandon', () => {
     expect(task.complete).toBe(true);
     expect(log()).toMatch(/changed {4}task abandoned; s1 s2 torn down; 3 merge request\(s\) closed — the client cancelled it/);
 
-    const listed = await runYan(home, ['ls']);
-    expect(listed.stdout).toMatch(/t042 +abandoned/);
+    const listed = await runYan(home, ['ls', '--status', 'all']);
+    expect(listed.stdout).toMatch(/^ t042 {2}.* {2}abandoned {2}/m);
     const shown = await runYan(home, ['show', 't042']);
     expect(shown.stdout).toContain('✗ abandoned');
   });
@@ -206,5 +207,119 @@ describe('yan abandon', () => {
     new Task('t042').setAbandoned();
     expect(attempt(() => abandonTask({ task: 't042', userAsked: true, reason: 'x' }, deps())).message).toContain('already abandoned');
     expect(calls).toEqual([]);
+  });
+});
+
+describe('yan abandon at a terminal', () => {
+  /** A person who answers `answers`, and a record of what they were asked. */
+  function person(answers: { task?: string; reason?: string; yes?: boolean; cancelAt?: 'task' | 'reason' | 'confirm' }): AbandonAsk & { asked: string[]; plan: string[] } {
+    const asked: string[] = [];
+    const plan: string[] = [];
+    const cancel = (what: string): never => {
+      throw new YanError('ui_cancelled', `cancelled - ${what}`);
+    };
+    return {
+      asked,
+      plan,
+      task: async () => {
+        asked.push('task');
+        return answers.cancelAt === 'task' ? cancel('task') : (answers.task ?? 't042');
+      },
+      reason: async () => {
+        asked.push('reason');
+        return answers.cancelAt === 'reason' ? cancel('reason') : (answers.reason ?? '');
+      },
+      confirm: async (title, lines) => {
+        asked.push(`confirm ${title}`);
+        plan.push(...lines);
+        return answers.cancelAt === 'confirm' ? cancel('confirm') : (answers.yes ?? false);
+      },
+    };
+  }
+
+  function untouched(dir: string): void {
+    expect(existsSync(join(dir, 'run'))).toBe(true);
+    expect(calls).toEqual([]);
+    expect(new Task('t042').read().abandoned).toBeFalsy();
+    expect(log()).not.toContain('abandoned');
+  }
+
+  it('asks which task, why, and for a yes, then does what the flags do', async () => {
+    liveShift('s1');
+    new Task('t042').editUnit('auth', (u) => {
+      u.mr = OUTBOUND;
+    });
+    const ask = person({ reason: 'the client cancelled it', yes: true });
+
+    const r = await abandonAtTerminal(undefined, {}, ask, deps());
+
+    expect(ask.asked).toEqual(['task', 'reason', 'confirm t042  unify the auth header']);
+    expect(ask.plan.join('\n')).toMatch(/s1 auth .*merge_requests\/31 closed if still open/);
+    expect(ask.plan.join('\n')).toContain(`auth  outbound ${OUTBOUND} closed if still open`);
+    expect(ask.plan.join('\n')).toContain(`tree   ${join(home, 'trees', 's1')} returned`);
+    expect(ask.plan.join('\n')).toContain('branch stays');
+    expect(r?.shifts.map((s) => s.sid)).toEqual(['s1']);
+    expect(new Task('t042').read().abandoned).toBe(true);
+    expect(log()).toMatch(/changed {4}task abandoned; s1 torn down; 2 merge request\(s\) closed — the client cancelled it/);
+  });
+
+  it('logs an empty reason in words', async () => {
+    liveShift('s1');
+    await abandonAtTerminal('t042', {}, person({ reason: '  ', yes: true }), deps());
+    expect(log()).toMatch(/changed {4}task abandoned; s1 torn down; 1 merge request\(s\) closed — user gave no reason\n/);
+  });
+
+  it('defaults to no, and touches nothing when told no', async () => {
+    const dir = liveShift('s1');
+    const r = await abandonAtTerminal('t042', {}, person({ reason: 'x' }), deps());
+    expect(r).toBeUndefined();
+    untouched(dir);
+  });
+
+  for (const at of ['task', 'reason', 'confirm'] as const) {
+    it(`touches nothing when cancelled at the ${at} prompt`, async () => {
+      const dir = liveShift('s1');
+      const ask = person({ yes: true, cancelAt: at });
+      await expect(abandonAtTerminal(undefined, {}, ask, deps())).rejects.toMatchObject({ code: 'ui_cancelled' });
+      untouched(dir);
+    });
+  }
+
+  it('honours the flags it is given and skips their prompts', async () => {
+    liveShift('s1');
+    const withReason = person({ yes: true });
+    await abandonAtTerminal('t042', { reason: 'from the flag' }, withReason, deps());
+    expect(withReason.asked).toEqual(['confirm t042  unify the auth header']);
+    expect(log()).toContain('— from the flag');
+  });
+
+  it('takes --user-asked as the yes', async () => {
+    liveShift('s1');
+    const ask = person({ reason: 'said so' });
+    await abandonAtTerminal('t042', { userAsked: true }, ask, deps());
+    expect(ask.asked).toEqual(['reason']);
+    expect(new Task('t042').read().abandoned).toBe(true);
+  });
+
+  it('refuses a task that cannot be given up before asking anything else', async () => {
+    new Task('t042').setComplete(true);
+    const ask = person({ yes: true });
+    await expect(abandonAtTerminal('t042', {}, ask, deps())).rejects.toMatchObject({ code: 'abandon_usage' });
+    expect(ask.asked).toEqual([]);
+  });
+
+  it('without a terminal, refuses exactly as before and asks nothing', async () => {
+    const dir = liveShift('s1');
+    const bare = await runYan(home, ['abandon', 't042']);
+    expect(bare.code).toBe(2);
+    expect(bare.stderr).toBe("yan abandon: abandoning destroys work that exists nowhere else and closes merge requests colleagues can see, so only user asks for it. Nothing was touched. When they have, re-run with --user-asked\n");
+    const noReason = await runYan(home, ['abandon', 't042', '--user-asked']);
+    expect(noReason.code).toBe(2);
+    expect(noReason.stderr).toBe('yan abandon: --reason is required - one line saying why this is being given up, which is what the log keeps\n');
+    const noTask = await runYan(home, ['abandon'], { YAN_TASK: undefined });
+    expect(noTask.code).toBe(2);
+    expect(noTask.stderr).toBe("yan abandon: which task? pass it as the argument: 'yan abandon <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks\n");
+    expect(existsSync(join(dir, 'run'))).toBe(true);
+    expect(new Task('t042').read().abandoned).toBeFalsy();
   });
 });

@@ -42,7 +42,7 @@ export function terminalWidth(): number | undefined {
 }
 
 /** Columns a character takes: two for East Asian wide and fullwidth forms, one otherwise. */
-function columnsOf(char: string): number {
+export function columnsOf(char: string): number {
   const code = char.codePointAt(0) ?? 0;
   return (code >= 0x1100 && code <= 0x115f) ||
     (code >= 0x2e80 && code <= 0xa4cf) ||
@@ -56,20 +56,39 @@ function columnsOf(char: string): number {
     : 1;
 }
 
-/** `text` cut to `width` columns, ending in `…` when anything was cut. Plain text only. */
+/** Columns a string takes, a wide character counting two. Plain text only. */
+export function cells(text: string): number {
+  let n = 0;
+  for (const char of text) n += columnsOf(char);
+  return n;
+}
+
+/** `text` padded with spaces to `width` columns. */
+export function padEnd(text: string, width: number): string {
+  return text + ' '.repeat(Math.max(0, width - cells(text)));
+}
+
+/** `text` padded on the left with spaces to `width` columns. */
+export function padStart(text: string, width: number): string {
+  return ' '.repeat(Math.max(0, width - cells(text))) + text;
+}
+
+/**
+ * `text` cut to `width` columns, ending in `…` when anything was cut, with no
+ * space before it. A wide character that would straddle the edge is left out,
+ * so an odd width can leave one column unused. Plain text only.
+ */
 export function fit(text: string, width: number): string {
+  if (cells(text) <= width) return text;
   let used = 0;
   let out = '';
-  const chars = [...text];
-  const total = chars.reduce((n, c) => n + columnsOf(c), 0);
-  if (total <= width) return text;
-  for (const char of chars) {
+  for (const char of text) {
     const w = columnsOf(char);
     if (used + w > width - 1) break;
     out += char;
     used += w;
   }
-  return `${out}…`;
+  return `${out.trimEnd()}…`;
 }
 
 /** `path` with the home directory spelled `~`, in forward slashes. */

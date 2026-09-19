@@ -8,7 +8,7 @@ import { isTty } from './shared/resolve.js';
 import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit, freshenClone } from './unit.js';
 import { Log } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
+import { Task, briefText } from '../records/task/index.js';
 import { withLock } from '../util/lock.js';
 import { YanError } from '../util/error.js';
 
@@ -158,11 +158,10 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
 
   const record = new Task(id);
 
-  // `Task.create` has already written brief.md's heading; an empty description
-  // leaves it standing alone.
+  // `Task.create` has already written brief.md with an empty Description.
   const description = options.description ?? '';
   if (description !== '') {
-    writeFileSync(join(record.dir, 'brief.md'), `# ${id} ${title}\n\n${description}\n`);
+    writeFileSync(join(record.dir, 'brief.md'), briefText(id, title, description));
   }
 
   const add = deps.add ?? addTaskUnit;
@@ -297,7 +296,7 @@ export function buildTaskCommand(): Command {
   const newTask = new Command('new')
     .description('create a task, its brief and its units, then enter it')
     .option('--title <text>', 'what this task is called')
-    .option('--description <text>', 'the contract, written into brief.md')
+    .option('--description <text>', "the background and the core ask, written under brief.md's Description")
     .option('--id <id>', 'the task id; the next free t<NNN> when omitted')
     .option('--agent <cli>', 'override agents.yan for the enter step')
     .option('--repo <name>', 'OPENS A UNIT: a repository under repos/, or a path to a clone', opens)

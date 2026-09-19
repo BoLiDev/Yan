@@ -98,7 +98,7 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 
 | 文件 | 存什么 | 什么时候写 | 什么时候读 |
 | --- | --- | --- | --- |
-| `brief.md` | 任务**当前**要交付什么：目标 / 交付 / 不做 | 第一轮对齐后；`user` 追加、砍掉、替换交付项的当轮（哪怕只是顺口一提） | session start 全文注入 |
+| `brief.md` | 任务**当前**要交付什么，分两节，见下文 | 第一轮对齐后；`user` 追加、砍掉、替换交付项的当轮（哪怕只是顺口一提）；某项交付完成时 | session start 全文注入 |
 | `log.md` | 任务的历程，一个事件一行，只追加 | 命令自动记自己的事件；其余用 `yan log` 记 | session start 注入全部 `agreed`、`changed` 行和最后 20 行 |
 | `task.json` | 每个 unit 的 branch、target、scope、needs；命令按它执行 | 只通过 `yan unit`、`yan mr`、`yan land`、`yan done` | 命令执行时；你通过 session start |
 | `artifacts/` | 帮助你和 `user` 理解工作的**副产出**：调研、原型、设计、截图、为了和 `user` 对齐做的可视化。不放代码、构建产物、运行残留 | 有产出时 | log 里有行指向它时 |
@@ -107,6 +107,13 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 | `mem/user.md` | 关于 `user` 的判断 | 只在 `user` 要求时 | session start |
 
 shift 的 `outcome.md` 是它交给你的交接说明，不属于记忆：它报告 `done` 之后、你合并之前读。它的 Learnings 一节写着 shift 在过程中遇到了什么问题、怎么解决的——**大多数 learnings 都从这里来**。shift 自己不往 `mem/` 写任何东西。
+
+### brief.md：两节
+
+`yan task new` 写好标题行，下面只有两节：
+
+- `## Description`：背景和核心诉求，一两段短文。`yan ls` 在任务卡片上打印的就是这一节，所以要写给没看过对话的人，前三行就说清要点。
+- `## Deliverables`：把诉求拆开，**只有一个列表**，三种标记：`- [ ]` 待做；`- [x]` 已交付，写日期；`- [-]` 决定不做，写理由。`[-]` 行不删，它让下一个会话不再重提同一件事。不做的事只记在 `[-]` 行里，**没有**单独的「不做」一节；`user` 改主意时，把它改回 `[ ]`。
 
 ### log.md：六类事件
 

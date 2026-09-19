@@ -70,12 +70,12 @@ describe('the rows the select offers', () => {
       expect(rows[0]).toEqual({ id: 't001', title: 'unify the auth header', units: 1, shifts: 1 });
       expect(rows[1]?.shifts).toBe(0);
 
-      // …and they really are the same numbers `yan ls --json` reports, rather
+      // …and they really are the same numbers `yan show --json` reports, rather
       // than a second count that can drift from it.
-      const ls = JSON.parse((await runYan(home, ['ls', '--json'])).stdout) as {
-        tasks: { id: string; shifts: number }[];
+      const shown = JSON.parse((await runYan(home, ['show', 't001', '--json'])).stdout) as {
+        shifts: unknown[];
       };
-      expect(ls.tasks.find((t) => t.id === 't001')?.shifts).toBe(rows[0]?.shifts);
+      expect(shown.shifts.length).toBe(rows[0]?.shifts);
     } finally {
       if (previous === undefined) delete process.env.YAN_HOME;
       else process.env.YAN_HOME = previous;

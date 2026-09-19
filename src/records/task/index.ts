@@ -5,5 +5,5 @@
  * history.
  */
 
-export { Task } from './task.js';
+export { Task, briefText } from './task.js';
 export type { AddUnitOptions, HistoryEnd, HistoryEntry, TaskData, UnitData } from './types.js';
