@@ -7,3 +7,8 @@
 for (const key of ['YAN_TASK', 'YAN_TASK_DIR', 'YAN_SID', 'YAN_SHIFT_DIR']) {
   delete process.env[key];
 }
+
+// `yan open` and `yan ui` open what they wrote in the platform's opener: a
+// Finder window or a browser tab. No test may do that, so the opener is
+// nothing unless a test names one.
+process.env.YAN_OPENER = '';

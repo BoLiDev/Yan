@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Work report</title>
+<style>
+/* ── fonts: the one place to swap a face ──────────────────────────────────
+   The page names its fonts and carries none. `user` has ChillRoundF (寒蝉圆体)
+   installed and sees it, in Latin and Chinese alike; everyone else gets the system
+   font, and the layout holds either way.
+
+   The two @font-face lines are required, not decoration. ChillRoundF's Bold file
+   declares itself Regular, so asked for the family by name at 600 or 700 Chrome draws
+   the Regular. Naming both files by their PostScript names under one new family makes
+   a bold weight find the Bold. They load nothing from anywhere: local() only.
+
+   The face has two weights, Regular and a light Bold. The design's weights stay as
+   written: 600 and 550 resolve to the Bold, 450 and 400 to the Regular, and a reader
+   without the font gets a true 600 from the system font instead of a heavy 700. */
+@font-face { font-family: "Chill Round F"; src: local("ChillRoundFRegular"); font-weight: 400; }
+@font-face { font-family: "Chill Round F"; src: local("ChillRoundFBold"); font-weight: 700; }
+:root {
+  --text: "Chill Round F", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --num: var(--text);   /* a figure standing alone: the same face, tabular figures. No mono */
+  --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;   /* code spans and PR references; nothing to install */
+}
+/* ── tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f5f1; --surface: #ffffff; --sunken: #efeee9; --line: #e7e5df;
+  --ink: #1b1b19; --ink-2: #66655f; --ink-3: #a3a29b;
+  --accent: #0b7285; --green: #1f7a3d; --empty: #dddbd4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #131312; --surface: #1c1c1a; --sunken: #232321; --line: #2c2c29;
+    --ink: #edece8; --ink-2: #a6a59e; --ink-3: #6f6e68;
+    --accent: #5cc8dc; --green: #62ca7e; --empty: #3b3b37;
+  }
+}
+/* data-theme is for review only; `yan ui` never sets it. */
+:root[data-theme="dark"] {
+  --ground: #131312; --surface: #1c1c1a; --sunken: #232321; --line: #2c2c29;
+  --ink: #edece8; --ink-2: #a6a59e; --ink-3: #6f6e68;
+  --accent: #5cc8dc; --green: #62ca7e; --empty: #3b3b37;
+}
+
+/* ── base ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/24px var(--text); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+button, input { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.big, .chip em, .proj em, .menu em, .group-h em, .bar b, .presets button, .picker input, .none { font-variant-numeric: tabular-nums; }
+code { font: 0.88em var(--code); background: var(--sunken); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
+.print-only { display: none; }
+.page { max-width: 1248px; margin: 0 auto; padding: 56px 24px 96px; }
+
+/* ── the dates are the headline, and the headline is the control ────────── */
+.top { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.when { position: relative; flex: 1 1 auto; min-width: 0; }
+.dates { display: inline-flex; align-items: center; gap: 12px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -0.025em; border-radius: 10px; }
+.dates svg { color: var(--ink-3); }
+.picker { position: absolute; z-index: 5; top: 56px; left: 0; display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; color: var(--ink-3); }
+.picker input { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); font: 13px var(--num); color: var(--ink); color-scheme: inherit; }
+.presets { display: flex; gap: 2px; padding: 3px; background: var(--sunken); border-radius: 10px; }
+.presets button { height: 34px; min-width: 46px; padding: 0 12px; border-radius: 8px; font: 450 12.5px var(--num); color: var(--ink-2); text-align: center; }
+.presets button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
+.gen { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+
+/* ── metrics ────────────────────────────────────────────────────────────── */
+.tiles { display: grid; grid-template-columns: 150px 150px minmax(0, 1fr) 290px; gap: 14px; margin-bottom: 36px; }
+.tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 18px 22px 20px; background: var(--surface); border-radius: 16px; }
+.cap { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.big { font-family: var(--num); font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -0.025em; }
+/* the three big numbers sit on one line, centred in the space under the caption */
+.tile > .big { margin-block: auto; }
+.delivered { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 28px; }
+.delivered > .big { align-self: center; }
+.chart { flex: 1 1 auto; min-width: 0; padding-bottom: 6px; }
+.bars { display: flex; align-items: flex-end; gap: 8px; height: 74px; border-bottom: 1px solid var(--line); }
+.bars.is-many { gap: 3px; }
+.bar { flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
+.bar i { display: block; width: 100%; flex: none; background: var(--accent); border-radius: 4px 4px 0 0; }
+.is-many .bar i { border-radius: 2px 2px 0 0; }
+.bar b { font: 400 11.5px/15px var(--num); color: var(--ink-2); }
+/* a week with nothing is not a short bar: a small open dot on the baseline */
+.bar.is-zero i { width: 5px; height: 5px; margin-bottom: -2px; border-radius: 50%; border: 1.5px solid var(--ink-3); background: var(--surface); }
+.axis { display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px; color: var(--ink-3); }
+.projects { justify-content: center; gap: 2px; }
+.proj { display: grid; grid-template-columns: 96px minmax(0, 1fr) 28px; column-gap: 10px; align-items: center; padding: 3px 0; font-size: 13.5px; border-radius: 6px; width: 100%; }
+.proj span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj i { display: block; height: 6px; border-radius: 3px; background: var(--ink-2); }
+.proj em { font: normal 12.5px var(--num); color: var(--ink-2); text-align: right; }
+
+/* ── filters: the chips are also the legend of the three marks ──────────── */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 22px; }
+.search { display: flex; align-items: center; gap: 8px; width: 250px; height: 38px; padding: 0 12px; background: var(--surface); border-radius: 10px; color: var(--ink-3); }
+.search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 14px; }
+.search input::placeholder { color: var(--ink-3); }
+.search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px; border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 13.5px; font-weight: 550; white-space: nowrap; }
+.chip.has-mark { padding-left: 10px; }
+.chip em { font: normal 11.5px var(--num); opacity: 0.7; }
+.chip[aria-pressed="true"], .chip.is-set { background: var(--ink); color: var(--ground); }
+.spacer { flex: 1 1 auto; }
+.menu-wrap { position: relative; }
+.menu { position: absolute; z-index: 5; right: 0; top: 40px; min-width: 200px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.menu button { display: flex; justify-content: space-between; gap: 16px; width: 100%; padding: 7px 10px; border-radius: 8px; font-size: 14px; }
+.menu button:hover, .menu button[aria-selected="true"] { background: var(--sunken); }
+.menu em { font: normal 12px var(--num); color: var(--ink-2); }
+
+/* the state, as a ring: drawn in mark(). No tinted circle behind it; colour and shape both say which */
+.mark { display: inline-flex; flex: none; }
+.mark svg { display: block; }
+.mark[data-state="open"] { color: var(--accent); }
+.mark[data-state="done"] { color: var(--green); }
+.mark[data-state="abandoned"] { color: var(--ink-2); }
+/* the check is cut out of the disc in whatever is behind it */
+.mark { --cut: var(--surface); }
+.chip[aria-pressed="true"] .mark { --cut: var(--ink); }
+.legend .mark { --cut: var(--ground); }
+.legend { gap: 22px; margin-bottom: 18px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ── the matrix ─────────────────────────────────────────────────────────── */
+.group + .group { margin-top: 30px; }
+.group-h { display: flex; align-items: baseline; gap: 10px; padding: 0 2px 10px; font-size: 16px; font-weight: 600; }
+.group-h em { font: normal 400 13.5px var(--num); color: var(--ink-3); }
+.card { background: var(--surface); border-radius: 14px; }
+.task + .task::before { content: ""; display: block; height: 1px; margin: 0 22px; background: var(--line); }
+.row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 116px 236px 112px 18px; column-gap: 18px; align-items: center; width: 100%; padding: 14px 22px; border-radius: 14px; }
+div.row { cursor: default; }
+.row .title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .meta { display: contents; }
+.row .project { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .chev { color: var(--ink-3); transition: none; }
+.row[aria-expanded="true"] .chev { transform: rotate(90deg); }
+/* the dates at the end of a row: numbers, grey, no weight. They are not the row's main information */
+.span { font: 400 14px/24px var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-2); }
+
+/* one square per deliverable, in fives, and nothing after them */
+.squares { display: flex; flex-wrap: wrap; gap: 4px; }
+.squares i { display: block; width: 10px; height: 10px; border-radius: 3px; background: var(--empty); }
+.squares i:nth-child(5n) { margin-right: 6px; }   /* after every fifth, so a wrapped line starts flush */
+.squares i.on { background: var(--accent); }
+.squares[data-state="done"] i.on { background: var(--green); }
+.squares[data-state="abandoned"] i.on { background: var(--ink-3); }
+
+/* ── a row opened: the squares, unrolled down a rail ────────────────────── */
+.detail { padding: 4px 22px 28px 60px; }
+.lead { max-width: 680px; margin: 0 0 20px; color: var(--ink-2); text-wrap: pretty; overflow-wrap: anywhere; }
+.run + .run { margin-top: 18px; }
+.day { margin-bottom: 8px; font: 600 13px/18px var(--num); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.item { position: relative; display: grid; grid-template-columns: 10px minmax(0, 660px) auto; column-gap: 16px; align-items: start; padding-bottom: 16px; font-size: 14.5px; line-height: 22px; }
+.item:last-child { padding-bottom: 0; }
+.item:not(:last-child)::before { content: ""; position: absolute; left: 4px; top: 20px; bottom: -2px; width: 2px; border-radius: 1px; background: var(--line); }
+.item .node { width: 10px; height: 10px; margin-top: 6px; border-radius: 3px; background: var(--accent); }
+.detail[data-state="done"] .node { background: var(--green); }
+.detail[data-state="abandoned"] .node { background: var(--ink-3); }
+.item[data-mark="todo"] .node { background: var(--surface); border: 1.75px solid var(--ink-3); }
+.item[data-mark="dropped"] .node { height: 2px; margin-top: 10px; border-radius: 1px; background: var(--ink-3); }
+.item[data-mark="dropped"] .text { color: var(--ink-2); }
+.item .text { text-wrap: pretty; overflow-wrap: anywhere; white-space: pre-line; }
+.item .ref { font: 12px/22px var(--code); color: var(--ink-3); white-space: nowrap; }
+
+.none { padding: 56px 0; text-align: center; font: 13px var(--num); color: var(--ink-3); }
+
+/* ── half a screen, and paper (a printed page is narrower than 860) ─────── */
+@media (max-width: 859px) {
+  .page { padding: 32px 24px 72px; }
+  .dates { font-size: 28px; line-height: 36px; }
+  .dates svg { width: 18px; height: 18px; }
+  .picker { top: 44px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 28px; }
+  .tile.wide { grid-column: 1 / -1; }
+  .big { font-size: 34px; line-height: 40px; }
+  .delivered { gap: 20px; }
+  .search { width: 100%; }
+  .spacer { display: none; }
+  .menu { right: auto; left: 0; }
+  .task + .task::before { margin: 0 20px; }
+  .row { grid-template-columns: 20px minmax(0, 1fr) 18px; column-gap: 10px; row-gap: 10px; align-items: start; padding: 15px 20px; }
+  .row .title { white-space: normal; }
+  .row .mark, .row .chev { margin-top: 2px; }
+  .row .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; grid-column: 2 / -1; grid-row: 2; }
+  .row .span { margin-left: auto; }
+  .detail { padding: 2px 20px 24px; }
+  .item { grid-template-columns: 10px minmax(0, 1fr); }
+  .item .ref { grid-column: 2; line-height: 18px; }
+}
+@media print {
+  :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
+    --ground: #ffffff; --surface: #ffffff; --sunken: #f1f0ec; --line: #dedcd5;
+    --ink: #1b1b19; --ink-2: #5c5b55; --ink-3: #8d8c85;
+    --accent: #0b7285; --green: #1f7a3d; --empty: #d6d4cc;
+  }
+  .page { padding: 0; max-width: none; }
+  .presets, .filters, .picker, .dates svg, .row .chev { display: none !important; }
+  .print-only { display: flex; }
+  .tile, .card { border: 1px solid var(--line); }
+  .task, .item, .tile { break-inside: avoid; }
+  .group-h { break-after: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="when">
+      <button class="dates" id="dates" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker" title="Change the dates"></button>
+      <div class="picker" id="picker" role="dialog" aria-label="Dates" hidden>
+        <input id="since" type="date" aria-label="From"><span>–</span><input id="until" type="date" aria-label="To">
+      </div>
+    </div>
+    <div class="presets" id="presets" role="group" aria-label="Range"></div>
+    <span class="gen print-only" id="gen" title="Generated"></span>
+  </header>
+  <section class="tiles" id="tiles" aria-label="Summary"></section>
+  <div class="filters" id="filters">
+    <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Search" aria-label="Search" autocomplete="off" spellcheck="false"></label>
+    <span id="chips" role="group" aria-label="State" style="display: contents"></span>
+    <span class="spacer"></span>
+    <div class="menu-wrap"><button class="chip" id="project" type="button" aria-haspopup="listbox" aria-expanded="false"></button><div class="menu" id="menu" role="listbox" aria-label="Project" hidden></div></div>
+  </div>
+  <div class="legend print-only" id="legend"></div>
+  <main id="list"></main>
+</div>
+
+<!-- The one thing `yan ui` writes. `<` is written as its JSON escape so no value can end the block. -->
+<script type="application/json" id="yan-data">/*YAN_DATA*/</script>
+<!--YAN_MOCK-->
+<script id="yan-ui">
+(function () {
+  'use strict';
+  var DATA = JSON.parse(document.getElementById('yan-data').textContent);
+
+  // ── dom: data reaches the page as text and attributes, never as markup ──
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'class') el.className = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    });
+    for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+    return el;
+  }
+  function add(el, kid) {
+    if (kid === null || kid === undefined || kid === false) return;
+    if (Array.isArray(kid)) kid.forEach(function (k) { add(el, k); });
+    else el.append(kid instanceof Node ? kid : String(kid));
+  }
+  var NS = 'http://www.w3.org/2000/svg';
+  function icon(path, size, width) {
+    var svg = document.createElementNS(NS, 'svg');
+    [['width', size], ['height', size], ['viewBox', '0 0 24 24'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', width || 2], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round'], ['aria-hidden', 'true']]
+      .forEach(function (a) { svg.setAttribute(a[0], a[1]); });
+    var p = document.createElementNS(NS, 'path'); p.setAttribute('d', path); svg.append(p);
+    return svg;
+  }
+  var CROSS = 'M6 6l12 12M18 6 6 18', RIGHT = 'm9 6 6 6-6 6', DOWN = 'm6 9 6 6 6-6';
+
+  // text: `code` and bare URLs, nothing else
+  function inline(text) {
+    var frag = document.createDocumentFragment();
+    String(text).split(/(`[^`\n]+`)/).forEach(function (part) {
+      if (part.length > 2 && part[0] === '`' && part[part.length - 1] === '`') { frag.append(h('code', null, part.slice(1, -1))); return; }
+      var re = /https?:\/\/[^\s<>"'`　-〿＀-￯]+/g, at = 0, m;
+      while ((m = re.exec(part)) !== null) {
+        var url = m[0].replace(/[.,;:!?]+$/, '');
+        frag.append(part.slice(at, m.index), h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, url.replace(/^https?:\/\//, '')));
+        at = m.index + url.length; re.lastIndex = at;
+      }
+      frag.append(part.slice(at));
+    });
+    return frag;
+  }
+
+  // ── days: everything is a local YYYY-MM-DD, and "today" is the day the report was made ──
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function toDate(day) { var p = day.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function addDays(day, n) { var d = toDate(day); d.setDate(d.getDate() + n); return ymd(d); }
+  function isDay(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || '') && ymd(toDate(s)) === s; }
+  var TODAY = ymd(new Date(DATA.generated_at));
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function nice(day, year) {
+    if (year === undefined) year = day.slice(0, 4) !== TODAY.slice(0, 4);
+    return MONTHS[Number(day.slice(5, 7)) - 1] + ' ' + Number(day.slice(8)) + (year ? ', ' + day.slice(0, 4) : '');
+  }
+
+  var tasks = DATA.tasks;
+  var EARLIEST = tasks.map(function (t) { return t.started; }).filter(Boolean).sort()[0] || TODAY;
+  var PRESETS = [
+    { key: '7d', text: '7d', title: 'The last 7 days', since: addDays(TODAY, -6) },
+    { key: '30d', text: '30d', title: 'The last 30 days', since: addDays(TODAY, -29) },
+    { key: '90d', text: '90d', title: 'The last 90 days', since: addDays(TODAY, -89) },
+    { key: 'year', text: TODAY.slice(0, 4), title: 'This year', since: TODAY.slice(0, 4) + '-01-01' },
+    { key: 'all', text: 'All', title: 'Everything', since: EARLIEST }
+  ];
+  var STATES = [['open', 'In progress'], ['done', 'Done'], ['abandoned', 'Abandoned']];
+
+  // What the page opens on: the address, else what `yan ui --since/--until` wrote, else 30 days.
+  var params = new URLSearchParams(location.search);
+  var from = DATA.range || {};
+  var view = {
+    since: isDay(params.get('since')) ? params.get('since') : isDay(from.since) ? from.since : null,
+    until: isDay(params.get('until')) ? params.get('until') : isDay(from.until) ? from.until : null,
+    state: 'all', project: null, q: '', open: {}
+  };
+  if (view.since === null && view.until === null) view.since = PRESETS[1].since;
+  if (view.since === null) view.since = EARLIEST;
+  if (view.until === null) view.until = TODAY;
+  if (view.since > view.until) view.since = view.until;
+
+  // One delivery: a delivered item, or a finished task that was never broken down, on the day it finished.
+  var deliveries = [];
+  tasks.forEach(function (t) {
+    if (t.deliverables.length > 0) t.deliverables.forEach(function (d) { if (d.mark === 'done' && d.date) deliveries.push({ day: d.date, project: t.project }); });
+    else if (t.state === 'done' && t.completed) deliveries.push({ day: t.completed, project: t.project });
+  });
+
+  function compute() {
+    var since = view.since, until = view.until, toToday = until >= TODAY;
+    var inRange = function (day) { return !!day && day >= since && day <= until; };
+    var mine = function (x) { return !view.project || x.project === view.project; };
+    // The dates and the project move the numbers. The state and the search only narrow the list.
+    var open = tasks.filter(function (t) { return t.state === 'open' && toToday && mine(t); })
+      .sort(function (a, b) { return a.started < b.started ? 1 : -1; });
+    var closed = tasks.filter(function (t) { return t.state !== 'open' && inRange(t.completed) && mine(t); })
+      .sort(function (a, b) { return a.completed < b.completed ? 1 : a.completed > b.completed ? -1 : 0; });
+    var del = deliveries.filter(function (d) { return inRange(d.day) && mine(d); });
+
+    var buckets = [];
+    for (var start = addDays(since, -((toDate(since).getDay() + 6) % 7)); start <= until; start = addDays(start, 7)) {
+      var end = addDays(start, 6);
+      buckets.push({ n: del.filter(function (d) { return d.day >= start && d.day <= end; }).length, label: nice(start) + ' – ' + nice(end) });
+    }
+    var unit = 'week';
+    if (buckets.length > 17) {   // past four months a week is too thin to read: the same bars, by calendar month
+      unit = 'month'; buckets = [];
+      for (var m = since.slice(0, 7); m <= until.slice(0, 7); m = ymd(new Date(Number(m.slice(0, 4)), Number(m.slice(5)), 1)).slice(0, 7)) {
+        buckets.push({ n: del.filter(function (d) { return d.day.slice(0, 7) === m; }).length, label: MONTHS[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4) });
+      }
+    }
+    var per = {};
+    del.forEach(function (d) { var k = d.project || '—'; per[k] = (per[k] || 0) + 1; });
+    var projects = Object.keys(per).map(function (k) { return [k, per[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+
+    var terms = view.q.toLowerCase().split(/\s+/).filter(Boolean);
+    var match = function (t) {
+      if (view.state !== 'all' && t.state !== view.state) return false;
+      var hay = (t.title + '\n' + (t.project || '') + '\n' + (t.description || '') + '\n' + t.deliverables.map(function (d) { return d.text; }).join('\n')).toLowerCase();
+      return terms.every(function (term) { return hay.indexOf(term) >= 0; });
+    };
+    var all = open.concat(closed);
+    return {
+      toToday: toToday, finished: closed.filter(function (t) { return t.state === 'done'; }).length, delivered: del.length, inProgress: open.length,
+      buckets: buckets, unit: unit, projects: projects,
+      counts: { all: all.length, open: open.length, done: all.filter(function (t) { return t.state === 'done'; }).length, abandoned: all.filter(function (t) { return t.state === 'abandoned'; }).length },
+      open: open.filter(match), closed: closed.filter(match)
+    };
+  }
+
+  // ── pieces ──────────────────────────────────────────────────────────────
+  /**
+   * The state as a ring, on a 20 × 20 grid, drawn here and from no icon set.
+   *   in progress  a ring (r 8, stroke 2) and inside it a pie (r 5) that fills clockwise
+   *                from twelve o'clock with the delivered fraction
+   *   done         a disc (r 9) with a check cut out of it
+   *   abandoned    the same ring with a slash from bottom left to top right
+   * `fraction` is delivered / (delivered + to do), or null when the task has nothing to
+   * count. Nothing delivered, or nothing to count, is a dot (r 1.5) in the ring: work
+   * that has started and has nothing to show yet. A lone ring would read as not started,
+   * and beside an abandoned ring as its sibling. A real fraction is never drawn as
+   * nothing or as everything: the pie is held between 30° and 330°. Everything delivered
+   * on a task still open is a full pie inside the ring, which is not the done disc.
+   */
+  function el(name, attrs) {
+    var node = document.createElementNS(NS, name);
+    Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+  function mark(state, label, size, fraction) {
+    var svg = el('svg', { width: size, height: size, viewBox: '0 0 20 20', fill: 'none', 'aria-hidden': 'true' });
+    var box = h('span', { class: 'mark', 'data-state': state, title: label });
+    if (state === 'done') {
+      svg.append(el('circle', { cx: 10, cy: 10, r: 9, fill: 'currentColor' }),
+        el('path', { d: 'M6 10.4l2.7 2.7 5.5-5.5', stroke: 'var(--cut)', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    } else {
+      svg.append(el('circle', { cx: 10, cy: 10, r: 8, stroke: 'currentColor', 'stroke-width': 2 }));
+      if (state === 'abandoned') svg.append(el('path', { d: 'M4.6 15.4 15.4 4.6', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }));
+      else if (fraction === null || fraction === undefined || fraction <= 0) svg.append(el('circle', { cx: 10, cy: 10, r: 1.5, fill: 'currentColor' }));
+      else if (fraction >= 1) svg.append(el('circle', { cx: 10, cy: 10, r: 5, fill: 'currentColor' }));
+      else {
+        var degrees = Math.min(330, Math.max(30, fraction * 360)), a = degrees * Math.PI / 180;
+        svg.append(el('path', { fill: 'currentColor', d: 'M10 10V5A5 5 0 ' + (degrees > 180 ? 1 : 0) + ' 1 ' + (10 + 5 * Math.sin(a)).toFixed(2) + ' ' + (10 - 5 * Math.cos(a)).toFixed(2) + 'Z' }));
+        box.setAttribute('data-degrees', String(Math.round(degrees)));
+      }
+    }
+    if (state === 'open') box.setAttribute('data-fraction', fraction === null || fraction === undefined ? 'none' : String(Math.round(fraction * 1000) / 1000));
+    box.append(svg);
+    return box;
+  }
+  /** Delivered out of delivered plus to do; null when there is nothing to count. The squares' own arithmetic. */
+  function tally(t) {
+    var done = t.deliverables.filter(function (d) { return d.mark === 'done'; }).length;
+    var todo = t.deliverables.filter(function (d) { return d.mark === 'todo'; }).length;
+    return done + todo === 0 ? null : { done: done, of: done + todo, fraction: done / (done + todo) };
+  }
+  function labelOf(state) { return STATES.filter(function (s) { return s[0] === state; })[0][1]; }
+  function squares(t) {
+    var done = t.deliverables.filter(function (d) { return d.mark === 'done'; }).length;
+    var todo = t.deliverables.filter(function (d) { return d.mark === 'todo'; }).length;
+    // never broken down: one piece of work, finished or not
+    if (done + todo === 0) { done = t.state === 'done' ? 1 : 0; todo = 1 - done; }
+    var box = h('span', { class: 'squares', 'data-state': t.state, title: done + '/' + (done + todo) });
+    for (var i = 0; i < done + todo; i++) box.append(h('i', { class: i < done ? 'on' : null }));
+    return box;
+  }
+  /** A day as the rows and the timeline write it: 09.16. Never a year; the tooltip and the month heading carry it. */
+  function dotted(day) { return day.slice(5, 7) + '.' + day.slice(8); }
+  /** `09.16 - 09.17`; in progress only the start, `09.15`, with no dash after it: the ring already says the task is open. */
+  function span(t) {
+    var text = (t.started ? dotted(t.started) : '') + (t.completed ? ' - ' + dotted(t.completed) : '');
+    var full = (t.started ? nice(t.started, true) : '') + (t.completed ? ' – ' + nice(t.completed, true) : '');
+    return h('span', { class: 'span', title: full }, text);
+  }
+
+  /** The row's squares, unrolled: a date over each day's run, then what is left, then what was decided against. */
+  function detail(t) {
+    var box = h('div', { class: 'detail', 'data-state': t.state });
+    if (t.description) box.append(h('p', { class: 'lead' }, inline(t.description)));
+    var runs = [];
+    ['done', 'todo', 'dropped'].forEach(function (kind) {
+      t.deliverables.filter(function (d) { return d.mark === kind; }).forEach(function (d) {
+        var key = kind + '|' + (kind === 'done' ? d.date || '' : '');
+        if (runs.length === 0 || runs[runs.length - 1].key !== key) runs.push({ key: key, day: kind === 'done' ? d.date : null, items: [] });
+        runs[runs.length - 1].items.push(d);
+      });
+    });
+    runs.forEach(function (run) {
+      box.append(h('div', { class: 'run' },
+        run.day && h('div', { class: 'day', title: nice(run.day, true) }, dotted(run.day)),
+        run.items.map(function (d) {
+          return h('div', { class: 'item', 'data-mark': d.mark }, h('span', { class: 'node' }), h('div', { class: 'text' }, inline(d.text)), d.evidence && h('span', { class: 'ref' }, d.evidence));
+        })));
+    });
+    return box;
+  }
+
+  function taskEl(t) {
+    var can = t.deliverables.length > 0 || !!t.description;
+    var isOpen = can && !!view.open[t.id];
+    var n = tally(t);
+    var cells = [mark(t.state, labelOf(t.state) + (t.state === 'open' && n ? ' · ' + n.done + '/' + n.of : ''), 18, n ? n.fraction : null), h('span', { class: 'title' }, t.title || 'Untitled'),
+      h('span', { class: 'meta' }, h('span', { class: 'project' }, t.project || ''), squares(t), span(t)),
+      can ? h('span', { class: 'chev' }, icon(RIGHT, 16, 1.75)) : h('span')];
+    var el = h('article', { class: 'task' });
+    var row = can
+      ? h('button', { class: 'row', type: 'button', 'aria-expanded': String(isOpen), onclick: function () {
+        view.open[t.id] = !view.open[t.id];
+        row.setAttribute('aria-expanded', String(!!view.open[t.id]));
+        if (view.open[t.id]) el.append(detail(t)); else el.lastChild.remove();
+      } }, cells)
+      : h('div', { class: 'row' }, cells);
+    el.append(row);
+    if (isOpen) el.append(detail(t));
+    return el;
+  }
+  function group(title, list) {
+    return h('section', { class: 'group' }, title && h('div', { class: 'group-h' }, title, h('em', null, String(list.length))), h('div', { class: 'card' }, list.map(taskEl)));
+  }
+
+  // ── render ──────────────────────────────────────────────────────────────
+  var $ = function (id) { return document.getElementById(id); };
+  function render() {
+    var v = compute();
+    var sameYear = view.since.slice(0, 4) === view.until.slice(0, 4);
+    $('dates').textContent = '';
+    add($('dates'), [nice(view.since, !sameYear) + ' – ' + nice(view.until, true), icon(DOWN, 22, 2)]);
+    document.title = nice(view.since, !sameYear) + ' – ' + nice(view.until, true);
+    $('since').value = view.since; $('until').value = view.until;
+    $('since').max = view.until; $('until').min = view.since; $('until').max = TODAY;
+
+    $('presets').textContent = '';
+    PRESETS.forEach(function (p) {
+      var on = view.since === p.since && view.until === TODAY;
+      $('presets').append(h('button', { type: 'button', title: p.title, 'aria-pressed': String(on), onclick: function () { view.since = p.since; view.until = TODAY; render(); } }, p.text));
+    });
+
+    // tiles
+    var max = Math.max.apply(null, [1].concat(v.buckets.map(function (b) { return b.n; })));
+    var top = max > 1 ? v.buckets.map(function (b) { return b.n; }).indexOf(max) : -1;
+    var bars = h('div', { class: 'bars' + (v.buckets.length > 12 ? ' is-many' : '') }, v.buckets.map(function (b, i) {
+      return h('span', { class: 'bar' + (b.n === 0 ? ' is-zero' : ''), title: b.label + ' · ' + b.n },
+        i === top && h('b', null, String(b.n)), h('i', { style: b.n === 0 ? null : 'height:' + Math.max(8, Math.round((b.n / max) * 56)) + 'px' }));
+    }));
+    var pmax = Math.max.apply(null, [1].concat(v.projects.map(function (p) { return p[1]; })));
+    $('tiles').textContent = '';
+    add($('tiles'), [
+      h('div', { class: 'tile' }, h('span', { class: 'cap' }, 'Finished'), h('span', { class: 'big' }, String(v.finished))),
+      h('div', { class: 'tile' }, h('span', { class: 'cap' }, 'In progress'), h('span', { class: 'big', title: v.toToday ? null : 'These dates end before ' + nice(TODAY, true) }, v.toToday ? String(v.inProgress) : '—')),
+      h('div', { class: 'tile wide' }, h('span', { class: 'cap' }, 'Delivered'), h('div', { class: 'delivered' }, h('span', { class: 'big' }, String(v.delivered)),
+        h('div', { class: 'chart' }, bars, h('div', { class: 'axis' }, h('span', null, v.unit === 'month' ? v.buckets[0].label : nice(addDays(view.since, -((toDate(view.since).getDay() + 6) % 7)))), h('span', null, v.unit === 'month' ? v.buckets[v.buckets.length - 1].label : nice(view.until)))))),
+      h('div', { class: 'tile wide projects' }, v.projects.slice(0, 4).map(function (p) {
+        return h('button', { class: 'proj', type: 'button', title: p[0] + ' · ' + p[1], onclick: function () { view.project = view.project === p[0] ? null : p[0]; render(); } },
+          h('span', null, p[0]), h('span', null, h('i', { style: 'width:' + Math.max(4, Math.round((p[1] / pmax) * 100)) + '%' })), h('em', null, String(p[1])));
+      }))
+    ]);
+
+    // chips: filter, count and legend at once
+    $('chips').textContent = '';
+    [['all', 'All']].concat(STATES).forEach(function (s) {
+      $('chips').append(h('button', { class: 'chip' + (s[0] === 'all' ? '' : ' has-mark'), type: 'button', 'aria-pressed': String(view.state === s[0]), onclick: function () { view.state = s[0]; render(); } },
+        s[0] !== 'all' && mark(s[0], s[1], 16, 0.5), s[1], h('em', null, String(v.counts[s[0]]))));
+    });
+    var pb = $('project');
+    pb.textContent = ''; pb.className = 'chip' + (view.project ? ' is-set' : '');
+    add(pb, [view.project || 'All projects', icon(view.project ? CROSS : DOWN, 14, 2)]);
+    pb.setAttribute('aria-label', view.project ? 'Project: ' + view.project + '. Clear' : 'Project');
+
+    // the list
+    var list = $('list');
+    list.textContent = '';
+    if (v.open.length > 0) list.append(group(null, v.open));
+    var months = [];
+    v.closed.forEach(function (t) { var m = t.completed.slice(0, 7); if (months.indexOf(m) < 0) months.push(m); });
+    months.forEach(function (m) {
+      list.append(group(MONTHS_LONG[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4), v.closed.filter(function (t) { return t.completed.slice(0, 7) === m; })));
+    });
+    if (v.open.length + v.closed.length === 0) list.append(h('div', { class: 'none' }, '0'));
+
+    // Kept in the address so a reload, or a bookmark, comes back to the same report. file:// may refuse; nothing depends on it.
+    try {
+      var next = new URLSearchParams(location.search);
+      next.set('since', view.since); next.set('until', view.until);
+      history.replaceState(null, '', '?' + next.toString() + location.hash);
+    } catch (e) { /* nothing to do */ }
+  }
+
+  // ── wiring that is done once ────────────────────────────────────────────
+  function toggle(button, panel, show) {
+    panel.hidden = !show; button.setAttribute('aria-expanded', String(show));
+  }
+  $('dates').addEventListener('click', function () { toggle($('dates'), $('picker'), $('picker').hidden); if (!$('picker').hidden) $('since').focus(); });
+  ['since', 'until'].forEach(function (id) {
+    $(id).addEventListener('change', function () {
+      if (!isDay($(id).value)) return;
+      view[id] = $(id).value;
+      if (view.since > view.until) { if (id === 'since') view.until = view.since; else view.since = view.until; }
+      render();
+    });
+  });
+  $('q').addEventListener('input', function () { view.q = $('q').value.trim(); render(); });
+  $('project').addEventListener('click', function () {
+    if (view.project) { view.project = null; render(); return; }
+    var menu = $('menu'), per = {};
+    tasks.forEach(function (t) { if (t.project) per[t.project] = (per[t.project] || 0) + 1; });
+    menu.textContent = '';
+    Object.keys(per).sort(function (a, b) { return per[b] - per[a] || a.localeCompare(b); }).forEach(function (name) {
+      menu.append(h('button', { type: 'button', role: 'option', onclick: function () { view.project = name; toggle($('project'), menu, false); render(); } }, name, h('em', null, String(per[name]))));
+    });
+    toggle($('project'), menu, menu.hidden);
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.when')) toggle($('dates'), $('picker'), false);
+    if (!e.target.closest('.menu-wrap')) toggle($('project'), $('menu'), false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { toggle($('dates'), $('picker'), false); toggle($('project'), $('menu'), false); }
+    if (e.key === '/' && document.activeElement !== $('q') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); $('q').focus(); }
+  });
+  $('gen').textContent = nice(TODAY, true);
+  STATES.forEach(function (s) { $('legend').append(h('span', null, mark(s[0], s[1], 16, 0.5), s[1])); });
+
+  render();
+})();
+</script>
+</body>
+</html>

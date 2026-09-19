@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cpSync, readdirSync, statSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 import type { Report, ReportTask } from '../../src/cli/ui/collect.js';
@@ -160,11 +160,64 @@ describe('yan ui', () => {
     }
   });
 
-  it('says there is no page yet without --json, and writes nothing', async () => {
+  it('writes nothing with --json, even given --out', async () => {
     const before = snapshot(home);
-    const r = await runYan(home, ['ui']);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toBe('ui: the page is not built yet - pass --json for the data\n');
+    const file = join(mkTempDir(), 'report.html');
+    await json(['--json', '--out', file]);
+    expect(existsSync(file)).toBe(false);
     expect(snapshot(home)).toEqual(before);
+  });
+
+  it('writes the page to the machine directory by default, outside the vault, and prints its path', async () => {
+    const machine = mkTempDir();
+    const before = snapshot(home);
+    const r = await runYan(home, ['ui', '--no-open'], { YAN_MACHINE_DIR: machine });
+    expect(r.code, r.out).toBe(0);
+    const file = join(machine, 'ui', 'report.html');
+    expect(r.stdout).toBe(`${file}\n`);
+    expect(readFileSync(file, 'utf8')).toContain('id="yan-data">{"version":2,');
+    expect(snapshot(home)).toEqual(before);
+
+    // One file, overwritten each run.
+    expect((await runYan(home, ['ui', '--no-open'], { YAN_MACHINE_DIR: machine })).code).toBe(0);
+    expect(readdirSync(join(machine, 'ui'))).toEqual(['report.html']);
+  });
+
+  it('writes to --out, creating its directory, with the report --json prints and the range it was given', async () => {
+    const file = join(mkTempDir(), 'deep', 'er', 'page.html');
+    const r = await runYan(home, ['ui', '--no-open', '--out', file, '--since', '2026-08-01', '--until', '2026-08-31']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toBe(`${file}\n`);
+    const html = readFileSync(file, 'utf8');
+    expect(html).not.toContain('/*YAN_DATA*/');
+    expect(html).not.toContain('YAN_MOCK');
+    const m = /id="yan-data">([\s\S]*?)<\/script>/.exec(html);
+    const page = JSON.parse(m?.[1] ?? 'null') as Report;
+    const printed = await json(['--json', '--since', '2026-08-01', '--until', '2026-08-31']);
+    expect({ ...page, generated_at: '' }).toEqual({ ...printed, generated_at: '' });
+    expect(page.range).toEqual({ since: '2026-08-01', until: '2026-08-31' });
+  });
+
+  it('opens the page with $YAN_OPENER, and not with --no-open', async () => {
+    const dir = mkTempDir();
+    const record = join(dir, 'opened');
+    const opener = join(dir, 'opener.sh');
+    writeFileSync(opener, `#!/usr/bin/env bash\nprintf '%s\\n' "$1" > "${record}"\nexit 1\n`);
+    const file = join(dir, 'page with spaces.html');
+
+    const quiet = await runYan(home, ['ui', '--no-open', '--out', file], { YAN_OPENER: `bash ${opener}` });
+    expect(quiet.code, quiet.out).toBe(0);
+    expect(existsSync(record)).toBe(false);
+
+    // The opener's exit code must never become this command's.
+    const r = await runYan(home, ['ui', '--out', file], { YAN_OPENER: `bash ${opener}` });
+    expect(r.code, r.out).toBe(0);
+    expect(readFileSync(record, 'utf8')).toBe(`${file}\n`);
+  });
+
+  it('says so when it cannot write the page', async () => {
+    const r = await runYan(home, ['ui', '--no-open', '--out', mkTempDir()]);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toMatch(/^ui: cannot write /);
   });
 });
