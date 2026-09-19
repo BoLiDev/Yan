@@ -301,10 +301,10 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   });
 
   it('turns the queue entry from open to done, which nothing could do before', async () => {
-    expect((await yan(['ls'])).stdout).toMatch(/t042\s+open/);
+    expect((await yan(['ls'])).stdout, 'an open task is a card in the default view').toMatch(/^ t042 {2}\S/m);
     expect((await yan(['done', 't042'])).code).toBe(0);
     expect((await yan(['ls'])).stdout, 'a done task leaves the default view').not.toMatch(/t042/);
-    expect((await yan(['ls', '--status', 'done'])).stdout).toMatch(/t042\s+done/);
+    expect((await yan(['ls', '--status', 'done'])).stdout, 'and a line in the done view').toMatch(/^ t042 {2}\S/m);
   });
 
   it('prints one envelope with --json, whether it finished one task or several', async () => {

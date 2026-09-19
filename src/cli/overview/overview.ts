@@ -93,13 +93,23 @@ function describe(task: Task, data: TaskData, deps: OverviewDeps): OverviewTask 
   };
 }
 
-/** Every task the filter lets through, in id order, and the count of the rest. */
-export function overview(status: StatusFilter = 'open', deps: Partial<OverviewDeps> = {}): Overview {
-  const full: OverviewDeps = {
+function fullDeps(deps: Partial<OverviewDeps>): OverviewDeps {
+  return {
     now: deps.now ?? new Date(),
     leasesOf: deps.leasesOf ?? poolLeases(),
     active: deps.active ?? activeDeps(),
   };
+}
+
+/** One task as the overview sees it, whatever its state: the top of `yan show`. */
+export function overviewTask(id: string, deps: Partial<OverviewDeps> = {}): OverviewTask {
+  const { task, data } = load(id);
+  return describe(task, data, fullDeps(deps));
+}
+
+/** Every task the filter lets through, in id order, and the count of the rest. */
+export function overview(status: StatusFilter = 'open', deps: Partial<OverviewDeps> = {}): Overview {
+  const full = fullDeps(deps);
   const hidden = { open: 0, done: 0 };
   const tasks: OverviewTask[] = [];
   for (const id of Task.list()) {

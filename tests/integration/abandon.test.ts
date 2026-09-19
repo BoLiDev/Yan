@@ -195,7 +195,7 @@ describe('yan abandon', () => {
     expect(log()).toMatch(/changed {4}task abandoned; s1 s2 torn down; 3 merge request\(s\) closed — the client cancelled it/);
 
     const listed = await runYan(home, ['ls', '--status', 'all']);
-    expect(listed.stdout).toMatch(/t042 +abandoned/);
+    expect(listed.stdout).toMatch(/^ t042 {2}.* {2}abandoned {2}/m);
     const shown = await runYan(home, ['show', 't042']);
     expect(shown.stdout).toContain('✗ abandoned');
   });
