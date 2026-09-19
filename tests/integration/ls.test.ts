@@ -56,7 +56,7 @@ beforeAll(async () => {
   const { Task } = await import('../../src/records/task/index.js');
 
   // An empty home answers before anything exists.
-  expect((await runYan(home, ['ls'])).stdout).toContain('no tasks');
+  expect((await runYan(home, ['ls'])).stdout).toContain('no tasks yet — start one with yan task new');
   expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(0);
 
   Task.create('t042', 'unify the auth header');
@@ -92,16 +92,27 @@ describe('the queue', () => {
   it('renders the open tasks by default, and every task with --status all', async () => {
     const r = await runYan(home, ['ls']);
     expect(r.code, r.out).toBe(0);
-    for (const needle of ['t042', 'unify the auth header', 'apps/auth', 'apps/gateway', 'SCOPE', 'open']) {
+    for (const needle of [
+      ' t042  unify the auth header',
+      'no description in brief.md',
+      'changed unknown',
+      '1 done hidden · yan ls --status=all',
+    ]) {
       expect(r.stdout, needle).toContain(needle);
     }
     expect(r.stdout, 'a done task is hidden by default').not.toContain('t007');
+    expect(r.stdout, 'a pipe gets no colour').not.toContain('\x1b[');
+    expect(r.stdout.split('\n').filter((l) => / $/.test(l)), 'no line ends in spaces').toEqual([]);
 
     const all = await runYan(home, ['ls', '--status=all']);
-    for (const needle of ['t042', 't007', 'src/client', 'done']) expect(all.stdout, needle).toContain(needle);
+    for (const needle of [' Open  1', ' Done  1', 't042', ' t007  retire the legacy client']) {
+      expect(all.stdout, needle).toContain(needle);
+    }
+    expect(all.stdout, 'nothing is hidden').not.toContain('hidden');
     const done = await runYan(home, ['ls', '--status', 'done']);
     expect(done.stdout).toContain('t007');
     expect(done.stdout).not.toContain('t042');
+    expect(done.stdout).toContain('1 open hidden · yan ls');
   });
 
   it('prints the overview as --json, version 2, filtered the same way', async () => {
@@ -143,6 +154,27 @@ describe('the queue', () => {
     expect((await json<Queue>(['ls', '--json', '--status', 'all'])).tasks).toHaveLength(3);
     rmSync(join(home, 'tasks', 't900'), { recursive: true, force: true });
     expect((await json<Queue>(['ls', '--json', '--status', 'all'])).tasks).toHaveLength(2);
+  });
+});
+
+describe('a task missing its files', () => {
+  it('still prints, in ls and in show, with a brief.md and a log.md gone', async () => {
+    const previous = process.env.YAN_HOME;
+    process.env.YAN_HOME = home;
+    const { Task } = await import('../../src/records/task/index.js');
+    Task.create('t901', 'bare');
+    if (previous === undefined) delete process.env.YAN_HOME;
+    else process.env.YAN_HOME = previous;
+    for (const file of ['brief.md', 'log.md']) rmSync(join(home, 'tasks', 't901', file), { force: true });
+    try {
+      for (const args of [['ls'], ['ls', '--status', 'all'], ['show', 't901']]) {
+        const r = await runYan(home, args);
+        expect(r.code, `${args.join(' ')}: ${r.out}`).toBe(0);
+        expect(r.stdout).toContain('t901');
+      }
+    } finally {
+      rmSync(join(home, 'tasks', 't901'), { recursive: true, force: true });
+    }
   });
 });
 

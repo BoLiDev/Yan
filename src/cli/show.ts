@@ -7,6 +7,10 @@ import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
+import { overviewTask, type OverviewTask } from './overview/overview.js';
+import { renderHeader } from './overview/render.js';
+import { ago } from './overview/time.js';
+import { isoMoment } from './overview/when.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
@@ -18,9 +22,11 @@ import { YanError } from '../util/error.js';
 /**
  * `yan show [<id>] [--json]` — one task at a glance: whether a yan is running
  * on it, each unit's branch and standing tree, its live shifts, and the last
- * log entries. Every fact is local: nothing here asks
- * the forge or the terminal, so a shift's line is the last event it reported,
- * not its state, and a merge request is the address that was recorded.
+ * log entries. Every fact is local: nothing here asks the forge, so a
+ * shift's line is the last event it reported, not its state, and a merge
+ * request is the address that was recorded. The header is the task's card
+ * from `yan ls`, whose age of "last active" asks Herdr once for the agents'
+ * sessions, as `yan ls` does.
  */
 
 /** How many log entries are shown. */
@@ -175,15 +181,6 @@ export function showJson(id: string): ShowJson {
   };
 }
 
-function ago(iso: string, now = Date.now()): string {
-  const then = Date.parse(iso);
-  if (Number.isNaN(then)) return '';
-  const minutes = Math.max(0, Math.round((now - then) / 60000));
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
-}
-
 /** How an event a shift reported is coloured: what needs somebody is loud. */
 function paintEvent(state: string): string {
   if (['blocked', 'needs-decision', 'conflict'].includes(state)) return bold(yellow(state));
@@ -221,18 +218,13 @@ function section(label: string, aside = ''): void {
   out(` ${bold(label)}${aside === '' ? '' : `  ${dim(aside)}`}`);
 }
 
-export function renderShow(show: ShowJson): void {
-  out('');
-  out(` ${bold(cyan(show.id))}  ${bold(dash(show.title))}`);
-  const state = show.abandoned ? red('✗ abandoned') : show.complete ? dim('✓ done') : green('● open');
-  // A task still open with nobody on it is one to resume, so the command is
-  // said where the absence is.
-  const session = show.session.running
-    ? green(`◉ yan running${show.session.pane === null ? '' : ` · ${show.session.pane}`}`)
-    : show.complete
-      ? dim('○ no yan running')
-      : `${dim('○ no yan running — resume with')} ${cyan(`yan continue ${show.id}`)}`;
-  out(` ${state}   ${session}`);
+/**
+ * The task as `yan ls` shows it, with its state, its whole description and
+ * everything below. The pane a yan runs in is for the main agent, in --json;
+ * a person reads the task, not an address.
+ */
+export function renderShow(show: ShowJson, task: OverviewTask, now = new Date()): void {
+  for (const line of renderHeader(task, show.session, { now, cols: terminalWidth() })) out(line);
 
   section('Units');
   if (show.units.length === 0) out(`   ${dim('none')}`);
@@ -279,7 +271,8 @@ export function renderShow(show: ShowJson): void {
   for (const s of show.shifts) {
     const as = s.scenario === '' ? '' : `${s.scenario}${s.tier === '' ? '' : `/${s.tier}`}`;
     const event = s.last_event?.state ?? 'no event';
-    const when = s.last_event === null ? '' : ago(s.last_event.at);
+    const at = s.last_event === null ? undefined : isoMoment(s.last_event.at, 'status');
+    const when = at === undefined ? '' : ago(at, now);
     // The note is left to --json and `yan state`: a shift's report can run
     // to a paragraph, and this is one row per shift.
     // A done task's shift with run/ still there is debris to clean up, and
@@ -313,7 +306,10 @@ export function printTask(id: string, json: boolean): void {
   }
   const show = showJson(id);
   if (json) out(JSON.stringify(show));
-  else renderShow(show);
+  else {
+    const now = new Date();
+    renderShow(show, overviewTask(id, { now }), now);
+  }
 }
 
 export const command = new Command('show')
@@ -323,9 +319,9 @@ export const command = new Command('show')
   .addHelpText(
     'after',
     `
-Everything shown is read from this machine: no forge and no terminal is asked.
-A shift's line is the last event it reported - 'yan state <sid>' says what is
-true now - and "ahead" counts commits by the refs the clone last fetched.`,
+Everything shown is read from this machine: no forge is asked. A shift's
+line is the last event it reported - 'yan state <sid>' says what is true now -
+and "ahead" counts commits by the refs the clone last fetched.`,
   )
   .action(
     action('show', async (id: string | undefined, options: { json?: boolean }) => {

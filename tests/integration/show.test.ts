@@ -69,7 +69,7 @@ beforeAll(async () => {
 
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'widget', 'main', { branch: 'feat/auth', scope: ['apps/auth'] });
-  writeFileSync(join(home, 'tasks', 't042', 'brief.md'), '# t042 unify the auth header\n\n## Goal\n\nOne parser for the auth header, at the edge.\n');
+  writeFileSync(join(home, 'tasks', 't042', 'brief.md'), '# t042 unify the auth header\n\n## Description\n\nThree services read the auth header\nthree ways.\n\nThe second paragraph.\n\n## Goal\n\nOne parser for the auth header, at the edge.\n');
   const log = new Log('t042');
   for (let i = 1; i <= 7; i += 1) log.append('started', `entry ${i}`, '09-11');
 
@@ -102,12 +102,14 @@ describe('one task at a glance', () => {
     const text = r.stdout;
     expect(text).toContain('t042  unify the auth header');
     expect(text).toContain('● open   ○ no yan running — resume with yan continue t042');
-    expect(text, 'the brief is not shown').not.toContain('One parser');
+    expect(text, 'the whole Description, unwrapped').toContain('Three services read the auth header three ways.');
+    expect(text).toContain('The second paragraph.');
+    expect(text, 'and nothing else of the brief').not.toContain('One parser');
     expect(text).toContain('auth  feat/auth → main   ↑2');
     expect(text).toContain('scope  apps/auth');
     expect(text).toContain(`tree   ${tildePath(tree)}   ● 1 uncommitted`);
     expect(text).toContain('s3  coding/normal  blocked');
-    expect(text).toContain('0m ago');
+    expect(text, 'floored, so a report seconds old is now').toMatch(/blocked +now/);
     expect(text, "a shift's report note is not shown").not.toContain('which header wins');
     expect(text).toContain('w1:p4 · yan/t042-auth-s3');
     expect(text).toContain('Log  last 5 of 7');
@@ -129,8 +131,11 @@ describe('one task at a glance', () => {
     writeFileSync(lock, `${JSON.stringify({ pid: process.pid, host: hostname(), at: Math.floor(Date.now() / 1000), identity: enterIdentity('t042', 'w7:p1') })}\n`);
     try {
       const r = await show(['show', 't042']);
-      expect(r.stdout).toContain('◉ yan running · w7:p1');
+      expect(r.stdout).toContain('● open   ◉ yan running');
+      expect(r.stdout, 'the pane is for the main agent, in --json').not.toContain('w7:p1');
       expect(r.stdout).not.toContain('yan continue');
+      const j = JSON.parse((await show(['show', 't042', '--json'])).stdout) as { session: unknown };
+      expect(j.session).toEqual({ running: true, pane: 'w7:p1' });
     } finally {
       rmSync(lock);
     }
