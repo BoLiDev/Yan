@@ -303,7 +303,8 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   it('turns the queue entry from open to done, which nothing could do before', async () => {
     expect((await yan(['ls'])).stdout).toMatch(/t042\s+open/);
     expect((await yan(['done', 't042'])).code).toBe(0);
-    expect((await yan(['ls'])).stdout).toMatch(/t042\s+done/);
+    expect((await yan(['ls'])).stdout, 'a done task leaves the default view').not.toMatch(/t042/);
+    expect((await yan(['ls', '--status', 'done'])).stdout).toMatch(/t042\s+done/);
   });
 
   it('prints one envelope with --json, whether it finished one task or several', async () => {

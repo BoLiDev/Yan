@@ -215,3 +215,38 @@ describe('reading is defensive', () => {
     expect(Task.exists('nope')).toBe(false);
   });
 });
+
+describe('createdAt and closedAt', () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+
+  it('stamps createdAt at creation, to the second, in UTC, and keeps version 1', () => {
+    Task.create('t042', 'unify the auth header');
+    const data = new Task('t042').read();
+    expect(data.createdAt).toMatch(ISO);
+    expect(Math.abs(Date.parse(data.createdAt ?? '') - Date.now())).toBeLessThan(5000);
+    expect(data.closedAt).toBeUndefined();
+    expect(data.version).toBe(1);
+  });
+
+  it('stamps closedAt when the task is marked done or abandoned, and drops it when reopened', () => {
+    Task.create('t042', 'unify the auth header');
+    const task = new Task('t042');
+    task.setComplete(true);
+    expect(task.read().closedAt).toMatch(ISO);
+    task.setComplete(false);
+    expect(task.read().closedAt).toBeUndefined();
+    expect(JSON.parse(readFileSync(task.file, 'utf8'))).not.toHaveProperty('closedAt');
+    task.setAbandoned();
+    expect(task.read().closedAt).toMatch(ISO);
+  });
+
+  it('still reads a task.json from before the fields existed', () => {
+    Task.create('t042', 'unify the auth header');
+    const task = new Task('t042');
+    writeFileSync(task.file, JSON.stringify({ version: 1, id: 't042', title: 'old', complete: true, units: [] }));
+    const data = task.read();
+    expect(data.createdAt).toBeUndefined();
+    expect(data.closedAt).toBeUndefined();
+    expect(data.complete).toBe(true);
+  });
+});

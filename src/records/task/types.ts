@@ -43,6 +43,10 @@ export interface TaskData {
   complete: boolean;
   /** Given up on rather than finished: also `complete`, since nothing more will happen to it. */
   abandoned: boolean;
+  /** When `Task.create` made the task, ISO 8601 UTC to the second; absent on a task older than the field. */
+  createdAt?: string;
+  /** When the task was marked done or abandoned, the same format; absent while it is open. */
+  closedAt?: string;
   units: UnitData[];
 }
 
