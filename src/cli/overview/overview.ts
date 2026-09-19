@@ -4,7 +4,7 @@ import { Task, type TaskData } from '../../records/task/index.js';
 import { activeDeps, taskActive, type ActiveDeps } from './active.js';
 import { poolLeases, taskChanged, type Changed, type LeasesOf } from './changed.js';
 import { briefDescription } from './description.js';
-import { isoMoment, logTimes, type Moment } from './when.js';
+import { isoMoment, logTimes, type LogTimes, type Moment } from './when.js';
 
 /**
  * What `yan ls` knows about each task: everything its print needs, and
@@ -72,22 +72,50 @@ function load(id: string): { task: Task; data: TaskData } {
   }
 }
 
-function describe(task: Task, data: TaskData, deps: OverviewDeps): OverviewTask {
+/** What a task's own files say about it, and the files themselves. */
+export interface TaskFiles {
+  readonly task: Omit<OverviewTask, 'changed' | 'active'>;
+  readonly data: TaskData;
+  /** `brief.md` as it is on disk; undefined when there is none. */
+  readonly brief: string | undefined;
+  readonly log: LogTimes;
+}
+
+/** One task from its files alone: no git, no pool, no Herdr. Never throws for an unreadable task. */
+export function taskFiles(id: string, now: Date): TaskFiles {
+  const { task, data } = load(id);
+  return filesOf(task, data, now);
+}
+
+function filesOf(task: Task, data: TaskData, now: Date): TaskFiles {
   const state = stateOf(data);
   const open = state === 'open';
   const brief = read(join(task.dir, 'brief.md'));
-  const log = logTimes(read(join(task.dir, 'log.md')) ?? '', deps.now);
+  const log = logTimes(read(join(task.dir, 'log.md')) ?? '', now);
+  return {
+    task: {
+      id: data.id || task.id,
+      title: data.title,
+      state,
+      description: brief === undefined ? null : briefDescription(brief),
+      opened: isoMoment(data.createdAt, 'task.json') ?? log.opened ?? null,
+      closed: open ? null : (isoMoment(data.closedAt, 'task.json') ?? log.closed ?? null),
+    },
+    data,
+    brief,
+    log,
+  };
+}
 
-  let active: Moment | undefined = log.last;
-  if (open) active = taskActive(task.id, log.last, deps.active);
+function describe(task: Task, data: TaskData, deps: OverviewDeps): OverviewTask {
+  const files = filesOf(task, data, deps.now);
+  const open = files.task.state === 'open';
+
+  let active: Moment | undefined = files.log.last;
+  if (open) active = taskActive(task.id, files.log.last, deps.active);
 
   return {
-    id: data.id || task.id,
-    title: data.title,
-    state,
-    description: brief === undefined ? null : briefDescription(brief),
-    opened: isoMoment(data.createdAt, 'task.json') ?? log.opened ?? null,
-    closed: open ? null : (isoMoment(data.closedAt, 'task.json') ?? log.closed ?? null),
+    ...files.task,
     changed: open ? taskChanged({ ...data, id: task.id }, deps.leasesOf) : null,
     active: active ?? null,
   };
