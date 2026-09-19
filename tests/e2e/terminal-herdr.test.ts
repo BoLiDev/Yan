@@ -25,6 +25,14 @@ function herdrPresent(): boolean {
 }
 
 const present = herdrPresent();
+
+/**
+ * Agent names are unique per Herdr, and this suite drives the real one. Two
+ * runs at once - parallel shifts each running `npm test` - would both ask for
+ * `yane2e` and the second gets `agent_name_taken`, so each run names its own.
+ */
+const RUN = process.pid.toString(36);
+const named = (role: string): string => `yane2e${role}-${RUN}`;
 if (!present) {
   process.stderr.write(
     '\ntests/e2e/terminal-herdr.test.ts SKIPPED: herdr is not answering on this machine.\n' +
@@ -54,13 +62,13 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     // Two steps: a tab with cwd and env, then the agent into its pane.
     const started = new Terminal().startAgent({
       container: container.workspace,
-      name: 'yane2e',
+      name: named(''),
       kind: 'claude',
       cwd: repoRoot,
       env: { YAN_TASK: 't-e2e', YAN_E2E: '1' },
       timeoutMs: 120_000,
     });
-    expect(started.name).toBe('yane2e');
+    expect(started.name).toBe(named(''));
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
     expect(started.pane).not.toBe(container.pane);
     expect([...term.AGENT_STATUS]).toContain(started.status);
@@ -77,7 +85,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     const listed = new Terminal().list(container.workspace);
     const mine = listed.find((a) => a.pane === started.pane);
     expect(mine, JSON.stringify(listed)).toBeDefined();
-    expect(mine?.name).toBe('yane2e');
+    expect(mine?.name).toBe(named(''));
     expect(mine?.kind).toBe('claude');
 
     // 4/7 — reading does not mark the tab seen, which is why yan reads instead
@@ -105,7 +113,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
 
     const started = new Terminal().startAgent({
       container: container.workspace,
-      name: 'yane2eargv',
+      name: named('argv'),
       kind: 'claude',
       cwd: repoRoot,
       argv: ['--append-system-prompt', 'YANPROBE_MARKER is zx9q7. Spaces and : survive.'],
@@ -133,7 +141,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     const first = placeShift(main, before!, []);
     expect(first).toEqual({ pane: main, direction: 'right' });
     const s1 = new Terminal().startAgent({
-      container: container.workspace, split: first, name: 'yane2es1', kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
+      container: container.workspace, split: first, name: named('s1'), kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
     });
     const afterOne = new Terminal().tabLayout(main);
     const rect = (pane: string) => afterOne?.panes.find((p) => p.pane === pane)?.rect;
@@ -145,7 +153,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     const second = placeShift(main, afterOne!, [{ sid: 's1', pane: s1.pane }]);
     expect(second).toEqual({ pane: s1.pane, direction: 'down' });
     const s2 = new Terminal().startAgent({
-      container: container.workspace, split: second, name: 'yane2es2', kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
+      container: container.workspace, split: second, name: named('s2'), kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
     });
     const afterTwo = new Terminal().tabLayout(main);
     const top = afterTwo?.panes.find((p) => p.pane === s1.pane)?.rect;
