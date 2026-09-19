@@ -57,6 +57,7 @@ describe('yan open', () => {
     const r = await yan(['open', 't042'], { YAN_OPENER: `bash ${opener}` });
     // The opener's exit code must never become this command's.
     expect(r.code).toBe(0);
+    expect(readFileSync(record, 'utf8')).toBe(`${join(home, 'tasks', 't042')}\n`);
   });
 
   it('refuses an unknown task and a missing argument', async () => {
