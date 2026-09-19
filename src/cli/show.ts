@@ -22,9 +22,11 @@ import { YanError } from '../util/error.js';
 /**
  * `yan show [<id>] [--json]` — one task at a glance: whether a yan is running
  * on it, each unit's branch and standing tree, its live shifts, and the last
- * log entries. Every fact is local: nothing here asks
- * the forge or the terminal, so a shift's line is the last event it reported,
- * not its state, and a merge request is the address that was recorded.
+ * log entries. Every fact is local: nothing here asks the forge, so a
+ * shift's line is the last event it reported, not its state, and a merge
+ * request is the address that was recorded. The header is the task's card
+ * from `yan ls`, whose age of "last active" asks Herdr once for the agents'
+ * sessions, as `yan ls` does.
  */
 
 /** How many log entries are shown. */
@@ -317,9 +319,9 @@ export const command = new Command('show')
   .addHelpText(
     'after',
     `
-Everything shown is read from this machine: no forge and no terminal is asked.
-A shift's line is the last event it reported - 'yan state <sid>' says what is
-true now - and "ahead" counts commits by the refs the clone last fetched.`,
+Everything shown is read from this machine: no forge is asked. A shift's
+line is the last event it reported - 'yan state <sid>' says what is true now -
+and "ahead" counts commits by the refs the clone last fetched.`,
   )
   .action(
     action('show', async (id: string | undefined, options: { json?: boolean }) => {
