@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Task } from './index.js';
+import { Task, briefText } from './index.js';
 import type { TaskData, UnitData } from './index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { YanError } from '../../util/error.js';
@@ -46,11 +46,22 @@ describe('creation', () => {
   it('makes task.json, brief.md and log.md, and is idempotent', () => {
     Task.create('t042', 'unify the auth header');
     const dir = new Task('t042').dir;
-    expect(readFileSync(join(dir, 'brief.md'), 'utf8')).toContain('# t042 unify the auth header');
+    expect(readFileSync(join(dir, 'brief.md'), 'utf8')).toBe(
+      '# t042 unify the auth header\n\n## Description\n\n## Deliverables\n',
+    );
     expect(readFileSync(join(dir, 'log.md'), 'utf8')).toBe('# t042 unify the auth header\n\n');
 
     Task.create('t042', 'a different title');
     expect(new Task('t042').title()).toBe('unify the auth header');
+  });
+
+  it('seeds a brief with a description under its Description heading', () => {
+    expect(briefText('t042', 'unify the auth header', 'the same header, everywhere\n')).toBe(
+      '# t042 unify the auth header\n\n## Description\n\nthe same header, everywhere\n\n## Deliverables\n',
+    );
+    expect(briefText('t042', 'unify the auth header', '  ')).toBe(
+      '# t042 unify the auth header\n\n## Description\n\n## Deliverables\n',
+    );
   });
 
   it('refuses a bad task id', () => {

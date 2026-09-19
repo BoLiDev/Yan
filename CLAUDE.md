@@ -205,7 +205,7 @@ this turn, before you reply.
 
 | File | What it holds | Written | Read |
 | --- | --- | --- | --- |
-| `brief.md` | what the task delivers now: goal, deliverables, what is not being done | after the first alignment; in the turn `user` adds, drops or replaces a deliverable, even in passing | session start, in full |
+| `brief.md` | what the task delivers now, in two sections: see below | after the first alignment; in the turn `user` adds, drops or replaces a deliverable, even in passing, and when one is delivered | session start, in full |
 | `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
 | `task.json` | each unit's branch, target, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
 | `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
@@ -216,6 +216,15 @@ this turn, before you reply.
 A shift's `outcome.md` is its handover to you, not memory: read it after it reports
 `done` and before you merge. Its Learnings section — the problems a shift hit and how it
 solved them — is where most learnings start; a shift writes nothing to `mem/` itself.
+
+**`brief.md`.** Two sections under the title line `yan task new` writes, and no
+others. `## Description` is the background and the core ask, a short paragraph or two.
+`yan ls` prints it on the task's card, so write it for someone reading cold, with the
+point in its first three lines. `## Deliverables` breaks the ask down into one list with
+three marks: `- [ ]` to do, `- [x]` delivered, with the date, `- [-]` decided against,
+with the reason. A `[-]` line stays, since it stops the next session raising the same
+thing again. That line is also the only record of what is not being done: there is no
+separate section for it, and an item goes back to `[ ]` when `user` changes their mind.
 
 **`log.md`.** Six kinds of line. Log in the turn the event happens.
 

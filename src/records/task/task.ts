@@ -248,7 +248,7 @@ export class Task {
     initJson(task.file, { version: 1, id, title, complete: false, createdAt: isoNow(), units: [] });
 
     const brief = join(task.dir, 'brief.md');
-    if (!existsSync(brief)) writeFileSync(brief, `# ${id} ${title}\n\n`);
+    if (!existsSync(brief)) writeFileSync(brief, briefText(id, title));
 
     new Log(id).init(title);
     return task;
@@ -272,6 +272,16 @@ export class Task {
 /** Now, as ISO 8601 UTC to the second: `2026-09-18T14:02:11Z`. */
 function isoNow(): string {
   return `${new Date().toISOString().slice(0, 19)}Z`;
+}
+
+/**
+ * A new task's brief.md: the title, then the two sections every brief keeps —
+ * `## Description`, which the overview prints, and `## Deliverables`, the one
+ * list the ask is broken into. An empty description leaves its section empty.
+ */
+export function briefText(id: string, title: string, description = ''): string {
+  const body = description.trim();
+  return `# ${id} ${title}\n\n## Description\n\n${body === '' ? '' : `${body}\n\n`}## Deliverables\n`;
 }
 
 function asStringArray(value: unknown): string[] {
