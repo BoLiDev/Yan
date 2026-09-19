@@ -1,5 +1,5 @@
 import { isTty } from './resolve.js';
-import { queueJson } from '../ls.js';
+import { queue } from '../ls.js';
 import type { TaskChoice } from '../../ui/prompts.js';
 import { YanError } from '../../util/error.js';
 
@@ -32,8 +32,8 @@ export function insideTask(command: string): string {
  * offers: bare `yan`, `yan done`, `yan continue` and `yan show` all ask this.
  */
 export function openTasks(): TaskChoice[] {
-  return queueJson()
-    .tasks.filter((t) => !t.complete)
+  return queue()
+    .filter((t) => !t.complete)
     .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
 }
 

@@ -42,7 +42,7 @@ export function terminalWidth(): number | undefined {
 }
 
 /** Columns a character takes: two for East Asian wide and fullwidth forms, one otherwise. */
-function columnsOf(char: string): number {
+export function columnsOf(char: string): number {
   const code = char.codePointAt(0) ?? 0;
   return (code >= 0x1100 && code <= 0x115f) ||
     (code >= 0x2e80 && code <= 0xa4cf) ||

@@ -17,7 +17,18 @@ let treePath = '';
 
 interface Queue {
   version: number;
-  tasks: { id: string; title: string; complete: boolean; units: unknown[]; scope: string[]; shifts: number }[];
+  status: string;
+  hidden: { open: number; done: number };
+  tasks: {
+    id: string;
+    title: string;
+    state: string;
+    description: string | null;
+    opened: { at: string; precision: string; source: string } | null;
+    closed: { at: string; precision: string } | null;
+    changed: { state: string } | null;
+    active: { at: string; precision: string; source: string } | null;
+  }[];
 }
 
 async function json<T>(args: readonly string[]): Promise<T> {
@@ -78,26 +89,47 @@ beforeAll(async () => {
 });
 
 describe('the queue', () => {
-  it('renders every task, its state, and the scopes its units restrict', async () => {
+  it('renders the open tasks by default, and every task with --status all', async () => {
     const r = await runYan(home, ['ls']);
     expect(r.code, r.out).toBe(0);
-    for (const needle of ['t042', 't007', 'unify the auth header', 'apps/auth', 'apps/gateway', 'src/client', 'SCOPE', 'open', 'done']) {
+    for (const needle of ['t042', 'unify the auth header', 'apps/auth', 'apps/gateway', 'SCOPE', 'open']) {
       expect(r.stdout, needle).toContain(needle);
     }
+    expect(r.stdout, 'a done task is hidden by default').not.toContain('t007');
+
+    const all = await runYan(home, ['ls', '--status=all']);
+    for (const needle of ['t042', 't007', 'src/client', 'done']) expect(all.stdout, needle).toContain(needle);
+    const done = await runYan(home, ['ls', '--status', 'done']);
+    expect(done.stdout).toContain('t007');
+    expect(done.stdout).not.toContain('t042');
   });
 
-  it('reports the same facts as --json', async () => {
+  it('prints the overview as --json, version 2, filtered the same way', async () => {
     const q = await json<Queue>(['ls', '--json']);
-    expect(q.version).toBe(1);
-    expect(q.tasks).toHaveLength(2);
-    const t042 = q.tasks.find((t) => t.id === 't042');
-    const t007 = q.tasks.find((t) => t.id === 't007');
-    expect(t042?.complete).toBe(false);
-    expect(t007?.complete).toBe(true);
-    expect(t042?.units).toHaveLength(2);
-    expect(t042?.shifts).toBe(1);
-    expect(t007?.shifts).toBe(0);
-    expect(t042?.scope).toEqual(['apps/auth', 'apps/gateway']);
+    expect(q.version).toBe(2);
+    expect(q.status).toBe('open');
+    expect(q.hidden).toEqual({ open: 0, done: 1 });
+    expect(q.tasks.map((t) => t.id)).toEqual(['t042']);
+    const t042 = q.tasks[0];
+    expect(t042?.state).toBe('open');
+    expect(t042?.title).toBe('unify the auth header');
+    expect(t042?.description).toBeNull();
+    expect(t042?.opened?.precision).toBe('second');
+    expect(t042?.closed).toBeNull();
+    expect(t042?.changed, 'monorepo-x is not linked in this fixture').toEqual({ state: 'unknown' });
+    expect(t042?.active, 'the live shift has nothing to read, and the log is empty').toBeNull();
+    expect(Object.keys(t042 ?? {}), 'units, scope and shifts are yan show --json').not.toContain('units');
+
+    const all = await json<Queue>(['ls', '--json', '--status', 'all']);
+    const t007 = all.tasks.find((t) => t.id === 't007');
+    expect(t007?.state).toBe('done');
+    expect(t007?.closed?.precision).toBe('second');
+    expect(t007?.changed).toBeNull();
+    expect(all.hidden).toEqual({ open: 0, done: 0 });
+  });
+
+  it('refuses a status it does not know', async () => {
+    expect((await runYan(home, ['ls', '--status', 'closed'])).code).toBe(2);
   });
 
   it('is DERIVED: a task directory added by hand appears, with nothing told about it', async () => {
@@ -108,9 +140,9 @@ describe('the queue', () => {
     if (previous === undefined) delete process.env.YAN_HOME;
     else process.env.YAN_HOME = previous;
 
-    expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(3);
+    expect((await json<Queue>(['ls', '--json', '--status', 'all'])).tasks).toHaveLength(3);
     rmSync(join(home, 'tasks', 't900'), { recursive: true, force: true });
-    expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(2);
+    expect((await json<Queue>(['ls', '--json', '--status', 'all'])).tasks).toHaveLength(2);
   });
 });
 
@@ -127,6 +159,7 @@ describe('nothing is stored', () => {
     const before = snapshot(home);
     await runYan(home, ['ls']);
     await runYan(home, ['ls', '--json']);
+    await runYan(home, ['ls', '--json', '--status', 'all']);
     expect(snapshot(home)).toEqual(before);
   });
 

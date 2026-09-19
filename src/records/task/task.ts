@@ -60,6 +60,8 @@ export class Task {
       title: asString(raw.title),
       complete: raw.complete === true,
       abandoned: raw.abandoned === true,
+      ...(typeof raw.createdAt === 'string' && raw.createdAt !== '' ? { createdAt: raw.createdAt } : {}),
+      ...(typeof raw.closedAt === 'string' && raw.closedAt !== '' ? { closedAt: raw.closedAt } : {}),
       units: units.map((u): UnitData => {
         const r = asRecord(u);
         return {
@@ -112,9 +114,12 @@ export class Task {
     return this.read().complete;
   }
 
+  /** Mark the task done, stamping `closedAt`, or open again, which drops it. */
   public setComplete(complete: boolean): void {
     this.edit((task) => {
       task.complete = complete;
+      if (complete) task.closedAt = isoNow();
+      else delete task.closedAt;
     });
   }
 
@@ -123,6 +128,7 @@ export class Task {
     this.edit((task) => {
       task.complete = true;
       task.abandoned = true;
+      task.closedAt = isoNow();
     });
   }
 
@@ -239,7 +245,7 @@ export class Task {
     if (title === '') throw YanError.usage('task_usage', 'a task needs a title');
 
     mkdirSync(task.dir, { recursive: true });
-    initJson(task.file, { version: 1, id, title, complete: false, units: [] });
+    initJson(task.file, { version: 1, id, title, complete: false, createdAt: isoNow(), units: [] });
 
     const brief = join(task.dir, 'brief.md');
     if (!existsSync(brief)) writeFileSync(brief, briefText(id, title));
@@ -261,6 +267,11 @@ export class Task {
       .filter((id) => Task.isId(id) && existsSync(join(dir, id, 'task.json')))
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   }
+}
+
+/** Now, as ISO 8601 UTC to the second: `2026-09-18T14:02:11Z`. */
+function isoNow(): string {
+  return `${new Date().toISOString().slice(0, 19)}Z`;
 }
 
 /**

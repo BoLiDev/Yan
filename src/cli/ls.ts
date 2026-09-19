@@ -1,16 +1,24 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { tasksDir } from '../util/vault.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
 import { dash, renderTable } from './shared/table.js';
+import { overview, STATUS_FILTERS, type StatusFilter } from './overview/overview.js';
 
 /**
- * `yan ls [--json]` — the queue, produced by scanning `tasks/*​/task.json` on
- * every call. Stores nothing. One task in depth is `yan show <id>`: two
- * commands printing the same thing is two commands to keep in step.
+ * `yan ls [--status open|done|all] [--json]` — the queue, produced by scanning
+ * `tasks/*​/task.json` on every call. Stores nothing. One task in depth is
+ * `yan show <id>`: two commands printing the same thing is two commands to
+ * keep in step.
+ *
+ * `--json` is the overview in `overview/overview.ts`, version 2. The table
+ * below is the print from before it and is read off the cheap scan that
+ * `queue()` still is, which the task pickers share.
  */
+
+export type { Overview, OverviewTask, StatusFilter } from './overview/overview.js';
 
 /** One row of the queue. */
 export interface QueueTask {
@@ -25,10 +33,6 @@ export interface QueueTask {
   readonly shifts: number;
 }
 
-export interface Queue {
-  readonly version: 1;
-  readonly tasks: readonly QueueTask[];
-}
 
 /** A string field of a file yan did not write: null, absent and false read as empty. */
 function text(value: unknown): string {
@@ -56,7 +60,8 @@ function rawUnits(task: Record<string, unknown>): Record<string, unknown>[] {
     : [];
 }
 
-export function queueJson(): Queue {
+/** Every task from its task.json and live shifts alone: no git, no Herdr, no forge. */
+export function queue(): QueueTask[] {
   const tasks = Task.list().map((id) => {
     const task = rawTask(id);
     const units = rawUnits(task);
@@ -74,16 +79,26 @@ export function queueJson(): Queue {
       shifts: Shift.liveIn(id).length,
     };
   });
-  return { version: 1, tasks };
+  return tasks;
 }
 
-function renderQueue(queue: Queue): void {
-  if (queue.tasks.length === 0) {
+/** Whether `--status` lets a task through: `abandoned` counts as done. */
+function shown(status: StatusFilter, complete: boolean): boolean {
+  return status === 'all' || (status === 'open') !== complete;
+}
+
+function renderQueue(tasks: readonly QueueTask[], status: StatusFilter): void {
+  if (tasks.length === 0) {
     out(`no tasks in ${tasksDir()}`);
     return;
   }
+  const listed = tasks.filter((t) => shown(status, t.complete));
+  if (listed.length === 0) {
+    out(status === 'open' ? "nothing open - 'yan ls --status all' lists the rest" : "nothing done - 'yan ls' lists what is open");
+    return;
+  }
   const rows: string[][] = [['ID', 'STATE', 'UNITS', 'SHIFTS', 'SCOPE', 'TITLE']];
-  for (const t of queue.tasks) {
+  for (const t of listed) {
     rows.push([
       t.id,
       t.abandoned ? 'abandoned' : t.complete ? 'done' : 'open',
@@ -98,16 +113,16 @@ function renderQueue(queue: Queue): void {
 
 export const command = new Command('ls')
   .description('the queue: every task, one line each')
-  .option('--json', 'machine readable output')
+  .addOption(new Option('--status <status>', 'which tasks: open, done (abandoned included) or all').choices(STATUS_FILTERS).default('open'))
+  .option('--json', 'machine readable output: version 2, the overview')
   .addHelpText(
     'after',
     `
 One task in depth is 'yan show <id>'.`,
   )
   .action(
-    action('ls', (options: { json?: boolean }) => {
-      const json = queueJson();
-      if (options.json === true) out(JSON.stringify(json));
-      else renderQueue(json);
+    action('ls', (options: { json?: boolean; status: StatusFilter }) => {
+      if (options.json === true) out(JSON.stringify(overview(options.status)));
+      else renderQueue(queue(), options.status);
     }),
   );
