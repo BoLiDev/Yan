@@ -70,11 +70,11 @@ describe('the collector', () => {
       started: '2026-09-01',
       completed: null,
       deliverables: [
-        { id: 'd1', text: 'The three plans side by side, each with its price and what it includes.', status: 'done', doneAt: '2026-09-10', refs: ['PR #12'] },
-        { id: 'd2', text: 'The comparison table under the plans.', status: 'done', doneAt: '2026-09-15', refs: ['PR #13', 'PR #14'] },
-        { id: 'd3', text: 'Yearly prices, with the saving shown.', status: 'todo' },
-        { id: 'd4', text: 'The page linked from the header.', status: 'todo' },
-        { id: 'd5', text: 'A currency switcher over the three plans.', status: 'abandoned', reason: 'every customer pays in euros' },
+        { id: 'd1', text: 'The pricing page shows the three plans side by side, each with its price and what it includes.', status: 'done', doneAt: '2026-09-10', refs: ['PR #12'] },
+        { id: 'd2', text: 'A table under the plans compares them feature by feature.', status: 'done', doneAt: '2026-09-15', refs: ['PR #13', 'PR #14'] },
+        { id: 'd3', text: 'Every plan carries a yearly price, and the page says what paying yearly saves.', status: 'todo' },
+        { id: 'd4', text: 'The header links to the pricing page from every page of the site.', status: 'todo' },
+        { id: 'd5', text: "The page shows its prices in the visitor's own currency.", status: 'abandoned', reason: 'every customer pays in euros' },
       ],
     });
   });
@@ -82,10 +82,10 @@ describe('the collector', () => {
   it('keeps markup and replacement patterns as typed, in the brief, a deliverable, a reason and a ref', () => {
     const t = task('t002');
     expect(t.brief).toContain('`</script><!-- x -->`');
-    expect(t.deliverables.map((d) => d.text).join('\n')).toContain('`$&`, `$1` and `$$`');
+    expect(t.deliverables.map((d) => d.text).join('\n')).toContain('`$&`, `$1` and `$$` in an invoice print as the literal text');
     const abandoned = t.deliverables[3];
     expect(abandoned).toMatchObject({ status: 'abandoned' });
-    expect(abandoned && 'reason' in abandoned ? abandoned.reason : '').toContain('`</script><!-- x -->`');
+    expect(abandoned && 'reason' in abandoned ? abandoned.reason : '').toContain('`</script><!-- x -->` and `$&`');
     expect(t.deliverables[2]).toMatchObject({ refs: ['PR #31', 'PR #32 <!-- squashed -->'] });
   });
 
@@ -123,7 +123,7 @@ describe('the collector', () => {
   });
 
   it('keeps a delivered item with nothing proving it, and one dated either side of a year', () => {
-    expect(task('t009').deliverables[0]).toEqual({ id: 'd1', text: 'The box finds pages by title.', status: 'done', doneAt: '2026-09-09' });
+    expect(task('t009').deliverables[0]).toEqual({ id: 'd1', text: 'The search box finds any page by its title.', status: 'done', doneAt: '2026-09-09' });
     expect(task('t006').deliverables.map((d) => (d.status === 'done' ? d.doneAt : null))).toEqual(['2025-12-30', '2026-01-05']);
   });
 

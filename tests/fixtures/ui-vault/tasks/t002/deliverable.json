@@ -2,9 +2,9 @@
   "version": 1,
   "nextId": 5,
   "deliverables": [
-    { "id": "d1", "text": "The rounding is done once, in the ledger, and the PDF prints what it stores.", "status": "done", "doneAt": "2026-08-05" },
-    { "id": "d2", "text": "A test renders every August invoice and compares the totals; a line such as `</script><!-- x -->` in an invoice note prints as typed.", "status": "done", "doneAt": "2026-08-12", "refs": ["MR !87"] },
-    { "id": "d3", "text": "The fix is documented for finance: `$&`, `$1` and `$$` in the template engine's output are the literal text.", "status": "done", "doneAt": "2026-08-20", "refs": ["PR #31", "PR #32 <!-- squashed -->"] },
-    { "id": "d4", "text": "Re-sending the three wrong invoices.", "status": "abandoned", "reason": "finance sent them by hand, and a reason holding `</script><!-- x -->` or `$&` prints as typed" }
+    { "id": "d1", "text": "An invoice PDF shows the total the ledger stores, to the cent.", "status": "done", "doneAt": "2026-08-05" },
+    { "id": "d2", "text": "An invoice note reaches the PDF as it was typed, `</script><!-- x -->` and all.", "status": "done", "doneAt": "2026-08-12", "refs": ["MR !87"] },
+    { "id": "d3", "text": "`$&`, `$1` and `$$` in an invoice print as the literal text, not as what the template engine makes of them.", "status": "done", "doneAt": "2026-08-20", "refs": ["PR #31", "PR #32 <!-- squashed -->"] },
+    { "id": "d4", "text": "The three customers with a wrong invoice have a corrected one.", "status": "abandoned", "reason": "finance sent them by hand, invoice notes such as `</script><!-- x -->` and `$&` included" }
   ]
 }
