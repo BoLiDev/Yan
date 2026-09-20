@@ -58,7 +58,7 @@ yan ui [--since D] [--until D]     the work report user shows people, as one HTM
                                    YYYY-MM-DD, so "the past month" is dates you work out
 yan task new --title … --repo …    create a task and enter it
 yan deliverable add "<text>"…      the task's deliverables · ls, set <id>, done <id> [--ref],
-                                   abandon <id> --reason, todo <id>, rm <id>
+                                   abandon <id> --reason, todo <id>, rm <id> · all take --note
 yan unit add | set                 a unit's branch, target, scope, needs
 yan shift new --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
@@ -240,10 +240,10 @@ or accepts one; giving one up records its reason, so the next session does not r
 again.
 
 The description `user` gave `yan task new` is a seed, and its wording is not kept. When
-session start says a task has no deliverables, break the seed down in that turn, before
-anything else, into the brief and the first deliverables, and show `user` both in your
-first reply for them to correct: work dispatched against a seed nobody has broken down
-is work nobody has agreed to.
+session start heads the deliverables `none yet` and says the task has never been broken
+down, break the seed down in that turn, before anything else, into the brief and the
+first deliverables, and show `user` both in your first reply for them to correct: work
+dispatched against a seed nobody has broken down is work nobody has agreed to.
 
 **`log.md`.** Six kinds of line. Log in the turn the event happens.
 

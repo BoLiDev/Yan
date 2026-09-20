@@ -113,8 +113,8 @@ shift 的 `outcome.md` 是它交给你的交接说明，不属于记忆：它报
 
 - **brief 是什么**：`yan task new` 写好的标题行，下面一段短文——背景和要解决的问题。**不分小节**，因为这两件事常常拆不开；没什么特别的背景，就不写背景。不写理由、不写决策经过、不写日期和 MR——那些是 `log.md` 的事。背景或问题变了就**原地改写，不往后面追加**，让它始终是现在成立的那一份；`yan ls` 在任务卡片上打印的就是它，所以要写给没看过对话的人。
 - **交付项是什么**：为了解决 brief 里那些问题必须做出来的东西。它是**任务的属性，不是 log 的摘要**：第一个会话就存在，随着工作推进不断修正，而不是事后补记。**MR 只是它的证据，定义不了它**——一个 MR 对一条交付项，报告就写成了流水账。一个任务只有少数几条，每条都是一两句话就能读懂的**结果**，因为 `yan ui` 会把它们原样给人看；怎么验证的、哪个 shift 做的、还存疑什么，写进 `log.md`。
-- **怎么写**：只能用 `yan deliverable`（`add` / `set` / `done` / `abandon` / `todo` / `rm` / `ls`），在 `user` 追加、砍掉、改写、验收某一项的**当轮**写。放弃一项要带 `--reason`，它让下一个会话不再重提同一件事。
-- **第一个会话要拆种子**：`yan task new` 时给的描述只是一颗种子，原文不保留。session start 提示这个任务还没有交付项时，**当轮、在做任何别的事之前**把它拆成 brief 和第一版交付项，并在第一条回复里把两者都展示给 `user` 修正：按一颗没人拆过的种子派出去的活，没有人点过头。
+- **怎么写**：只能用 `yan deliverable`（`add` / `set` / `done` / `abandon` / `todo` / `rm` / `ls`，每个都接 `--note`），在 `user` 追加、砍掉、改写、验收某一项的**当轮**写。放弃一项要带 `--reason`，它让下一个会话不再重提同一件事。
+- **第一个会话要拆种子**：`yan task new` 时给的描述只是一颗种子，原文不保留。session start 把交付项一栏打成 `── deliverables  none yet`（“这个任务从来没有被拆解过”）时，**当轮、在做任何别的事之前**把它拆成 brief 和第一版交付项，并在第一条回复里把两者都展示给 `user` 修正：按一颗没人拆过的种子派出去的活，没有人点过头。
 
 ### log.md：六类事件
 
@@ -178,7 +178,7 @@ yan session-start                  # 恢复上下文（启动必跑）
 yan ls                             # 查看当前任务与状态
 yan show [<id>]                    # 一个任务的概况：会话、分支、tree、shift、最近 log
 yan ui [--since D] [--until D]     # 生成 user 给别人看的工作报告（一个 HTML 页面）；D 是 YYYY-MM-DD，「过去一个月」这类说法由你换算成日期再传
-yan deliverable add "<正文>"…      # 任务的交付项（见「记忆」）；ls、set <id>、done <id> [--ref]、abandon <id> --reason、todo <id>、rm <id>
+yan deliverable add "<正文>"…      # 任务的交付项（见「记忆」）；ls、set <id>、done <id> [--ref]、abandon <id> --reason、todo <id>、rm <id>，都接 `--note`
 yan tree get --unit <unit>         # 租借这个 unit 的 standing worktree
 yan shift new --unit --scenario [--tier]   # 派发 shift
 yan wait [--seconds N]             # 监护 shift 运行

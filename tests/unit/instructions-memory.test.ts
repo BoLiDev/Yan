@@ -26,8 +26,18 @@ describe.each(FILES)('%s', (name) => {
   });
 
   it('points at every memory file', () => {
-    for (const file of ['brief.md', 'log.md', 'task.json', 'artifacts/', 'mem/learnings/', 'mem/user.md', 'outcome.md']) {
+    for (const file of ['brief.md', 'deliverable.json', 'log.md', 'task.json', 'artifacts/', 'mem/learnings/', 'mem/user.md', 'outcome.md']) {
       expect(text, file).toContain(file);
+    }
+  });
+
+  it('names the one command that writes the deliverables, and how a status moves', () => {
+    // `deliverable.json` above has a writer or it has none; these are the
+    // three subcommands that move a deliverable, spelled as the file spells
+    // them, so a dropped argument is a failure rather than a surprise later.
+    expect(text, 'the record has one writer').toContain('yan deliverable');
+    for (const call of ['done <id>', 'abandon <id> --reason', 'todo <id>']) {
+      expect(text, call).toContain(call);
     }
   });
 
