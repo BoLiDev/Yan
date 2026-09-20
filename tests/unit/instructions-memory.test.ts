@@ -5,34 +5,25 @@ import { LOG_TYPES } from '../../src/records/log/index.js';
 
 /**
  * Every main agent is told how to remember and how to dispatch, whichever
- * harness it runs under.
- * The three instruction files are written separately, so what they must all
- * carry is pinned here rather than trusted to stay in step.
+ * harness it runs under. The three files are one document in three copies, so
+ * what they must all carry is pinned here rather than trusted to stay in step.
  */
 
 const FILES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md'];
 
 /**
- * `user`'s example of a deliverable, in each file's own language. The
- * definition is the one thing an agent writes its first deliverables from,
- * and the example is what says how one sounds.
+ * `user`'s example of a deliverable. The definition is the one thing an agent
+ * writes its first deliverables from, and the example is what says how one
+ * sounds.
  */
-const EXAMPLE: Record<string, string> = {
-  'CLAUDE.md': 'the UI shows the title, and the title is green',
-  'AGENTS.md': 'the UI shows the title, and the title is green',
-  'GEMINI.md': '\u754c\u9762\u4e0a\u663e\u793a\u6807\u9898\uff0c\u5e76\u4e14\u6807\u9898\u662f\u7eff\u8272\u7684',
-};
+const EXAMPLE = 'the UI shows the title, and the title is green';
 
 /**
- * The grain, in each file's own language: a deliverable is one thing a user
- * can do or see, not one test assertion. The main agent wrote twenty for one
- * task off the older wording, so a file that drops this drifts straight back.
+ * The grain: a deliverable is one thing a user can do or see, not one test
+ * assertion. The main agent wrote twenty for one task off the older wording,
+ * so a file that drops this drifts straight back.
  */
-const GRAIN: Record<string, string[]> = {
-  'CLAUDE.md': ['user story', 'test assertion'],
-  'AGENTS.md': ['user story', 'test assertion'],
-  'GEMINI.md': ['\u7528\u6237\u6545\u4e8b', '\u6d4b\u8bd5\u65ad\u8a00'],
-};
+const GRAIN = ['user story', 'test assertion'];
 
 /**
  * That the list is the task's goal and stays aligned with `user`: what the
@@ -40,11 +31,7 @@ const GRAIN: Record<string, string[]> = {
  * them afterwards. `user` reads it with `yan show` to catch drift early, so a
  * file that says only what a deliverable is leaves out what the list is for.
  */
-const ALIGNED: Record<string, string[]> = {
-  'CLAUDE.md': ['yan show', 'never on your own'],
-  'AGENTS.md': ['yan show', 'never on your own'],
-  'GEMINI.md': ['yan show', '\u6c38\u8fdc\u4e0d\u81ea\u4f5c\u4e3b\u5f20'],
-};
+const ALIGNED = ['yan show', 'once they agree'];
 
 function read(name: string): string {
   return readFileSync(join(process.cwd(), name), 'utf8');
@@ -52,6 +39,7 @@ function read(name: string): string {
 
 describe.each(FILES)('%s', (name) => {
   const text = read(name);
+  const said = text.replace(/\s+/g, ' ');
 
   it('names every log type the code accepts, and how to write one', () => {
     for (const type of LOG_TYPES) expect(text, type).toContain(`\`${type}\``);
@@ -65,26 +53,25 @@ describe.each(FILES)('%s', (name) => {
     }
   });
 
-  it('names the one command that writes the deliverables, and how a status moves', () => {
-    // `deliverable.json` above has a writer or it has none; these are the
-    // three subcommands that move a deliverable, spelled as the file spells
-    // them, so a dropped argument is a failure rather than a surprise later.
+  it('names the one command that writes the deliverables, and the bar each move takes', () => {
+    // The subcommands are `yan --help`'s now. What the prompt still has to
+    // carry is that the record has one writer, and what `done` and `abandon`
+    // cost — the two moves an agent gets wrong by being generous with.
     expect(text, 'the record has one writer').toContain('yan deliverable');
-    for (const call of ['done <id>', 'abandon <id> --reason', 'todo <id>']) {
-      expect(text, call).toContain(call);
-    }
+    expect(said, 'done is seen to be true, never merged').toContain('`done` takes the bar');
+    expect(said, 'and giving one up records why').toContain('`abandon` takes the reason');
   });
 
   it("carries user's example of a deliverable, so the definition keeps its voice", () => {
-    expect(text).toContain(EXAMPLE[name]);
+    expect(text).toContain(EXAMPLE);
   });
 
   it('says a deliverable is a user story rather than a test assertion', () => {
-    for (const said of GRAIN[name] as string[]) expect(text, said).toContain(said);
+    for (const phrase of GRAIN) expect(text, phrase).toContain(phrase);
   });
 
   it('says the list is the goal, changed with user and shown to them after', () => {
-    for (const said of ALIGNED[name] as string[]) expect(text, said).toContain(said);
+    for (const phrase of ALIGNED) expect(text, phrase).toContain(phrase);
   });
 
   it('keeps task.json in step with what user says', () => {
@@ -94,8 +81,10 @@ describe.each(FILES)('%s', (name) => {
 
   it('says a shift lasts until its work is accepted, and uix is accepted by user', () => {
     expect(text).toContain('--user-accepted');
-    expect(text).toContain('1000');
     expect(text).toContain('yan send');
+    // How long a line may be is `yan send --help`'s; what the prompt keeps is
+    // what to do when what you have to say does not fit in one.
+    expect(said, 'a longer answer goes in a file').toContain('naming a file for anything longer');
   });
 
   it('says how to give work up, and to abandon a shift dispatched as the wrong kind', () => {

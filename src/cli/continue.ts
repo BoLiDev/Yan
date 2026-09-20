@@ -254,7 +254,15 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
         return start(agent, argv, {
           cwd,
           // Explicit, so `yan vault use` elsewhere cannot move a running agent.
-          env: { ...process.env, YAN_HOME: cwd, YAN_VAULT: vaultDir(), YAN_TASK: id },
+          env: {
+            ...process.env,
+            YAN_HOME: cwd,
+            YAN_VAULT: vaultDir(),
+            YAN_TASK: id,
+            // The prompt tells yan its artifacts go in $YAN_TASK_DIR/artifacts;
+            // unset, that path lands at the filesystem root.
+            YAN_TASK_DIR: record.dir,
+          },
         });
       } finally {
         if (workspace !== undefined) {

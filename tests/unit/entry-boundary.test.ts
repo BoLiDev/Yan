@@ -6,7 +6,7 @@ import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../help
 /**
  * The entry point's structural rules, which no unit test of a command can
  * reach: the commands only agents run never prompt, `attach` appears nowhere
- * in the vocabulary, and the two instruction files stay one document.
+ * in the vocabulary, and the three instruction files stay one document.
  */
 
 function read(...parts: string[]): string {
@@ -58,27 +58,55 @@ describe('the model is never sent into the prompts', () => {
   it('and still carries the authority rules and the Codex checkpoint', () => {
     expect(agents).toContain('yan unit set');
     expect(agents).toContain('yan land');
-    expect(agents).toContain('mentioning anyone');
+    expect(agents).toContain('yan vault push');
     expect(agents).toContain('yan wait --seconds');
   });
 });
 
-describe('the two instruction files are one document', () => {
-  // CLAUDE.md and AGENTS.md are compared byte for byte outside
-  // "## Supervision", which is the one section the two harnesses differ in.
-  function withoutSupervision(text: string): string {
-    const start = text.indexOf('## Supervision');
-    if (start < 0) throw new Error('the section has to be findable to be excluded');
-    return text.slice(0, start);
+describe('the three instruction files are one document', () => {
+  // The three are compared byte for byte outside the two places a harness is
+  // allowed to differ: who arms the watcher, at the top of "## Supervision",
+  // and who may write code, at the top of "## Shifts" — empty in two of the
+  // files, and one paragraph in GEMINI.md. Everything else, the rest of both
+  // sections included, has to agree.
+  const HARNESS = [
+    ['## Shifts', '**Deciding whether to dispatch.**'],
+    ['## Supervision', '**Reading a shift that has gone quiet.**'],
+  ] as const;
+
+  function withoutTheHarness(text: string): string {
+    let out = '';
+    let at = 0;
+    for (const [heading, resumesAt] of HARNESS) {
+      const start = text.indexOf(heading, at);
+      const resumes = text.indexOf(resumesAt, start);
+      if (start < 0 || resumes < start) {
+        throw new Error(`the harness paragraph under ${heading} has to be findable to be excluded`);
+      }
+      out += text.slice(at, start);
+      at = resumes;
+    }
+    return out + text.slice(at);
   }
 
-  it('agree everywhere except the section that is about the harness', () => {
-    expect(withoutSupervision(read('CLAUDE.md'))).toBe(withoutSupervision(read('AGENTS.md')));
+  it('agree everywhere except the paragraphs that are about the harness', () => {
+    const claude = withoutTheHarness(read('CLAUDE.md'));
+    expect(withoutTheHarness(read('AGENTS.md'))).toBe(claude);
+    expect(withoutTheHarness(read('GEMINI.md'))).toBe(claude);
   });
 
   it('and each says how its own supervision is driven', () => {
     expect(read('CLAUDE.md'), 'Claude is armed by the Stop hook').toContain('The Stop hook arms');
     expect(read('AGENTS.md'), 'Codex runs the loop itself').toContain('yan wait --seconds');
+    expect(read('GEMINI.md'), 'agy is armed like Claude, and starts without a session event')
+      .toContain('Agy has no session-start event');
+  });
+
+  it("and only GEMINI.md keeps code out of the main agent's hands", () => {
+    expect(read('GEMINI.md')).toContain("**Code is a shift's, not yours.**");
+    for (const other of ['CLAUDE.md', 'AGENTS.md']) {
+      expect(read(other), other).not.toContain("Code is a shift's");
+    }
   });
 });
 
@@ -102,9 +130,10 @@ describe('`attach` is out of the vocabulary', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('appears in neither of the two always-loaded instruction files', () => {
-    expect(read('AGENTS.md')).not.toContain('attach');
-    expect(read('CLAUDE.md')).not.toContain('attach');
+  it('appears in none of the always-loaded instruction files', () => {
+    for (const file of ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md']) {
+      expect(read(file), file).not.toContain('attach');
+    }
   });
 });
 
