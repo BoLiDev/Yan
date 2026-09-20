@@ -10,6 +10,11 @@ by nothing else. `brief.md` is the title line and prose: it is never parsed for
 deliverables, and a task with no record reads `unknown` on the page whatever its
 brief says.
 
+Every deliverable here is written as the requirement it is: present tense, the
+product as the subject, what has to be true when the work is done. Never a test, a
+fix, a document or a step of the process — those belong in `log.md`, and a fixture
+that reads like a log teaches the page's readers to write one.
+
 | id | state | project | started | completed | record (done · to do · abandoned) | what it is for |
 | --- | --- | --- | --- | --- | --- | --- |
 | t001 | open | site | 09-01 | | 2 · 2 · 1, done 09-10 (`PR #12`), 09-15 (`PR #13` `PR #14`) | the ring at 2/4; all three statuses in one opened row; several refs on one item; an abandoned deliverable with its reason; a brief with two paragraphs and two bullets |

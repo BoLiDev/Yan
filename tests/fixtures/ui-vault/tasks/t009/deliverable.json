@@ -2,7 +2,7 @@
   "version": 1,
   "nextId": 3,
   "deliverables": [
-    { "id": "d1", "text": "The box finds pages by title.", "status": "done", "doneAt": "2026-09-09" },
-    { "id": "d2", "text": "The box is in the header on every page.", "status": "done", "doneAt": "2026-09-12", "refs": ["PR #53"] }
+    { "id": "d1", "text": "The search box finds any page by its title.", "status": "done", "doneAt": "2026-09-09" },
+    { "id": "d2", "text": "The search box is in the header on every page.", "status": "done", "doneAt": "2026-09-12", "refs": ["PR #53"] }
   ]
 }
