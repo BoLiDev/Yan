@@ -384,6 +384,105 @@ if (LOOK !== undefined) {
   await shot('fixture-16-folded-phone', true);
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(150);
 
+  // ── the headline and the search row stay in reach while scrolling ────────
+  // Two sticky bars: the headline with its presets at the top, the search row under it,
+  // the tiles passing away between them and the list scrolling on below. What is checked
+  // is where things are after a real scroll, not which CSS was written.
+  const bars = () => js(`(() => {
+    const head = document.getElementById('head'), filters = document.getElementById('filters');
+    const r = (e) => { const b = e.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), height: Math.round(b.height) }; };
+    const page = document.querySelector('.page').getBoundingClientRect();
+    const h = r(head), f = r(filters);
+    const under = (x, y) => { const e = document.elementFromPoint(x, y); return e === null ? null : (e.closest('#head') ? 'head' : e.closest('#filters') ? 'filters' : e.closest('#list') ? 'list' : e.className || e.tagName); };
+    return {
+      scrollY: Math.round(scrollY), head: h, filters: f,
+      bar: getComputedStyle(document.documentElement).getPropertyValue('--bar').trim(),
+      position: [getComputedStyle(head).position, getComputedStyle(filters).position].join(' '),
+      tilesBottom: Math.round(document.querySelector('.tiles').getBoundingClientRect().bottom),
+      firstRow: Math.round(document.querySelector('.row').getBoundingClientRect().top),
+      presets: Math.round(document.getElementById('presets').getBoundingClientRect().top),
+      gutter: under(page.left + 6, Math.round(h.height / 2)), middle: under(page.left + page.width / 2, Math.round(h.height / 2)),
+      overFilters: under(page.left + page.width / 2, f.top + Math.round(f.height / 2)),
+      hairline: (() => { const c = getComputedStyle(filters, '::after'); return [c.content !== 'none', c.height, c.backgroundColor].join(' '); })(),
+      hairlineTop: (() => { const c = getComputedStyle(head, '::after'); return [c.content !== 'none', c.height, c.backgroundColor].join(' '); })(),
+      viewport: innerHeight,
+    };
+  })()`);
+  const scroll = async (y) => { await js(`scrollTo(0, ${y})`); await sleep(300); };
+  const toBottom = async () => { await js(`scrollTo(0, document.body.scrollHeight)`); await sleep(300); };
+
+  await go('fixture', '?since=2025-12-01');
+  const rest = await bars();
+  check('the two bars are sticky and nothing else does the pinning', rest.position === 'sticky sticky' && (await js(`document.documentElement.outerHTML.includes('position: fixed') === false`)), rest.position);
+  check('at rest the bars sit where they always did: the headline 56 px down, the tiles under it', rest.head.top === 42 && (await js(`Math.round(document.querySelector('.dates').getBoundingClientRect().top)`)) === 56 && rest.tilesBottom > 0, rest);
+  await toBottom();
+  const down = await bars();
+  check('scrolled to the bottom: the headline is at the top of the viewport, with its presets beside it', down.scrollY > 300 && down.head.top === 0 && down.presets > 0 && down.presets < down.head.height, down);
+  check('…the tiles are out of view entirely, gone up under the headline', down.tilesBottom <= 0, down.tilesBottom);
+  check('…the search row sits right under the headline, with no gap and no overlap', down.filters.top === down.head.height && down.bar === `${down.head.height}px`, `${down.filters.top} vs ${down.head.height}, --bar ${down.bar}`);
+  check('…and the list has moved by exactly what was scrolled', rest.firstRow - down.firstRow === down.scrollY, `${rest.firstRow} → ${down.firstRow}, scrolled ${down.scrollY}`);
+  check('the bars are opaque in the page\'s own ground, out to the page\'s edges: nothing shows through', down.gutter === 'head' && down.middle === 'head' && down.overFilters === 'filters', down);
+  check('the hairline under the pair is the page\'s own line, and costs no height', /^true 1px rgb\(231, 229, 223\)$/.test(down.hairline) && down.head.height === rest.head.height && down.filters.height === rest.filters.height, [down.hairline, rest.head.height, down.head.height, rest.filters.height, down.filters.height]);
+  await shot('fixture-17-pinned', false);
+  // the menus, while both bars are pinned
+  await js(`document.getElementById('project').click()`);
+  const menu = await js(`(() => { const m = document.getElementById('menu'); const b = m.getBoundingClientRect(); const mid = document.elementFromPoint(b.left + b.width / 2, b.top + 8); return { shown: !m.hidden, top: Math.round(b.top), bottom: Math.round(b.bottom), inside: b.top >= 0 && b.bottom <= innerHeight && b.left >= 0, onTop: mid !== null && mid.closest('#menu') !== null, clipped: [...document.querySelectorAll('*')].some(e => e.contains(m) && e !== m && getComputedStyle(e).overflow !== 'visible') }; })()`);
+  check('pinned: the project menu opens over everything, unclipped and inside the viewport', menu.shown && menu.inside && menu.onTop && !menu.clipped, menu);
+  await shot('fixture-18-pinned-menu', false);
+  await js(`document.body.click()`);
+  await js(`document.getElementById('dates').click()`);
+  const picker = await js(`(() => { const p = document.getElementById('picker'); const b = p.getBoundingClientRect(); const mid = document.elementFromPoint(b.left + b.width / 2, b.top + 8); return { shown: !p.hidden, top: Math.round(b.top), inside: b.top >= 0 && b.bottom <= innerHeight, onTop: mid !== null && mid.closest('#picker') !== null, overFilters: b.bottom > document.getElementById('filters').getBoundingClientRect().top }; })()`);
+  check('pinned: the headline\'s own dates open over the search row below it, unclipped', picker.shown && picker.inside && picker.onTop && picker.overFilters, picker);
+  await js(`document.body.click()`);
+  // the keyboard: a real Tab onto a row far down the list lands below the bars
+  await scroll(0);
+  await js(`(() => { const hs = [...document.querySelectorAll('.group-h')]; hs[hs.length - 1].focus(); })()`);
+  await sleep(250);
+  let tabs = 0;
+  while (tabs < 12 && !(await js(`document.activeElement.matches('button.row')`))) {
+    for (const type of ['rawKeyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    tabs++; await sleep(200);
+  }
+  const landed = await js(`(() => { const e = document.activeElement, b = e.getBoundingClientRect(); const f = document.getElementById('filters').getBoundingClientRect(); return { what: e.className, text: e.textContent.slice(0, 24), row: e.matches('button.row'), top: Math.round(b.top), bottom: Math.round(b.bottom), barsBottom: Math.round(f.bottom), viewport: innerHeight, scrolled: Math.round(scrollY), clear: b.top >= f.bottom - 0.5 && b.bottom <= innerHeight + 0.5 }; })()`);
+  check('Tab onto a row far down the list leaves it whole, below both bars', landed.row && landed.clear && landed.scrolled > 0, { tabs, ...landed });
+  await shot('fixture-19-pinned-tab', false);
+  // a section heading jumped to: scroll-margin-top keeps it clear of the bars too
+  const heading = await js(`(() => { const hs = [...document.querySelectorAll('.group-h')]; const h = hs[hs.length - 1]; h.focus(); return h.firstChild.textContent; })()`);
+  await sleep(300);
+  check('a section heading the keyboard reaches is clear of the bars as well', await js(`(() => { const b = document.activeElement.getBoundingClientRect(); const f = document.getElementById('filters').getBoundingClientRect(); return b.top >= f.bottom - 0.5 && b.bottom <= innerHeight + 0.5; })()`), heading);
+
+  // a phone pins the headline alone: both bars would cost a third of the screen there
+  await go('fixture', '?since=2025-12-01', 390, 844);
+  const phoneRest = await bars();
+  check('390: at rest the search row is where it always was, under the tiles', phoneRest.position === 'sticky static' && phoneRest.filters.top > phoneRest.tilesBottom, phoneRest);
+  await toBottom();
+  const phonePinned = await bars();
+  check('390 × 844: the headline is pinned with its presets, the tiles and the search row gone up under it', phonePinned.head.top === 0 && phonePinned.presets > 0 && phonePinned.tilesBottom <= 0 && phonePinned.filters.bottom <= phonePinned.head.height, phonePinned);
+  check('390 × 844: what is pinned takes well under a third of the screen and the list keeps the rest', phonePinned.head.height <= 281, `${phonePinned.head.height} of 844 (${Math.round((phonePinned.head.height / 844) * 100)}%)`);
+  check('390: the bar is opaque out to the page\'s edges, with the same hairline under it', phonePinned.gutter === 'head' && phonePinned.middle === 'head' && /^true 1px rgb\(231, 229, 223\)$/.test(phonePinned.hairlineTop), [phonePinned.gutter, phonePinned.hairlineTop]);
+  check('390: and the list has moved by exactly what was scrolled', phoneRest.firstRow - phonePinned.firstRow === phonePinned.scrollY, `${phoneRest.firstRow} → ${phonePinned.firstRow}, scrolled ${phonePinned.scrollY}`);
+  check('390: no sideways scroll with the headline pinned', !(await holds()).sideways);
+  await shot('fixture-20-pinned-phone', false);
+  await js(`document.getElementById('dates').click()`);
+  check('390: the headline\'s own dates open unclipped while pinned', await js(`(() => { const p = document.getElementById('picker'), b = p.getBoundingClientRect(); const mid = document.elementFromPoint(b.left + b.width / 2, b.top + 8); return !p.hidden && b.top >= 0 && b.left >= 0 && b.right <= innerWidth && b.bottom <= innerHeight && mid !== null && mid.closest('#picker') !== null; })()`), await js(`JSON.stringify(document.getElementById('picker').getBoundingClientRect())`));
+  await shot('fixture-21-pinned-phone-menu', false);
+  await js(`document.body.click()`);
+  await scroll(0);
+  await js(`(() => { const hs = [...document.querySelectorAll('.group-h')]; hs[hs.length - 1].focus(); })()`);
+  await sleep(250);
+  let phoneTabs = 0;
+  while (phoneTabs < 12 && !(await js(`document.activeElement.matches('button.row')`))) {
+    for (const type of ['rawKeyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    phoneTabs++; await sleep(200);
+  }
+  check('390: Tab onto a row far down the list leaves it whole, below the pinned headline', await js(`(() => { const e = document.activeElement, b = e.getBoundingClientRect(); const h = document.getElementById('head').getBoundingClientRect(); return e.matches('button.row') && b.top >= h.bottom - 0.5 && b.bottom <= innerHeight + 0.5 && scrollY > 0; })()`), await js(`(() => { const e = document.activeElement, b = e.getBoundingClientRect(); return { what: e.className, top: Math.round(b.top), bottom: Math.round(b.bottom), bar: Math.round(document.getElementById('head').getBoundingClientRect().bottom), scrolled: Math.round(scrollY) }; })()`));
+
+  // paper does not scroll
+  await send('Emulation.setEmulatedMedia', { media: 'print' }); await sleep(200);
+  check('print: nothing on the page is sticky', await js(`[...document.querySelectorAll('*')].every(e => getComputedStyle(e).position !== 'sticky')`), await js(`[...document.querySelectorAll('*')].filter(e => getComputedStyle(e).position === 'sticky').map(e => e.id || e.className)`));
+  await send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'light' }] }); await sleep(150);
+  await go('fixture', '?since=2025-12-01');
+
   // ── the ring ──
   const ring = (title) => js(`(() => { const r = [...document.querySelectorAll('.row')].find(b => b.textContent.includes(${JSON.stringify(title)})); const m = r.querySelector('.mark'); const svg = m.querySelector('svg'); const pie = svg.querySelector('path[fill]'); let drawn = null; if (pie) { const e = pie.getAttribute('d').match(/1 ([\\d.]+) ([\\d.]+)Z$/); const x = Number(e[1]) - 10, y = 10 - Number(e[2]); let deg = Math.atan2(x, y) * 180 / Math.PI; if (deg <= 0) deg += 360; drawn = Math.round(deg); } return { state: m.dataset.state, fraction: m.dataset.fraction ?? null, degrees: m.dataset.degrees ?? null, drawn, dot: !!svg.querySelector('circle[r="1.5"]'), full: !!svg.querySelector('circle[r="5"]'), disc: !!svg.querySelector('circle[r="9"]'), slash: !!svg.querySelector('path[stroke-linecap]:not([stroke-linejoin])'), title: m.title, size: svg.getAttribute('width'), tint: getComputedStyle(m).backgroundColor, color: getComputedStyle(m).color }; })()`);
   await go('edges', '?since=2025-12-01');
