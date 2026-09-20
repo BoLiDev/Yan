@@ -43,11 +43,12 @@ function seed(): void {
 }
 
 describe('creation', () => {
-  it('makes task.json, brief.md and log.md, and is idempotent', () => {
+  it('makes task.json, brief.md, deliverable.json and log.md, and is idempotent', () => {
     Task.create('t042', 'unify the auth header');
     const dir = new Task('t042').dir;
-    expect(readFileSync(join(dir, 'brief.md'), 'utf8')).toBe(
-      '# t042 unify the auth header\n\n## Description\n\n## Deliverables\n',
+    expect(readFileSync(join(dir, 'brief.md'), 'utf8')).toBe('# t042 unify the auth header\n');
+    expect(readFileSync(join(dir, 'deliverable.json'), 'utf8')).toBe(
+      `${JSON.stringify({ version: 1, nextId: 1, deliverables: [] }, null, 2)}\n`,
     );
     expect(readFileSync(join(dir, 'log.md'), 'utf8')).toBe('# t042 unify the auth header\n\n');
 
@@ -55,13 +56,11 @@ describe('creation', () => {
     expect(new Task('t042').title()).toBe('unify the auth header');
   });
 
-  it('seeds a brief with a description under its Description heading', () => {
+  it('seeds a brief with the title line and the description, and no headings', () => {
     expect(briefText('t042', 'unify the auth header', 'the same header, everywhere\n')).toBe(
-      '# t042 unify the auth header\n\n## Description\n\nthe same header, everywhere\n\n## Deliverables\n',
+      '# t042 unify the auth header\n\nthe same header, everywhere\n',
     );
-    expect(briefText('t042', 'unify the auth header', '  ')).toBe(
-      '# t042 unify the auth header\n\n## Description\n\n## Deliverables\n',
-    );
+    expect(briefText('t042', 'unify the auth header', '  ')).toBe('# t042 unify the auth header\n');
   });
 
   it('refuses a bad task id', () => {
