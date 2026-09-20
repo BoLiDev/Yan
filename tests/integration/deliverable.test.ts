@@ -220,10 +220,26 @@ describe('who reads it', () => {
       expect(r.code, r.out).toBe(0);
       expect(r.out, args.join(' ')).toContain('a requirement');
       expect(r.out, args.join(' ')).toContain('the UI shows the title, and the title is green');
+      expect(r.out, 'the grain is a user story').toContain('user story');
+      expect(r.out, 'and not a test assertion').toContain('test assertion');
     }
     const notice = await runYan(home, ['session-start', 't042']);
     expect(notice.stdout).toContain('the requirements that have to be true');
     expect(notice.stdout).toContain('the UI shows the title, and the title is green');
+    expect(notice.stdout).toContain('user story');
+  });
+
+  // The list is what user and the agent have agreed the task is for, so the
+  // help says so where somebody is being told to write one: a list that drifts
+  // out of sight is what `yan show` is read to catch.
+  it('says the list is the goal, and that it stays aligned with user', async () => {
+    for (const args of [['deliverable', '--help'], ['deliverable', 'add', '--help']]) {
+      const r = await yan(args);
+      expect(r.out, args.join(' ')).toContain("the task's goal");
+      expect(r.out, args.join(' ')).toContain('aligned with user');
+    }
+    expect((await yan(['deliverable', '--help'])).out).toContain('yan show');
+    expect((await runYan(home, ['session-start', 't042'])).stdout).toContain('stays aligned with');
   });
 
   it('session-start prints the block, and the notice while the list is empty', async () => {
@@ -264,6 +280,32 @@ describe('who reads it', () => {
     expect(plain).toContain('none yet - yan deliverable add "<text>"');
     expect(plain, "the notice is addressed to the agent, and user reads this").not.toContain('your first reply');
     expect((await runYan(home, ['show', 't043'])).stdout).toContain('none recorded');
+  });
+
+  // A ref is stored as it was typed; every terminal reader shortens a URL so
+  // the line stays readable, and `--json` still hands back what is on disk.
+  it('prints a URL ref in its short form, and keeps the record as it was typed', async () => {
+    await yan(['deliverable', 'add', 'The pricing page shows the three plans.']);
+    await yan(['deliverable', 'done', 'd1', '--at', '2026-09-18',
+      '--ref', 'https://github.com/acme/site/pull/58',
+      '--ref', 'https://gitlab.acme.internal/acme/site/-/merge_requests/87',
+      '--ref', 'PR #12']);
+
+    const shortened = '2026-09-18 \u00b7 PR #58 \u00b7 MR !87 \u00b7 PR #12';
+    const ls = await yan(['deliverable', 'ls']);
+    expect(ls.code, ls.out).toBe(0);
+    expect(ls.stdout.replace(/\u001B\[[0-9;]*m/g, '')).toContain(shortened);
+    expect((await runYan(home, ['show', 't042'])).stdout.replace(/\u001B\[[0-9;]*m/g, '')).toContain(shortened);
+    expect((await runYan(home, ['session-start', 't042'])).stdout).toContain(shortened);
+
+    const json = JSON.parse((await yan(['deliverable', 'ls', '--json'])).stdout) as {
+      deliverables: { refs?: string[] }[];
+    };
+    expect(json.deliverables[0]?.refs, 'the record keeps the URL').toEqual([
+      'https://github.com/acme/site/pull/58',
+      'https://gitlab.acme.internal/acme/site/-/merge_requests/87',
+      'PR #12',
+    ]);
   });
 
   it('yan show prints them under the description', async () => {

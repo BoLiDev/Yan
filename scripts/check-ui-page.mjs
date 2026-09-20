@@ -255,6 +255,49 @@ if (LOOK !== undefined) {
   await clickRow('pricing page');
   check('pricing page: the brief as written, two paragraphs keeping their bullets, then five nodes in file order', await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const leads = [...d.querySelectorAll('.lead')].map(e => e.textContent); return leads.length === 2 && leads[1].split(String.fromCharCode(10)).length === 3 && leads[1].split(String.fromCharCode(10))[1].startsWith('- a visitor') && d.querySelectorAll('.item').length === 5 && [...d.querySelectorAll('.item')].map(e => e.dataset.mark).join(' ') === 'done done todo todo abandoned'; })()`), await js(`[...[...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open').querySelectorAll('.lead')].map(e => e.textContent)`));
   check('a bullet keeps its own line rather than folding into the paragraph above it', await js(`getComputedStyle(document.querySelector('.detail .lead')).whiteSpace === 'pre-line'`));
+  // ── refs: a ref that is a URL is a link, and nothing else ever is ──
+  // t001 carries one of each kind (tests/fixtures/ui-vault/README.md): a plain PR #12,
+  // a GitHub pull request URL, a GitLab merge request URL on a self-hosted host, a
+  // `javascript:` one and an http one carrying `"><script>`.
+  const refs = await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); return [...d.querySelectorAll('.ref')].map(e => ({ tag: e.tagName, text: e.textContent, href: e.getAttribute('href'), target: e.getAttribute('target'), rel: e.getAttribute('rel'), title: e.getAttribute('title'), color: getComputedStyle(e).color, font: getComputedStyle(e).fontFamily })); })()`);
+  check('a GitHub pull request URL reads PR #13 and links to itself, in a new tab', (() => {
+    const a = refs.find((r) => r.text === 'PR #13');
+    return a !== undefined && a.tag === 'A' && a.href === 'https://github.com/acme/site/pull/13' && a.target === '_blank' && a.rel === 'noopener noreferrer';
+  })(), refs.find((r) => r.text === 'PR #13'));
+  check('a GitLab merge request URL on a self-hosted host reads MR !14 and links to itself', (() => {
+    const a = refs.find((r) => r.text === 'MR !14');
+    return a !== undefined && a.tag === 'A' && a.href === 'https://gitlab.acme.internal/acme/site/-/merge_requests/14' && a.target === '_blank';
+  })(), refs.find((r) => r.text === 'MR !14'));
+  check('any other http URL is a link labelled with its host, and its full ref is the tooltip', (() => {
+    const a = refs.find((r) => r.text === 'ref.example.com');
+    return a !== undefined && a.tag === 'A' && a.href.startsWith('https://ref.example.com/') && !a.href.includes('"') && !a.href.includes('<') && a.title === 'https://ref.example.com/a"><script>';
+  })(), refs.find((r) => r.text === 'ref.example.com'));
+  check('a ref that is not a URL is drawn as today: text, not a link', (() => {
+    const a = refs.find((r) => r.text === 'PR #12');
+    return a !== undefined && a.tag === 'SPAN' && a.href === null;
+  })(), refs.find((r) => r.text === 'PR #12'));
+  check('a javascript: ref is printed as typed and is never a link', (() => {
+    const a = refs.find((r) => r.text === 'javascript:alert(1)');
+    return a !== undefined && a.tag === 'SPAN' && a.href === null;
+  })(), refs.find((r) => r.text === 'javascript:alert(1)'));
+  check('no ref anywhere has a javascript: href, and the hostile text ran nothing', await js(`[...document.querySelectorAll('.ref')].every(e => !(e.getAttribute('href') || '').toLowerCase().startsWith('javascript:')) && document.querySelectorAll('#list script').length === 0`));
+  check('a linked ref looks as the others do: the same grey and the same face', (() => {
+    const link = refs.find((r) => r.tag === 'A'), plain = refs.find((r) => r.tag === 'SPAN');
+    return link !== undefined && plain !== undefined && link.color === plain.color && link.font === plain.font;
+  })(), refs.map((r) => `${r.tag} ${r.color}`).join(' | '));
+  check('hover underlines it and focus rings it, which is what the page uses to say "link"', await js(`(() => { const a = document.querySelector('.detail a.ref'); const rest = getComputedStyle(a).textDecorationLine; const hover = [...document.styleSheets[0].cssRules].some(r => r.selectorText === 'a:hover' && r.style.textDecoration.includes('underline')); const ring = [...document.styleSheets[0].cssRules].some(r => r.selectorText === ':focus-visible' && r.style.outline !== ''); return rest === 'none' && hover && ring; })()`));
+  check('clicking a ref does not toggle the row it sits in', await js(`(() => { const detail = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const a = detail.querySelector('a.ref'); const row = detail.previousElementSibling; const before = document.querySelectorAll('.detail').length, open = row.getAttribute('aria-expanded'); a.addEventListener('click', e => e.preventDefault(), { capture: true, once: true }); a.click(); return document.querySelectorAll('.detail').length === before && row.getAttribute('aria-expanded') === open && open === 'true'; })()`));
+  const wideRow = `(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const item = [...d.querySelectorAll('.item')].find(e => e.querySelectorAll('.ref').length > 2); return { refs: item.querySelectorAll('.ref').length, over: item.scrollWidth > item.clientWidth + 1, sideways: document.documentElement.scrollWidth > innerWidth }; })()`;
+  check('three refs on one deliverable hold their line at 1440', await (async () => { const r = await js(wideRow); return r.refs === 3 && !r.over && !r.sideways; })(), await js(wideRow));
+  await send('Emulation.setDeviceMetricsOverride', { width: 700, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(200);
+  check('…and at 700, where the aside moves under the text', await (async () => { const r = await js(wideRow); return r.refs === 3 && !r.over && !r.sideways; })(), await js(wideRow));
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(200);
+  await shot('fixture-13-refs');
+  await js(`document.querySelector('.detail a.ref').focus()`); await shot('fixture-14-ref-focus');
+  await send('Emulation.setEmulatedMedia', { media: 'print' }); await sleep(150);
+  check('print shows the short form and no address', await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const texts = [...d.querySelectorAll('.ref')].map(e => e.textContent); return texts.includes('PR #13') && texts.includes('MR !14') && !d.textContent.includes('gitlab.acme.internal/acme'); })()`));
+  await send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'light' }] }); await sleep(150);
+
   await clickRow('pricing page');
   check('a row closes again', (await js(`document.querySelectorAll('.detail').length`)) === 1);
   // a task with no record: not a button anywhere, and an empty squares column that says nothing

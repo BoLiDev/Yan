@@ -6,7 +6,7 @@ import { repoDir } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
-import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
+import { Deliverables, deliverableAside, Task, type Deliverable } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 import { YanError } from '../util/error.js';
 
@@ -160,10 +160,9 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
  */
 export function defaultBody(brief: string, deliverables: readonly Deliverable[]): string {
   const lines = deliverables.map((d) => {
-    if (d.status === 'done') {
-      const said = [d.doneAt, ...(d.refs ?? [])].join(' · ');
-      return `- [x] ${d.text} — ${said}`;
-    }
+    // The same aside the terminal prints, so a ref that is a URL reads as
+    // `PR #58` here too rather than as a line of address.
+    if (d.status === 'done') return `- [x] ${d.text} — ${deliverableAside(d)}`;
     if (d.status === 'abandoned') return `- [-] ${d.text} — abandoned: ${d.reason}`;
     return `- [ ] ${d.text}`;
   });
