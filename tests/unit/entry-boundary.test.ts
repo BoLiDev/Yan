@@ -58,22 +58,29 @@ describe('the model is never sent into the prompts', () => {
   it('and still carries the authority rules and the Codex checkpoint', () => {
     expect(agents).toContain('yan unit set');
     expect(agents).toContain('yan land');
-    expect(agents).toContain('mentioning anyone');
+    expect(agents).toContain('yan vault push');
     expect(agents).toContain('yan wait --seconds');
   });
 });
 
 describe('the two instruction files are one document', () => {
-  // CLAUDE.md and AGENTS.md are compared byte for byte outside
-  // "## Supervision", which is the one section the two harnesses differ in.
-  function withoutSupervision(text: string): string {
+  // CLAUDE.md and AGENTS.md are compared byte for byte outside the opening of
+  // "## Supervision", which says who arms the watcher and is the one thing the
+  // two harnesses differ in. The rest of that section, and everything after
+  // it, is compared like the rest of the document.
+  const REST_OF_SUPERVISION = '**Reading a shift that has gone quiet.**';
+
+  function withoutTheHarness(text: string): string {
     const start = text.indexOf('## Supervision');
-    if (start < 0) throw new Error('the section has to be findable to be excluded');
-    return text.slice(0, start);
+    const resumes = text.indexOf(REST_OF_SUPERVISION);
+    if (start < 0 || resumes < start) {
+      throw new Error('the harness paragraph has to be findable to be excluded');
+    }
+    return text.slice(0, start) + text.slice(resumes);
   }
 
-  it('agree everywhere except the section that is about the harness', () => {
-    expect(withoutSupervision(read('CLAUDE.md'))).toBe(withoutSupervision(read('AGENTS.md')));
+  it('agree everywhere except the paragraph that is about the harness', () => {
+    expect(withoutTheHarness(read('CLAUDE.md'))).toBe(withoutTheHarness(read('AGENTS.md')));
   });
 
   it('and each says how its own supervision is driven', () => {
