@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
-import { deliverableLines, deliverableTally, NO_DELIVERABLES_NOTICE } from './shared/deliverables.js';
+import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
@@ -249,8 +249,9 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date())
   if (show.deliverables_problem !== null) {
     out(`   ${yellow(show.deliverables_problem)}`);
   } else if (show.deliverables.length === 0) {
-    if (show.complete) out(`   ${dim('none recorded')}`);
-    else for (const line of NO_DELIVERABLES_NOTICE) out(line === '' ? '' : `   ${dim(line)}`);
+    // One quiet line. What to do about it is session start's to say, to the
+    // main agent; this is `user` at a terminal looking at a task.
+    out(`   ${dim(show.complete ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
   } else {
     for (const line of deliverableLines(show.deliverables, { id: bold, status: statusPaint, aside: dim })) {
       out(` ${line}`);

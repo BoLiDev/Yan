@@ -29,9 +29,13 @@ const AS_IS = (s: string): string => s;
 const STATUS_WIDTH = 'abandoned'.length;
 
 /**
- * What the main agent is told when a task has no deliverables yet: the brief
- * it has is still the seed `user` typed, and breaking it down comes before
- * anything else it might do this turn.
+ * What the main agent is told at session start when a task has no
+ * deliverables yet: the brief it has is still the seed `user` typed, and
+ * breaking it down comes before anything else it might do this turn.
+ *
+ * Session start only. It is addressed to the agent reading its own startup,
+ * and `yan show` is read by `user` at a terminal, where it would be an
+ * instruction to nobody.
  */
 export const NO_DELIVERABLES_NOTICE: readonly string[] = [
   'This task has never been broken down: brief.md is still the seed `user` gave',

@@ -242,6 +242,15 @@ describe('who reads it', () => {
     expect(r.stdout, 'the rest of the session still starts').toContain('── log');
   });
 
+  it('yan show says an empty list in one quiet line, and leaves the notice to session start', async () => {
+    const r = await runYan(home, ['show', 't042']);
+    expect(r.code, r.out).toBe(0);
+    const plain = r.stdout.replace(/\u001B\[[0-9;]*m/g, '');
+    expect(plain).toContain('none yet - yan deliverable add "<text>"');
+    expect(plain, "the notice is addressed to the agent, and user reads this").not.toContain('your first reply');
+    expect((await runYan(home, ['show', 't043'])).stdout).toContain('none recorded');
+  });
+
   it('yan show prints them under the description', async () => {
     await yan(['deliverable', 'add', 'first']);
     await yan(['deliverable', 'done', 'd1', '--at', '2026-09-18']);
