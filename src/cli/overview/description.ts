@@ -1,14 +1,19 @@
 import { columnsOf } from '../shared/style.js';
 
 /**
- * What a task is for, as its `brief.md` says it: the text under
- * `## Description`, up to the next heading of that level or above; with no
- * such heading, the first paragraph after the `# title` line; `null` when
- * there is neither.
+ * What a task is for, as its `brief.md` says it.
+ *
+ * A brief is the title line and short prose: everything under the title, up
+ * to the first heading. An older brief put that prose under a
+ * `## Description` heading, and one that still has the heading is read as it
+ * always was — the text under it, up to the next heading of that level or
+ * above. `null` when there is neither.
  *
  * `brief.md` is hard-wrapped, so each paragraph comes back as one line and
- * paragraphs are separated by one blank line (`\n\n`). Markdown is not
- * parsed: backticks and the rest stay as typed.
+ * paragraphs are separated by one blank line (`\n\n`). A bullet keeps its own
+ * line rather than being folded into the paragraph before it, so a list still
+ * reads as a list. Markdown is not parsed: backticks and the rest stay as
+ * typed.
  */
 export function briefDescription(brief: string): string | null {
   const lines = brief.replace(/\r/g, '').split('\n');
@@ -23,25 +28,61 @@ export function briefDescription(brief: string): string | null {
     const title = lines.findIndex((l) => /^#\s/.test(l));
     if (title < 0) return null;
     const rest = lines.slice(title + 1);
-    const start = rest.findIndex((l) => l.trim() !== '');
-    if (start < 0 || /^#{1,6}\s/.test(rest[start] ?? '')) return null;
-    const para = rest.slice(start);
-    const end = para.findIndex((l) => l.trim() === '' || /^#{1,6}\s/.test(l));
-    body = end < 0 ? para : para.slice(0, end);
+    const end = rest.findIndex((l) => /^#{1,6}\s/.test(l));
+    body = end < 0 ? rest : rest.slice(0, end);
   }
 
-  const paragraphs: string[] = [];
+  const blocks = blocksOf(body);
+  if (blocks.length === 0) return null;
+
+  // A bullet joins what is above it with a single newline, so a list stays a
+  // list; everything else is a paragraph, and paragraphs are a blank line
+  // apart.
+  let text = '';
+  blocks.forEach((block, i) => {
+    if (i > 0) text += block.bullet ? '\n' : '\n\n';
+    text += block.text;
+  });
+  return text === '' ? null : text;
+}
+
+interface Block {
+  readonly bullet: boolean;
+  readonly text: string;
+}
+
+/**
+ * The body as blocks: a paragraph, or one bullet with whatever wrapped lines
+ * belong to it. A blank line ends a block and a bullet starts one.
+ */
+function blocksOf(body: readonly string[]): Block[] {
+  const blocks: Block[] = [];
+  let bullet = false;
   let current: string[] = [];
+  const flush = (): void => {
+    const text = unwrapParagraph(current.join('\n'));
+    if (text !== '') blocks.push({ bullet, text });
+    current = [];
+    bullet = false;
+  };
+
   for (const line of [...body, '']) {
     if (line.trim() === '') {
-      if (current.length > 0) paragraphs.push(unwrapParagraph(current.join('\n')));
-      current = [];
+      flush();
+    } else if (isBullet(line)) {
+      flush();
+      bullet = true;
+      current.push(line);
     } else {
       current.push(line);
     }
   }
-  const text = paragraphs.filter((p) => p !== '').join('\n\n');
-  return text === '' ? null : text;
+  return blocks;
+}
+
+/** `- `, `* `, `+ ` or `1. `, at any indent. */
+export function isBullet(line: string): boolean {
+  return /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line);
 }
 
 const wide = (char: string | undefined): boolean => char !== undefined && columnsOf(char) === 2;

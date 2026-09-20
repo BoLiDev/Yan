@@ -55,9 +55,26 @@ describe('the Description in brief.md', () => {
     expect(briefDescription(brief)).toBe('给静坐页面加一个呼吸引导：一个随吸气放大、呼气收缩的圆，节奏可以调（4-7-8 box breathing）。');
   });
 
-  it('without the heading, is the first paragraph after the # title', () => {
-    const brief = '# t1 title\n\nWritten by task new\nacross two lines.\n\nNot this one.\n\n## Goal\n';
-    expect(briefDescription(brief)).toBe('Written by task new across two lines.');
+  it('without the heading, is everything under the # title up to the first heading', () => {
+    const brief = '# t1 title\n\nWritten by task new\nacross two lines.\n\nAnd this one too.\n\n## Goal\n\nnot this.\n';
+    expect(briefDescription(brief)).toBe('Written by task new across two lines.\n\nAnd this one too.');
+  });
+
+  it('keeps a bullet on its own line instead of folding it into the paragraph above', () => {
+    const brief = [
+      '# t1 title', '',
+      'Two things are wrong with the report today:', '',
+      '- it reads like a log, because the items are written',
+      '  after the fact;',
+      '- a task with nothing in it opens onto an empty panel.', '',
+      'Both come from the same place.', '',
+    ].join('\n');
+    expect(briefDescription(brief)).toBe(
+      'Two things are wrong with the report today:\n' +
+      '- it reads like a log, because the items are written after the fact;\n' +
+      '- a task with nothing in it opens onto an empty panel.\n\n' +
+      'Both come from the same place.',
+    );
   });
 
   it('is null when there is neither', () => {

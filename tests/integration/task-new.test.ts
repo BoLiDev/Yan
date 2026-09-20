@@ -82,9 +82,13 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(existsSync(join(home, 'tasks', 't001', 'task.json'))).toBe(true);
     const d = await detail('t001');
     expect(d.title).toBe('unify the auth header');
-    // The description goes under the brief's Description, above an empty Deliverables.
+    // The description is a seed under the title line, with no headings, and
+    // the deliverables are their own file, empty until the first session.
     expect(readFileSync(join(home, 'tasks', 't001', 'brief.md'), 'utf8')).toBe(
-      '# t001 unify the auth header\n\n## Description\n\nthe same header, everywhere\n\n## Deliverables\n',
+      '# t001 unify the auth header\n\nthe same header, everywhere\n',
+    );
+    expect(readFileSync(join(home, 'tasks', 't001', 'deliverable.json'), 'utf8')).toBe(
+      `${JSON.stringify({ version: 1, nextId: 1, deliverables: [] }, null, 2)}\n`,
     );
     expect(readFileSync(join(home, 'tasks', 't001', 'log.md'), 'utf8')).toContain('task created');
 
@@ -126,10 +130,8 @@ describe('the id', () => {
     expect(existsSync(join(home, 'tasks', 't043', 'task.json'))).toBe(true);
   });
 
-  it('seeds the brief with both headings and an empty Description when there is no --description', () => {
-    expect(readFileSync(join(home, 'tasks', 't002', 'brief.md'), 'utf8')).toBe(
-      '# t002 something else\n\n## Description\n\n## Deliverables\n',
-    );
+  it('seeds the brief with the title line alone when there is no --description', () => {
+    expect(readFileSync(join(home, 'tasks', 't002', 'brief.md'), 'utf8')).toBe('# t002 something else\n');
   });
 
   it('refuses an id that is already taken, before anything is written', async () => {

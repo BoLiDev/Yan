@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -6,7 +6,7 @@ import { repoDir } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
+import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 import { YanError } from '../util/error.js';
 
@@ -99,10 +99,15 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     if (record.read().units.length > 1) title = `${title} (${unitName})`;
   }
 
+  // The default body is what the task is for and what it has to build: the
+  // brief no longer says the second, so the deliverables are appended to it.
+  let body = options.body;
   let bodyFile = options.bodyFile;
-  if (options.body === undefined && bodyFile === undefined) {
+  if (body === undefined && bodyFile === undefined) {
     const brief = join(record.dir, 'brief.md');
-    if (existsSync(brief)) bodyFile = brief;
+    const deliverables = new Deliverables(task).readOrNone().deliverables;
+    if (deliverables.length > 0) body = defaultBody(existsSync(brief) ? readFileSync(brief, 'utf8') : '', deliverables);
+    else if (existsSync(brief)) bodyFile = brief;
   }
 
   const create = createMr ?? ((o: MrCreateOptions) => new RemoteGit().createMr(o));
@@ -111,7 +116,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     source: data.branch,
     target: data.target,
     title,
-    ...(options.body !== undefined ? { body: options.body } : {}),
+    ...(body !== undefined ? { body } : {}),
     ...(bodyFile !== undefined ? { bodyFile } : {}),
     ...(options.draft === true ? { draft: true } : {}),
   });
@@ -148,12 +153,30 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   };
 }
 
+/**
+ * `brief.md` as it stands, then the deliverables as a markdown list: what the
+ * task is for, and what this round is meant to have built. The marks are the
+ * ones a reader of yan's own notes already knows.
+ */
+export function defaultBody(brief: string, deliverables: readonly Deliverable[]): string {
+  const lines = deliverables.map((d) => {
+    if (d.status === 'done') {
+      const said = [d.doneAt, ...(d.refs ?? [])].join(' · ');
+      return `- [x] ${d.text} — ${said}`;
+    }
+    if (d.status === 'abandoned') return `- [-] ${d.text} — abandoned: ${d.reason}`;
+    return `- [ ] ${d.text}`;
+  });
+  const head = brief.replace(/\s+$/, '');
+  return `${head === '' ? '' : `${head}\n\n`}## Deliverables\n\n${lines.join('\n')}\n`;
+}
+
 export const command = new Command('mr')
   .description('open the outbound merge request: integration branch → target')
   .option('--unit <name>', 'the unit name')
   .option('--title <text>', "defaults to the task's title")
   .option('--body <text>', 'the merge request body')
-  .option('--body-file <path>', "defaults to the task's brief.md when it exists")
+  .option('--body-file <path>', "defaults to the task's brief.md and its deliverables")
   .option('--draft', 'open it as a draft')
   .option('--json', 'machine readable output')
   .addHelpText(
