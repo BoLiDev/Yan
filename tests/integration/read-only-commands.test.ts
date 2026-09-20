@@ -280,7 +280,12 @@ describe('yan repo add', () => {
     expect(unknown.code).not.toBe(0);
     expect(unknown.stderr).toContain('not registered');
 
-    expect((await yan(['repo', 'rm'])).code).toBe(2);
+  });
+
+  it('with no name and no terminal, refuses to remove anything instead of waiting on a prompt', async () => {
+    const r = await yan(['repo', 'rm']);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('pass the name');
   });
 
   it('derives a name from every URL spelling a forge hands out', async () => {

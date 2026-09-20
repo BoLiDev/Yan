@@ -234,7 +234,7 @@ describe('the soft path filters', () => {
   it('gives every one of them a placeholder, so it looks like what it is', () => {
     const source = readFileSync(join(repoRoot, 'src', 'ui', 'prompts.ts'), 'utf8');
     const lists = source.match(/await autocomplete(?:Multiselect)?\(\{[\s\S]*?\n {2,6}\}\)/g) ?? [];
-    expect(lists.length, 'the entry, done, continue, repo add, task new repos and its scopes, draft ls').toBe(7);
+    expect(lists.length, 'the entry, done, continue, repo add, repo rm, task new repos and its scopes, draft ls').toBe(8);
     for (const list of lists) {
       expect(list, 'a search box nobody knows is a search box is a select').toContain('placeholder');
     }
