@@ -3,7 +3,8 @@
 // Click through the page `yan ui` writes, in headless Chrome over the DevTools
 // protocol, and check what it does: every control, the fixture vault's known
 // numbers (tests/fixtures/ui-vault/README.md), the ring at its edges, half a
-// screen, dark, print, no page error and no network request. Not part of
+// screen, dark, print, the face it ships beside itself, no page error and no
+// network request. Not part of
 // `npm test`, which must not need Chrome. Needs Google Chrome, Node 22+
 // (global WebSocket and fetch) and a build (`npm run build`); no dependency.
 //
@@ -17,11 +18,15 @@
 // Screenshots and a PDF go to --shots, or to a temporary directory it prints.
 // $CHROME names another Chrome binary. Every page is opened as the file:// URL
 // the reader gets, and the page's own ?since=&until= stand in for the flags.
+//
+// The font checks need ChillRoundF installed, because they prove the shipped
+// woff2 files draw what the installed face draws. On a machine without it they
+// say so and the rest of the run holds.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -89,6 +94,9 @@ const chromeBin = process.env.CHROME ?? '/Applications/Google Chrome.app/Content
 const chrome = spawn(chromeBin, ['--headless=new', '--disable-gpu', '--no-first-run', '--hide-scrollbars', `--user-data-dir=${profile}`, '--remote-debugging-port=0', '--window-size=1440,1000', 'about:blank'], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ws, id = 0; const waiting = new Map(); const errors = []; const requests = [];
+// Fonts the page opened, by any scheme. `requests` drops file: URLs, and a font
+// beside the page is exactly one of those, so it is counted on its own.
+const fontFiles = [];
 async function connect() {
   for (let i = 0; i < 60; i++) {
     try {
@@ -122,6 +130,7 @@ ws = new WebSocket(await connect());
 await new Promise((r) => { ws.onopen = r; });
 ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && waiting.has(m.id)) { const w = waiting.get(m.id); waiting.delete(m.id); m.error ? w.reject(new Error(m.error.message)) : w.resolve(m.result); }
   if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text);
+  if (m.method === 'Network.requestWillBeSent' && /\.woff2?(\?|$)/.test(m.params.request.url)) fontFiles.push(m.params.request.url);
   if (m.method === 'Network.requestWillBeSent' && !m.params.request.url.startsWith('file:') && !m.params.request.url.startsWith('data:')) requests.push(m.params.request.url); };
 await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
 
@@ -131,7 +140,7 @@ async function anyPage(page, prefix) {
   const t0 = Date.now(); await go(page); const loaded = await js(`performance.timing.loadEventEnd - performance.timing.navigationStart`);
   check('the page opens on 30 days, or on the range yan ui was given', true, `${await headline()} · ${size} bytes · load ${loaded} ms`);
   check('no placeholder or mock line left', await js(`!document.documentElement.outerHTML.includes('/*YAN_DATA*/') && !document.documentElement.outerHTML.includes('YAN_MOCK')`));
-  check('the page carries no font: local() only, no url, no data', await js(`(() => { const html = document.documentElement.outerHTML; const faces = html.match(/@font-face[^}]*}/g) || []; return faces.length === 2 && faces.every(f => f.includes('local(') && !f.includes('url(')) && !html.includes('data:font'); })()`));
+  check('the page asks for the face beside it: local() first, then a relative file, never a network URL and never data:', await js(`(() => { const faces = document.documentElement.outerHTML.match(/@font-face[^}]*}/g) || []; const src = (f) => (/src:([^;]*)/.exec(f) || [])[1] || ''; const url = /url\\("fonts\\/yan-round-(regular|bold)\\.woff2"\\) format\\("woff2"\\)/; const remote = /url\\(\\s*"?(https?:|\\/\\/|data:)/; return faces.length === 2 && faces.every(f => src(f).includes('local(') && src(f).indexOf('local(') < src(f).indexOf('url(') && url.test(src(f)) && !remote.test(src(f))); })()`));
   const at1440 = await holds(); check('layout holds at 1440', at1440.overflowing.length === 0 && at1440.headerOneLine && !at1440.sideways, at1440);
   await systemFont(true);
   const fallback = await holds(); check('system font: layout holds at 1440', fallback.overflowing.length === 0 && fallback.headerOneLine && !fallback.sideways, fallback);
@@ -152,22 +161,120 @@ async function anyPage(page, prefix) {
   void t0;
 }
 
+// ── the face travels with the page ─────────────────────────────────────────
+// The point of the section: on a machine with no ChillRoundF installed the page
+// still draws in it. Nothing is uninstalled to prove that. Instead the page is
+// copied with its fonts/ directory and its local() names replaced by names
+// nothing can match, which leaves the file beside the page as the only source
+// left; then the same four specimens are measured on both and compared.
+const FONT_FILES = ['yan-round-regular.woff2', 'yan-round-bold.woff2', 'OFL.txt'];
+const LATIN = 'Report Sep 17 2026';
+const HANZI = '寒蝉圆体 工作报告';   // every one of these is in the subset
+const OUTSIDE = '冥';                 // GB 2312 level 2: deliberately not in it
+
+/** A copy of `page` in the scratch directory whose local() names cannot match anything. */
+function withoutLocal(page) {
+  const from = dirname(pages[page].file);
+  const dir = join(scratch, `no-local-${page}`);
+  mkdirSync(dir, { recursive: true });
+  cpSync(join(from, 'fonts'), join(dir, 'fonts'), { recursive: true });
+  const html = readFileSync(pages[page].file, 'utf8').replace(/local\("ChillRoundF(Regular|Bold)"\)/g, 'local("NoSuchFace$1")');
+  if (html === readFileSync(pages[page].file, 'utf8')) throw new Error('no local() names to replace: has the template changed?');
+  const file = join(dir, basename(pages[page].file));
+  writeFileSync(file, html);
+  pages[`nolocal-${page}`] = { file, ms: null };
+  return `nolocal-${page}`;
+}
+
+/**
+ * What the current page actually draws, for each weight and script: the ink
+ * (the Bold has the Regular's advance widths, so width alone cannot tell them
+ * apart), a hash of the alpha channel, and the advance. `absent` repeats it in
+ * a family that does not exist, which is the fallback to compare against.
+ */
+const specimen = () => js(`(async () => {
+  const measure = async (fam) => {
+    await document.fonts.load('400 40px ' + fam); await document.fonts.load('700 40px ' + fam);
+    const one = (weight, text) => {
+      const c = document.createElement('canvas'); c.width = 900; c.height = 64;
+      const x = c.getContext('2d'); x.font = weight + ' 40px ' + fam + ', monospace';
+      const advance = Math.round(x.measureText(text).width * 10) / 10;
+      x.fillText(text, 4, 46);
+      const d = x.getImageData(0, 0, 900, 64).data;
+      let ink = 0, hash = 0;
+      for (let i = 3; i < d.length; i += 4) { ink += d[i]; hash = (hash * 31 + d[i]) | 0; }
+      return { ink: Math.round(ink / 255), hash, advance };
+    };
+    return { latin400: one(400, ${JSON.stringify(LATIN)}), latin700: one(700, ${JSON.stringify(LATIN)}),
+             han400: one(400, ${JSON.stringify(HANZI)}), han700: one(700, ${JSON.stringify(HANZI)}),
+             outside: one(400, ${JSON.stringify(OUTSIDE)}) };
+  };
+  return { face: await measure('"Yan Round"'), absent: await measure('"No Such Face At All"'),
+           faces: [...document.fonts].map((f) => f.family + ' ' + f.weight + ' ' + f.status).sort().join(' | ') };
+})()`);
+
+/** Both halves of the promise: an installed copy still wins, and without one the file draws. */
+async function theFace(page, prefix) {
+  const beside = FONT_FILES.map((n) => join(dirname(pages[page].file), 'fonts', n));
+  check('yan ui put the face beside the page: two woff2 files and the licence that has to travel with them',
+    beside.every((f) => existsSync(f)), beside.map((f) => `${basename(f)} ${existsSync(f) ? statSync(f).size : 'MISSING'}`).join(' · '));
+  // Nothing below can be asked without them, and a stack trace would say less.
+  if (!beside.every((f) => existsSync(f))) return;
+
+  fontFiles.length = 0;
+  await go(page);
+  const installed = await specimen();
+  check("local() still wins: with ChillRoundF installed the file beside the page is never opened", fontFiles.length === 0, fontFiles.map((f) => basename(f)));
+  const here = installed.face.latin400.hash !== installed.absent.latin400.hash;
+  check('ChillRoundF is installed here, so the two sources can be compared (on a machine without it the rest holds)', here);
+
+  fontFiles.length = 0;
+  const variant = withoutLocal(page);
+  await go(variant);
+  const shipped = await specimen();
+  check('with no installed copy to find, the page loads both weights from the files beside it',
+    shipped.faces === 'Yan Round 400 loaded | Yan Round 700 loaded' && fontFiles.filter((f) => f.endsWith('.woff2')).length === 2,
+    { faces: shipped.faces, opened: fontFiles.map((f) => basename(f)) });
+  check('and no network request to do it', requests.length === 0, requests);
+
+  for (const [what, key] of [['the Regular', 'latin400'], ['the Bold', 'latin700'], ['a hanzi, Regular', 'han400'], ['a hanzi, Bold', 'han700']]) {
+    const file = shipped.face[key], none = shipped.absent[key];
+    check(`the shipped file draws ${what}, not the fallback`, file.hash !== none.hash && file.advance !== none.advance, { file, fallback: none });
+    if (here) check(`and draws ${what} exactly as the installed ChillRoundF does`, file.hash === installed.face[key].hash && file.ink === installed.face[key].ink, { file, installed: installed.face[key] });
+  }
+  check('the two weights differ: the Bold is heavier at the same advance, which is what the alias buys',
+    shipped.face.latin700.ink > shipped.face.latin400.ink * 1.05 && shipped.face.han700.ink > shipped.face.han400.ink * 1.05
+    && shipped.face.latin700.advance === shipped.face.latin400.advance,
+    { regular: shipped.face.latin400, bold: shipped.face.latin700 });
+  check(`a hanzi outside the subset (${OUTSIDE}) falls back for that character alone, as the notes say`,
+    shipped.face.outside.advance === shipped.absent.outside.advance && shipped.face.han400.advance !== shipped.absent.han400.advance,
+    { outside: shipped.face.outside, fallback: shipped.absent.outside });
+
+  await go(variant, '', 1440, 1000); await shot(`${prefix}06-shipped-font`, true);
+  await go(page, '', 1440, 1000); await shot(`${prefix}07-installed-font`, true);
+  await go(variant, '', 1440, 1000);
+  await js(`(() => { const p = document.createElement('div'); p.style.cssText = 'position:fixed;inset:0;z-index:99;background:var(--ground);padding:40px;font:400 34px var(--text)'; p.innerHTML = '<div>${HANZI} — 400</div><div style="font-weight:600">${HANZI} — 600</div><div>${LATIN} — 400</div><div style="font-weight:600">${LATIN} — 600</div><div style="font-size:15px;color:var(--ink-2)">outside the subset, falls back: ${OUTSIDE}想</div>'; document.body.append(p); })()`);
+  await sleep(200); await shot(`${prefix}08-shipped-font-crop`);
+}
+
 if (LOOK !== undefined) {
   await anyPage('look', 'look-');
+  await theFace('look', 'look-');
 } else {
   // ── the fixture page, opening on 30 days ──
   console.log(`pages written by yan ui in ${Object.values(pages).map((p) => `${Math.round(p.ms)} ms`).join(', ')}; fixture page ${statSync(pages.fixture.file).size} bytes`);
   await anyPage('fixture', 'fixture-');
+  await theFace('fixture', 'fixture-');
   await go('fixture');
   check('opens on 30d with no dates given', (await js(`document.querySelector('#presets [aria-pressed=true]')?.textContent`)) === '30d', await headline());
   const t30 = await tiles(); check('tiles for 30d', /^\d+ 4 \d+$/.test(t30), t30);
   check('three font variables at the top', await js(`['--text','--num','--code'].map(v => v + ': ' + getComputedStyle(document.documentElement).getPropertyValue(v).trim().split(',')[0]).join(' | ')`));
-  const wide = await js(`(async () => { await document.fonts.load('400 40px "Chill Round F"'); const m = (family) => { const s = document.createElement('span'); s.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:400 40px ' + family; s.textContent = 'Sep 16 Sep 17 冥想 2026'; document.body.append(s); const w = s.getBoundingClientRect().width; s.remove(); return Math.round(w * 10) / 10; }; return { chill: m('"Chill Round F", monospace'), none: m('monospace') }; })()`);
+  const wide = await js(`(async () => { await document.fonts.load('400 40px "Yan Round"'); const m = (family) => { const s = document.createElement('span'); s.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:400 40px ' + family; s.textContent = 'Sep 16 Sep 17 冥想 2026'; document.body.append(s); const w = s.getBoundingClientRect().width; s.remove(); return Math.round(w * 10) / 10; }; return { chill: m('"Yan Round", monospace'), none: m('monospace') }; })()`);
   const installed = wide.chill !== wide.none;
   check('ChillRoundF is installed here and drawn (fails on a machine without it; the rest holds)', installed, wide);
   // The Bold has the Regular's advance widths, so width cannot tell them apart: count ink.
-  const faces = await js(`(async () => { await document.fonts.load('600 40px "Chill Round F"'); await document.fonts.load('400 40px "Chill Round F"'); return [...document.fonts].map(f => f.weight + ' ' + f.status).join(', '); })()`);
-  const ink = await js(`(() => { const draw = (weight) => { const c = document.createElement('canvas'); c.width = 700; c.height = 60; const x = c.getContext('2d'); x.font = weight + ' 40px "Chill Round F"'; x.fillText('Sep 16 Sep 17 冥想 2026', 4, 44); const d = x.getImageData(0, 0, 700, 60).data; let n = 0; for (let i = 3; i < d.length; i += 4) n += d[i]; return Math.round(n / 255); }; return { regular: draw(400), bold: draw(600) }; })()`);
+  const faces = await js(`(async () => { await document.fonts.load('600 40px "Yan Round"'); await document.fonts.load('400 40px "Yan Round"'); return [...document.fonts].map(f => f.weight + ' ' + f.status).join(', '); })()`);
+  const ink = await js(`(() => { const draw = (weight) => { const c = document.createElement('canvas'); c.width = 700; c.height = 60; const x = c.getContext('2d'); x.font = weight + ' 40px "Yan Round"'; x.fillText('Sep 16 Sep 17 冥想 2026', 4, 44); const d = x.getImageData(0, 0, 700, 60).data; let n = 0; for (let i = 3; i < d.length; i += 4) n += d[i]; return Math.round(n / 255); }; return { regular: draw(400), bold: draw(600) }; })()`);
   check('a bold weight finds the Bold file (the alias works)', !installed || (faces.includes('700 loaded') && ink.bold > ink.regular * 1.05), { faces, ink });
 
   // ── the fixture's numbers, README.md ──
