@@ -6,23 +6,34 @@
 <meta name="color-scheme" content="light dark">
 <title>Work report</title>
 <style>
-/* ── fonts: the one place to swap a face ──────────────────────────────────
-   The page names its fonts and carries none. `user` has ChillRoundF (寒蝉圆体)
-   installed and sees it, in Latin and Chinese alike; everyone else gets the system
-   font, and the layout holds either way.
+/* ── fonts: the one place to swap a face ──────────────────────────────────────
+   Every word on this page is drawn in ChillRoundF (寒蝉圆体), Latin and Chinese
+   alike, and the page carries the face rather than hoping for it: `yan ui` puts two
+   woff2 files in `fonts/` next to this file, so a reader who installed nothing still
+   sees it. `local()` comes first in each src, so `user`'s own installed copy still
+   wins and the file beside the page is never opened; that file is the fallback, by
+   a relative URL, so either way the page fetches nothing from the network. A
+   character the subset does not carry — a rare hanzi, Cyrillic — falls through to
+   the system font on its own, that character only.
 
-   The two @font-face lines are required, not decoration. ChillRoundF's Bold file
-   declares itself Regular, so asked for the family by name at 600 or 700 Chrome draws
-   the Regular. Naming both files by their PostScript names under one new family makes
-   a bold weight find the Bold. They load nothing from anywhere: local() only.
+   The family is "Yan Round" because those two files are a subset, a subset is a
+   modified version, and ChillRoundF is a Reserved Font Name under the OFL, which a
+   modified version may not use. The name means those files and nothing else.
+   templates/ui/fonts/README.md says what is in them and how they were cut.
+
+   The two @font-face lines are required, not decoration. The installed ChillRoundF
+   Bold file declares itself Regular, so asked for the installed family by name at
+   600 or 700 Chrome draws the Regular. Naming both installed files by their
+   PostScript names under one new family makes a bold weight find the Bold.
 
    The face has two weights, Regular and a light Bold. The design's weights stay as
    written: 600 and 550 resolve to the Bold, 450 and 400 to the Regular, and a reader
-   without the font gets a true 600 from the system font instead of a heavy 700. */
-@font-face { font-family: "Chill Round F"; src: local("ChillRoundFRegular"); font-weight: 400; }
-@font-face { font-family: "Chill Round F"; src: local("ChillRoundFBold"); font-weight: 700; }
+   who can reach neither the installed copy nor the file gets a true 600 from the
+   system font instead of a heavy 700. */
+@font-face { font-family: "Yan Round"; src: local("ChillRoundFRegular"), url("fonts/yan-round-regular.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Yan Round"; src: local("ChillRoundFBold"), url("fonts/yan-round-bold.woff2") format("woff2"); font-weight: 700; }
 :root {
-  --text: "Chill Round F", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --text: "Yan Round", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
   --num: var(--text);   /* a figure standing alone: the same face, tabular figures. No mono */
   --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;   /* code spans and PR references; nothing to install */
 }

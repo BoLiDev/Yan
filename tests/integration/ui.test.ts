@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 import type { Report, ReportTask } from '../../src/cli/ui/collect.js';
@@ -181,11 +181,11 @@ describe('yan ui', () => {
     }
   });
 
-  it('writes nothing with --json, even given --out', async () => {
+  it('writes nothing with --json, even given --out: no page, and no fonts either', async () => {
     const before = snapshot(home);
-    const file = join(mkTempDir(), 'report.html');
-    await json(['--json', '--out', file]);
-    expect(existsSync(file)).toBe(false);
+    const dir = mkTempDir();
+    await json(['--json', '--out', join(dir, 'report.html')]);
+    expect(readdirSync(dir)).toEqual([]);
     expect(snapshot(home)).toEqual(before);
   });
 
@@ -199,9 +199,34 @@ describe('yan ui', () => {
     expect(readFileSync(file, 'utf8')).toContain('id="yan-data">{"version":3,');
     expect(snapshot(home)).toEqual(before);
 
-    // One file, overwritten each run.
+    // One page, overwritten each run, with the face beside it.
     expect((await runYan(home, ['ui', '--no-open'], { YAN_MACHINE_DIR: machine })).code).toBe(0);
-    expect(readdirSync(join(machine, 'ui'))).toEqual(['report.html']);
+    expect(readdirSync(join(machine, 'ui')).sort()).toEqual(['fonts', 'report.html']);
+    expect(readdirSync(join(machine, 'ui', 'fonts')).sort()).toEqual([
+      'OFL.txt', 'yan-round-bold.woff2', 'yan-round-regular.woff2',
+    ]);
+  });
+
+  it('carries the fonts to --out, and rewrites them only when they differ', async () => {
+    const dir = mkTempDir();
+    const file = join(dir, 'away', 'page.html');
+    expect((await runYan(home, ['ui', '--no-open', '--out', file])).code).toBe(0);
+    const fonts = join(dir, 'away', 'fonts');
+    expect(readdirSync(fonts).sort()).toEqual(['OFL.txt', 'yan-round-bold.woff2', 'yan-round-regular.woff2']);
+    for (const name of ['yan-round-regular.woff2', 'yan-round-bold.woff2', 'OFL.txt']) {
+      expect(readFileSync(join(fonts, name))).toEqual(
+        readFileSync(join(repoRoot, 'templates', 'ui', 'fonts', name)),
+      );
+    }
+    // The page's own @font-face asks for them by this relative path.
+    expect(readFileSync(file, 'utf8')).toContain('url("fonts/yan-round-regular.woff2")');
+
+    const old = new Date('2020-01-01T00:00:00Z');
+    for (const name of readdirSync(fonts)) utimesSync(join(fonts, name), old, old);
+    expect((await runYan(home, ['ui', '--no-open', '--out', file])).code).toBe(0);
+    for (const name of readdirSync(fonts)) {
+      expect(statSync(join(fonts, name)).mtimeMs, name).toBe(old.getTime());
+    }
   });
 
   it('writes to --out, creating its directory, with the report --json prints and the range it was given', async () => {
