@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "nextId": 6,
+  "deliverables": [
+    { "id": "d1", "text": "The three plans side by side, each with its price and what it includes.", "status": "done", "doneAt": "2026-09-10", "refs": ["PR #12"] },
+    { "id": "d2", "text": "The comparison table under the plans.", "status": "done", "doneAt": "2026-09-15", "refs": ["PR #13", "PR #14"] },
+    { "id": "d3", "text": "Yearly prices, with the saving shown.", "status": "todo" },
+    { "id": "d4", "text": "The page linked from the header.", "status": "todo" },
+    { "id": "d5", "text": "A currency switcher over the three plans.", "status": "abandoned", "reason": "every customer pays in euros" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "nextId": 2,
+  "deliverables": [
+    { "id": "d1", "text": "Every page reads well in dark.", "status": "todo" }
+  ]
+}

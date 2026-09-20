@@ -1,10 +1,4 @@
 # t006 year-end close
 
-## Description
-
-The books for 2025 closed and the new year opened.
-
-## Deliverables
-
-- [x] 12-30 · The last invoices of 2025 sent.
-- [x] 01-05 · The 2025 accounts closed.
+The 2025 books have to close before the new year's invoices can go out, and the
+last invoices of 2025 are still unsent.

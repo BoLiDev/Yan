@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "nextId": 2,
+  "deliverables": [
+    { "id": "d1", "text": "The draft outline.", "status": "shipped", "doneAt": "2026-09-06" }
+  ]
+}

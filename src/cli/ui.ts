@@ -39,7 +39,7 @@ export const command = new Command('ui')
   .option('--until <date>', 'the last day the report opens on, YYYY-MM-DD; today without it')
   .option('--out <file>', 'write the page there instead of ~/.yan/ui/report.html')
   .option('--no-open', 'write the page and print its path, but do not open it')
-  .option('--json', 'print the report data, version 2, and write nothing')
+  .option('--json', 'print the report data, version 3, and write nothing')
   .action(
     action('ui', (options: { since?: string; until?: string; out?: string; open: boolean; json?: boolean }) => {
       const since = day('--since', options.since);
