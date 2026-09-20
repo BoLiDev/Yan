@@ -239,6 +239,50 @@ describe('yan repo add', () => {
     expect(r.stdout).toContain('1 registered but not linked here');
   });
 
+  it('removes a repository from both halves, and leaves the clone where it is', async () => {
+    const url = await bareRemote();
+    const where = join(mkTempDir('yan-removed-'), 'removed');
+    await mkClone(url, where);
+    await yan(['repo', 'add', where, '--name', 'removed']);
+
+    const r = await yan(['repo', 'rm', 'removed']);
+    expect(r.code, r.stderr).toBe(0);
+    expect(portable().removed).toBeUndefined();
+    expect(local().removed).toBeUndefined();
+    expect(portable().version).toBe(1);
+    expect(existsSync(join(where, '.git'))).toBe(true);
+    expect((await yan(['repo', 'ls'])).stdout).not.toContain('removed');
+  });
+
+  it('removes one that was never linked on this machine', async () => {
+    const file = join(home, 'repos.json');
+    writeFileSync(file, `${JSON.stringify({ version: 1, 'from-elsewhere': { url: 'git@host:org/from-elsewhere.git', pool_size: 8 } }, null, 2)}\n`);
+
+    const r = await yan(['repo', 'rm', 'from-elsewhere']);
+    expect(r.code, r.stderr).toBe(0);
+    expect(portable()['from-elsewhere']).toBeUndefined();
+  });
+
+  it('refuses to remove one an open task still has a unit on, or one it does not know', async () => {
+    const url = await bareRemote();
+    const where = join(mkTempDir('yan-held-'), 'held');
+    await mkClone(url, where);
+    // t042, from beforeEach, has a unit on monorepo-x.
+    await yan(['repo', 'add', where, '--name', 'monorepo-x']);
+
+    const held = await yan(['repo', 'rm', 'monorepo-x']);
+    expect(held.code).not.toBe(0);
+    expect(held.stderr).toContain('t042');
+    expect(portable()['monorepo-x']?.url).toBeTruthy();
+    expect(local()['monorepo-x']?.path).toBeTruthy();
+
+    const unknown = await yan(['repo', 'rm', 'nosuch']);
+    expect(unknown.code).not.toBe(0);
+    expect(unknown.stderr).toContain('not registered');
+
+    expect((await yan(['repo', 'rm'])).code).toBe(2);
+  });
+
   it('derives a name from every URL spelling a forge hands out', async () => {
     const { repoNameFromUrl } = await import('../../src/cli/repo.js');
     expect(repoNameFromUrl('git@host:org/name.git')).toBe('name');

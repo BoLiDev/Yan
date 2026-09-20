@@ -7,13 +7,14 @@ import { cloneRoot } from '../util/machine.js';
 import { normalizePath, samePath } from '../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
-import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry } from './shared/repo.js';
+import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry, type RepoEntry } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
+import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
- * `yan repo add | link | ls` — which repositories this context knows about,
- * and where they are on this machine.
+ * `yan repo add | link | ls | rm` — which repositories this context knows
+ * about, and where they are on this machine.
  *
  * The only writer of either half of the registry — `repos.json` and
  * `.local/repos.json`.
@@ -26,6 +27,9 @@ import { YanError } from '../util/error.js';
  *
  * Re-adding keeps a tuned `pool_size` unless a flag changes it, and nothing
  * here ever clones over an existing directory.
+ *
+ * `rm` takes a name out of both halves and nothing off the disk, and refuses
+ * while an open task still has a unit on it.
  */
 
 
@@ -308,6 +312,50 @@ const linkRepo = new Command('link')
     }),
   );
 
+/** Drop `name` from one half of the registry. A half that was never written is left that way. */
+function dropFrom(file: string, name: string): void {
+  if (!existsSync(file)) return;
+  editJson(file, (raw) => {
+    const reg = { ...(typeof raw === 'object' && raw !== null ? raw : {}) } as Record<string, unknown>;
+    delete reg[name];
+    return reg;
+  });
+}
+
+/**
+ * The open tasks with a unit on this repository. A unit names its repository
+ * by registered name, or by the path of a clone.
+ */
+function openTasksOn(entry: RepoEntry): string[] {
+  return Task.list().filter((id) => {
+    const task = new Task(id).read();
+    if (task.complete) return false;
+    return task.units.some((u) => u.repo === entry.name || (entry.path !== undefined && samePath(u.repo, entry.path)));
+  });
+}
+
+const rmRepo = new Command('rm')
+  .description('take a repository out of the registry - the clone on disk is left alone')
+  .argument('[name]')
+  .action(
+    action('repo_rm', (name: string | undefined) => {
+      if (name === undefined || name === '') {
+        throw YanError.usage('repo_usage', "which repository? 'yan repo rm <name>', and 'yan repo ls' lists what is there");
+      }
+      const entry = lookup(name);
+      if (entry === undefined) {
+        throw new YanError('repo_missing', `'${name}' is not registered in this vault - 'yan repo ls' lists what is there`);
+      }
+      const holders = openTasksOn(entry);
+      if (holders.length > 0) {
+        throw new YanError('repo_in_use', `'${name}' still has a unit in ${holders.join(', ')} - finish or abandon ${holders.length === 1 ? 'that task' : 'those tasks'} first`);
+      }
+      dropFrom(reposPath(), name);
+      dropFrom(localReposPath(), name);
+      out(`repo rm: ${name}  ${entry.path === undefined ? '(was not linked here)' : `${entry.path} is left as it is`}`);
+    }),
+  );
+
 const lsRepos = new Command('ls')
   .description('what this vault knows about, and what is linked on this machine')
   .action(
@@ -336,4 +384,5 @@ export const command = new Command('repo')
   .description('the repositories this context works in')
   .addCommand(addRepo)
   .addCommand(linkRepo)
-  .addCommand(lsRepos);
+  .addCommand(lsRepos)
+  .addCommand(rmRepo);
