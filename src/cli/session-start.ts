@@ -3,12 +3,13 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { readScenarios, resolveShift, runsAs } from './shared/config.js';
+import { deliverableLines, deliverableTally, NO_DELIVERABLES_NOTICE } from './shared/deliverables.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Shift } from '../records/shift/index.js';
-import { Task } from '../records/task/index.js';
+import { Deliverables, Task } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
 import { Drafts } from '../records/drafts/index.js';
@@ -261,18 +262,52 @@ function renderDrafts(id: string): void {
 }
 
 /**
- * What the task has remembered: its brief, the log entries that still bind,
- * the learnings index and `mem/user.md`. Printed for one task only.
+ * What the task has to build, and the notice that comes instead when nobody
+ * has said yet. A file that does not validate is reported here and stops
+ * nothing: the rest of the picture is still worth having.
  */
-function renderMemory(id: string): void {
+function renderDeliverables(id: string, complete: boolean): void {
+  const record = new Deliverables(id);
+  const { deliverables, problem } = record.readOrNone();
+
+  out('');
+  if (problem !== null) {
+    out('── deliverables  UNREADABLE');
+    out(problem);
+    out("Nothing was changed. Fix the file by hand, or 'yan deliverable' will refuse too.");
+    return;
+  }
+  if (deliverables.length === 0) {
+    if (complete) {
+      out(`── deliverables  none recorded  ${record.file}`);
+      return;
+    }
+    out(`── deliverables  none yet  ${record.file}`);
+    for (const line of NO_DELIVERABLES_NOTICE) out(line);
+    return;
+  }
+  out(`── deliverables  ${deliverableTally(deliverables)}  ${record.file}`);
+  out('What this task has to build to solve the problems the brief states. Written');
+  out("only by 'yan deliverable'; log.md says how they moved, this says what they are.");
+  out('');
+  for (const line of deliverableLines(deliverables)) out(line);
+}
+
+/**
+ * What the task has remembered: its brief, what it has to build, the log
+ * entries that still bind, the learnings index and `mem/user.md`. Printed
+ * for one task only.
+ */
+function renderMemory(id: string, complete: boolean): void {
   const record = new Task(id);
 
   out('');
   out(`── brief  ${normalizePath(join(record.dir, 'brief.md'))}`);
-  out('What this task delivers, as it stands now.');
+  out('The background and the problems this task is there to solve.');
   out('');
   out(readTrimmed(join(record.dir, 'brief.md')) || '(empty)');
 
+  renderDeliverables(id, complete);
   renderDrafts(id);
 
   const log = new Log(id).excerpt(LOG_KEPT, LOG_TAIL);
@@ -350,7 +385,9 @@ function render(picture: Picture, pulled: PullResult, memoryOf?: string): void {
   out('Nothing was stored: this picture was rebuilt from the task directories,');
   out('the terminal, the pool and the forge, and it is rebuilt again next time.');
 
-  if (memoryOf !== undefined) renderMemory(memoryOf);
+  if (memoryOf !== undefined) {
+    renderMemory(memoryOf, picture.tasks.find((t) => t.id === memoryOf)?.complete === true);
+  }
   renderScenarios();
   renderSkills(readSkills());
 }

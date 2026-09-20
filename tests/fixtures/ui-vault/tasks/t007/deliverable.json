@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "nextId": 2,
+  "deliverables": [
+    { "id": "d1", "text": "The release notes name every change in the autumn release.", "status": "shipped", "doneAt": "2026-09-06" }
+  ]
+}

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
+import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
@@ -14,7 +15,7 @@ import { isoMoment } from './overview/when.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
-import { Task } from '../records/task/index.js';
+import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
 import { YanError } from '../util/error.js';
@@ -41,6 +42,10 @@ export interface ShowJson {
   readonly dir: string;
   /** Whether a live `yan continue` holds the task, and the pane it is in. */
   readonly session: { readonly running: boolean; readonly pane: string | null };
+  /** What the task has to build; empty when it has never been broken down. */
+  readonly deliverables: readonly Deliverable[];
+  /** What is wrong with deliverable.json, when it does not validate; null otherwise. */
+  readonly deliverables_problem: string | null;
   readonly units: readonly {
     readonly name: string;
     readonly repo: string;
@@ -167,6 +172,8 @@ export function showJson(id: string): ShowJson {
     };
   });
 
+  const said = new Deliverables(id).readOrNone();
+
   return {
     version: 1,
     id: data.id,
@@ -175,6 +182,8 @@ export function showJson(id: string): ShowJson {
     abandoned: data.abandoned,
     dir: task.dir,
     session: sessionOf(id),
+    deliverables: said.deliverables,
+    deliverables_problem: said.problem,
     units,
     shifts,
     log: new Log(id).excerpt([], SHOW_LOG_TAIL),
@@ -213,6 +222,13 @@ function logRow(line: string, width?: number): string {
   return `${dim('--'.padEnd(5))}  ${legacy}  ${text(line.replace(/^- /, ''))}`;
 }
 
+/** A deliverable's status word, coloured as `yan ls` colours a task's state. */
+function statusPaint(word: string): string {
+  if (word.startsWith('done')) return green(word);
+  if (word.startsWith('abandoned')) return red(word);
+  return cyan(word);
+}
+
 function section(label: string, aside = ''): void {
   out('');
   out(` ${bold(label)}${aside === '' ? '' : `  ${dim(aside)}`}`);
@@ -225,6 +241,22 @@ function section(label: string, aside = ''): void {
  */
 export function renderShow(show: ShowJson, task: OverviewTask, now = new Date()): void {
   for (const line of renderHeader(task, show.session, { now, cols: terminalWidth() })) out(line);
+
+  section(
+    'Deliverables',
+    show.deliverables.length === 0 ? '' : deliverableTally(show.deliverables),
+  );
+  if (show.deliverables_problem !== null) {
+    out(`   ${yellow(show.deliverables_problem)}`);
+  } else if (show.deliverables.length === 0) {
+    // One quiet line. What to do about it is session start's to say, to the
+    // main agent; this is `user` at a terminal looking at a task.
+    out(`   ${dim(show.complete ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
+  } else {
+    for (const line of deliverableLines(show.deliverables, { id: bold, status: statusPaint, aside: dim })) {
+      out(` ${line}`);
+    }
+  }
 
   section('Units');
   if (show.units.length === 0) out(`   ${dim('none')}`);

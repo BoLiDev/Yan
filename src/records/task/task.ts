@@ -6,6 +6,7 @@ import { asRecord, asString } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 import { Log } from '../log/index.js';
+import { Deliverables } from './deliverables.js';
 import { ENDS, type AddUnitOptions, type HistoryEnd, type HistoryEntry, type TaskData, type UnitData } from './types.js';
 
 /**
@@ -235,8 +236,8 @@ export class Task {
   }
 
   /**
-   * Create task.json, brief.md and an empty log.md. Re-running it on an
-   * existing task changes nothing.
+   * Create task.json, brief.md, an empty deliverable.json and an empty
+   * log.md. Re-running it on an existing task changes nothing.
    *
    * @throws YanError when `title` is empty.
    */
@@ -250,6 +251,7 @@ export class Task {
     const brief = join(task.dir, 'brief.md');
     if (!existsSync(brief)) writeFileSync(brief, briefText(id, title));
 
+    new Deliverables(id).init();
     new Log(id).init(title);
     return task;
   }
@@ -275,13 +277,17 @@ function isoNow(): string {
 }
 
 /**
- * A new task's brief.md: the title, then the two sections every brief keeps —
- * `## Description`, which the overview prints, and `## Deliverables`, the one
- * list the ask is broken into. An empty description leaves its section empty.
+ * A new task's brief.md: the title line, then whatever `user` said the task
+ * is about, as it was given. No headings: the background and the problems to
+ * solve are usually impossible to pull apart, and what the task has to build
+ * is `deliverable.json`, not a section here.
+ *
+ * What `yan task new` is given is a seed. The main agent rewrites the whole
+ * file in the task's first session, once it has broken the ask down.
  */
 export function briefText(id: string, title: string, description = ''): string {
   const body = description.trim();
-  return `# ${id} ${title}\n\n## Description\n\n${body === '' ? '' : `${body}\n\n`}## Deliverables\n`;
+  return `# ${id} ${title}\n${body === '' ? '' : `\n${body}\n`}`;
 }
 
 function asStringArray(value: unknown): string[] {

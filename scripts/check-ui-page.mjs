@@ -33,16 +33,17 @@ const OUT = resolve(flag('--shots') ?? join(scratch, 'shots'));
 mkdirSync(OUT, { recursive: true });
 
 // ── pages, written by `yan ui` ─────────────────────────────────────────────
-/** A vault in the scratch directory: the fixture's tasks, plus `extra` as { id: { task, brief } }. */
+/** A vault in the scratch directory: the fixture's tasks, plus `extra` as { id: { task, brief, deliverables } }. */
 function vault(name, { fixture = true, extra = {} } = {}) {
   const dir = join(scratch, name);
   mkdirSync(join(dir, 'tasks'), { recursive: true });
   cpSync(join(repo, 'tests', 'fixtures', 'ui-vault', 'vault.json'), join(dir, 'vault.json'));
   if (fixture) cpSync(join(repo, 'tests', 'fixtures', 'ui-vault', 'tasks'), join(dir, 'tasks'), { recursive: true });
-  for (const [id, { task, brief }] of Object.entries(extra)) {
+  for (const [id, { task, brief, deliverables }] of Object.entries(extra)) {
     mkdirSync(join(dir, 'tasks', id));
     writeFileSync(join(dir, 'tasks', id, 'task.json'), JSON.stringify(task, null, 2));
     writeFileSync(join(dir, 'tasks', id, 'brief.md'), brief);
+    if (deliverables) writeFileSync(join(dir, 'tasks', id, 'deliverable.json'), JSON.stringify(deliverables, null, 2));
   }
   return dir;
 }
@@ -55,13 +56,16 @@ function yanUi(vaultDir, file, args = []) {
   if (r.status !== 0) throw new Error(`yan ui failed: ${r.stderr}`);
   return { file, ms: Number(process.hrtime.bigint() - started) / 1e6 };
 }
-/** An open task in site, `done` of `of` items delivered on 09-17. */
+/** An open task in site whose record holds `done` of `of` deliverables, delivered on 09-17. */
 function edge(id, title, done, of) {
-  const items = Array.from({ length: of }, (_, i) => (i < done ? `- [x] 09-17 · item ${i + 1}` : `- [ ] item ${i + 1}`));
+  const items = Array.from({ length: of }, (_, i) => (i < done
+    ? { id: `d${i + 1}`, text: `item ${i + 1}`, status: 'done', doneAt: '2026-09-17' }
+    : { id: `d${i + 1}`, text: `item ${i + 1}`, status: 'todo' }));
   return {
     task: { version: 1, id, title, complete: false, abandoned: false, createdAt: '2026-09-10T12:00:00Z',
       units: [{ name: 'site', repo: 'site', scope: [], needs: [], branch: `${id}-r1`, target: 'main', mr: null, history: [] }] },
-    brief: `# ${id} ${title}\n\n## Description\n\nThe ring at one of its edges.\n\n## Deliverables\n\n${items.join('\n')}\n`,
+    brief: `# ${id} ${title}\n\nThe ring at one of its edges.\n`,
+    deliverables: { version: 1, nextId: of + 1, deliverables: items },
   };
 }
 
@@ -169,8 +173,8 @@ if (LOOK !== undefined) {
   // ── the fixture's numbers, README.md ──
   for (const [query, want, byProject] of [
     ['?since=2026-08-01&until=2026-08-31', '1 — 3', 'ledger 3'],
-    ['?since=2026-09-01&until=2026-09-15', '1 — 3', 'site 3'],
-    ['?since=2025-12-01&until=2026-09-15', '5 — 10', 'ledger 4, site 3, yan 2, — 1'],
+    ['?since=2026-09-01&until=2026-09-15', '1 — 4', 'site 4'],
+    ['?since=2025-12-01&until=2026-09-15', '5 — 11', 'site 4, ledger 4, yan 2, — 1'],
   ]) {
     await go('fixture', query);
     const got = `${await tiles()} | ${await projects()}`;
@@ -190,7 +194,7 @@ if (LOOK !== undefined) {
   await go('august');
   check('yan ui --since 2026-08-01 --until 2026-08-31 opens on those dates', (await headline()) === 'Aug 1 – 31, 2026' || (await headline()) === 'Aug 1 – Aug 31, 2026', await headline());
   check('…with no preset pressed, and the August numbers', (await js(`document.querySelectorAll('#presets [aria-pressed=true]').length`)) === 0 && (await tiles()) === '1 — 3', await tiles());
-  check('?since=&until= in the address win over the flags', await (async () => { await go('august', '?since=2026-09-01&until=2026-09-15'); return (await tiles()) === '1 — 3' && (await projects()) === 'site 3'; })(), await projects());
+  check('?since=&until= in the address win over the flags', await (async () => { await go('august', '?since=2026-09-01&until=2026-09-15'); return (await tiles()) === '1 — 4' && (await projects()) === 'site 4'; })(), await projects());
 
   // ── controls ──
   await go('fixture');
@@ -224,18 +228,22 @@ if (LOOK !== undefined) {
   const search = (q) => js(`(() => { const q = document.getElementById('q'); q.value = ${JSON.stringify(q)}; q.dispatchEvent(new Event('input')); })()`);
   await search('invoice');
   check('search narrows the list', (await rows()) < before && (await rows()) > 0, `${before} → ${await rows()}`);
-  check('search does not move the numbers', (await tiles()) === '5 4 10', await tiles());
+  check('search does not move the numbers', (await tiles()) === '5 4 11', await tiles());
   await search('kubernetes'); check('search with nothing found prints 0', (await js(`document.querySelector('.none')?.textContent`)) === '0');
   await search('');
   // rows
   await clickRow('invoice export');
   check('a row opens', await js(`document.querySelectorAll('.detail').length === 1 && document.querySelector('button.row[aria-expanded=true]') !== null`));
-  const days = await js(`[...document.querySelectorAll('.detail .day')].map(e => e.textContent + ' (' + e.title + ')').join(' | ')`);
-  check('timeline: a date over each run, as numbers, the year in the tooltip', days === '08.05 (Aug 5, 2026) | 08.12 (Aug 12, 2026) | 08.20 (Aug 20, 2026)', days);
-  check('</script><!-- and $& in a deliverable print as typed', await js(`(() => { const t = document.querySelector('.detail').textContent; return t.includes('</script><!-- x -->') && t.includes('$&') && t.includes('$1'); })()`), await js(`[...document.querySelectorAll('.detail .text')].map(e => e.textContent).slice(1, 3)`));
-  check('evidence sits at the row end, lifted from the text', await js(`[...document.querySelectorAll('.detail .ref')].map(e => e.textContent).join(' ')`) === 'MR !87 PR #31', await js(`[...document.querySelectorAll('.detail .ref')].map(e => e.textContent).join(' ')`));
-  check('evidence lines up at the right', await js(`new Set([...document.querySelectorAll('.detail .ref')].map(e => Math.round(e.getBoundingClientRect().right))).size === 1`));
-  check('timeline left-aligns with the description', await js(`(() => { const l = document.querySelector('.detail .lead').getBoundingClientRect().left; return [...document.querySelectorAll('.detail .day, .detail .node')].every(e => Math.abs(e.getBoundingClientRect().left - l) < 0.6); })()`));
+  check('an opened row is two blocks: the brief as written, then the record', await js(`(() => { const d = document.querySelector('.detail'); const kids = [...d.children].map(e => e.className); return kids[0] === 'brief' && kids.slice(1).every(c => c === 'item') && d.querySelectorAll('.brief .lead').length > 0; })()`), await js(`[...document.querySelector('.detail').children].map(e => e.className).join(' ')`));
+  check('no date headings and no grouping by status or by day', await js(`document.querySelectorAll('.detail .day, .detail .run').length === 0`));
+  const nodes = await js(`[...document.querySelectorAll('.detail .item')].map(e => ({ mark: e.dataset.mark, at: e.querySelector('.at')?.textContent ?? null, when: e.querySelector('.at')?.title ?? null, refs: [...e.querySelectorAll('.ref')].map(r => r.textContent), why: e.querySelector('.why')?.textContent ?? null, whyColour: e.querySelector('.why') ? getComputedStyle(e.querySelector('.why')).color : null, atColour: e.querySelector('.at') ? getComputedStyle(e.querySelector('.at')).color : null }))`);
+  check('the record in file order, as it was written: three delivered then one given up', nodes.map((x) => x.mark).join(' ') === 'done done done abandoned', nodes.map((x) => x.mark));
+  check('a done node carries its doneAt as a grey number, the full day in its tooltip', nodes.slice(0, 3).every((x) => /^\d\d\.\d\d$/.test(x.at) && x.atColour === 'rgb(102, 101, 95)') && nodes[0].at === '08.05' && nodes[0].when === 'Aug 5, 2026', nodes.map((x) => `${x.at} (${x.when})`).join(' | '));
+  check('a done node carries every ref it has, side by side, and none when it has none', JSON.stringify(nodes[2].refs) === JSON.stringify(['PR #31', 'PR #32 <!-- squashed -->']) && nodes[0].refs.length === 0, nodes.map((x) => x.refs.join(' + ')));
+  check('an abandoned node carries its reason in grey under its text, and no day', nodes[3].why.startsWith('finance sent them by hand') && nodes[3].at === null && nodes[3].whyColour === 'rgb(102, 101, 95)', nodes[3]);
+  check('</script><!-- and $& print as typed, in the brief, a deliverable, a ref and a reason', await js(`(() => { const t = document.querySelector('.detail').textContent; return ['</script><!-- x -->', '$&', '$1', 'PR #32 <!-- squashed -->'].every(x => t.includes(x)); })()`), await js(`[...document.querySelectorAll('.detail .text')].map(e => e.textContent).slice(1, 3)`));
+  check('the day and the refs line up at the right', await js(`new Set([...document.querySelectorAll('.detail .aside')].map(e => Math.round(e.getBoundingClientRect().right))).size === 1`));
+  check('the nodes left-align with the brief', await js(`(() => { const l = document.querySelector('.detail .lead').getBoundingClientRect().left; return [...document.querySelectorAll('.detail .node')].every(e => Math.abs(e.getBoundingClientRect().left - l) < 0.6); })()`));
   const spans = await js(`[...document.querySelectorAll('.row')].map(r => { const e = r.querySelector('.span'), c = getComputedStyle(e); return { state: r.querySelector('.mark').dataset.state, text: e.textContent, title: e.title, color: c.color, weight: c.fontWeight, size: c.fontSize, bold: e.querySelector('b') !== null }; })`);
   const finishedRows = spans.filter((x) => x.state !== 'open'), openRows = spans.filter((x) => x.state === 'open' && x.text !== '');
   check('row dates: finished rows read 08.03 - 08.20', finishedRows.length > 0 && finishedRows.every((x) => /^\d\d\.\d\d - \d\d\.\d\d$/.test(x.text)), finishedRows.map((x) => x.text));
@@ -245,12 +253,27 @@ if (LOOK !== undefined) {
   check('row dates: the tooltip carries the full dates with the year', finishedRows.every((x) => /^[A-Z][a-z]{2} \d{1,2}, \d{4} – [A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(x.title)), finishedRows[0]?.title);
   await shot('fixture-09-row-open');
   await clickRow('pricing page');
-  check('pricing page: two date lines, five items, the second paragraph left out', await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); return d.querySelectorAll('.day').length === 2 && d.querySelectorAll('.item').length === 5 && !d.textContent.includes('second paragraph'); })()`));
+  check('pricing page: the brief as written, two paragraphs keeping their bullets, then five nodes in file order', await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const leads = [...d.querySelectorAll('.lead')].map(e => e.textContent); return leads.length === 2 && leads[1].split(String.fromCharCode(10)).length === 3 && leads[1].split(String.fromCharCode(10))[1].startsWith('- a visitor') && d.querySelectorAll('.item').length === 5 && [...d.querySelectorAll('.item')].map(e => e.dataset.mark).join(' ') === 'done done todo todo abandoned'; })()`), await js(`[...[...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open').querySelectorAll('.lead')].map(e => e.textContent)`));
+  check('a bullet keeps its own line rather than folding into the paragraph above it', await js(`getComputedStyle(document.querySelector('.detail .lead')).whiteSpace === 'pre-line'`));
   await clickRow('pricing page');
   check('a row closes again', (await js(`document.querySelectorAll('.detail').length`)) === 1);
-  check('a task with nothing inside cannot be opened', await js(`document.querySelectorAll('div.row').length > 0 && [...document.querySelectorAll('div.row')].every(r => r.querySelector('.chev') === null)`), await js(`[...document.querySelectorAll('div.row .title')].map(e => e.textContent)`));
-  check('a done task never broken down is one filled square', await js(`(() => { const r = [...document.querySelectorAll('.row')].find(r => r.textContent.includes('ledger backups')); const s = r.querySelector('.squares'); return s.children.length === 1 && s.children[0].className === 'on' && s.title === '1/1'; })()`));
-  check('an undated delivered item is still a square', await js(`[...document.querySelectorAll('.row')].find(r => r.textContent.includes('search box')).querySelector('.squares').title === '2/2'`));
+  // a task with no record: not a button anywhere, and an empty squares column that says nothing
+  const bare = await js(`[...document.querySelectorAll('div.row')].map(r => ({ title: r.querySelector('.title').textContent, chev: r.querySelector('.chev') !== null, expanded: r.hasAttribute('aria-expanded'), tab: r.tabIndex, cursor: getComputedStyle(r).cursor, blank: r.querySelector('.blank') !== null, blankText: r.querySelector('.blank')?.textContent ?? null, blankLabel: r.querySelector('.blank')?.getAttribute('aria-label') ?? null, blankTitle: r.querySelector('.blank')?.getAttribute('title') ?? null, squares: r.querySelector('.squares') !== null, meta: r.querySelector('.meta').children.length }))`);
+  check('a task with no record is not a button: no chevron, no aria-expanded, no pointer, no tab stop', bare.length === 5 && bare.every((r) => !r.chev && !r.expanded && r.tab === -1 && r.cursor === 'default'), bare.map((r) => r.title));
+  check('where its squares would be there is nothing at all: an empty cell, no squares, no word', bare.every((r) => r.blank && !r.squares && r.blankText === '' && r.meta === 3), bare.map((r) => `${r.title}: ${JSON.stringify(r.blankText)}`).join(' | '));
+  check('the empty cell announces nothing: no label and no tooltip to read out', bare.every((r) => r.blankLabel === null && r.blankTitle === null), bare.map((r) => `${r.blankLabel} ${r.blankTitle}`).join(' | '));
+  check('the word `unknown` is nowhere on the page', await js(`!document.getElementById('list').textContent.toLowerCase().includes('unknown') && !document.documentElement.outerHTML.includes('unknown')`));
+  const columns = await js(`(() => { const bad = []; document.querySelectorAll('.card').forEach(card => { const lefts = new Set([...card.querySelectorAll('.row .span')].map(e => Math.round(e.getBoundingClientRect().left))); if (lefts.size > 1) bad.push([...lefts]); }); return { bad: bad, cards: document.querySelectorAll('.card').length }; })()`);
+  check('the empty cell holds its column: every row in a card puts its dates in the same place', columns.bad.length === 0 && columns.cards > 0, columns);
+  check('…and so do the squares of the rows above and below it', await js(`(() => { const card = [...document.querySelectorAll('.card')][0]; const cells = [...card.querySelectorAll('.row')].map(r => Math.round((r.querySelector('.squares') || r.querySelector('.blank')).getBoundingClientRect().left)); return new Set(cells).size === 1 && cells.length === 4; })()`));
+  check('clicking one opens nothing', await js(`(() => { const before = document.querySelectorAll('.detail').length; document.querySelector('div.row').click(); return document.querySelectorAll('.detail').length === before; })()`));
+  check('the keyboard cannot reach one, and Enter on it opens nothing', await js(`(() => { const r = document.querySelector('div.row'); r.focus(); const reached = document.activeElement === r; const before = document.querySelectorAll('.detail').length; r.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return !reached && document.querySelectorAll('.detail').length === before; })()`));
+  check('an old brief with checkbox lines is not parsed: an empty cell, and none of the brief on the page', await js(`(() => { const r = [...document.querySelectorAll('.row')].find(r => r.textContent.includes('ledger backups')); return r.tagName === 'DIV' && r.querySelector('.blank') !== null && !document.getElementById('list').textContent.includes('Nightly backups of the ledger'); })()`));
+  check('a record that does not validate is a task with none', await js(`[...document.querySelectorAll('.row')].find(r => r.textContent.includes('release notes')).querySelector('.blank') !== null`));
+  check('an empty record is a task with none', await js(`[...document.querySelectorAll('.row')].find(r => r.textContent.includes('newsletter signup')).querySelector('.blank') !== null`));
+  check('a delivered item with nothing proving it is still a square', await js(`[...document.querySelectorAll('.row')].find(r => r.textContent.includes('search box')).querySelector('.squares').title === '2/2'`));
+  check('an abandoned deliverable is in neither square nor ring', await js(`[...document.querySelectorAll('.row')].find(r => r.textContent.includes('pricing page')).querySelector('.squares').title === '2/4'`));
+  await shot('fixture-12-no-record');
   check('an open row survives a filter change', await (async () => { await js(`[...document.querySelectorAll('#chips .chip')].find(b => b.textContent.startsWith('Done')).click()`); return js(`document.querySelectorAll('.detail').length === 1`); })());
   check('tooltips: marks, bars, presets', true, await js(`[document.querySelector('.row .mark').title, document.querySelector('.bar').title, document.querySelector('#presets button').title].join(' | ')`));
 

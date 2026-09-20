@@ -12,6 +12,17 @@ import { LOG_TYPES } from '../../src/records/log/index.js';
 
 const FILES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md'];
 
+/**
+ * `user`'s example of a deliverable, in each file's own language. The
+ * definition is the one thing an agent writes its first deliverables from,
+ * and a file that loses the example loses what "specific" means.
+ */
+const EXAMPLE: Record<string, string> = {
+  'CLAUDE.md': 'the UI shows the title, and the title is green',
+  'AGENTS.md': 'the UI shows the title, and the title is green',
+  'GEMINI.md': '\u754c\u9762\u4e0a\u663e\u793a\u6807\u9898\uff0c\u5e76\u4e14\u6807\u9898\u662f\u7eff\u8272\u7684',
+};
+
 function read(name: string): string {
   return readFileSync(join(process.cwd(), name), 'utf8');
 }
@@ -26,9 +37,23 @@ describe.each(FILES)('%s', (name) => {
   });
 
   it('points at every memory file', () => {
-    for (const file of ['brief.md', 'log.md', 'task.json', 'artifacts/', 'mem/learnings/', 'mem/user.md', 'outcome.md']) {
+    for (const file of ['brief.md', 'deliverable.json', 'log.md', 'task.json', 'artifacts/', 'mem/learnings/', 'mem/user.md', 'outcome.md']) {
       expect(text, file).toContain(file);
     }
+  });
+
+  it('names the one command that writes the deliverables, and how a status moves', () => {
+    // `deliverable.json` above has a writer or it has none; these are the
+    // three subcommands that move a deliverable, spelled as the file spells
+    // them, so a dropped argument is a failure rather than a surprise later.
+    expect(text, 'the record has one writer').toContain('yan deliverable');
+    for (const call of ['done <id>', 'abandon <id> --reason', 'todo <id>']) {
+      expect(text, call).toContain(call);
+    }
+  });
+
+  it("carries user's example of a deliverable, so the definition stays specific", () => {
+    expect(text).toContain(EXAMPLE[name]);
   });
 
   it('keeps task.json in step with what user says', () => {

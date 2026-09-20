@@ -1,7 +1,7 @@
 import { bold, cells, cyan, dim, fit, green, padEnd, padStart, red, yellow } from '../shared/style.js';
 import type { Overview, OverviewTask } from './overview.js';
 import { age, ageTier, ago, stamp, stampParts, yearOf, type AgeTier } from './time.js';
-import { unwrapParagraph } from './description.js';
+import { isBullet, unwrapParagraph } from './description.js';
 import { momentMs, type Moment } from './when.js';
 import { clamp, lineText, wrap } from './wrap.js';
 
@@ -112,10 +112,15 @@ function flow(items: readonly Item[], g: Geometry): string[] {
   return lines.map((l) => spaces(g.hang) + l);
 }
 
+/**
+ * The description's blocks. `briefDescription` has already unwrapped each one
+ * onto a line of its own — a paragraph, or a bullet — so a newline is a
+ * break here whether or not a blank line went with it.
+ */
 function paragraphs(t: OverviewTask): string[] {
   if (t.description === null) return [];
   return t.description
-    .split(/\n\s*\n/)
+    .split(/\n+/)
     .map(unwrapParagraph)
     .filter((p) => p !== '');
 }
@@ -278,8 +283,11 @@ export function renderHeader(t: OverviewTask, session: HeaderSession, opts: Rend
   else out.push(first, pad + sessionItem.painted);
 
   const measure = g.right - g.hang;
-  paragraphs(t).forEach((p, i) => {
-    if (i > 0) out.push('');
+  const paras = paragraphs(t);
+  paras.forEach((p, i) => {
+    // A blank line between two paragraphs, none above a bullet: a list sits
+    // against whatever led into it.
+    if (i > 0 && !isBullet(p)) out.push('');
     for (const l of wrap(p, measure)) out.push(pad + lineText(l));
   });
   out.push(...flow(metaItems(t, g), g));

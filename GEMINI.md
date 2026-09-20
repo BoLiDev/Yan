@@ -98,7 +98,8 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 
 | 文件 | 存什么 | 什么时候写 | 什么时候读 |
 | --- | --- | --- | --- |
-| `brief.md` | 任务**当前**要交付什么，分两节，见下文 | 第一轮对齐后；`user` 追加、砍掉、替换交付项的当轮（哪怕只是顺口一提）；某项交付完成时 | session start 全文注入 |
+| `brief.md` | 背景和要解决的问题，一段短文，见下文 | 你自己写：拆种子的那一轮；之后背景或问题变了的当轮，原地改写 | session start 全文注入 |
+| `deliverable.json` | 任务做完时必须成立的那些要求，见下文 | 只能用 `yan deliverable` 写；`user` 追加、砍掉、改写、验收某一项的当轮 | session start 接在 brief 后面注入 |
 | `log.md` | 任务的历程，一个事件一行，只追加 | 命令自动记自己的事件；其余用 `yan log` 记 | session start 注入全部 `agreed`、`changed` 行和最后 20 行 |
 | `task.json` | 每个 unit 的 branch、target、scope、needs；命令按它执行 | 只通过 `yan unit`、`yan mr`、`yan land`、`yan done` | 命令执行时；你通过 session start |
 | `artifacts/` | 帮助你和 `user` 理解工作的**副产出**：调研、原型、设计、截图、为了和 `user` 对齐做的可视化。不放代码、构建产物、运行残留 | 有产出时 | log 里有行指向它时 |
@@ -108,13 +109,12 @@ Your superpower is **deep intent understanding, architectural context synthesis,
 
 shift 的 `outcome.md` 是它交给你的交接说明，不属于记忆：它报告 `done` 之后、你合并之前读。它的 Learnings 一节写着 shift 在过程中遇到了什么问题、怎么解决的——**大多数 learnings 都从这里来**。shift 自己不往 `mem/` 写任何东西。
 
-### brief.md：两节
+### brief.md 与交付项
 
-`yan task new` 写好标题行，下面只有两节：
-
-- `## Description`：背景和核心诉求，一两段短文。`yan ls` 在任务卡片上打印的就是这一节，所以要写给没看过对话的人，前三行就说清要点。
-- `## Deliverables`：把诉求拆开，**只有一个列表**，三种标记：`- [ ]` 待做；`- [x]` 已交付，写日期；`- [-]` 决定不做，写理由。`[-]` 行不删，它让下一个会话不再重提同一件事。不做的事只记在 `[-]` 行里，**没有**单独的「不做」一节；`user` 改主意时，把它改回 `[ ]`。
-- 交付项写**结果**：做完之后存在的东西，一两句话，任务外的人也读得懂——目标和达成了什么，不是过程。`yan ui` 会把这些行原样给人看。已交付的写成 `- [x] MM-DD · PR #n · 正文`，只有一个 MR 交付了它时才写 `PR #n`，正文前不放别的。哪个 shift 做的、怎么验证的、还有什么存疑，写进 `log.md`。
+- **brief 是什么**：`yan task new` 写好的标题行，下面一段短文——背景和要解决的问题。**不分小节**，因为这两件事常常拆不开；没什么特别的背景，就不写背景。不写理由、不写决策经过、不写日期和 MR——那些是 `log.md` 的事。背景或问题变了就**原地改写，不往后面追加**，让它始终是现在成立的那一份；`yan ls` 在任务卡片上打印的就是它，所以要写给没看过对话的人。
+- **交付项是什么**：一条**需求**——任务做完时必须成立的一句陈述。它在动手之前就写下来，整张单子就是计划，一条一条勾掉。`user` 给的例子：“界面上显示标题，并且标题是绿色的”——就要这么陈述、这么具体。它的主语永远是**产品，不是工作**：“写一个测试，渲染八月每张账单并对总额”是某人做过的一个步骤，不是需求，一张这样的单子只是每行加了个勾的流水账。宁可拆成几条小的，也别把五条需求捆成一条，因为每条要单独勾掉；条数是需求本身决定的，不是要凑的指标。所以它是**任务的属性，不是 log 的摘要**：第一个会话就存在，随着工作推进不断修正，而不是事后补记，更不会事后补一条去记录已经发生的工作。**MR 只是它的证据，定义不了它**——一个 MR 对一条交付项，报告就写成了流水账；怎么验证的、哪个 shift 做的、还存疑什么，写进 `log.md`。
+- **怎么写**：只能用 `yan deliverable`（`add` / `set` / `done` / `abandon` / `todo` / `rm` / `ls`，每个都接 `--note`）。`done` 表示那句陈述现在成立了；`add`、`set`、`abandon`、`rm` 是计划本身增减改写——计划当然会增会减，在你和 `user` 议定的**当轮**写下来。放弃一项要带 `--reason`，它让下一个会话不再重提同一件事。
+- **第一个会话要拆种子**：`yan task new` 时给的描述只是一颗种子，原文不保留。session start 把交付项一栏打成 `── deliverables  none yet`（“这个任务从来没有被拆解过”）时，**当轮、在做任何别的事之前**把它拆成 brief 和第一版交付项，并在第一条回复里把两者都展示给 `user` 修正：按一颗没人拆过的种子派出去的活，没有人点过头。
 
 ### log.md：六类事件
 
@@ -127,7 +127,7 @@ shift 的 `outcome.md` 是它交给你的交接说明，不属于记忆：它报
 | `incident` | 出了问题并已解决 | 一句话：因为什么、耽误了什么、怎么解决；有可复用经验的，末尾加 `→ mem/learnings/<文件>` |
 | `paused` | `user` 离开、会话结束但工作未完、在等 `user` | 停在哪、还剩什么、在等什么 |
 
-- `shift new`、`shift done`、`unit add`、`unit set` 会自动记自己的事件并带好类型；用 `--note` 把命令不知道的内容（shift 要做什么、合入改变了什么、字段为什么变）写在**同一行**，一个事件只占一行。
+- `shift new`、`shift done`、`unit add`、`unit set`、`yan deliverable` 会自动记自己的事件并带好类型；用 `--note` 把命令不知道的内容（shift 要做什么、合入改变了什么、字段为什么变）写在**同一行**，一个事件只占一行。
 - **你自己动手做的事，按和 shift 完全相同的标准记**，并标明是你：`yan log started "yan: …"`、`yan log delivered "yan: …"`。
 - 不记：命令已经记过的、维护操作（tree 跟上分支、关终端）、讨论中的中间想法、调研内容本身（记一条 `delivered` 指向 artifact）、MR 里查得到的细节。
 
@@ -178,6 +178,7 @@ yan session-start                  # 恢复上下文（启动必跑）
 yan ls                             # 查看当前任务与状态
 yan show [<id>]                    # 一个任务的概况：会话、分支、tree、shift、最近 log
 yan ui [--since D] [--until D]     # 生成 user 给别人看的工作报告（一个 HTML 页面）；D 是 YYYY-MM-DD，「过去一个月」这类说法由你换算成日期再传
+yan deliverable add "<正文>"…      # 任务的交付项（见「记忆」）；ls、set <id>、done <id> [--ref]、abandon <id> --reason、todo <id>、rm <id>，都接 `--note`
 yan tree get --unit <unit>         # 租借这个 unit 的 standing worktree
 yan shift new --unit --scenario [--tier]   # 派发 shift
 yan wait [--seconds N]             # 监护 shift 运行

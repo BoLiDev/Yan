@@ -8,7 +8,7 @@ import { dataBlock, fillTemplate } from './page.js';
 const template = readFileSync(join(repoRoot, 'templates', 'ui', 'report.html'), 'utf8');
 
 const report: Report = {
-  version: 2,
+  version: 3,
   generated_at: '2026-09-18T15:04:05Z',
   range: { since: '2026-08-01', until: null },
   tasks: [
@@ -17,12 +17,13 @@ const report: Report = {
       title: 'invoice export <b>rounding</b>',
       project: 'ledger',
       state: 'done',
-      description: 'A note such as </script><!-- x --> prints as typed.',
+      brief: 'A brief such as </script><!-- x --> prints as typed.',
       started: '2026-08-03',
       completed: '2026-08-20',
       deliverables: [
-        { mark: 'done', date: '2026-08-12', evidence: 'MR !87', text: 'a line such as `</script><!-- x -->` prints as typed' },
-        { mark: 'done', date: '2026-08-20', evidence: 'PR #31', text: "replace `$&`, `$1`, `$'` and `$$` with the literal text" },
+        { id: 'd1', text: 'a line such as `</script><!-- x -->` prints as typed', status: 'done', doneAt: '2026-08-12', refs: ['MR !87'] },
+        { id: 'd2', text: "replace `$&`, `$1`, `$'` and `$$` with the literal text", status: 'done', doneAt: '2026-08-20', refs: ['PR #31', 'PR #32 <!-- squashed -->'] },
+        { id: 'd3', text: 'a reason is text too', status: 'abandoned', reason: "</script><!-- $& $' -->" },
       ],
     },
   ],
@@ -43,7 +44,7 @@ describe('the report page', () => {
     expect(template).toContain('<!--YAN_MOCK-->');
     expect(html).not.toContain('/*YAN_DATA*/');
     expect(html).not.toContain('YAN_MOCK');
-    expect(html).toContain('<script type="application/json" id="yan-data">{"version":2,');
+    expect(html).toContain('<script type="application/json" id="yan-data">{"version":3,');
   });
 
   it('keeps the rest of the template as it is', () => {
@@ -60,9 +61,10 @@ describe('the report page', () => {
     expect(html.match(/<\/script>/g)).toHaveLength(template.match(/<\/script>/g)?.length ?? -1);
   });
 
-  it('keeps replacement patterns as typed', () => {
-    const texts = (JSON.parse(block(html)) as Report).tasks[0]?.deliverables.map((d) => d.text);
-    expect(texts?.[1]).toBe("replace `$&`, `$1`, `$'` and `$$` with the literal text");
+  it('keeps replacement patterns as typed, in a text, a ref and a reason', () => {
+    const items = (JSON.parse(block(html)) as Report).tasks[0]?.deliverables;
+    expect(items?.[1]).toMatchObject({ text: "replace `$&`, `$1`, `$'` and `$$` with the literal text", refs: ['PR #31', 'PR #32 <!-- squashed -->'] });
+    expect(items?.[2]).toMatchObject({ reason: "</script><!-- $& $' -->" });
   });
 
   it('refuses a template without the placeholder', () => {

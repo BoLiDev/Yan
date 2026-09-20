@@ -1,17 +1,18 @@
-import { Task } from '../../records/task/index.js';
+import { readDeliverables, Task, type Deliverable } from '../../records/task/index.js';
 import { taskFiles, type TaskState } from '../overview/overview.js';
 import type { Moment } from '../overview/when.js';
-import { parseBrief, type Deliverable } from './brief.js';
 
 /**
  * The data behind `yan ui`: every task, as a reader who has never heard of
- * yan understands it — a task and its deliverables, nothing of yan's own. The
- * shape is `artifacts/uix-html/data-shape.md` of task t128; `--json` prints
- * it and the page is written from it.
+ * yan understands it — a task, the problems it was opened for, and what it
+ * has to build. Nothing of yan's own. The shape is
+ * `artifacts/uix-html/data-shape-v3.md` of task t128; `--json` prints it and
+ * the page is written from it.
  *
  * Read from each task's own files and nothing else: the forge, git, the pool
  * and Herdr are never asked, and one task that cannot be read is a task with
- * less in it, never a failure.
+ * less in it, never a failure. A `deliverable.json` that does not validate is
+ * a task with no deliverables, which the page draws as `unknown`.
  */
 
 /** Both ends inclusive, local `YYYY-MM-DD`; either may be null. */
@@ -28,18 +29,22 @@ export interface ReportTask {
   /** The `repo` of the first unit; null with none. */
   readonly project: string | null;
   readonly state: TaskState;
-  /** The first paragraph of the brief's Description; null unless the brief has the stated shape. */
-  readonly description: string | null;
+  /**
+   * `brief.md` as `briefDescription` reads it: the prose under the title
+   * line, paragraphs a blank line apart and a bullet on its own line. Null
+   * when there is no brief, or nothing under its title.
+   */
+  readonly brief: string | null;
   /** Local `YYYY-MM-DD`; null when nothing says. */
   readonly started: string | null;
   /** Local `YYYY-MM-DD`; null while open. */
   readonly completed: string | null;
-  /** Empty when the brief has none, or is not in the shape. */
+  /** `deliverable.json` as it is, in file order; empty when there is none. */
   readonly deliverables: readonly Deliverable[];
 }
 
 export interface Report {
-  readonly version: 2;
+  readonly version: 3;
   /** ISO 8601 UTC to the second: the page's "today". */
   readonly generated_at: string;
   readonly range: ReportRange | null;
@@ -61,27 +66,23 @@ function dayOf(m: Moment | null): string | null {
 }
 
 export function reportTask(id: string, now: Date): ReportTask {
-  const { task, data, brief } = taskFiles(id, now);
-  const completed = dayOf(task.closed);
-  const notAfter = task.state === 'open' ? localDay(now) : (completed ?? localDay(now));
-  const parsed = parseBrief(brief, notAfter);
-  const shaped = parsed.shape === 'sections';
+  const { task, data } = taskFiles(id, now);
   return {
     id: task.id,
     title: task.title,
     project: data.units[0]?.repo || null,
     state: task.state,
-    description: shaped ? (task.description?.split('\n\n')[0] ?? null) : null,
+    brief: task.description,
     started: dayOf(task.opened),
-    completed,
-    deliverables: parsed.deliverables,
+    completed: dayOf(task.closed),
+    deliverables: readDeliverables(id).deliverables,
   };
 }
 
 /** The whole report. `range` is what the flags said, or null when there were none. */
 export function collectReport(range: ReportRange | null, now: Date = new Date()): Report {
   return {
-    version: 2,
+    version: 3,
     generated_at: `${now.toISOString().slice(0, 19)}Z`,
     range,
     tasks: Task.list().map((id) => reportTask(id, now)),

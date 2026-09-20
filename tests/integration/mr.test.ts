@@ -12,7 +12,7 @@ import {
   runYan,
 } from '../helpers/fixtures.js';
 import { openMr, type MrOptions } from '../../src/cli/mr.js';
-import { Task } from '../../src/records/task/index.js';
+import { Deliverables, Task } from '../../src/records/task/index.js';
 import type { MrCreateOptions } from '../../src/externals/remote-git/index.js';
 
 /**
@@ -106,9 +106,38 @@ describe('it opens the MR and records the URL', () => {
     expect(created[0].title).toBe('unify the auth header (auth)');
   });
 
-  it("defaults the body to the task's brief.md", () => {
+  it("defaults the body to the task's brief.md while it has no deliverables", () => {
     open({ task: 't042', unit: 'auth' });
     expect(created[0].bodyFile).toBe(join(new Task('t042').dir, 'brief.md'));
+    expect(created[0].body).toBeUndefined();
+  });
+
+  it('follows the brief with the deliverables as a list once there are any', () => {
+    const record = new Deliverables('t042');
+    record.add(['yan ls is an overview.', 'The report shows a brief.', 'A per-task status word.']);
+    record.done('d1', '2026-09-18', ['PR #52', 'PR #53']);
+    record.abandon('d3', 'user reads that off the header');
+
+    open({ task: 't042', unit: 'auth' });
+    expect(created[0].bodyFile, 'one body, not a file and a body').toBeUndefined();
+    expect(created[0].body).toBe(
+      [
+        '# t042 unify the auth header',
+        '',
+        '## Deliverables',
+        '',
+        '- [x] yan ls is an overview. — 2026-09-18 · PR #52 · PR #53',
+        '- [ ] The report shows a brief.',
+        '- [-] A per-task status word. — abandoned: user reads that off the header',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('leaves a body or a body file the caller gave alone', () => {
+    new Deliverables('t042').add(['one']);
+    open({ task: 't042', unit: 'auth', body: 'mine' });
+    expect(created[0].body).toBe('mine');
   });
 
   it('never pushes: the only git question it asks is whether the branch is on the remote', () => {
