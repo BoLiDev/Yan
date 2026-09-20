@@ -29,7 +29,8 @@ import { YanError } from '../util/error.js';
  * here ever clones over an existing directory.
  *
  * `rm` takes a name out of both halves and nothing off the disk, and refuses
- * while an open task still has a unit on it.
+ * while an open task still has a unit on it. With no argument it is a
+ * multi-select over the registry, as `add` is over a directory.
  */
 
 
@@ -334,25 +335,78 @@ function openTasksOn(entry: RepoEntry): string[] {
   });
 }
 
+/** What holds a repository in the registry, as a sentence, or the empty string when nothing does. */
+function heldBy(entry: RepoEntry): string {
+  const holders = openTasksOn(entry);
+  if (holders.length === 0) return '';
+  return `still has a unit in ${holders.join(', ')} - finish or abandon ${holders.length === 1 ? 'that task' : 'those tasks'} first`;
+}
+
+function remove(entry: RepoEntry): void {
+  dropFrom(reposPath(), entry.name);
+  dropFrom(localReposPath(), entry.name);
+  out(`repo rm: ${entry.name}  ${entry.path === undefined ? '(was not linked here)' : `${entry.path} is left as it is`}`);
+}
+
+function rmByName(name: string): void {
+  const entry = lookup(name);
+  if (entry === undefined) {
+    throw new YanError('repo_missing', `'${name}' is not registered in this vault - 'yan repo ls' lists what is there`);
+  }
+  const held = heldBy(entry);
+  if (held !== '') throw new YanError('repo_in_use', `'${name}' ${held}`);
+  remove(entry);
+}
+
+export interface Removable {
+  readonly name: string;
+  readonly url: string;
+  /** Where it is on this machine, or the empty string when it is not linked here. */
+  readonly path: string;
+  /** Why it cannot be selected, or the empty string when it can. */
+  readonly blocked: string;
+}
+
+/** Every registered repository as `rm`'s select offers it, each with what blocks it. */
+export function removable(): Removable[] {
+  return registry().map((entry) => ({
+    name: entry.name,
+    url: entry.url,
+    path: entry.path ?? '',
+    blocked: heldBy(entry),
+  }));
+}
+
+async function rmBySelect(): Promise<void> {
+  // Checked before the registry is read, so the refusal is about the missing argument.
+  if (!isTty()) {
+    throw YanError.usage('repo_usage', "there is no terminal to select in: pass the name. 'yan repo rm' with no argument is the interactive form, and 'yan repo ls' lists what is there");
+  }
+
+  const candidates = removable();
+  if (candidates.length === 0) {
+    throw new YanError('repo_empty', `no repositories are registered in ${reposPath()}`);
+  }
+
+  const { chooseReposToRemove } = await import('../ui/prompts.js');
+  const chosen = await chooseReposToRemove(candidates);
+  for (const name of chosen) {
+    // Looked up again rather than trusted: a task may have taken it since the list was drawn.
+    rmByName(name);
+  }
+  if (chosen.length === 0) out('repo rm: nothing selected');
+}
+
 const rmRepo = new Command('rm')
-  .description('take a repository out of the registry - the clone on disk is left alone')
-  .argument('[name]')
+  .description('take repositories out of the registry: by name, or pick from a list - the clone on disk is left alone')
+  .argument('[name]', 'a registered name, or nothing to choose from a list')
   .action(
-    action('repo_rm', (name: string | undefined) => {
+    action('repo_rm', async (name: string | undefined) => {
       if (name === undefined || name === '') {
-        throw YanError.usage('repo_usage', "which repository? 'yan repo rm <name>', and 'yan repo ls' lists what is there");
+        await rmBySelect();
+        return;
       }
-      const entry = lookup(name);
-      if (entry === undefined) {
-        throw new YanError('repo_missing', `'${name}' is not registered in this vault - 'yan repo ls' lists what is there`);
-      }
-      const holders = openTasksOn(entry);
-      if (holders.length > 0) {
-        throw new YanError('repo_in_use', `'${name}' still has a unit in ${holders.join(', ')} - finish or abandon ${holders.length === 1 ? 'that task' : 'those tasks'} first`);
-      }
-      dropFrom(reposPath(), name);
-      dropFrom(localReposPath(), name);
-      out(`repo rm: ${name}  ${entry.path === undefined ? '(was not linked here)' : `${entry.path} is left as it is`}`);
+      rmByName(name);
     }),
   );
 
