@@ -175,6 +175,9 @@ div.row { cursor: default; }
 .item .aside { display: flex; justify-content: flex-end; gap: 10px; }
 .item .at { font: 400 13px/22px var(--num); font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .item .ref { font: 12px/22px var(--code); color: var(--ink-3); white-space: nowrap; }
+/* a ref that is a URL is a link to it, and reads exactly as the others do: the page's own
+   underline on hover and ring on focus are all that say so */
+.item a.ref { color: var(--ink-3); }
 /* the reason an abandoned deliverable was given up: the one thing it has to say */
 .item .why { margin-top: 1px; font-size: 13px; line-height: 20px; color: var(--ink-2); text-wrap: pretty; overflow-wrap: anywhere; }
 
@@ -293,6 +296,34 @@ div.row { cursor: default; }
       frag.append(part.slice(at));
     });
     return frag;
+  }
+
+  /**
+   * A ref, as a label and the address behind it. A ref is free text and `PR #58` cannot
+   * say which repository it belongs to, so only a ref that is a URL can be opened: a
+   * GitHub pull request reads `PR #58`, a GitLab merge request `MR !87` whatever host it
+   * is self-hosted on, and any other http(s) URL is labelled with its host. Nothing but
+   * `http:` and `https:` ever becomes an href — `javascript:` is drawn as typed.
+   * The same rules as refLink() in src/records/task/deliverables.ts, which the terminal
+   * prints from.
+   */
+  function refOf(text) {
+    var url;
+    try { url = new URL(text); } catch (e) { return { label: text, href: null }; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return { label: text, href: null };
+    var github = url.hostname === 'github.com' || url.hostname === 'www.github.com';
+    var pull = github ? /^\/[^/]+\/[^/]+\/pull\/(\d+)(?:\/|$)/.exec(url.pathname) : null;
+    if (pull) return { label: 'PR #' + pull[1], href: url.href };
+    var merge = /\/-\/merge_requests\/(\d+)(?:\/|$)/.exec(url.pathname);
+    if (merge) return { label: 'MR !' + merge[1], href: url.href };
+    return { label: url.host, href: url.href };
+  }
+  /** One ref beside a delivered deliverable: an <a> when it has an address, the text when it has none. */
+  function ref(text) {
+    var r = refOf(text);
+    if (r.href === null) return h('span', { class: 'ref' }, r.label);
+    // The row it sits in is a sibling, not an ancestor, so this click toggles nothing.
+    return h('a', { class: 'ref', href: r.href, target: '_blank', rel: 'noopener noreferrer', title: text }, r.label);
   }
 
   // ── days: everything is a local YYYY-MM-DD, and "today" is the day the report was made ──
@@ -464,7 +495,7 @@ div.row { cursor: default; }
         h('div', { class: 'text' }, inline(d.text), d.status === 'abandoned' && h('div', { class: 'why' }, inline(d.reason))),
         d.status === 'done' && h('span', { class: 'aside' },
           h('span', { class: 'at', title: nice(d.doneAt, true) }, dotted(d.doneAt)),
-          refs.map(function (r) { return h('span', { class: 'ref' }, r); })));
+          refs.map(ref)));
     }));
     return box;
   }

@@ -70,8 +70,8 @@ describe('the collector', () => {
       started: '2026-09-01',
       completed: null,
       deliverables: [
-        { id: 'd1', text: 'The pricing page shows the three plans side by side, each with its price and what it includes.', status: 'done', doneAt: '2026-09-10', refs: ['PR #12'] },
-        { id: 'd2', text: 'A table under the plans compares them feature by feature.', status: 'done', doneAt: '2026-09-15', refs: ['PR #13', 'PR #14'] },
+        { id: 'd1', text: 'The pricing page shows the three plans side by side, each with its price and what it includes.', status: 'done', doneAt: '2026-09-10', refs: ['PR #12', 'javascript:alert(1)', 'https://ref.example.com/a"><script>'] },
+        { id: 'd2', text: 'A table under the plans compares them feature by feature.', status: 'done', doneAt: '2026-09-15', refs: ['https://github.com/acme/site/pull/13', 'https://gitlab.acme.internal/acme/site/-/merge_requests/14'] },
         { id: 'd3', text: 'Every plan carries a yearly price, and the page says what paying yearly saves.', status: 'todo' },
         { id: 'd4', text: 'The header links to the pricing page from every page of the site.', status: 'todo' },
         { id: 'd5', text: "The page shows its prices in the visitor's own currency.", status: 'abandoned', reason: 'every customer pays in euros' },
@@ -87,6 +87,14 @@ describe('the collector', () => {
     expect(abandoned).toMatchObject({ status: 'abandoned' });
     expect(abandoned && 'reason' in abandoned ? abandoned.reason : '').toContain('`</script><!-- x -->` and `$&`');
     expect(t.deliverables[2]).toMatchObject({ refs: ['PR #31', 'PR #32 <!-- squashed -->'] });
+  });
+
+  // The record is what was typed; working out what a ref points at is the
+  // reader's, and the page's, so --json never shortens one.
+  it('hands back a ref as it is stored, URL and all', () => {
+    expect(task('t001').deliverables[0]).toMatchObject({
+      refs: ['PR #12', 'javascript:alert(1)', 'https://ref.example.com/a"><script>'],
+    });
   });
 
   it('never reads deliverables out of a brief: an old two-section one has none', () => {

@@ -16,9 +16,16 @@ product as the subject, what has to be true when the work is done. Never a test,
 fix, a document or a step of the process — those belong in `log.md`, and a fixture
 that reads like a log teaches the page's readers to write one.
 
+A ref is stored as it was typed. t001 carries one of each kind, because a ref is the
+only thing that says which forge it belongs to: a plain `PR #12`, a GitHub pull
+request URL, a GitLab merge request URL on a self-hosted host, and two hostile ones
+— a `javascript:` URL, which never becomes a link, and an http URL carrying
+`"><script>`, which does. `scripts/check-ui-page.mjs` proves what the page draws
+for each.
+
 | id | state | project | started | completed | record (done · to do · abandoned) | what it is for |
 | --- | --- | --- | --- | --- | --- | --- |
-| t001 | open | site | 09-01 | | 2 · 2 · 1, done 09-10 (`PR #12`), 09-15 (`PR #13` `PR #14`) | the ring at 2/4; all three statuses in one opened row; several refs on one item; an abandoned deliverable with its reason; a brief with two paragraphs and two bullets |
+| t001 | open | site | 09-01 | | 2 · 2 · 1, done 09-10 (`PR #12`, a `javascript:` ref, a URL carrying `"><script>`), 09-15 (a GitHub pull request URL, a GitLab merge request URL on a self-hosted host) | the ring at 2/4; all three statuses in one opened row; several refs on one item; every kind of ref there is, so the page's links are proved here; an abandoned deliverable with its reason; a brief with two paragraphs and two bullets |
 | t002 | done | ledger | 08-03 | 08-20 | 3 · 0 · 1, done 08-05, 08-12 (`MR !87`), 08-20 (`PR #31` `PR #32 <!-- squashed -->`) | `</script><!--` and `$&` in the brief, in a deliverable, in a reason and in a ref |
 | t003 | done | ledger | 07-01 | 07-15 | no record; an old two-section `brief.md` with `- [x]` lines | an empty squares column: the checkbox lines are not parsed and the row does not open |
 | t004 | done | none | 06-10 | 06-30 | no record, no brief, no units | `project: null`; an empty squares column; a done task delivers once on its completion day |
