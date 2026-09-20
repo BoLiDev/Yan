@@ -131,8 +131,13 @@ code { font: 0.88em var(--code); background: var(--sunken); border-radius: 5px; 
 
 /* ── the matrix ─────────────────────────────────────────────────────────── */
 .group + .group { margin-top: 30px; }
-.group-h { display: flex; align-items: baseline; gap: 10px; padding: 0 2px 10px; font-size: 16px; font-weight: 600; }
+/* the heading is the fold: a real button, hugging its words so the focus ring is the heading
+   and not the width of the page. `In progress` and a month are the same heading */
+.group-h { display: inline-flex; align-items: baseline; gap: 10px; padding: 0 2px 10px; font-size: 16px; font-weight: 600; }
 .group-h em { font: normal 400 13.5px var(--num); color: var(--ink-3); }
+.group-h .chev { align-self: center; display: flex; color: var(--ink-3); }
+/* the 10 px under a heading is the air between it and its card; folded there is no card */
+.group-h[aria-expanded="false"] { padding-bottom: 0; }
 .card { background: var(--surface); border-radius: 14px; }
 .task + .task::before { content: ""; display: block; height: 1px; margin: 0 22px; background: var(--line); }
 .row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 116px 236px 112px 18px; column-gap: 18px; align-items: center; width: 100%; padding: 14px 22px; border-radius: 14px; }
@@ -141,7 +146,7 @@ div.row { cursor: default; }
 .row .meta { display: contents; }
 .row .project { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .chev { color: var(--ink-3); transition: none; }
-.row[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.row[aria-expanded="true"] .chev, .group-h[aria-expanded="true"] .chev { transform: rotate(90deg); }
 /* the dates at the end of a row: numbers, grey, no weight. They are not the row's main information */
 .span { font: 400 14px/24px var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-2); }
 
@@ -214,7 +219,9 @@ div.row { cursor: default; }
     --accent: #0b7285; --green: #1f7a3d; --empty: #d6d4cc;
   }
   .page { padding: 0; max-width: none; }
-  .presets, .filters, .picker, .dates svg, .row .chev { display: none !important; }
+  /* the chevrons say "press me", and paper cannot be pressed. A section folded on screen
+     prints folded, because the page prints what is on screen */
+  .presets, .filters, .picker, .dates svg, .row .chev, .group-h .chev { display: none !important; }
   .print-only { display: flex; }
   .tile, .card { border: 1px solid var(--line); }
   .task, .item, .tile { break-inside: avoid; }
@@ -357,7 +364,7 @@ div.row { cursor: default; }
   var view = {
     since: isDay(params.get('since')) ? params.get('since') : isDay(from.since) ? from.since : null,
     until: isDay(params.get('until')) ? params.get('until') : isDay(from.until) ? from.until : null,
-    state: 'all', project: null, q: '', open: {}
+    state: 'all', project: null, q: '', open: {}, folded: {}
   };
   if (view.since === null && view.until === null) view.since = PRESETS[1].since;
   if (view.since === null) view.since = EARLIEST;
@@ -522,8 +529,30 @@ div.row { cursor: default; }
     if (isOpen) el.append(detail(t));
     return el;
   }
-  function group(title, list) {
-    return h('section', { class: 'group' }, title && h('div', { class: 'group-h' }, title, h('em', null, String(list.length))), h('div', { class: 'card' }, list.map(taskEl)));
+  /**
+   * One section of the list: a heading that folds it, and the card of its rows.
+   * Folded, the card is not in the page at all, so a fold hides and never filters —
+   * the tiles, the chip counts and the search go on counting what is inside it, and the
+   * heading's own count is the filtered list as before. The fold is remembered in `view`
+   * for as long as the page is open: a new range, search or filter draws the section
+   * folded again, and a reload starts unfolded. Rows keep their own open state in
+   * `view.open`, so a row opened inside a section is still open when it unfolds.
+   * The heading toggles in place rather than through render(), so the keyboard keeps
+   * its focus on the button it just pressed.
+   */
+  function group(key, title, list) {
+    var folded = !!view.folded[key];
+    var card = h('div', { class: 'card', id: 'g-' + key }, list.map(taskEl));
+    var sec = h('section', { class: 'group' });
+    var head = h('button', { class: 'group-h', type: 'button', 'aria-expanded': String(!folded), 'aria-controls': 'g-' + key, onclick: function () {
+      var now = !view.folded[key];
+      view.folded[key] = now;
+      head.setAttribute('aria-expanded', String(!now));
+      if (now) card.remove(); else sec.append(card);
+    } }, title, h('em', null, String(list.length)), h('span', { class: 'chev' }, icon(RIGHT, 16, 1.75)));
+    sec.append(head);
+    if (!folded) sec.append(card);
+    return sec;
   }
 
   // ── render ──────────────────────────────────────────────────────────────
@@ -577,11 +606,11 @@ div.row { cursor: default; }
     // the list
     var list = $('list');
     list.textContent = '';
-    if (v.open.length > 0) list.append(group(null, v.open));
+    if (v.open.length > 0) list.append(group('open', labelOf('open'), v.open));
     var months = [];
     v.closed.forEach(function (t) { var m = t.completed.slice(0, 7); if (months.indexOf(m) < 0) months.push(m); });
     months.forEach(function (m) {
-      list.append(group(MONTHS_LONG[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4), v.closed.filter(function (t) { return t.completed.slice(0, 7) === m; })));
+      list.append(group(m, MONTHS_LONG[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4), v.closed.filter(function (t) { return t.completed.slice(0, 7) === m; })));
     });
     if (v.open.length + v.closed.length === 0) list.append(h('div', { class: 'none' }, '0'));
 

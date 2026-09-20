@@ -320,6 +320,70 @@ if (LOOK !== undefined) {
   check('an open row survives a filter change', await (async () => { await js(`[...document.querySelectorAll('#chips .chip')].find(b => b.textContent.startsWith('Done')).click()`); return js(`document.querySelectorAll('.detail').length === 1`); })());
   check('tooltips: marks, bars, presets', true, await js(`[document.querySelector('.row .mark').title, document.querySelector('.bar').title, document.querySelector('#presets button').title].join(' | ')`));
 
+  // ── the list folds, section by section ────────────────────────────────────
+  // `In progress` is a heading like any month, and every heading is the button that folds
+  // its own section. A fold hides: the numbers, the chip counts and the search go on
+  // counting what is inside it.
+  const heads = () => js(`[...document.querySelectorAll('.group-h')].map(e => { const c = getComputedStyle(e); return { text: e.firstChild.textContent, count: e.querySelector('em').textContent, tag: e.tagName, type: e.getAttribute('type'), expanded: e.getAttribute('aria-expanded'), controls: e.getAttribute('aria-controls'), chev: e.querySelector('.chev svg') !== null, rotated: getComputedStyle(e.querySelector('.chev')).transform, font: [c.fontFamily.split(',')[0], c.fontSize, c.fontWeight, c.gap, c.padding].join(' '), countFont: (() => { const m = getComputedStyle(e.querySelector('em')); return [m.fontFamily.split(',')[0], m.fontSize, m.fontWeight, m.color].join(' '); })(), left: Math.round(e.getBoundingClientRect().left), card: document.getElementById(e.getAttribute('aria-controls')) !== null, rows: (document.getElementById(e.getAttribute('aria-controls')) || { querySelectorAll: () => [] }).querySelectorAll('.task').length }; })`);
+  const foldHead = (text) => js(`[...document.querySelectorAll('.group-h')].find(e => e.firstChild.textContent === ${JSON.stringify(text)}).click()`);
+  await go('fixture', '?since=2025-12-01');
+  const hs = await heads();
+  check('the open tasks get a heading of their own: In progress, with its count', hs.length > 1 && hs[0].text === 'In progress' && hs[0].count === '4', hs.map((x) => `${x.text} ${x.count}`).join(' | '));
+  check('In progress is drawn exactly as a month heading: face, size, count and spacing', hs.every((x) => x.font === hs[0].font && x.countFont === hs[0].countFont && x.left === hs[0].left), [...new Set(hs.map((x) => `${x.font} · ${x.countFont} · ${x.left}`))]);
+  check('every heading is a real button with a chevron, and everything starts unfolded', hs.every((x) => x.tag === 'BUTTON' && x.type === 'button' && x.chev && x.expanded === 'true' && x.controls && x.card), hs.map((x) => `${x.text}: ${x.tag} ${x.expanded} chev=${x.chev}`).join(' | '));
+  check('the chevron is the row\'s chevron, turned: right when folded, down when open', hs[0].rotated !== 'none', hs[0].rotated);
+  check('a heading is a tab stop and the keyboard can reach it', await js(`(() => { const e = document.querySelector('.group-h'); e.focus(); return e.tabIndex === 0 && document.activeElement === e; })()`));
+  // Enter on the focused heading, as a real key press rather than a click
+  await js(`document.querySelector('.group-h').focus()`);
+  for (const type of ['rawKeyDown', 'char', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'char' ? '\r' : undefined });
+  await sleep(150);
+  const byEnter = await heads();
+  check('Enter on the heading folds the section: the heading and its count stay, the rows go', byEnter[0].expanded === 'false' && !byEnter[0].card && byEnter[0].text === 'In progress' && byEnter[0].count === '4' && byEnter.slice(1).every((x) => x.card), byEnter.map((x) => `${x.text} ${x.expanded} card=${x.card}`).join(' | '));
+  check('…and the keyboard keeps its focus on the heading it pressed', await js(`document.activeElement === document.querySelector('.group-h')`));
+  check('a folded section shows nothing but its heading and count', await js(`(() => { const s = document.querySelectorAll('.group')[0]; return s.children.length === 1 && s.textContent.trim() === 'In progress4' && s.querySelectorAll('.task, .row, .detail').length === 0; })()`), await js(`document.querySelectorAll('.group')[0].textContent`));
+  await sleep(50);
+  for (const type of ['rawKeyDown', 'char', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'char' ? '\r' : undefined });
+  await sleep(150);
+  check('Enter again unfolds it', (await heads())[0].card && (await heads())[0].expanded === 'true');
+
+  // a fold hides, it does not filter
+  const tilesBefore = await tiles(), chipsBefore = await js(`[...document.querySelectorAll('#chips .chip')].map(b => b.textContent).join(' | ')`);
+  await foldHead('In progress');
+  check('folding moves no number: the tiles and the chip counts are what they were', (await tiles()) === tilesBefore && (await js(`[...document.querySelectorAll('#chips .chip')].map(b => b.textContent).join(' | ')`)) === chipsBefore, `${tilesBefore} → ${await tiles()}`);
+  await search('release notes');
+  const searched = await heads();
+  check('search still matches inside a folded section: its count follows the search', searched[0].expanded === 'false' && searched[0].count === '1', searched.map((x) => `${x.text} ${x.count} ${x.expanded}`).join(' | '));
+  check('…and the section is still folded after the search', !searched[0].card);
+  await search('');
+  check('a folded section is still folded after the search is cleared', !(await heads())[0].card);
+  await js(`[...document.querySelectorAll('#chips .chip')].find(b => b.textContent.startsWith('All')).click()`);
+  check('…and after a filter change', !(await heads())[0].card);
+  await js(`[...document.querySelectorAll('#presets button')].find(b => b.textContent === 'All').click()`);
+  check('…and after the range changes', !(await heads())[0].card, (await heads()).map((x) => `${x.text} ${x.expanded}`).join(' | '));
+  await shot('fixture-15-folded');
+
+  // a row opened inside a section is still open when the section unfolds
+  await foldHead('In progress');
+  await clickRow('pricing page');
+  check('a row opens inside an unfolded section', (await js(`document.querySelectorAll('.detail').length`)) === 1);
+  await foldHead('In progress');
+  check('folding the section around an open row takes the row with it', (await js(`document.querySelectorAll('.detail').length`)) === 0);
+  await foldHead('In progress');
+  check('…and unfolding brings it back open', await js(`document.querySelectorAll('.detail').length === 1 && document.querySelector('button.row[aria-expanded=true]').textContent.includes('pricing page')`));
+
+  // print and phone
+  await foldHead('In progress');
+  await send('Emulation.setEmulatedMedia', { media: 'print' }); await sleep(150);
+  check('print: a folded section prints folded, heading and count and no chevron', await js(`(() => { const s = document.querySelectorAll('.group')[0], h = s.querySelector('.group-h'); return s.querySelectorAll('.task').length === 0 && getComputedStyle(h).display !== 'none' && h.textContent.trim() === 'In progress4' && getComputedStyle(h.querySelector('.chev')).display === 'none'; })()`), await js(`document.querySelectorAll('.group')[0].textContent`));
+  await send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'light' }] }); await sleep(150);
+  await go('fixture', '?since=2025-12-01', 390, 844);
+  const phone = await heads();
+  check('390: the headings hold, and In progress is drawn as the months are', phone[0].text === 'In progress' && phone.every((x) => x.font === phone[0].font && x.left === phone[0].left) && !(await holds()).sideways, phone.map((x) => `${x.text} ${x.left}`).join(' | '));
+  await foldHead('In progress');
+  check('390: a heading folds its section here too, with no sideways scroll', (await heads())[0].card === false && !(await holds()).sideways);
+  await shot('fixture-16-folded-phone', true);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(150);
+
   // ── the ring ──
   const ring = (title) => js(`(() => { const r = [...document.querySelectorAll('.row')].find(b => b.textContent.includes(${JSON.stringify(title)})); const m = r.querySelector('.mark'); const svg = m.querySelector('svg'); const pie = svg.querySelector('path[fill]'); let drawn = null; if (pie) { const e = pie.getAttribute('d').match(/1 ([\\d.]+) ([\\d.]+)Z$/); const x = Number(e[1]) - 10, y = 10 - Number(e[2]); let deg = Math.atan2(x, y) * 180 / Math.PI; if (deg <= 0) deg += 360; drawn = Math.round(deg); } return { state: m.dataset.state, fraction: m.dataset.fraction ?? null, degrees: m.dataset.degrees ?? null, drawn, dot: !!svg.querySelector('circle[r="1.5"]'), full: !!svg.querySelector('circle[r="5"]'), disc: !!svg.querySelector('circle[r="9"]'), slash: !!svg.querySelector('path[stroke-linecap]:not([stroke-linejoin])'), title: m.title, size: svg.getAttribute('width'), tint: getComputedStyle(m).backgroundColor, color: getComputedStyle(m).color }; })()`);
   await go('edges', '?since=2025-12-01');
