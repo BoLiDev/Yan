@@ -133,6 +133,29 @@ describe('who is reporting: the spawn environment, not an argument', () => {
     expect(lines(join(run, 'status'))).toBe(10);
   });
 
+  it("does not take the main agent's task directory for a shift's", async () => {
+    // The main agent gets YAN_TASK and YAN_TASK_DIR and no YAN_SID, and a task
+    // directory has a `run/` folder of its own, just as a shift's does.
+    const taskDir = join(home, 'tasks', 't042');
+    mkdirSync(join(taskDir, 'run'), { recursive: true });
+    writeFileSync(join(taskDir, 'outcome.md'), 'not a shift\n');
+    const before = lines(join(run, 'status'));
+
+    const r = await runYan(home, ['report', 'done', 'yan is not a shift'], {
+      YAN_TASK: 't042',
+      YAN_TASK_DIR: taskDir,
+      YAN_SID: '',
+      YAN_SHIFT_DIR: '',
+    });
+    expect(r.code).toBe(2);
+    expect(r.out).toContain('YAN_SHIFT_DIR');
+    expect(existsSync(join(taskDir, 'run', 'status')), 'nothing was written to the task').toBe(false);
+    expect(lines(join(run, 'status')), "and nothing to a shift's").toBe(before);
+
+    rmSync(join(taskDir, 'run'), { recursive: true, force: true });
+    rmSync(join(taskDir, 'outcome.md'), { force: true });
+  });
+
   it('says so rather than guessing when nothing identifies the shift', async () => {
     const r = await runYan(home, ['report', 'done', 'nobody knows who I am'], {
       YAN_SHIFT_DIR: '',

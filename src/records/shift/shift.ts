@@ -142,6 +142,11 @@ export class Shift {
    *   YAN_TASK_DIR         the shift's own directory, or the task directory
    *                        when YAN_SID is also set
    *   YAN_TASK + YAN_SID   ids only; resolved by scanning
+   *
+   * The main agent has YAN_TASK_DIR and no YAN_SID, and a task directory has a
+   * `run/` folder just as a shift's does, so `run/` alone never makes a
+   * directory a shift's: it takes a `…/shifts/<sid>` path, or a YAN_SID that
+   * names the directory itself.
    */
   public static fromEnv(): Shift | undefined {
     const shiftDir = process.env.YAN_SHIFT_DIR;
@@ -151,11 +156,12 @@ export class Shift {
     const sid = process.env.YAN_SID;
     if (taskDirEnv) {
       const trimmed = taskDirEnv.replace(/[\\/]+$/, '');
-      if (existsSync(join(trimmed, 'run')) || basename(dirname(trimmed)) === 'shifts') {
-        return Shift.fromDir(trimmed);
-      }
+      if (basename(dirname(trimmed)) === 'shifts') return Shift.fromDir(trimmed);
       if (sid && existsSync(join(trimmed, 'shifts', sid))) {
         return Shift.fromDir(join(trimmed, 'shifts', sid));
+      }
+      if (sid && basename(trimmed) === sid && existsSync(join(trimmed, 'run'))) {
+        return Shift.fromDir(trimmed);
       }
     }
     if (sid) return Shift.resolve(sid, process.env.YAN_TASK ?? '');
