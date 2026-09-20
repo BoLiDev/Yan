@@ -41,8 +41,8 @@ const GRAIN: Record<string, string[]> = {
  * file that says only what a deliverable is leaves out what the list is for.
  */
 const ALIGNED: Record<string, string[]> = {
-  'CLAUDE.md': ['yan show', 'never on your own'],
-  'AGENTS.md': ['yan show', 'never on your own'],
+  'CLAUDE.md': ['yan show', 'once they agree'],
+  'AGENTS.md': ['yan show', 'once they agree'],
   'GEMINI.md': ['yan show', '\u6c38\u8fdc\u4e0d\u81ea\u4f5c\u4e3b\u5f20'],
 };
 
