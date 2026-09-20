@@ -6,6 +6,7 @@ import { machineDir } from '../util/machine.js';
 import { action, out } from './shared/action.js';
 import { openPath } from './shared/opener.js';
 import { collectReport, localDay, type ReportRange } from './ui/collect.js';
+import { copyFonts } from './ui/fonts.js';
 import { reportPage } from './ui/page.js';
 
 /**
@@ -17,7 +18,8 @@ import { reportPage } from './ui/page.js';
  *
  * The page is build output, so it goes to the machine directory rather than
  * the vault, which is versioned and pushed: `~/.yan/ui/report.html`, one file
- * overwritten each run.
+ * overwritten each run. The face it is drawn in goes beside it, in `fonts/`
+ * (`ui/fonts.ts`), so the page needs nothing installed and nothing fetched.
  *
  * The dates only set the range the report opens on; every task is in it
  * whatever they say. Words such as "the past month" are for the caller to turn
@@ -62,6 +64,9 @@ export const command = new Command('ui')
       } catch (err) {
         throw new YanError('ui_write', `cannot write ${file}: ${(err as Error).message}`);
       }
+      // After the page, so a directory that will not take the fonts still
+      // leaves a readable report behind - it falls back to the system font.
+      copyFonts(dirname(file));
       out(file);
       if (options.open) openPath(file);
     }),

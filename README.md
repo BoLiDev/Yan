@@ -126,6 +126,15 @@ tmux, bash or `jq`, V2 says Herdr and TypeScript.
 | How the port was cut into phases | [docs/v2/plan/INDEX.md](docs/v2/plan/INDEX.md) |
 | How V3 was cut into phases, and what the migration found | [docs/v3/plan/INDEX.md](docs/v3/plan/INDEX.md), [docs/v3/td/migration.md](docs/v3/td/migration.md) |
 
+## Third-party material
+
+One thing in this repository was not written for it. `templates/ui/fonts/` holds two
+woff2 subsets of **ChillRoundF** (寒蝉全圆体) by ChillType, the face `yan ui` draws its
+work report in, under the SIL Open Font License 1.1 — `templates/ui/fonts/OFL.txt` is
+the licence and the copyright notice, and the `README.md` beside it says what is in the
+subsets, how they were cut and why the family they declare is called "Yan Round".
+Everything else here is yan's own.
+
 ## Conventions
 
 - The MVP technical design (`td`) is split by topic across `docs/mvp/td/`. Section numbers are part of each
