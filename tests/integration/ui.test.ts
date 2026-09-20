@@ -45,7 +45,7 @@ beforeAll(async () => {
 
 describe('the collector', () => {
   it('holds every task, open, done and abandoned, in id order', () => {
-    expect(report.version).toBe(2);
+    expect(report.version).toBe(3);
     expect(report.generated_at).toBe('2026-09-18T15:04:05Z');
     expect(report.range).toEqual({ since: '2026-08-01', until: null });
     expect(report.tasks.map((t) => `${t.id} ${t.state}`)).toEqual([
@@ -54,43 +54,57 @@ describe('the collector', () => {
     ]);
   });
 
-  it('gives a task in the shape its first Description paragraph, its days and its deliverables', () => {
+  it('gives a task its brief as prose, its days and its record as it is written', () => {
     expect(task('t001')).toEqual({
       id: 't001',
       title: 'pricing page',
       project: 'site',
       state: 'open',
-      description: 'A pricing page for the site, with the three plans side by side and a comparison table under them.',
+      brief: [
+        'The site has no page that says what anything costs, so every enquiry starts with someone asking. Three plans exist and nobody outside the company can name them.',
+        '',
+        'What has to be true at the end:',
+        '- a visitor can compare the three plans without writing to us;',
+        '- the yearly price says what it saves.',
+      ].join('\n'),
       started: '2026-09-01',
       completed: null,
       deliverables: [
-        { mark: 'done', date: '2026-09-10', evidence: 'PR #12', text: 'The three plans side by side, each with its price and what it includes.' },
-        { mark: 'done', date: '2026-09-15', evidence: null, text: 'The comparison table under the plans.' },
-        { mark: 'todo', date: null, evidence: null, text: 'Yearly prices, with the saving shown.' },
-        { mark: 'todo', date: null, evidence: null, text: 'The page linked from the header.' },
-        { mark: 'dropped', date: null, evidence: null, text: 'A currency switcher — every customer pays in euros.' },
+        { id: 'd1', text: 'The three plans side by side, each with its price and what it includes.', status: 'done', doneAt: '2026-09-10', refs: ['PR #12'] },
+        { id: 'd2', text: 'The comparison table under the plans.', status: 'done', doneAt: '2026-09-15', refs: ['PR #13', 'PR #14'] },
+        { id: 'd3', text: 'Yearly prices, with the saving shown.', status: 'todo' },
+        { id: 'd4', text: 'The page linked from the header.', status: 'todo' },
+        { id: 'd5', text: 'A currency switcher over the three plans.', status: 'abandoned', reason: 'every customer pays in euros' },
       ],
     });
   });
 
-  it('keeps markup and replacement patterns in the text as typed', () => {
-    const texts = task('t002').deliverables.map((d) => d.text).join('\n');
-    expect(texts).toContain('`</script><!-- x -->`');
-    expect(texts).toContain('`$&` and `$1`');
-    expect(task('t002').deliverables.map((d) => d.evidence)).toEqual([null, 'MR !87', 'PR #31', null]);
+  it('keeps markup and replacement patterns as typed, in the brief, a deliverable, a reason and a ref', () => {
+    const t = task('t002');
+    expect(t.brief).toContain('`</script><!-- x -->`');
+    expect(t.deliverables.map((d) => d.text).join('\n')).toContain('`$&`, `$1` and `$$`');
+    const abandoned = t.deliverables[3];
+    expect(abandoned).toMatchObject({ status: 'abandoned' });
+    expect(abandoned && 'reason' in abandoned ? abandoned.reason : '').toContain('`</script><!-- x -->`');
+    expect(t.deliverables[2]).toMatchObject({ refs: ['PR #31', 'PR #32 <!-- squashed -->'] });
   });
 
-  it('dates a finished task’s items against its completion day, not today', () => {
-    expect(task('t006').completed).toBe('2026-01-08');
-    expect(task('t006').deliverables.map((d) => d.date)).toEqual(['2025-12-30', '2026-01-05']);
+  it('never reads deliverables out of a brief: an old two-section one has none', () => {
+    expect(task('t003').deliverables).toEqual([]);
+    expect(task('t003').brief).toBe('Nightly backups of the ledger database, kept for thirty days.');
+    expect(task('t003')).toMatchObject({ started: '2026-07-01', completed: '2026-07-15' });
   });
 
-  it('gives a free-form or missing brief no description and no deliverables', () => {
-    for (const id of ['t003', 't004', 't007']) {
-      expect(task(id)).toMatchObject({ description: null, deliverables: [] });
-    }
-    expect(task('t003').started).toBe('2026-07-01');
-    expect(task('t003').completed).toBe('2026-07-15');
+  it('gives a task with neither file no brief and no deliverables', () => {
+    expect(task('t004')).toEqual({
+      id: 't004', title: 'clean up old branches', project: null, state: 'done',
+      brief: null, started: '2026-06-10', completed: '2026-06-30', deliverables: [],
+    });
+  });
+
+  it('gives a record that does not validate no deliverables, and does not fail', () => {
+    expect(task('t007').deliverables).toEqual([]);
+    expect(task('t007').brief).toContain('The autumn release goes out in a fortnight');
   });
 
   it('takes the project from the first unit, and null without one', () => {
@@ -104,18 +118,17 @@ describe('the collector', () => {
 
   it('keeps an unreadable task, with nothing known about it', () => {
     expect(task('t008')).toEqual({
-      id: 't008', title: '', project: null, state: 'open', description: null, started: null, completed: null, deliverables: [],
+      id: 't008', title: '', project: null, state: 'open', brief: null, started: null, completed: null, deliverables: [],
     });
   });
 
-  it('keeps a delivered item with no date, and leaves a reference with words after it in the text', () => {
-    expect(task('t009').deliverables[0]).toEqual({
-      mark: 'done', date: null, evidence: null, text: 'PR #53 for the data; the styling after · The box finds pages by title.',
-    });
+  it('keeps a delivered item with nothing proving it, and one dated either side of a year', () => {
+    expect(task('t009').deliverables[0]).toEqual({ id: 'd1', text: 'The box finds pages by title.', status: 'done', doneAt: '2026-09-09' });
+    expect(task('t006').deliverables.map((d) => (d.status === 'done' ? d.doneAt : null))).toEqual(['2025-12-30', '2026-01-05']);
   });
 
-  it('gives an empty Deliverables list no deliverables and keeps the description', () => {
-    expect(task('t010')).toMatchObject({ description: 'A newsletter signup at the foot of every page.', deliverables: [] });
+  it('gives an empty record no deliverables and keeps the brief', () => {
+    expect(task('t010')).toMatchObject({ brief: expect.stringContaining('The newsletter has one way in'), deliverables: [] });
   });
 });
 
@@ -175,7 +188,7 @@ describe('yan ui', () => {
     expect(r.code, r.out).toBe(0);
     const file = join(machine, 'ui', 'report.html');
     expect(r.stdout).toBe(`${file}\n`);
-    expect(readFileSync(file, 'utf8')).toContain('id="yan-data">{"version":2,');
+    expect(readFileSync(file, 'utf8')).toContain('id="yan-data">{"version":3,');
     expect(snapshot(home)).toEqual(before);
 
     // One file, overwritten each run.

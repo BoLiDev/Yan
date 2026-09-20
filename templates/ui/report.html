@@ -145,7 +145,8 @@ div.row { cursor: default; }
 /* the dates at the end of a row: numbers, grey, no weight. They are not the row's main information */
 .span { font: 400 14px/24px var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-2); }
 
-/* one square per deliverable, in fives, and nothing after them */
+/* one square per deliverable, in fives, and nothing after them; a task with no record says so */
+.row .unknown { font: 400 14px/24px var(--num); color: var(--ink-2); }
 .squares { display: flex; flex-wrap: wrap; gap: 4px; }
 .squares i { display: block; width: 10px; height: 10px; border-radius: 3px; background: var(--empty); }
 .squares i:nth-child(5n) { margin-right: 6px; }   /* after every fifth, so a wrapped line starts flush */
@@ -153,11 +154,11 @@ div.row { cursor: default; }
 .squares[data-state="done"] i.on { background: var(--green); }
 .squares[data-state="abandoned"] i.on { background: var(--ink-3); }
 
-/* ── a row opened: the squares, unrolled down a rail ────────────────────── */
+/* ── a row opened: the brief, then the record's deliverables down a rail ── */
 .detail { padding: 4px 22px 28px 60px; }
-.lead { max-width: 680px; margin: 0 0 20px; color: var(--ink-2); text-wrap: pretty; overflow-wrap: anywhere; }
-.run + .run { margin-top: 18px; }
-.day { margin-bottom: 8px; font: 600 13px/18px var(--num); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.brief { margin-bottom: 20px; }
+.lead { max-width: 680px; margin: 0; color: var(--ink-2); text-wrap: pretty; overflow-wrap: anywhere; white-space: pre-line; }
+.lead + .lead { margin-top: 12px; }
 .item { position: relative; display: grid; grid-template-columns: 10px minmax(0, 660px) auto; column-gap: 16px; align-items: start; padding-bottom: 16px; font-size: 14.5px; line-height: 22px; }
 .item:last-child { padding-bottom: 0; }
 .item:not(:last-child)::before { content: ""; position: absolute; left: 4px; top: 20px; bottom: -2px; width: 2px; border-radius: 1px; background: var(--line); }
@@ -165,10 +166,15 @@ div.row { cursor: default; }
 .detail[data-state="done"] .node { background: var(--green); }
 .detail[data-state="abandoned"] .node { background: var(--ink-3); }
 .item[data-mark="todo"] .node { background: var(--surface); border: 1.75px solid var(--ink-3); }
-.item[data-mark="dropped"] .node { height: 2px; margin-top: 10px; border-radius: 1px; background: var(--ink-3); }
-.item[data-mark="dropped"] .text { color: var(--ink-2); }
+.item[data-mark="abandoned"] .node { height: 2px; margin-top: 10px; border-radius: 1px; background: var(--ink-3); }
+.item[data-mark="abandoned"] .text { color: var(--ink-2); }
 .item .text { text-wrap: pretty; overflow-wrap: anywhere; white-space: pre-line; }
+/* what the record says beside a deliverable: the day it was delivered and what proves it */
+.item .aside { display: flex; justify-content: flex-end; gap: 10px; }
+.item .at { font: 400 13px/22px var(--num); font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .item .ref { font: 12px/22px var(--code); color: var(--ink-3); white-space: nowrap; }
+/* the reason an abandoned deliverable was given up: the one thing it has to say */
+.item .why { margin-top: 1px; font-size: 13px; line-height: 20px; color: var(--ink-2); text-wrap: pretty; overflow-wrap: anywhere; }
 
 .none { padding: 56px 0; text-align: center; font: 13px var(--num); color: var(--ink-3); }
 
@@ -193,7 +199,7 @@ div.row { cursor: default; }
   .row .span { margin-left: auto; }
   .detail { padding: 2px 20px 24px; }
   .item { grid-template-columns: 10px minmax(0, 1fr); }
-  .item .ref { grid-column: 2; line-height: 18px; }
+  .item .aside { grid-column: 2; justify-content: flex-start; line-height: 18px; }
 }
 @media print {
   :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
@@ -324,10 +330,10 @@ div.row { cursor: default; }
   if (view.until === null) view.until = TODAY;
   if (view.since > view.until) view.since = view.until;
 
-  // One delivery: a delivered item, or a finished task that was never broken down, on the day it finished.
+  // One delivery: a done deliverable on its doneAt, or a finished task that was never broken down, on the day it finished.
   var deliveries = [];
   tasks.forEach(function (t) {
-    if (t.deliverables.length > 0) t.deliverables.forEach(function (d) { if (d.mark === 'done' && d.date) deliveries.push({ day: d.date, project: t.project }); });
+    if (t.deliverables.length > 0) t.deliverables.forEach(function (d) { if (d.status === 'done' && d.doneAt) deliveries.push({ day: d.doneAt, project: t.project }); });
     else if (t.state === 'done' && t.completed) deliveries.push({ day: t.completed, project: t.project });
   });
 
@@ -361,7 +367,7 @@ div.row { cursor: default; }
     var terms = view.q.toLowerCase().split(/\s+/).filter(Boolean);
     var match = function (t) {
       if (view.state !== 'all' && t.state !== view.state) return false;
-      var hay = (t.title + '\n' + (t.project || '') + '\n' + (t.description || '') + '\n' + t.deliverables.map(function (d) { return d.text; }).join('\n')).toLowerCase();
+      var hay = (t.title + '\n' + (t.project || '') + '\n' + (t.brief || '') + '\n' + t.deliverables.map(function (d) { return d.text; }).join('\n')).toLowerCase();
       return terms.every(function (term) { return hay.indexOf(term) >= 0; });
     };
     var all = open.concat(closed);
@@ -414,19 +420,20 @@ div.row { cursor: default; }
     return box;
   }
   /** Delivered out of delivered plus to do; null when there is nothing to count. The squares' own arithmetic. */
+  function counts(t) {
+    var of = function (status) { return t.deliverables.filter(function (d) { return d.status === status; }).length; };
+    return { done: of('done'), todo: of('todo') };
+  }
   function tally(t) {
-    var done = t.deliverables.filter(function (d) { return d.mark === 'done'; }).length;
-    var todo = t.deliverables.filter(function (d) { return d.mark === 'todo'; }).length;
-    return done + todo === 0 ? null : { done: done, of: done + todo, fraction: done / (done + todo) };
+    var c = counts(t);
+    return c.done + c.todo === 0 ? null : { done: c.done, of: c.done + c.todo, fraction: c.done / (c.done + c.todo) };
   }
   function labelOf(state) { return STATES.filter(function (s) { return s[0] === state; })[0][1]; }
+  /** One square per deliverable that counts: delivered filled, to do empty, abandoned not drawn. */
   function squares(t) {
-    var done = t.deliverables.filter(function (d) { return d.mark === 'done'; }).length;
-    var todo = t.deliverables.filter(function (d) { return d.mark === 'todo'; }).length;
-    // never broken down: one piece of work, finished or not
-    if (done + todo === 0) { done = t.state === 'done' ? 1 : 0; todo = 1 - done; }
-    var box = h('span', { class: 'squares', 'data-state': t.state, title: done + '/' + (done + todo) });
-    for (var i = 0; i < done + todo; i++) box.append(h('i', { class: i < done ? 'on' : null }));
+    var c = counts(t), n = c.done + c.todo;
+    var box = h('span', { class: 'squares', 'data-state': t.state, title: n === 0 ? null : c.done + '/' + n });
+    for (var i = 0; i < n; i++) box.append(h('i', { class: i < c.done ? 'on' : null }));
     return box;
   }
   /** A day as the rows and the timeline write it: 09.16. Never a year; the tooltip and the month heading carry it. */
@@ -438,34 +445,35 @@ div.row { cursor: default; }
     return h('span', { class: 'span', title: full }, text);
   }
 
-  /** The row's squares, unrolled: a date over each day's run, then what is left, then what was decided against. */
+  /**
+   * Two blocks: the brief as it is written, then the record's deliverables as
+   * nodes down the rail, in file order. The record's order is the writer's, so
+   * nothing here groups or sorts: a done node carries the day it was delivered
+   * and what proves it, an abandoned one the reason it was given up.
+   */
   function detail(t) {
     var box = h('div', { class: 'detail', 'data-state': t.state });
-    if (t.description) box.append(h('p', { class: 'lead' }, inline(t.description)));
-    var runs = [];
-    ['done', 'todo', 'dropped'].forEach(function (kind) {
-      t.deliverables.filter(function (d) { return d.mark === kind; }).forEach(function (d) {
-        var key = kind + '|' + (kind === 'done' ? d.date || '' : '');
-        if (runs.length === 0 || runs[runs.length - 1].key !== key) runs.push({ key: key, day: kind === 'done' ? d.date : null, items: [] });
-        runs[runs.length - 1].items.push(d);
-      });
-    });
-    runs.forEach(function (run) {
-      box.append(h('div', { class: 'run' },
-        run.day && h('div', { class: 'day', title: nice(run.day, true) }, dotted(run.day)),
-        run.items.map(function (d) {
-          return h('div', { class: 'item', 'data-mark': d.mark }, h('span', { class: 'node' }), h('div', { class: 'text' }, inline(d.text)), d.evidence && h('span', { class: 'ref' }, d.evidence));
-        })));
-    });
+    if (t.brief) box.append(h('div', { class: 'brief' }, t.brief.split('\n\n').map(function (p) { return h('p', { class: 'lead' }, inline(p)); })));
+    add(box, t.deliverables.map(function (d) {
+      var refs = d.refs || [];
+      return h('div', { class: 'item', 'data-mark': d.status },
+        h('span', { class: 'node' }),
+        h('div', { class: 'text' }, inline(d.text), d.status === 'abandoned' && h('div', { class: 'why' }, inline(d.reason))),
+        d.status === 'done' && h('span', { class: 'aside' },
+          h('span', { class: 'at', title: nice(d.doneAt, true) }, dotted(d.doneAt)),
+          refs.map(function (r) { return h('span', { class: 'ref' }, r); })));
+    }));
     return box;
   }
 
   function taskEl(t) {
-    var can = t.deliverables.length > 0 || !!t.description;
+    // A row opens only when the task has a record. One without says `unknown` where its squares would be:
+    // nobody wrote down what it had to build, so the page says so rather than guessing from the brief.
+    var can = t.deliverables.length > 0;
     var isOpen = can && !!view.open[t.id];
     var n = tally(t);
     var cells = [mark(t.state, labelOf(t.state) + (t.state === 'open' && n ? ' · ' + n.done + '/' + n.of : ''), 18, n ? n.fraction : null), h('span', { class: 'title' }, t.title || 'Untitled'),
-      h('span', { class: 'meta' }, h('span', { class: 'project' }, t.project || ''), squares(t), span(t)),
+      h('span', { class: 'meta' }, h('span', { class: 'project' }, t.project || ''), can ? squares(t) : h('span', { class: 'unknown' }, 'unknown'), span(t)),
       can ? h('span', { class: 'chev' }, icon(RIGHT, 16, 1.75)) : h('span')];
     var el = h('article', { class: 'task' });
     var row = can

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "nextId": 3,
+  "deliverables": [
+    { "id": "d1", "text": "The last invoices of 2025 sent.", "status": "done", "doneAt": "2025-12-30" },
+    { "id": "d2", "text": "The 2025 accounts closed.", "status": "done", "doneAt": "2026-01-05", "refs": ["MR !9"] }
+  ]
+}

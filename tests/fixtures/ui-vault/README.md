@@ -5,25 +5,31 @@ for anything that renders the report and checks its numbers. Read-only: a test
 copies it before pointing yan at it. Every time in `task.json` is noon UTC, so the
 local day is the same from UTC-11 to UTC+11.
 
-| id | state | project | started | completed | deliverables (done · to do · dropped) | what it is for |
+A task's deliverables are its `deliverable.json`, written by `yan deliverable` and
+by nothing else. `brief.md` is the title line and prose: it is never parsed for
+deliverables, and a task with no record reads `unknown` on the page whatever its
+brief says.
+
+| id | state | project | started | completed | record (done · to do · abandoned) | what it is for |
 | --- | --- | --- | --- | --- | --- | --- |
-| t001 | open | site | 09-01 | | 2 · 2 · 1, dated 09-10 (`PR #12`), 09-15 | the ring at 2/4; a second Description paragraph that is left out |
-| t002 | done | ledger | 08-03 | 08-20 | 3 · 0 · 1, dated 08-05, 08-12 (`MR !87`), 08-20 (`PR #31`) | `</script><!--` and `$&` inside a deliverable |
-| t003 | done | ledger | 07-01 | 07-15 | free-form brief | one square; a delivery on its completion day |
-| t004 | done | none | 06-10 | 06-30 | no brief, no units | `project: null` |
+| t001 | open | site | 09-01 | | 2 · 2 · 1, done 09-10 (`PR #12`), 09-15 (`PR #13` `PR #14`) | the ring at 2/4; all three statuses in one opened row; several refs on one item; an abandoned deliverable with its reason; a brief with two paragraphs and two bullets |
+| t002 | done | ledger | 08-03 | 08-20 | 3 · 0 · 1, done 08-05, 08-12 (`MR !87`), 08-20 (`PR #31` `PR #32 <!-- squashed -->`) | `</script><!--` and `$&` in the brief, in a deliverable, in a reason and in a ref |
+| t003 | done | ledger | 07-01 | 07-15 | no record; an old two-section `brief.md` with `- [x]` lines | `unknown`: the checkbox lines are not parsed and the row does not open |
+| t004 | done | none | 06-10 | 06-30 | no record, no brief, no units | `project: null`; `unknown`; a done task delivers once on its completion day |
 | t005 | abandoned | site | 07-20 | 08-01 | 0 · 1 · 0 | abandoned, listed but never Finished |
-| t006 | done | yan | 2025-12-20 | 01-08 | 2 · 0 · 0, dated `12-30` → 2025-12-30, `01-05` → 2026-01-05 | the year from the completion day |
-| t007 | open | yan | 09-05 | | one unmarked bullet: `[]`, description null | a brief that is not guessed at |
-| t008 | open | none | | | task.json is not JSON: title `""` | one unreadable task does not fail the command |
-| t009 | done | site | 09-08 | 09-12 | 2 · 0 · 0; one undated, one 09-12 | a done item with no date; `PR #53 for …` not lifted |
-| t010 | open | site | 09-14 | | an empty Deliverables list | in progress with nothing to count |
+| t006 | done | yan | 2025-12-20 | 01-08 | 2 · 0 · 0, done 2025-12-30, 2026-01-05 (`MR !9`) | deliveries either side of a year boundary |
+| t007 | open | yan | 09-05 | | `deliverable.json` does not validate (`status: "shipped"`) | one broken record is a task with none, and does not fail the command |
+| t008 | open | none | | | `task.json` is not JSON: title `""` | one unreadable task does not fail the command |
+| t009 | done | site | 09-08 | 09-12 | 2 · 0 · 0, done 09-09 (no refs), 09-12 (`PR #53`) | a delivered item with nothing proving it |
+| t010 | open | site | 09-14 | | an empty record | a record that exists and holds nothing is a task with none |
 
 All dates are 2026 unless written otherwise.
 
 ## Deliveries
 
-Ten: a delivered item on its date, or a done task with no deliverables on its
-completion day (t003, t004). An abandoned task and an undated item deliver nothing.
+Eleven: a done deliverable on its `doneAt`, or a done task with no record on its
+completion day (t003, t004). An abandoned task, an abandoned deliverable and a
+task whose record does not validate deliver nothing.
 
 | day | project | from |
 | --- | --- | --- |
@@ -34,6 +40,7 @@ completion day (t003, t004). An abandoned task and an undated item deliver nothi
 | 2026-08-05 | ledger | t002 |
 | 2026-08-12 | ledger | t002 |
 | 2026-08-20 | ledger | t002 |
+| 2026-09-09 | site | t009 |
 | 2026-09-10 | site | t001 |
 | 2026-09-12 | site | t009 |
 | 2026-09-15 | site | t001 |
@@ -46,7 +53,10 @@ beyond In progress being `—`:
 | range | Finished | Delivered | by project |
 | --- | --- | --- | --- |
 | 2026-08-01 – 2026-08-31 | 1 (t002) | 3 | ledger 3 |
-| 2026-09-01 – 2026-09-15 | 1 (t009) | 3 | site 3 |
-| 2025-12-01 – 2026-09-15 | 5 (t002 t003 t004 t006 t009) | 10 | site 3, ledger 4, yan 2, none 1 |
+| 2026-09-01 – 2026-09-15 | 1 (t009) | 4 | site 4 |
+| 2025-12-01 – 2026-09-15 | 5 (t002 t003 t004 t006 t009) | 11 | site 4, ledger 4, yan 2, none 1 |
 
 In progress, on a range that runs to today, is 4: t001, t007, t008, t010.
+
+Rows that open: t001, t002, t005, t006, t009 — the five with a record that holds
+something. The other five read `unknown` and are not buttons.

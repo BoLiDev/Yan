@@ -1,9 +1,4 @@
 # t005 dark mode for the site
 
-## Description
-
-The site follows the reader's system theme.
-
-## Deliverables
-
-- [ ] Every page reads well in dark.
+Readers who keep their system dark get a white page, bright enough at night that
+two of them have written to say so.
