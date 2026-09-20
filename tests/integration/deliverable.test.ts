@@ -211,6 +211,21 @@ describe('which task', () => {
 });
 
 describe('who reads it', () => {
+  // The one definition an agent is handed: a requirement, stated about the
+  // product, with `user`'s own example. Three places say it, and a wording
+  // that drifts in one of them is how the log-like deliverables came back.
+  it('says what a deliverable is wherever it tells somebody to write one', async () => {
+    for (const args of [['deliverable', '--help'], ['deliverable', 'add', '--help']]) {
+      const r = await yan(args);
+      expect(r.code, r.out).toBe(0);
+      expect(r.out, args.join(' ')).toContain('a requirement');
+      expect(r.out, args.join(' ')).toContain('the UI shows the title, and the title is green');
+    }
+    const notice = await runYan(home, ['session-start', 't042']);
+    expect(notice.stdout).toContain('the requirements that have to be true');
+    expect(notice.stdout).toContain('the UI shows the title, and the title is green');
+  });
+
   it('session-start prints the block, and the notice while the list is empty', async () => {
     const empty = await runYan(home, ['session-start', 't042']);
     expect(empty.code, empty.out).toBe(0);

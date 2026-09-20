@@ -7,10 +7,11 @@ import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 
 /**
- * `tasks/<id>/deliverable.json` — what a task has to build to solve the
- * problems its brief states. An attribute of the task, known from its first
- * session and revised as the work goes on, never a summary of its log:
- * `brief.md` says what the trouble is, this says what fixes it.
+ * `tasks/<id>/deliverable.json` — the requirements a task is ticking off:
+ * the statements that have to be true when it is done. An attribute of the
+ * task, written before the work and revised as the plan gains and loses
+ * things, never a summary of its log: `brief.md` says what the trouble is,
+ * this says what being finished looks like.
  *
  * Written only by `yan deliverable …`, so every mark has a command behind it
  * and the file's shape is never a matter of how somebody typed a bullet.
@@ -34,7 +35,13 @@ export type Deliverable = Todo | Done | Abandoned;
 interface Base {
   /** `d1`, `d2`…: stable inside the task, survives a rewording, never reused. */
   readonly id: string;
-  /** The outcome, in a sentence or two an outside reader follows. No process, no verification. */
+  /**
+   * The requirement: one statement of something that has to be true when the
+   * task is done, the product as its subject and never the work - "the UI
+   * shows the title, and the title is green", not "a test renders every
+   * August invoice", which is a step somebody took. No process, no
+   * verification.
+   */
   readonly text: string;
 }
 export interface Todo extends Base { readonly status: 'todo' }

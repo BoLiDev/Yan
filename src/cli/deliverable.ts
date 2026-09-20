@@ -8,10 +8,10 @@ import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
- * `yan deliverable` — what this task has to build to solve the problems its
- * brief states. One subcommand per move, because the record is an attribute
- * of the task rather than a file anybody edits: every mark has a command
- * behind it, and every command writes its own log line, so `log.md` says how
+ * `yan deliverable` — the requirements this task is ticking off: what has
+ * to be true when it is done. One subcommand per move, because the record is
+ * an attribute of the task rather than a file anybody edits: every mark has a
+ * command behind it, and every command writes its own log line, so `log.md` says how
  * the deliverables moved while `deliverable.json` says what they are.
  *
  * It reads `$YAN_TASK` like every other command, and never prompts.
@@ -87,14 +87,17 @@ const ls = new Command('ls')
 
 const add = new Command('add')
   .description('append one or several deliverables, in the order given')
-  .argument('[text...]', 'the outcome, in a sentence or two')
+  .argument('[text...]', 'the requirement, as a statement of what has to be true')
   .option('--note <text>', 'one line for log.md: what the command cannot know')
   .addHelpText(
     'after',
     `
-A deliverable is what has to be built to solve a problem the brief states,
-written as the outcome an outside reader follows: what exists once it is
-done, not the work and not how it was checked. Few per task.
+A deliverable is a requirement: a statement of something that has to be true
+when the task is done, written before the work starts. Its subject is the
+product, never the work - "the UI shows the title, and the title is green",
+not "a test renders every August invoice and compares the totals", which is a
+step somebody took. Several small ones beat one that bundles five, because
+each gets ticked on its own.
 
   yan deliverable add "yan ls is an overview of what is being worked on." \\
                       "The report shows a task's background and deliverables."`,
@@ -228,7 +231,7 @@ which keeps it in the record. The id is not handed out again either way.`,
   );
 
 export const command = new Command('deliverable')
-  .description('what this task has to build')
+  .description('the requirements this task is ticking off')
   .addCommand(ls)
   .addCommand(add)
   .addCommand(set)
@@ -239,10 +242,14 @@ export const command = new Command('deliverable')
   .addHelpText(
     'after',
     `
-The deliverables are an attribute of the task: what has to be built to solve
-the problems brief.md states, known from the task's first session and revised
-as the work goes on. They are not a summary of the log - a merge request
-proves a deliverable, it does not define one.
+A deliverable is a requirement: a statement of something that has to be true
+when the task is done, its subject the product and never the work:
+"the UI shows the title, and the title is green". The list is the plan, written
+before the work starts and ticked off one by one; 'done' says the statement
+is now true, and 'add', 'set', 'abandon' and 'rm' are the plan itself
+changing, which is normal. So it is an attribute of the task, not a summary
+of the log - a merge request proves a deliverable, it does not define one,
+and nothing is added after the fact to record work that happened.
 
 Every one of these writes one line to log.md, so the log says how the
 deliverables moved and the record says what they are. --note is where the

@@ -44,7 +44,10 @@ export const NO_DELIVERABLES_NOTICE: readonly string[] = [
   '',
   '  - rewrite brief.md as the background and the problems to solve, short prose,',
   '    no headings, no history and no dates;',
-  "  - write what has to be built to solve them: yan deliverable add \"<text>\" …",
+  '  - write the requirements that have to be true when it is done, one statement',
+  '    each, the product as the subject and never the work - user\'s example of one',
+  '    is "the UI shows the title, and the title is green":',
+  '    yan deliverable add "<text>" …',
   '',
   '`user` corrects both in conversation, so a first attempt is the point.',
 ];

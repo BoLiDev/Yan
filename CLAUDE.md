@@ -210,7 +210,7 @@ this turn, before you reply.
 | File | What it holds | Written | Read |
 | --- | --- | --- | --- |
 | `brief.md` | the background and the problems to solve, as prose: see below | by you, when the seed is first broken down and in place whenever either changes | session start, in full |
-| `deliverable.json` | what has to be built to solve those problems: see below | only by `yan deliverable`, in the turn `user` adds, drops, rewords or accepts one | session start, after the brief |
+| `deliverable.json` | the requirements that have to be true when the task is done: see below | only by `yan deliverable`, in the turn `user` adds, drops, rewords or accepts one | session start, after the brief |
 | `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
 | `task.json` | each unit's branch, target, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
 | `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
@@ -229,15 +229,21 @@ no reasons, no history, no dates, no merge requests, all of which are `log.md`'s
 Rewrite it in place when either changes, never append, so it says what is true now —
 `yan ls` prints it on the task's card to someone reading cold.
 
-A deliverable is what has to be built to solve those problems, an attribute of the task
-rather than a summary of its log: known from the first session and revised as the work
-goes, never written up afterwards. A merge request proves one and does not define one —
-one deliverable per merge request is how a report ends up reading like a log. Few per
-task, each an outcome an outside reader follows in a sentence or two, since `yan ui`
-prints them to people; how it was verified, who did it and what is in doubt go in
-`log.md`. `yan deliverable` alone writes them, in the turn `user` adds, drops, rewords
-or accepts one; giving one up records its reason, so the next session does not raise it
-again.
+A deliverable is a requirement: a statement of something that has to be true when the
+task is done. The list is the plan, written before the work starts and ticked off one by
+one; `user`'s example of one is "the UI shows the title, and the title is green", that
+declarative and that specific. Its subject is the product, never the work — "a test
+renders every August invoice and compares the totals" is a step somebody took, not a
+requirement. Several small ones beat one that bundles five, because each is ticked on
+its own, so the count follows from the requirements and is not a target. The list is an
+attribute of the task rather than a summary of its log: known from the first session,
+revised as the plan gains and loses things, never added to after the fact to record work
+that happened. A merge request proves one and does not define one — one deliverable per
+merge request is how a report ends up reading like a log; how it was verified, who did
+it and what is in doubt go in `log.md`. `yan deliverable` alone writes them: `done` when
+the statement has become true, and `add`, `set`, `abandon` and `rm` in the turn `user`
+and you agree the plan changes; giving one up records its reason, so the next session
+does not raise it again.
 
 The description `user` gave `yan task new` is a seed, and its wording is not kept. When
 session start heads the deliverables `none yet` and says the task has never been broken
