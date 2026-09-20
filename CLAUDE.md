@@ -57,6 +57,8 @@ yan show [<id>]                    one task at a glance: session, branches, tree
 yan ui [--since D] [--until D]     the work report user shows people, as one HTML page; D is
                                    YYYY-MM-DD, so "the past month" is dates you work out
 yan task new --title … --repo …    create a task and enter it
+yan deliverable add "<text>"…      the task's deliverables · ls, set <id>, done <id> [--ref],
+                                   abandon <id> --reason, todo <id>, rm <id>
 yan unit add | set                 a unit's branch, target, scope, needs
 yan shift new --unit --scenario [--tier]   dispatch a shift
 yan state <sid>                    what is true about a shift right now
@@ -207,7 +209,8 @@ this turn, before you reply.
 
 | File | What it holds | Written | Read |
 | --- | --- | --- | --- |
-| `brief.md` | what the task delivers now, in two sections: see below | after the first alignment; in the turn `user` adds, drops or replaces a deliverable, even in passing, and when one is delivered | session start, in full |
+| `brief.md` | the background and the problems to solve, as prose: see below | by you, when the seed is first broken down and in place whenever either changes | session start, in full |
+| `deliverable.json` | what has to be built to solve those problems: see below | only by `yan deliverable`, in the turn `user` adds, drops, rewords or accepts one | session start, after the brief |
 | `log.md` | the task's story, one line per event, never edited | commands log their own events; you log the rest with `yan log` | session start: every `agreed` and `changed` line, and the last 20 |
 | `task.json` | each unit's branch, target, scope, needs; what commands act on | only by `yan unit`, `yan mr`, `yan land`, `yan done` | by the commands, and by you through session start |
 | `artifacts/` | by-products that help you and `user` understand the work: research, prototypes, designs, screenshots, visuals for aligning with `user`. Never code, build output or runtime leftovers | when there is one | when a log line points at it |
@@ -219,19 +222,28 @@ A shift's `outcome.md` is its handover to you, not memory: read it after it repo
 `done` and before you merge. Its Learnings section — the problems a shift hit and how it
 solved them — is where most learnings start; a shift writes nothing to `mem/` itself.
 
-**`brief.md`.** Two sections under the title line `yan task new` writes, and no
-others. `## Description` is the background and the core ask, a short paragraph or two.
-`yan ls` prints it on the task's card, so write it for someone reading cold, with the
-point in its first three lines. `## Deliverables` breaks the ask down into one list with
-three marks: `- [ ]` to do, `- [x]` delivered, with the date, `- [-]` decided against,
-with the reason. A `[-]` line stays, since it stops the next session raising the same
-thing again. That line is also the only record of what is not being done: there is no
-separate section for it, and an item goes back to `[ ]` when `user` changes their mind.
-A deliverable states the outcome, what exists once it is done, in a sentence or two
-someone outside the task can read: the goal and what was achieved, not the work, because
-`yan ui` prints these lines to people. A delivered one is `- [x] MM-DD · PR #n · text`,
-with the reference only when one merge request delivered it, and nothing else before the
-text. Which shift did it, how it was verified and what is still in doubt go in `log.md`.
+**`brief.md` and the deliverables.** The brief is the title line `yan task new` writes
+and then prose: the background and the problems to solve, short, no sub-headings, since
+the two are usually impossible to pull apart. No particular background, no background;
+no reasons, no history, no dates, no merge requests, all of which are `log.md`'s.
+Rewrite it in place when either changes, never append, so it says what is true now —
+`yan ls` prints it on the task's card to someone reading cold.
+
+A deliverable is what has to be built to solve those problems, an attribute of the task
+rather than a summary of its log: known from the first session and revised as the work
+goes, never written up afterwards. A merge request proves one and does not define one —
+one deliverable per merge request is how a report ends up reading like a log. Few per
+task, each an outcome an outside reader follows in a sentence or two, since `yan ui`
+prints them to people; how it was verified, who did it and what is in doubt go in
+`log.md`. `yan deliverable` alone writes them, in the turn `user` adds, drops, rewords
+or accepts one; giving one up records its reason, so the next session does not raise it
+again.
+
+The description `user` gave `yan task new` is a seed, and its wording is not kept. When
+session start says a task has no deliverables, break the seed down in that turn, before
+anything else, into the brief and the first deliverables, and show `user` both in your
+first reply for them to correct: work dispatched against a seed nobody has broken down
+is work nobody has agreed to.
 
 **`log.md`.** Six kinds of line. Log in the turn the event happens.
 
@@ -244,10 +256,11 @@ text. Which shift did it, how it was verified and what is still in doubt go in `
 | `incident` | something went wrong and has been resolved | one sentence: the cause, what it held up, how it was solved; `→ mem/learnings/<file>` when there is a lesson to keep |
 | `paused` | `user` leaves, the session ends with work open, or you are waiting on `user` | where it stands, what is left, what it waits on |
 
-`shift new`, `shift done`, `unit add` and `unit set` log their own events already typed;
-`--note` puts on that line what the command cannot know — what a shift is for, what its
-merge changed, why a field moved — so an event stays one line. Work you do yourself is
-logged to the same standard as a shift's, named as yours: `yan log started "yan: …"`.
+`shift new`, `shift done`, `unit add`, `unit set` and `yan deliverable` log their own
+events already typed; `--note` puts on that line what the command cannot know — what a
+shift is for, what its merge changed, why a field moved — so an event stays one line.
+Work you do yourself is logged to the same standard as a shift's, named as yours:
+`yan log started "yan: …"`.
 Not logged: what a command logged, housekeeping (a tree caught up, a pane closed), ideas
 still being discussed, a report's contents (log a `delivered` line pointing at it), and
 what the MR already lists.
