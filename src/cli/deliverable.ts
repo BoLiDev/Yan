@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { noted, readNote } from './shared/note.js';
+import { terminalWidth } from './shared/style.js';
 import { insideTask } from './shared/task-id.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
@@ -54,7 +55,7 @@ function requireId(id: string | undefined, spelled: string): string {
 
 /** What a writing subcommand prints: the deliverable as the list shows it. */
 function show(d: Deliverable): void {
-  for (const line of deliverableLines([d])) out(line);
+  for (const line of deliverableLines([d], {}, terminalWidth())) out(line);
 }
 
 const quoted = (d: Deliverable): string => `"${d.text}"`;
@@ -77,7 +78,7 @@ const ls = new Command('ls')
         out("Break the brief down with 'yan deliverable add \"<text>\"'.");
         return;
       }
-      for (const line of deliverableLines(file.deliverables)) out(line);
+      for (const line of deliverableLines(file.deliverables, {}, terminalWidth())) out(line);
       out('');
       out(`${deliverableTally(file.deliverables)}  ${record.file}`);
     }),
@@ -96,11 +97,20 @@ A deliverable is a requirement: a statement of something that has to be true
 when the task is done, written before the work starts. Its subject is the
 product, never the work - "the UI shows the title, and the title is green",
 not "a test renders every August invoice and compares the totals", which is a
-step somebody took. Several small ones beat one that bundles five, because
-each gets ticked on its own.
+step somebody took.
 
-  yan deliverable add "yan ls is an overview of what is being worked on." \\
-                      "The report shows a task's background and deliverables."`,
+Write one at the grain of a user story - one thing a user can do or see - and
+not at the grain of a test assertion: what one story covers is one deliverable
+even when it takes several statements to say, and a bug fix may be as specific
+as the bug. Six lines about the work report are one deliverable:
+
+  yan deliverable add "yan ui opens a work report in the browser of everything \\
+                       user worked on: what was done and what is left over a \\
+                       date range, with totals by week and by project."
+
+The list is the task's goal as user and the agent have agreed it, so it stays
+aligned with user at all times: it changes in the turn user says what the task
+is for has changed, and they see it as it then stands.`,
   )
   .action(
     action('yan deliverable add', (texts: string[] | undefined, options: { note?: string }) => {
@@ -146,7 +156,7 @@ interface DoneOptions {
 const done = new Command('done')
   .description('mark one delivered')
   .argument('[id]', 'the deliverable id')
-  .option('--ref <text>', "repeatable; what proves it, 'PR #58'", collect, [])
+  .option('--ref <text>', "repeatable; what proves it, 'PR #58' or its URL, which the report links", collect, [])
   .option('--at <date>', 'the day it was delivered, YYYY-MM-DD (default: today)')
   .option('--note <text>', 'one line for log.md: how it was verified, what is still in doubt')
   .action(
@@ -244,12 +254,19 @@ export const command = new Command('deliverable')
     `
 A deliverable is a requirement: a statement of something that has to be true
 when the task is done, its subject the product and never the work:
-"the UI shows the title, and the title is green". The list is the plan, written
-before the work starts and ticked off one by one; 'done' says the statement
-is now true, and 'add', 'set', 'abandon' and 'rm' are the plan itself
-changing, which is normal. So it is an attribute of the task, not a summary
-of the log - a merge request proves a deliverable, it does not define one,
-and nothing is added after the fact to record work that happened.
+"the UI shows the title, and the title is green". One deliverable is one
+thing a user can do or see - a user story, not a test assertion - and a bug
+fix may be as specific as the bug. So it is an attribute of the task, not a
+summary of the log: a merge request proves a deliverable, it does not define
+one, and nothing is added after the fact to record work that happened.
+
+The list is the task's goal as user and the agent have agreed it: what the
+work is measured against, what a shift's brief is written from, and what
+'done' means for the task. It stays aligned with user at all times - user
+reads it with 'yan show' to catch drift early - so it changes in the turn
+user says what the task is for has changed, and they see the list as it then
+stands. 'done' says the statement is now true and has been seen to be true,
+which is the bar that accepts a shift's work, not a merge request merging.
 
 Every one of these writes one line to log.md, so the log says how the
 deliverables moved and the record says what they are. --note is where the

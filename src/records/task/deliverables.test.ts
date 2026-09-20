@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { Deliverables, Task, readDeliverables, type DeliverableFile } from './index.js';
+import { Deliverables, Task, deliverableAside, readDeliverables, refLink, type DeliverableFile } from './index.js';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { YanError } from '../../util/error.js';
 
@@ -202,5 +202,59 @@ describe('writing', () => {
     refusal(() => record().set('d9', 'x'));
     refusal(() => record().add(['ok', '']));
     expect(readFileSync(record().file, 'utf8')).toBe(before);
+  });
+});
+
+/**
+ * What a ref points at is worked out from the ref itself, because `PR #58`
+ * cannot say which repository it belongs to. Only these answers ever carry an
+ * address, and everything else is text to be printed as it was typed.
+ */
+describe('a ref', () => {
+  it('reads a GitHub pull request as PR #n', () => {
+    expect(refLink('https://github.com/acme/site/pull/58')).toEqual({
+      label: 'PR #58',
+      href: 'https://github.com/acme/site/pull/58',
+    });
+    expect(refLink('https://www.github.com/acme/site/pull/58/files').label).toBe('PR #58');
+    expect(refLink('https://github.com/acme/site/pull/58#discussion_r1').label).toBe('PR #58');
+  });
+
+  it('reads a GitLab merge request as MR !n, on any host, because GitLab is self-hosted', () => {
+    expect(refLink('https://gitlab.acme.internal/team/app/-/merge_requests/87')).toEqual({
+      label: 'MR !87',
+      href: 'https://gitlab.acme.internal/team/app/-/merge_requests/87',
+    });
+    expect(refLink('https://gitlab.com/a/b/c/-/merge_requests/9/diffs').label).toBe('MR !9');
+  });
+
+  it('labels any other http(s) URL with its host', () => {
+    expect(refLink('https://jira.acme.internal/browse/ACME-31')).toEqual({
+      label: 'jira.acme.internal',
+      href: 'https://jira.acme.internal/browse/ACME-31',
+    });
+    expect(refLink('http://localhost:8080/build/12').label).toBe('localhost:8080');
+  });
+
+  it('leaves a ref that is not a URL exactly as it was typed, and gives it no address', () => {
+    for (const plain of ['PR #58', 'MR !87', 'the deploy on 09-18', 'PR #32 <!-- squashed -->']) {
+      expect(refLink(plain)).toEqual({ label: plain, href: null });
+    }
+  });
+
+  it('never gives an address to a scheme that is not http or https', () => {
+    for (const hostile of ['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>', 'file:///etc/passwd', 'vbscript:msgbox']) {
+      expect(refLink(hostile), hostile).toEqual({ label: hostile, href: null });
+    }
+  });
+
+  it('prints a URL in its short form beside the day, and keeps the record as stored', () => {
+    record().add(['first']);
+    const done = record().done('d1', '2026-09-18', ['https://github.com/acme/site/pull/58', 'PR #12']);
+    expect(done.refs, 'the record keeps the ref as it was typed').toEqual([
+      'https://github.com/acme/site/pull/58',
+      'PR #12',
+    ]);
+    expect(deliverableAside(done)).toBe('2026-09-18 \u00b7 PR #58 \u00b7 PR #12');
   });
 });

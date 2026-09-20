@@ -13,6 +13,10 @@ import { YanError } from '../../util/error.js';
  * things, never a summary of its log: `brief.md` says what the trouble is,
  * this says what being finished looks like.
  *
+ * The list is the goal `user` and the main agent have agreed on, so it is
+ * read far more often than it is written: `user` opens it with `yan show` to
+ * check that the two are still aiming at the same thing.
+ *
  * Written only by `yan deliverable …`, so every mark has a command behind it
  * and the file's shape is never a matter of how somebody typed a bullet.
  * Read by `yan session-start`, `yan show`, `yan mr` and the work report.
@@ -41,6 +45,10 @@ interface Base {
    * shows the title, and the title is green", not "a test renders every
    * August invoice", which is a step somebody took. No process, no
    * verification.
+   *
+   * At the grain of a user story, one thing a user can do or see, rather than
+   * of a test assertion: what one story covers is one deliverable however
+   * many statements it takes to say.
    */
   readonly text: string;
 }
@@ -49,7 +57,11 @@ export interface Done extends Base {
   readonly status: 'done';
   /** Local `YYYY-MM-DD`. */
   readonly doneAt: string;
-  /** What proves it, `PR #58`; several or none. */
+  /**
+   * What proves it, `PR #58` or the merge request's URL; several or none.
+   * Stored as it was typed, and a URL is what lets the work report link it -
+   * see `refLink`.
+   */
   readonly refs?: readonly string[];
 }
 export interface Abandoned extends Base {
@@ -272,9 +284,55 @@ export function readDeliverables(taskId: string): DeliverablesRead {
   }
 }
 
+/**
+ * What a ref points at, worked out from the ref itself. A ref is free text,
+ * and `PR #58` cannot say which repository it belongs to - a task may have
+ * several units in several repositories - so a ref that is a URL is the only
+ * one that can be opened.
+ *
+ * Only `http:` and `https:` ever give an address. `javascript:` and every
+ * other scheme come back as text, to be printed as they were typed.
+ */
+export interface RefLink {
+  /** How it reads: `PR #58`, `MR !87`, a host, or the ref as it was typed. */
+  readonly label: string;
+  /** The address to open; null when the ref is not an http(s) URL. */
+  readonly href: string | null;
+}
+
+/** GitHub is one host; GitLab is self-hosted, so its merge requests are known by their path alone. */
+const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
+const PULL_PATH = /^\/[^/]+\/[^/]+\/pull\/(\d+)(?:\/|$)/;
+const MERGE_REQUEST_PATH = /\/-\/merge_requests\/(\d+)(?:\/|$)/;
+
+/** One ref as a label and, when there is one, the address behind it. */
+export function refLink(ref: string): RefLink {
+  let url: URL;
+  try {
+    url = new URL(ref);
+  } catch {
+    return { label: ref, href: null };
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { label: ref, href: null };
+  const pull = GITHUB_HOSTS.has(url.hostname) ? PULL_PATH.exec(url.pathname) : null;
+  if (pull !== null) return { label: `PR #${pull[1] as string}`, href: url.href };
+  const merge = MERGE_REQUEST_PATH.exec(url.pathname);
+  if (merge !== null) return { label: `MR !${merge[1] as string}`, href: url.href };
+  return { label: url.host, href: url.href };
+}
+
+/**
+ * A ref as everything but the record itself prints it: a URL in its short
+ * form, so a line of terminal stays readable, anything else as it was typed.
+ * The stored ref never changes - `yan ui --json` hands back what is on disk.
+ */
+export function shortRef(ref: string): string {
+  return refLink(ref).label;
+}
+
 /** What the file says a deliverable is done or given up for, as one short string; `''` for a to-do. */
 export function deliverableAside(d: Deliverable): string {
-  if (d.status === 'done') return [d.doneAt, ...(d.refs ?? [])].join(' · ');
+  if (d.status === 'done') return [d.doneAt, ...(d.refs ?? []).map(shortRef)].join(' · ');
   if (d.status === 'abandoned') return d.reason;
   return '';
 }

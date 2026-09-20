@@ -112,6 +112,15 @@ describe('it opens the MR and records the URL', () => {
     expect(created[0].body).toBeUndefined();
   });
 
+  it('writes a URL ref in the short form, as the terminal does', () => {
+    const record = new Deliverables('t042');
+    record.add(['yan ls is an overview.']);
+    record.done('d1', '2026-09-18', ['https://github.com/acme/site/pull/52', 'PR #53']);
+
+    open({ task: 't042', unit: 'auth' });
+    expect(created[0].body).toContain('- [x] yan ls is an overview. \u2014 2026-09-18 \u00b7 PR #52 \u00b7 PR #53');
+  });
+
   it('follows the brief with the deliverables as a list once there are any', () => {
     const record = new Deliverables('t042');
     record.add(['yan ls is an overview.', 'The report shows a brief.', 'A per-task status word.']);

@@ -16,6 +16,8 @@ export {
   deliverableAside,
   isDate,
   readDeliverables,
+  refLink,
+  shortRef,
   today,
 } from './deliverables.js';
 export type {
@@ -25,5 +27,6 @@ export type {
   DeliverableStatus,
   DeliverablesRead,
   Done,
+  RefLink,
   Todo,
 } from './deliverables.js';

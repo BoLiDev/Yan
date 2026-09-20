@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { readScenarios, resolveShift, runsAs } from './shared/config.js';
 import { deliverableLines, deliverableTally, NO_DELIVERABLES_NOTICE } from './shared/deliverables.js';
+import { terminalWidth } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
@@ -290,7 +291,7 @@ function renderDeliverables(id: string, complete: boolean): void {
   out('What this task has to build to solve the problems the brief states. Written');
   out("only by 'yan deliverable'; log.md says how they moved, this says what they are.");
   out('');
-  for (const line of deliverableLines(deliverables)) out(line);
+  for (const line of deliverableLines(deliverables, {}, terminalWidth())) out(line);
 }
 
 /**

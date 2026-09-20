@@ -253,7 +253,7 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date())
     // main agent; this is `user` at a terminal looking at a task.
     out(`   ${dim(show.complete ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
   } else {
-    for (const line of deliverableLines(show.deliverables, { id: bold, status: statusPaint, aside: dim })) {
+    for (const line of deliverableLines(show.deliverables, { id: bold, status: statusPaint, aside: dim }, terminalWidth())) {
       out(` ${line}`);
     }
   }

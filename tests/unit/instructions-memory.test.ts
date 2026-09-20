@@ -15,12 +15,35 @@ const FILES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md'];
 /**
  * `user`'s example of a deliverable, in each file's own language. The
  * definition is the one thing an agent writes its first deliverables from,
- * and a file that loses the example loses what "specific" means.
+ * and the example is what says how one sounds.
  */
 const EXAMPLE: Record<string, string> = {
   'CLAUDE.md': 'the UI shows the title, and the title is green',
   'AGENTS.md': 'the UI shows the title, and the title is green',
   'GEMINI.md': '\u754c\u9762\u4e0a\u663e\u793a\u6807\u9898\uff0c\u5e76\u4e14\u6807\u9898\u662f\u7eff\u8272\u7684',
+};
+
+/**
+ * The grain, in each file's own language: a deliverable is one thing a user
+ * can do or see, not one test assertion. The main agent wrote twenty for one
+ * task off the older wording, so a file that drops this drifts straight back.
+ */
+const GRAIN: Record<string, string[]> = {
+  'CLAUDE.md': ['user story', 'test assertion'],
+  'AGENTS.md': ['user story', 'test assertion'],
+  'GEMINI.md': ['\u7528\u6237\u6545\u4e8b', '\u6d4b\u8bd5\u65ad\u8a00'],
+};
+
+/**
+ * That the list is the task's goal and stays aligned with `user`: what the
+ * work is measured against, changed in the turn `user` moves it, and shown to
+ * them afterwards. `user` reads it with `yan show` to catch drift early, so a
+ * file that says only what a deliverable is leaves out what the list is for.
+ */
+const ALIGNED: Record<string, string[]> = {
+  'CLAUDE.md': ['yan show', 'never on your own'],
+  'AGENTS.md': ['yan show', 'never on your own'],
+  'GEMINI.md': ['yan show', '\u6c38\u8fdc\u4e0d\u81ea\u4f5c\u4e3b\u5f20'],
 };
 
 function read(name: string): string {
@@ -52,8 +75,16 @@ describe.each(FILES)('%s', (name) => {
     }
   });
 
-  it("carries user's example of a deliverable, so the definition stays specific", () => {
+  it("carries user's example of a deliverable, so the definition keeps its voice", () => {
     expect(text).toContain(EXAMPLE[name]);
+  });
+
+  it('says a deliverable is a user story rather than a test assertion', () => {
+    for (const said of GRAIN[name] as string[]) expect(text, said).toContain(said);
+  });
+
+  it('says the list is the goal, changed with user and shown to them after', () => {
+    for (const said of ALIGNED[name] as string[]) expect(text, said).toContain(said);
   });
 
   it('keeps task.json in step with what user says', () => {

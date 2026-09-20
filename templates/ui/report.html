@@ -60,10 +60,12 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .big, .chip em, .proj em, .menu em, .group-h em, .bar b, .presets button, .picker input, .none { font-variant-numeric: tabular-nums; }
 code { font: 0.88em var(--code); background: var(--sunken); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
 .print-only { display: none; }
-.page { max-width: 1248px; margin: 0 auto; padding: 56px 24px 96px; }
+/* the top padding is 14 px short of the 56 px it looks: those 14 px are the headline bar's
+   own padding, so a pinned bar carries its air with it. Same trick at half a screen */
+.page { max-width: 1248px; margin: 0 auto; padding: 42px 24px 96px; }
 
 /* ── the dates are the headline, and the headline is the control ────────── */
-.top { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.top { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .when { position: relative; flex: 1 1 auto; min-width: 0; }
 .dates { display: inline-flex; align-items: center; gap: 12px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -0.025em; border-radius: 10px; }
 .dates svg { color: var(--ink-3); }
@@ -75,7 +77,7 @@ code { font: 0.88em var(--code); background: var(--sunken); border-radius: 5px; 
 .gen { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
 
 /* ── metrics ────────────────────────────────────────────────────────────── */
-.tiles { display: grid; grid-template-columns: 150px 150px minmax(0, 1fr) 290px; gap: 14px; margin-bottom: 36px; }
+.tiles { display: grid; grid-template-columns: 150px 150px minmax(0, 1fr) 290px; gap: 14px; margin-bottom: 26px; }
 .tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 18px 22px 20px; background: var(--surface); border-radius: 16px; }
 .cap { font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .big { font-family: var(--num); font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -0.025em; }
@@ -100,7 +102,7 @@ code { font: 0.88em var(--code); background: var(--sunken); border-radius: 5px; 
 .proj em { font: normal 12.5px var(--num); color: var(--ink-2); text-align: right; }
 
 /* ── filters: the chips are also the legend of the three marks ──────────── */
-.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 22px; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .search { display: flex; align-items: center; gap: 8px; width: 250px; height: 38px; padding: 0 12px; background: var(--surface); border-radius: 10px; color: var(--ink-3); }
 .search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 14px; }
 .search input::placeholder { color: var(--ink-3); }
@@ -129,10 +131,53 @@ code { font: 0.88em var(--code); background: var(--sunken); border-radius: 5px; 
 .legend { gap: 22px; margin-bottom: 18px; font-size: 13px; color: var(--ink-2); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 
+/* ── the two bars that stay in reach ────────────────────────────────────────
+   The dates and the search are the two controls a long report is read through, so
+   both are pinned: the headline with its presets at the top of the viewport, the
+   search row under it once it has scrolled up to it, and the tiles passing away
+   between them. Plain `position: sticky`, nothing listening to the scroll.
+
+   The offsets are the bars' own heights. Both change — with the width, and with the
+   length of the dates, which wraps the presets onto a second line on a phone — so the
+   page reads them rather than assuming them: measureBars() below writes --bar and
+   --bar2 at the end of every render, and a ResizeObserver catches a bar that changes
+   on its own. The numbers here are what holds until the first render.
+
+   The padding is the page's own top padding and the bars' margins, moved inside the
+   bars: at rest the page is laid out to the pixel as it was, and pinned a bar has air
+   above and below its own words. Nothing changes height at the moment of sticking.
+   The negative side margins take each bar out to the page's edges, so a row cannot
+   show through the gutter beside it. */
+:root { --bar: 74px; --bar2: 58px; --bars: calc(var(--bar) + var(--bar2)); }
+.top { position: sticky; top: 0; z-index: 30; margin: 0 -24px 8px; padding: 14px 24px 12px; background: var(--ground); }
+.filters { position: sticky; top: var(--bar); z-index: 20; margin: 0 -24px 12px; padding: 10px 24px; background: var(--ground); }
+/* what says content is passing under the pair: the page's own hairline, drawn outside
+   the flow, so it costs no height and nothing moves when a bar sticks */
+.filters::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+/* nothing the keyboard or a jump lands on hides behind the bars: it lands below them */
+.group-h, .task, .row, .item, .tile, #list a, #list button { scroll-margin-top: calc(var(--bars) + 12px); }
+/* A phone pins the headline alone. Both bars would cost a third of the screen there: the
+   presets wrap under the dates, and the search row is three lines of chips - measured at
+   390 × 844 that is 300 px of 844, and it grows with the length of the range, so whether
+   it fits would depend on which dates are on screen. The range is the one that stays: it
+   says what the page is showing and it is the control that changes it. The search row is
+   one flick up, at the top of the page where it has always been. */
+@media (max-width: 599px) {
+  .filters { position: static; }
+  .filters::after { content: none; }
+  .top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+  .group-h, .task, .row, .item, .tile, #list a, #list button { scroll-margin-top: calc(var(--bar) + 12px); }
+}
+
 /* ── the matrix ─────────────────────────────────────────────────────────── */
 .group + .group { margin-top: 30px; }
-.group-h { display: flex; align-items: baseline; gap: 10px; padding: 0 2px 10px; font-size: 16px; font-weight: 600; }
+/* the heading is the fold: a real button, hugging its words so the focus ring is the heading
+   and not the width of the page. `In progress` and a month are the same heading */
+.group-h { display: inline-flex; align-items: baseline; gap: 10px; padding: 0 2px 10px; font-size: 16px; font-weight: 600; }
 .group-h em { font: normal 400 13.5px var(--num); color: var(--ink-3); }
+.group-h .chev { align-self: center; display: flex; color: var(--ink-3); }
+/* the 10 px under a heading is the air between it and its card; folded there is no card */
+.group-h[aria-expanded="false"] { padding-bottom: 0; }
 .card { background: var(--surface); border-radius: 14px; }
 .task + .task::before { content: ""; display: block; height: 1px; margin: 0 22px; background: var(--line); }
 .row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 116px 236px 112px 18px; column-gap: 18px; align-items: center; width: 100%; padding: 14px 22px; border-radius: 14px; }
@@ -141,7 +186,7 @@ div.row { cursor: default; }
 .row .meta { display: contents; }
 .row .project { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .chev { color: var(--ink-3); transition: none; }
-.row[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.row[aria-expanded="true"] .chev, .group-h[aria-expanded="true"] .chev { transform: rotate(90deg); }
 /* the dates at the end of a row: numbers, grey, no weight. They are not the row's main information */
 .span { font: 400 14px/24px var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-2); }
 
@@ -175,6 +220,9 @@ div.row { cursor: default; }
 .item .aside { display: flex; justify-content: flex-end; gap: 10px; }
 .item .at { font: 400 13px/22px var(--num); font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .item .ref { font: 12px/22px var(--code); color: var(--ink-3); white-space: nowrap; }
+/* a ref that is a URL is a link to it, and reads exactly as the others do: the page's own
+   underline on hover and ring on focus are all that say so */
+.item a.ref { color: var(--ink-3); }
 /* the reason an abandoned deliverable was given up: the one thing it has to say */
 .item .why { margin-top: 1px; font-size: 13px; line-height: 20px; color: var(--ink-2); text-wrap: pretty; overflow-wrap: anywhere; }
 
@@ -182,11 +230,11 @@ div.row { cursor: default; }
 
 /* ── half a screen, and paper (a printed page is narrower than 860) ─────── */
 @media (max-width: 859px) {
-  .page { padding: 32px 24px 72px; }
+  .page { padding: 18px 24px 72px; }
   .dates { font-size: 28px; line-height: 36px; }
   .dates svg { width: 18px; height: 18px; }
   .picker { top: 44px; }
-  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 28px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 18px; }
   .tile.wide { grid-column: 1 / -1; }
   .big { font-size: 34px; line-height: 40px; }
   .delivered { gap: 20px; }
@@ -211,7 +259,13 @@ div.row { cursor: default; }
     --accent: #0b7285; --green: #1f7a3d; --empty: #d6d4cc;
   }
   .page { padding: 0; max-width: none; }
-  .presets, .filters, .picker, .dates svg, .row .chev { display: none !important; }
+  /* paper does not scroll: the bars are bars again, with the margins they had */
+  .top { position: static; z-index: auto; margin: 0 0 20px; padding: 0; }
+  .filters { position: static; }
+  .tiles { margin-bottom: 28px; }
+  /* the chevrons say "press me", and paper cannot be pressed. A section folded on screen
+     prints folded, because the page prints what is on screen */
+  .presets, .filters, .picker, .dates svg, .row .chev, .group-h .chev { display: none !important; }
   .print-only { display: flex; }
   .tile, .card { border: 1px solid var(--line); }
   .task, .item, .tile { break-inside: avoid; }
@@ -222,7 +276,7 @@ div.row { cursor: default; }
 </head>
 <body>
 <div class="page">
-  <header class="top">
+  <header class="top" id="head">
     <div class="when">
       <button class="dates" id="dates" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker" title="Change the dates"></button>
       <div class="picker" id="picker" role="dialog" aria-label="Dates" hidden>
@@ -295,6 +349,34 @@ div.row { cursor: default; }
     return frag;
   }
 
+  /**
+   * A ref, as a label and the address behind it. A ref is free text and `PR #58` cannot
+   * say which repository it belongs to, so only a ref that is a URL can be opened: a
+   * GitHub pull request reads `PR #58`, a GitLab merge request `MR !87` whatever host it
+   * is self-hosted on, and any other http(s) URL is labelled with its host. Nothing but
+   * `http:` and `https:` ever becomes an href — `javascript:` is drawn as typed.
+   * The same rules as refLink() in src/records/task/deliverables.ts, which the terminal
+   * prints from.
+   */
+  function refOf(text) {
+    var url;
+    try { url = new URL(text); } catch (e) { return { label: text, href: null }; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return { label: text, href: null };
+    var github = url.hostname === 'github.com' || url.hostname === 'www.github.com';
+    var pull = github ? /^\/[^/]+\/[^/]+\/pull\/(\d+)(?:\/|$)/.exec(url.pathname) : null;
+    if (pull) return { label: 'PR #' + pull[1], href: url.href };
+    var merge = /\/-\/merge_requests\/(\d+)(?:\/|$)/.exec(url.pathname);
+    if (merge) return { label: 'MR !' + merge[1], href: url.href };
+    return { label: url.host, href: url.href };
+  }
+  /** One ref beside a delivered deliverable: an <a> when it has an address, the text when it has none. */
+  function ref(text) {
+    var r = refOf(text);
+    if (r.href === null) return h('span', { class: 'ref' }, r.label);
+    // The row it sits in is a sibling, not an ancestor, so this click toggles nothing.
+    return h('a', { class: 'ref', href: r.href, target: '_blank', rel: 'noopener noreferrer', title: text }, r.label);
+  }
+
   // ── days: everything is a local YYYY-MM-DD, and "today" is the day the report was made ──
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -326,7 +408,7 @@ div.row { cursor: default; }
   var view = {
     since: isDay(params.get('since')) ? params.get('since') : isDay(from.since) ? from.since : null,
     until: isDay(params.get('until')) ? params.get('until') : isDay(from.until) ? from.until : null,
-    state: 'all', project: null, q: '', open: {}
+    state: 'all', project: null, q: '', open: {}, folded: {}
   };
   if (view.since === null && view.until === null) view.since = PRESETS[1].since;
   if (view.since === null) view.since = EARLIEST;
@@ -464,7 +546,7 @@ div.row { cursor: default; }
         h('div', { class: 'text' }, inline(d.text), d.status === 'abandoned' && h('div', { class: 'why' }, inline(d.reason))),
         d.status === 'done' && h('span', { class: 'aside' },
           h('span', { class: 'at', title: nice(d.doneAt, true) }, dotted(d.doneAt)),
-          refs.map(function (r) { return h('span', { class: 'ref' }, r); })));
+          refs.map(ref)));
     }));
     return box;
   }
@@ -491,12 +573,46 @@ div.row { cursor: default; }
     if (isOpen) el.append(detail(t));
     return el;
   }
-  function group(title, list) {
-    return h('section', { class: 'group' }, title && h('div', { class: 'group-h' }, title, h('em', null, String(list.length))), h('div', { class: 'card' }, list.map(taskEl)));
+  /**
+   * One section of the list: a heading that folds it, and the card of its rows.
+   * Folded, the card is not in the page at all, so a fold hides and never filters —
+   * the tiles, the chip counts and the search go on counting what is inside it, and the
+   * heading's own count is the filtered list as before. The fold is remembered in `view`
+   * for as long as the page is open: a new range, search or filter draws the section
+   * folded again, and a reload starts unfolded. Rows keep their own open state in
+   * `view.open`, so a row opened inside a section is still open when it unfolds.
+   * The heading toggles in place rather than through render(), so the keyboard keeps
+   * its focus on the button it just pressed.
+   */
+  function group(key, title, list) {
+    var folded = !!view.folded[key];
+    var card = h('div', { class: 'card', id: 'g-' + key }, list.map(taskEl));
+    var sec = h('section', { class: 'group' });
+    var head = h('button', { class: 'group-h', type: 'button', 'aria-expanded': String(!folded), 'aria-controls': 'g-' + key, onclick: function () {
+      var now = !view.folded[key];
+      view.folded[key] = now;
+      head.setAttribute('aria-expanded', String(!now));
+      if (now) card.remove(); else sec.append(card);
+    } }, title, h('em', null, String(list.length)), h('span', { class: 'chev' }, icon(RIGHT, 16, 1.75)));
+    sec.append(head);
+    if (!folded) sec.append(card);
+    return sec;
   }
 
   // ── render ──────────────────────────────────────────────────────────────
   var $ = function (id) { return document.getElementById(id); };
+  /**
+   * The two pinned bars measure themselves: --bar is where the search row sticks, and
+   * --bars is how far down the keyboard has to land to be clear of both. A bar's height
+   * is its width's and its words' business - a long range wraps the presets onto a
+   * second line on a phone - so it is read rather than assumed: at the end of every
+   * render, and again whenever a bar changes size on its own (a rotation, the font
+   * arriving), which a ResizeObserver reports. Never the scroll: nothing here listens to it.
+   */
+  var PINS = [['head', '--bar'], ['filters', '--bar2']];
+  function measureBars() {
+    PINS.forEach(function (p) { document.documentElement.style.setProperty(p[1], $(p[0]).getBoundingClientRect().height + 'px'); });
+  }
   function render() {
     var v = compute();
     var sameYear = view.since.slice(0, 4) === view.until.slice(0, 4);
@@ -546,13 +662,15 @@ div.row { cursor: default; }
     // the list
     var list = $('list');
     list.textContent = '';
-    if (v.open.length > 0) list.append(group(null, v.open));
+    if (v.open.length > 0) list.append(group('open', labelOf('open'), v.open));
     var months = [];
     v.closed.forEach(function (t) { var m = t.completed.slice(0, 7); if (months.indexOf(m) < 0) months.push(m); });
     months.forEach(function (m) {
-      list.append(group(MONTHS_LONG[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4), v.closed.filter(function (t) { return t.completed.slice(0, 7) === m; })));
+      list.append(group(m, MONTHS_LONG[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4), v.closed.filter(function (t) { return t.completed.slice(0, 7) === m; })));
     });
     if (v.open.length + v.closed.length === 0) list.append(h('div', { class: 'none' }, '0'));
+
+    measureBars();
 
     // Kept in the address so a reload, or a bookmark, comes back to the same report. file:// may refuse; nothing depends on it.
     try {
@@ -594,6 +712,11 @@ div.row { cursor: default; }
     if (e.key === 'Escape') { toggle($('dates'), $('picker'), false); toggle($('project'), $('menu'), false); }
     if (e.key === '/' && document.activeElement !== $('q') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); $('q').focus(); }
   });
+  if (typeof ResizeObserver === 'function') {
+    var watch = new ResizeObserver(measureBars);
+    PINS.forEach(function (p) { watch.observe($(p[0])); });
+  }
+
   $('gen').textContent = nice(TODAY, true);
   STATES.forEach(function (s) { $('legend').append(h('span', null, mark(s[0], s[1], 16, 0.5), s[1])); });
 

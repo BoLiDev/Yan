@@ -255,6 +255,49 @@ if (LOOK !== undefined) {
   await clickRow('pricing page');
   check('pricing page: the brief as written, two paragraphs keeping their bullets, then five nodes in file order', await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const leads = [...d.querySelectorAll('.lead')].map(e => e.textContent); return leads.length === 2 && leads[1].split(String.fromCharCode(10)).length === 3 && leads[1].split(String.fromCharCode(10))[1].startsWith('- a visitor') && d.querySelectorAll('.item').length === 5 && [...d.querySelectorAll('.item')].map(e => e.dataset.mark).join(' ') === 'done done todo todo abandoned'; })()`), await js(`[...[...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open').querySelectorAll('.lead')].map(e => e.textContent)`));
   check('a bullet keeps its own line rather than folding into the paragraph above it', await js(`getComputedStyle(document.querySelector('.detail .lead')).whiteSpace === 'pre-line'`));
+  // ── refs: a ref that is a URL is a link, and nothing else ever is ──
+  // t001 carries one of each kind (tests/fixtures/ui-vault/README.md): a plain PR #12,
+  // a GitHub pull request URL, a GitLab merge request URL on a self-hosted host, a
+  // `javascript:` one and an http one carrying `"><script>`.
+  const refs = await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); return [...d.querySelectorAll('.ref')].map(e => ({ tag: e.tagName, text: e.textContent, href: e.getAttribute('href'), target: e.getAttribute('target'), rel: e.getAttribute('rel'), title: e.getAttribute('title'), color: getComputedStyle(e).color, font: getComputedStyle(e).fontFamily })); })()`);
+  check('a GitHub pull request URL reads PR #13 and links to itself, in a new tab', (() => {
+    const a = refs.find((r) => r.text === 'PR #13');
+    return a !== undefined && a.tag === 'A' && a.href === 'https://github.com/acme/site/pull/13' && a.target === '_blank' && a.rel === 'noopener noreferrer';
+  })(), refs.find((r) => r.text === 'PR #13'));
+  check('a GitLab merge request URL on a self-hosted host reads MR !14 and links to itself', (() => {
+    const a = refs.find((r) => r.text === 'MR !14');
+    return a !== undefined && a.tag === 'A' && a.href === 'https://gitlab.acme.internal/acme/site/-/merge_requests/14' && a.target === '_blank';
+  })(), refs.find((r) => r.text === 'MR !14'));
+  check('any other http URL is a link labelled with its host, and its full ref is the tooltip', (() => {
+    const a = refs.find((r) => r.text === 'ref.example.com');
+    return a !== undefined && a.tag === 'A' && a.href.startsWith('https://ref.example.com/') && !a.href.includes('"') && !a.href.includes('<') && a.title === 'https://ref.example.com/a"><script>';
+  })(), refs.find((r) => r.text === 'ref.example.com'));
+  check('a ref that is not a URL is drawn as today: text, not a link', (() => {
+    const a = refs.find((r) => r.text === 'PR #12');
+    return a !== undefined && a.tag === 'SPAN' && a.href === null;
+  })(), refs.find((r) => r.text === 'PR #12'));
+  check('a javascript: ref is printed as typed and is never a link', (() => {
+    const a = refs.find((r) => r.text === 'javascript:alert(1)');
+    return a !== undefined && a.tag === 'SPAN' && a.href === null;
+  })(), refs.find((r) => r.text === 'javascript:alert(1)'));
+  check('no ref anywhere has a javascript: href, and the hostile text ran nothing', await js(`[...document.querySelectorAll('.ref')].every(e => !(e.getAttribute('href') || '').toLowerCase().startsWith('javascript:')) && document.querySelectorAll('#list script').length === 0`));
+  check('a linked ref looks as the others do: the same grey and the same face', (() => {
+    const link = refs.find((r) => r.tag === 'A'), plain = refs.find((r) => r.tag === 'SPAN');
+    return link !== undefined && plain !== undefined && link.color === plain.color && link.font === plain.font;
+  })(), refs.map((r) => `${r.tag} ${r.color}`).join(' | '));
+  check('hover underlines it and focus rings it, which is what the page uses to say "link"', await js(`(() => { const a = document.querySelector('.detail a.ref'); const rest = getComputedStyle(a).textDecorationLine; const hover = [...document.styleSheets[0].cssRules].some(r => r.selectorText === 'a:hover' && r.style.textDecoration.includes('underline')); const ring = [...document.styleSheets[0].cssRules].some(r => r.selectorText === ':focus-visible' && r.style.outline !== ''); return rest === 'none' && hover && ring; })()`));
+  check('clicking a ref does not toggle the row it sits in', await js(`(() => { const detail = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const a = detail.querySelector('a.ref'); const row = detail.previousElementSibling; const before = document.querySelectorAll('.detail').length, open = row.getAttribute('aria-expanded'); a.addEventListener('click', e => e.preventDefault(), { capture: true, once: true }); a.click(); return document.querySelectorAll('.detail').length === before && row.getAttribute('aria-expanded') === open && open === 'true'; })()`));
+  const wideRow = `(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const item = [...d.querySelectorAll('.item')].find(e => e.querySelectorAll('.ref').length > 2); return { refs: item.querySelectorAll('.ref').length, over: item.scrollWidth > item.clientWidth + 1, sideways: document.documentElement.scrollWidth > innerWidth }; })()`;
+  check('three refs on one deliverable hold their line at 1440', await (async () => { const r = await js(wideRow); return r.refs === 3 && !r.over && !r.sideways; })(), await js(wideRow));
+  await send('Emulation.setDeviceMetricsOverride', { width: 700, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(200);
+  check('…and at 700, where the aside moves under the text', await (async () => { const r = await js(wideRow); return r.refs === 3 && !r.over && !r.sideways; })(), await js(wideRow));
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(200);
+  await shot('fixture-13-refs');
+  await js(`document.querySelector('.detail a.ref').focus()`); await shot('fixture-14-ref-focus');
+  await send('Emulation.setEmulatedMedia', { media: 'print' }); await sleep(150);
+  check('print shows the short form and no address', await js(`(() => { const d = [...document.querySelectorAll('.detail')].find(e => e.dataset.state === 'open'); const texts = [...d.querySelectorAll('.ref')].map(e => e.textContent); return texts.includes('PR #13') && texts.includes('MR !14') && !d.textContent.includes('gitlab.acme.internal/acme'); })()`));
+  await send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'light' }] }); await sleep(150);
+
   await clickRow('pricing page');
   check('a row closes again', (await js(`document.querySelectorAll('.detail').length`)) === 1);
   // a task with no record: not a button anywhere, and an empty squares column that says nothing
@@ -276,6 +319,169 @@ if (LOOK !== undefined) {
   await shot('fixture-12-no-record');
   check('an open row survives a filter change', await (async () => { await js(`[...document.querySelectorAll('#chips .chip')].find(b => b.textContent.startsWith('Done')).click()`); return js(`document.querySelectorAll('.detail').length === 1`); })());
   check('tooltips: marks, bars, presets', true, await js(`[document.querySelector('.row .mark').title, document.querySelector('.bar').title, document.querySelector('#presets button').title].join(' | ')`));
+
+  // ── the list folds, section by section ────────────────────────────────────
+  // `In progress` is a heading like any month, and every heading is the button that folds
+  // its own section. A fold hides: the numbers, the chip counts and the search go on
+  // counting what is inside it.
+  const heads = () => js(`[...document.querySelectorAll('.group-h')].map(e => { const c = getComputedStyle(e); return { text: e.firstChild.textContent, count: e.querySelector('em').textContent, tag: e.tagName, type: e.getAttribute('type'), expanded: e.getAttribute('aria-expanded'), controls: e.getAttribute('aria-controls'), chev: e.querySelector('.chev svg') !== null, rotated: getComputedStyle(e.querySelector('.chev')).transform, font: [c.fontFamily.split(',')[0], c.fontSize, c.fontWeight, c.gap, c.padding].join(' '), countFont: (() => { const m = getComputedStyle(e.querySelector('em')); return [m.fontFamily.split(',')[0], m.fontSize, m.fontWeight, m.color].join(' '); })(), left: Math.round(e.getBoundingClientRect().left), card: document.getElementById(e.getAttribute('aria-controls')) !== null, rows: (document.getElementById(e.getAttribute('aria-controls')) || { querySelectorAll: () => [] }).querySelectorAll('.task').length }; })`);
+  const foldHead = (text) => js(`[...document.querySelectorAll('.group-h')].find(e => e.firstChild.textContent === ${JSON.stringify(text)}).click()`);
+  await go('fixture', '?since=2025-12-01');
+  const hs = await heads();
+  check('the open tasks get a heading of their own: In progress, with its count', hs.length > 1 && hs[0].text === 'In progress' && hs[0].count === '4', hs.map((x) => `${x.text} ${x.count}`).join(' | '));
+  check('In progress is drawn exactly as a month heading: face, size, count and spacing', hs.every((x) => x.font === hs[0].font && x.countFont === hs[0].countFont && x.left === hs[0].left), [...new Set(hs.map((x) => `${x.font} · ${x.countFont} · ${x.left}`))]);
+  check('every heading is a real button with a chevron, and everything starts unfolded', hs.every((x) => x.tag === 'BUTTON' && x.type === 'button' && x.chev && x.expanded === 'true' && x.controls && x.card), hs.map((x) => `${x.text}: ${x.tag} ${x.expanded} chev=${x.chev}`).join(' | '));
+  check('the chevron is the row\'s chevron, turned: right when folded, down when open', hs[0].rotated !== 'none', hs[0].rotated);
+  check('a heading is a tab stop and the keyboard can reach it', await js(`(() => { const e = document.querySelector('.group-h'); e.focus(); return e.tabIndex === 0 && document.activeElement === e; })()`));
+  // Enter on the focused heading, as a real key press rather than a click
+  await js(`document.querySelector('.group-h').focus()`);
+  for (const type of ['rawKeyDown', 'char', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'char' ? '\r' : undefined });
+  await sleep(150);
+  const byEnter = await heads();
+  check('Enter on the heading folds the section: the heading and its count stay, the rows go', byEnter[0].expanded === 'false' && !byEnter[0].card && byEnter[0].text === 'In progress' && byEnter[0].count === '4' && byEnter.slice(1).every((x) => x.card), byEnter.map((x) => `${x.text} ${x.expanded} card=${x.card}`).join(' | '));
+  check('…and the keyboard keeps its focus on the heading it pressed', await js(`document.activeElement === document.querySelector('.group-h')`));
+  check('a folded section shows nothing but its heading and count', await js(`(() => { const s = document.querySelectorAll('.group')[0]; return s.children.length === 1 && s.textContent.trim() === 'In progress4' && s.querySelectorAll('.task, .row, .detail').length === 0; })()`), await js(`document.querySelectorAll('.group')[0].textContent`));
+  await sleep(50);
+  for (const type of ['rawKeyDown', 'char', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'char' ? '\r' : undefined });
+  await sleep(150);
+  check('Enter again unfolds it', (await heads())[0].card && (await heads())[0].expanded === 'true');
+
+  // a fold hides, it does not filter
+  const tilesBefore = await tiles(), chipsBefore = await js(`[...document.querySelectorAll('#chips .chip')].map(b => b.textContent).join(' | ')`);
+  await foldHead('In progress');
+  check('folding moves no number: the tiles and the chip counts are what they were', (await tiles()) === tilesBefore && (await js(`[...document.querySelectorAll('#chips .chip')].map(b => b.textContent).join(' | ')`)) === chipsBefore, `${tilesBefore} → ${await tiles()}`);
+  await search('release notes');
+  const searched = await heads();
+  check('search still matches inside a folded section: its count follows the search', searched[0].expanded === 'false' && searched[0].count === '1', searched.map((x) => `${x.text} ${x.count} ${x.expanded}`).join(' | '));
+  check('…and the section is still folded after the search', !searched[0].card);
+  await search('');
+  check('a folded section is still folded after the search is cleared', !(await heads())[0].card);
+  await js(`[...document.querySelectorAll('#chips .chip')].find(b => b.textContent.startsWith('All')).click()`);
+  check('…and after a filter change', !(await heads())[0].card);
+  await js(`[...document.querySelectorAll('#presets button')].find(b => b.textContent === 'All').click()`);
+  check('…and after the range changes', !(await heads())[0].card, (await heads()).map((x) => `${x.text} ${x.expanded}`).join(' | '));
+  await shot('fixture-15-folded');
+
+  // a row opened inside a section is still open when the section unfolds
+  await foldHead('In progress');
+  await clickRow('pricing page');
+  check('a row opens inside an unfolded section', (await js(`document.querySelectorAll('.detail').length`)) === 1);
+  await foldHead('In progress');
+  check('folding the section around an open row takes the row with it', (await js(`document.querySelectorAll('.detail').length`)) === 0);
+  await foldHead('In progress');
+  check('…and unfolding brings it back open', await js(`document.querySelectorAll('.detail').length === 1 && document.querySelector('button.row[aria-expanded=true]').textContent.includes('pricing page')`));
+
+  // print and phone
+  await foldHead('In progress');
+  await send('Emulation.setEmulatedMedia', { media: 'print' }); await sleep(150);
+  check('print: a folded section prints folded, heading and count and no chevron', await js(`(() => { const s = document.querySelectorAll('.group')[0], h = s.querySelector('.group-h'); return s.querySelectorAll('.task').length === 0 && getComputedStyle(h).display !== 'none' && h.textContent.trim() === 'In progress4' && getComputedStyle(h.querySelector('.chev')).display === 'none'; })()`), await js(`document.querySelectorAll('.group')[0].textContent`));
+  await send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'light' }] }); await sleep(150);
+  await go('fixture', '?since=2025-12-01', 390, 844);
+  const phone = await heads();
+  check('390: the headings hold, and In progress is drawn as the months are', phone[0].text === 'In progress' && phone.every((x) => x.font === phone[0].font && x.left === phone[0].left) && !(await holds()).sideways, phone.map((x) => `${x.text} ${x.left}`).join(' | '));
+  await foldHead('In progress');
+  check('390: a heading folds its section here too, with no sideways scroll', (await heads())[0].card === false && !(await holds()).sideways);
+  await shot('fixture-16-folded-phone', true);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(150);
+
+  // ── the headline and the search row stay in reach while scrolling ────────
+  // Two sticky bars: the headline with its presets at the top, the search row under it,
+  // the tiles passing away between them and the list scrolling on below. What is checked
+  // is where things are after a real scroll, not which CSS was written.
+  const bars = () => js(`(() => {
+    const head = document.getElementById('head'), filters = document.getElementById('filters');
+    const r = (e) => { const b = e.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), height: Math.round(b.height) }; };
+    const page = document.querySelector('.page').getBoundingClientRect();
+    const h = r(head), f = r(filters);
+    const under = (x, y) => { const e = document.elementFromPoint(x, y); return e === null ? null : (e.closest('#head') ? 'head' : e.closest('#filters') ? 'filters' : e.closest('#list') ? 'list' : e.className || e.tagName); };
+    return {
+      scrollY: Math.round(scrollY), head: h, filters: f,
+      bar: getComputedStyle(document.documentElement).getPropertyValue('--bar').trim(),
+      position: [getComputedStyle(head).position, getComputedStyle(filters).position].join(' '),
+      tilesBottom: Math.round(document.querySelector('.tiles').getBoundingClientRect().bottom),
+      firstRow: Math.round(document.querySelector('.row').getBoundingClientRect().top),
+      presets: Math.round(document.getElementById('presets').getBoundingClientRect().top),
+      gutter: under(page.left + 6, Math.round(h.height / 2)), middle: under(page.left + page.width / 2, Math.round(h.height / 2)),
+      overFilters: under(page.left + page.width / 2, f.top + Math.round(f.height / 2)),
+      hairline: (() => { const c = getComputedStyle(filters, '::after'); return [c.content !== 'none', c.height, c.backgroundColor].join(' '); })(),
+      hairlineTop: (() => { const c = getComputedStyle(head, '::after'); return [c.content !== 'none', c.height, c.backgroundColor].join(' '); })(),
+      viewport: innerHeight,
+    };
+  })()`);
+  const scroll = async (y) => { await js(`scrollTo(0, ${y})`); await sleep(300); };
+  const toBottom = async () => { await js(`scrollTo(0, document.body.scrollHeight)`); await sleep(300); };
+
+  await go('fixture', '?since=2025-12-01');
+  const rest = await bars();
+  check('the two bars are sticky and nothing else does the pinning', rest.position === 'sticky sticky' && (await js(`document.documentElement.outerHTML.includes('position: fixed') === false`)), rest.position);
+  check('at rest the bars sit where they always did: the headline 56 px down, the tiles under it', rest.head.top === 42 && (await js(`Math.round(document.querySelector('.dates').getBoundingClientRect().top)`)) === 56 && rest.tilesBottom > 0, rest);
+  await toBottom();
+  const down = await bars();
+  check('scrolled to the bottom: the headline is at the top of the viewport, with its presets beside it', down.scrollY > 300 && down.head.top === 0 && down.presets > 0 && down.presets < down.head.height, down);
+  check('…the tiles are out of view entirely, gone up under the headline', down.tilesBottom <= 0, down.tilesBottom);
+  check('…the search row sits right under the headline, with no gap and no overlap', down.filters.top === down.head.height && down.bar === `${down.head.height}px`, `${down.filters.top} vs ${down.head.height}, --bar ${down.bar}`);
+  check('…and the list has moved by exactly what was scrolled', rest.firstRow - down.firstRow === down.scrollY, `${rest.firstRow} → ${down.firstRow}, scrolled ${down.scrollY}`);
+  check('the bars are opaque in the page\'s own ground, out to the page\'s edges: nothing shows through', down.gutter === 'head' && down.middle === 'head' && down.overFilters === 'filters', down);
+  check('the hairline under the pair is the page\'s own line, and costs no height', /^true 1px rgb\(231, 229, 223\)$/.test(down.hairline) && down.head.height === rest.head.height && down.filters.height === rest.filters.height, [down.hairline, rest.head.height, down.head.height, rest.filters.height, down.filters.height]);
+  await shot('fixture-17-pinned', false);
+  // the menus, while both bars are pinned
+  await js(`document.getElementById('project').click()`);
+  const menu = await js(`(() => { const m = document.getElementById('menu'); const b = m.getBoundingClientRect(); const mid = document.elementFromPoint(b.left + b.width / 2, b.top + 8); return { shown: !m.hidden, top: Math.round(b.top), bottom: Math.round(b.bottom), inside: b.top >= 0 && b.bottom <= innerHeight && b.left >= 0, onTop: mid !== null && mid.closest('#menu') !== null, clipped: [...document.querySelectorAll('*')].some(e => e.contains(m) && e !== m && getComputedStyle(e).overflow !== 'visible') }; })()`);
+  check('pinned: the project menu opens over everything, unclipped and inside the viewport', menu.shown && menu.inside && menu.onTop && !menu.clipped, menu);
+  await shot('fixture-18-pinned-menu', false);
+  await js(`document.body.click()`);
+  await js(`document.getElementById('dates').click()`);
+  const picker = await js(`(() => { const p = document.getElementById('picker'); const b = p.getBoundingClientRect(); const mid = document.elementFromPoint(b.left + b.width / 2, b.top + 8); return { shown: !p.hidden, top: Math.round(b.top), inside: b.top >= 0 && b.bottom <= innerHeight, onTop: mid !== null && mid.closest('#picker') !== null, overFilters: b.bottom > document.getElementById('filters').getBoundingClientRect().top }; })()`);
+  check('pinned: the headline\'s own dates open over the search row below it, unclipped', picker.shown && picker.inside && picker.onTop && picker.overFilters, picker);
+  await js(`document.body.click()`);
+  // the keyboard: a real Tab onto a row far down the list lands below the bars
+  await scroll(0);
+  await js(`(() => { const hs = [...document.querySelectorAll('.group-h')]; hs[hs.length - 1].focus(); })()`);
+  await sleep(250);
+  let tabs = 0;
+  while (tabs < 12 && !(await js(`document.activeElement.matches('button.row')`))) {
+    for (const type of ['rawKeyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    tabs++; await sleep(200);
+  }
+  const landed = await js(`(() => { const e = document.activeElement, b = e.getBoundingClientRect(); const f = document.getElementById('filters').getBoundingClientRect(); return { what: e.className, text: e.textContent.slice(0, 24), row: e.matches('button.row'), top: Math.round(b.top), bottom: Math.round(b.bottom), barsBottom: Math.round(f.bottom), viewport: innerHeight, scrolled: Math.round(scrollY), clear: b.top >= f.bottom - 0.5 && b.bottom <= innerHeight + 0.5 }; })()`);
+  check('Tab onto a row far down the list leaves it whole, below both bars', landed.row && landed.clear && landed.scrolled > 0, { tabs, ...landed });
+  await shot('fixture-19-pinned-tab', false);
+  // a section heading jumped to: scroll-margin-top keeps it clear of the bars too
+  const heading = await js(`(() => { const hs = [...document.querySelectorAll('.group-h')]; const h = hs[hs.length - 1]; h.focus(); return h.firstChild.textContent; })()`);
+  await sleep(300);
+  check('a section heading the keyboard reaches is clear of the bars as well', await js(`(() => { const b = document.activeElement.getBoundingClientRect(); const f = document.getElementById('filters').getBoundingClientRect(); return b.top >= f.bottom - 0.5 && b.bottom <= innerHeight + 0.5; })()`), heading);
+
+  // a phone pins the headline alone: both bars would cost a third of the screen there
+  await go('fixture', '?since=2025-12-01', 390, 844);
+  const phoneRest = await bars();
+  check('390: at rest the search row is where it always was, under the tiles', phoneRest.position === 'sticky static' && phoneRest.filters.top > phoneRest.tilesBottom, phoneRest);
+  await toBottom();
+  const phonePinned = await bars();
+  check('390 × 844: the headline is pinned with its presets, the tiles and the search row gone up under it', phonePinned.head.top === 0 && phonePinned.presets > 0 && phonePinned.tilesBottom <= 0 && phonePinned.filters.bottom <= phonePinned.head.height, phonePinned);
+  check('390 × 844: what is pinned takes well under a third of the screen and the list keeps the rest', phonePinned.head.height <= 281, `${phonePinned.head.height} of 844 (${Math.round((phonePinned.head.height / 844) * 100)}%)`);
+  check('390: the bar is opaque out to the page\'s edges, with the same hairline under it', phonePinned.gutter === 'head' && phonePinned.middle === 'head' && /^true 1px rgb\(231, 229, 223\)$/.test(phonePinned.hairlineTop), [phonePinned.gutter, phonePinned.hairlineTop]);
+  check('390: and the list has moved by exactly what was scrolled', phoneRest.firstRow - phonePinned.firstRow === phonePinned.scrollY, `${phoneRest.firstRow} → ${phonePinned.firstRow}, scrolled ${phonePinned.scrollY}`);
+  check('390: no sideways scroll with the headline pinned', !(await holds()).sideways);
+  await shot('fixture-20-pinned-phone', false);
+  await js(`document.getElementById('dates').click()`);
+  check('390: the headline\'s own dates open unclipped while pinned', await js(`(() => { const p = document.getElementById('picker'), b = p.getBoundingClientRect(); const mid = document.elementFromPoint(b.left + b.width / 2, b.top + 8); return !p.hidden && b.top >= 0 && b.left >= 0 && b.right <= innerWidth && b.bottom <= innerHeight && mid !== null && mid.closest('#picker') !== null; })()`), await js(`JSON.stringify(document.getElementById('picker').getBoundingClientRect())`));
+  await shot('fixture-21-pinned-phone-menu', false);
+  await js(`document.body.click()`);
+  await scroll(0);
+  await js(`(() => { const hs = [...document.querySelectorAll('.group-h')]; hs[hs.length - 1].focus(); })()`);
+  await sleep(250);
+  let phoneTabs = 0;
+  while (phoneTabs < 12 && !(await js(`document.activeElement.matches('button.row')`))) {
+    for (const type of ['rawKeyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    phoneTabs++; await sleep(200);
+  }
+  check('390: Tab onto a row far down the list leaves it whole, below the pinned headline', await js(`(() => { const e = document.activeElement, b = e.getBoundingClientRect(); const h = document.getElementById('head').getBoundingClientRect(); return e.matches('button.row') && b.top >= h.bottom - 0.5 && b.bottom <= innerHeight + 0.5 && scrollY > 0; })()`), await js(`(() => { const e = document.activeElement, b = e.getBoundingClientRect(); return { what: e.className, top: Math.round(b.top), bottom: Math.round(b.bottom), bar: Math.round(document.getElementById('head').getBoundingClientRect().bottom), scrolled: Math.round(scrollY) }; })()`));
+
+  // paper does not scroll
+  await send('Emulation.setEmulatedMedia', { media: 'print' }); await sleep(200);
+  check('print: nothing on the page is sticky', await js(`[...document.querySelectorAll('*')].every(e => getComputedStyle(e).position !== 'sticky')`), await js(`[...document.querySelectorAll('*')].filter(e => getComputedStyle(e).position === 'sticky').map(e => e.id || e.className)`));
+  await send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-color-scheme', value: 'light' }] }); await sleep(150);
+  await go('fixture', '?since=2025-12-01');
 
   // ── the ring ──
   const ring = (title) => js(`(() => { const r = [...document.querySelectorAll('.row')].find(b => b.textContent.includes(${JSON.stringify(title)})); const m = r.querySelector('.mark'); const svg = m.querySelector('svg'); const pie = svg.querySelector('path[fill]'); let drawn = null; if (pie) { const e = pie.getAttribute('d').match(/1 ([\\d.]+) ([\\d.]+)Z$/); const x = Number(e[1]) - 10, y = 10 - Number(e[2]); let deg = Math.atan2(x, y) * 180 / Math.PI; if (deg <= 0) deg += 360; drawn = Math.round(deg); } return { state: m.dataset.state, fraction: m.dataset.fraction ?? null, degrees: m.dataset.degrees ?? null, drawn, dot: !!svg.querySelector('circle[r="1.5"]'), full: !!svg.querySelector('circle[r="5"]'), disc: !!svg.querySelector('circle[r="9"]'), slash: !!svg.querySelector('path[stroke-linecap]:not([stroke-linejoin])'), title: m.title, size: svg.getAttribute('width'), tint: getComputedStyle(m).backgroundColor, color: getComputedStyle(m).color }; })()`);
