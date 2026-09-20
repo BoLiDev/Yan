@@ -256,6 +256,15 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     expect(started[0]?.env.YAN_HOME).toBe(home);
   });
 
+  it("names the task's directory, which the prompt builds the artifact path on", async () => {
+    const { started, session } = await enter('t042', '');
+    session.run?.();
+    // Unset, `$YAN_TASK_DIR/artifacts` lands at the filesystem root.
+    expect(started[0]?.env.YAN_TASK_DIR).toBe(join(home, 'tasks', 't042'));
+    expect(started[0]?.env.YAN_SID, 'the main agent is not a shift').toBeUndefined();
+    expect(started[0]?.env.YAN_SHIFT_DIR).toBeUndefined();
+  });
+
   it('gives the main agent the same permission flags a shift gets', async () => {
     // The main agent is unattended between one turn and the next, where a
     // prompt would stall the thing that does the noticing.

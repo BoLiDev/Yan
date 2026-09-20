@@ -165,3 +165,57 @@ describe('liveIn', () => {
     expect(Shift.resolve('s1').isLive()).toBe(true);
   });
 });
+
+describe('who is calling, from the environment', () => {
+  let saved: Record<string, string | undefined> = {};
+  const keys = ['YAN_SHIFT_DIR', 'YAN_TASK_DIR', 'YAN_SID', 'YAN_TASK'] as const;
+
+  beforeEach(() => {
+    saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    for (const k of keys) delete process.env[k];
+  });
+
+  afterEach(() => {
+    for (const k of keys) {
+      const v = saved[k];
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it("takes the main agent's environment for nobody, task `run/` folder and all", () => {
+    seed('t042', 's1');
+    mkdirSync(join(home, 'tasks', 't042', 'run'), { recursive: true });
+    process.env.YAN_TASK = 't042';
+    process.env.YAN_TASK_DIR = join(home, 'tasks', 't042');
+    expect(Shift.fromEnv()).toBeUndefined();
+  });
+
+  it('still reads every spelling a spawned shift is given', () => {
+    seed('t042', 's1');
+    const dir = join(home, 'tasks', 't042', 'shifts', 's1');
+
+    process.env.YAN_SHIFT_DIR = dir;
+    expect(Shift.fromEnv()?.dir).toContain('s1');
+    delete process.env.YAN_SHIFT_DIR;
+
+    process.env.YAN_TASK_DIR = dir;
+    expect(Shift.fromEnv()?.sid, 'its own directory, no sid needed').toBe('s1');
+
+    process.env.YAN_TASK_DIR = join(home, 'tasks', 't042');
+    process.env.YAN_SID = 's1';
+    expect(Shift.fromEnv()?.sid, 'the task directory plus an sid').toBe('s1');
+
+    delete process.env.YAN_TASK_DIR;
+    process.env.YAN_TASK = 't042';
+    expect(Shift.fromEnv()?.sid, 'ids alone').toBe('s1');
+  });
+
+  it('takes a shift directory kept outside the usual layout when the sid names it', () => {
+    const odd = join(home, 'elsewhere', 's9');
+    mkdirSync(join(odd, 'run'), { recursive: true });
+    process.env.YAN_TASK_DIR = odd;
+    process.env.YAN_SID = 's9';
+    expect(Shift.fromEnv()?.dir).toContain('elsewhere');
+  });
+});
