@@ -145,8 +145,10 @@ div.row { cursor: default; }
 /* the dates at the end of a row: numbers, grey, no weight. They are not the row's main information */
 .span { font: 400 14px/24px var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-2); }
 
-/* one square per deliverable, in fives, and nothing after them; a task with no record says so */
-.row .unknown { font: 400 14px/24px var(--num); color: var(--ink-2); }
+/* one square per deliverable, in fives, and nothing after them */
+/* a task with no record: an empty cell, so the column holds and the dates do not slide. Nothing is drawn
+   and nothing is announced - there is no progress to report, and a mark for that would be a mark for nothing */
+.row .blank { display: block; }
 .squares { display: flex; flex-wrap: wrap; gap: 4px; }
 .squares i { display: block; width: 10px; height: 10px; border-radius: 3px; background: var(--empty); }
 .squares i:nth-child(5n) { margin-right: 6px; }   /* after every fifth, so a wrapped line starts flush */
@@ -197,6 +199,7 @@ div.row { cursor: default; }
   .row .mark, .row .chev { margin-top: 2px; }
   .row .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; grid-column: 2 / -1; grid-row: 2; }
   .row .span { margin-left: auto; }
+  .row .blank { display: none; }   /* no columns to hold open here, and an empty flex item would be a gap */
   .detail { padding: 2px 20px 24px; }
   .item { grid-template-columns: 10px minmax(0, 1fr); }
   .item .aside { grid-column: 2; justify-content: flex-start; line-height: 18px; }
@@ -467,13 +470,14 @@ div.row { cursor: default; }
   }
 
   function taskEl(t) {
-    // A row opens only when the task has a record. One without says `unknown` where its squares would be:
-    // nobody wrote down what it had to build, so the page says so rather than guessing from the brief.
+    // A row opens only when the task has a record. One without leaves the squares column empty — the cell
+    // stays so the dates keep their column — and says nothing: nobody wrote down what it had to build, and
+    // the page neither guesses from the brief nor puts a word where the work would be.
     var can = t.deliverables.length > 0;
     var isOpen = can && !!view.open[t.id];
     var n = tally(t);
     var cells = [mark(t.state, labelOf(t.state) + (t.state === 'open' && n ? ' · ' + n.done + '/' + n.of : ''), 18, n ? n.fraction : null), h('span', { class: 'title' }, t.title || 'Untitled'),
-      h('span', { class: 'meta' }, h('span', { class: 'project' }, t.project || ''), can ? squares(t) : h('span', { class: 'unknown' }, 'unknown'), span(t)),
+      h('span', { class: 'meta' }, h('span', { class: 'project' }, t.project || ''), can ? squares(t) : h('span', { class: 'blank' }), span(t)),
       can ? h('span', { class: 'chev' }, icon(RIGHT, 16, 1.75)) : h('span')];
     var el = h('article', { class: 'task' });
     var row = can

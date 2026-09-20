@@ -7,8 +7,9 @@ local day is the same from UTC-11 to UTC+11.
 
 A task's deliverables are its `deliverable.json`, written by `yan deliverable` and
 by nothing else. `brief.md` is the title line and prose: it is never parsed for
-deliverables, and a task with no record reads `unknown` on the page whatever its
-brief says.
+deliverables, and a task with no record shows nothing at all where its squares would
+be, whatever its brief says: the cell stays so the dates keep their column, and the
+page puts no word where the work would be.
 
 Every deliverable here is written as the requirement it is: present tense, the
 product as the subject, what has to be true when the work is done. Never a test, a
@@ -19,8 +20,8 @@ that reads like a log teaches the page's readers to write one.
 | --- | --- | --- | --- | --- | --- | --- |
 | t001 | open | site | 09-01 | | 2 · 2 · 1, done 09-10 (`PR #12`), 09-15 (`PR #13` `PR #14`) | the ring at 2/4; all three statuses in one opened row; several refs on one item; an abandoned deliverable with its reason; a brief with two paragraphs and two bullets |
 | t002 | done | ledger | 08-03 | 08-20 | 3 · 0 · 1, done 08-05, 08-12 (`MR !87`), 08-20 (`PR #31` `PR #32 <!-- squashed -->`) | `</script><!--` and `$&` in the brief, in a deliverable, in a reason and in a ref |
-| t003 | done | ledger | 07-01 | 07-15 | no record; an old two-section `brief.md` with `- [x]` lines | `unknown`: the checkbox lines are not parsed and the row does not open |
-| t004 | done | none | 06-10 | 06-30 | no record, no brief, no units | `project: null`; `unknown`; a done task delivers once on its completion day |
+| t003 | done | ledger | 07-01 | 07-15 | no record; an old two-section `brief.md` with `- [x]` lines | an empty squares column: the checkbox lines are not parsed and the row does not open |
+| t004 | done | none | 06-10 | 06-30 | no record, no brief, no units | `project: null`; an empty squares column; a done task delivers once on its completion day |
 | t005 | abandoned | site | 07-20 | 08-01 | 0 · 1 · 0 | abandoned, listed but never Finished |
 | t006 | done | yan | 2025-12-20 | 01-08 | 2 · 0 · 0, done 2025-12-30, 2026-01-05 (`MR !9`) | deliveries either side of a year boundary |
 | t007 | open | yan | 09-05 | | `deliverable.json` does not validate (`status: "shipped"`) | one broken record is a task with none, and does not fail the command |
@@ -64,4 +65,4 @@ beyond In progress being `—`:
 In progress, on a range that runs to today, is 4: t001, t007, t008, t010.
 
 Rows that open: t001, t002, t005, t006, t009 — the five with a record that holds
-something. The other five read `unknown` and are not buttons.
+something. The other five show nothing in the squares column and are not buttons.
