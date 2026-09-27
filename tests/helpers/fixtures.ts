@@ -103,7 +103,7 @@ export interface YanHomeOptions {
  * `$YAN_MACHINE_DIR` at itself, for tests that call a command in process.
  */
 export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
-  for (const d of ['mem/learnings', 'tasks', 'repos', '.local']) {
+  for (const d of ['mem/learnings', 'tasks', '.local']) {
     mkdirSync(join(dest, d), { recursive: true });
   }
 
