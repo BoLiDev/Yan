@@ -140,18 +140,6 @@ export class Deliverables {
   }
 
   /**
-   * The same read, with the refusal handed back rather than thrown. This is
-   * what a reader that covers every task calls.
-   */
-  public readOrNone(): DeliverablesRead {
-    try {
-      return { deliverables: this.read().deliverables, problem: null };
-    } catch (err) {
-      return { deliverables: [], problem: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  /**
    * Append one deliverable per text, in the order given, and return the ones
    * written.
    *
@@ -266,14 +254,15 @@ export class Deliverables {
 }
 
 /**
- * A task's deliverables without a throw anywhere in the path, for a reader
- * that covers every task: the work report. A task id that is
- * not a task, a vault that cannot be resolved and a file that does not
- * validate all come back as an empty list with a problem.
+ * A task's deliverables without a throw anywhere in the path, for every
+ * reader that shows them rather than writes them: `yan show`, `yan mr`,
+ * session start and the work report. A task id that is not a task, a vault
+ * that cannot be resolved and a file that does not validate all come back as
+ * an empty list with a problem.
  */
 export function readDeliverables(taskId: string): DeliverablesRead {
   try {
-    return new Deliverables(taskId).readOrNone();
+    return { deliverables: new Deliverables(taskId).read().deliverables, problem: null };
   } catch (err) {
     return { deliverables: [], problem: err instanceof Error ? err.message : String(err) };
   }

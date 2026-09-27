@@ -11,7 +11,7 @@ import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import type { LeaseRow } from '../externals/worktree/index.js';
 import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
-import { Deliverables, Task } from '../records/task/index.js';
+import { Deliverables, Task, readDeliverables } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
 import { Drafts } from '../records/drafts/index.js';
@@ -258,7 +258,7 @@ function renderDrafts(id: string): void {
  */
 function renderDeliverables(id: string, complete: boolean): void {
   const record = new Deliverables(id);
-  const { deliverables, problem } = record.readOrNone();
+  const { deliverables, problem } = readDeliverables(id);
 
   out('');
   if (problem !== null) {

@@ -15,7 +15,7 @@ import { isoMoment, secondMoment } from './overview/when.js';
 import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift, clearUndelivered, lastEvent, readUndelivered, type Undelivered } from '../records/shift/index.js';
-import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
+import { Task, type Deliverable, readDeliverables } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
 import { poolLeases } from './shared/leases.js';
@@ -153,7 +153,7 @@ function showJson(id: string): ShowJson {
     };
   });
 
-  const said = new Deliverables(id).readOrNone();
+  const said = readDeliverables(id);
 
   return {
     version: 1,
