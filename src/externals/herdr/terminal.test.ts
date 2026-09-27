@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Terminal } from './index.js';
 import * as term from './index.js';
-import { herdrErrorCode, mapError } from './cli.js';
+import { herdrErrorCode, mapError, resultOf } from './cli.js';
 import { parseIntegrationStatus } from './health.js';
 import { AGENT_STATUS, HERDR_PROTOCOL } from './schema.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
@@ -209,6 +209,20 @@ describe('no Herdr error code escapes the seam', () => {
       'pane_not_found',
     );
     expect(herdrErrorCode('just prose')).toBeUndefined();
+  });
+});
+
+describe('a success is read through its .result and nothing else', () => {
+  it('answers the result, and undefined for a body that has none', () => {
+    expect(resultOf('{"id":"cli:agent:get","result":{"type":"agent_info","agent":{}}}')).toEqual({
+      type: 'agent_info',
+      agent: {},
+    });
+    // Protocol 22 wraps every success; a bare body is not taken for the answer.
+    expect(resultOf('{"agent":{"agent_status":"idle"}}')).toBeUndefined();
+    expect(resultOf('')).toBeUndefined();
+    expect(resultOf('not json')).toBeUndefined();
+    expect(resultOf('null')).toBeUndefined();
   });
 });
 
@@ -523,6 +537,21 @@ describe('an agent that is not really there', () => {
     })).toThrow(/unsupported_kind/);
     expect(herdr.sent.at(-1)).toEqual(['pane', 'close', 'w1:p5']);
     expect(herdr.sent.some((a) => a[1] === 'close' && a[2] === 'w1:p1'), 'never the pane it split').toBe(false);
+  });
+
+  it('blames herdr, not the caller, when it makes a pane and does not name it', () => {
+    for (const split of [undefined, { pane: 'w1:p1', direction: 'right' as const }]) {
+      let caught: unknown;
+      try {
+        new Terminal({ run: () => ok({}), settleMs: 0 }).startAgent({
+          container: 'w1', ...(split === undefined ? {} : { split }), name: 's1', kind: 'claude', cwd: '.',
+        });
+      } catch (err) {
+        caught = err;
+      }
+      expect((caught as YanError).code).toBe('term_refused');
+      expect((caught as YanError).exitCode).toBe(1);
+    }
   });
 
   it('lets a refused split surface, rather than falling back to a tab', () => {
