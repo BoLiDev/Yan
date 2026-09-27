@@ -10,6 +10,7 @@ import type {
   Alive,
   Container,
   ListedAgent,
+  ReadFormat,
   ReadSource,
   SplitAt,
   StartedAgent,
@@ -388,12 +389,14 @@ export class Terminal {
    *
    * @throws YanError when the command failed.
    */
-  public read(pane: string, lines = 80, source: ReadSource = 'recent_unwrapped'): string {
+  public read(pane: string, lines = 80, source: ReadSource = 'recent_unwrapped', format: ReadFormat = 'text'): string {
     requirePaneId(pane, 'read');
     if (!Number.isInteger(lines) || lines <= 0) {
       throw YanError.usage('term_usage', `a whole number of lines is required, got '${lines}'`);
     }
-    const result = this.run(['agent', 'read', pane, '--source', source, '--lines', String(lines)]);
+    const args = ['agent', 'read', pane, '--source', source, '--lines', String(lines)];
+    if (format === 'ansi') args.push('--format', 'ansi');
+    const result = this.run(args);
     if (result.code !== 0) throw mapError(result, 'agent read');
 
     const raw = result.stdout;
@@ -405,6 +408,25 @@ export class Terminal {
       return raw;
     } catch {
       return raw;
+    }
+  }
+
+  /**
+   * Which harness Herdr sees in this pane — `claude`, `codex`, … as Herdr
+   * spells them — or `undefined` when it will not say.
+   *
+   * @throws YanError `term_usage` when `pane` is not a pane id.
+   */
+  public agentKind(pane: string): string | undefined {
+    requirePaneId(pane, 'agentKind');
+    const result = this.run(['agent', 'get', pane]);
+    if (result.code !== 0) return undefined;
+    try {
+      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
+      const kind = asString(asRecord(body.agent).agent);
+      return kind === '' ? undefined : kind;
+    } catch {
+      return undefined;
     }
   }
 

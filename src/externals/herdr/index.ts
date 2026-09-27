@@ -10,7 +10,6 @@ export { Terminal } from './terminal.js';
 export type { TerminalOptions } from './terminal.js';
 export { herdrHealth } from './health.js';
 export { agentNameFor, isPaneId } from './ids.js';
-export { typedInput } from './parse.js';
 export { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, AGENT_STATUS } from './schema.js';
 export type {
   AgentStatus,
@@ -19,6 +18,7 @@ export type {
   HerdrHealth,
   ListedAgent,
   PaneRect,
+  ReadFormat,
   ReadSource,
   SplitAt,
   SplitDirection,

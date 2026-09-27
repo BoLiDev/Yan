@@ -235,10 +235,16 @@ describe('the note is typed into yan\'s pane', () => {
     /** What each successive `read` shows; the last one repeats. */
     public screens: string[] = [screenWith('')];
     public reads = 0;
+    /** What Herdr says runs in the pane. */
+    public kind: string | undefined = 'claude';
 
     public read(): string {
       this.reads += 1;
       return this.screens[Math.min(this.reads, this.screens.length) - 1] ?? '';
+    }
+
+    public agentKind(): string | undefined {
+      return this.kind;
     }
 
     public send(pane: string, text: string): void {
@@ -411,6 +417,25 @@ describe('the note is typed into yan\'s pane', () => {
       terminal.refuseTimes = 1;
       report('conflict', 'merge conflict in a.ts');
       expect(slept).toEqual([7000]);
+      expect(terminal.calls).toHaveLength(1);
+    });
+
+    it('reads a codex prompt box too, placeholder and all', () => {
+      const composer = (entry: string): string => ['• Done.', '', `\x1b[1m›\x1b[0m ${entry}`, '', '  GPT-6-Luna default · ~/p', ''].join('\n');
+      terminal.kind = 'codex';
+      terminal.screens = [composer('half a thou'), composer('\x1b[2mAsk Codex to do anything\x1b[0m')];
+      report('done', 'mr https://x/3');
+      expect(terminal.reads).toBe(2);
+      expect(slept).toEqual([10000]);
+      expect(terminal.calls).toHaveLength(1);
+    });
+
+    it('holds nothing under a harness whose prompt box it cannot read', () => {
+      terminal.kind = 'agy';
+      terminal.screens = [screenWith('typing')];
+      report('done', 'mr https://x/4');
+      expect(terminal.reads).toBe(1);
+      expect(slept).toEqual([]);
       expect(terminal.calls).toHaveLength(1);
     });
 

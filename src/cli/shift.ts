@@ -269,6 +269,7 @@ function briefBody(options: {
     '  `started` is recorded and not sent. Longer than a line goes in outcome.md.',
     '  While user is typing in yan\'s pane the command waits, up to three minutes, and',
     '  then exits 3 with nothing recorded: wait a minute and run the same report again.',
+    '  Run it with a timeout of at least four minutes so that wait is not cut short.',
     '- Report only when yan has to act. Progress is not a report; it goes in outcome.md.',
     '- Never end a turn leaving yan something to act on without a report. If you are',
     '  about to end your reply with a question, that question is a `needs-decision`',

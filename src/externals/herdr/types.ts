@@ -4,6 +4,9 @@ import type { AgentStatus } from './schema.js';
 
 export type { AgentStatus, ReadSource } from './schema.js';
 
+/** Plain text, or the screen with its colours and styles as escape codes. */
+export type ReadFormat = 'text' | 'ansi';
+
 /** `unknown` means yan could not find out, never that the agent is confusing. */
 export type Alive = 'alive' | 'dead' | 'unknown';
 

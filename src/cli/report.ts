@@ -4,7 +4,8 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { paneOfEnterLock } from './shared/enter-lock.js';
 import { checkSendLength, type Prompter } from './send.js';
-import { Terminal, typedInput, type ReadSource } from '../externals/herdr/index.js';
+import { typedInput } from '../externals/harness/index.js';
+import { Terminal, type ReadFormat, type ReadSource } from '../externals/herdr/index.js';
 import { Shift, recordUndelivered, undeliveredFile } from '../records/shift/index.js';
 import { YanError } from '../util/error.js';
 
@@ -69,9 +70,13 @@ function sleepMs(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-/** What a report needs from the terminal: to type a line, and to see the screen first. */
+/**
+ * What a report needs from the terminal: to type a line, and before that to
+ * see the screen and know which harness drew it.
+ */
 export interface ReportTerminal extends Prompter {
-  read(pane: string, lines?: number, source?: ReadSource): string;
+  read(pane: string, lines?: number, source?: ReadSource, format?: ReadFormat): string;
+  agentKind(pane: string): string | undefined;
 }
 
 /** The sources a delivery uses; each defaults to the real one. */
@@ -138,11 +143,15 @@ export function deliver(task: string, line: string, deps: ReportDeps = {}): stri
 /**
  * What `user` has typed into yan's prompt box and not sent, `''` for an empty
  * box, and `undefined` when there is nothing to go on: the screen cannot be
- * read, or shows no prompt box. Never throws.
+ * read, shows no prompt box, or belongs to a harness whose box the harness
+ * module does not know. Never throws.
  */
 function typedInYanPane(pane: string, deps: ReportDeps): string | undefined {
   try {
-    return typedInput((deps.terminal ?? new Terminal()).read(pane, 40, 'visible'));
+    const terminal = deps.terminal ?? new Terminal();
+    const kind = terminal.agentKind(pane);
+    if (kind === undefined) return undefined;
+    return typedInput(kind, terminal.read(pane, 40, 'visible', 'ansi'));
   } catch {
     return undefined;
   }
@@ -285,7 +294,8 @@ retried for about thirty seconds and then kept in run/undelivered, which
 
 While user is typing in yan's pane the note would land inside their line, so
 the command waits for the prompt box to clear, up to three minutes, and then
-exits 3 with nothing recorded: run the same report again in a minute.
+exits 3 with nothing recorded: run the same report again in a minute. It can
+read the prompt box of claude and codex; under another harness it sends at once.
 
 Which shift is reporting is normally taken from the environment the spawn
 step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid / --dir are for
