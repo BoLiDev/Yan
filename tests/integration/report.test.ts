@@ -344,7 +344,7 @@ describe('the note is typed into yan\'s pane', () => {
     expect(slept, 'five attempts, four pauses, about thirty seconds').toHaveLength(4);
 
     const kept = undelivered().trim();
-    expect(kept).toMatch(/^\d+ conflict the merge into the integration branch conflicts in src\/cli\/state\.ts$/);
+    expect(kept).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\tconflict\tthe merge into the integration branch conflicts in src\/cli\/state\.ts$/);
     expect(readFileSync(join(shiftRun, 'status'), 'utf8'), 'the event was recorded either way').toContain('\tconflict\t');
   });
 
@@ -352,7 +352,7 @@ describe('the note is typed into yan\'s pane', () => {
     pane = undefined;
     report('needs-decision', 'which branch?');
     expect(terminal.calls).toEqual([]);
-    expect(undelivered()).toContain('needs-decision which branch?');
+    expect(undelivered()).toContain('\tneeds-decision\twhich branch?\n');
   });
 
   it('appends, so two reports nobody heard are both there', () => {

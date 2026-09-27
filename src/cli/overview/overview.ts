@@ -59,7 +59,7 @@ function read(file: string): string | undefined {
   }
 }
 
-function stateOf(data: TaskData): TaskState {
+export function stateOf(data: TaskData): TaskState {
   return data.abandoned ? 'abandoned' : data.complete ? 'done' : 'open';
 }
 

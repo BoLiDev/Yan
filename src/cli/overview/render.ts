@@ -7,9 +7,8 @@ import { clamp, lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from '../shared/wrap.js'
 
 /**
  * The print of `yan ls` and the header of `yan show`, from the overview and
- * nothing else: pure, so a test hands it the data, a clock and a width. The
- * rules are the design's (task t128, artifacts/uix/design.md); where they and
- * its mock differ, this follows the mock, which is what was accepted.
+ * nothing else: pure, so a test hands it the data, a clock and a width, and
+ * `render.test.ts` pins the layout the constants below describe.
  *
  *   ␣t131␣␣overview for yan ls                              title, bold cyan
  *   ␣2m␣␣␣␣`user` wants one command that shows what they…   description, ≤ 3 lines

@@ -141,7 +141,17 @@ describe('through bin/yan', () => {
     expect(r.stdout).toContain('unit auth');
     expect(r.stdout).toContain('branch feat/auth');
     expect(r.stdout).toContain('shift s2');
+    expect(r.stdout, "a shift's last reported event, not a count").toContain('last=started@2026-08-09T09:00:00Z');
     expect(r.stdout, 's1 is reported, and reported as finished').toContain('clocked out');
+    expect(r.stdout, 'a clocked-out shift has no run/status left').toMatch(/shift s1 .* last=none/);
+  });
+
+  it('prints each task in one of three states, so an abandoned task is not called done', async () => {
+    new Task('t099').setAbandoned();
+    const r = await runYan(home, ['session-start', '--all']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('t042  unify the auth header   [open]');
+    expect(r.stdout).toContain('t099  a task nobody has started   [abandoned]');
   });
 
   it('reports every task when no id is given', async () => {
@@ -158,10 +168,19 @@ describe('through bin/yan', () => {
   it('is machine readable, with the same derivation', async () => {
     const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
-    const picture = JSON.parse(r.stdout) as { tasks: { id: string; shifts: { sid: string; live: boolean }[] }[] };
-    expect(picture.tasks[0].id).toBe('t042');
+    const picture = JSON.parse(r.stdout) as {
+      version: number;
+      tasks: { id: string; state: string; shifts: { sid: string; live: boolean; pane: string; last_event: unknown }[] }[];
+    };
+    expect(picture.version).toBe(2);
+    expect(picture.tasks[0]).toMatchObject({ id: 't042', state: 'open' });
     expect(picture.tasks[0].shifts).toHaveLength(2);
-    expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')?.live).toBe(false);
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')).toMatchObject({ live: false, pane: '', last_event: null });
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')).toMatchObject({
+      live: true,
+      pane: 'w1:p7',
+      last_event: { at: '2026-08-09T09:00:00Z', state: 'started', note: 'read the brief' },
+    });
   });
 
   it('tells a shift whose picture this is, and prints nothing else', async () => {
@@ -475,7 +494,7 @@ describe('undelivered reports', () => {
   const kept = (): string => join(run, 'undelivered');
 
   function seed(): void {
-    writeFileSync(kept(), '1757577600 blocked the auth fixture needs a credential\n1757577700 needs-decision which target branch?\n');
+    writeFileSync(kept(), '2025-09-11T08:00:00Z\tblocked\tthe auth fixture needs a credential\n2025-09-11T08:01:40Z\tneeds-decision\twhich target branch?\n');
   }
 
   it('prints every line, naming the shift, then removes the file', async () => {
@@ -497,8 +516,8 @@ describe('undelivered reports', () => {
     const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     const picture = JSON.parse(r.stdout) as { tasks: { shifts: { sid: string; undelivered: unknown[] }[] }[] };
     expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')?.undelivered).toEqual([
-      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
-      { at: 1757577700, state: 'needs-decision', note: 'which target branch?' },
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: '2025-09-11T08:01:40Z', state: 'needs-decision', note: 'which target branch?' },
     ]);
     expect(existsSync(kept())).toBe(false);
   });
@@ -514,7 +533,7 @@ describe('undelivered reports', () => {
   it("leaves another task's lines alone, and clears only its own", async () => {
     // t099 has a live shift of its own with a report nobody has read.
     const other = liveShift(home, 't099', 's9', { unit: 'api', pane: 'w2:p1' });
-    writeFileSync(join(other, 'undelivered'), '1757577800 blocked t099 is waiting on a credential\n');
+    writeFileSync(join(other, 'undelivered'), '2025-09-11T08:03:20Z\tblocked\tt099 is waiting on a credential\n');
     seed();
 
     const r = await runYan(home, ['session-start', '--all'], { YAN_TASK: 't042' });

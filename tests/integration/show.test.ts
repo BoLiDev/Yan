@@ -107,6 +107,13 @@ describe('one task at a glance', () => {
     expect(r.stdout, 'a finished task is not one to continue').not.toContain('yan continue');
   });
 
+  it('gives a task one of three states in --json, as yan ls does', async () => {
+    expect((JSON.parse((await show(['show', 't007', '--json'])).stdout) as ShowJson).state).toBe('done');
+    Task.create('t008', 'given up on');
+    new Task('t008').setAbandoned();
+    expect((JSON.parse((await show(['show', 't008', '--json'])).stdout) as ShowJson).state).toBe('abandoned');
+  });
+
   it('names the pane a running yan is in, and then does not suggest starting another', async () => {
     const lock = join(home, 'tasks', 't042', '.enter.lock');
     writeFileSync(lock, `${JSON.stringify({ pid: process.pid, host: hostname(), at: Math.floor(Date.now() / 1000), identity: enterIdentity('t042', 'w7:p1') })}\n`);
@@ -126,6 +133,7 @@ describe('one task at a glance', () => {
     const r = await show(['show', 't042', '--json']);
     expect(r.code, r.out).toBe(0);
     const j = JSON.parse(r.stdout) as ShowJson;
+    expect(j).toMatchObject({ version: 2, state: 'open' });
     expect(j.session).toEqual({ running: false, pane: null });
     expect(j.units[0]).toMatchObject({ name: 'auth', branch: 'feat/auth', target: 'main', ahead: 2, tree: { path: tree, dirty: 1 } });
     expect(j.shifts[0]).toMatchObject({ sid: 's3', scenario: 'coding', tier: 'normal', pane: 'w1:p4', last_event: { state: 'blocked', note: 'which header wins' } });
@@ -250,7 +258,7 @@ describe('reports that never reached yan', () => {
 
   function seed(): void {
     liveShift(home, 't062', 's4', { unit: 'auth', pane: 'w6:p1', scenario: 'coding' }, '2026-09-11T08:00:00Z\tblocked\tneeds a credential\n');
-    writeFileSync(join(run(), 'undelivered'), '1757577600 blocked the auth fixture needs a credential\n1757577700 conflict src/cli/state.ts conflicts\n');
+    writeFileSync(join(run(), 'undelivered'), '2025-09-11T08:00:00Z\tblocked\tthe auth fixture needs a credential\n2025-09-11T08:01:40Z\tconflict\tsrc/cli/state.ts conflicts\n');
   }
 
   function kept(): boolean {
@@ -304,8 +312,8 @@ describe('reports that never reached yan', () => {
 
     const asYan = JSON.parse((await show(['show', 't062', '--json'], { YAN_TASK: 't062' })).stdout) as ShowJson;
     expect(asYan.shifts[0]?.undelivered).toEqual([
-      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
-      { at: 1757577700, state: 'conflict', note: 'src/cli/state.ts conflicts' },
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: '2025-09-11T08:01:40Z', state: 'conflict', note: 'src/cli/state.ts conflicts' },
     ]);
     expect(kept()).toBe(false);
   });
