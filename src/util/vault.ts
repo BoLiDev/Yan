@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { YanError } from './error.js';
-import { readJsonIfPresent } from './json.js';
+import { readJsonOrNone } from './json.js';
+import { asRecord, asString } from './narrow.js';
 import { machineConfigPath, machineRevision, readMachine } from './machine.js';
 import { isDirectory, normalizePath } from './paths.js';
 
@@ -35,12 +36,11 @@ interface VaultIdentity {
 }
 
 export function readVaultJson(dir: string): VaultIdentity {
-  const raw = readJsonIfPresent(join(dir, VAULT_MARKER));
-  const record = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const record = asRecord(readJsonOrNone(join(dir, VAULT_MARKER)));
   return {
     version: typeof record.version === 'number' ? record.version : 1,
-    name: typeof record.name === 'string' ? record.name : '',
-    created: typeof record.created === 'string' ? record.created : '',
+    name: asString(record.name),
+    created: asString(record.created),
   };
 }
 

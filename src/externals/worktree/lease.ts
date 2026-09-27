@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { writeJson } from '../../util/json.js';
+import { readJsonOrNone, writeJson } from '../../util/json.js';
 import { leaseFile, leasesDir, pathKey, absolute } from './layout.js';
 import type { Lease } from './types.js';
 
@@ -11,13 +11,7 @@ import type { Lease } from './types.js';
  */
 
 export function readLease(file: string): Lease | undefined {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
-    if (typeof parsed !== 'object' || parsed === null) return undefined;
-    return parsed as Lease;
-  } catch {
-    return undefined;
-  }
+  return readJsonOrNone(file) as Lease | undefined;
 }
 
 export function allLeases(dir: string): Lease[] {

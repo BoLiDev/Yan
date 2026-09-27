@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { readJsonOrNone } from '../../util/json.js';
 import { asRecord } from '../../util/narrow.js';
 import { samePath } from '../../util/paths.js';
 import type { AgentFacts, HarnessEnv, Spoke } from './types.js';
@@ -72,19 +73,15 @@ function claudeRegistry(home: string): ClaudeRegistryEntry[] {
   const found: ClaudeRegistryEntry[] = [];
   for (const name of entries(dir)) {
     if (!name.endsWith('.json')) continue;
-    try {
-      const raw = asRecord(JSON.parse(readFileSync(join(dir, name), 'utf8')));
-      const { pid, sessionId, cwd, startedAt } = raw;
-      if (typeof pid !== 'number' || typeof sessionId !== 'string' || sessionId === '') continue;
-      found.push({
-        pid,
-        sessionId,
-        cwd: typeof cwd === 'string' ? cwd : '',
-        startedAt: typeof startedAt === 'number' ? startedAt : 0,
-      });
-    } catch {
-      // Half-written or not Claude's: not this agent.
-    }
+    // Half-written or not Claude's: not this agent.
+    const { pid, sessionId, cwd, startedAt } = asRecord(readJsonOrNone(join(dir, name)));
+    if (typeof pid !== 'number' || typeof sessionId !== 'string' || sessionId === '') continue;
+    found.push({
+      pid,
+      sessionId,
+      cwd: typeof cwd === 'string' ? cwd : '',
+      startedAt: typeof startedAt === 'number' ? startedAt : 0,
+    });
   }
   return found;
 }

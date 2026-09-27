@@ -1,7 +1,8 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, rmSync, statSync, writeSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname } from 'node:path';
 import { YanError } from './error.js';
+import { readJsonOrNone } from './json.js';
 
 /**
  * The one locking primitive in yan: a file created exclusively, holding the
@@ -32,13 +33,7 @@ function sleepMs(ms: number): void {
 }
 
 function readRecord(file: string): LockOwner | undefined {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
-    if (typeof parsed !== 'object' || parsed === null) return undefined;
-    return parsed as LockOwner;
-  } catch {
-    return undefined;
-  }
+  return readJsonOrNone(file) as LockOwner | undefined;
 }
 
 /**
