@@ -250,7 +250,7 @@ describe('reports that never reached yan', () => {
 
   function seed(): void {
     liveShift(home, 't062', 's4', { unit: 'auth', pane: 'w6:p1', scenario: 'coding' }, '2026-09-11T08:00:00Z\tblocked\tneeds a credential\n');
-    writeFileSync(join(run(), 'undelivered'), '1757577600 blocked the auth fixture needs a credential\n1757577700 conflict src/cli/state.ts conflicts\n');
+    writeFileSync(join(run(), 'undelivered'), '2025-09-11T08:00:00Z\tblocked\tthe auth fixture needs a credential\n2025-09-11T08:01:40Z\tconflict\tsrc/cli/state.ts conflicts\n');
   }
 
   function kept(): boolean {
@@ -304,8 +304,8 @@ describe('reports that never reached yan', () => {
 
     const asYan = JSON.parse((await show(['show', 't062', '--json'], { YAN_TASK: 't062' })).stdout) as ShowJson;
     expect(asYan.shifts[0]?.undelivered).toEqual([
-      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
-      { at: 1757577700, state: 'conflict', note: 'src/cli/state.ts conflicts' },
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: '2025-09-11T08:01:40Z', state: 'conflict', note: 'src/cli/state.ts conflicts' },
     ]);
     expect(kept()).toBe(false);
   });

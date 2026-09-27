@@ -475,7 +475,7 @@ describe('undelivered reports', () => {
   const kept = (): string => join(run, 'undelivered');
 
   function seed(): void {
-    writeFileSync(kept(), '1757577600 blocked the auth fixture needs a credential\n1757577700 needs-decision which target branch?\n');
+    writeFileSync(kept(), '2025-09-11T08:00:00Z\tblocked\tthe auth fixture needs a credential\n2025-09-11T08:01:40Z\tneeds-decision\twhich target branch?\n');
   }
 
   it('prints every line, naming the shift, then removes the file', async () => {
@@ -497,8 +497,8 @@ describe('undelivered reports', () => {
     const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     const picture = JSON.parse(r.stdout) as { tasks: { shifts: { sid: string; undelivered: unknown[] }[] }[] };
     expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')?.undelivered).toEqual([
-      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
-      { at: 1757577700, state: 'needs-decision', note: 'which target branch?' },
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: '2025-09-11T08:01:40Z', state: 'needs-decision', note: 'which target branch?' },
     ]);
     expect(existsSync(kept())).toBe(false);
   });
@@ -514,7 +514,7 @@ describe('undelivered reports', () => {
   it("leaves another task's lines alone, and clears only its own", async () => {
     // t099 has a live shift of its own with a report nobody has read.
     const other = liveShift(home, 't099', 's9', { unit: 'api', pane: 'w2:p1' });
-    writeFileSync(join(other, 'undelivered'), '1757577800 blocked t099 is waiting on a credential\n');
+    writeFileSync(join(other, 'undelivered'), '2025-09-11T08:03:20Z\tblocked\tt099 is waiting on a credential\n');
     seed();
 
     const r = await runYan(home, ['session-start', '--all'], { YAN_TASK: 't042' });

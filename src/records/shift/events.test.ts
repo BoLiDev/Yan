@@ -2,24 +2,57 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { clearUndelivered, readUndelivered, recordUndelivered, undeliveredFile } from './events.js';
+import {
+  appendEvent,
+  clearUndelivered,
+  lastEvent,
+  parseEventLine,
+  readUndelivered,
+  recordUndelivered,
+  undeliveredFile,
+} from './events.js';
 
 /**
- * `run/undelivered`, on its own: the line format a report is written in, and
- * how a reader copes with a line it did not write.
+ * The line both `run/status` and `run/undelivered` are written in, and
+ * `run/undelivered` on its own: how a reader copes with a line it did not
+ * write, and with one in the format the queue had before.
  */
 
 afterAll(cleanupTempDirs);
 
-const NOW = Date.UTC(2026, 8, 11, 8, 0, 0);
+const NOW = new Date(Date.UTC(2026, 8, 11, 8, 0, 0));
+
+describe('one line', () => {
+  it('is the moment, the state and the rest of the line as the note, tabs included', () => {
+    expect(parseEventLine('2026-09-11T08:00:00Z\tblocked\tpaths\tthat carry a tab')).toEqual({
+      at: '2026-09-11T08:00:00Z',
+      state: 'blocked',
+      note: 'paths\tthat carry a tab',
+    });
+  });
+
+  it('reads the fields a line lacks as empty', () => {
+    expect(parseEventLine('2026-09-11T08:00:00Z\tdone')).toEqual({ at: '2026-09-11T08:00:00Z', state: 'done', note: '' });
+  });
+
+  it('is the same in both files', () => {
+    const run = join(mkTempDir(), 'run');
+    appendEvent(run, 'blocked', 'which header wins');
+    recordUndelivered(run, 'blocked', 'which header wins');
+    const line = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\tblocked\twhich header wins\n$/;
+    expect(readFileSync(join(run, 'status'), 'utf8')).toMatch(line);
+    expect(readFileSync(undeliveredFile(run), 'utf8')).toMatch(line);
+    expect(readUndelivered(run)).toEqual([lastEvent(run)]);
+  });
+});
 
 describe('recording', () => {
-  it('appends one line per report, in epoch seconds, creating run/ if it has to', () => {
+  it('appends one line per report, creating run/ if it has to', () => {
     const run = join(mkTempDir(), 'run');
     recordUndelivered(run, 'blocked', 'which header wins', NOW);
-    recordUndelivered(run, 'done', 'mr https://example.invalid/88', NOW + 61_500);
+    recordUndelivered(run, 'done', 'mr https://example.invalid/88', new Date(NOW.getTime() + 61_500));
     expect(readFileSync(undeliveredFile(run), 'utf8')).toBe(
-      `${NOW / 1000} blocked which header wins\n${NOW / 1000 + 61} done mr https://example.invalid/88\n`,
+      '2026-09-11T08:00:00Z\tblocked\twhich header wins\n2026-09-11T08:01:01Z\tdone\tmr https://example.invalid/88\n',
     );
   });
 
@@ -35,16 +68,26 @@ describe('reading', () => {
     const run = join(mkTempDir(), 'run');
     recordUndelivered(run, 'needs-decision', 'keep  two spaces, and a trailing one ', NOW);
     expect(readUndelivered(run)).toEqual([
-      { at: NOW / 1000, state: 'needs-decision', note: 'keep  two spaces, and a trailing one ' },
+      { at: '2026-09-11T08:00:00Z', state: 'needs-decision', note: 'keep  two spaces, and a trailing one ' },
     ]);
   });
 
-  it('reads a stamp that is not a number as 0, and keeps the rest of the line', () => {
+  it('keeps a moment that is not one as written, and skips blank lines', () => {
     const run = mkTempDir();
-    writeFileSync(undeliveredFile(run), 'yesterday blocked the auth fixture\n\n1757577600 conflict src/cli/state.ts\r\n');
+    writeFileSync(undeliveredFile(run), 'yesterday\tblocked\tthe auth fixture\n\n2026-09-11T08:00:00Z\tconflict\tsrc/cli/state.ts\r\n');
     expect(readUndelivered(run)).toEqual([
-      { at: 0, state: 'blocked', note: 'the auth fixture' },
-      { at: 1757577600, state: 'conflict', note: 'src/cli/state.ts' },
+      { at: 'yesterday', state: 'blocked', note: 'the auth fixture' },
+      { at: '2026-09-11T08:00:00Z', state: 'conflict', note: 'src/cli/state.ts' },
+    ]);
+  });
+
+  it('reads a line in the old epoch format as if it were written in the new one', () => {
+    const run = mkTempDir();
+    writeFileSync(undeliveredFile(run), '1757577600 blocked the auth  fixture\n1757577660 done\n2026-09-11T08:02:00Z\tconflict\tnew\n');
+    expect(readUndelivered(run)).toEqual([
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth  fixture' },
+      { at: '2025-09-11T08:01:00Z', state: 'done', note: '' },
+      { at: '2026-09-11T08:02:00Z', state: 'conflict', note: 'new' },
     ]);
   });
 

@@ -12,10 +12,10 @@ import { dash } from './shared/table.js';
 import { overviewTask, type OverviewTask } from './overview/overview.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
-import { isoMoment, secondMoment } from './overview/when.js';
+import { isoMoment } from './overview/when.js';
 import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift, clearUndelivered, lastEvent, readUndelivered, type Undelivered } from '../records/shift/index.js';
+import { Shift, clearUndelivered, lastEvent, readUndelivered, type ShiftEvent } from '../records/shift/index.js';
 import { Task, type Deliverable, readDeliverables } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
@@ -35,7 +35,7 @@ import { poolLeases } from './shared/leases.js';
 const SHOW_LOG_TAIL = 5;
 
 export interface ShowJson {
-  readonly version: 1;
+  readonly version: 2;
   readonly id: string;
   readonly title: string;
   readonly complete: boolean;
@@ -75,7 +75,7 @@ export interface ShowJson {
     /** Reported done on an open task: its work is merged or delivered, and waits to be tried and accepted. */
     readonly awaiting_acceptance: boolean;
     /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
-    readonly undelivered: readonly Undelivered[];
+    readonly undelivered: readonly ShiftEvent[];
   }[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
@@ -150,7 +150,7 @@ function showJson(id: string): ShowJson {
   const said = readDeliverables(id);
 
   return {
-    version: 1,
+    version: 2,
     id: data.id,
     title: data.title,
     complete: data.complete,
@@ -308,7 +308,8 @@ function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears
     section('Undelivered reports', aside);
     for (const s of missed) {
       for (const u of s.undelivered) {
-        out(`   ${bold(s.sid)}  ${paintEvent(u.state)}  ${dim(ago(secondMoment(u.at * 1000, 'status'), now))}  ${u.note}`);
+        const at = isoMoment(u.at, 'status');
+        out(`   ${bold(s.sid)}  ${paintEvent(u.state)}  ${dim(at === undefined ? '' : ago(at, now))}  ${u.note}`);
       }
     }
   }
@@ -350,7 +351,7 @@ function printTask(id: string, json: boolean): void {
 export const command = new Command('show')
   .description('one task at a glance: its session, branches, trees, shifts and last log entries')
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
-  .option('--json', 'machine readable output')
+  .option('--json', 'machine readable output: version 2')
   .addHelpText(
     'after',
     `
@@ -361,7 +362,10 @@ and "ahead" counts commits by the refs the clone last fetched.
 Undelivered reports are printed to anyone, and cleared only for the task's own
 main agent - the one whose $YAN_TASK is this task and which is not a shift.
 Read from any other pane they are left where they are, so nobody else's glance
-swallows a report yan has not seen.`,
+swallows a report yan has not seen.
+
+--json is version 2. Since version 1: an undelivered report's "at" is an
+ISO 8601 string, as a last_event's is, rather than epoch seconds.`,
   )
   .action(
     action('show', async (id: string | undefined, options: { json?: boolean }) => {

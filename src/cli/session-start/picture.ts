@@ -5,13 +5,12 @@ import { dash } from '../shared/table.js';
 import { Terminal, type Alive } from '../../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../../externals/remote-git/index.js';
 import type { LeaseRow } from '../../externals/worktree/index.js';
-import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../../records/shift/index.js';
+import { Shift, clearUndelivered, readUndelivered, type ShiftEvent } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
 import { vaultDir } from '../../util/vault.js';
 import { registry } from '../shared/repo.js';
 import type { PullResult } from '../shared/vault-pull.js';
 import { samePath } from '../../util/paths.js';
-import { isoSecond } from '../../util/time.js';
 import { poolLeases } from '../shared/leases.js';
 
 /**
@@ -43,7 +42,7 @@ interface ShiftRow {
   readonly mr_state: MrReport;
   readonly events: number;
   /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
-  readonly undelivered: readonly Undelivered[];
+  readonly undelivered: readonly ShiftEvent[];
 }
 
 interface TaskRow {
@@ -72,7 +71,7 @@ interface RepoRow {
 }
 
 export interface Picture {
-  readonly version: 1;
+  readonly version: 2;
   readonly home: string;
   readonly repos: RepoRow[];
   readonly tasks: TaskRow[];
@@ -192,7 +191,7 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
     });
   }
 
-  return { version: 1, home: vaultDir(), repos: knownRepos(), tasks };
+  return { version: 2, home: vaultDir(), repos: knownRepos(), tasks };
 }
 
 /**
@@ -263,8 +262,7 @@ function renderUndelivered(picture: Picture): void {
   out('');
   for (const { task, shift } of missed) {
     for (const u of shift.undelivered) {
-      const when = u.at > 0 ? isoSecond(new Date(u.at * 1000)) : '(no time)';
-      out(`  ${task}  ${shift.sid}  ${u.state}  ${when}  ${u.note}`);
+      out(`  ${task}  ${shift.sid}  ${u.state}  ${u.at === '' ? '(no time)' : u.at}  ${u.note}`);
     }
   }
 }

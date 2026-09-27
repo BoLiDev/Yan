@@ -12,6 +12,5 @@ export {
   undeliveredFile,
   lastEvent,
   type ShiftEvent,
-  type Undelivered,
 } from './events.js';
 export type { ShiftMeta, ShiftMetaPlaceholder } from './types.js';
