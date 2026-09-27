@@ -1,5 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { isMainAgentOf } from './shared/caller.js';
@@ -15,7 +14,7 @@ import { ago } from './overview/time.js';
 import { isoMoment, secondMoment } from './overview/when.js';
 import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
+import { Shift, clearUndelivered, lastEvent, readUndelivered, type Undelivered } from '../records/shift/index.js';
 import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
@@ -115,19 +114,6 @@ function standingTree(leases: readonly LeaseRow[], holder: string): ShowJson['un
   return { path: lease.path, dirty: gitLines(lease.path, ['status', '--porcelain']).length };
 }
 
-function lastEvent(shift: Shift): ShowJson['shifts'][number]['last_event'] {
-  let text = '';
-  try {
-    text = readFileSync(join(shift.run, 'status'), 'utf8');
-  } catch {
-    return null;
-  }
-  const line = text.split(/\r?\n/).filter((l) => l !== '').pop();
-  if (line === undefined) return null;
-  const [at = '', state = '', ...note] = line.split('\t');
-  return { state, at, note: note.join('\t') };
-}
-
 function showJson(id: string): ShowJson {
   const task = new Task(id);
   const data = task.read();
@@ -151,6 +137,7 @@ function showJson(id: string): ShowJson {
 
   const shifts = Shift.liveIn(id).map((shift) => {
     const meta = shift.meta();
+    const last = lastEvent(shift.run) ?? null;
     return {
       sid: shift.sid,
       unit: meta.unit ?? '',
@@ -159,9 +146,9 @@ function showJson(id: string): ShowJson {
       scenario: meta.scenario,
       tier: meta.tier ?? '',
       pane: meta.pane ?? '',
-      last_event: lastEvent(shift),
+      last_event: last,
       leftover: data.complete,
-      awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',
+      awaiting_acceptance: !data.complete && last?.state === 'done',
       undelivered: readUndelivered(shift.run),
     };
   });

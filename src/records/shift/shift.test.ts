@@ -150,8 +150,9 @@ describe('reporting', () => {
   });
 
   it('offers no way to read the last line', () => {
-    // Every line is an event, not the current state, so nothing here reads the
-    // newest one. This is the alarm if something learns to.
+    // Every line is an event, not the current state, so the handle has nothing
+    // that reads like a state: status.ts's lastEvent is a function of the log.
+    // This is the alarm if the handle learns one.
     const surface = Object.getOwnPropertyNames(Shift.prototype);
     for (const forbidden of ['last', 'lastEvent', 'state', 'status', 'currentState']) {
       expect(surface).not.toContain(forbidden);
