@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fit } from '../../src/cli/shared/style.js';
+import { fit } from './style.js';
 
 describe('fit', () => {
   it('leaves text that fits alone', () => {

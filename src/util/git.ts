@@ -8,7 +8,7 @@ import { isDirectory } from './paths.js';
  * nothing here will force-push: `push` refuses the flag.
  *
  * (The flag's literal spelling is assembled from two pieces below so a grep of
- * src/ for it stays silent; tests/unit/util-git.test.ts checks that.)
+ * src/ for it stays silent; src/util/git.test.ts checks that.)
  */
 
 function requireDir(dir: string | undefined): string {

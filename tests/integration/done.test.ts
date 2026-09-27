@@ -8,11 +8,14 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { finishTask, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
+import { openTasks } from '../../src/cli/shared/task-id.js';
 
 /**
  * `yan done` — the command that finishes a task.
@@ -35,7 +38,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let tree = '';
-let previousHome: string | undefined;
 let previousTask: string | undefined;
 let calls: string[] = [];
 
@@ -73,31 +75,20 @@ function deps(): DoneDeps {
   return { terminal: new FakeTerminal(), pool: () => new FakePool() };
 }
 
-function run(options: DoneOptions = {}): { code: number; message: string } {
-  try {
-    finishTask({ task: 't042', ...options }, deps());
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function run(options: DoneOptions = {}): Attempt<unknown> {
+  return attempt(() => finishTask({ task: 't042', ...options }, deps()));
 }
 
 const complete = (): boolean => new Task('t042').isComplete();
 
 /** A dispatched shift holding a tree, as `yan shift new` leaves one. */
 function dispatched(sid: string): string {
-  const run_ = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-  mkdirSync(run_, { recursive: true });
-  writeFileSync(
-    join(run_, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
-      branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
-      holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
-      container: 'w1', pane: 'w1:p7',
-    })}\n`,
-  );
+  const run_ = liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
+    branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
+    holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
+    container: 'w1', pane: 'w1:p7',
+  });
   writeFileSync(join(run_, 'status'), '2026-08-09T09:00:00Z\tstarted\tread the brief\n');
   held(sid);
   return run_;
@@ -111,11 +102,9 @@ function held(sid: string): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   previousTask = process.env.YAN_TASK;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   delete process.env.YAN_TASK;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
@@ -123,8 +112,7 @@ beforeEach(() => {
   tree = join(tmp, 'tree1');
   mkdirSync(tree, { recursive: true });
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
 
   calls = [];
   leases = [];
@@ -132,8 +120,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousTask === undefined) delete process.env.YAN_TASK;
   else process.env.YAN_TASK = previousTask;
 });
@@ -270,8 +256,7 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   it('refuses without a terminal rather than hanging on a prompt it cannot show', async () => {
     // An agent, a hook or a script that reached the multi-select would hang.
     const none = await yan(['done'], { YAN_TASK: undefined });
-    expect(none.code).toBe(2);
-    expect(none.out).toContain('which task?');
+    expectUsage(none, 'which task?');
   });
 
   it('refuses an unknown task, and takes the argument over the environment', async () => {
@@ -287,7 +272,6 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   it('offers exactly the tasks that are still open, and drops them as they finish', async () => {
     // The rows of the multi-select, which come from `yan ls`'s own scan.
     // Clack itself is not driven here; the choices are.
-    const { openTasks } = await import('../../src/cli/shared/task-id.js');
     Task.create('t043', 'the second one');
 
     expect(openTasks().map((t) => t.id)).toEqual(['t042', 't043']);

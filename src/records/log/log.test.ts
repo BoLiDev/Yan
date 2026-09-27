@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Log, LOG_TYPES, type LogType } from './index.js';
@@ -10,18 +10,8 @@ import { YanError } from '../../util/error.js';
  * behaviour.
  */
 
-let home = '';
-let previousHome: string | undefined;
-
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
-  home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
-});
-
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
+  mkYanHome(mkTempDir());
 });
 
 afterAll(cleanupTempDirs);

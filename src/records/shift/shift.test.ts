@@ -12,7 +12,6 @@ import { YanError } from '../../util/error.js';
  */
 
 let home = '';
-let previousHome: string | undefined;
 let previousTask: string | undefined;
 
 function seed(task: string, sid: string, meta?: Record<string, unknown>): string {
@@ -24,16 +23,12 @@ function seed(task: string, sid: string, meta?: Record<string, unknown>): string
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   previousTask = process.env.YAN_TASK;
   delete process.env.YAN_TASK;
   home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousTask === undefined) delete process.env.YAN_TASK;
   else process.env.YAN_TASK = previousTask;
 });

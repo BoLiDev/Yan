@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan ls`.
@@ -37,30 +40,16 @@ async function json<T>(args: readonly string[]): Promise<T> {
   return JSON.parse(r.stdout) as T;
 }
 
-function snapshot(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir).sort()) {
-    const full = join(dir, entry);
-    out.push(full);
-    if (statSync(full).isDirectory()) out.push(...snapshot(full));
-  }
-  return out;
-}
-
 beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
 
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
 
   // An empty home answers before anything exists.
   expect((await runYan(home, ['ls'])).stdout).toContain('no tasks yet — start one with yan task new');
   expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(0);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   new Task('t042').addUnit('gateway', 'monorepo-x', 'master', {
     branch: 'feat/gw', scope: ['apps/gateway'], needs: ['auth'],
   });
@@ -70,17 +59,11 @@ beforeAll(async () => {
     branch: 'chore/retire', scope: ['src/client'],
   });
   new Task('t007').setComplete(true);
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 
   // A live shift, which is run/meta.json existing and nothing else.
   treePath = join(tmp, 'trees', '1', 'monorepo-x').replace(/\\/g, '/');
   mkdirSync(treePath, { recursive: true });
-  mkdirSync(join(home, 'tasks', 't042', 'shifts', 's3', 'run'), { recursive: true });
-  writeFileSync(
-    join(home, 'tasks', 't042', 'shifts', 's3', 'run', 'meta.json'),
-    `${JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t042-auth-s3', tree: treePath, agent: 'claude' }, null, 2)}\n`,
-  );
+  liveShift(home, 't042', 's3', { unit: 'auth', branch: 'yan/t042-auth-s3', tree: treePath, agent: 'claude' });
 
   // A clocked-out shift keeps brief.md and outcome.md but no run/, so it must
   // not show up as live.
@@ -140,16 +123,11 @@ describe('the queue', () => {
   });
 
   it('refuses a status it does not know', async () => {
-    expect((await runYan(home, ['ls', '--status', 'closed'])).code).toBe(2);
+    expectUsage(await runYan(home, ['ls', '--status', 'closed']), "argument 'closed' is invalid");
   });
 
   it('is DERIVED: a task directory added by hand appears, with nothing told about it', async () => {
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
-    const { Task } = await import('../../src/records/task/index.js');
     Task.create('t900', 'a third task');
-    if (previous === undefined) delete process.env.YAN_HOME;
-    else process.env.YAN_HOME = previous;
 
     expect((await json<Queue>(['ls', '--json', '--status', 'all'])).tasks).toHaveLength(3);
     rmSync(join(home, 'tasks', 't900'), { recursive: true, force: true });
@@ -159,12 +137,7 @@ describe('the queue', () => {
 
 describe('a task missing its files', () => {
   it('still prints, in ls and in show, with a brief.md and a log.md gone', async () => {
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
-    const { Task } = await import('../../src/records/task/index.js');
     Task.create('t901', 'bare');
-    if (previous === undefined) delete process.env.YAN_HOME;
-    else process.env.YAN_HOME = previous;
     for (const file of ['brief.md', 'log.md']) rmSync(join(home, 'tasks', 't901', file), { force: true });
     try {
       for (const args of [['ls'], ['ls', '--status', 'all'], ['show', 't901']]) {
@@ -181,8 +154,7 @@ describe('a task missing its files', () => {
 describe('one task is yan show, and only yan show', () => {
   // Two commands printing the same page is two commands to keep in step.
   it('refuses an id rather than printing the task', async () => {
-    const r = await runYan(home, ['ls', 't042']);
-    expect(r.code).toBe(2);
+    expectUsage(await runYan(home, ['ls', 't042']), "too many arguments for 'ls'");
   });
 });
 
@@ -204,7 +176,7 @@ describe('nothing is stored', () => {
 
 describe('errors', () => {
   it('refuses an argument and an unknown option alike', async () => {
-    expect((await runYan(home, ['ls', 'nosuchtask'])).code).toBe(2);
-    expect((await runYan(home, ['ls', '--nope'])).code).toBe(2);
+    expectUsage(await runYan(home, ['ls', 'nosuchtask']), "too many arguments for 'ls'");
+    expectUsage(await runYan(home, ['ls', '--nope']), "unknown option '--nope'");
   });
 });

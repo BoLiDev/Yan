@@ -103,6 +103,10 @@ The root `AGENTS.md` is the main agent's prompt, read by all three harnesses.
 Tests: `npm test`. That is the whole suite — unit, integration, and the e2e tests that
 skip loudly when Herdr or a real forge is absent.
 
+`npm run check:ui` clicks through the page `yan ui` writes in headless Chrome and checks it
+against the fixture vault in `tests/fixtures/ui-vault/`. It is not part of `npm test`, because
+it needs Google Chrome and a build.
+
 ## Where to start reading
 
 **[docs/v3/td/INDEX.md](docs/v3/td/INDEX.md)** is the design as it stands: the three places

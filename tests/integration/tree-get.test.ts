@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -12,6 +12,7 @@ import {
   runYan,
   type RunResult,
 } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { expectUsage } from '../helpers/usage.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -29,32 +30,24 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let poolRoot = '';
-let previousHome: string | undefined;
 
 function yan(args: readonly string[], env: Record<string, string | undefined> = {}): Promise<RunResult> {
   return runYan(home, ['tree', ...args], { YAN_POOL_ROOT: poolRoot, ...env });
 }
 
 beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = mkTempDir('yan-pool-');
-  process.env.YAN_HOME = home;
 
   const bare = await mkBareRemote(join(tmp, 'origin.git'));
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   await fxGit(['branch', 'yan/t042-auth-r1', 'main'], clone);
   registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'demo', 'main', { branch: 'yan/t042-auth-r1' });
+  seedT042({ repo: 'demo', target: 'main', branch: 'yan/t042-auth-r1', scope: [] });
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the standing tree', () => {
   it('leases the unit\'s integration branch, held as <task>/<unit>', async () => {
@@ -71,8 +64,7 @@ describe('the standing tree', () => {
 
   it('takes the task from the environment, and says so when there is none', async () => {
     const none = await yan(['get', '--unit', 'auth'], { YAN_TASK: undefined });
-    expect(none.code).toBe(2);
-    expect(none.out).toContain('$YAN_TASK is unset');
+    expectUsage(none, '$YAN_TASK is unset');
   });
 
   it('is the only shape: the flags it once stood for are gone', async () => {
@@ -85,8 +77,7 @@ describe('the standing tree', () => {
 
   it('refuses a unit the task does not have', async () => {
     const nope = await yan(['get', '--unit', 'gateway'], { YAN_TASK: 't042' });
-    expect(nope.code).toBe(2);
-    expect(nope.out).toContain('no such unit');
+    expectUsage(nope, 'no such unit');
   });
 });
 

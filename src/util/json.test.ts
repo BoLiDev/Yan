@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { editJson, initJson, parseJson, readJson, readJsonIfPresent, writeJson } from '../../src/util/json.js';
-import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
-import { YanError } from '../../src/util/error.js';
+import { editJson, initJson, parseJson, readJson, readJsonIfPresent, writeJson } from './json.js';
+import { cleanupTempDirs, mkTempDir } from '../../tests/helpers/fixtures.js';
+import { YanError } from './error.js';
 
 /**
  * JSON writes land tmp → rename, what the caller hands over is what lands, and
