@@ -5,11 +5,11 @@ import { LOG_TYPES } from '../../src/records/log/index.js';
 
 /**
  * Every main agent is told how to remember and how to dispatch, whichever
- * harness it runs under. The three files are one document in three copies, so
- * what they must all carry is pinned here rather than trusted to stay in step.
+ * harness it runs under — all three read the one root AGENTS.md. What that
+ * file must carry is pinned here rather than trusted to survive a rewrite.
  */
 
-const FILES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md'];
+const FILES = ['AGENTS.md'];
 
 /**
  * `user`'s example of a deliverable. The definition is the one thing an agent

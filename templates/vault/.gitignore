@@ -7,8 +7,8 @@
 .local/
 
 # Throwaway runtime. A shift's run/ holds Herdr pane ids, which would look
-# authoritative on a machine where those panes do not exist; a task's run/ holds
-# the wait lock and the beacon.
+# authoritative on a machine where those panes do not exist, and the reports
+# that never reached yan; a task's run/ holds the agy session marker.
 tasks/*/run/
 tasks/*/shifts/*/run/
 tasks/*/.enter.lock

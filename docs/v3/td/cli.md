@@ -51,7 +51,7 @@ clone_root   C:/workspace/project                          (WARN if missing)
 
 The "registered but not linked here" row is the one that earns its place: it is the normal state of a freshly cloned vault, and it is the state where every other command fails with a confusing message unless doctor said it first.
 
-**Everything that reads or writes data** — `task`, `unit`, `shift`, `ls`, `sync`, `mr`, `land`, `done`, `open`, `state`, `send`, `report`, `wait`, `drain` — changes one thing: the root it resolves against. No flags change, no output changes.
+**Everything that reads or writes data** — `task`, `unit`, `shift`, `ls`, `sync`, `mr`, `land`, `done`, `open`, `state`, `send`, `report` — changes one thing: the root it resolves against. No flags change, no output changes.
 
 ## 4. The path roots, in code
 

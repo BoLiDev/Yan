@@ -89,19 +89,3 @@ export interface HerdrHealth {
   /** kind → state, from `herdr integration status`. Empty when it cannot be read. */
   readonly integrations: Record<string, string>;
 }
-
-/**
- * One `pane.agent_status_changed` off the socket — the only event kind that
- * can be subscribed to, so an agent exiting has no push channel at all.
- */
-export interface AgentStatusEvent {
-  readonly pane: string;
-  readonly status: AgentStatus;
-  /** The agent kind Herdr detected: claude, codex, … Empty when it did not say. */
-  readonly kind: string;
-}
-
-/** A connection that has ended, and why, as far as this side can tell. */
-export interface ClosedEvent {
-  readonly reason: string;
-}

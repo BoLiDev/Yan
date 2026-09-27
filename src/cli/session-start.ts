@@ -9,7 +9,7 @@ import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
-import { Shift } from '../records/shift/index.js';
+import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
 import { Deliverables, Task } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
@@ -27,10 +27,12 @@ import { YanError } from '../util/error.js';
  *
  *     scan tasks/  →  ask the terminal  →  ask the pool  →  ask the host
  *
- * Writes nothing, so a restart costs nothing and there is no file to disagree
- * with the world; its own test asserts `$YAN_HOME` is byte-for-byte unchanged.
- * A source that will not answer costs one fact, reported as `unknown`, and
- * never a crash.
+ * Stores nothing, so a restart costs nothing and there is no file to disagree
+ * with the world; its own test asserts `$YAN_HOME` is byte-for-byte
+ * unchanged. The one thing it does write is a removal: a shift's
+ * `run/undelivered` is printed and then deleted, because a report that has
+ * been read is said. A source that will not answer costs one fact, reported
+ * as `unknown`, and never a crash.
  */
 
 type Reported = Alive | 'n/a';
@@ -51,6 +53,8 @@ export interface ShiftRow {
   readonly mr: string;
   readonly mr_state: MrReport;
   readonly events: number;
+  /** Reports that reached run/status and never reached yan. Printing them clears them. */
+  readonly undelivered: readonly Undelivered[];
 }
 
 interface TaskRow {
@@ -198,6 +202,7 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
         mr: meta.mr ?? '',
         mr_state: live ? askHost(sources, meta.mr ?? '', tree !== '' ? tree : clone) : 'n/a',
         events: shift.eventCount(),
+        undelivered: live ? readUndelivered(shift.run) : [],
       });
     }
 
@@ -386,11 +391,49 @@ function render(picture: Picture, pulled: PullResult, memoryOf?: string): void {
   out('Nothing was stored: this picture was rebuilt from the task directories,');
   out('the terminal, the pool and the forge, and it is rebuilt again next time.');
 
+  renderUndelivered(picture);
+
   if (memoryOf !== undefined) {
     renderMemory(memoryOf, picture.tasks.find((t) => t.id === memoryOf)?.complete === true);
   }
   renderScenarios();
   renderSkills(readSkills());
+}
+
+/**
+ * The reports a shift made while nothing could hear them: you were in a
+ * dialog, or no yan was running. Each is what the shift would have said in
+ * the conversation, so read them as if they had arrived, oldest first.
+ * Silent when there are none.
+ */
+function renderUndelivered(picture: Picture): void {
+  const missed = picture.tasks.flatMap((t) =>
+    t.shifts.filter((s) => s.undelivered.length > 0).map((s) => ({ task: t.id, shift: s })),
+  );
+  if (missed.length === 0) return;
+
+  out('');
+  out('── undelivered reports');
+  out('What a shift reported while nothing was there to hear it. Each line is the');
+  out('shift speaking to you; act on it as you would on one that arrived, and run');
+  out("'yan state <sid>' before you do, since nobody has been watching. Printing");
+  out('them is what clears them, so they are said once.');
+  out('');
+  for (const { task, shift } of missed) {
+    for (const u of shift.undelivered) {
+      const when = u.at > 0 ? `${new Date(u.at * 1000).toISOString().slice(0, 19)}Z` : '(no time)';
+      out(`  ${task}  ${shift.sid}  ${u.state}  ${when}  ${u.note}`);
+    }
+  }
+}
+
+/** Forget what has been printed. Read first, cleared second: see the record. */
+function clearSurfaced(picture: Picture): void {
+  for (const t of picture.tasks) {
+    for (const s of t.shifts) {
+      if (s.undelivered.length > 0) clearUndelivered(new Shift(t.id, s.sid).run);
+    }
+  }
 }
 
 /**
@@ -485,8 +528,10 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
       const picture = rebuild(id !== '' ? [id] : Task.list());
       if (options.json === true) {
         out(JSON.stringify(picture));
+        clearSurfaced(picture);
         return;
       }
       render(picture, pulled, id !== '' ? id : undefined);
+      clearSurfaced(picture);
     }),
   );

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hostname } from 'node:os';
-import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -258,5 +258,52 @@ describe('a shift that reported done on an open task', () => {
     expect(r.stdout).not.toContain('running ·');
     expect(r.stdout).toContain('awaiting acceptance   w5:p2 · yan/t052-auth-s2');
     expect((JSON.parse((await show(['show', 't052', '--json'])).stdout) as ShowJson).shifts[0]?.awaiting_acceptance).toBe(true);
+  });
+});
+
+describe('reports that never reached yan', () => {
+  /**
+   * `run/undelivered` is what a shift writes when it could not type its note
+   * into yan's pane. `yan show` is one of the two places it surfaces, and
+   * printing it is what clears it: a report is said once.
+   */
+  const run = (): string => join(home, 'tasks', 't062', 'shifts', 's4', 'run');
+
+  function seed(): void {
+    mkdirSync(run(), { recursive: true });
+    writeFileSync(join(run(), 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', pane: 'w6:p1', scenario: 'coding' }));
+    writeFileSync(join(run(), 'status'), '2026-09-11T08:00:00Z\tblocked\tneeds a credential\n');
+    writeFileSync(join(run(), 'undelivered'), '1757577600 blocked the auth fixture needs a credential\n1757577700 conflict src/cli/state.ts conflicts\n');
+  }
+
+  it('prints every line, then removes the file', async () => {
+    Task.create('t062', 'undelivered reports');
+    seed();
+
+    const r = await show(['show', 't062']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('Undelivered reports');
+    expect(r.stdout).toContain('the auth fixture needs a credential');
+    expect(r.stdout).toContain('src/cli/state.ts conflicts');
+    expect(r.stdout, 'the shift is named, since it is how yan answers').toContain('s4');
+    expect(existsSync(join(run(), 'undelivered')), 'printed is said').toBe(false);
+
+    const again = await show(['show', 't062']);
+    expect(again.stdout, 'and it is not said twice').not.toContain('Undelivered reports');
+  });
+
+  it('carries them into --json, and clears them there too', async () => {
+    seed();
+    const parsed = JSON.parse((await show(['show', 't062', '--json'])).stdout) as ShowJson;
+    expect(parsed.shifts[0]?.undelivered).toEqual([
+      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: 1757577700, state: 'conflict', note: 'src/cli/state.ts conflicts' },
+    ]);
+    expect(existsSync(join(run(), 'undelivered'))).toBe(false);
+  });
+
+  it('says nothing at all when there are none', async () => {
+    const r = await show(['show', 't042']);
+    expect(r.stdout).not.toContain('Undelivered');
   });
 });

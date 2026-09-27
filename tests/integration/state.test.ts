@@ -102,8 +102,8 @@ describe('the live sources decide, never the newest event', () => {
 
   it('says blocked rather than running when herdr sees a question on the screen', () => {
     // A shift sitting on an approval is alive and going nowhere, and the
-    // difference is the whole thing yan has to act on. `yan wait` already
-    // wakes on this; before, `yan state` called it `running`.
+    // difference is the whole thing yan has to act on: it cannot run
+    // `yan report` from inside a dialog, so nothing else will say so.
     attention = 'blocked';
     const facts = stateOf('s1', 't042', deps());
     expect(facts.state).toBe('blocked');
@@ -190,53 +190,3 @@ describe('through bin/yan', () => {
   });
 });
 
-describe('the pulse says whether the terminal is moving', () => {
-  function pulse(changedAgo: number, seenAgo: number): void {
-    const now = Math.floor(Date.now() / 1000);
-    writeFileSync(join(run, 'pulse'), `${now - changedAgo} ${now - seenAgo} deadbeefdeadbeef\n`);
-  }
-
-  it('says nothing at all when no watcher has taken a reading', async () => {
-    // With nobody sampling, "unchanged" is a fact about the watcher rather
-    // than about the shift.
-    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
-    expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toContain('pulse      unsampled');
-    expect(r.stdout, 'and says why, without suggesting the watcher is broken').toContain('between yan');
-  });
-
-  it('and says so again when the last reading is too old to be about the shift', async () => {
-    pulse(600, 600);
-    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
-    expect(r.stdout).toContain('pulse      unsampled');
-    expect(r.stdout, 'and how stale it is, so the reason is visible').toContain('last read');
-  });
-
-  it('reports movement, with how long ago', async () => {
-    pulse(2, 0);
-    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
-    expect(r.stdout).toContain('pulse      moving');
-  });
-
-  it('reports stillness as a duration, and never as a verdict', async () => {
-    pulse(380, 0);
-    const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
-    expect(r.stdout).toContain('pulse      still');
-    expect(r.stdout).toMatch(/6m\d\ds/);
-    // An install is still for minutes and so is a model thinking, so the line
-    // reports a duration and never calls it stuck.
-    expect(r.stdout).toContain('not the same as stuck');
-    expect(r.stdout).not.toMatch(/^pulse\s+stuck/m);
-  });
-
-  it('carries the numbers into the JSON, so nothing has to parse the prose', async () => {
-    pulse(380, 1);
-    const r = await runYan(home, ['state', 's1', '--json'], { YAN_TASK: 't042' });
-    const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
-    expect(parsed.motion).toBe('still');
-    // Ranges, not equalities: spawning the command costs real wall clock.
-    expect(parsed.still_for as number).toBeGreaterThanOrEqual(375);
-    expect(parsed.still_for as number).toBeLessThanOrEqual(385);
-    expect(parsed.sampled_ago as number).toBeLessThanOrEqual(10);
-  });
-});

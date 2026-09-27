@@ -73,10 +73,8 @@ so: its first-run hook-review prompt is one Herdr does not classify as blocked, 
 would park on it silently. `yan doctor` says this at the point it can still be answered;
 the measurements are in [docs/v2/td/evidence.md §13](docs/v2/td/evidence.md).
 
-Agy — the Antigravity CLI — works as the main agent, with Claude's supervision rather than
-Codex's: its `Stop` hook blocks the agent loop synchronously for as long as its `timeout`
-allows, so the real autoarm runs on it and `yan wait` holds the turn open the way it does
-on Claude. Set `agents.yan` to `{ "cli": "agy", "model": … }` (`agy models` lists the ids; with no
+Agy — the Antigravity CLI — works as the main agent. Set `agents.yan` to
+`{ "cli": "agy", "model": … }` (`agy models` lists the ids; with no
 model, agy chooses its own). Two things differ from the other two:
 
 - It has no notion of the directory it was started in. Its working set is the workspace
@@ -87,14 +85,19 @@ model, agy chooses its own). Two things differ from the other two:
   which `--dangerously-skip-permissions` does not cover and Herdr reads as `idle` rather
   than `blocked`. The main agent meets it in your own pane, so answer it once.
 
-The hooks in `.claude/settings.json`, `.codex/hooks.json` and `.agents/hooks.json` are the
-MAIN AGENT's: they rebuild its picture at session start, arm its watcher and guard its
-turn. A shift working on this repository sits in a worktree that carries those same
-registrations, so its own harness fires them too — and an autoarm running for a shift takes
-the task's single-flight lock, which is the wake the main agent never gets. `YAN_SID` is
-what tells the two apart: the spawn step sets it in every shift's environment and the main
-agent never has it. Every hook checks it first and gets out of the way, and `yan
-session-start` prints one line saying whose picture this is instead of the picture.
+A shift tells the main agent what happened by typing one line into its pane, with
+`yan report`; nothing watches a shift, and `yan state <sid>` answers on demand. A line
+that will not go — the main agent is in a dialog, or none is running — is kept and
+listed by `yan show` and at the next session start.
+
+The one hook in `.claude/settings.json`, `.codex/hooks.json` and `.agents/hooks.json` is
+the MAIN AGENT's: it rebuilds the picture at session start. A shift working on this
+repository sits in a worktree that carries the same registration, so its own harness
+fires it too. `YAN_SID` is what tells the two apart: the spawn step sets it in every
+shift's environment and the main agent never has it. `yan session-start` checks it and
+prints one line saying whose picture this is instead of the picture.
+
+The root `AGENTS.md` is the main agent's prompt, read by all three harnesses.
 
 Tests: `npm test`. That is the whole suite — unit, integration, and the e2e tests that
 skip loudly when Herdr or a real forge is absent.

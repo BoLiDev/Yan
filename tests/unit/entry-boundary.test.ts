@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
  * The entry point's structural rules, which no unit test of a command can
  * reach: the commands only agents run never prompt, `attach` appears nowhere
- * in the vocabulary, and the three instruction files stay one document.
+ * in the vocabulary, and the main agent's prompt is one file all three
+ * harnesses read.
  */
 
 function read(...parts: string[]): string {
@@ -55,64 +56,48 @@ describe('the model is never sent into the prompts', () => {
     );
   });
 
-  it('and still carries the authority rules and the Codex checkpoint', () => {
+  it('and still carries the authority rules', () => {
     expect(agents).toContain('yan unit set');
     expect(agents).toContain('yan land');
     expect(agents).toContain('yan vault push');
-    expect(agents).toContain('yan wait --seconds');
   });
 });
 
-describe('the three instruction files are one document', () => {
-  // The three are compared byte for byte outside the two places a harness is
-  // allowed to differ: who arms the watcher, at the top of "## Supervision",
-  // and who may write code, at the top of "## Shifts" — empty in two of the
-  // files, and one paragraph in GEMINI.md. Everything else, the rest of both
-  // sections included, has to agree.
-  const HARNESS = [
-    ['## Shifts', '**Deciding whether to dispatch.**'],
-    ['## Supervision', '**Reading a shift that has gone quiet.**'],
-  ] as const;
-
-  function withoutTheHarness(text: string): string {
-    let out = '';
-    let at = 0;
-    for (const [heading, resumesAt] of HARNESS) {
-      const start = text.indexOf(heading, at);
-      const resumes = text.indexOf(resumesAt, start);
-      if (start < 0 || resumes < start) {
-        throw new Error(`the harness paragraph under ${heading} has to be findable to be excluded`);
-      }
-      out += text.slice(at, start);
-      at = resumes;
+describe('one prompt file, read by all three harnesses', () => {
+  it('AGENTS.md is the only one: no CLAUDE.md and no GEMINI.md beside it', () => {
+    // All three harnesses read a root AGENTS.md, so three near-copies were
+    // three chances to change one and forget the others.
+    expect(existsSync(join(repoRoot, 'AGENTS.md'))).toBe(true);
+    for (const gone of ['CLAUDE.md', 'GEMINI.md']) {
+      expect(existsSync(join(repoRoot, gone)), `${gone} is folded into AGENTS.md`).toBe(false);
     }
-    return out + text.slice(at);
-  }
-
-  it('agree everywhere except the paragraphs that are about the harness', () => {
-    const claude = withoutTheHarness(read('CLAUDE.md'));
-    expect(withoutTheHarness(read('AGENTS.md'))).toBe(claude);
-    expect(withoutTheHarness(read('GEMINI.md'))).toBe(claude);
   });
 
-  it('and each says how its own supervision is driven', () => {
-    expect(read('CLAUDE.md'), 'Claude is armed by the Stop hook').toContain('The Stop hook arms');
-    expect(read('AGENTS.md'), 'Codex runs the loop itself').toContain('yan wait --seconds');
-    expect(read('GEMINI.md'), 'agy is armed like Claude, and starts without a session event')
-      .toContain('Agy has no session-start event');
+  it('says what each harness has to do differently, in the one file', () => {
+    const said = read('AGENTS.md').replace(/\s+/g, ' ');
+    expect(said, 'an interactive Codex may not fire the event').toContain(
+      'may not fire the session-start event',
+    );
+    expect(said, 'and agy has none at all').toContain('a conversation that begins without one');
   });
 
-  it("and only GEMINI.md keeps code out of the main agent's hands", () => {
-    expect(read('GEMINI.md')).toContain("**Code is a shift's, not yours.**");
-    for (const other of ['CLAUDE.md', 'AGENTS.md']) {
-      expect(read(other), other).not.toContain("Code is a shift's");
+  it("keeps code out of the main agent's hands, for every harness", () => {
+    expect(read('AGENTS.md')).toContain("**Code is a shift's, not yours.**");
+  });
+
+  it('describes how a shift speaks, and names nothing that watches one', () => {
+    const said = read('AGENTS.md');
+    expect(said).toContain('## Talking to shifts');
+    expect(said).toContain('yan state <sid>');
+    for (const gone of ['yan wait', 'yan drain', 'Stop hook', 'watcher', 'run/signal']) {
+      expect(said, `${gone} is gone from the prompt`).not.toContain(gone);
     }
   });
 });
 
 describe('agent-only commands grew no prompts', () => {
   // Atomic commands used only by agents stay flag-only.
-  for (const name of ['report', 'wait', 'drain', 'send']) {
+  for (const name of ['report', 'send', 'state']) {
     it(`yan ${name} neither resolves nor imports the prompts`, () => {
       const source = read('src', 'cli', `${name}.ts`);
       expect(source).not.toContain('../ui/');
@@ -130,10 +115,8 @@ describe('`attach` is out of the vocabulary', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('appears in none of the always-loaded instruction files', () => {
-    for (const file of ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md']) {
-      expect(read(file), file).not.toContain('attach');
-    }
+  it('appears nowhere in the always-loaded instruction file', () => {
+    expect(read('AGENTS.md')).not.toContain('attach');
   });
 });
 
@@ -179,7 +162,7 @@ describe('Clack is an ordinary dependency', () => {
 
 describe('bin/ holds three prefixes and no others', () => {
   it('a subcommand, a library, or a hook — plus the one node shim', () => {
-    // `yan.mjs` is the npm `bin` target, not a fourth entry point.
+    // `yan.mjs` is the npm `bin` target, not another entry point.
     for (const name of readdirSync(join(repoRoot, 'bin'))) {
       expect(/^(yan|yan\.mjs|yan-.*\.sh|lib-.*\.sh|hook-.*\.sh)$/.test(name), `bin/${name}`).toBe(
         true,

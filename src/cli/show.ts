@@ -11,10 +11,10 @@ import { dash } from './shared/table.js';
 import { overviewTask, type OverviewTask } from './overview/overview.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
-import { isoMoment } from './overview/when.js';
+import { isoMoment, secondMoment } from './overview/when.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift } from '../records/shift/index.js';
+import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
 import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
@@ -73,6 +73,8 @@ export interface ShowJson {
     readonly leftover: boolean;
     /** Reported done on an open task: its work is merged or delivered, and waits to be tried and accepted. */
     readonly awaiting_acceptance: boolean;
+    /** Reports that reached run/status and never reached yan. Printing them clears them. */
+    readonly undelivered: readonly Undelivered[];
   }[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
@@ -169,6 +171,7 @@ export function showJson(id: string): ShowJson {
       last_event: lastEvent(shift),
       leftover: data.complete,
       awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',
+      undelivered: readUndelivered(shift.run),
     };
   });
 
@@ -320,6 +323,16 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date())
     );
   }
 
+  const missed = show.shifts.filter((s) => s.undelivered.length > 0);
+  if (missed.length > 0) {
+    section('Undelivered reports', 'said while no yan could hear it');
+    for (const s of missed) {
+      for (const u of s.undelivered) {
+        out(`   ${bold(s.sid)}  ${paintEvent(u.state)}  ${dim(ago(secondMoment(u.at * 1000, 'status'), now))}  ${u.note}`);
+      }
+    }
+  }
+
   section('Log', show.log.total === 0 ? '' : `last ${show.log.lines.length} of ${show.log.total}`);
   if (show.log.lines.length === 0) out(`   ${dim('nothing logged yet')}`);
   // Indent, date, type and their gaps come to 21 columns before the text.
@@ -341,6 +354,11 @@ export function printTask(id: string, json: boolean): void {
   else {
     const now = new Date();
     renderShow(show, overviewTask(id, { now }), now);
+  }
+  // Printed first and cleared second, so a crash in between repeats a report
+  // rather than losing one. This is the whole of `run/undelivered`'s life.
+  for (const s of show.shifts) {
+    if (s.undelivered.length > 0) clearUndelivered(new Shift(id, s.sid).run);
   }
 }
 

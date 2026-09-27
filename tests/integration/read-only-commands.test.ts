@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 
 /**
- * The read-only commands: `open`, `drain` and `repo`. They
- * are exercised through `bin/yan`, so what is under test is the whole path a
- * person or an agent actually takes.
+ * The read-only commands: `open` and `repo`. They are exercised through
+ * `bin/yan`, so what is under test is the whole path a person or an agent
+ * actually takes.
  */
 
 afterAll(cleanupTempDirs);
@@ -63,50 +63,6 @@ describe('yan open', () => {
   it('refuses an unknown task and a missing argument', async () => {
     expect((await yan(['open', 'nope'])).code).not.toBe(0);
     expect((await yan(['open'])).code).toBe(2);
-  });
-});
-
-describe('yan drain', () => {
-  const wakeFile = (): string => join(home, 'tasks', 't042', 'run', 'wake');
-
-  it('is silent and exits 0 when there is nothing to drain', async () => {
-    const r = await yan(['drain', 't042']);
-    expect(r.code).toBe(0);
-    expect(r.stdout).toBe('');
-  });
-
-  it('reads first and clears second', async () => {
-    mkdirSync(join(home, 'tasks', 't042', 'run'), { recursive: true });
-    writeFileSync(wakeFile(), 'blocked: s1\n');
-
-    const r = await yan(['drain', 't042']);
-    expect(r.code).toBe(0);
-    expect(r.stdout).toBe('blocked: s1\n');
-    expect(existsSync(wakeFile())).toBe(false);
-  });
-
-  it('--peek leaves the reason in place', async () => {
-    mkdirSync(join(home, 'tasks', 't042', 'run'), { recursive: true });
-    writeFileSync(wakeFile(), 'done: s2\n');
-
-    expect((await yan(['drain', 't042', '--peek'])).stdout).toBe('done: s2\n');
-    expect(existsSync(wakeFile())).toBe(true);
-  });
-
-  it('takes the task from $YAN_TASK, and $YAN_WAKE_FILE overrides the path', async () => {
-    mkdirSync(join(home, 'tasks', 't042', 'run'), { recursive: true });
-    writeFileSync(wakeFile(), 'from YAN_TASK\n');
-    expect((await yan(['drain'], { YAN_TASK: 't042' })).stdout).toBe('from YAN_TASK\n');
-
-    const elsewhere = join(mkTempDir(), 'wake');
-    writeFileSync(elsewhere, 'from YAN_WAKE_FILE\n');
-    expect((await yan(['drain'], { YAN_WAKE_FILE: elsewhere })).stdout).toBe('from YAN_WAKE_FILE\n');
-  });
-
-  it('refuses when it cannot tell whose wake file to drain', async () => {
-    const r = await yan(['drain'], { YAN_TASK: '' });
-    expect(r.code).toBe(2);
-    expect(r.stderr).toContain('cannot tell whose wake file');
   });
 });
 

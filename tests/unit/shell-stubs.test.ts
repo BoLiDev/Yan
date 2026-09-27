@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { repoRoot } from '../helpers/fixtures.js';
 
 /**
- * The three shell files yan has left, run through shellcheck — an unquoted
- * `$YAN_HOME` in a path with a space is what these stubs would fail on.
+ * The one shell file yan has left, run through shellcheck — an unquoted
+ * `$YAN_HOME` in a path with a space is what this stub would fail on.
  *
  * Skips loudly when shellcheck is absent rather than passing quietly.
  */
@@ -20,15 +20,10 @@ function shellFiles(): string[] {
 const shellcheck = spawnSync('shellcheck', ['--version'], { encoding: 'utf8', windowsHide: true });
 const available = shellcheck.status === 0;
 
-describe('bin/ holds exactly four files, and each shell one is a stub', () => {
-  it('is `yan`, `yan.mjs`, `hook-autoarm.sh`, `hook-turnend-guard.sh` and nothing else', () => {
+describe('bin/ holds exactly two files, and the shell one is a stub', () => {
+  it('is `yan` and `yan.mjs`, and nothing else', () => {
     // `yan.mjs` is the npm `bin` target, which cannot be a bash shebang.
-    expect(readdirSync(BIN).sort()).toEqual([
-      'hook-autoarm.sh',
-      'hook-turnend-guard.sh',
-      'yan',
-      'yan.mjs',
-    ]);
+    expect(readdirSync(BIN).sort()).toEqual(['yan', 'yan.mjs']);
   });
 
   it('each of them dispatches and does not decide', () => {

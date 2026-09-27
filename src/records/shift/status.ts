@@ -1,4 +1,4 @@
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, utimesSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { YanError } from '../../util/error.js';
 
@@ -10,10 +10,6 @@ import { YanError } from '../../util/error.js';
 
 export function statusFile(run: string): string {
   return join(run, 'status');
-}
-
-export function signalFile(run: string): string {
-  return join(run, 'signal');
 }
 
 /** How many events have been reported. Unreadable or absent log counts as 0. */
@@ -47,13 +43,13 @@ export function reportedMr(run: string): string | undefined {
 }
 
 /**
- * Append one event, then touch `run/signal` to wake a watcher. Safe against
- * concurrent writers: the line lands in a single append. Throws if `state` is
- * empty or either argument contains a newline.
+ * Append one event. Safe against concurrent writers: the line lands in a
+ * single append. Throws if `state` is empty or either argument contains a
+ * newline.
  *
- * `started` is recorded and wakes nobody: it says the shift read its brief,
- * which is nothing yan has to act on, and four shifts dispatched together
- * would otherwise cost four wakes that each end in "nothing to do".
+ * This is the persistent half of a report and the whole of what is kept.
+ * Telling yan is `yan report`'s own job, and it types the note into yan's
+ * pane rather than leaving a marker for something to notice.
  */
 export function appendEvent(run: string, state: string, note = ''): void {
   if (!state) throw YanError.usage('shift_usage', 'an event needs a state');
@@ -64,13 +60,4 @@ export function appendEvent(run: string, state: string, note = ''): void {
 
   const ts = `${new Date().toISOString().slice(0, 19)}Z`;
   appendFileSync(statusFile(run), `${ts}\t${state}\t${note}\n`);
-  if (state === 'started') return;
-
-  const signal = signalFile(run);
-  if (existsSync(signal)) {
-    const now = new Date();
-    utimesSync(signal, now, now);
-  } else {
-    closeSync(openSync(signal, 'a'));
-  }
 }

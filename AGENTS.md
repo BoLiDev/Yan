@@ -9,6 +9,12 @@ peers, two engineers talking through a project: natural prose, not telegraph. A 
 mirrors the voice its brief is given, and imperative dispatch returns mechanical
 reports.
 
+The picture normally arrives on its own, and two harnesses are exceptions. An
+interactive Codex may not fire the session-start event, so run `yan session-start`
+yourself. Under agy the picture reaches you as a transient message before your first
+reply rather than in the pane, and a conversation that begins without one runs
+`yan session-start` by hand.
+
 ## Tools and trees
 
 **`yan <command>` is a toolkit, not a cage. Use it, and use whatever else the job
@@ -98,6 +104,11 @@ keeps growing means the task was split in the wrong place: say so.
 
 ## Shifts
 
+**Code is a shift's, not yours.** Writing code is dispatched with `yan shift new` and
+happens in a shift's tree: a feature, a fix, a test, a change to the interface, down to
+the one-line fix the next paragraph leaves to your judgement. Reading, grepping and
+running the code stay yours, and so do the merges and pushes the table above allows.
+
 **Deciding whether to dispatch.** The work that earns a shift produces commits, or an
 artifact somebody will read. Reading, grepping, checking whether the build is red,
 catching a branch up, working out which of four things `user` meant — those are yours. A
@@ -139,34 +150,25 @@ accepted keeps its tree and its agent.
 `yan shift abandon <sid>`, or `yan abandon <id>` for the whole task, with `--user-asked`
 and a `--reason`, which closes what is still open and keeps the branches.
 
-## Supervision
+## Talking to shifts
 
-Something has to be watching whenever a shift runs, or one can finish, die or get stuck
-with nobody noticing. `yan wait` is that watcher, and under Codex the loop is yours: an
-interactive Codex may not fire the SessionStart hook, so assume nothing armed it. Run
-`yan session-start` yourself, then keep taking slices as **foreground** calls of
-`yan wait --seconds ${YAN_CODEX_CHECKPOINT:-180} --drain`. Exit 0 prints every reason
-waiting and clears them in the same call: handle them, then take the next. Exit 124 is
-a quiet slice — nothing happened and there is nothing to drain — so take the next one
-**without a word**: no status line, no summary, nothing for `user` to read until
-something happens. Never background a watcher and never leave `yan wait` unbounded
-here, because returning control is what makes the next wake possible; if the turn-end
-guard blocks you, another slice is the answer.
+A shift is a colleague at the next desk. It speaks to you by typing a line into
+your conversation, in its own words, naming its sid. Nothing else watches it.
 
-**Reading a shift that has gone quiet.** Every line in `run/status` is an event, not the
-state: a shift that reported `done` and then died has `done` as its last line, and so
-has one whose work landed. The state is derived by `yan state <sid>`, which also carries
-a pulse, whether the shift's terminal is moving. `still` is a duration, not a verdict:
-an install is still for minutes and so is a model thinking. `unsampled` means nobody is
-looking, not that the shift is quiet.
+A report is a reason to look, never a verdict. `done` ends a round, not the work:
+read outcome.md, review and merge the MR, run the result before you call it
+accepted. `blocked` and `needs-decision` leave the shift idle until you answer,
+so answer first; when the answer is `user`'s, say so to the shift and wait.
 
-**Deciding whether to escalate.** Wake `user` for a `blocked` or `needs-decision`
-report, a dead or stuck shift, red CI where the fix is a choice rather than a repair,
-`uix` work waiting on their acceptance, and anything in the right-hand column. Handle
-yourself: trying a round a shift reported done, a shift branch that merges cleanly, a
-conflict between an integration branch and its target, the next unit whose `needs` are
-satisfied. The test is whether the judgement is `user`'s to make. A notification
-arriving mid-conversation is handled first.
+You answer with `yan send <sid> "<line>"`, one line as you would say it across
+the desk; more goes in a file the line names. The same shift takes the next round.
+
+Since nobody watches, you look: `yan state <sid>` before acting on a shift, when
+`user` asks about one, and when one has been quiet longer than its work should
+take. `dead` and `blocked` go to `user` at once.
+
+A report sent while you are in a dialog, or not running, is kept and listed as
+"undelivered" by `yan show` and at session start. Read it first.
 
 ## Memory
 

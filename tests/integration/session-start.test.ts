@@ -483,3 +483,54 @@ describe('the scenarios reach the session', () => {
     expect(r.stdout).toContain('normal (default)  agy gemini-3.1-pro-high /design');
   });
 });
+
+/**
+ * The reports that never reached yan. They belong to the main agent's picture
+ * and to nobody else, and printing them is what clears them — one of the two
+ * places `run/undelivered` is surfaced, the other being `yan show`.
+ */
+describe('undelivered reports', () => {
+  const kept = (): string => join(run, 'undelivered');
+
+  function seed(): void {
+    writeFileSync(kept(), '1757577600 blocked the auth fixture needs a credential\n1757577700 needs-decision which target branch?\n');
+  }
+
+  it('prints every line, naming the shift, then removes the file', async () => {
+    seed();
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 't042' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('undelivered reports');
+    expect(r.stdout).toContain('the auth fixture needs a credential');
+    expect(r.stdout).toContain('which target branch?');
+    expect(r.stdout, 'the shift is named, since it is how yan answers').toMatch(/t042 {2}s2 {2}blocked/);
+    expect(existsSync(kept()), 'printed is said').toBe(false);
+
+    const again = await runYan(home, ['session-start'], { YAN_TASK: 't042' });
+    expect(again.stdout, 'and it is not said twice').not.toContain('undelivered reports');
+  });
+
+  it('carries them into --json, and clears them there too', async () => {
+    seed();
+    const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
+    const picture = JSON.parse(r.stdout) as { tasks: { shifts: { sid: string; undelivered: unknown[] }[] }[] };
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')?.undelivered).toEqual([
+      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: 1757577700, state: 'needs-decision', note: 'which target branch?' },
+    ]);
+    expect(existsSync(kept())).toBe(false);
+  });
+
+  it('is the main agent\'s to read: a shift firing the hook neither sees nor clears them', async () => {
+    seed();
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 't042', YAN_SID: 's2' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).not.toContain('undelivered');
+    expect(existsSync(kept()), 'and a shift must not swallow them').toBe(true);
+  });
+
+  it('says nothing at all when there are none', async () => {
+    const r = await runYan(home, ['session-start'], { YAN_TASK: 't042' });
+    expect(r.stdout).not.toContain('undelivered');
+  });
+});
