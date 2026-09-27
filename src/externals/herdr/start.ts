@@ -106,6 +106,7 @@ export function startAgent(ctx: Starting, options: StartAgentOptions): StartedAg
     throw err;
   }
   const agent = asRecord(started.agent);
+  // Not a second shape: the pane yan asked for, should herdr leave it out.
   const reported = asString(agent.pane_id) || pane;
 
   if (ctx.alive(reported) !== 'alive') {
@@ -244,7 +245,7 @@ function splitPane(run: HerdrRunner, at: SplitAt, options: StartAgentOptions): s
   }
 
   const split = asRecord(herdrCall(run, args, 'pane split'));
-  const pane = asString(asRecord(split.pane).pane_id) || asString(split.pane_id);
+  const pane = asString(asRecord(split.pane).pane_id);
   if (pane === '') throw YanError.usage('term_usage', `herdr did not report the pane it split off ${at.pane}`);
   return pane;
 }
@@ -274,7 +275,7 @@ function createTab(run: HerdrRunner, options: StartAgentOptions): string {
   }
 
   const created = asRecord(herdrCall(run, args, 'tab create'));
-  const pane = asString(asRecord(created.root_pane).pane_id) || asString(created.root_pane_id);
+  const pane = asString(asRecord(created.root_pane).pane_id);
   if (pane === '') throw YanError.usage('term_usage', 'herdr did not report a root pane for the new tab');
   return pane;
 }

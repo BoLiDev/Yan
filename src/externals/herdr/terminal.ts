@@ -27,6 +27,11 @@ import type {
  * named by its caller or the pane `startAgent` just made, by a new tab or a
  * split, and could not start its agent in — and nothing here focuses, since
  * focusing a pane marks it seen and changes what `agent get` reports about it.
+ *
+ * Answers are read in the one shape protocol 22 gives, checked against
+ * `herdr api schema --json` and a live herdr 0.9.0: an id sits inside the
+ * object it names (`result.pane.pane_id`, `result.root_pane.pane_id`), never
+ * flat beside it.
  */
 interface TerminalOptions {
   /** Defaults to the real `herdr`. */
@@ -95,11 +100,10 @@ export class Terminal {
     if (cwd !== undefined && cwd !== '') args.push('--cwd', nativePath(cwd));
 
     const result = asRecord(this.call(args, 'workspace create'));
-    const workspace = asRecord(result.workspace);
     return {
-      workspace: asString(workspace.workspace_id) || asString(result.workspace_id),
-      tab: asString(asRecord(result.tab).tab_id) || asString(result.tab_id),
-      pane: asString(asRecord(result.root_pane).pane_id) || asString(result.root_pane_id),
+      workspace: asString(asRecord(result.workspace).workspace_id),
+      tab: asString(asRecord(result.tab).tab_id),
+      pane: asString(asRecord(result.root_pane).pane_id),
     };
   }
 
@@ -280,7 +284,7 @@ export class Terminal {
   public workspaceOfPane(pane: string): string | undefined {
     if (!isPaneId(pane)) return undefined;
     const body = asRecord(this.query(['pane', 'get', pane]));
-    const id = asString(asRecord(body.pane).workspace_id) || asString(body.workspace_id);
+    const id = asString(asRecord(body.pane).workspace_id);
     return id === '' ? undefined : id;
   }
 
@@ -301,9 +305,8 @@ export class Terminal {
     const scoped = container !== undefined && container !== '';
     if (scoped) requireWorkspaceId(container, 'list');
 
-    const result = this.call(['agent', 'list'], 'agent list');
-    const body = asRecord(result);
-    const raw = Array.isArray(body.agents) ? body.agents : Array.isArray(result) ? result : [];
+    const body = asRecord(this.call(['agent', 'list'], 'agent list'));
+    const raw = Array.isArray(body.agents) ? body.agents : [];
 
     const agents: ListedAgent[] = [];
     for (const entry of raw) {
