@@ -218,3 +218,43 @@ describe('an interrupted teardown can be finished', () => {
     expect(await remoteHas('yan/t042-auth-s5'), 'and only now is the remote branch gone').toBe(false);
   });
 });
+
+describe('an interrupted teardown of an explore shift', () => {
+  it('does not treat it as coding: no branch to delete, and no merge claimed', async () => {
+    // An explore shift never pushes: its tree is cut from the integration
+    // branch and its report lives in outcome.md.
+    const sid = 's6';
+    const branch = `yan/t042-auth-${sid}`;
+    const grant = new WorktreePool(clone).get(4, 'feat/auth', branch, `t042/auth/${sid}`);
+    const shiftDir = join(home, 'tasks', 't042', 'shifts', sid);
+    mkdirSync(join(shiftDir, 'run'), { recursive: true });
+    writeFileSync(
+      join(shiftDir, 'run', 'meta.json'),
+      `${JSON.stringify({
+        version: 1, task: 't042', sid, unit: 'auth', repo: 'widget', scenario: 'explore',
+        branch, base: 'feat/auth', tree: grant.path, clone,
+        holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
+        container: 'w1', pane: 'w1:p8',
+      })}\n`,
+    );
+    writeFileSync(join(shiftDir, 'outcome.md'), '# s6 auth\n\nThe header is parsed in two places.\n');
+    writeFileSync(join(grant.path, 'leftover.txt'), 'generated\n');
+
+    const dropped: string[] = [];
+    const watching: DoneDeps = { ...deps(), deleteBranch: (_c, b) => { dropped.push(b); return true; } };
+
+    expect(() => clockOut(sid, {}, watching), 'a dirty tree stops the teardown at the return').toThrow();
+    expect(existsSync(join(shiftDir, 'run')), 'run/, and the scenario with it, is gone').toBe(false);
+    expect(heldBy(`t042/auth/${sid}`)).not.toBe('');
+
+    rmSync(join(grant.path, 'leftover.txt'));
+    const result = clockOut(sid, {}, watching);
+
+    expect(result.tree_returned).toBe(true);
+    expect(dropped, 'origin has no such branch, so there is nothing to delete').toEqual([]);
+    expect(result.branch_deleted).toBe(false);
+    expect(result.mr_state).toBe('unknown');
+    expect(result.scenario).toBe('unknown');
+    expect(result.mr).toBe('');
+  });
+});

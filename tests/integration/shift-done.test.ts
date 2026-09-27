@@ -77,6 +77,7 @@ function deps(): DoneDeps {
       calls.push(`git push origin --delete ${b}`);
       return true;
     },
+    onOrigin: () => true,
   };
 }
 

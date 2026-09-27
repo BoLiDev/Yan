@@ -665,6 +665,8 @@ export interface DoneDeps {
   readonly pool?: (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
   readonly mrStateOf?: (mr: string, dir: string | undefined) => MrState;
   readonly deleteBranch?: (clone: string, branch: string) => boolean;
+  /** Asked only on a resume, which cannot tell whether the branch was ever pushed. */
+  readonly onOrigin?: (clone: string, branch: string) => boolean;
 }
 
 export interface DoneResult {
@@ -673,9 +675,17 @@ export interface DoneResult {
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
-  /** The last round's merge request, or '' for a scenario that opens none. */
+  /**
+   * The last round's merge request, or '' for a scenario that opens none. On a
+   * resume it is whatever URL outcome.md names, or ''.
+   */
   readonly mr: string;
-  readonly mr_state: 'merged' | 'none';
+  /**
+   * `unknown` on a resume: run/ is gone by then, and with it the scenario, so
+   * nothing says whether the shift opened a merge request at all.
+   */
+  readonly mr_state: 'merged' | 'none' | 'unknown';
+  /** `unknown` on a resume, for the same reason. */
   readonly scenario: string;
   readonly tree: string;
   readonly outcome_by: string;
@@ -774,11 +784,13 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
 
+  // On a resume run/ is gone, so this is readMeta's default rather than what
+  // the shift was: only the path below that did not resume may act on it.
   const scenario = meta.scenario;
   // Merging is the floor for coding, not the definition of done - whether the
   // merged work is accepted is yan's and user's judgement - unless the shift
   // concluded that nothing needs merging, which user says with the flag.
-  const needsMerge = opensMr(scenario) && options.nothingToMerge !== true;
+  const needsMerge = !resuming && opensMr(scenario) && options.nothingToMerge !== true;
 
   // Steps 1 to 4 already ran in the attempt that stopped, and the URL they
   // needed went with run/, so a resume starts at the tree return.
@@ -863,7 +875,6 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     if (mr === '' && existsSync(outcomeFile)) {
       mr = /https?:\/\/\S+/.exec(readFileSync(outcomeFile, 'utf8'))?.[0] ?? '';
     }
-    if (mr === '') mr = '(recorded in outcome.md)';
   }
 
   // --- 5. return the tree, before the branch is deleted ---------------------
@@ -887,8 +898,11 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
 
   // --- 6. and only now, the remote shift branch -----------------------------
   let deleted = false;
-  // Only a merge request's branch was ever pushed.
-  if (needsMerge && clone !== '' && existsSync(clone)) {
+  // Only a merge request's branch was ever pushed. A resume cannot tell whether
+  // this shift opened one, so it asks origin whether there is a branch at all.
+  const onOrigin = deps.onOrigin ?? ((c: string, b: string) => remoteBranchExists(c, b));
+  const pushed = resuming ? clone !== '' && existsSync(clone) && onOrigin(clone, branch) : needsMerge;
+  if (pushed && clone !== '' && existsSync(clone)) {
     const drop =
       deps.deleteBranch ?? ((c: string, b: string) => deleteRemoteBranch(c, 'origin', b).code === 0);
     deleted = drop(clone, branch);
@@ -910,8 +924,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     unit,
     branch,
     mr,
-    mr_state: needsMerge ? 'merged' : 'none',
-    scenario,
+    mr_state: resuming ? 'unknown' : needsMerge ? 'merged' : 'none',
+    scenario: resuming ? 'unknown' : scenario,
     tree: returned !== '' ? returned : tree,
     outcome_by: outcomeBy,
     run_removed: true,
@@ -931,7 +945,7 @@ const doneShift = new Command('done')
   .option('--user-accepted', 'user has said they are satisfied - required for uix work')
   .option('--nothing-to-merge', 'a coding shift concluded that no change is needed; its outcome.md is accepted instead of a merge request')
   .option('--keep-pane', "leave the agent's pane open")
-  .option('--json', 'print the teardown record instead of a summary')
+  .option('--json', "print the teardown record instead of a summary; mr_state is merged, none, or unknown after a resume")
   .addHelpText(
     'after',
     `
@@ -950,6 +964,11 @@ squash merge:
 An explore or uix shift opens none, and needs its outcome.md instead. Whether
 a request merged is asked of the host, never inferred from git ancestry.
 
+A teardown that stopped at the tree return is finished by running it again.
+run/ is gone by then, and with it the scenario, so the record says 'unknown'
+for both scenario and mr_state, and the remote branch is deleted only when
+origin has one.
+
 Exit code 4 means nothing was clocked out yet: the merge request has not
 merged, the report is missing, or user has not accepted uix work. Exit code 1
 after a teardown means the agent was still in its pane after closing it.`,
@@ -962,10 +981,12 @@ after a teardown means the agent was still in its pane after closing it.`,
       } else {
         out(`${r.sid} clocked out`);
         if (r.mr_state === 'merged') out(`mr       ${r.mr} (merged)`);
+        if (r.mr_state === 'unknown' && r.mr !== '') out(`mr       ${r.mr} (from outcome.md)`);
         out(`outcome  ${join(new Shift(r.task, r.sid).dir, 'outcome.md')} (${r.outcome_by})`);
         out('run      removed');
         out(`tree     ${r.tree_returned ? r.tree : 'not returned'}`);
         if (r.mr_state === 'merged') out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'left on origin'}`);
+        if (r.mr_state === 'unknown') out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'not deleted on origin'}`);
       }
       if (!r.pane_closed) {
         process.stderr.write(`yan shift done: the agent in ${r.pane} was still running after its pane was closed - close ${r.pane} by hand\n`);
