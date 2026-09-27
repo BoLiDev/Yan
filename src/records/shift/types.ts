@@ -50,3 +50,27 @@ export interface ShiftMeta {
 
 /** What `yan shift new` claims the shift directory with, before it knows the rest. */
 export type ShiftMetaPlaceholder = Partial<ShiftMeta>;
+
+/**
+ * `shifts/<sid>/teardown.json` — what clocking a shift out needs once `run/`
+ * is gone. `yan shift new` writes it beside the brief; `yan shift done` writes
+ * it again with `mr_state` just before it removes `run/`, so a teardown that
+ * stopped after that knows what the attempt that stopped had concluded.
+ *
+ * The tree and its lease are not here: a resume finds them in the pool, which
+ * is the one place that says whether a tree is still held.
+ */
+export interface TeardownRecord {
+  readonly version: 1;
+  /** What the shift delivers: `coding`, `explore` or `uix`. */
+  readonly scenario: string;
+  readonly unit: string;
+  /** The shift branch. */
+  readonly branch: string;
+  /** The main clone the leased tree came from. */
+  readonly clone: string;
+  /** The merge request the clock-out accepted, `''` for none; with `mr_state` only. */
+  readonly mr?: string;
+  /** Set by the clock-out, once it has decided: `merged` means the branch was pushed and is to be deleted. */
+  readonly mr_state?: 'merged' | 'none';
+}

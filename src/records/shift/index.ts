@@ -13,4 +13,4 @@ export {
   type Undelivered,
 } from './undelivered.js';
 export { lastEvent, type ShiftEvent } from './status.js';
-export type { ShiftMeta, ShiftMetaPlaceholder } from './types.js';
+export type { ShiftMeta, ShiftMetaPlaceholder, TeardownRecord } from './types.js';

@@ -13,7 +13,7 @@ import { returnLease } from '../shared/teardown.js';
 import { agentNameFor, Terminal, type AgentStatus, type SplitAt, type TabLayout } from '../../externals/herdr/index.js';
 import { WorktreePool, type LeaseGrant } from '../../externals/worktree/index.js';
 import { opensMr, Shift, type ShiftMeta, type ShiftMetaPlaceholder } from '../../records/shift/index.js';
-import { Task } from '../../records/task/index.js';
+import { Task, type UnitData } from '../../records/task/index.js';
 import { YanError, isYanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
 import { writeJson } from '../../util/json.js';
@@ -30,7 +30,7 @@ import { briefBody } from './brief.js';
  *
  *   1  claim the sid, the container and the pane to split, under a lock
  *   2  lease a tree, cutting the shift branch `yan/<task>-<unit>-<sid>`
- *   3  write shifts/<sid>/brief.md
+ *   3  write shifts/<sid>/brief.md, and teardown.json beside it
  *   4  refuse if the sub-agent's working directory is inside the main clone
  *   5  start the agent, and confirm it
  *
@@ -159,6 +159,65 @@ function harnessArgv(
   return args;
 }
 
+/**
+ * Where the sub-agent starts, and the other directories it is given: the
+ * unit's first scope path and the rest of them, those the tree has.
+ */
+function workdirOf(tree: string, scope: readonly string[]): { workdir: string; addDirs: string[] } {
+  let workdir = tree;
+  const addDirs: string[] = [];
+  if (scope.length > 0) {
+    const first = join(tree, scope[0] as string);
+    if (existsSync(first)) workdir = normalizePath(first);
+    for (const p of scope.slice(1)) {
+      const d = join(tree, p);
+      if (existsSync(d)) addDirs.push(normalizePath(d));
+    }
+  }
+  return { workdir, addDirs };
+}
+
+/** The dispatch record, as it is before the agent has a pane. */
+function metaFor(options: {
+  task: string;
+  sid: string;
+  unit: string;
+  data: UnitData;
+  shiftBranch: string;
+  grant: LeaseGrant;
+  clone: string;
+  workdir: string;
+  holder: string;
+  spec: ShiftSpec;
+  container: string;
+}): ShiftMeta {
+  const { data, grant, spec } = options;
+  return {
+    version: 1,
+    task: options.task,
+    sid: options.sid,
+    unit: options.unit,
+    repo: data.repo,
+    branch: options.shiftBranch,
+    base: data.branch,
+    tree: grant.path,
+    clone: options.clone,
+    workdir: options.workdir,
+    holder: options.holder,
+    lease_id: grant.lease_id,
+    agent: spec.cli,
+    scenario: spec.scenario,
+    skills: [...spec.skills],
+    tier: spec.tier,
+    model: spec.model,
+    effort: spec.effort,
+    container: options.container,
+    pane: '',
+    mr: '',
+    at: isoSecond(),
+  };
+}
+
 export interface NewOptions {
   task?: string;
   unit?: string;
@@ -268,7 +327,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
   });
   const { sid, shift, container, split } = claimed;
 
-  const branch = `yan/${task}-${unitName}-${sid}`;
+  const shiftBranch = `yan/${task}-${unitName}-${sid}`;
   const holder = `${task}/${unitName}/${sid}`;
 
   // From here the shift directory is claimed, so every exit before an agent is
@@ -279,7 +338,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     // --- 2. lease a tree, cutting the shift branch --------------------------
     const pool = deps.pool?.(clone) ?? new WorktreePool(clone);
     try {
-      grant = pool.get(poolSize, data.branch, branch, holder);
+      grant = pool.get(poolSize, data.branch, shiftBranch, holder);
     } catch (err) {
       if (isYanError(err) && err.code === 'worktree_full') {
         throw new YanError('shift_new_pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
@@ -298,23 +357,15 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
         ? readFileSync(options.brief, 'utf8')
         : (options.briefText ?? '(no work order was supplied - ask yan before changing anything)');
 
-    // The sub-agent starts in the unit's first scope path; the rest reach it
-    // as extra directories.
-    let workdir = tree;
-    const addDirs: string[] = [];
-    if (data.scope.length > 0) {
-      const first = join(tree, data.scope[0] as string);
-      if (existsSync(first)) workdir = normalizePath(first);
-      for (const p of data.scope.slice(1)) {
-        const d = join(tree, p);
-        if (existsSync(d)) addDirs.push(normalizePath(d));
-      }
-    }
+    const { workdir, addDirs } = workdirOf(tree, data.scope);
 
     writeFileSync(
       join(shift.dir, 'brief.md'),
-      briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills, scenario: spec.scenario }),
+      briefBody({ sid, task, unit: unitName, data, tree, clone, shiftBranch, taskDir, work, skills: spec.skills, scenario: spec.scenario }),
     );
+    // Beside the brief rather than in run/, which clocking out deletes before
+    // the part of the teardown that can stop and be run again.
+    shift.writeTeardown({ version: 1, scenario: spec.scenario, unit: unitName, branch: shiftBranch, clone });
 
     // --- 4. refuse the main clone -------------------------------------------
     if (isInside(clone, workdir)) {
@@ -334,30 +385,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     // Filled in over the placeholder step 1 wrote; the pane follows
     // immediately afterwards, so a running agent is always recorded.
     const metaFile = join(shift.run, 'meta.json');
-    let meta: ShiftMeta = {
-      version: 1,
-      task,
-      sid,
-      unit: unitName,
-      repo: data.repo,
-      branch,
-      base: data.branch,
-      tree,
-      clone,
-      workdir,
-      holder,
-      lease_id: grant.lease_id,
-      agent,
-      scenario: spec.scenario,
-      skills: [...spec.skills],
-      tier: spec.tier,
-      model: spec.model,
-      effort: spec.effort,
-      container,
-      pane: '',
-      mr: '',
-      at: isoSecond(),
-    };
+    let meta = metaFor({ task, sid, unit: unitName, data, shiftBranch, grant, clone, workdir, holder, spec, container });
     writeJson(metaFile, meta);
 
     // The first words the shift sees, so the skills are invoked before the
@@ -403,7 +431,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       terminal.setPaneTitle(startedAgent.pane, `${sid}-${unitName} · unit=${unitName}`, 'yan:shift');
     });
 
-    appendLog('yan shift new', task, 'started', `${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note);
+    appendLog('yan shift new', task, 'started', `${sid} ${unitName}  dispatched on ${shiftBranch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note);
 
     return meta;
   } finally {
