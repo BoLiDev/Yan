@@ -1,7 +1,7 @@
 import { nativePath } from '../../util/paths.js';
-import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
+import { herdrCall, mapError, resultOf, runHerdr, type HerdrRunner } from './cli.js';
 import { isPaneId, paneIsIn, requirePaneId, requireWorkspaceId } from './ids.js';
-import { asRecord, asString } from '../../util/narrow.js';
+import { asRecord, asString, recordOrNone } from '../../util/narrow.js';
 import { agentSessionOf, statusOf } from './parse.js';
 import { BUSY_RETRY_MS, SETTLE_MS, startAgent, type Starting } from './start.js';
 import { YanError } from '../../util/error.js';
@@ -78,6 +78,16 @@ export class Terminal {
     return herdrCall(this.run, args, what);
   }
 
+  /**
+   * Ask herdr something whose answer is allowed to be missing: its `.result`
+   * as a record, or `undefined` when the command failed or said nothing
+   * readable. Never throws; each caller decides what not knowing means.
+   */
+  private query(args: readonly string[]): Record<string, unknown> | undefined {
+    const result = this.run(args);
+    return result.code === 0 ? recordOrNone(resultOf(result.stdout)) : undefined;
+  }
+
   /** Create a workspace to hold a task's agents. Does not focus it. */
   public createContainer(label: string, cwd?: string): Container {
     if (label === '') throw YanError.usage('term_usage', 'a container label is required');
@@ -119,14 +129,8 @@ export class Terminal {
 
   /** The agent's status, or `unknown` when Herdr will not say. */
   private statusOrUnknown(pane: string): AgentStatus {
-    const result = this.run(['agent', 'get', pane]);
-    if (result.code !== 0) return 'unknown';
-    try {
-      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
-      return statusOf(asRecord(body.agent).agent_status);
-    } catch {
-      return 'unknown';
-    }
+    const body = this.query(['agent', 'get', pane]);
+    return body === undefined ? 'unknown' : statusOf(asRecord(body.agent).agent_status);
   }
 
   /** The screen, or `''` when it cannot be read. */
@@ -248,15 +252,8 @@ export class Terminal {
    */
   public agentKind(pane: string): string | undefined {
     requirePaneId(pane, 'agentKind');
-    const result = this.run(['agent', 'get', pane]);
-    if (result.code !== 0) return undefined;
-    try {
-      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
-      const kind = asString(asRecord(body.agent).agent);
-      return kind === '' ? undefined : kind;
-    } catch {
-      return undefined;
-    }
+    const kind = asString(asRecord(this.query(['agent', 'get', pane])?.agent).agent);
+    return kind === '' ? undefined : kind;
   }
 
   /**
@@ -282,15 +279,9 @@ export class Terminal {
    */
   public workspaceOfPane(pane: string): string | undefined {
     if (!isPaneId(pane)) return undefined;
-    const result = this.run(['pane', 'get', pane]);
-    if (result.code !== 0) return undefined;
-    try {
-      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
-      const id = asString(asRecord(body.pane).workspace_id) || asString(body.workspace_id);
-      return id === '' ? undefined : id;
-    } catch {
-      return undefined;
-    }
+    const body = asRecord(this.query(['pane', 'get', pane]));
+    const id = asString(asRecord(body.pane).workspace_id) || asString(body.workspace_id);
+    return id === '' ? undefined : id;
   }
 
   /**
@@ -340,24 +331,18 @@ export class Terminal {
    */
   public tabLayout(pane: string): TabLayout | undefined {
     if (!isPaneId(pane)) return undefined;
-    const result = this.run(['pane', 'layout', '--pane', pane]);
-    if (result.code !== 0) return undefined;
-    try {
-      const layout = asRecord(asRecord(asRecord(JSON.parse(result.stdout)).result).layout);
-      if (!Array.isArray(layout.panes)) return undefined;
-      const panes = [];
-      for (const entry of layout.panes) {
-        const listed = asRecord(entry);
-        const id = asString(listed.pane_id);
-        const rect = asRecord(listed.rect);
-        const [x, y, width, height] = [rect.x, rect.y, rect.width, rect.height];
-        if (id === '' || typeof x !== 'number' || typeof y !== 'number' ||
-            typeof width !== 'number' || typeof height !== 'number') return undefined;
-        panes.push({ pane: id, rect: { x, y, width, height } });
-      }
-      return { workspace: asString(layout.workspace_id), tab: asString(layout.tab_id), panes };
-    } catch {
-      return undefined;
+    const layout = asRecord(this.query(['pane', 'layout', '--pane', pane])?.layout);
+    if (!Array.isArray(layout.panes)) return undefined;
+    const panes = [];
+    for (const entry of layout.panes) {
+      const listed = asRecord(entry);
+      const id = asString(listed.pane_id);
+      const rect = asRecord(listed.rect);
+      const [x, y, width, height] = [rect.x, rect.y, rect.width, rect.height];
+      if (id === '' || typeof x !== 'number' || typeof y !== 'number' ||
+          typeof width !== 'number' || typeof height !== 'number') return undefined;
+      panes.push({ pane: id, rect: { x, y, width, height } });
     }
+    return { workspace: asString(layout.workspace_id), tab: asString(layout.tab_id), panes };
   }
 }

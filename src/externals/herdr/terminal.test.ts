@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Terminal } from './index.js';
 import * as term from './index.js';
-import { herdrErrorCode, mapError } from './cli.js';
+import { herdrErrorCode, mapError, resultOf } from './cli.js';
 import { parseIntegrationStatus } from './health.js';
 import { AGENT_STATUS, HERDR_PROTOCOL } from './schema.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
@@ -209,6 +209,20 @@ describe('no Herdr error code escapes the seam', () => {
       'pane_not_found',
     );
     expect(herdrErrorCode('just prose')).toBeUndefined();
+  });
+});
+
+describe('a success is read through its .result and nothing else', () => {
+  it('answers the result, and undefined for a body that has none', () => {
+    expect(resultOf('{"id":"cli:agent:get","result":{"type":"agent_info","agent":{}}}')).toEqual({
+      type: 'agent_info',
+      agent: {},
+    });
+    // Protocol 22 wraps every success; a bare body is not taken for the answer.
+    expect(resultOf('{"agent":{"agent_status":"idle"}}')).toBeUndefined();
+    expect(resultOf('')).toBeUndefined();
+    expect(resultOf('not json')).toBeUndefined();
+    expect(resultOf('null')).toBeUndefined();
   });
 });
 
