@@ -13,4 +13,4 @@ export {
   lastEvent,
   type ShiftEvent,
 } from './events.js';
-export type { ShiftMeta, ShiftMetaPlaceholder } from './types.js';
+export type { ShiftMeta, ShiftMetaPlaceholder, TeardownRecord } from './types.js';

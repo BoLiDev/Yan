@@ -10,7 +10,7 @@ import {
 } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
-import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
+import { clockOut, type ClockOutDeps, type ClockOutOptions } from '../../src/cli/shift/done.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
@@ -65,7 +65,7 @@ class FakeTerminal implements Closer {
   }
 }
 
-function deps(): DoneDeps {
+function deps(): ClockOutDeps {
   return {
     terminal: new FakeTerminal(),
     pool: () => new FakePool(),
@@ -81,7 +81,7 @@ function deps(): DoneDeps {
   };
 }
 
-function run(sid: string, options: DoneOptions = {}): Attempt<unknown> {
+function run(sid: string, options: ClockOutOptions = {}): Attempt<unknown> {
   return attempt(() => clockOut(sid, options, deps()));
 }
 

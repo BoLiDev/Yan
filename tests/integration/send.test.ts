@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
-import { sendLine, type Prompter } from '../../src/cli/send.js';
+import { sendLine, type LineSender } from '../../src/cli/send.js';
 
 /**
  * `yan send`. Text and Enter go in one call, so what is pinned here is the
@@ -18,7 +18,7 @@ afterAll(cleanupTempDirs);
 let home = '';
 let run = '';
 
-class RecordingTerminal implements Prompter {
+class RecordingTerminal implements LineSender {
   public readonly calls: { pane: string; text: string }[] = [];
   public refuse: Error | undefined;
 

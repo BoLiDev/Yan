@@ -7,7 +7,7 @@ import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import { vaultConfigPath, vaultDir } from '../util/vault.js';
-import { isTty } from './shared/resolve.js';
+import { isTty } from './shared/tty.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';

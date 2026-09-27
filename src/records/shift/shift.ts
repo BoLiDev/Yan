@@ -3,10 +3,10 @@ import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import { tasksDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { Task } from '../task/index.js';
-import { readMeta } from './meta.js';
+import { readMeta, readTeardown, writeTeardown } from './meta.js';
 import { opensMr } from './scenario.js';
 import { appendEvent, countEvents, reportedMr } from './events.js';
-import type { ShiftMeta } from './types.js';
+import type { ShiftMeta, TeardownRecord } from './types.js';
 import { YanError } from '../../util/error.js';
 import { byCodePoint, isRecordId } from '../../util/names.js';
 import { isDirectory } from '../../util/paths.js';
@@ -48,6 +48,15 @@ export class Shift {
   /** `run/meta.json`, read once, every field optional. */
   public meta(): ShiftMeta {
     return readMeta(this.run);
+  }
+
+  /** `teardown.json`, which outlives `run/`; `undefined` for a shift from before it. */
+  public teardown(): TeardownRecord | undefined {
+    return readTeardown(this.dir);
+  }
+
+  public writeTeardown(record: TeardownRecord): void {
+    writeTeardown(this.dir, record);
   }
 
   /** How many events have been reported. */

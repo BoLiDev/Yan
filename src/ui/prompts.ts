@@ -23,13 +23,6 @@ function suggestTarget(dir: string): string | undefined {
  * Every prompt throws `YanError` `cancelled` when `user` presses escape.
  */
 
-/** What `resolve()` describes a missing option with, restated structurally. */
-interface Missing {
-  readonly name: string;
-  readonly flag: string;
-  readonly describe: string;
-}
-
 /** The placeholder every list here carries; all of them are searchable. */
 const PLACEHOLDER = 'type to filter';
 
@@ -42,20 +35,31 @@ function answered(value: unknown, what: string): string {
   return String(value ?? '').trim();
 }
 
-/**
- * One text prompt per missing option, each refusing an empty answer. Returns
- * them keyed by option name.
- */
-export async function askFor(missing: readonly Missing[]): Promise<Record<string, string>> {
-  const answers: Record<string, string> = {};
-  for (const option of missing) {
-    const value = await text({
-      message: `${option.flag}: ${option.describe}`,
-      validate: (v) => ((v ?? '').trim() === '' ? 'this one cannot be empty' : undefined),
-    });
-    answers[option.name] = answered(value, `${option.flag} was not answered`);
-  }
-  return answers;
+/** A text prompt that refuses an empty answer. */
+async function required(message: string, what: string): Promise<string> {
+  const value = await text({
+    message,
+    validate: (v) => ((v ?? '').trim() === '' ? 'this one cannot be empty' : undefined),
+  });
+  return answered(value, what);
+}
+
+/** `yan vault init`: asks for whichever of the name and the remote `argv` left empty. */
+export async function askVaultInit(given: { name: string; remote: string }): Promise<{ name: string; remote: string }> {
+  intro('yan vault init');
+  const name = given.name !== ''
+    ? given.name
+    : await required('A short name for this context, e.g. personal', 'no vault name was given');
+  const remote = given.remote !== ''
+    ? given.remote
+    : await required('The empty repository to push this vault to', 'no remote was given');
+  return { name, remote };
+}
+
+/** `yan vault clone` with no url. */
+export async function askVaultClone(): Promise<string> {
+  intro('yan vault clone');
+  return required('The vault repository to clone', 'no url was given');
 }
 
 export interface TaskChoice {

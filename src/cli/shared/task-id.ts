@@ -1,4 +1,4 @@
-import { isTty } from './resolve.js';
+import { isTty } from './tty.js';
 import { load } from '../overview/overview.js';
 import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
