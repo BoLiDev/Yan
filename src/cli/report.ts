@@ -238,7 +238,7 @@ export function reportEvent(
     waitWhileUserTypes(shift.task, deps);
   }
 
-  shift.appendEvent(state, note);
+  const at = shift.appendEvent(state, note);
   out(`recorded ${state} in ${join(shift.run, 'status')}`);
 
   // `started` says the shift read its brief, which is nothing yan has to act
@@ -251,7 +251,9 @@ export function reportEvent(
     out('delivered to yan');
     return;
   }
-  recordUndelivered(shift.run, state, note);
+  // The moment the report was made, not this later one: the two lines are one
+  // report, and delivery may have spent seconds waiting on yan's pane.
+  recordUndelivered(shift.run, state, note, at);
   out(`NOT delivered to yan: ${why}`);
   out(`it is recorded in ${undeliveredFile(shift.run)}, which 'yan show' and the next session start print`);
 }

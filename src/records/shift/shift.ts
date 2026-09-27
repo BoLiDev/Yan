@@ -80,9 +80,9 @@ export class Shift {
     return opensMr(meta.scenario) ? (meta.mr ?? this.reportedMr() ?? '') : '';
   }
 
-  /** Append one event to run/status, and nothing beside it. */
-  public appendEvent(state: string, note = ''): void {
-    appendEvent(this.run, state, note);
+  /** Append one event to run/status, and nothing beside it; returns its moment. */
+  public appendEvent(state: string, note = ''): Date {
+    return appendEvent(this.run, state, note);
   }
 
   public static isId(sid: string): boolean {

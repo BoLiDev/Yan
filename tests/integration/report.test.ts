@@ -346,6 +346,7 @@ describe('the note is typed into yan\'s pane', () => {
     const kept = undelivered().trim();
     expect(kept).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\tconflict\tthe merge into the integration branch conflicts in src\/cli\/state\.ts$/);
     expect(readFileSync(join(shiftRun, 'status'), 'utf8'), 'the event was recorded either way').toContain('\tconflict\t');
+    expect(readFileSync(join(shiftRun, 'status'), 'utf8').trim().split('\n').at(-1), 'one report, one moment').toBe(kept);
   });
 
   it('keeps it when no yan is running, without ever asking the terminal', () => {
