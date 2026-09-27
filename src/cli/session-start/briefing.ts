@@ -11,6 +11,7 @@ import { Drafts } from '../../records/drafts/index.js';
 import { memDir, vaultDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { localStamp } from '../../util/time.js';
+import { isYanError } from '../../util/error.js';
 
 /**
  * The briefing half of `yan session-start`: what the main agent reads after
@@ -173,9 +174,16 @@ function renderScenarios(): void {
   for (const scenario of scenarios) {
     out(`  ${scenario.name} — ${scenario.description}`);
     for (const tier of scenario.tiers) {
-      const spec = resolveShift('session_start', scenario.name, tier.name);
-      const runs = runsAs(spec);
       const mark = tier.name === scenario.defaultTier ? ' (default)' : '';
+      let runs: string;
+      try {
+        runs = runsAs(resolveShift('session_start', scenario.name, tier.name));
+      } catch (err) {
+        // A tier with no cli over an unset agents.shift: one line, not a
+        // session start that never finishes the picture.
+        out(`      ${tier.name}${mark}  WARN ${isYanError(err) ? err.message : String(err)}`);
+        continue;
+      }
       out(`      ${tier.name}${mark}  ${runs}${tier.description === '' ? '' : ` — ${tier.description}`}`);
     }
   }
