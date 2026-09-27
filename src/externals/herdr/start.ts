@@ -223,8 +223,9 @@ function waitFor(ctx: Starting, pane: string, states: readonly AgentStatus[]): v
  * with the new pane. A pane too small to split is Herdr's refusal and
  * surfaces as one; it is never turned into a tab here.
  *
- * @throws YanError when `at.pane` is not a pane id, the split was refused,
- *   or herdr reports no new pane.
+ * @throws YanError `term_usage` when `at.pane` is not a pane id; the split's
+ *   own refusal; `term_refused`, exit 1, when herdr reports no new pane, which
+ *   is herdr's fault and not the caller's.
  */
 function splitPane(run: HerdrRunner, at: SplitAt, options: StartAgentOptions): string {
   requirePaneId(at.pane, 'pane split');
@@ -246,15 +247,15 @@ function splitPane(run: HerdrRunner, at: SplitAt, options: StartAgentOptions): s
 
   const split = asRecord(herdrCall(run, args, 'pane split'));
   const pane = asString(asRecord(split.pane).pane_id);
-  if (pane === '') throw YanError.usage('term_usage', `herdr did not report the pane it split off ${at.pane}`);
+  if (pane === '') throw new YanError('term_refused', `herdr did not report the pane it split off ${at.pane}`);
   return pane;
 }
 
 /**
  * Make a tab in the container and answer with its one pane.
  *
- * @throws YanError when the container is not a workspace id, or herdr
- *   reports no root pane.
+ * @throws YanError `term_usage` when the container is not a workspace id,
+ *   `term_refused` when herdr reports no root pane.
  */
 function createTab(run: HerdrRunner, options: StartAgentOptions): string {
   requireWorkspaceId(options.container, 'tab create');
@@ -276,6 +277,6 @@ function createTab(run: HerdrRunner, options: StartAgentOptions): string {
 
   const created = asRecord(herdrCall(run, args, 'tab create'));
   const pane = asString(asRecord(created.root_pane).pane_id);
-  if (pane === '') throw YanError.usage('term_usage', 'herdr did not report a root pane for the new tab');
+  if (pane === '') throw new YanError('term_refused', 'herdr did not report a root pane for the new tab');
   return pane;
 }
