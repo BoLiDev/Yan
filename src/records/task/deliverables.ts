@@ -61,7 +61,7 @@ interface Done extends Base {
   /**
    * What proves it, `PR #58` or the merge request's URL; several or none.
    * Stored as it was typed, and a URL is what lets the work report link it -
-   * see `refLink`.
+   * see `refLink` in `cli/shared/deliverables.ts`.
    */
   readonly refs?: readonly string[];
 }
