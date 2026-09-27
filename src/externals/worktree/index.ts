@@ -9,4 +9,4 @@
  */
 
 export { WorktreePool } from './worktree.js';
-export type { Lease, LeaseGrant, LeaseRow, ReturnExpectation, ReturnOptions } from './types.js';
+export type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';

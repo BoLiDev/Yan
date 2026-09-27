@@ -15,7 +15,7 @@ import {
 } from '../helpers/fixtures.js';
 import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
 import { Task } from '../../src/records/task/index.js';
-import { type LeaseGrant, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { type LeaseGrant, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
 import type { ShiftMeta } from '../../src/records/shift/index.js';
 import type { SplitAt, TabLayout } from '../../src/externals/herdr/index.js';
@@ -49,7 +49,7 @@ class FakePool {
     return { path: this.path, lease_id: this.lease, holder };
   }
 
-  public return(target: string, expect: ReturnExpectation = {}): string {
+  public return(target: string, expect: ReturnOptions = {}): string {
     calls.push(`pool_return path=${target} lease_id=${expect.leaseId ?? ''}`);
     return target;
   }
