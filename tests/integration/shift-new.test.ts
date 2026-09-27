@@ -13,7 +13,7 @@ import {
 } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, enterLock, seedT042 } from '../helpers/records.js';
-import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
+import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift/new.js';
 import { Task } from '../../src/records/task/index.js';
 import { type LeaseGrant, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
@@ -484,6 +484,52 @@ describe('the brief', () => {
   });
 });
 
+describe('the work order says one thing per scenario', () => {
+  function briefFor(scenario: string): string {
+    const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', scenario, tier: 'normal' });
+    expect(r.code, r.message).toBe(0);
+    return readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
+  }
+
+  /** How many times `needle` appears in `body`. */
+  function count(body: string, needle: string): number {
+    return body.split(needle).length - 1;
+  }
+
+  it('coding: the deliverable is on the branch, pushed, and the handover is about the diff', () => {
+    const body = briefFor('coding');
+    expect(body).toContain('Push it and open a merge request into feat/auth.');
+    expect(body).toContain('The deliverable itself is on your branch.');
+    expect(body).toContain('say what the diff cannot');
+    expect(body).toContain('walk the diff file by file');
+    expect(body).toContain('yan report done "mr <url>"');
+    expect(body).not.toContain('stays local');
+    expect(body).not.toContain('This is an');
+  });
+
+  it('explore: the report is the deliverable, nothing is pushed, and there is no diff', () => {
+    const body = briefFor('explore');
+    expect(body).toContain('Here the report is the deliverable');
+    expect(body, 'a report is not on a branch').not.toContain('on your branch');
+    expect(body, 'an explore shift has no diff').not.toMatch(/\bdiff\b/);
+    expect(body).not.toContain('mr <url>');
+    expect(body).not.toContain('open a new merge request');
+    expect(count(body, 'do not push'), 'said once, where the branch is named').toBe(1);
+    expect(body).toContain('This is an explore shift');
+    expect(body, 'the rest of the work order survives').toContain('four minutes');
+  });
+
+  it('uix: the artifacts are the deliverable, user accepts them, and there is no diff', () => {
+    const body = briefFor('uix');
+    expect(body).toContain('Here the artifacts are the deliverable');
+    expect(body).not.toContain('on your branch');
+    expect(body).not.toMatch(/\bdiff\b/);
+    expect(body).not.toContain('mr <url>');
+    expect(count(body, 'do not push')).toBe(1);
+    expect(body).toContain('This is a uix shift: user alone');
+  });
+});
+
 describe('what is already known', () => {
   it('lists the learnings with a path the shift can open, and never their text', () => {
     mkdirSync(join(home, 'mem', 'learnings'), { recursive: true });
@@ -539,6 +585,12 @@ describe('run/meta.json', () => {
     expect(meta.pane, 'terminal ids, never labels').toBe('w1:p2');
     expect(meta.base).toBe('feat/auth');
     expect(meta.clone).toBe(clone.replace(/\\/g, '/'));
+  });
+
+  it('keeps what a teardown needs beside the brief, where clocking out does not delete it', () => {
+    run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', scenario: 'explore' });
+    const record = JSON.parse(readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'teardown.json'), 'utf8')) as Record<string, unknown>;
+    expect(record).toEqual({ version: 1, scenario: 'explore', unit: 'auth', branch: 'yan/t042-auth-s1', clone: clone.replace(/\\/g, '/') });
   });
 });
 

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import { readJsonOrNone } from '../../util/json.js';
-import type { ShiftMeta } from './types.js';
+import { readJsonOrNone, writeJson } from '../../util/json.js';
+import type { ShiftMeta, TeardownRecord } from './types.js';
 
 /**
  * Read `run/meta.json` in one pass. Never throws: a missing, unreadable or
@@ -58,4 +58,30 @@ function strip(meta: Record<string, string | undefined>): Partial<ShiftMeta> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(meta)) if (v !== undefined) out[k] = v;
   return out as Partial<ShiftMeta>;
+}
+
+/**
+ * Read `teardown.json` from a shift directory. `undefined` when there is none —
+ * a shift dispatched before the file existed — or when it does not name a
+ * scenario, which is the one thing it is kept for.
+ */
+export function readTeardown(dir: string): TeardownRecord | undefined {
+  const raw = readJsonOrNone(join(dir, 'teardown.json'));
+  if (raw === undefined) return undefined;
+  const text = (key: keyof TeardownRecord): string => (typeof raw[key] === 'string' ? (raw[key] as string) : '');
+  const scenario = text('scenario');
+  if (scenario === '') return undefined;
+  const state = text('mr_state');
+  return {
+    version: 1,
+    scenario,
+    unit: text('unit'),
+    branch: text('branch'),
+    clone: text('clone'),
+    ...(state === 'merged' || state === 'none' ? { mr: text('mr'), mr_state: state } : {}),
+  };
+}
+
+export function writeTeardown(dir: string, record: TeardownRecord): void {
+  writeJson(join(dir, 'teardown.json'), record);
 }
