@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { yanHome } from '../../util/home.js';
-import { readJsonIfPresent } from '../../util/json.js';
+import { editJson, initJson, readJsonIfPresent } from '../../util/json.js';
 import { asRecord } from '../../util/narrow.js';
 import { isDirectory, normalizePath } from '../../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../../util/vault.js';
@@ -71,6 +71,44 @@ export function registry(): RepoEntry[] {
 
 export function lookup(name: string): RepoEntry | undefined {
   return registry().find((r) => r.name === name);
+}
+
+/**
+ * Write the tracked half. Merged into any entry already there: an empty `pool`
+ * keeps what is recorded.
+ */
+export function writePortable(name: string, url: string, pool: string): void {
+  const file = reposPath();
+  initJson(file, { version: 1 });
+  editJson(file, (raw) => {
+    const reg = asRecord(raw);
+    const before = asRecord(reg[name]);
+    reg[name] = {
+      ...before,
+      url,
+      pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? DEFAULT_POOL_SIZE),
+    };
+    return reg;
+  });
+}
+
+/** Write the machine half, which is never committed. */
+export function writeLocal(name: string, dir: string): void {
+  const file = localReposPath();
+  initJson(file, { version: 1 });
+  editJson(file, (raw) => ({ ...asRecord(raw), [name]: { path: normalizePath(dir) } }));
+}
+
+/** Drop `name` from both halves. A half that was never written is left that way. */
+export function unregister(name: string): void {
+  for (const file of [reposPath(), localReposPath()]) {
+    if (!existsSync(file)) continue;
+    editJson(file, (raw) => {
+      const reg = { ...asRecord(raw) };
+      delete reg[name];
+      return reg;
+    });
+  }
 }
 
 /**

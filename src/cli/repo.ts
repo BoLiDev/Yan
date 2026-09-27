@@ -2,12 +2,21 @@ import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { clone, remoteUrl } from '../util/git.js';
-import { editJson, initJson } from '../util/json.js';
 import { cloneRoot } from '../util/machine.js';
 import { isDirectory, normalizePath, samePath } from '../util/paths.js';
-import { localReposPath, reposPath, vaultDir } from '../util/vault.js';
+import { reposPath } from '../util/vault.js';
 import { action, out } from './shared/action.js';
-import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry, type RepoEntry } from './shared/repo.js';
+import {
+  DEFAULT_POOL_SIZE,
+  defaultCloneRoot,
+  isClone,
+  lookup,
+  registry,
+  unregister,
+  writeLocal,
+  writePortable,
+  type RepoEntry,
+} from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
@@ -18,8 +27,8 @@ import type { RepoCandidate, RepoRemovable } from '../ui/prompts.js';
  * `yan repo add | link | ls | rm` — which repositories this context knows
  * about, and where they are on this machine.
  *
- * The only writer of either half of the registry — `repos.json` and
- * `.local/repos.json`.
+ * The only command that writes either half of the registry — `repos.json`
+ * and `.local/repos.json` — through `shared/repo.ts`, which reads them too.
  *
  * `add` reads its argument rather than demanding a URL:
  *
@@ -68,38 +77,6 @@ function checkName(name: string): void {
     // Repositories sit at the registry's top level, beside `version`.
     throw YanError.usage('repo_usage', "'version' is not a usable repository name - pass --name");
   }
-}
-
-/**
- * Write the tracked half. Merged into any entry already there: an empty `pool`
- * keeps what is recorded.
- */
-function writePortable(name: string, url: string, pool: string): void {
-  const file = reposPath();
-  mkdirSync(vaultDir(), { recursive: true });
-  initJson(file, { version: 1 });
-  editJson(file, (raw) => {
-    const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    const before = { ...(typeof reg[name] === 'object' && reg[name] !== null ? reg[name] : {}) } as Record<string, unknown>;
-    reg[name] = {
-      ...before,
-      url,
-      pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? DEFAULT_POOL_SIZE),
-    };
-    return reg;
-  });
-}
-
-/** Write the machine half, which is never committed. */
-function writeLocal(name: string, dir: string): void {
-  const file = localReposPath();
-  mkdirSync(join(vaultDir(), '.local'), { recursive: true });
-  initJson(file, { version: 1 });
-  editJson(file, (raw) => {
-    const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    reg[name] = { path: normalizePath(dir) };
-    return reg;
-  });
 }
 
 /**
@@ -309,16 +286,6 @@ const linkRepo = new Command('link')
     }),
   );
 
-/** Drop `name` from one half of the registry. A half that was never written is left that way. */
-function dropFrom(file: string, name: string): void {
-  if (!existsSync(file)) return;
-  editJson(file, (raw) => {
-    const reg = { ...(typeof raw === 'object' && raw !== null ? raw : {}) } as Record<string, unknown>;
-    delete reg[name];
-    return reg;
-  });
-}
-
 /**
  * The open tasks with a unit on this repository. A unit names its repository
  * by registered name, or by the path of a clone.
@@ -339,8 +306,7 @@ function heldBy(entry: RepoEntry): string {
 }
 
 function remove(entry: RepoEntry): void {
-  dropFrom(reposPath(), entry.name);
-  dropFrom(localReposPath(), entry.name);
+  unregister(entry.name);
   out(`repo rm: ${entry.name}  ${entry.path === undefined ? '(was not linked here)' : `${entry.path} is left as it is`}`);
 }
 
