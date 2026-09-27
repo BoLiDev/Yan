@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs';
 import { readNote } from './note.js';
 import { cloneOf, closePane, returnLease, type Closer, type PoolFor } from './teardown.js';
 import { mrStateOrUnknown, type MrStateReader } from './mr-state.js';
-import { RemoteGit } from '../../externals/remote-git/index.js';
+import { RemoteGit, type MrRef } from '../../externals/remote-git/index.js';
 import type { Shift } from '../../records/shift/index.js';
 import { YanError } from '../../util/error.js';
 
@@ -17,7 +17,8 @@ export interface AbandonDeps {
   readonly terminal?: Closer;
   readonly pool?: PoolFor;
   readonly mrStateOf?: MrStateReader;
-  readonly closeMr?: (mr: string, dir: string | undefined) => void;
+  /** Takes the same `MrRef` as `mrStateOf`, which asks about the same request first. */
+  readonly closeMr?: (ref: MrRef) => void;
 }
 
 /** What became of a merge request that was asked to close. */
@@ -51,12 +52,13 @@ export function requireConsent(command: string, userAsked: boolean | undefined, 
  */
 export function closeIfOpen(mr: string, dir: string | undefined, deps: AbandonDeps): MrClosing {
   if (mr === '') return 'none';
-  const state = mrStateOrUnknown({ mr, dir }, deps.mrStateOf);
+  const ref: MrRef = { mr, dir };
+  const state = mrStateOrUnknown(ref, deps.mrStateOf);
   if (state === 'merged') return 'merged';
   if (state === 'closed') return 'already-closed';
   if (state === 'unknown') return 'unknown';
   try {
-    (deps.closeMr ?? ((url: string, d: string | undefined) => new RemoteGit().closeMr({ mr: url, dir: d })))(mr, dir);
+    (deps.closeMr ?? ((r: MrRef) => new RemoteGit().closeMr(r)))(ref);
     return 'closed';
   } catch {
     return 'failed';

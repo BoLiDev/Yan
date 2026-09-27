@@ -51,8 +51,8 @@ function deps(): AbandonDeps {
       calls.push(`mr_state ${ref.mr}`);
       return states[ref.mr] ?? 'open';
     },
-    closeMr: (mr) => {
-      calls.push(`mr_close ${mr}`);
+    closeMr: (ref) => {
+      calls.push(`mr_close ${ref.mr}`);
       if (closeFails) throw new Error('the host said no');
     },
   };
