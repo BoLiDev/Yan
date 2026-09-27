@@ -60,9 +60,28 @@ export function openTasks(): TaskChoice[] {
 }
 
 /**
- * The argument, then `$YAN_TASK`, then a select among the tasks in progress —
- * and, with no terminal to ask in, a refusal naming the argument, so nothing
+ * The first half of every "which task?": the argument, then `$YAN_TASK`. When
+ * neither says, `undefined` means the caller may ask at the terminal — and
+ * with no terminal to ask in, a refusal naming the argument, so nothing
  * unattended hangs on an answer that is not coming.
+ *
+ * @param spelled the command as a person types it, `yan done`.
+ * @throws YanError `<command>_usage` when there is no terminal to ask in.
+ */
+export function namedTask(command: string, given: string | undefined, spelled: string): string | undefined {
+  if (given !== undefined && given !== '') return given;
+
+  const fromEnv = process.env.YAN_TASK ?? '';
+  if (fromEnv !== '') return fromEnv;
+
+  if (!isTty()) {
+    throw YanError.usage(`${command}_usage`, `which task? pass it as the argument: '${spelled} <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks`);
+  }
+  return undefined;
+}
+
+/**
+ * `namedTask`, then a select among the tasks in progress.
  *
  * @throws YanError `<command>_usage` when there is nothing to choose from, or no way
  *   to ask.
@@ -72,14 +91,8 @@ export async function chosenTask(
   given: string | undefined,
   ask: { readonly spelled: string; readonly question: string },
 ): Promise<string> {
-  if (given !== undefined && given !== '') return given;
-
-  const fromEnv = process.env.YAN_TASK ?? '';
-  if (fromEnv !== '') return fromEnv;
-
-  if (!isTty()) {
-    throw YanError.usage(`${command}_usage`, `which task? pass it as the argument: '${ask.spelled} <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks`);
-  }
+  const named = namedTask(command, given, ask.spelled);
+  if (named !== undefined) return named;
 
   const open = openTasks();
   if (open.length === 0) {

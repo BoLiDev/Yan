@@ -2,8 +2,7 @@ import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
-import { isTty } from './shared/resolve.js';
-import { openTasks, existingTask } from './shared/task-id.js';
+import { existingTask, namedTask, openTasks } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
@@ -170,15 +169,9 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   };
 }
 
-async function whichTasks(named: string): Promise<string[]> {
-  if (named !== '') return [named];
-
-  const fromEnv = process.env.YAN_TASK ?? '';
-  if (fromEnv !== '') return [fromEnv];
-
-  if (!isTty()) {
-    throw YanError.usage('done_usage', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
-  }
+async function whichTasks(given: string | undefined): Promise<string[]> {
+  const named = namedTask('done', given, 'yan done');
+  if (named !== undefined) return [named];
 
   const open = openTasks();
   if (open.length === 0) return [];
@@ -245,7 +238,7 @@ yan must not reach for --force on its own initiative.`,
   )
   .action(
     action('yan done', async (positional: string | undefined, options: DoneOptions) => {
-      const tasks = await whichTasks(positional ?? '');
+      const tasks = await whichTasks(positional);
 
       // Nothing to offer is one line and exit 0, not a failure.
       if (tasks.length === 0) {
