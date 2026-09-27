@@ -1,10 +1,9 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
-import { noted, readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { terminalWidth } from './shared/style.js';
 import { insideTask, existingTask } from './shared/task-id.js';
-import { Log, type LogType } from '../records/log/index.js';
 import { Deliverables, type Deliverable } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
@@ -23,19 +22,6 @@ import { YanError } from '../util/error.js';
 /** The task this is running in, refusing early when it is not a task at all. */
 function taskId(): string {
   return existingTask('deliverable', insideTask('deliverable')).id;
-}
-
-/**
- * Append the one line this write earns. A failed log is reported and never
- * fatal: the record is already written, and losing the narration is not worth
- * refusing over.
- */
-function log(task: string, type: LogType, line: string, note: string): void {
-  try {
-    new Log(task).append(type, noted(line, note));
-  } catch {
-    process.stderr.write('yan deliverable: the record was written but log.md was not appended to\n');
-  }
 }
 
 /** Commander's repeatable-option accumulator. */
@@ -119,7 +105,7 @@ is for has changed, and they see it as it then stands.`,
         throw YanError.usage('deliverable_usage', 'nothing to add - pass the text of at least one deliverable');
       }
       const added = new Deliverables(task).add(given);
-      log(task, 'changed', `${added.map((d) => d.id).join(' ')}  added: ${added.map(quoted).join(' · ')}`, note);
+      appendLog('yan deliverable', task, 'changed', `${added.map((d) => d.id).join(' ')}  added: ${added.map(quoted).join(' · ')}`, note);
       for (const d of added) show(d);
     }),
   );
@@ -138,7 +124,7 @@ const set = new Command('set')
       const which = requireId(id, "yan deliverable set <id> '<text>'");
       if (text === undefined) throw YanError.usage('deliverable_usage', 'the new text is required');
       const d = new Deliverables(task).set(which, text);
-      log(task, 'changed', `${d.id}  reworded: ${quoted(d)}`, note);
+      appendLog('yan deliverable', task, 'changed', `${d.id}  reworded: ${quoted(d)}`, note);
       show(d);
     }),
   );
@@ -164,7 +150,7 @@ const done = new Command('done')
       const which = requireId(id, 'yan deliverable done <id>');
       const d = new Deliverables(task).done(which, options.at ?? '', options.ref ?? []);
       const refs = (d.refs ?? []).join(' ');
-      log(task, 'delivered', `${d.id}  done ${d.doneAt}${refs === '' ? '' : `, ${refs}`}: ${quoted(d)}`, note);
+      appendLog('yan deliverable', task, 'delivered', `${d.id}  done ${d.doneAt}${refs === '' ? '' : `, ${refs}`}: ${quoted(d)}`, note);
       show(d);
     }),
   );
@@ -192,7 +178,7 @@ the only thing that stops it.`,
         throw YanError.usage('deliverable_usage', "--reason is required: an abandoned deliverable stays in the record, and the reason is what stops the next session raising it again");
       }
       const d = new Deliverables(task).abandon(which, options.reason ?? '');
-      log(task, 'changed', `${d.id}  abandoned: ${d.reason}`, note);
+      appendLog('yan deliverable', task, 'changed', `${d.id}  abandoned: ${d.reason}`, note);
       show(d);
     }),
   );
@@ -209,7 +195,7 @@ const todo = new Command('todo')
       const task = taskId();
       const which = requireId(id, 'yan deliverable todo <id>');
       const d = new Deliverables(task).todo(which);
-      log(task, 'changed', `${d.id}  back to to-do`, note);
+      appendLog('yan deliverable', task, 'changed', `${d.id}  back to to-do`, note);
       show(d);
     }),
   );
@@ -233,7 +219,7 @@ which keeps it in the record. The id is not handed out again either way.`,
       const task = taskId();
       const which = requireId(id, 'yan deliverable rm <id>');
       const d = new Deliverables(task).rm(which);
-      log(task, 'changed', `${d.id}  removed: ${quoted(d)}`, note);
+      appendLog('yan deliverable', task, 'changed', `${d.id}  removed: ${quoted(d)}`, note);
       out(`removed ${d.id}  ${d.text}`);
     }),
   );

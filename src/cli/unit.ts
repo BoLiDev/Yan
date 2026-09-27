@@ -2,12 +2,11 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { containerOf } from './shared/container.js';
 import { display, unitTokens } from './shared/display.js';
-import { noted, readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { repoDir } from './shared/repo.js';
 import { insideTask, existingTask } from './shared/task-id.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
 import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTree, push, revParse, updateRef } from '../util/git.js';
 import { YanError } from '../util/error.js';
 
@@ -274,11 +273,7 @@ export function addTaskUnit(options: AddOptions): AddResult {
     );
   }
 
-  try {
-    new Log(task).append('started', noted(`${unit}  unit added on ${branch} → ${target} (${how}; name from ${from})`, note));
-  } catch {
-    process.stderr.write('yan unit add: the unit was written but log.md was not appended to\n');
-  }
+  appendLog('yan unit add', task, 'started', `${unit}  unit added on ${branch} → ${target} (${how}; name from ${from})`, note);
 
   return { task, unit, branch, target, name_from: from, branch_state: how };
 }
@@ -507,11 +502,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
       end === 'delivered'
         ? `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`
         : `${unitName}  ${end} ${before.branch} → ${branch} (${endFrom}${options.reason ? `; ${options.reason}` : ''}) — ${carried.said}`;
-    try {
-      new Log(task).append('changed', noted(line, note));
-    } catch {
-      process.stderr.write('yan unit set: task.json was updated but log.md was not appended to\n');
-    }
+    appendLog('yan unit set', task, 'changed', line, note);
 
     // A task with nothing on screen has no workspace, and none is created.
     const labeller = terminal ?? new Terminal();
@@ -534,9 +525,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     record.editUnit(unitName, (u) => {
       u.target = target;
     });
-    try {
-      new Log(task).append('changed', noted(`${unitName}  target ${old} → ${options.target}`, note));
-    } catch { /* the change is recorded; a missing log line is not worth failing for */ }
+    appendLog('yan unit set', task, 'changed', `${unitName}  target ${old} → ${options.target}`, note);
     changed.push(`target=${options.target}`);
   }
 
@@ -545,9 +534,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     record.editUnit(unitName, (u) => {
       u.scope = [...scope];
     });
-    try {
-      new Log(task).append('changed', noted(`${unitName}  scope → ${scope.join(' ')}`, note));
-    } catch { /* as above */ }
+    appendLog('yan unit set', task, 'changed', `${unitName}  scope → ${scope.join(' ')}`, note);
     changed.push(`scope=${scope.join(' ')}`);
   }
 
@@ -555,9 +542,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     record.editUnit(unitName, (u) => {
       u.needs = [...needs];
     });
-    try {
-      new Log(task).append('changed', noted(`${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note));
-    } catch { /* as above */ }
+    appendLog('yan unit set', task, 'changed', `${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note);
     changed.push(`needs=${needs.join(' ')}`);
   }
 

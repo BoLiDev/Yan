@@ -8,8 +8,8 @@ import type { Closer } from './shared/terminal.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
 import type { WorktreePool } from '../externals/worktree/index.js';
-import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan done [<id>]` — mark a task complete and give its trees back, which are
@@ -138,18 +138,16 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   if (complete && !wasComplete) record.setComplete(true);
 
   if (complete) {
-    try {
-      const parts = [`task marked done`];
-      if (trees.length > 0) parts.push(`${trees.length - stuck.length} of ${trees.length} tree(s) returned`);
-      if (force) {
-        parts.push(
-          killed.length > 0
-            ? `--force: killed ${killed.map((k) => k.sid).join(' ')}, uncommitted changes discarded`
-            : '--force: the orphan-commit guard was skipped',
-        );
-      }
-      new Log(task).append(force && killed.length > 0 ? 'changed' : 'delivered', parts.join('; '));
-    } catch { /* the task is done; a missing log line is not worth failing for */ }
+    const parts = [`task marked done`];
+    if (trees.length > 0) parts.push(`${trees.length - stuck.length} of ${trees.length} tree(s) returned`);
+    if (force) {
+      parts.push(
+        killed.length > 0
+          ? `--force: killed ${killed.map((k) => k.sid).join(' ')}, uncommitted changes discarded`
+          : '--force: the orphan-commit guard was skipped',
+      );
+    }
+    appendLog('yan done', task, force && killed.length > 0 ? 'changed' : 'delivered', parts.join('; '));
   }
 
   if (stuck.length > 0) {

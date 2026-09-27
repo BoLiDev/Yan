@@ -1,14 +1,13 @@
 import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
 import { opensMr, Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { isYanError, YanError } from '../util/error.js';
@@ -156,9 +155,7 @@ export function abandonShift(sid: string | undefined, options: ShiftAbandonOptio
 
   const result = tearDown(shift, deps);
   if (shift.task !== '') {
-    try {
-      new Log(shift.task).append('changed', `${result.sid} ${result.unit}  abandoned${mrPhrase(result)} — ${reason}`);
-    } catch { /* the teardown is done; its log line is not worth failing for */ }
+    appendLog('yan shift abandon', shift.task, 'changed', `${result.sid} ${result.unit}  abandoned${mrPhrase(result)}`, reason);
   }
   return result;
 }
@@ -235,11 +232,9 @@ function giveUp(task: string, why: string, deps: AbandonDeps): AbandonedTask {
   }
 
   record.setAbandoned();
-  try {
-    const closed = [...shifts, ...outbound].filter((r) => r.mr_closing === 'closed').length;
-    const killed = shifts.length > 0 ? `; ${shifts.map((s) => s.sid).join(' ')} torn down` : '';
-    new Log(task).append('changed', `task abandoned${killed}${closed > 0 ? `; ${closed} merge request(s) closed` : ''} ${why}`);
-  } catch { /* the task is abandoned either way */ }
+  const closed = [...shifts, ...outbound].filter((r) => r.mr_closing === 'closed').length;
+  const killed = shifts.length > 0 ? `; ${shifts.map((s) => s.sid).join(' ')} torn down` : '';
+  appendLog('yan abandon', task, 'changed', `task abandoned${killed}${closed > 0 ? `; ${closed} merge request(s) closed` : ''} ${why}`);
 
   return { version: 1, task, shifts, outbound, trees };
 }

@@ -7,10 +7,10 @@ import { tasksDir } from '../util/vault.js';
 import { isTty } from './shared/resolve.js';
 import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit, freshenClone } from './unit.js';
-import { Log } from '../records/log/index.js';
 import { Task, briefText } from '../records/task/index.js';
 import { withLock } from '../util/lock.js';
 import { YanError } from '../util/error.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan task new` — create a task with its units and end inside it, by handing
@@ -216,9 +216,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
     added.push(name);
   }
 
-  try {
-    new Log(id).append('started', `task created: ${added.length} unit(s) - ${added.join(' ')}`);
-  } catch { /* the task exists; the narration is not worth failing for */ }
+  appendLog('yan task new', id, 'started', `task created: ${added.length} unit(s) - ${added.join(' ')}`);
 
   return { version: 1, task: id, title, units: added, dir: record.dir };
 }

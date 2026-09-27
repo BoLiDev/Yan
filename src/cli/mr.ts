@@ -5,10 +5,10 @@ import { action, out } from './shared/action.js';
 import { repoDir } from './shared/repo.js';
 import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
 import { Deliverables, deliverableAside, type Deliverable } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 import { YanError } from '../util/error.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan mr` — open the outbound merge request, integration branch → target,
@@ -135,11 +135,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     );
   }
 
-  try {
-    new Log(task).append('delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
-  } catch {
-    process.stderr.write('yan mr: the MR was recorded in task.json but log.md was not appended to\n');
-  }
+  appendLog('yan mr', task, 'delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
 
   return {
     version: 1,

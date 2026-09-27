@@ -6,7 +6,7 @@ import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from './sha
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { placementOf } from './shared/placement.js';
-import { noted, readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
 import { repoTarget } from './shared/repo.js';
 import { insideTask, existingTask } from './shared/task-id.js';
@@ -15,7 +15,6 @@ import type { Closer } from './shared/terminal.js';
 import { agentNameFor, Terminal, type AgentStatus, type SplitAt, type TabLayout } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseGrant } from '../externals/worktree/index.js';
-import { Log } from '../records/log/index.js';
 import { readLearnings } from '../records/memory/index.js';
 import { opensMr, Shift, type ShiftMeta, type ShiftMetaPlaceholder } from '../records/shift/index.js';
 import { Task, type UnitData } from '../records/task/index.js';
@@ -564,9 +563,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       terminal.setPaneTitle(startedAgent.pane, `${sid}-${unitName} · unit=${unitName}`, 'yan:shift');
     });
 
-    try {
-      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note));
-    } catch { /* the shift is running; a missing log line is not worth failing for */ }
+    appendLog('yan shift new', task, 'started', `${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note);
 
     return meta;
   } finally {
@@ -858,12 +855,10 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
 
     // --- 3. the log line ----------------------------------------------------
     if (shift.task !== '') {
-      try {
-        const what = needsMerge
-          ? `${mr} merged into the integration branch`
-          : options.nothingToMerge === true ? 'nothing to merge, report accepted' : scenario === 'uix' ? 'artifacts accepted by user' : 'report accepted';
-        new Log(shift.task).append('delivered', noted(`${shift.sid} ${unit}  ${what}`, note));
-      } catch { /* the teardown matters more than its log line */ }
+      const what = needsMerge
+        ? `${mr} merged into the integration branch`
+        : options.nothingToMerge === true ? 'nothing to merge, report accepted' : scenario === 'uix' ? 'artifacts accepted by user' : 'report accepted';
+      appendLog('yan shift done', shift.task, 'delivered', `${shift.sid} ${unit}  ${what}`, note);
     }
 
     // --- 4. rm -rf run/, the whole throwaway layer --------------------------
