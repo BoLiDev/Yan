@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { isInside, normalizePath, samePath } from '../../util/paths.js';
 
 /**
  * Colour for what a person reads in a terminal, and nothing for a pipe: on
@@ -91,9 +92,12 @@ export function fit(text: string, width: number): string {
   return `${out.trimEnd()}…`;
 }
 
-/** `path` with the home directory spelled `~`, in forward slashes. */
+/**
+ * `path` with the home directory spelled `~`, in forward slashes. The home
+ * matches as `samePath` would: whatever the case on Windows, exactly elsewhere.
+ */
 export function tildePath(path: string): string {
-  const home = homedir().replace(/\\/g, '/').replace(/\/$/, '');
-  const p = path.replace(/\\/g, '/');
-  return home !== '' && p.toLowerCase().startsWith(`${home.toLowerCase()}/`) ? `~${p.slice(home.length)}` : p;
+  const home = normalizePath(homedir());
+  const p = normalizePath(path);
+  return home !== '' && !samePath(home, p) && isInside(home, p) ? `~${p.slice(home.length)}` : p;
 }

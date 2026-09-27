@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { normalizePath } from '../../util/paths.js';
+import { normalizePath, pathKey } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -36,15 +36,6 @@ function shortHash(text: string, length = 8): string {
 
 export function repoName(clone: string): string {
   return basename(normalizePath(clone).replace(/\/+$/, '')).replace(/\.git$/, '');
-}
-
-/**
- * The comparable form of a path, lower-cased on Windows. Purely lexical, so it
- * works for a path that does not exist yet and never resolves a symlink.
- */
-export function pathKey(path: string): string {
-  const n = normalizePath(path);
-  return process.platform === 'win32' ? n.toLowerCase() : n;
 }
 
 /** Creates the pool root if it is absent. */

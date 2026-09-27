@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { readJsonOrNone, writeJson } from '../../util/json.js';
-import { leaseFile, leasesDir, pathKey, absolute } from './layout.js';
+import { pathKey } from '../../util/paths.js';
+import { leaseFile, leasesDir, absolute } from './layout.js';
 import type { Lease } from './types.js';
 
 /**
