@@ -1,17 +1,16 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
-import { Drafts, discardIfUntouched, isValidId, newDraftId, slugify, titleTemplate } from './index.js';
+import { Drafts, discardIfUntouched, newDraftId, titleTemplate } from './index.js';
+import { isValidId, slugify } from './drafts.js';
 
 /**
  * The store keeps cli-kit's `draft` format, so what its own suite guarantees
  * is guaranteed here too, per task rather than per machine.
  */
 
-let home = '';
-let previousHome: string | undefined;
 let drafts: Drafts;
 
 function write(id: string, body: string, ageSeconds: number): string {
@@ -24,17 +23,11 @@ function write(id: string, body: string, ageSeconds: number): string {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
-  home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
+  mkYanHome(mkTempDir());
   Task.create('t042', 'unify the auth header');
   drafts = new Drafts('t042');
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 afterAll(cleanupTempDirs);
 

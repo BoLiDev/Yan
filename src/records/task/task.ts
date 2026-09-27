@@ -5,9 +5,11 @@ import { editJson, initJson, readJson } from '../../util/json.js';
 import { asRecord, asString } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
+import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { Log } from '../log/index.js';
 import { Deliverables } from './deliverables.js';
 import { ENDS, type AddUnitOptions, type HistoryEnd, type HistoryEntry, type TaskData, type UnitData } from './types.js';
+import { byCodePoint, isRecordId } from '../../util/names.js';
 
 /**
  * A handle on one `tasks/<id>/task.json` — which branch a unit is on, where it
@@ -119,7 +121,7 @@ export class Task {
   public setComplete(complete: boolean): void {
     this.edit((task) => {
       task.complete = complete;
-      if (complete) task.closedAt = isoNow();
+      if (complete) task.closedAt = isoSecond();
       else delete task.closedAt;
     });
   }
@@ -129,7 +131,7 @@ export class Task {
     this.edit((task) => {
       task.complete = true;
       task.abandoned = true;
-      task.closedAt = isoNow();
+      task.closedAt = isoSecond();
     });
   }
 
@@ -199,16 +201,19 @@ export class Task {
    * into `history[]` under `end`, then move to `newBranch` and clear mr. One
    * write, so a crash leaves either the old round or the new one.
    *
-   * @param at an ISO date, or `''` for today.
-   * @throws YanError when `newBranch` is empty or `end` is not one of ENDS.
+   * @param day the retirement date, `YYYY-MM-DD` as history[].at has it; `''`
+   *   for today, the local day.
+   * @throws YanError when `newBranch` is empty, `end` is not one of ENDS, or
+   *   `day` is not a date.
    */
-  public rotateUnit(name: string, end: string, newBranch: string, at = ''): void {
+  public rotateUnit(name: string, end: string, newBranch: string, day = ''): void {
     if (!newBranch) throw YanError.usage('task_usage', 'rotating a unit needs the new branch name');
+    if (day !== '' && !isDate(day)) throw YanError.usage('task_usage', `a history date is YYYY-MM-DD, not '${day}'`);
     this.editUnit(name, (unit) => {
       const entry = historyEntry(
         asString(unit.branch),
         asString(unit.target),
-        at,
+        day,
         end,
         typeof unit.mr === 'string' ? unit.mr : null,
       );
@@ -227,7 +232,7 @@ export class Task {
   }
 
   public static isId(id: string): boolean {
-    return id !== '' && /^[A-Za-z0-9._-]+$/.test(id);
+    return isRecordId(id);
   }
 
   /** Does this string name a task? False for a malformed id, never a throw. */
@@ -246,7 +251,7 @@ export class Task {
     if (title === '') throw YanError.usage('task_usage', 'a task needs a title');
 
     mkdirSync(task.dir, { recursive: true });
-    initJson(task.file, { version: 1, id, title, complete: false, createdAt: isoNow(), units: [] });
+    initJson(task.file, { version: 1, id, title, complete: false, createdAt: isoSecond(), units: [] });
 
     const brief = join(task.dir, 'brief.md');
     if (!existsSync(brief)) writeFileSync(brief, briefText(id, title));
@@ -267,13 +272,8 @@ export class Task {
     }
     return entries
       .filter((id) => Task.isId(id) && existsSync(join(dir, id, 'task.json')))
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      .sort(byCodePoint);
   }
-}
-
-/** Now, as ISO 8601 UTC to the second: `2026-09-18T14:02:11Z`. */
-function isoNow(): string {
-  return `${new Date().toISOString().slice(0, 19)}Z`;
 }
 
 /**
@@ -307,7 +307,8 @@ function historyEntry(
   if (!(ENDS as readonly string[]).includes(end)) {
     throw YanError.usage('task_usage', `invalid end '${end}' - one of: ${ENDS.join(' ')}`);
   }
-  const when = at === '' ? new Date().toISOString().slice(0, 10) : at;
+  // The local day, as log.md and a deliverable's doneAt have it.
+  const when = at === '' ? localDay() : at;
   const entry: HistoryEntry = { branch, target, at: when, end: end as HistoryEnd };
   if (mr !== null && mr !== '') entry.mr = mr;
   return entry;

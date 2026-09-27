@@ -1,5 +1,4 @@
-import { spawnSync } from 'node:child_process';
-import type { ProcessResult } from '../../util/process.js';
+import { NOT_STARTED, runProcess, type ProcessResult } from '../../util/process.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -36,41 +35,40 @@ export function herdrErrorCode(stderr: string): string | undefined {
  * herdr that will not start is 127.
  */
 export function runHerdr(args: readonly string[]): ProcessResult {
-  const spawned = spawnSync('herdr', [...args], {
-    encoding: 'utf8',
-    windowsHide: true,
-  });
-  if (spawned.error !== undefined) {
-    return { code: 127, stdout: '', stderr: `herdr is not on PATH: ${spawned.error.message}` };
-  }
-  return {
-    code: spawned.status ?? 1,
-    stdout: spawned.stdout ?? '',
-    stderr: spawned.stderr ?? '',
-  };
+  const r = runProcess('herdr', args);
+  return r.code === NOT_STARTED ? { ...r, stderr: `herdr is not on PATH: ${r.stderr}` } : r;
 }
 
 /** How a herdr command is run; replaceable in a test. */
 export type HerdrRunner = (args: readonly string[]) => ProcessResult;
 
 /**
- * Run a herdr command and return its parsed `.result`, or `undefined` when it
- * succeeded with an empty or unparseable body.
+ * The `.result` of a successful herdr command's stdout, or `undefined` when
+ * the body is empty, does not parse, or has no `.result`.
+ *
+ * Only `.result`, never the body in its place: `herdr api schema --json`
+ * (protocol 22) makes `{ id, result }` the shape of every success response,
+ * and falling back to the whole body would read the envelope as the answer.
+ */
+export function resultOf(stdout: string): unknown {
+  const body = stdout.trim();
+  if (body === '') return undefined;
+  try {
+    return (JSON.parse(body) as { result?: unknown } | null)?.result;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Run a herdr command and return its `.result`, or `undefined` when it
+ * succeeded without one.
  *
  * @throws YanError when the command failed.
  */
 export function herdrCall(run: HerdrRunner, args: readonly string[], what: string): unknown {
   const result = run(args);
-  if (result.code === 0) {
-    const body = result.stdout.trim();
-    if (body === '') return undefined;
-    try {
-      const parsed: unknown = JSON.parse(body);
-      return (parsed as { result?: unknown }).result ?? parsed;
-    } catch {
-      return undefined;
-    }
-  }
+  if (result.code === 0) return resultOf(result.stdout);
   throw mapError(result, what);
 }
 
@@ -82,7 +80,9 @@ export function herdrCall(run: HerdrRunner, args: readonly string[], what: strin
  */
 export function mapError(result: ProcessResult, what: string): YanError {
   if (result.code === 2) {
-    return new YanError('term_bug', `herdr refused the command shape (${what}): ${result.stderr.trim()}`, { exitCode: 2 });
+    // Herdr's exit 2 is yan calling it wrongly, which is yan's bug and not
+    // the caller's mistake: exit 1, like any other failure.
+    return new YanError('term_bug', `herdr refused the command shape (${what}): ${result.stderr.trim()}`);
   }
   if (result.code === 127) {
     return new YanError('term_unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);

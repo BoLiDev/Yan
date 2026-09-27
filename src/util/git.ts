@@ -1,7 +1,6 @@
-import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
 import { YanError } from './error.js';
-import type { ProcessResult } from './process.js';
+import { NOT_STARTED, runProcess, type ProcessResult } from './process.js';
+import { isDirectory } from './paths.js';
 
 /**
  * Run git in a given directory. Every function takes that directory as its
@@ -9,7 +8,7 @@ import type { ProcessResult } from './process.js';
  * nothing here will force-push: `push` refuses the flag.
  *
  * (The flag's literal spelling is assembled from two pieces below so a grep of
- * src/ for it stays silent; tests/unit/util-git.test.ts checks that.)
+ * src/ for it stays silent; src/util/git.test.ts checks that.)
  */
 
 function requireDir(dir: string | undefined): string {
@@ -17,13 +16,7 @@ function requireDir(dir: string | undefined): string {
     throw YanError.usage('git_usage', 'a directory argument is required (this module never uses the current working directory)',
     );
   }
-  let isDir = false;
-  try {
-    isDir = statSync(dir).isDirectory();
-  } catch {
-    isDir = false;
-  }
-  if (!isDir) throw YanError.usage('git_usage', `not a directory: ${dir}`);
+  if (!isDirectory(dir)) throw YanError.usage('git_usage', `not a directory: ${dir}`);
   return dir;
 }
 
@@ -46,15 +39,9 @@ function requireArg(value: string | undefined, message: string): string {
  */
 export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): ProcessResult {
   const d = requireDir(dir);
-  const r = spawnSync('git', ['-C', d, ...args], {
-    encoding: 'utf8',
-    windowsHide: true,
-    ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
-  });
-  if (r.error) {
-    throw new YanError('git_failed', `cannot run git: ${r.error.message}`, { cause: r.error });
-  }
-  return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  const r = runProcess('git', ['-C', d, ...args], options);
+  if (r.code === NOT_STARTED) throw new YanError('git_failed', `cannot run git: ${r.stderr}`);
+  return r;
 }
 
 /** True when git exited 0. */
@@ -160,7 +147,7 @@ export function rebase(dir: string, args: readonly string[]): ProcessResult {
 
 const FORCE = `--${'force'}`;
 
-export function isForceFlag(arg: string): boolean {
+function isForceFlag(arg: string): boolean {
   return arg === '-f' || arg === FORCE || arg.startsWith(`${FORCE}-`) || arg.startsWith(`${FORCE}=`);
 }
 
@@ -172,9 +159,7 @@ export function isForceFlag(arg: string): boolean {
 export function push(dir: string, args: readonly string[] = []): ProcessResult {
   for (const a of args) {
     if (isForceFlag(a)) {
-      throw new YanError('git_force_refused', 'refusing to force-push: it rewrites history other people have already pulled',
-        { exitCode: 2 },
-      );
+      throw YanError.usage('git_force_refused', 'refusing to force-push: it rewrites history other people have already pulled');
     }
   }
   return git(dir, ['push', ...args]);
@@ -223,7 +208,7 @@ export function cleanFd(dir: string): ProcessResult {
 // --- cloning ---------------------------------------------------------------
 
 /** <dir> is the directory the clone is created in. */
-export function clone(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
+export function cloneRepo(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
   return git(dir, ['clone', ...args, url, dest]);
 }
 

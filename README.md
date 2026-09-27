@@ -5,8 +5,8 @@ breaks it into pieces that can be handed out, each piece goes to a single-use su
 working in an isolated git worktree, and the result is delivered as a merge request.
 
 Status: **V3 implemented**. TypeScript on [Herdr](https://herdr.dev), on Git Bash (Windows)
-and Linux. The MVP's bash-and-tmux runtime has been deleted; `bin/` holds three shell stubs
-and nothing else.
+and Linux. The MVP's bash-and-tmux runtime has been deleted; `bin/` holds two stubs, the
+bash `yan` and the `yan.mjs` npm puts on PATH, and nothing else.
 
 **This repository is code.** Tasks, briefs, logs, outcomes, memory and the repository
 registry live in a **vault**: a git repository of your own, one per context — personal
@@ -70,8 +70,7 @@ clone one) → type `yan` → you are inside the task.
 
 Codex works as the main agent. As a **shift** agent it is only usable where you have said
 so: its first-run hook-review prompt is one Herdr does not classify as blocked, so a shift
-would park on it silently. `yan doctor` says this at the point it can still be answered;
-the measurements are in [docs/v2/td/evidence.md §13](docs/v2/td/evidence.md).
+would park on it silently. `yan doctor` says this at the point it can still be answered.
 
 Agy — the Antigravity CLI — works as the main agent. Set `agents.yan` to
 `{ "cli": "agy", "model": … }` (`agy models` lists the ids; with no
@@ -88,7 +87,9 @@ model, agy chooses its own). Two things differ from the other two:
 A shift tells the main agent what happened by typing one line into its pane, with
 `yan report`; nothing watches a shift, and `yan state <sid>` answers on demand. A line
 that will not go — the main agent is in a dialog, or none is running — is kept and
-listed by `yan show` and at the next session start.
+listed by `yan show` and at the next session start. One that would land while you are
+typing in the main agent's pane waits for your line to go, up to three minutes, and then
+fails so the shift tries again later.
 
 The one hook in `.claude/settings.json`, `.codex/hooks.json` and `.agents/hooks.json` is
 the MAIN AGENT's: it rebuilds the picture at session start. A shift working on this
@@ -102,31 +103,36 @@ The root `AGENTS.md` is the main agent's prompt, read by all three harnesses.
 Tests: `npm test`. That is the whole suite — unit, integration, and the e2e tests that
 skip loudly when Herdr or a real forge is absent.
 
+`npm run check:ui` clicks through the page `yan ui` writes in headless Chrome and checks it
+against the fixture vault in `tests/fixtures/ui-vault/`. It is not part of `npm test`, because
+it needs Google Chrome and a build.
+
 ## Where to start reading
 
-**[docs/v3/td/INDEX.md](docs/v3/td/INDEX.md)** is the newest layer: the three places yan's
-state lives (code, vault, machine), why `$YAN_HOME` stopped being all three, and how a
-machine carries two contexts without mixing them.
+**[docs/v3/td/INDEX.md](docs/v3/td/INDEX.md)** is the design as it stands: the three places
+yan's state lives (code, vault, machine), why `$YAN_HOME` stopped being all three, and how a
+machine carries two contexts without mixing them. Each section links to the document that
+argues one part in full.
 
-**[docs/v2/td/INDEX.md](docs/v2/td/INDEX.md)** is the runtime design: what V2 changed, what
-it deliberately did not, and what was deleted. Each section links to the document that
-argues one part in full — the terminal seam, supervision, orchestration, display, the CLI
-UX, and the evidence every claim rests on.
+The principles under it are short enough to give here:
 
-**[docs/mvp/td/INDEX.md](docs/mvp/td/INDEX.md)** is still the backbone, and still wins any
-argument about *design*: the principles, the glossary, the storage criteria, the branch
-model, the forge layer, the authority table. Read its mechanisms as history — where it says
-tmux, bash or `jq`, V2 says Herdr and TypeScript.
+1. **Do not store state you can derive.** The directory structure, git and the forge are the
+   source of truth.
+2. **One owner per piece of information:** one writer, and one point where it is read.
+3. **Prose makes the judgements;** commands do the steps that need none.
+4. **`user` and the agents use the same entry point.** Every action is a CLI command `user`
+   can run too, and both see the same state.
+5. **Anything irreversible goes through a command, and is refused by default.**
 
-| Question | Document |
+The root `AGENTS.md` is the rest of the design in the form the main agent follows it: what a
+task, a unit and a shift are, the branch model, and the authority table.
+
+| Question | Where |
 | --- | --- |
 | Where tasks are kept, and how two contexts stay apart | [docs/v3/td/INDEX.md](docs/v3/td/INDEX.md) |
-| What the current runtime is, and why | [docs/v2/td/INDEX.md](docs/v2/td/INDEX.md) |
-| Why is it designed this way, and what is each part responsible for | [docs/mvp/td/INDEX.md](docs/mvp/td/INDEX.md) |
-| The full argument for one part (memory, agents, supervision, branching, worktrees, delivery, boundaries, scope) | the matching file under `docs/mvp/td/`; every section of INDEX ends with a link |
-| Where the code goes, what may call what, and how it is tested | [docs/v2/td/runtime.md](docs/v2/td/runtime.md), and [docs/mvp/td/architecture.md](docs/mvp/td/architecture.md) for the layering it inherited |
-| How each claim about Herdr was measured | [docs/v2/td/evidence.md](docs/v2/td/evidence.md) |
-| How the port was cut into phases | [docs/v2/plan/INDEX.md](docs/v2/plan/INDEX.md) |
+| What each command does, and what V3 changed | `yan <command> --help`, and [docs/v3/td/cli.md](docs/v3/td/cli.md) |
+| What the main agent does, and what it may do without asking | [AGENTS.md](AGENTS.md) |
+| Where the code goes, and what may call what | `src/`: `externals/` wraps each outside tool (the git hosts, Herdr, the worktree pool, the agent harnesses), `records/` owns the vault's files, `cli/` is the commands. [`scripts/check-module-boundaries.mjs`](scripts/check-module-boundaries.mjs) states the rules, and `npm run build` enforces them |
 | How V3 was cut into phases, and what the migration found | [docs/v3/plan/INDEX.md](docs/v3/plan/INDEX.md), [docs/v3/td/migration.md](docs/v3/td/migration.md) |
 
 ## Third-party material
@@ -140,22 +146,10 @@ Everything else here is yan's own.
 
 ## Conventions
 
-- The MVP technical design (`td`) is split by topic across `docs/mvp/td/`. Section numbers are part of each
-  heading, and one numbering scheme runs across all of the files, so a given section number
-  appears exactly once in the whole set. A reference from one `td` file to another
-  therefore gives only the section number plus a link to click, and the reader does not have
-  to know which file that section lives in.
-- A reference that crosses out of `td` says which document and which section: the
-  document name followed by the section number, again with a link. For example
-  [`architecture.md` §3](docs/mvp/td/architecture.md#3-repository-layout).
-  Keeping the document name and the anchor together stops the two from drifting apart.
-- Documents that do not share `td`'s numbering are the exception when they point into
-  it: they use the prefix `td` instead of a file name, for example
-  [td §7](docs/mvp/td/worktree.md#7-worktrees). Since the section numbers run
-  across every file, the number alone is enough to identify the section, and the link answers
-  which file it is in.
-- A bare section number with no link refers to a section of the current document. References
-  within a single document are always written this way. `docs/mvp/td/architecture.md` (1–7)
-  carries its own numbering and says so at the top.
+- Each document under `docs/v3/td/` numbers its own sections, and the number is part of the
+  heading. A reference to another document names it and the section, with a link, for
+  example [`vault.md` §5](docs/v3/td/vault.md#5-sync), so the name and the anchor cannot
+  drift apart.
+- A bare section number with no link refers to a section of the current document.
 - `docs/` is also the working area for design discussions. Anything a discussion produces
   (Markdown or HTML) goes here.

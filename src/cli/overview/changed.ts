@@ -1,7 +1,7 @@
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoDirIfKnown } from '../shared/repo.js';
-import { WorktreePool, type LeaseRow } from '../../externals/worktree/index.js';
+import { poolLeases, type LeasesOf } from '../shared/leases.js';
 import type { TaskData, UnitData } from '../../records/task/index.js';
 import { git } from '../../util/git.js';
 import { later, secondMoment, type Moment } from './when.js';
@@ -22,23 +22,6 @@ export type Changed =
 
 /** One unit's answer before it is combined: a moment, `none`, or `unknown`. */
 type Found = Moment | 'none' | 'unknown';
-
-/** The pool's leases for one clone; `undefined` when the pool cannot be read. */
-export type LeasesOf = (clone: string) => readonly LeaseRow[] | undefined;
-
-export function poolLeases(): LeasesOf {
-  const cache = new Map<string, readonly LeaseRow[] | undefined>();
-  return (clone) => {
-    if (!cache.has(clone)) {
-      try {
-        cache.set(clone, new WorktreePool(clone).status());
-      } catch {
-        cache.set(clone, undefined);
-      }
-    }
-    return cache.get(clone);
-  };
-}
 
 /** Git's answer, or undefined for every way git can fail — including not starting. */
 function gitStdout(dir: string, args: readonly string[]): string | undefined {
@@ -62,7 +45,7 @@ function commitTime(dir: string, ref: string): number | undefined {
  * `git status --porcelain` lists. `unknown` when the tree is not a working
  * tree git can read.
  */
-export function treeChanged(tree: string): Found {
+function treeChanged(tree: string): Found {
   const status = gitStdout(tree, ['status', '--porcelain=v1', '-z']);
   if (status === undefined) return 'unknown';
 
@@ -86,7 +69,7 @@ export function treeChanged(tree: string): Found {
 }
 
 /** The integration branch's last commit in the clone, local or `origin/`, whichever is later. */
-export function branchChanged(clone: string, branch: string): Found {
+function branchChanged(clone: string, branch: string): Found {
   if (branch === '') return 'none';
   const times = [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]
     .map((ref) => commitTime(clone, ref))

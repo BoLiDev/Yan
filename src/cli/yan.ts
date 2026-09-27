@@ -1,18 +1,20 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
 import { openTasks } from './shared/task-id.js';
-import { isTty, setPrompter } from './shared/resolve.js';
+import { isTty } from './shared/tty.js';
 import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
+import { readJsonOrNone } from '../util/json.js';
+import { asString } from '../util/narrow.js';
 
 /**
  * The Commander root, and the only place subcommands are composed. A command
  * is a `dist/cli/<name>.js` exporting a `command`, discovered from disk.
  *
- * No option anywhere under `src/cli/` may be declared `.requiredOption()`:
- * Commander would exit before `shared/resolve.ts` could ask for it.
+ * No option anywhere under `src/cli/` is declared `.requiredOption()`: a
+ * command asks for what is missing when there is a terminal, and Commander
+ * would refuse before it got the chance.
  */
 
 /**
@@ -21,17 +23,10 @@ import { yanHome, subcommands } from '../util/home.js';
  * CLI: the version is the least of what `yan --version` is asked for.
  */
 function yanVersion(home: string): string {
-  try {
-    const pkg: unknown = JSON.parse(readFileSync(join(home, 'package.json'), 'utf8'));
-    const version = (pkg as { version?: unknown } | null)?.version;
-    if (typeof version === 'string' && version !== '') return version;
-  } catch {
-    // Unreadable or not JSON.
-  }
-  return 'unknown';
+  return asString(readJsonOrNone(join(home, 'package.json'))?.version) || 'unknown';
 }
 
-/** What every ported subcommand module must export. */
+/** What every subcommand module must export. */
 interface CommandModule {
   readonly command: Command;
 }
@@ -50,7 +45,7 @@ function hasCommand(mod: unknown): mod is CommandModule {
  * exists, so `yan shift new` and `yan shift-new` are the same. Argv that does
  * not name one is untouched.
  */
-export function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
+function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
   const [first, second, ...rest] = argv;
   if (first === undefined || second === undefined) return [...argv];
   if (/^[A-Za-z0-9_-]+$/.test(second) && known.includes(`${first}-${second}`)) {
@@ -59,7 +54,7 @@ export function joinTwoWordCommand(argv: readonly string[], known: readonly stri
   return [...argv];
 }
 
-export async function buildProgram(home: string): Promise<Command> {
+async function buildProgram(home: string): Promise<Command> {
   const program = new Command();
   const found = subcommands(home);
 
@@ -115,22 +110,10 @@ async function chooseEntryPoint(): Promise<string[]> {
   return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', chosen];
 }
 
-/**
- * Give `resolve()` its prompter. The import is dynamic, so no path that never
- * prompts loads the prompt library.
- */
-function installPrompter(): void {
-  setPrompter(async (missing) => {
-    const { askFor } = await import('../ui/prompts.js');
-    return askFor(missing);
-  });
-}
-
-export async function main(argv: readonly string[]): Promise<number> {
+async function main(argv: readonly string[]): Promise<number> {
   const home = yanHome();
   const found = subcommands(home);
   const program = await buildProgram(home);
-  installPrompter();
 
   let words = [...argv];
 

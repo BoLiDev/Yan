@@ -43,6 +43,10 @@ const schema = JSON.parse(raw);
 // change yan has to answer.
 const WANTED = ['AgentStatus', 'ReadSource'];
 
+// The enums yan also needs as a runtime list, to check a value Herdr sent:
+// only a status is ever validated. The rest get a type and nothing else.
+const LISTED = ['AgentStatus'];
+
 /** The wanted `$defs` entries, which are plain string enums, across all five schemas. */
 function collectEnums() {
   const found = new Map();
@@ -80,7 +84,7 @@ const lines = [
   '//',
   '// Source: `herdr api schema --json`. Re-run the generator after a Herdr',
   '// upgrade; `yan doctor` compares the two stamps below against the installed',
-  '// binary and says so when they have drifted (runtime.md §4, sources.md §2).',
+  '// binary and says so when they have drifted.',
   '',
   `export const HERDR_PROTOCOL = ${JSON.stringify(schema.protocol)};`,
   `export const HERDR_SCHEMA_VERSION = ${JSON.stringify(schema.schema_version)};`,
@@ -90,11 +94,13 @@ const lines = [
 for (const [name, members] of enums) {
   const union = members.map((m) => `'${m}'`).join(' | ');
   lines.push(`export type ${name} = ${union};`);
-  lines.push(
-    `export const ${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()}: readonly ${name}[] = [`,
-  );
-  for (const m of members) lines.push(`  '${m}',`);
-  lines.push('];');
+  if (LISTED.includes(name)) {
+    lines.push(
+      `export const ${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()}: readonly ${name}[] = [`,
+    );
+    for (const m of members) lines.push(`  '${m}',`);
+    lines.push('];');
+  }
   lines.push('');
 }
 

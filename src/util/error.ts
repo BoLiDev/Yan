@@ -17,18 +17,27 @@ export class YanError extends Error {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.code = code;
-    // 2 means "you called this wrongly"; 1, the default, means "yan tried, and
-    // refused or failed".
     this.exitCode = options?.exitCode ?? 1;
   }
 
-  /** You called this wrongly. Always exit 2. */
+  /**
+   * You called this wrongly. Always exit 2, and the only way to say it: 1, the
+   * default, means "yan tried, and refused or failed".
+   *
+   * A broken configuration counts as calling it wrongly when a person wrote
+   * the file by hand: the vault's `config.json` (`agents`, `scenarios`,
+   * `remote_git`) is exit 2, because the fix is to edit what you wrote. A file
+   * yan writes itself — `vault.json`, `~/.yan/config.json`, `task.json`,
+   * `run/meta.json` — being missing, corrupt or out of step is exit 1: nobody
+   * called anything wrongly, and the fix is a yan command or a look at what
+   * went wrong.
+   */
   public static usage(code: string, message: string): YanError {
     return new YanError(code, message, { exitCode: 2 });
   }
 }
 
-export interface YanErrorOptions {
+interface YanErrorOptions {
   readonly cause?: unknown;
   readonly exitCode?: number;
 }

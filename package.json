@@ -19,7 +19,8 @@
     "types:herdr": "node scripts/generate-herdr-types.mjs",
     "types:herdr:check": "node scripts/generate-herdr-types.mjs --check",
     "typecheck": "tsc -p tsconfig.tests.json",
-    "test": "npm run build && vitest run"
+    "test": "npm run build && vitest run",
+    "check:ui": "node scripts/check-ui-page.mjs"
   },
   "dependencies": {
     "@clack/prompts": "1.7.0",

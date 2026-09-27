@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { writeJson } from '../../util/json.js';
-import { leaseFile, leasesDir, pathKey, absolute } from './layout.js';
+import { readJsonOrNone, writeJson } from '../../util/json.js';
+import { pathKey } from '../../util/paths.js';
+import { leaseFile, leasesDir, absolute } from './layout.js';
 import type { Lease } from './types.js';
 
 /**
@@ -11,13 +12,7 @@ import type { Lease } from './types.js';
  */
 
 export function readLease(file: string): Lease | undefined {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
-    if (typeof parsed !== 'object' || parsed === null) return undefined;
-    return parsed as Lease;
-  } catch {
-    return undefined;
-  }
+  return readJsonOrNone(file) as Lease | undefined;
 }
 
 export function allLeases(dir: string): Lease[] {
@@ -83,14 +78,14 @@ export function releaseLease(dir: string, slot: number): void {
 }
 
 /** Which slot a path or a slot number names, or undefined when nothing matches. */
-export function slotOf(dir: string, target: string): number | undefined {
-  if (target === '') return undefined;
-  if (/^[0-9]+$/.test(target)) {
-    const slot = Number(target);
+export function slotOf(dir: string, tree: string): number | undefined {
+  if (tree === '') return undefined;
+  if (/^[0-9]+$/.test(tree)) {
+    const slot = Number(tree);
     return existsSync(leaseFile(dir, slot)) ? slot : undefined;
   }
-  const want = pathKey(target);
-  const wantAbs = pathKey(absolute(target));
+  const want = pathKey(tree);
+  const wantAbs = pathKey(absolute(tree));
   for (const lease of allLeases(dir)) {
     if (lease.path === undefined) continue;
     if (pathKey(lease.path) === want || pathKey(absolute(lease.path)) === wantAbs) return lease.slot;

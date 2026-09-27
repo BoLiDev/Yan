@@ -1,30 +1,12 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { recordOrNone } from '../../util/narrow.js';
-import type { ProcessResult } from '../../util/process.js';
+import { existsSync, readFileSync } from 'node:fs';
 import type { MrCreateOptions, MrRef, RepoRef } from './types.js';
 import { YanError } from '../../util/error.js';
+import { isDirectory } from '../../util/paths.js';
 
 /**
- * Everything the verbs check before they talk to a CLI, and the readers of
- * what comes back — including the two both providers map their payloads with.
+ * Everything the verbs check before they talk to a CLI. Reading what comes
+ * back is `reply.ts`.
  */
-
-/**
- * A CLI's JSON object, or `undefined` when the payload is neither. Both
- * mappers treat those the same: nothing usable came back.
- */
-export function asObject(text: string): Record<string, unknown> | undefined {
-  try {
-    return recordOrNone(JSON.parse(text));
-  } catch {
-    return undefined;
-  }
-}
-
-/** A field lower-cased for comparison; `''` for anything that is not a string. */
-export function lower(value: unknown): string {
-  return typeof value === 'string' ? value.toLowerCase() : '';
-}
 
 /**
  * The directory to run in, or undefined when the ref names none.
@@ -33,13 +15,7 @@ export function lower(value: unknown): string {
  */
 export function checkDir(ref: RepoRef): string | undefined {
   if (ref.dir === undefined || ref.dir === '') return undefined;
-  let isDir = false;
-  try {
-    isDir = statSync(ref.dir).isDirectory();
-  } catch {
-    isDir = false;
-  }
-  if (!isDir) throw YanError.usage('remote_git_usage', `dir is not a directory: ${ref.dir}`);
+  if (!isDirectory(ref.dir)) throw YanError.usage('remote_git_usage', `dir is not a directory: ${ref.dir}`);
   return ref.dir;
 }
 
@@ -72,26 +48,4 @@ export function bodyText(options: MrCreateOptions): string {
     return readFileSync(options.bodyFile, 'utf8');
   }
   return options.body ?? '';
-}
-
-/**
- * The last match of `pattern` in `text`, CR-stripped.
- *
- * @throws YanError `remote_git_failed` when nothing matches.
- */
-export function extractUrl(text: string, pattern: RegExp): string {
-  const matches = text.match(pattern);
-  if (matches === null || matches.length === 0) {
-    throw new YanError('remote_git_failed', 'the host did not print a merge request URL - check the repository by hand',
-    );
-  }
-  return (matches[matches.length - 1] ?? '').replace(/\r/g, '');
-}
-
-/** Write one line on stderr saying the host could not be asked. */
-export function unreachable(what: string, fallback: string, result: ProcessResult): void {
-  const detail = result.stderr.trim().replace(/\n/g, ' ');
-  process.stderr.write(
-    `remote-git: cannot ask the host about ${what} - reporting ${fallback}${detail === '' ? '' : ` (${detail})`}\n`,
-  );
 }

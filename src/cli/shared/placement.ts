@@ -89,7 +89,7 @@ export function placeShift(
 }
 
 /** What placing a shift needs from the terminal; `Terminal` is the real one. */
-export interface PlacingTerminal {
+interface PlacingTerminal {
   tabLayout(pane: string): TabLayout | undefined;
 }
 

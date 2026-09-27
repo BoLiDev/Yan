@@ -1,25 +1,25 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { isMainAgentOf } from './shared/caller.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
+import { branchRef } from './shared/branch.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { chosenTask } from './shared/task-id.js';
-import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
-import { dash } from './shared/table.js';
-import { overviewTask, type OverviewTask } from './overview/overview.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
+import { blue, bold, cyan, dash, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
+import { overviewTask, stateOf, type OverviewTask, type TaskState } from './overview/overview.js';
+import { shiftFacts, type ShiftFacts } from './overview/shift-facts.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
-import { isoMoment, secondMoment } from './overview/when.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import { isoMoment } from './overview/when.js';
+import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
-import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
+import { Shift, clearUndelivered } from '../records/shift/index.js';
+import { Task, type Deliverable, readDeliverables } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
-import { YanError } from '../util/error.js';
+import { poolLeases } from './shared/leases.js';
 
 /**
  * `yan show [<id>] [--json]` — one task at a glance: whether a yan is running
@@ -32,14 +32,13 @@ import { YanError } from '../util/error.js';
  */
 
 /** How many log entries are shown. */
-export const SHOW_LOG_TAIL = 5;
+const SHOW_LOG_TAIL = 5;
 
 export interface ShowJson {
-  readonly version: 1;
+  readonly version: 2;
   readonly id: string;
   readonly title: string;
-  readonly complete: boolean;
-  readonly abandoned: boolean;
+  readonly state: TaskState;
   readonly dir: string;
   /** Whether a live `yan continue` holds the task, and the pane it is in. */
   readonly session: { readonly running: boolean; readonly pane: string | null };
@@ -60,23 +59,13 @@ export interface ShowJson {
     /** The standing tree leased to `<task>/<unit>`, and how many paths are uncommitted in it. */
     readonly tree: { readonly path: string; readonly dirty: number | null } | null;
   }[];
-  readonly shifts: readonly {
-    readonly sid: string;
-    readonly unit: string;
-    readonly branch: string;
-    readonly tree: string;
-    readonly scenario: string;
-    readonly tier: string;
-    readonly pane: string;
-    /** The newest line of run/status: an event, not the shift's state. */
-    readonly last_event: { readonly state: string; readonly at: string; readonly note: string } | null;
+  /** The live shifts. This task's own main agent clears their `undelivered` by reading them. */
+  readonly shifts: readonly (ShiftFacts & {
     /** The task is done and this shift never clocked out: its run/ is left over, not running. */
     readonly leftover: boolean;
     /** Reported done on an open task: its work is merged or delivered, and waits to be tried and accepted. */
     readonly awaiting_acceptance: boolean;
-    /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
-    readonly undelivered: readonly Undelivered[];
-  }[];
+  })[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
 
@@ -91,17 +80,10 @@ function sessionOf(id: string): ShowJson['session'] {
   return { running, pane: running ? (paneOfEnterLock(id) ?? null) : null };
 }
 
-/** `origin/<name>` when the clone has it, `<name>` when only a local ref exists, else undefined. */
-function refIn(clone: string, name: string): string | undefined {
-  if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`])) return `origin/${name}`;
-  if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])) return name;
-  return undefined;
-}
-
 function aheadOf(clone: string | undefined, branch: string, target: string): number | null {
   if (clone === undefined || branch === '' || target === '') return null;
-  const from = refIn(clone, target);
-  const to = refIn(clone, branch);
+  const from = branchRef(clone, target);
+  const to = branchRef(clone, branch);
   if (from === undefined || to === undefined) return null;
   const count = Number.parseInt(gitLines(clone, ['rev-list', '--count', `${from}..${to}`])[0] ?? '', 10);
   return Number.isNaN(count) ? null : count;
@@ -115,34 +97,11 @@ function standingTree(leases: readonly LeaseRow[], holder: string): ShowJson['un
   return { path: lease.path, dirty: gitLines(lease.path, ['status', '--porcelain']).length };
 }
 
-function lastEvent(shift: Shift): ShowJson['shifts'][number]['last_event'] {
-  let text = '';
-  try {
-    text = readFileSync(join(shift.run, 'status'), 'utf8');
-  } catch {
-    return null;
-  }
-  const line = text.split(/\r?\n/).filter((l) => l !== '').pop();
-  if (line === undefined) return null;
-  const [at = '', state = '', ...note] = line.split('\t');
-  return { state, at, note: note.join('\t') };
-}
-
-export function showJson(id: string): ShowJson {
+function showJson(id: string): ShowJson {
   const task = new Task(id);
   const data = task.read();
-  const leasesByClone = new Map<string, readonly LeaseRow[]>();
-  const leasesOf = (clone: string | undefined): readonly LeaseRow[] => {
-    if (clone === undefined) return [];
-    if (!leasesByClone.has(clone)) {
-      try {
-        leasesByClone.set(clone, new WorktreePool(clone).status());
-      } catch {
-        leasesByClone.set(clone, []);
-      }
-    }
-    return leasesByClone.get(clone) ?? [];
-  };
+  const pool = poolLeases();
+  const leasesOf = (clone: string | undefined): readonly LeaseRow[] => (clone === undefined ? [] : (pool(clone) ?? []));
 
   const units = data.units.map((u) => {
     const clone = repoDirIfKnown(u.repo);
@@ -160,30 +119,21 @@ export function showJson(id: string): ShowJson {
   });
 
   const shifts = Shift.liveIn(id).map((shift) => {
-    const meta = shift.meta();
+    const facts = shiftFacts(shift);
     return {
-      sid: shift.sid,
-      unit: meta.unit ?? '',
-      branch: meta.branch ?? '',
-      tree: meta.tree ?? '',
-      scenario: meta.scenario,
-      tier: meta.tier ?? '',
-      pane: meta.pane ?? '',
-      last_event: lastEvent(shift),
+      ...facts,
       leftover: data.complete,
-      awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',
-      undelivered: readUndelivered(shift.run),
+      awaiting_acceptance: !data.complete && facts.last_event?.state === 'done',
     };
   });
 
-  const said = new Deliverables(id).readOrNone();
+  const said = readDeliverables(id);
 
   return {
-    version: 1,
+    version: 2,
     id: data.id,
     title: data.title,
-    complete: data.complete,
-    abandoned: data.abandoned,
+    state: stateOf(data),
     dir: task.dir,
     session: sessionOf(id),
     deliverables: said.deliverables,
@@ -246,7 +196,7 @@ function section(label: string, aside = ''): void {
  * `clears` says whether this caller is about to consume the undelivered
  * reports it is being shown, which changes only what their heading says.
  */
-export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears = false): void {
+function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears = false): void {
   for (const line of renderHeader(task, show.session, { now, cols: terminalWidth() })) out(line);
 
   section(
@@ -258,7 +208,7 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(),
   } else if (show.deliverables.length === 0) {
     // One quiet line. What to do about it is session start's to say, to the
     // main agent; this is `user` at a terminal looking at a task.
-    out(`   ${dim(show.complete ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
+    out(`   ${dim(show.state !== 'open' ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
   } else {
     for (const line of deliverableLines(show.deliverables, { id: bold, status: statusPaint, aside: dim }, terminalWidth())) {
       out(` ${line}`);
@@ -337,7 +287,8 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(),
     section('Undelivered reports', aside);
     for (const s of missed) {
       for (const u of s.undelivered) {
-        out(`   ${bold(s.sid)}  ${paintEvent(u.state)}  ${dim(ago(secondMoment(u.at * 1000, 'status'), now))}  ${u.note}`);
+        const at = isoMoment(u.at, 'status');
+        out(`   ${bold(s.sid)}  ${paintEvent(u.state)}  ${dim(at === undefined ? '' : ago(at, now))}  ${u.note}`);
       }
     }
   }
@@ -353,11 +304,8 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(),
 }
 
 /** Print one task. */
-export function printTask(id: string, json: boolean): void {
-  if (!Task.exists(id)) {
-    const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
-    throw new YanError('task_missing', `no such task: ${id} - ${where} does not exist`);
-  }
+function printTask(id: string, json: boolean): void {
+  existingTask('show', id);
   const show = showJson(id);
 
   // A report is deleted once the one reader it was written for has read it.
@@ -382,7 +330,7 @@ export function printTask(id: string, json: boolean): void {
 export const command = new Command('show')
   .description('one task at a glance: its session, branches, trees, shifts and last log entries')
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
-  .option('--json', 'machine readable output')
+  .option('--json', 'machine readable output: version 2')
   .addHelpText(
     'after',
     `
@@ -393,10 +341,16 @@ and "ahead" counts commits by the refs the clone last fetched.
 Undelivered reports are printed to anyone, and cleared only for the task's own
 main agent - the one whose $YAN_TASK is this task and which is not a shift.
 Read from any other pane they are left where they are, so nobody else's glance
-swallows a report yan has not seen.`,
+swallows a report yan has not seen.
+
+--json is version 2. Since version 1: "complete" and "abandoned" are one
+"state", open, done or abandoned, as in 'yan ls --json'; each shift also
+carries agent, container, mr and live, the facts 'yan session-start --json'
+gives a shift; and an undelivered report's "at" is an ISO 8601 string, as a
+last_event's is, rather than epoch seconds.`,
   )
   .action(
-    action('show', async (id: string | undefined, options: { json?: boolean }) => {
+    action('yan show', async (id: string | undefined, options: { json?: boolean }) => {
       const task = await chosenTask('show', id, {
         spelled: 'yan show',
         question: 'Which task do you want to see?',

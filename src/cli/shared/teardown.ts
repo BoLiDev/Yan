@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { display } from './display.js';
 import { repoDir, repoDirIfKnown } from './repo.js';
 import { Terminal } from '../../externals/herdr/index.js';
-import { WorktreePool, type LeaseRow } from '../../externals/worktree/index.js';
+import { WorktreePool, type LeaseRow, type ReturnOptions } from '../../externals/worktree/index.js';
 import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
-import type { Closer } from './terminal.js';
+import { normalizePath } from '../../util/paths.js';
 
 /**
  * The four steps every teardown repeats — `yan done`, `yan abandon`,
@@ -27,6 +28,18 @@ import type { Closer } from './terminal.js';
 export type PoolFor = (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
 type Returner = (clone: string) => Pick<WorktreePool, 'return'>;
 type Statuser = (clone: string) => Pick<WorktreePool, 'status'>;
+
+/**
+ * What a command that tears something down needs from the terminal. `Terminal`
+ * is the real one; a test passes its own. `agentAlive` is optional because
+ * only `yan shift done` asks — it reports an agent that survived the close
+ * rather than assuming it went.
+ */
+export interface Closer {
+  close(pane: string): void;
+  clearPaneTitle(pane: string): void;
+  agentAlive?(pane: string): 'alive' | 'dead' | 'unknown';
+}
 
 /**
  * Close a shift's pane and answer whether its agent really went. Never throws:
@@ -53,16 +66,8 @@ export function closePane(pane: string, terminal?: Closer): boolean {
   }
 }
 
-/** What a conditional return compares before it touches anything. */
-export interface LeaseIdentity {
-  readonly leaseId?: string;
-  readonly holder?: string;
-  /** Past the orphan-commit guard: `user`'s answer, never a retry. */
-  readonly force?: boolean;
-}
-
 /** What became of one tree. `path` is where it ended up, or where it still is. */
-export interface Returned {
+interface Returned {
   readonly returned: boolean;
   readonly path: string;
   /** Why it did not come back. Absent when it did. */
@@ -79,15 +84,11 @@ export interface Returned {
 export function returnLease(
   clone: string,
   tree: string,
-  identity: LeaseIdentity,
+  identity: ReturnOptions,
   pool?: Returner,
 ): Returned {
   try {
-    const landed = (pool?.(clone) ?? new WorktreePool(clone)).return(tree, {
-      ...(identity.leaseId === undefined || identity.leaseId === '' ? {} : { leaseId: identity.leaseId }),
-      ...(identity.holder === undefined || identity.holder === '' ? {} : { holder: identity.holder }),
-      ...(identity.force === undefined ? {} : { force: identity.force }),
-    });
+    const landed = (pool?.(clone) ?? new WorktreePool(clone)).return(tree, identity);
     return { returned: true, path: landed === '' ? tree : landed };
   } catch (err) {
     return { returned: false, path: tree, reason: err instanceof Error ? err.message : String(err), cause: err };
@@ -95,7 +96,7 @@ export function returnLease(
 }
 
 /** A lease of one task, with the clone whose pool is holding it. */
-export interface Held extends LeaseRow {
+interface Held extends LeaseRow {
   readonly clone: string;
 }
 
@@ -108,32 +109,31 @@ export interface Held extends LeaseRow {
  * repository that cannot be resolved is skipped rather than fatal.
  */
 export function leasesHeldBy(task: string, pool?: Statuser): Held[] {
-  const repos = new Set<string>();
+  // Two kinds of answer: a unit names its repository as registered, a live
+  // shift records the path of the clone it came from.
+  const names = new Set<string>();
   try {
     for (const unit of new Task(task).read().units) {
-      if (unit.repo !== '') repos.add(unit.repo);
+      if (unit.repo !== '') names.add(unit.repo);
     }
   } catch {
     // A task that cannot be read still has shifts whose clones can be.
   }
+  const clones = new Set<string>();
+  for (const name of names) {
+    try {
+      clones.add(repoDir('teardown', name));
+    } catch {
+      // Not registered on this machine; nothing of it can be leased here.
+    }
+  }
   for (const shift of Shift.liveIn(task)) {
     const clone = shift.meta().clone ?? '';
-    if (clone !== '' && existsSync(clone)) repos.add(clone);
+    if (clone !== '' && existsSync(clone)) clones.add(normalizePath(resolve(clone)));
   }
 
-  const seen = new Set<string>();
   const held: Held[] = [];
-  for (const repo of repos) {
-    // `repo` is a registry name, or already the path of a clone.
-    let clone: string;
-    try {
-      clone = repoDir('teardown', repo);
-    } catch {
-      continue;
-    }
-    if (seen.has(clone)) continue;
-    seen.add(clone);
-
+  for (const clone of clones) {
     let leases: readonly LeaseRow[];
     try {
       leases = (pool?.(clone) ?? new WorktreePool(clone)).status();

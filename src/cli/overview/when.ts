@@ -1,3 +1,5 @@
+import { isoSecond, localMonthDay } from '../../util/time.js';
+
 /**
  * A point in time as the overview reports it, and how exactly it is known.
  * `task.json`, a session file, a status line or a commit give the second;
@@ -5,7 +7,7 @@
  */
 
 /** Where a moment was read. */
-export type MomentSource = 'task.json' | 'log' | 'session' | 'status' | 'tree' | 'branch';
+type MomentSource = 'task.json' | 'log' | 'session' | 'status' | 'tree' | 'branch';
 
 export interface Moment {
   /**
@@ -19,7 +21,7 @@ export interface Moment {
 
 /** Epoch milliseconds as a second-precision moment. */
 export function secondMoment(ms: number, source: MomentSource): Moment {
-  return { at: `${new Date(ms).toISOString().slice(0, 19)}Z`, precision: 'second', source };
+  return { at: isoSecond(new Date(ms)), precision: 'second', source };
 }
 
 /** An ISO string as a second-precision moment, or undefined when it does not parse. */
@@ -46,16 +48,14 @@ export function later(a: Moment | undefined, b: Moment | undefined): Moment | un
   return momentMs(b) > momentMs(a) ? b : a;
 }
 
-const two = (n: number): string => String(n).padStart(2, '0');
-
 /** One `log.md` entry: its `MM-DD` and the rest of the line. */
-export interface LogEntry {
+interface LogEntry {
   readonly mmdd: string;
   readonly text: string;
 }
 
 /** The dated entries of a `log.md`, in file order. */
-export function logEntries(log: string): LogEntry[] {
+function logEntries(log: string): LogEntry[] {
   const found: LogEntry[] = [];
   for (const line of log.replace(/\r/g, '').split('\n')) {
     const m = /^- (\d{2})-(\d{2})\b\s*(.*)$/.exec(line);
@@ -84,7 +84,7 @@ function dayOfYear(mmdd: string): number {
  */
 export function inferYears(mmdds: readonly string[], now: Date): string[] {
   let year = now.getFullYear();
-  const today = `${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+  const today = localMonthDay(now);
   const dated: string[] = new Array<string>(mmdds.length);
   let after: string | undefined;
   for (let i = mmdds.length - 1; i >= 0; i--) {

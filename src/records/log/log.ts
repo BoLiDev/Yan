@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { taskDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
+import { localMonthDay } from '../../util/time.js';
 
 /**
  * What a line records. Every line carries exactly one.
@@ -60,11 +61,12 @@ export class Log {
   /**
    * Append one line, creating the file if needed.
    *
-   * @param when the mm-dd date to stamp; defaults to today.
+   * @param monthDay the date to stamp, `MM-DD` as log.md writes it; `''` for
+   *   today, the local day.
    * @throws YanError when `type` is not one of LOG_TYPES, or `text` is empty
    *   or contains a newline.
    */
-  public append(type: LogType, text: string, when = ''): void {
+  public append(type: LogType, text: string, monthDay = ''): void {
     if (!isLogType(type)) {
       throw YanError.usage('log_usage', `'${String(type)}' is not a log type - one of: ${LOG_TYPES.join(' ')}`);
     }
@@ -74,7 +76,7 @@ export class Log {
     }
     this.init();
     try {
-      appendFileSync(this.file, `- ${when === '' ? today() : when}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
+      appendFileSync(this.file, `- ${monthDay === '' ? localMonthDay() : monthDay}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
     } catch (cause) {
       throw new YanError('log_failed', `cannot append to ${this.file}`, { cause });
     }
@@ -102,11 +104,4 @@ export class Log {
     });
     return { lines, total: entries.length };
   }
-}
-
-function today(): string {
-  const now = new Date();
-  const mm = `${now.getMonth() + 1}`.padStart(2, '0');
-  const dd = `${now.getDate()}`.padStart(2, '0');
-  return `${mm}-${dd}`;
 }

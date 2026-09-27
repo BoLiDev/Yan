@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
-import type { Report, ReportTask } from '../../src/cli/ui/collect.js';
+import { snapshot } from '../helpers/records.js';
+import { collectReport, type Report, type ReportTask } from '../../src/cli/ui/collect.js';
 
 /**
  * `yan ui` against `tests/fixtures/ui-vault`, whose report is written out in
@@ -22,25 +23,10 @@ const task = (id: string): ReportTask => {
   return found;
 };
 
-function snapshot(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir).sort()) {
-    const full = join(dir, entry);
-    out.push(`${full} ${statSync(full).mtimeMs}`);
-    if (statSync(full).isDirectory()) out.push(...snapshot(full));
-  }
-  return out;
-}
-
-beforeAll(async () => {
+beforeAll(() => {
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
   cpSync(join(repoRoot, 'tests', 'fixtures', 'ui-vault', 'tasks'), join(home, 'tasks'), { recursive: true });
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { collectReport } = await import('../../src/cli/ui/collect.js');
   report = collectReport({ since: '2026-08-01', until: null }, new Date('2026-09-18T15:04:05.678Z'));
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 });
 
 describe('the collector', () => {
@@ -148,13 +134,13 @@ describe('yan ui', () => {
   };
 
   it('prints the report with --json, every task and no range without flags', async () => {
-    const before = snapshot(home);
+    const before = snapshot(home, { mtime: true });
     const printed = await json(['--json']);
     expect(printed.range).toBeNull();
     expect(printed.tasks.map((t) => t.id)).toEqual(report.tasks.map((t) => t.id));
     expect(printed.tasks.find((t) => t.id === 't002')).toEqual(task('t002'));
     expect(printed.generated_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-    expect(snapshot(home)).toEqual(before);
+    expect(snapshot(home, { mtime: true })).toEqual(before);
   });
 
   it('writes the dates it is given into the range, either one alone', async () => {
@@ -176,28 +162,28 @@ describe('yan ui', () => {
     ] as const) {
       const r = await runYan(home, ['ui', '--json', ...args]);
       expect(r.code, r.out).toBe(2);
-      expect(r.stderr).toBe(`ui: ${says}\n`);
+      expect(r.stderr).toBe(`yan ui: ${says}\n`);
       expect(r.stdout).toBe('');
     }
   });
 
   it('writes nothing with --json, even given --out: no page, and no fonts either', async () => {
-    const before = snapshot(home);
+    const before = snapshot(home, { mtime: true });
     const dir = mkTempDir();
     await json(['--json', '--out', join(dir, 'report.html')]);
     expect(readdirSync(dir)).toEqual([]);
-    expect(snapshot(home)).toEqual(before);
+    expect(snapshot(home, { mtime: true })).toEqual(before);
   });
 
   it('writes the page to the machine directory by default, outside the vault, and prints its path', async () => {
     const machine = mkTempDir();
-    const before = snapshot(home);
+    const before = snapshot(home, { mtime: true });
     const r = await runYan(home, ['ui', '--no-open'], { YAN_MACHINE_DIR: machine });
     expect(r.code, r.out).toBe(0);
     const file = join(machine, 'ui', 'report.html');
     expect(r.stdout).toBe(`${file}\n`);
     expect(readFileSync(file, 'utf8')).toContain('id="yan-data">{"version":3,');
-    expect(snapshot(home)).toEqual(before);
+    expect(snapshot(home, { mtime: true })).toEqual(before);
 
     // One page, overwritten each run, with the face beside it.
     expect((await runYan(home, ['ui', '--no-open'], { YAN_MACHINE_DIR: machine })).code).toBe(0);
@@ -264,6 +250,6 @@ describe('yan ui', () => {
   it('says so when it cannot write the page', async () => {
     const r = await runYan(home, ['ui', '--no-open', '--out', mkTempDir()]);
     expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/^ui: cannot write /);
+    expect(r.stderr).toMatch(/^yan ui: cannot write /);
   });
 });

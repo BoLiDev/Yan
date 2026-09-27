@@ -1,6 +1,6 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { existsSync, mkdirSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   cleanupTempDirs,
   mkTempDir,
@@ -8,7 +8,9 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
-import { rebuild, type Sources } from '../../src/cli/session-start.js';
+import { expectUsage } from '../helpers/usage.js';
+import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
+import { rebuild, type Sources } from '../../src/cli/session-start/picture.js';
 import { Task } from '../../src/records/task/index.js';
 import type { Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
@@ -29,7 +31,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let run = '';
-let previousHome: string | undefined;
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/31';
 const TREE = 'C:/pool/monorepo-x/1';
@@ -56,44 +57,26 @@ function sources(overrides: Partial<Sources> = {}): Sources {
 }
 
 /** Every file under $YAN_HOME, with its size. */
-function snapshot(): string {
-  const files: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry);
-      const st = statSync(full);
-      if (st.isDirectory()) walk(full);
-      else files.push(`${relative(home, full).replace(/\\/g, '/')} ${st.size}`);
-    }
-  };
-  walk(home);
-  return files.sort().join('\n');
+function listing(): string {
+  return snapshot(home, { size: true }).join('\n');
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'monorepo-x', clone);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   Task.create('t099', 'a task nobody has started');
   new Task('t099').addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });
 
-  run = join(home, 'tasks', 't042', 'shifts', 's2', 'run');
-  mkdirSync(run, { recursive: true });
-  writeFileSync(
-    join(run, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid: 's2', unit: 'auth', repo: 'monorepo-x',
-      branch: 'yan/t042-auth-s2', base: 'feat/auth', tree: TREE, clone,
-      holder: 't042/auth/s2', lease_id: LEASE, agent: 'claude',
-      container: 'w1', pane: 'w1:p7', mr: MR,
-    })}\n`,
-  );
+  run = liveShift(home, 't042', 's2', {
+    task: 't042', sid: 's2', unit: 'auth', repo: 'monorepo-x',
+    branch: 'yan/t042-auth-s2', base: 'feat/auth', tree: TREE, clone,
+    holder: 't042/auth/s2', lease_id: LEASE, agent: 'claude',
+    container: 'w1', pane: 'w1:p7', mr: MR,
+  });
   writeFileSync(join(run, 'status'), '2026-08-09T09:00:00Z\tstarted\tread the brief\n');
 
   // s1 has already clocked out: its run/ is gone and only the long-lived files
@@ -106,10 +89,6 @@ beforeEach(() => {
   asked.mrs = [];
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the rebuild', () => {
   it('asks all four sources, in yan vocabulary', () => {
@@ -141,16 +120,16 @@ describe('the rebuild', () => {
 
 describe('it writes nothing, anywhere', () => {
   it('leaves $YAN_HOME byte-for-byte identical, on every path', async () => {
-    const before = snapshot();
+    const before = listing();
 
     expect((await runYan(home, ['session-start'], { YAN_TASK: 't042' })).code).toBe(0);
-    expect(snapshot(), 'session-start must not create or change a single file').toBe(before);
+    expect(listing(), 'session-start must not create or change a single file').toBe(before);
 
     expect((await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' })).code).toBe(0);
-    expect(snapshot(), 'nor on the --json path').toBe(before);
+    expect(listing(), 'nor on the --json path').toBe(before);
 
     expect((await runYan(home, ['session-start', '--all'])).code).toBe(0);
-    expect(snapshot()).toBe(before);
+    expect(listing()).toBe(before);
   });
 });
 
@@ -162,7 +141,17 @@ describe('through bin/yan', () => {
     expect(r.stdout).toContain('unit auth');
     expect(r.stdout).toContain('branch feat/auth');
     expect(r.stdout).toContain('shift s2');
+    expect(r.stdout, "a shift's last reported event, not a count").toContain('last=started@2026-08-09T09:00:00Z');
     expect(r.stdout, 's1 is reported, and reported as finished').toContain('clocked out');
+    expect(r.stdout, 'a clocked-out shift has no run/status left').toMatch(/shift s1 .* last=none/);
+  });
+
+  it('prints each task in one of three states, so an abandoned task is not called done', async () => {
+    new Task('t099').setAbandoned();
+    const r = await runYan(home, ['session-start', '--all']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('t042  unify the auth header   [open]');
+    expect(r.stdout).toContain('t099  a task nobody has started   [abandoned]');
   });
 
   it('reports every task when no id is given', async () => {
@@ -179,10 +168,19 @@ describe('through bin/yan', () => {
   it('is machine readable, with the same derivation', async () => {
     const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
-    const picture = JSON.parse(r.stdout) as { tasks: { id: string; shifts: { sid: string; live: boolean }[] }[] };
-    expect(picture.tasks[0].id).toBe('t042');
+    const picture = JSON.parse(r.stdout) as {
+      version: number;
+      tasks: { id: string; state: string; shifts: { sid: string; live: boolean; pane: string; last_event: unknown }[] }[];
+    };
+    expect(picture.version).toBe(2);
+    expect(picture.tasks[0]).toMatchObject({ id: 't042', state: 'open' });
     expect(picture.tasks[0].shifts).toHaveLength(2);
-    expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')?.live).toBe(false);
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')).toMatchObject({ live: false, pane: '', last_event: null });
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')).toMatchObject({
+      live: true,
+      pane: 'w1:p7',
+      last_event: { at: '2026-08-09T09:00:00Z', state: 'started', note: 'read the brief' },
+    });
   });
 
   it('tells a shift whose picture this is, and prints nothing else', async () => {
@@ -201,8 +199,7 @@ describe('through bin/yan', () => {
 
   it('refuses a task that does not exist', async () => {
     const r = await runYan(home, ['session-start'], { YAN_TASK: 'nosuchtask' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('no such task');
+    expectUsage(r, 'no such task');
   });
 });
 
@@ -453,9 +450,9 @@ describe('the task memory reaches the session', () => {
     logLines(['- 08-01  agreed     x']);
     mkdirSync(join(home, 'tasks', 't042', 'artifacts', 'drafts'), { recursive: true });
     writeFileSync(join(home, 'tasks', 't042', 'artifacts', 'drafts', '2026-09-16_051516.md'), '# a note\n');
-    const before = snapshot();
+    const before = listing();
     await runYan(home, ['session-start', 't042']);
-    expect(snapshot()).toBe(before);
+    expect(listing()).toBe(before);
   });
 });
 
@@ -482,6 +479,27 @@ describe('the scenarios reach the session', () => {
     expect(r.stdout).toContain('normal (default)  claude opus high');
     expect(r.stdout).toContain('normal (default)  agy gemini-3.1-pro-high /design');
   });
+
+  it('warns about a tier with no cli over an unset agents.shift, and finishes the picture', async () => {
+    writeFileSync(
+      join(home, 'config.json'),
+      JSON.stringify({
+        version: 1,
+        agents: { yan: 'claude' },
+        scenarios: {
+          explore: { tiers: { normal: {} } },
+          coding: { tiers: { normal: { cli: 'claude', model: 'opus' } } },
+          uix: { tiers: { normal: { cli: 'agy' } } },
+        },
+        remote_git: { kind: 'github' },
+      }),
+    );
+    const r = await runYan(home, ['session-start', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('normal (default)  WARN explore/normal names no cli and agents.shift is not set');
+    expect(r.stdout, 'the tiers that do resolve are still listed').toContain('normal (default)  claude opus');
+    expect(r.stdout).toContain('normal (default)  agy');
+  });
 });
 
 /**
@@ -497,7 +515,7 @@ describe('undelivered reports', () => {
   const kept = (): string => join(run, 'undelivered');
 
   function seed(): void {
-    writeFileSync(kept(), '1757577600 blocked the auth fixture needs a credential\n1757577700 needs-decision which target branch?\n');
+    writeFileSync(kept(), '2025-09-11T08:00:00Z\tblocked\tthe auth fixture needs a credential\n2025-09-11T08:01:40Z\tneeds-decision\twhich target branch?\n');
   }
 
   it('prints every line, naming the shift, then removes the file', async () => {
@@ -519,8 +537,8 @@ describe('undelivered reports', () => {
     const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     const picture = JSON.parse(r.stdout) as { tasks: { shifts: { sid: string; undelivered: unknown[] }[] }[] };
     expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')?.undelivered).toEqual([
-      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
-      { at: 1757577700, state: 'needs-decision', note: 'which target branch?' },
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: '2025-09-11T08:01:40Z', state: 'needs-decision', note: 'which target branch?' },
     ]);
     expect(existsSync(kept())).toBe(false);
   });
@@ -535,10 +553,8 @@ describe('undelivered reports', () => {
 
   it("leaves another task's lines alone, and clears only its own", async () => {
     // t099 has a live shift of its own with a report nobody has read.
-    const other = join(home, 'tasks', 't099', 'shifts', 's9', 'run');
-    mkdirSync(other, { recursive: true });
-    writeFileSync(join(other, 'meta.json'), JSON.stringify({ version: 1, unit: 'api', pane: 'w2:p1' }));
-    writeFileSync(join(other, 'undelivered'), '1757577800 blocked t099 is waiting on a credential\n');
+    const other = liveShift(home, 't099', 's9', { unit: 'api', pane: 'w2:p1' });
+    writeFileSync(join(other, 'undelivered'), '2025-09-11T08:03:20Z\tblocked\tt099 is waiting on a credential\n');
     seed();
 
     const r = await runYan(home, ['session-start', '--all'], { YAN_TASK: 't042' });

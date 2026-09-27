@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import {
   cleanupTempDirs,
   fxGit,
@@ -11,9 +11,9 @@ import {
   mkYanHome,
   registerRepo,
 } from '../helpers/fixtures.js';
-import { clockOut, type DoneDeps } from '../../src/cli/shift.js';
-import type { Closer } from '../../src/cli/shared/terminal.js';
-import { Task } from '../../src/records/task/index.js';
+import { liveShift, seedT042 } from '../helpers/records.js';
+import { clockOut, type ClockOutDeps } from '../../src/cli/shift/done.js';
+import type { Closer } from '../../src/cli/shared/teardown.js';
 import { WorktreePool } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
@@ -37,14 +37,13 @@ let home = '';
 let bare = '';
 let clone = '';
 let poolRoot = '';
-let previousHome: string | undefined;
 let previousPool: string | undefined;
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/31';
 
 const silentTerminal: Closer = { close: () => {}, clearPaneTitle: () => {} };
 
-function deps(says: MrState = 'merged'): DoneDeps {
+function deps(says: MrState = 'merged'): ClockOutDeps {
   return { terminal: silentTerminal, mrStateOf: (): MrState => says };
 }
 
@@ -56,17 +55,12 @@ async function dispatch(sid: string): Promise<string> {
   await mkCommit(grant.path, join('apps', 'auth', `${sid}.txt`), `work from ${sid}`, `${sid}: parse the header`);
   await fxGit(['-C', grant.path, 'push', '-u', 'origin', branch]);
 
-  const run = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-  mkdirSync(run, { recursive: true });
-  writeFileSync(
-    join(run, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid, unit: 'auth', repo: 'widget',
-      branch, base: 'feat/auth', tree: grant.path, clone,
-      holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
-      container: 'w1', pane: 'w1:p7', mr: MR,
-    })}\n`,
-  );
+  liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', repo: 'widget',
+    branch, base: 'feat/auth', tree: grant.path, clone,
+    holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
+    container: 'w1', pane: 'w1:p7', mr: MR,
+  });
   return grant.path;
 }
 
@@ -97,9 +91,7 @@ beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = join(tmp, 'trees');
-  previousHome = process.env.YAN_HOME;
   previousPool = process.env.YAN_POOL_ROOT;
-  process.env.YAN_HOME = home;
   process.env.YAN_POOL_ROOT = poolRoot;
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
@@ -111,13 +103,10 @@ beforeAll(async () => {
   await fxGit(['-C', clone, 'push', '-u', 'origin', 'feat/auth']);
   await fxGit(['-C', clone, 'checkout', 'main']);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'widget', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042({ repo: 'widget' });
 });
 
 afterAll(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousPool === undefined) delete process.env.YAN_POOL_ROOT;
   else process.env.YAN_POOL_ROOT = previousPool;
 });
@@ -213,8 +202,82 @@ describe('an interrupted teardown can be finished', () => {
     rmSync(join(tree, 'leftover.txt'));
     const result = clockOut('s5', {}, deps());
     expect(result.tree_returned).toBe(true);
+    expect(result.scenario, 'teardown.json kept what run/ took with it').toBe('coding');
+    expect(result.mr_state).toBe('merged');
+    expect(result.mr).toBe(MR);
 
     expect(heldBy('t042/auth/s5'), 'the tree is back in the pool').toBe('');
     expect(await remoteHas('yan/t042-auth-s5'), 'and only now is the remote branch gone').toBe(false);
+  });
+});
+
+/**
+ * An explore shift whose teardown stops at the tree return, as a dirty tree
+ * makes it: run/ is gone by the time it is run again, and the scenario with it
+ * unless something outside run/ kept it.
+ */
+async function interruptedExplore(sid: string, options: { push: boolean }): Promise<{ shiftDir: string; watching: ClockOutDeps; dropped: string[] }> {
+  // An explore shift is told not to push; `push` is one that did anyway.
+  const branch = `yan/t042-auth-${sid}`;
+  const grant = new WorktreePool(clone).get(4, 'feat/auth', branch, `t042/auth/${sid}`);
+  if (options.push) {
+    await mkCommit(grant.path, join('apps', 'auth', `${sid}.txt`), `probe from ${sid}`, `${sid}: try it`);
+    await fxGit(['-C', grant.path, 'push', '-u', 'origin', branch]);
+  }
+  const shiftDir = dirname(liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', repo: 'widget', scenario: 'explore',
+    branch, base: 'feat/auth', tree: grant.path, clone,
+    holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
+    container: 'w1', pane: 'w1:p8',
+  }));
+  writeFileSync(join(shiftDir, 'outcome.md'), `# ${sid} auth\n\nThe header is parsed in two places: https://example.invalid/notes\n`);
+  writeFileSync(join(grant.path, 'leftover.txt'), 'generated\n');
+
+  const dropped: string[] = [];
+  const watching: ClockOutDeps = { ...deps(), deleteBranch: (_c, b) => { dropped.push(b); return true; } };
+
+  expect(() => clockOut(sid, {}, watching), 'a dirty tree stops the teardown at the return').toThrow();
+  expect(existsSync(join(shiftDir, 'run')), 'run/ is gone').toBe(false);
+  expect(heldBy(`t042/auth/${sid}`)).not.toBe('');
+
+  rmSync(join(grant.path, 'leftover.txt'));
+  return { shiftDir, watching, dropped };
+}
+
+describe('an interrupted teardown of an explore shift', () => {
+  it('still knows it was explore: no merge claimed, and none reported unknown', async () => {
+    const { watching, dropped } = await interruptedExplore('s6', { push: false });
+    const result = clockOut('s6', {}, watching);
+
+    expect(result.tree_returned).toBe(true);
+    expect(dropped, 'an explore shift has no branch of yan\'s to delete').toEqual([]);
+    expect(result.branch_deleted).toBe(false);
+    expect(result.scenario).toBe('explore');
+    expect(result.mr_state).toBe('none');
+    expect(result.mr, 'a URL in its report is not a merge request').toBe('');
+  });
+
+  it('leaves a branch it pushed on origin, as the teardown that did not stop would have', async () => {
+    const { watching, dropped } = await interruptedExplore('s7', { push: true });
+    const result = clockOut('s7', {}, watching);
+
+    expect(result.tree_returned).toBe(true);
+    expect(dropped).toEqual([]);
+    expect(result.branch_deleted).toBe(false);
+    expect(await remoteHas('yan/t042-auth-s7'), 'what it pushed is left for somebody to look at').toBe(true);
+    expect(result.scenario).toBe('explore');
+  });
+
+  it('falls back to unknown for a shift dispatched before teardown.json', async () => {
+    const { shiftDir, watching, dropped } = await interruptedExplore('s8', { push: false });
+    rmSync(join(shiftDir, 'teardown.json'));
+    const result = clockOut('s8', {}, watching);
+
+    expect(result.tree_returned).toBe(true);
+    expect(dropped, 'origin has no such branch, so there is nothing to delete').toEqual([]);
+    expect(result.branch_deleted).toBe(false);
+    expect(result.mr_state).toBe('unknown');
+    expect(result.scenario).toBe('unknown');
+    expect(result.mr, 'the only place left to look is outcome.md').toBe('https://example.invalid/notes');
   });
 });

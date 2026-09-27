@@ -2,10 +2,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { YanError } from '../util/error.js';
+import { isDate } from '../util/time.js';
 import { machineDir } from '../util/machine.js';
 import { action, out } from './shared/action.js';
 import { openPath } from './shared/opener.js';
-import { collectReport, localDay, type ReportRange } from './ui/collect.js';
+import { collectReport, type ReportRange } from './ui/collect.js';
 import { copyFonts } from './ui/fonts.js';
 import { reportPage } from './ui/page.js';
 
@@ -29,9 +30,7 @@ import { reportPage } from './ui/page.js';
 /** A local `YYYY-MM-DD` that names a real day, or a usage error naming the flag. */
 function day(flag: string, value: string | undefined): string | null {
   if (value === undefined) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const real = m !== null && localDay(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) === value;
-  if (!real) throw YanError.usage('ui_usage', `${flag} takes a date as YYYY-MM-DD, not '${value}'`);
+  if (!isDate(value)) throw YanError.usage('ui_usage', `${flag} takes a date as YYYY-MM-DD, not '${value}'`);
   return value;
 }
 
@@ -43,7 +42,7 @@ export const command = new Command('ui')
   .option('--no-open', 'write the page and print its path, but do not open it')
   .option('--json', 'print the report data, version 3, and write nothing')
   .action(
-    action('ui', (options: { since?: string; until?: string; out?: string; open: boolean; json?: boolean }) => {
+    action('yan ui', (options: { since?: string; until?: string; out?: string; open: boolean; json?: boolean }) => {
       const since = day('--since', options.since);
       const until = day('--until', options.until);
       if (since !== null && until !== null && since > until) {

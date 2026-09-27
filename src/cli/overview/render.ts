@@ -1,15 +1,14 @@
 import { bold, cells, cyan, dim, fit, green, padEnd, padStart, red, yellow } from '../shared/style.js';
 import type { Overview, OverviewTask } from './overview.js';
 import { age, ageTier, ago, stamp, stampParts, yearOf, type AgeTier } from './time.js';
-import { isBullet, unwrapParagraph } from './description.js';
+import { isBullet } from './description.js';
 import { momentMs, type Moment } from './when.js';
-import { clamp, lineText, wrap } from './wrap.js';
+import { clamp, lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from '../shared/wrap.js';
 
 /**
  * The print of `yan ls` and the header of `yan show`, from the overview and
- * nothing else: pure, so a test hands it the data, a clock and a width. The
- * rules are the design's (task t128, artifacts/uix/design.md); where they and
- * its mock differ, this follows the mock, which is what was accepted.
+ * nothing else: pure, so a test hands it the data, a clock and a width, and
+ * `render.test.ts` pins the layout the constants below describe.
  *
  *   ␣t131␣␣overview for yan ls                              title, bold cyan
  *   ␣2m␣␣␣␣`user` wants one command that shows what they…   description, ≤ 3 lines
@@ -19,8 +18,6 @@ import { clamp, lineText, wrap } from './wrap.js';
  * Every width is in cells, and no line ends in spaces.
  */
 
-const PIPE_WIDTH = 80; // no terminal to ask: a paragraph still has to wrap somewhere
-const MAX_WIDTH = 96; // past this a paragraph stops being readable; the rest stays empty
 const MIN_WIDTH = 32; // below this, lay out at 32 and let the terminal wrap
 const NARROW = 60; // below this, a ledger row keeps its closing date and drops the rest
 const CLAMP = 3; // lines of description on a card
@@ -28,7 +25,7 @@ const MARGIN = 1; // columns kept free on both sides
 const GAP = 2; // between the id and what follows it
 const SEP = ' · ';
 
-export interface RenderOptions {
+interface RenderOptions {
   readonly now: Date;
   /** The terminal's width; undefined for a pipe. */
   readonly cols: number | undefined;
@@ -119,10 +116,8 @@ function flow(items: readonly Item[], g: Geometry): string[] {
  */
 function paragraphs(t: OverviewTask): string[] {
   if (t.description === null) return [];
-  return t.description
-    .split(/\n+/)
-    .map(unwrapParagraph)
-    .filter((p) => p !== '');
+  // Each already one line: briefDescription unwrapped them.
+  return t.description.split(/\n+/).filter((p) => p !== '');
 }
 
 /** Title line; the first paragraph clamped, the age in the id column of its first line; the meta. */
@@ -213,10 +208,7 @@ function newest(key: (t: OverviewTask) => Moment | null) {
 
 /** Most recently active first; unknown activity last, by opened, newest first; ties by id, highest first. */
 function byActivity(a: OverviewTask, b: OverviewTask): number {
-  if (a.active !== null && b.active !== null) return momentMs(b.active) - momentMs(a.active) || byIdDesc(a, b);
-  if (a.active !== null) return -1;
-  if (b.active !== null) return 1;
-  return newest((t) => t.opened)(a, b);
+  return a.active === null && b.active === null ? newest((t) => t.opened)(a, b) : newest((t) => t.active)(a, b);
 }
 
 /** `yan ls`: the lines to print, the first one blank. */
@@ -254,7 +246,7 @@ export function renderOverview(ov: Overview, opts: RenderOptions): string[] {
 }
 
 /** Whether a yan is on the task: `yan show` knows, the overview does not. */
-export interface HeaderSession {
+interface HeaderSession {
   readonly running: boolean;
 }
 

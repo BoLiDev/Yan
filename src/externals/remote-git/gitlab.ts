@@ -1,11 +1,11 @@
 import type { ProcessResult } from '../../util/process.js';
 import type { Provider } from './provider.js';
-import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
-import { asObject, extractUrl, lower } from './validate.js';
+import type { MergeStrategy, MrCreateOptions, MrState } from './types.js';
+import { asObject, extractUrl, lower } from './reply.js';
 import { YanError } from '../../util/error.js';
 
 /**
- * GitLab's JSON, mapped into yan's vocabulary. Both mappers are pure, and
+ * GitLab's JSON, mapped into yan's vocabulary. The mapper is pure, and
  * anything unrecognised lands on the safe member of the set.
  */
 
@@ -31,46 +31,14 @@ export function mapMrState(payload: string): MrState {
 }
 
 /**
- * The MR payload's `head_pipeline` (older GitLab: `pipeline`) → yan
- * vocabulary.
- *
- *   green    success
- *   red      failed, canceled — a cancelled pipeline did not pass
- *   pending  created, waiting_for_resource, preparing, pending, running,
- *            manual (waiting for a human to press play), scheduled, canceling
- *   none     no pipeline at all, or a skipped one: nothing ran
- */
-export function mapCiState(payload: string): CiState {
-  const o = asObject(payload);
-  if (o === undefined) return 'pending';
-
-  const raw = o.head_pipeline ?? o.pipeline ?? null;
-  if (raw === null) return 'none';
-  if (typeof raw !== 'object' || Array.isArray(raw)) return 'pending';
-
-  switch (lower((raw as Record<string, unknown>).status)) {
-    case 'success':
-      return 'green';
-    case 'failed':
-    case 'canceled':
-    case 'cancelled':
-      return 'red';
-    case 'skipped':
-      return 'none';
-    default:
-      return 'pending';
-  }
-}
-
-/**
- * `glab`'s way of naming one merge request: an iid, plus the project taken
- * from `repo` or parsed out of a URL.
+ * `glab`'s way of naming one merge request: an iid, plus the project parsed
+ * out of a URL.
  *
  * @throws YanError `remote_git_usage` when no number can be worked out.
  */
-export function refArgs(mr: string, repo: string | undefined): string[] {
+function refArgs(mr: string): string[] {
   let iid = mr;
-  let project = repo ?? '';
+  let project = '';
 
   if (/^https?:\/\//.test(mr)) {
     iid = mr.slice(mr.lastIndexOf('/merge_requests/') + '/merge_requests/'.length);
@@ -78,19 +46,15 @@ export function refArgs(mr: string, repo: string | undefined): string[] {
     iid = iid.split('?')[0] ?? '';
     iid = iid.split('#')[0] ?? '';
 
-    if (project === '') {
-      let rest = mr.includes('/-/merge_requests/')
-        ? mr.slice(0, mr.indexOf('/-/merge_requests/'))
-        : mr.slice(0, mr.indexOf('/merge_requests/'));
-      rest = rest.replace(/^[a-z]+:\/\//, '');
-      project = rest.slice(rest.indexOf('/') + 1);
-    }
+    let rest = mr.includes('/-/merge_requests/')
+      ? mr.slice(0, mr.indexOf('/-/merge_requests/'))
+      : mr.slice(0, mr.indexOf('/merge_requests/'));
+    rest = rest.replace(/^[a-z]+:\/\//, '');
+    project = rest.slice(rest.indexOf('/') + 1);
   }
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
-    throw new YanError('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
-      { exitCode: 2 },
-    );
+    throw YanError.usage('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`);
   }
 
   const args = [iid];
@@ -118,7 +82,6 @@ export const gitlabProvider: Provider = {
       '--yes',
     ];
     if (options.draft === true) args.push('--draft');
-    if (options.repo !== undefined && options.repo !== '') args.push('--repo', options.repo);
     return args;
   },
 
@@ -130,30 +93,24 @@ export const gitlabProvider: Provider = {
     );
   },
 
-  stateArgs(mr, repo) {
-    return ['mr', 'view', ...refArgs(mr, repo), '--output', 'json'];
-  },
-
-  ciArgs(mr, repo) {
-    return ['mr', 'view', ...refArgs(mr, repo), '--output', 'json'];
+  stateArgs(mr) {
+    return ['mr', 'view', ...refArgs(mr), '--output', 'json'];
   },
 
   /**
    * Carries `--auto-merge=false`, which glab otherwise defaults to true —
    * scheduling the merge behind a pipeline and reporting success.
    */
-  mergeArgs(mr: string, repo: string | undefined, strategy: MergeStrategy, deleteSource: boolean) {
-    const args = ['mr', 'merge', ...refArgs(mr, repo), '--yes', '--auto-merge=false'];
+  mergeArgs(mr: string, strategy: MergeStrategy) {
+    const args = ['mr', 'merge', ...refArgs(mr), '--yes', '--auto-merge=false'];
     if (strategy === 'squash') args.push('--squash');
     if (strategy === 'rebase') args.push('--rebase');
-    if (deleteSource) args.push('--remove-source-branch');
     return args;
   },
 
-  closeArgs(mr: string, repo: string | undefined) {
-    return ['mr', 'close', ...refArgs(mr, repo)];
+  closeArgs(mr: string) {
+    return ['mr', 'close', ...refArgs(mr)];
   },
 
   mapMrState,
-  mapCiState,
 };

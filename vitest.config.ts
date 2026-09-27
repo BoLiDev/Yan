@@ -2,19 +2,20 @@ import { defineConfig } from 'vitest/config';
 
 // Where a test lives says who it is for:
 //
-//   src/<module>/*.test.ts   the MODULE's own test. It may import the module's
-//                            internal files, which is exactly why it lives
-//                            here: a test in tests/ could only reach them by
-//                            widening the public surface.
-//   tests/integration/       cross-module, driven through the CLI
+//   src/<module>/*.test.ts   one module's own test, beside the file it tests,
+//                            whether or not it needs the internals. It may
+//                            import the module's internal files, which a test
+//                            in tests/ could only reach by widening the
+//                            public surface.
+//   tests/integration/       command-level: through bin/yan, or a command's
+//                            exported function with its deps injected
 //   tests/e2e/               real Herdr, real forge; skipped loudly when absent
-//   tests/unit/              what is left: shared helpers and cross-cutting rules
+//   tests/unit/              rules that belong to no one module: the module
+//                            and entry boundaries, the harness bindings, the
+//                            instructions, the shell stub
 //
-// Only *.test.ts is collected. That pattern was how the bash suite and the
-// vitest suite lived side by side for the migration without either discovering
-// the other; the bash suite went in Phase 9 and the pattern stays because it is
-// the right one anyway. `tsconfig.json` excludes src/**/*.test.ts from the
-// build, so colocated tests never reach dist/.
+// Only *.test.ts is collected. `tsconfig.json` excludes src/**/*.test.ts from
+// the build, so colocated tests never reach dist/.
 export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'tests/{unit,integration,e2e}/**/*.test.ts'],
@@ -22,8 +23,8 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // Git and worktree fixtures are real directories on disk; running files in
-    // parallel processes is fine, because each test owns its own temp directory
-    // (plan/conventions.md §5).
+    // parallel processes is fine, because each test owns its own temp
+    // directory.
     //
     // This carried `fileParallelism: false` for a while, and the reason it does
     // not any more is worth one line rather than a section: `runYan` and

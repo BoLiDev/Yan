@@ -101,7 +101,7 @@ describe('agent-only commands grew no prompts', () => {
     it(`yan ${name} neither resolves nor imports the prompts`, () => {
       const source = read('src', 'cli', `${name}.ts`);
       expect(source).not.toContain('../ui/');
-      expect(source).not.toContain("shared/resolve.js");
+      expect(source).not.toContain("shared/tty.js");
       expect(source).not.toContain('isTty');
     });
   }
@@ -145,7 +145,7 @@ describe('Clack is an ordinary dependency', () => {
    */
   it('the prompts really resolve at run time, which only a dynamic import can get wrong', async () => {
     const prompts = (await import('../../dist/ui/prompts.js' as string)) as Record<string, unknown>;
-    for (const name of ['askFor', 'chooseEntry', 'chooseTask', 'askTaskNew', 'CREATE_NEW']) {
+    for (const name of ['askVaultInit', 'askVaultClone', 'chooseEntry', 'chooseTask', 'askTaskNew', 'CREATE_NEW']) {
       expect(prompts[name], name).toBeDefined();
     }
     // Every file that reaches for a prompt, with the specifier its own depth
@@ -153,6 +153,7 @@ describe('Clack is an ordinary dependency', () => {
     for (const [source, specifier] of [
       ['yan.ts', "await import('../ui/prompts.js')"],
       ['task.ts', "await import('../ui/prompts.js')"],
+      ['vault.ts', "await import('../ui/prompts.js')"],
       ['shared/task-id.ts', "await import('../../ui/prompts.js')"],
     ] as const) {
       expect(read('src', 'cli', ...source.split('/')), source).toContain(specifier);
@@ -217,7 +218,7 @@ describe('the soft path filters', () => {
   it('gives every one of them a placeholder, so it looks like what it is', () => {
     const source = readFileSync(join(repoRoot, 'src', 'ui', 'prompts.ts'), 'utf8');
     const lists = source.match(/await autocomplete(?:Multiselect)?\(\{[\s\S]*?\n {2,6}\}\)/g) ?? [];
-    expect(lists.length, 'the entry, done, continue, repo add, repo rm, task new repos and its scopes, draft ls').toBe(8);
+    expect(lists.length, 'the entry, done, continue, repo add and rm, task new repos and its scopes, draft ls').toBe(7);
     for (const list of lists) {
       expect(list, 'a search box nobody knows is a search box is a select').toContain('placeholder');
     }

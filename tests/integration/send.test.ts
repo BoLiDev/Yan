@@ -1,9 +1,10 @@
 import { afterAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
-import { sendLine, type Prompter } from '../../src/cli/send.js';
-import { Task } from '../../src/records/task/index.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
+import { sendLine } from '../../src/cli/send.js';
+import type { LineSender } from '../../src/cli/shared/pane-line.js';
 
 /**
  * `yan send`. Text and Enter go in one call, so what is pinned here is the
@@ -17,9 +18,8 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let run = '';
-let previousHome: string | undefined;
 
-class RecordingTerminal implements Prompter {
+class RecordingTerminal implements LineSender {
   public readonly calls: { pane: string; text: string }[] = [];
   public refuse: Error | undefined;
 
@@ -31,35 +31,19 @@ class RecordingTerminal implements Prompter {
 
 let terminal: RecordingTerminal;
 
-function meta(body: Record<string, unknown>): void {
-  writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, ...body })}\n`);
-}
-
-function send(sid: string, line?: string): { code: number; message: string } {
-  try {
-    sendLine(sid, line, 't042', terminal);
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function send(sid: string, line?: string): Attempt<unknown> {
+  return attempt(() => sendLine(sid, line, 't042', terminal));
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
-  Task.create('t042', 'unify the auth header');
+  seedT042(null);
 
-  run = join(home, 'tasks', 't042', 'shifts', 's3', 'run');
-  mkdirSync(run, { recursive: true });
-  meta({ unit: 'auth', branch: 'yan/t042/s3', agent: 'claude', pane: 'w1:p7' });
+  run = liveShift(home, 't042', 's3', { unit: 'auth', branch: 'yan/t042/s3', agent: 'claude', pane: 'w1:p7' });
   terminal = new RecordingTerminal();
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   delete process.env.YAN_SEND_MAX;
 });
 
@@ -95,7 +79,7 @@ describe('one line, up to 1000 characters', () => {
   });
 
   it('refuses an empty line', () => {
-    expect(send('s3', '').code).toBe(2);
+    expectUsage(send('s3', ''), 'empty line');
     expect(terminal.calls).toEqual([]);
   });
 });
@@ -103,14 +87,14 @@ describe('one line, up to 1000 characters', () => {
 describe('the pane id comes from meta.json, and it is an id', () => {
   it('refuses a label rather than looking a shift up by one', async () => {
     // The seam is what enforces this; the command must not work around it.
-    meta({ agent: 'claude', pane: 's3-auth' });
+    liveShift(home, 't042', 's3', { agent: 'claude', pane: 's3-auth' });
     const real = await runYan(home, ['send', 's3', 'hello'], { YAN_TASK: 't042' });
     expect(real.code).not.toBe(0);
     expect(real.out, 'a label is not a source of truth').toContain('never a label');
   });
 
   it('reports a missing terminal id rather than silently doing nothing', () => {
-    meta({ agent: 'claude' });
+    liveShift(home, 't042', 's3', { agent: 'claude' });
     const r = send('s3', 'hello');
     expect(r.code).toBe(1);
     expect(r.message).toContain('no terminal id');
@@ -143,8 +127,8 @@ describe('a shift that has clocked out has no terminal', () => {
 
 describe('usage', () => {
   it('needs a shift id and a line, and an unknown shift is an error', async () => {
-    expect((await runYan(home, ['send'])).code).toBe(2);
-    expect((await runYan(home, ['send', 's3'], { YAN_TASK: 't042' })).code, 'a line is required').toBe(2);
+    expectUsage(await runYan(home, ['send']), 'a shift id is required');
+    expectUsage(await runYan(home, ['send', 's3'], { YAN_TASK: 't042' }), 'a line is required');
     expect((await runYan(home, ['send', 'nosuchshift', 'hello'], { YAN_TASK: 't042' })).code).toBe(1);
   });
 

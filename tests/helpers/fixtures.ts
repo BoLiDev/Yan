@@ -86,7 +86,7 @@ function run(
 }
 
 export interface YanHomeOptions {
-  /** Copy dist/ in as well, so the ported half is reachable from the fixture. */
+  /** Copy dist/ in as well, for a test that runs commands through the fixture's `bin/yan`. */
   readonly withDist?: boolean;
   readonly config?: string;
   /**
@@ -103,7 +103,7 @@ export interface YanHomeOptions {
  * `$YAN_MACHINE_DIR` at itself, for tests that call a command in process.
  */
 export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
-  for (const d of ['mem/learnings', 'tasks', 'repos', 'conf', 'hooks', '.local']) {
+  for (const d of ['mem/learnings', 'tasks', '.local']) {
     mkdirSync(join(dest, d), { recursive: true });
   }
 
@@ -126,8 +126,6 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
     );
   }
 
-  // Both spellings: `<vault>/config.json` is what yan reads, and
-  // `conf/config.json` is what the migration test needs to find.
   const configText =
     options.config ??
     `${JSON.stringify(
@@ -145,17 +143,41 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
       2,
     )}\n`;
   writeFileSync(join(dest, 'config.json'), configText);
-  writeFileSync(join(dest, 'conf', 'config.json'), configText);
-  writeFileSync(join(dest, 'mem', 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, '.local', 'repos.json'), '{\n  "version": 1\n}\n');
 
   // A second home built mid-file would otherwise steal the first one's vault.
-  if (options.activate !== false) {
-    process.env.YAN_VAULT = dest;
-    process.env.YAN_MACHINE_DIR = join(dest, '.machine');
-  }
+  if (options.activate !== false) useVault(dest);
   return dest;
+}
+
+const VAULT_VARIABLES = ['YAN_VAULT', 'YAN_MACHINE_DIR'] as const;
+let saved: Record<string, string | undefined> | undefined;
+
+/**
+ * Point `$YAN_VAULT` and `$YAN_MACHINE_DIR` at a home, for a command called in
+ * process: they are all the records layer reads to find a task. `$YAN_HOME`
+ * is not among them; it names yan's own clone, and only the commands that
+ * reach for templates or start an agent read it.
+ *
+ * `restoreVault()` puts back what was there before the first call, and
+ * `setup-env.ts` runs it after every file, so a file never leaves its vault
+ * behind for the next one in the same worker.
+ */
+export function useVault(home: string): void {
+  saved ??= Object.fromEntries(VAULT_VARIABLES.map((key) => [key, process.env[key]]));
+  process.env.YAN_VAULT = home;
+  process.env.YAN_MACHINE_DIR = join(home, '.machine');
+}
+
+export function restoreVault(): void {
+  if (saved === undefined) return;
+  for (const key of VAULT_VARIABLES) {
+    const value = saved[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  saved = undefined;
 }
 
 /** Register a clone in both halves of a vault's registry. */

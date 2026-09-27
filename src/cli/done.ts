@@ -1,16 +1,13 @@
 import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
-import { isTty } from './shared/resolve.js';
-import { openTasks } from './shared/task-id.js';
-import type { Closer } from './shared/terminal.js';
+import { closePane, leasesHeldBy, returnLease, type Closer } from './shared/teardown.js';
+import { existingTask, namedTask, openTasks } from './shared/task-id.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
 import type { WorktreePool } from '../externals/worktree/index.js';
-import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
-import { Task } from '../records/task/index.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan done [<id>]` — mark a task complete and give its trees back, which are
@@ -61,7 +58,7 @@ interface ReturnedTree {
   readonly reason?: string;
 }
 
-export interface DoneResult {
+interface DoneResult {
   readonly version: 1;
   readonly task: string;
   readonly title: string;
@@ -87,8 +84,8 @@ function kill(shift: Shift, terminal: Closer): KilledShift {
 /**
  * Finish one task: return its trees and mark it complete.
  *
- * @throws YanError `done_usage` when no task is named, `done_missing` for an unknown
- *   one, `done_live_shifts` (exit 4) when a shift is still live and `--force` was
+ * @throws YanError `done_usage` when no task is named, for an unknown one
+ *   too, `done_live_shifts` (exit 4) when a shift is still live and `--force` was
  *   not given — nothing is touched in that case — and `done_tree_held` (exit 5)
  *   when a tree would not come back, after the others have been returned.
  */
@@ -97,12 +94,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   if (task === '') {
     throw YanError.usage('done_usage', 'which task? pass it as the argument, or set $YAN_TASK');
   }
-  if (!Task.exists(task)) {
-    const where = Task.isId(task) ? new Task(task).file : `${task}/task.json`;
-    throw new YanError('done_missing', `no such task: ${task} - ${where} does not exist`);
-  }
-
-  const record = new Task(task);
+  const record = existingTask('done', task);
   const wasComplete = record.isComplete();
   const force = options.force === true;
 
@@ -144,18 +136,16 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   if (complete && !wasComplete) record.setComplete(true);
 
   if (complete) {
-    try {
-      const parts = [`task marked done`];
-      if (trees.length > 0) parts.push(`${trees.length - stuck.length} of ${trees.length} tree(s) returned`);
-      if (force) {
-        parts.push(
-          killed.length > 0
-            ? `--force: killed ${killed.map((k) => k.sid).join(' ')}, uncommitted changes discarded`
-            : '--force: the orphan-commit guard was skipped',
-        );
-      }
-      new Log(task).append(force && killed.length > 0 ? 'changed' : 'delivered', parts.join('; '));
-    } catch { /* the task is done; a missing log line is not worth failing for */ }
+    const parts = [`task marked done`];
+    if (trees.length > 0) parts.push(`${trees.length - stuck.length} of ${trees.length} tree(s) returned`);
+    if (force) {
+      parts.push(
+        killed.length > 0
+          ? `--force: killed ${killed.map((k) => k.sid).join(' ')}, uncommitted changes discarded`
+          : '--force: the orphan-commit guard was skipped',
+      );
+    }
+    appendLog('yan done', task, force && killed.length > 0 ? 'changed' : 'delivered', parts.join('; '));
   }
 
   if (stuck.length > 0) {
@@ -178,15 +168,9 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   };
 }
 
-async function whichTasks(named: string): Promise<string[]> {
-  if (named !== '') return [named];
-
-  const fromEnv = process.env.YAN_TASK ?? '';
-  if (fromEnv !== '') return [fromEnv];
-
-  if (!isTty()) {
-    throw YanError.usage('done_usage', "which task? pass it as the argument: 'yan done <task-id>'. Choosing interactively needs a terminal");
-  }
+async function whichTasks(given: string | undefined): Promise<string[]> {
+  const named = namedTask('done', given, 'yan done');
+  if (named !== undefined) return [named];
 
   const open = openTasks();
   if (open.length === 0) return [];
@@ -253,7 +237,7 @@ yan must not reach for --force on its own initiative.`,
   )
   .action(
     action('yan done', async (positional: string | undefined, options: DoneOptions) => {
-      const tasks = await whichTasks(positional ?? '');
+      const tasks = await whichTasks(positional);
 
       // Nothing to offer is one line and exit 0, not a failure.
       if (tasks.length === 0) {

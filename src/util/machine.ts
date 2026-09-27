@@ -19,7 +19,7 @@ import { normalizePath } from './paths.js';
  * the location, for tests.
  */
 
-export interface MachineConfig {
+interface MachineConfig {
   readonly version: number;
   readonly active?: string;
   readonly clone_root?: string;
@@ -85,7 +85,7 @@ export function machineRevision(): number {
 }
 
 /** Read-modify-write, atomically, creating the config and its directory if needed. */
-export function editMachine(edit: (current: MachineConfig) => MachineConfig): void {
+function editMachine(edit: (current: MachineConfig) => MachineConfig): void {
   mkdirSync(machineDir(), { recursive: true });
   initJson(machineConfigPath(), EMPTY);
   editJson(machineConfigPath(), () => edit(readMachine()));

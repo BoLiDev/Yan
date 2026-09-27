@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hostname } from 'node:os';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -13,6 +13,8 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
 import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import { tildePath } from '../../src/cli/shared/style.js';
 import { WorktreePool } from '../../src/externals/worktree/index.js';
@@ -32,30 +34,17 @@ afterAll(cleanupTempDirs);
 let home = '';
 let poolRoot = '';
 let tree = '';
-let previousHome: string | undefined;
 let previousPool: string | undefined;
 
 async function show(args: readonly string[], env: Record<string, string | undefined> = {}) {
   return runYan(home, args, { YAN_POOL_ROOT: poolRoot, YAN_TASK: undefined, ...env });
 }
 
-function snapshot(dir: string): string[] {
-  const found: string[] = [];
-  for (const entry of readdirSync(dir).sort()) {
-    const full = join(dir, entry);
-    found.push(full);
-    if (statSync(full).isDirectory() && entry !== 'node_modules') found.push(...snapshot(full));
-  }
-  return found;
-}
-
 beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = join(tmp, 'trees');
-  previousHome = process.env.YAN_HOME;
   previousPool = process.env.YAN_POOL_ROOT;
-  process.env.YAN_HOME = home;
   process.env.YAN_POOL_ROOT = poolRoot;
 
   const bare = await mkBareRemote(join(tmp, 'remote.git'));
@@ -67,8 +56,7 @@ beforeAll(async () => {
   await fxGit(['-C', clone, 'push', '-u', 'origin', 'feat/auth']);
   await fxGit(['-C', clone, 'checkout', 'main']);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'widget', 'main', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042({ repo: 'widget', target: 'main' });
   writeFileSync(join(home, 'tasks', 't042', 'brief.md'), '# t042 unify the auth header\n\n## Description\n\nThree services read the auth header\nthree ways.\n\nThe second paragraph.\n\n## Goal\n\nOne parser for the auth header, at the edge.\n');
   const log = new Log('t042');
   for (let i = 1; i <= 7; i += 1) log.append('started', `entry ${i}`, '09-11');
@@ -76,12 +64,7 @@ beforeAll(async () => {
   tree = new WorktreePool(clone).get(4, 'feat/auth', 'feat/auth', 't042/auth').path;
   writeFileSync(join(tree, 'wip.txt'), 'half done\n');
 
-  const run = join(home, 'tasks', 't042', 'shifts', 's3', 'run');
-  mkdirSync(run, { recursive: true });
-  writeFileSync(
-    join(run, 'meta.json'),
-    JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t042-auth-s3', tree: '/trees/2', pane: 'w1:p4', scenario: 'coding', tier: 'normal' }),
-  );
+  const run = liveShift(home, 't042', 's3', { unit: 'auth', branch: 'yan/t042-auth-s3', tree: '/trees/2', pane: 'w1:p4', scenario: 'coding', tier: 'normal' });
   writeFileSync(join(run, 'status'), `2026-09-11T08:00:00Z\tstarted\tread the brief\n${new Date().toISOString().slice(0, 19)}Z\tblocked\twhich header wins\n`);
 
   Task.create('t007', 'retire the legacy client');
@@ -89,8 +72,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousPool === undefined) delete process.env.YAN_POOL_ROOT;
   else process.env.YAN_POOL_ROOT = previousPool;
 });
@@ -126,6 +107,13 @@ describe('one task at a glance', () => {
     expect(r.stdout, 'a finished task is not one to continue').not.toContain('yan continue');
   });
 
+  it('gives a task one of three states in --json, as yan ls does', async () => {
+    expect((JSON.parse((await show(['show', 't007', '--json'])).stdout) as ShowJson).state).toBe('done');
+    Task.create('t008', 'given up on');
+    new Task('t008').setAbandoned();
+    expect((JSON.parse((await show(['show', 't008', '--json'])).stdout) as ShowJson).state).toBe('abandoned');
+  });
+
   it('names the pane a running yan is in, and then does not suggest starting another', async () => {
     const lock = join(home, 'tasks', 't042', '.enter.lock');
     writeFileSync(lock, `${JSON.stringify({ pid: process.pid, host: hostname(), at: Math.floor(Date.now() / 1000), identity: enterIdentity('t042', 'w7:p1') })}\n`);
@@ -145,6 +133,7 @@ describe('one task at a glance', () => {
     const r = await show(['show', 't042', '--json']);
     expect(r.code, r.out).toBe(0);
     const j = JSON.parse(r.stdout) as ShowJson;
+    expect(j).toMatchObject({ version: 2, state: 'open' });
     expect(j.session).toEqual({ running: false, pane: null });
     expect(j.units[0]).toMatchObject({ name: 'auth', branch: 'feat/auth', target: 'main', ahead: 2, tree: { path: tree, dirty: 1 } });
     expect(j.shifts[0]).toMatchObject({ sid: 's3', scenario: 'coding', tier: 'normal', pane: 'w1:p4', last_event: { state: 'blocked', note: 'which header wins' } });
@@ -182,9 +171,7 @@ describe('one task at a glance', () => {
   it('marks a shift a done task never clocked out, rather than counting it as running', async () => {
     Task.create('t051', 'a finished task');
     new Task('t051').setComplete(true);
-    const run = join(home, 'tasks', 't051', 'shifts', 's4', 'run');
-    mkdirSync(run, { recursive: true });
-    writeFileSync(join(run, 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t051-auth-s4', pane: 'w2:p3', scenario: 'uix', tier: 'normal' }));
+    const run = liveShift(home, 't051', 's4', { unit: 'auth', branch: 'yan/t051-auth-s4', pane: 'w2:p3', scenario: 'uix', tier: 'normal' });
     writeFileSync(join(run, 'status'), ['2026-09-01T08:00:00Z', 'done', 'delivered'].join('\t') + '\n');
 
     const r = await show(['show', 't051']);
@@ -207,15 +194,14 @@ describe('one task at a glance', () => {
 
   it('is the only command that prints it: yan ls is the queue alone', async () => {
     const r = await show(['ls', 't042']);
-    expect(r.code, 'one task in depth is yan show').toBe(2);
+    expectUsage(r, "too many arguments for 'ls'");
   });
 });
 
 describe('choosing, and refusing', () => {
   it('needs an id when there is no terminal to choose on', async () => {
     const r = await show(['show']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain("'yan show <task-id>'");
+    expectUsage(r, "'yan show <task-id>'");
   });
 
   it('falls back to the task this session is in', async () => {
@@ -248,9 +234,7 @@ describe('choosing, and refusing', () => {
 describe('a shift that reported done on an open task', () => {
   it('is awaiting acceptance, not running', async () => {
     Task.create('t052', 'rounds of rework');
-    const run = join(home, 'tasks', 't052', 'shifts', 's2', 'run');
-    mkdirSync(run, { recursive: true });
-    writeFileSync(join(run, 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t052-auth-s2', pane: 'w5:p2', scenario: 'coding', tier: 'normal' }));
+    const run = liveShift(home, 't052', 's2', { unit: 'auth', branch: 'yan/t052-auth-s2', pane: 'w5:p2', scenario: 'coding', tier: 'normal' });
     writeFileSync(join(run, 'status'), ['2026-09-11T08:00:00Z', 'done', 'mr https://forge.invalid/1'].join('\t') + '\n');
 
     const r = await show(['show', 't052']);
@@ -273,10 +257,8 @@ describe('reports that never reached yan', () => {
   const run = (): string => join(home, 'tasks', 't062', 'shifts', 's4', 'run');
 
   function seed(): void {
-    mkdirSync(run(), { recursive: true });
-    writeFileSync(join(run(), 'meta.json'), JSON.stringify({ version: 1, unit: 'auth', pane: 'w6:p1', scenario: 'coding' }));
-    writeFileSync(join(run(), 'status'), '2026-09-11T08:00:00Z\tblocked\tneeds a credential\n');
-    writeFileSync(join(run(), 'undelivered'), '1757577600 blocked the auth fixture needs a credential\n1757577700 conflict src/cli/state.ts conflicts\n');
+    liveShift(home, 't062', 's4', { unit: 'auth', pane: 'w6:p1', scenario: 'coding' }, '2026-09-11T08:00:00Z\tblocked\tneeds a credential\n');
+    writeFileSync(join(run(), 'undelivered'), '2025-09-11T08:00:00Z\tblocked\tthe auth fixture needs a credential\n2025-09-11T08:01:40Z\tconflict\tsrc/cli/state.ts conflicts\n');
   }
 
   function kept(): boolean {
@@ -330,8 +312,8 @@ describe('reports that never reached yan', () => {
 
     const asYan = JSON.parse((await show(['show', 't062', '--json'], { YAN_TASK: 't062' })).stdout) as ShowJson;
     expect(asYan.shifts[0]?.undelivered).toEqual([
-      { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
-      { at: 1757577700, state: 'conflict', note: 'src/cli/state.ts conflicts' },
+      { at: '2025-09-11T08:00:00Z', state: 'blocked', note: 'the auth fixture needs a credential' },
+      { at: '2025-09-11T08:01:40Z', state: 'conflict', note: 'src/cli/state.ts conflicts' },
     ]);
     expect(kept()).toBe(false);
   });

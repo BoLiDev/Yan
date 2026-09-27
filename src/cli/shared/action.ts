@@ -3,7 +3,9 @@ import { isYanError } from '../../util/error.js';
 /**
  * Wrap a subcommand body so a `YanError` becomes a line on stderr and an exit:
  *
- *   ls: no such task: t042
+ *   yan ls: no such task: t042
+ *
+ * `name` is the command as a person types it, `yan <command> [<sub>]`.
  *
  * 0 fine, 2 you called this wrongly, 1 it did not work. Anything that is not a
  * `YanError` propagates with its stack.
@@ -26,4 +28,12 @@ export function action<A extends unknown[]>(
 /** Print one line to stdout. */
 export function out(line: string): void {
   process.stdout.write(`${line}\n`);
+}
+
+/**
+ * Commander's accumulator for a repeatable option: each `--scope a --scope b`
+ * appends. The option's default is where it starts, `undefined` included.
+ */
+export function collect(value: string, previous: readonly string[] | undefined): string[] {
+  return [...(previous ?? []), value];
 }

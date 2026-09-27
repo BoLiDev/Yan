@@ -3,6 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
+import { expectUsage } from '../helpers/usage.js';
 
 /** `yan log`: the one way yan writes an entry no command wrote for it. */
 
@@ -14,14 +16,9 @@ function log(): string {
   return readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8');
 }
 
-beforeAll(async () => {
+beforeAll(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
-  Task.create('t042', 'unify the auth header');
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
+  seedT042(null);
 });
 
 describe('yan log', () => {
@@ -31,24 +28,17 @@ describe('yan log', () => {
     expect(log()).toMatch(/\n- \d{2}-\d{2} {2}agreed {5}user chose copy-at-creation over live inheritance\n$/);
   });
 
-  it('takes the task from the environment', async () => {
-    const r = await runYan(home, ['log', 'paused', 'user is away; s3 still running'], { YAN_TASK: 't042' });
-    expect(r.code, r.out).toBe(0);
-    expect(log()).toContain('paused     user is away; s3 still running');
-  });
-
   it('refuses a type it does not know, and names the six', async () => {
     const before = log();
     const r = await runYan(home, ['log', 'decided', 'x'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('agreed started delivered changed incident paused');
+    expectUsage(r, 'agreed started delivered changed incident paused');
     expect(log()).toBe(before);
   });
 
   it('refuses no entry, no task, and a task that does not exist', async () => {
-    expect((await runYan(home, ['log', 'agreed'], { YAN_TASK: 't042' })).code).toBe(2);
-    expect((await runYan(home, ['log', 'agreed', 'x'], { YAN_TASK: '' })).code).toBe(2);
-    expect((await runYan(home, ['log', 'agreed', 'x'], { YAN_TASK: 't404' })).code).toBe(2);
+    expectUsage(await runYan(home, ['log', 'agreed'], { YAN_TASK: 't042' }), 'the entry is required');
+    expectUsage(await runYan(home, ['log', 'agreed', 'x'], { YAN_TASK: '' }), '$YAN_TASK is unset');
+    expectUsage(await runYan(home, ['log', 'agreed', 'x'], { YAN_TASK: 't404' }), 'no such task');
   });
 
   it('refuses an entry on more than one line', () => {
@@ -57,10 +47,14 @@ describe('yan log', () => {
     // before it reaches the process.
     const r = spawnSync(
       bashCommand(),
-      ['-c', `bash "$1" log agreed $'one\ntwo' --task t042`, '_', join(home, 'bin', 'yan')],
-      { encoding: 'utf8', env: { ...process.env, YAN_HOME: home }, windowsHide: true },
+      ['-c', `bash "$1" log agreed $'one\ntwo'`, '_', join(home, 'bin', 'yan')],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, YAN_HOME: home, YAN_VAULT: home, YAN_MACHINE_DIR: join(home, '.machine'), YAN_TASK: 't042' },
+        windowsHide: true,
+      },
     );
-    expect(r.status).toBe(2);
+    expectUsage({ code: r.status ?? 1, out: `${r.stdout}${r.stderr}` }, 'one line');
     expect(log()).toBe(before);
   });
 });

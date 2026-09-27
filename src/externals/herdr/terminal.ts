@@ -1,17 +1,19 @@
 import { nativePath } from '../../util/paths.js';
-import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
-import { isPaneId, paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
-import { asRecord, asString } from '../../util/narrow.js';
+import { sleepMs } from '../../util/process.js';
+import { herdrCall, mapError, resultOf, runHerdr, type HerdrRunner } from './cli.js';
+import { isPaneId, paneIsIn, requirePaneId, requireWorkspaceId } from './ids.js';
+import { asRecord, asString, recordOrNone } from '../../util/narrow.js';
 import { agentSessionOf, statusOf } from './parse.js';
-import { YanError, isYanError } from '../../util/error.js';
+import { BUSY_RETRY_MS, SETTLE_MS, startAgent, type Starting } from './start.js';
+import { YanError } from '../../util/error.js';
 import type {
   AgentStatus,
   StartAgentOptions,
   Alive,
   Container,
   ListedAgent,
+  ReadFormat,
   ReadSource,
-  SplitAt,
   StartedAgent,
   TabLayout,
 } from './types.js';
@@ -26,8 +28,13 @@ import type {
  * named by its caller or the pane `startAgent` just made, by a new tab or a
  * split, and could not start its agent in — and nothing here focuses, since
  * focusing a pane marks it seen and changes what `agent get` reports about it.
+ *
+ * Answers are read in the one shape protocol 22 gives, checked against
+ * `herdr api schema --json` and a live herdr 0.9.0: an id sits inside the
+ * object it names (`result.pane.pane_id`, `result.root_pane.pane_id`), never
+ * flat beside it.
  */
-export interface TerminalOptions {
+interface TerminalOptions {
   /** Defaults to the real `herdr`. */
   readonly run?: HerdrRunner;
   /**
@@ -46,49 +53,22 @@ export interface TerminalOptions {
   readonly sleep?: (ms: number) => void;
 }
 
-/** How long a new pane's shell is given to reach its prompt. */
-const BUSY_RETRY_MS = 15000;
-
-/** The pause between asking a busy pane again. */
-const BUSY_INTERVAL_MS = 500;
-
-function sleepMs(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-/** How long a freshly started agent is given to reach `working` or `blocked`. */
-const SETTLE_MS = 8000;
-
-/** How many startup dialogs in a row `startAgent` will answer before giving up. */
-const STARTUP_DIALOG_ROUNDS = 3;
-
-/**
- * The dialogs a harness puts up before it has read its prompt, whose Enter
- * default answers the question yan already decided by choosing the directory
- * it started the agent in. Nothing else is answered blind: an unrecognised
- * question is left standing, and `yan state` is what finds it.
- *
- * `--dangerously-skip-permissions` does not cover this one; it is asked before
- * permissions are consulted at all, and it is asked once per directory that
- * has no trusted ancestor.
- */
-const STARTUP_DIALOGS: readonly RegExp[] = [/Yes, I trust this folder/i];
-
-function isStartupDialog(screen: string): boolean {
-  return STARTUP_DIALOGS.some((pattern) => pattern.test(screen));
-}
-
 export class Terminal {
   private readonly run: HerdrRunner;
-  private readonly settleMs: number;
-  private readonly busyRetryMs: number;
-  private readonly sleep: (ms: number) => void;
+  private readonly starting: Starting;
 
   public constructor(options: TerminalOptions = {}) {
     this.run = options.run ?? runHerdr;
-    this.settleMs = options.settleMs ?? SETTLE_MS;
-    this.busyRetryMs = options.busyRetryMs ?? BUSY_RETRY_MS;
-    this.sleep = options.sleep ?? sleepMs;
+    this.starting = {
+      run: this.run,
+      sleep: options.sleep ?? sleepMs,
+      settleMs: options.settleMs ?? SETTLE_MS,
+      busyRetryMs: options.busyRetryMs ?? BUSY_RETRY_MS,
+      status: (pane) => this.statusOrUnknown(pane),
+      alive: (pane) => this.agentAlive(pane),
+      screen: (pane) => this.readOrEmpty(pane),
+      send: (pane, text) => this.send(pane, text),
+    };
   }
 
   /**
@@ -100,6 +80,16 @@ export class Terminal {
     return herdrCall(this.run, args, what);
   }
 
+  /**
+   * Ask herdr something whose answer is allowed to be missing: its `.result`
+   * as a record, or `undefined` when the command failed or said nothing
+   * readable. Never throws; each caller decides what not knowing means.
+   */
+  private query(args: readonly string[]): Record<string, unknown> | undefined {
+    const result = this.run(args);
+    return result.code === 0 ? recordOrNone(resultOf(result.stdout)) : undefined;
+  }
+
   /** Create a workspace to hold a task's agents. Does not focus it. */
   public createContainer(label: string, cwd?: string): Container {
     if (label === '') throw YanError.usage('term_usage', 'a container label is required');
@@ -107,169 +97,23 @@ export class Terminal {
     if (cwd !== undefined && cwd !== '') args.push('--cwd', nativePath(cwd));
 
     const result = asRecord(this.call(args, 'workspace create'));
-    const workspace = asRecord(result.workspace);
     return {
-      workspace: asString(workspace.workspace_id) || asString(result.workspace_id),
-      tab: asString(asRecord(result.tab).tab_id) || asString(result.tab_id),
-      pane: asString(asRecord(result.root_pane).pane_id) || asString(result.root_pane_id),
+      workspace: asString(asRecord(result.workspace).workspace_id),
+      tab: asString(asRecord(result.tab).tab_id),
+      pane: asString(asRecord(result.root_pane).pane_id),
     };
   }
 
   /**
-   * Make a pane carrying `env` and `cwd` — a new tab in the container, or,
-   * with `split`, the new half of that pane — and start an agent in it. Does
-   * not focus.
-   *
-   * Only returns a pane whose agent was still alive a moment later — Herdr's
-   * own readiness check is screen-based and matches a bare shell prompt too.
-   * That second look can be fooled the same way, so it catches an agent that
-   * is already visibly gone and promises nothing beyond that.
-   *
-   * Herdr calls an agent ready as soon as it recognises one, which it does
-   * while the harness is still holding up its trust dialog; the returned
-   * `status` is therefore the settled one, read after the agent has had time
-   * to move, and a recognised startup dialog has been answered by then. A
-   * `blocked` here means something yan does not recognise is on the screen —
-   * the agent is running, so the caller keeps the tree and tells `user`.
+   * Start an agent in a new tab of `options.container`, or in the new half of
+   * `options.split`, and answer once it has settled. `start.ts` has the whole
+   * lifecycle and what each step guards against.
    *
    * @throws YanError `term_usage` for a missing argument, `term_not_found` when no
    *   agent is in the pane afterwards.
    */
   public startAgent(options: StartAgentOptions): StartedAgent {
-    requireAgentName(options.name);
-    if (options.kind === '') throw YanError.usage('term_usage', 'an agent kind is required');
-    if (options.cwd === '') throw YanError.usage('term_usage', 'a working directory is required');
-
-    const pane = options.split === undefined ? this.createTab(options) : this.splitPane(options.split, options);
-    const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
-    if (options.timeoutMs !== undefined) startArgs.push('--timeout', String(options.timeoutMs));
-    // Everything after `--` reaches the agent as argv, with no shell in
-    // between, so nothing here needs quoting.
-    if (options.argv !== undefined && options.argv.length > 0) startArgs.push('--', ...options.argv);
-
-    let started: Record<string, unknown>;
-    try {
-      started = asRecord(this.startWhenReady(startArgs));
-    } catch (err) {
-      // This call made the pane, and it never took its agent, so it is not
-      // left behind as an empty tab or an empty half of one.
-      try {
-        this.call(['pane', 'close', pane], 'pane close');
-      } catch {
-        // Closing is tidying; the reason worth reporting is the start's.
-      }
-      throw err;
-    }
-    const agent = asRecord(started.agent);
-    const reported = asString(agent.pane_id) || pane;
-
-    if (this.agentAlive(reported) !== 'alive') {
-      throw new YanError('term_not_found',
-        `herdr reported '${options.name}' ready in ${reported}, but no agent is there - the CLI probably exited at once. Look at the pane before sending anything to it`,
-      );
-    }
-
-    const session = agentSessionOf(agent.agent_session);
-    return {
-      name: asString(agent.name) || options.name,
-      pane: reported,
-      status: this.settle(reported, statusOf(agent.agent_status), options.prompt),
-      ...(session === undefined ? {} : { agent_session: session }),
-    };
-  }
-
-  /**
-   * Wait for a freshly started agent to reach its input line, answering the
-   * startup dialogs in `STARTUP_DIALOGS` as they appear, then hand it
-   * `prompt` and answer with the status it settled on.
-   *
-   * The prompt is typed in here rather than passed on the command line
-   * because Herdr's `agent start` returns only once the agent is ready for
-   * input: one that already has its work order goes straight to work and is
-   * still working at the deadline, so the start was reported as a timeout and
-   * the pane closed on a shift that was fine. Typed in after the dialogs, the
-   * prompt also survives a harness that restarts behind one, which drops
-   * whatever it was started with.
-   *
-   * Never throws: the agent is already running, and every failure here is a
-   * question about it rather than a reason to tear it down.
-   */
-  private settle(pane: string, reported: AgentStatus, prompt?: string): AgentStatus {
-    if (this.settleMs <= 0) return this.handOver(pane, reported, prompt);
-
-    let status = reported;
-    let answered = false;
-    for (let round = 0; round <= STARTUP_DIALOG_ROUNDS; round += 1) {
-      // Returns the moment it is any of them, so a healthy agent costs a
-      // second rather than the whole budget.
-      this.waitFor(pane, ['idle', 'done', 'blocked']);
-      status = this.statusOrUnknown(pane);
-
-      if (status !== 'blocked') break;
-      if (round === STARTUP_DIALOG_ROUNDS) break;
-      if (!isStartupDialog(this.readOrEmpty(pane))) break;
-
-      // Enter takes the highlighted default, which for these is yes.
-      this.run(['agent', 'send-keys', pane, 'enter']);
-      answered = true;
-    }
-
-    if (answered) {
-      // The harness is restarting behind the dialog, and Herdr reads that
-      // screen as `blocked` too, so the status just taken says nothing yet.
-      this.waitFor(pane, ['idle', 'done']);
-      status = this.statusOrUnknown(pane);
-    }
-
-    return this.handOver(pane, status, prompt);
-  }
-
-  /**
-   * Type the work order into an agent that is at its input line. A `blocked`
-   * agent is asking something nobody here recognises, and the prompt would be
-   * typed into that dialog; it is left standing for the caller to raise.
-   */
-  private handOver(pane: string, status: AgentStatus, prompt?: string): AgentStatus {
-    if (status === 'blocked' || prompt === undefined || prompt === '') return status;
-    try {
-      this.send(pane, prompt);
-      return this.statusOrUnknown(pane);
-    } catch {
-      // The agent is up and the pane is recorded; the caller has it from here.
-      return status;
-    }
-  }
-
-  /**
-   * `agent start`, asked again while herdr says the pane is busy. A new pane's
-   * shell takes a moment to reach its prompt, and herdr is the one that knows
-   * when it has; nothing was started while it said busy, so asking again
-   * cannot start a second agent.
-   *
-   * @throws YanError `term_busy` once `busyRetryMs` has passed, or whatever
-   *   else the start fails with, at once.
-   */
-  private startWhenReady(args: readonly string[]): unknown {
-    const deadline = Date.now() + this.busyRetryMs;
-    for (;;) {
-      try {
-        return this.call(args, 'agent start');
-      } catch (err) {
-        if (!(isYanError(err)) || err.code !== 'term_busy') throw err;
-        if (Date.now() + BUSY_INTERVAL_MS > deadline) {
-          throw new YanError('term_busy', `the new pane was not at its shell prompt within ${Math.round(this.busyRetryMs / 1000)}s, so no agent was started in it`, { cause: err });
-        }
-        this.sleep(BUSY_INTERVAL_MS);
-      }
-    }
-  }
-
-  /** Wait for any of `states`, and answer nothing: the caller re-reads. */
-  private waitFor(pane: string, states: readonly AgentStatus[]): void {
-    const args = ['agent', 'wait', pane];
-    for (const state of states) args.push('--until', state);
-    args.push('--timeout', String(this.settleMs));
-    this.run(args);
+    return startAgent(this.starting, options);
   }
 
   /**
@@ -286,14 +130,8 @@ export class Terminal {
 
   /** The agent's status, or `unknown` when Herdr will not say. */
   private statusOrUnknown(pane: string): AgentStatus {
-    const result = this.run(['agent', 'get', pane]);
-    if (result.code !== 0) return 'unknown';
-    try {
-      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
-      return statusOf(asRecord(body.agent).agent_status);
-    } catch {
-      return 'unknown';
-    }
+    const body = this.query(['agent', 'get', pane]);
+    return body === undefined ? 'unknown' : statusOf(asRecord(body.agent).agent_status);
   }
 
   /** The screen, or `''` when it cannot be read. */
@@ -306,8 +144,7 @@ export class Terminal {
   }
 
   /**
-   * Send one prompt: text and Enter in a single submission. `waitMs` waits for
-   * the agent to finish, up to that many milliseconds.
+   * Send one prompt: text and Enter in a single submission.
    *
    * Checks for a live agent first, so text is never typed into a shell that
    * would run it. Liveness is screen-based, so it catches a pane whose agent
@@ -316,7 +153,7 @@ export class Terminal {
    * @throws YanError `term_usage` for an empty pane or text, `term_not_found` when
    *   no live agent is there.
    */
-  public send(pane: string, text: string, waitMs?: number): void {
+  public send(pane: string, text: string): void {
     requirePaneId(pane, 'send');
     if (text === '') throw YanError.usage('term_usage', 'there is nothing to send');
     if (this.agentAlive(pane) !== 'alive') {
@@ -324,9 +161,7 @@ export class Terminal {
         `no live agent in ${pane} - refusing to send, because the text would be typed into whatever shell is there`,
       );
     }
-    const args = ['agent', 'prompt', pane, text];
-    if (waitMs !== undefined) args.push('--wait', '--timeout', String(waitMs));
-    this.call(args, 'agent prompt');
+    this.call(['agent', 'prompt', pane, text], 'agent prompt');
   }
 
   /**
@@ -388,12 +223,14 @@ export class Terminal {
    *
    * @throws YanError when the command failed.
    */
-  public read(pane: string, lines = 80, source: ReadSource = 'recent_unwrapped'): string {
+  public read(pane: string, lines = 80, source: ReadSource = 'recent_unwrapped', format: ReadFormat = 'text'): string {
     requirePaneId(pane, 'read');
     if (!Number.isInteger(lines) || lines <= 0) {
       throw YanError.usage('term_usage', `a whole number of lines is required, got '${lines}'`);
     }
-    const result = this.run(['agent', 'read', pane, '--source', source, '--lines', String(lines)]);
+    const args = ['agent', 'read', pane, '--source', source, '--lines', String(lines)];
+    if (format === 'ansi') args.push('--format', 'ansi');
+    const result = this.run(args);
     if (result.code !== 0) throw mapError(result, 'agent read');
 
     const raw = result.stdout;
@@ -406,6 +243,18 @@ export class Terminal {
     } catch {
       return raw;
     }
+  }
+
+  /**
+   * Which harness Herdr sees in this pane — `claude`, `codex`, … as Herdr
+   * spells them — or `undefined` when it will not say.
+   *
+   * @throws YanError `term_usage` when `pane` is not a pane id.
+   */
+  public agentKind(pane: string): string | undefined {
+    requirePaneId(pane, 'agentKind');
+    const kind = asString(asRecord(this.query(['agent', 'get', pane])?.agent).agent);
+    return kind === '' ? undefined : kind;
   }
 
   /**
@@ -431,34 +280,9 @@ export class Terminal {
    */
   public workspaceOfPane(pane: string): string | undefined {
     if (!isPaneId(pane)) return undefined;
-    const result = this.run(['pane', 'get', pane]);
-    if (result.code !== 0) return undefined;
-    try {
-      const body = asRecord(asRecord(JSON.parse(result.stdout)).result);
-      const id = asString(asRecord(body.pane).workspace_id) || asString(body.workspace_id);
-      return id === '' ? undefined : id;
-    } catch {
-      return undefined;
-    }
-  }
-
-  /**
-   * The pane an agent is in now, when that differs from `recordedPane` —
-   * moving a pane between workspaces changes its id. `undefined` when the
-   * agent cannot be found or has not moved. Records nothing.
-   */
-  public reconcile(name: string, recordedPane: string): string | undefined {
-    requireAgentName(name);
-    const byName = this.run(['agent', 'get', name]);
-    if (byName.code !== 0) return undefined;
-    let pane = '';
-    try {
-      const agent = asRecord(asRecord(JSON.parse(byName.stdout)).result);
-      pane = asString(asRecord(agent.agent).pane_id) || asString(agent.pane_id);
-    } catch {
-      return undefined;
-    }
-    return pane !== '' && pane !== recordedPane ? pane : undefined;
+    const body = asRecord(this.query(['pane', 'get', pane]));
+    const id = asString(asRecord(body.pane).workspace_id);
+    return id === '' ? undefined : id;
   }
 
   /**
@@ -478,9 +302,8 @@ export class Terminal {
     const scoped = container !== undefined && container !== '';
     if (scoped) requireWorkspaceId(container, 'list');
 
-    const result = this.call(['agent', 'list'], 'agent list');
-    const body = asRecord(result);
-    const raw = Array.isArray(body.agents) ? body.agents : Array.isArray(result) ? result : [];
+    const body = asRecord(this.call(['agent', 'list'], 'agent list'));
+    const raw = Array.isArray(body.agents) ? body.agents : [];
 
     const agents: ListedAgent[] = [];
     for (const entry of raw) {
@@ -508,86 +331,18 @@ export class Terminal {
    */
   public tabLayout(pane: string): TabLayout | undefined {
     if (!isPaneId(pane)) return undefined;
-    const result = this.run(['pane', 'layout', '--pane', pane]);
-    if (result.code !== 0) return undefined;
-    try {
-      const layout = asRecord(asRecord(asRecord(JSON.parse(result.stdout)).result).layout);
-      if (!Array.isArray(layout.panes)) return undefined;
-      const panes = [];
-      for (const entry of layout.panes) {
-        const listed = asRecord(entry);
-        const id = asString(listed.pane_id);
-        const rect = asRecord(listed.rect);
-        const [x, y, width, height] = [rect.x, rect.y, rect.width, rect.height];
-        if (id === '' || typeof x !== 'number' || typeof y !== 'number' ||
-            typeof width !== 'number' || typeof height !== 'number') return undefined;
-        panes.push({ pane: id, rect: { x, y, width, height } });
-      }
-      return { workspace: asString(layout.workspace_id), tab: asString(layout.tab_id), panes };
-    } catch {
-      return undefined;
+    const layout = asRecord(this.query(['pane', 'layout', '--pane', pane])?.layout);
+    if (!Array.isArray(layout.panes)) return undefined;
+    const panes = [];
+    for (const entry of layout.panes) {
+      const listed = asRecord(entry);
+      const id = asString(listed.pane_id);
+      const rect = asRecord(listed.rect);
+      const [x, y, width, height] = [rect.x, rect.y, rect.width, rect.height];
+      if (id === '' || typeof x !== 'number' || typeof y !== 'number' ||
+          typeof width !== 'number' || typeof height !== 'number') return undefined;
+      panes.push({ pane: id, rect: { x, y, width, height } });
     }
-  }
-
-  /**
-   * Split `at.pane` in half, carrying the agent's `env` and `cwd`, and answer
-   * with the new pane. A pane too small to split is Herdr's refusal and
-   * surfaces as one; it is never turned into a tab here.
-   *
-   * @throws YanError when `at.pane` is not a pane id, the split was refused,
-   *   or herdr reports no new pane.
-   */
-  private splitPane(at: SplitAt, options: StartAgentOptions): string {
-    requirePaneId(at.pane, 'pane split');
-    const args = [
-      'pane',
-      'split',
-      at.pane,
-      '--direction',
-      at.direction,
-      '--ratio',
-      '0.5',
-      '--no-focus',
-      '--cwd',
-      nativePath(options.cwd),
-    ];
-    for (const [key, value] of Object.entries(options.env ?? {})) {
-      args.push('--env', `${key}=${value}`);
-    }
-
-    const split = asRecord(this.call(args, 'pane split'));
-    const pane = asString(asRecord(split.pane).pane_id) || asString(split.pane_id);
-    if (pane === '') throw YanError.usage('term_usage', `herdr did not report the pane it split off ${at.pane}`);
-    return pane;
-  }
-
-  /**
-   * Make a tab in the container and answer with its one pane.
-   *
-   * @throws YanError when the container is not a workspace id, or herdr
-   *   reports no root pane.
-   */
-  private createTab(options: StartAgentOptions): string {
-    requireWorkspaceId(options.container, 'tab create');
-    const args = [
-      'tab',
-      'create',
-      '--workspace',
-      options.container,
-      '--no-focus',
-      '--cwd',
-      nativePath(options.cwd),
-    ];
-    if (options.label !== undefined && options.label !== '') {
-      args.push('--label', options.label);
-    }
-    for (const [key, value] of Object.entries(options.env ?? {})) {
-      args.push('--env', `${key}=${value}`);
-    }
-
-    const created = asRecord(this.call(args, 'tab create'));
-    const pane = asString(asRecord(created.root_pane).pane_id) || asString(created.root_pane_id);
-    if (pane === '') throw YanError.usage('term_usage', 'herdr did not report a root pane for the new tab');
-    return pane;
+    return { workspace: asString(layout.workspace_id), tab: asString(layout.tab_id), panes };
   }
 }

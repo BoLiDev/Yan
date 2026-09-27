@@ -7,21 +7,16 @@
  */
 
 export { Terminal } from './terminal.js';
-export type { TerminalOptions } from './terminal.js';
 export { herdrHealth } from './health.js';
-export { agentNameFor, isPaneId } from './ids.js';
+export { agentNameFor } from './ids.js';
 export { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, AGENT_STATUS } from './schema.js';
 export type {
   AgentStatus,
   Alive,
-  Container,
-  HerdrHealth,
-  ListedAgent,
   PaneRect,
+  ReadFormat,
   ReadSource,
   SplitAt,
-  SplitDirection,
   StartAgentOptions,
-  StartedAgent,
   TabLayout,
 } from './types.js';

@@ -2,6 +2,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { writeDraft } from '../../src/cli/draft.js';
 
@@ -18,7 +20,6 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let drafts = '';
-let previousHome: string | undefined;
 const previousEditor = process.env.DRAFT_EDITOR;
 
 function yan(args: readonly string[], env: Record<string, string> = {}) {
@@ -41,17 +42,13 @@ function editor(body: string): string {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
-  Task.create('t042', 'unify the auth header');
+  seedT042(null);
   Task.create('t099', 'a task with no drafts');
   drafts = join(home, 'tasks', 't042', 'artifacts', 'drafts');
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousEditor === undefined) delete process.env.DRAFT_EDITOR;
   else process.env.DRAFT_EDITOR = previousEditor;
   delete process.env.YAN_SID;
@@ -149,8 +146,8 @@ describe('reading drafts works anywhere', () => {
   });
 
   it('ls refuses a bad --limit or --since', async () => {
-    expect((await yan(['draft', 'ls', '--limit', '0', 't042'])).code).toBe(2);
-    expect((await yan(['draft', 'ls', '--since', 'someday', 't042'])).code).toBe(2);
+    expectUsage(await yan(['draft', 'ls', '--limit', '0', 't042']), '--limit needs a positive whole number');
+    expectUsage(await yan(['draft', 'ls', '--since', 'someday', 't042']), '--since needs a date');
   });
 
   it('cat prints one, with the task last or from $YAN_TASK', async () => {
@@ -194,7 +191,7 @@ describe('reading drafts works anywhere', () => {
 describe('which task', () => {
   it('refuses a task that does not exist', async () => {
     const r = await yan(['draft', 'ls', '--plain', 'nope']);
-    expect(r.code).toBe(1);
+    expect(r.code).toBe(2);
     expect(r.stderr).toContain('no such task: nope');
   });
 

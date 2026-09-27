@@ -13,10 +13,10 @@ yan vault ls                                          registered vaults, active 
 yan vault use <name>       (alias: yan use <name>)    switch the active vault
 yan vault where                                       where the active vault is
 yan vault link <name> <path>                          where a vault is on THIS machine
-yan vault drop-home                                   step 7 of a --from-home migration
 yan vault pull                                        fetch + rebase (session-start runs this)
 yan vault push [-m <msg>]                             stage, commit, push
 yan repo link <name> <path>                           the machine half of the registry
+yan repo rm [<name>]                                  unregister; the clone on disk stays
 yan repo ls                                           registered, and whether linked here
 ```
 
@@ -51,11 +51,11 @@ clone_root   C:/workspace/project                          (WARN if missing)
 
 The "registered but not linked here" row is the one that earns its place: it is the normal state of a freshly cloned vault, and it is the state where every other command fails with a confusing message unless doctor said it first.
 
-**Everything that reads or writes data** — `task`, `unit`, `shift`, `ls`, `sync`, `mr`, `land`, `done`, `open`, `state`, `send`, `report` — changes one thing: the root it resolves against. No flags change, no output changes.
+**Everything that reads or writes data** — `task`, `unit`, `shift`, `ls`, `mr`, `land`, `done`, `open`, `state`, `send`, `report` — changes one thing: the root it resolves against. No flags change, no output changes.
 
 ## 4. The path roots, in code
 
-`yanHome()` currently answers three questions. It gets split, and the split is mechanical:
+`yanHome()` used to answer three questions. It is split three ways:
 
 | helper | answers | derivation |
 | --- | --- | --- |
@@ -63,9 +63,9 @@ The "registered but not linked here" row is the one that earns its place: it is 
 | `util/vault.ts` → `vaultDir()` | where the assets are | `$YAN_VAULT` if it validates (`vault.json` present), else `~/.yan/config.json`'s `active` |
 | `util/machine.ts` → `machineDir()` | where this disk's state is | `$YAN_MACHINE_DIR`, else `~/.yan` |
 
-Every `join(yanHome(), 'tasks' | 'mem' | 'conf')` becomes `join(vaultDir(), …)`. That is roughly fifteen call sites and they are all in `records/`, `cli/shared/` and `cli/`. `$YAN_MACHINE_DIR` exists so tests can isolate the machine layer the way they already isolate `$YAN_HOME`; it is not documented for users.
+Tasks, memory and the registry resolve against `vaultDir()`; `yanHome()` is left with what ships in this repository — `templates/`, the hook files, `dist/`. `$YAN_MACHINE_DIR` exists so tests can isolate the machine layer the way they isolate the vault with `$YAN_VAULT`; it is not documented for users.
 
-`vaultDir()` throwing is a normal, expected outcome — no vault registered yet — so it throws the CLI's own error type with the `yan vault init` instruction in it, and the read-only commands that genuinely do not need a vault (`doctor`, `vault ls`, `vault init`, `vault clone`, `--help`) must not call it.
+`vaultDir()` throwing is a normal, expected outcome — no vault registered yet — so it throws the CLI's own error type with the `yan vault init` instruction in it, and the read-only commands that genuinely do not need a vault (`doctor`, `vault ls`, `vault init`, `vault clone`, `--help`) do not call it.
 
 ## 5. Authority
 

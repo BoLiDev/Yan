@@ -3,12 +3,13 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { repoDir } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
-import { Deliverables, deliverableAside, Task, type Deliverable } from '../records/task/index.js';
+import { type Deliverable, readDeliverables } from '../records/task/index.js';
+import { deliverableAside } from './shared/deliverables.js';
 import { remoteBranchExists } from '../util/git.js';
 import { YanError } from '../util/error.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan mr` — open the outbound merge request, integration branch → target,
@@ -61,15 +62,14 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     throw YanError.usage('mr_usage', '--body and --body-file are alternatives - pass one');
   }
 
-  if (!Task.exists(task)) throw YanError.usage('mr_usage', `no such task: ${task} - 'yan ls' lists them`);
-  const record = new Task(task);
+  const record = existingTask('mr', task);
   const data = record.findUnit(unitName);
   if (data === undefined) {
     throw YanError.usage('mr_usage', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);
   }
 
   if (data.mr !== null && data.mr !== '') {
-    throw YanError.usage('mr_usage', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
+    throw YanError.usage('mr_usage', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - once it has merged, 'yan unit set --branch <new>' starts the next round`,
     );
   }
   if (data.branch === '') {
@@ -105,7 +105,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   let bodyFile = options.bodyFile;
   if (body === undefined && bodyFile === undefined) {
     const brief = join(record.dir, 'brief.md');
-    const deliverables = new Deliverables(task).readOrNone().deliverables;
+    const deliverables = readDeliverables(task).deliverables;
     if (deliverables.length > 0) body = defaultBody(existsSync(brief) ? readFileSync(brief, 'utf8') : '', deliverables);
     else if (existsSync(brief)) bodyFile = brief;
   }
@@ -131,16 +131,12 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
       u.mr = url;
     });
   } catch (err) {
-    throw new YanError('mr_not_recorded', `the merge request is open at ${url} but task.json was not updated - record it with 'yan unit set' or re-run after fixing the error above`,
+    throw new YanError('mr_not_recorded', `the merge request is open at ${url} but task.json was not updated - set the unit's "mr" in task.json to that URL by hand; re-running would try to open it again`,
       { cause: err },
     );
   }
 
-  try {
-    new Log(task).append('delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
-  } catch {
-    process.stderr.write('yan mr: the MR was recorded in task.json but log.md was not appended to\n');
-  }
+  appendLog('yan mr', task, 'delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
 
   return {
     version: 1,
@@ -158,7 +154,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
  * task is for, and what this round is meant to have built. The marks are the
  * ones a reader of yan's own notes already knows.
  */
-export function defaultBody(brief: string, deliverables: readonly Deliverable[]): string {
+function defaultBody(brief: string, deliverables: readonly Deliverable[]): string {
   const lines = deliverables.map((d) => {
     // The same aside the terminal prints, so a ref that is a URL reads as
     // `PR #58` here too rather than as a line of address.

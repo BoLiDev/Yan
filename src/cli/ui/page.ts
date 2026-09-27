@@ -17,7 +17,7 @@ const PLACEHOLDER = '/*YAN_DATA*/';
 /** Where the mock added its strip of links; the real page leaves the line out. */
 const MOCK_LINE = /^[ \t]*<!--YAN_MOCK-->[ \t]*\r?\n?/m;
 
-export function templatePath(): string {
+function templatePath(): string {
   return join(yanHome(), 'templates', 'ui', 'report.html');
 }
 

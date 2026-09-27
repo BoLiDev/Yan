@@ -5,6 +5,7 @@ import { initJson, readJson, writeJson } from '../../util/json.js';
 import { recordOrNone } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
+import { isDate, localDay } from '../../util/time.js';
 
 /**
  * `tasks/<id>/deliverable.json` — the requirements a task is ticking off:
@@ -52,32 +53,31 @@ interface Base {
    */
   readonly text: string;
 }
-export interface Todo extends Base { readonly status: 'todo' }
-export interface Done extends Base {
+interface Todo extends Base { readonly status: 'todo' }
+interface Done extends Base {
   readonly status: 'done';
   /** Local `YYYY-MM-DD`. */
   readonly doneAt: string;
   /**
    * What proves it, `PR #58` or the merge request's URL; several or none.
    * Stored as it was typed, and a URL is what lets the work report link it -
-   * see `refLink`.
+   * see `refLink` in `cli/shared/deliverables.ts`.
    */
   readonly refs?: readonly string[];
 }
-export interface Abandoned extends Base {
+interface Abandoned extends Base {
   readonly status: 'abandoned';
   /** Required. */
   readonly reason: string;
 }
 
-export const DELIVERABLE_STATUSES = ['todo', 'done', 'abandoned'] as const;
-export type DeliverableStatus = (typeof DELIVERABLE_STATUSES)[number];
+const DELIVERABLE_STATUSES = ['todo', 'done', 'abandoned'] as const;
 
 /** An empty file: a task that has not been broken down yet. */
 const EMPTY: DeliverableFile = { version: 1, nextId: 1, deliverables: [] };
 
 /** The file name, relative to a task directory. */
-export const DELIVERABLE_FILE = 'deliverable.json';
+const DELIVERABLE_FILE = 'deliverable.json';
 
 /**
  * What a reader that must not fail gets: the deliverables, and the reason the
@@ -86,7 +86,7 @@ export const DELIVERABLE_FILE = 'deliverable.json';
  * the work report covers every task and one bad file cannot take the rest
  * down with it.
  */
-export interface DeliverablesRead {
+interface DeliverablesRead {
   /** Empty when the file is missing or does not validate. */
   readonly deliverables: readonly Deliverable[];
   /** What is wrong with the file, as a sentence naming it; null when it is fine. */
@@ -140,23 +140,6 @@ export class Deliverables {
   }
 
   /**
-   * The same read, with the refusal handed back rather than thrown. This is
-   * what a reader that covers every task calls.
-   */
-  public readOrNone(): DeliverablesRead {
-    try {
-      return { deliverables: this.read().deliverables, problem: null };
-    } catch (err) {
-      return { deliverables: [], problem: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  /** One deliverable by id, or undefined. */
-  public find(id: string): Deliverable | undefined {
-    return this.read().deliverables.find((d) => d.id === id);
-  }
-
-  /**
    * Append one deliverable per text, in the order given, and return the ones
    * written.
    *
@@ -195,7 +178,7 @@ export class Deliverables {
    *   not a real `YYYY-MM-DD`.
    */
   public done(id: string, at: string, refs: readonly string[]): Done {
-    const doneAt = at === '' ? today() : at;
+    const doneAt = at === '' ? localDay() : at;
     if (!isDate(doneAt)) {
       throw YanError.usage('deliverable_usage', `--at takes a real date as YYYY-MM-DD, not '${at}'`);
     }
@@ -271,85 +254,18 @@ export class Deliverables {
 }
 
 /**
- * A task's deliverables without a throw anywhere in the path, for a reader
- * that covers every task: the work report, and `yan ls`. A task id that is
- * not a task, a vault that cannot be resolved and a file that does not
- * validate all come back as an empty list with a problem.
+ * A task's deliverables without a throw anywhere in the path, for every
+ * reader that shows them rather than writes them: `yan show`, `yan mr`,
+ * session start and the work report. A task id that is not a task, a vault
+ * that cannot be resolved and a file that does not validate all come back as
+ * an empty list with a problem.
  */
 export function readDeliverables(taskId: string): DeliverablesRead {
   try {
-    return new Deliverables(taskId).readOrNone();
+    return { deliverables: new Deliverables(taskId).read().deliverables, problem: null };
   } catch (err) {
     return { deliverables: [], problem: err instanceof Error ? err.message : String(err) };
   }
-}
-
-/**
- * What a ref points at, worked out from the ref itself. A ref is free text,
- * and `PR #58` cannot say which repository it belongs to - a task may have
- * several units in several repositories - so a ref that is a URL is the only
- * one that can be opened.
- *
- * Only `http:` and `https:` ever give an address. `javascript:` and every
- * other scheme come back as text, to be printed as they were typed.
- */
-export interface RefLink {
-  /** How it reads: `PR #58`, `MR !87`, a host, or the ref as it was typed. */
-  readonly label: string;
-  /** The address to open; null when the ref is not an http(s) URL. */
-  readonly href: string | null;
-}
-
-/** GitHub is one host; GitLab is self-hosted, so its merge requests are known by their path alone. */
-const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
-const PULL_PATH = /^\/[^/]+\/[^/]+\/pull\/(\d+)(?:\/|$)/;
-const MERGE_REQUEST_PATH = /\/-\/merge_requests\/(\d+)(?:\/|$)/;
-
-/** One ref as a label and, when there is one, the address behind it. */
-export function refLink(ref: string): RefLink {
-  let url: URL;
-  try {
-    url = new URL(ref);
-  } catch {
-    return { label: ref, href: null };
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { label: ref, href: null };
-  const pull = GITHUB_HOSTS.has(url.hostname) ? PULL_PATH.exec(url.pathname) : null;
-  if (pull !== null) return { label: `PR #${pull[1] as string}`, href: url.href };
-  const merge = MERGE_REQUEST_PATH.exec(url.pathname);
-  if (merge !== null) return { label: `MR !${merge[1] as string}`, href: url.href };
-  return { label: url.host, href: url.href };
-}
-
-/**
- * A ref as everything but the record itself prints it: a URL in its short
- * form, so a line of terminal stays readable, anything else as it was typed.
- * The stored ref never changes - `yan ui --json` hands back what is on disk.
- */
-export function shortRef(ref: string): string {
-  return refLink(ref).label;
-}
-
-/** What the file says a deliverable is done or given up for, as one short string; `''` for a to-do. */
-export function deliverableAside(d: Deliverable): string {
-  if (d.status === 'done') return [d.doneAt, ...(d.refs ?? []).map(shortRef)].join(' · ');
-  if (d.status === 'abandoned') return d.reason;
-  return '';
-}
-
-/** Today, as a local `YYYY-MM-DD`. */
-export function today(now = new Date()): string {
-  const two = (n: number): string => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
-}
-
-/** `YYYY-MM-DD`, and a day that exists: `2026-02-30` is not one. */
-export function isDate(value: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (m === null) return false;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  if (mo < 1 || mo > 12 || d < 1) return false;
-  return d <= new Date(y, mo, 0).getDate();
 }
 
 /**

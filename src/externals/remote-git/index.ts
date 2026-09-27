@@ -4,14 +4,4 @@
  */
 
 export { RemoteGit, configuredCli } from './remote-git.js';
-export type { CliRunner, RemoteGitOptions } from './remote-git.js';
-export type {
-  CiState,
-  HostKind,
-  MergeStrategy,
-  MrCreateOptions,
-  MrMergeOptions,
-  MrRef,
-  MrState,
-  RepoRef,
-} from './types.js';
+export type { MergeStrategy, MrCreateOptions, MrRef, MrState } from './types.js';

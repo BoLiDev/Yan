@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { isDirectory } from '../util/paths.js';
 
 /**
  * Everything the prompts work out before they ask anything, and everything
@@ -18,17 +19,9 @@ export interface RegisteredRepo {
 const WORKSPACE_MANIFESTS = ['pnpm-workspace.yaml', 'pnpm-workspace.yml', 'lerna.json'];
 const CONVENTIONAL_DIRS = ['packages', 'apps'];
 
-function isDir(p: string): boolean {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 function childDirs(root: string, rel: string): string[] {
   const dir = join(root, rel);
-  if (!isDir(dir)) return [];
+  if (!isDirectory(dir)) return [];
   let names: string[];
   try {
     names = readdirSync(dir);
@@ -37,7 +30,7 @@ function childDirs(root: string, rel: string): string[] {
   }
   return names
     .filter((n) => !n.startsWith('.') && n !== 'node_modules')
-    .filter((n) => isDir(join(dir, n)))
+    .filter((n) => isDirectory(join(dir, n)))
     .map((n) => `${rel}/${n}`);
 }
 
@@ -57,7 +50,7 @@ function globsFromPnpmWorkspace(text: string): string[] {
 function expandGlob(root: string, pattern: string): string[] {
   if (pattern.startsWith('!') || pattern === '.') return [];
   if (!pattern.includes('*')) {
-    return isDir(join(root, pattern)) ? [pattern.replace(/\/$/, '')] : [];
+    return isDirectory(join(root, pattern)) ? [pattern.replace(/\/$/, '')] : [];
   }
   // Only `<dir>/*` is expanded. `**` and mid-segment globs are left alone.
   const m = /^([^*]+)\/\*$/.exec(pattern);
@@ -65,7 +58,7 @@ function expandGlob(root: string, pattern: string): string[] {
   return childDirs(root, (m[1] as string).replace(/\/$/, ''));
 }
 
-export interface Monorepo {
+interface Monorepo {
   readonly monorepo: boolean;
   readonly reasons: readonly string[];
   readonly packages: readonly string[];
@@ -112,7 +105,7 @@ export function detectMonorepo(repoDir: string): Monorepo {
   }
 
   for (const dir of CONVENTIONAL_DIRS) {
-    if (!isDir(join(repoDir, dir))) continue;
+    if (!isDirectory(join(repoDir, dir))) continue;
     reasons.push(`${dir}/`);
     for (const d of childDirs(repoDir, dir)) packages.add(d);
   }
@@ -125,7 +118,7 @@ export function detectMonorepo(repoDir: string): Monorepo {
 }
 
 /** The choice standing for the whole repository, whose scope is empty. */
-export const WHOLE_REPO = '';
+const WHOLE_REPO = '';
 
 export interface Choice {
   readonly value: string;
@@ -147,7 +140,7 @@ function sanitise(raw: string): string {
 }
 
 /** A readable unit name from a scope path, unique within this run. */
-export function unitName(scopePath: string, repoName: string, used = new Set<string>()): string {
+function unitName(scopePath: string, repoName: string, used = new Set<string>()): string {
   const base = sanitise(scopePath === '' ? repoName : basename(scopePath));
   let name = base;
   let n = 2;

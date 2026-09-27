@@ -4,13 +4,15 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { registry, repoDir } from './shared/repo.js';
 import { tasksDir } from '../util/vault.js';
-import { isTty } from './shared/resolve.js';
-import { enterTask, renderEntered } from './continue.js';
-import { addTaskUnit, freshenClone } from './unit.js';
-import { Log } from '../records/log/index.js';
+import { isTty } from './shared/tty.js';
+import { enterTask, renderEntered } from './shared/enter.js';
+import { freshenClone } from './shared/branch.js';
+import { addTaskUnit } from './shared/unit-add.js';
 import { Task, briefText } from '../records/task/index.js';
 import { withLock } from '../util/lock.js';
 import { YanError } from '../util/error.js';
+import { appendLog } from './shared/note.js';
+import { nextNumbered } from '../util/names.js';
 
 /**
  * `yan task new` — create a task with its units and end inside it, by handing
@@ -48,7 +50,7 @@ type UnitScalar = 'unit' | 'target' | 'branch' | 'base';
  * Accumulates the unit flags in argv order. One instance per parsed command
  * line — a shared one would carry the first line's units into the second.
  */
-export class UnitBuilder {
+class UnitBuilder {
   public readonly units: UnitSpec[] = [];
 
   public open(repo: string): void {
@@ -77,7 +79,7 @@ export class UnitBuilder {
  * A unit name from its first scope path, or the repo when it has none. Not
  * unique: the caller suffixes until it is free.
  */
-export function unitNameFrom(repo: string, firstScope: string): string {
+function unitNameFrom(repo: string, firstScope: string): string {
   const source = firstScope === '' ? repo : basename(firstScope.replace(/\/+$/, ''));
   const cleaned = source.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-/, '').replace(/-$/, '');
   return cleaned === '' ? 'unit' : cleaned;
@@ -107,7 +109,7 @@ interface TaskNewDeps {
 }
 
 /** What is missing before this can run at all, as flags a caller can pass. */
-export function missingForTaskNew(options: TaskNewOptions): string[] {
+function missingForTaskNew(options: TaskNewOptions): string[] {
   const missing: string[] = [];
   if ((options.title ?? '') === '') missing.push('--title');
   if (options.units.length === 0) missing.push('--repo (with its --target)');
@@ -158,7 +160,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
 
   const record = new Task(id);
 
-  // `Task.create` has already written brief.md with an empty Description.
+  // `Task.create` has already written brief.md as the title line alone.
   const description = options.description ?? '';
   if (description !== '') {
     writeFileSync(join(record.dir, 'brief.md'), briefText(id, title, description));
@@ -210,29 +212,20 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
         fetched: !unresolved.has(spec.repo),
       });
     } catch (err) {
-      throw new YanError('task_new_unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue --task ${id}'`,
+      throw new YanError('task_new_unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue ${id}'`,
       );
     }
     added.push(name);
   }
 
-  try {
-    new Log(id).append('started', `task created: ${added.length} unit(s) - ${added.join(' ')}`);
-  } catch { /* the task exists; the narration is not worth failing for */ }
+  appendLog('yan task new', id, 'started', `task created: ${added.length} unit(s) - ${added.join(' ')}`);
 
   return { version: 1, task: id, title, units: added, dir: record.dir };
 }
 
 /** One past the highest `t<NNN>` on disk, zero-padded to three digits. */
 function nextId(): string {
-  let max = 0;
-  for (const id of Task.list()) {
-    const m = /^t(\d+)$/.exec(id);
-    if (m === null) continue;
-    // Base 10 explicitly, so t008 is eight rather than an invalid octal.
-    max = Math.max(max, Number.parseInt(m[1] as string, 10));
-  }
-  return `t${String(max + 1).padStart(3, '0')}`;
+  return nextNumbered(Task.list(), 't', 3);
 }
 
 interface NewFlags {
@@ -274,7 +267,7 @@ async function askWhenMissing(flags: NewFlags, units: readonly UnitSpec[]): Prom
   };
 }
 
-export function buildTaskCommand(): Command {
+function buildTaskCommand(): Command {
   const builder = new UnitBuilder();
   const opens = (value: string): string => {
     builder.open(value);
@@ -296,7 +289,7 @@ export function buildTaskCommand(): Command {
   const newTask = new Command('new')
     .description('create a task, its brief and its units, then enter it')
     .option('--title <text>', 'what this task is called')
-    .option('--description <text>', "the background and the core ask, written under brief.md's Description")
+    .option('--description <text>', 'the background and the core ask, written into brief.md below its title line')
     .option('--id <id>', 'the task id; the next free t<NNN> when omitted')
     .option('--agent <cli>', 'override agents.yan for the enter step')
     .option('--repo <name>', 'OPENS A UNIT: a repository under repos/, or a path to a clone', opens)

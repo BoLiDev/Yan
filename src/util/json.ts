@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { YanError } from './error.js';
+import { recordOrNone } from './narrow.js';
 
 /**
  * Read and write JSON. Every write lands through a temporary file in the
@@ -112,6 +113,19 @@ export function readJson(file: string): unknown {
 export function readJsonIfPresent(file: string): unknown {
   if (!file || !existsSync(file)) return undefined;
   return readJson(file);
+}
+
+/**
+ * The file as a record, or `undefined` when it is missing, unreadable, not
+ * JSON or not an object. Never throws: for files another process may be
+ * halfway through writing, or that someone else owns.
+ */
+export function readJsonOrNone(file: string): Record<string, unknown> | undefined {
+  try {
+    return recordOrNone(JSON.parse(readFileSync(file, 'utf8')));
+  } catch {
+    return undefined;
+  }
 }
 
 /** Replace a file's contents. Creates parent directories. */

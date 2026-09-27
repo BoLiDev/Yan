@@ -1,16 +1,16 @@
 /**
- * `tasks/<id>/shifts/<sid>/`. Reads events by count only — for a shift's
- * current state, ask `yan state`.
+ * `tasks/<id>/shifts/<sid>/`. The events it reads are what a shift reported —
+ * for its current state, ask `yan state`.
  */
 
 export { Shift } from './shift.js';
 export { opensMr } from './scenario.js';
 export {
   clearUndelivered,
-  hasUndelivered,
   readUndelivered,
   recordUndelivered,
   undeliveredFile,
-  type Undelivered,
-} from './undelivered.js';
-export type { ShiftMeta, ShiftMetaPlaceholder } from './types.js';
+  lastEvent,
+  type ShiftEvent,
+} from './events.js';
+export type { ShiftMeta, ShiftMetaPlaceholder, TeardownRecord } from './types.js';

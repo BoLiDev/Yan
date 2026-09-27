@@ -1,12 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { agentSpecFor, cliKind } from '../shared/config.js';
+import { agentSpecFor } from '../shared/agents.js';
+import { cliKind } from '../../externals/harness/index.js';
 import { enterLockFile } from '../shared/enter-lock.js';
 import { Terminal } from '../../externals/herdr/index.js';
 import { harnessEnv, lastSpoke, type AgentFacts, type HarnessEnv } from '../../externals/harness/index.js';
-import { Shift } from '../../records/shift/index.js';
+import { Shift, lastEvent } from '../../records/shift/index.js';
 import { isStale, owner } from '../../util/lock.js';
-import { later, secondMoment, type Moment } from './when.js';
+import { isoMoment, later, secondMoment, type Moment } from './when.js';
 
 /**
  * When a task's agents last said something: the newest over the main agent
@@ -98,17 +97,9 @@ function shiftFacts(shift: Shift, deps: ActiveDeps): AgentFacts {
   };
 }
 
-/** The time on the last line of run/status. */
+/** When the shift last reported. */
 function lastStatus(shift: Shift): Moment | undefined {
-  let text: string;
-  try {
-    text = readFileSync(join(shift.run, 'status'), 'utf8');
-  } catch {
-    return undefined;
-  }
-  const line = text.split(/\r?\n/).filter((l) => l !== '').pop();
-  const ms = Date.parse(line?.split('\t')[0] ?? '');
-  return Number.isNaN(ms) ? undefined : secondMoment(ms, 'status');
+  return isoMoment(lastEvent(shift.run)?.at, 'status');
 }
 
 function shiftActive(shift: Shift, deps: ActiveDeps): Moment | undefined {

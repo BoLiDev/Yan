@@ -1,9 +1,10 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { YanError } from './error.js';
 import { readJsonIfPresent } from './json.js';
+import { asRecord, asString, recordOrNone } from './narrow.js';
 import { machineConfigPath, machineRevision, readMachine } from './machine.js';
-import { normalizePath } from './paths.js';
+import { isDirectory, normalizePath } from './paths.js';
 
 /**
  * Where the active vault is — one context's task assets, in a git repository
@@ -22,29 +23,42 @@ import { normalizePath } from './paths.js';
 export const VAULT_VERSION = 1;
 
 /** The file whose presence makes a directory a vault. */
-export const VAULT_MARKER = 'vault.json';
+const VAULT_MARKER = 'vault.json';
 
 export function isVault(dir: string): boolean {
-  try {
-    return statSync(dir).isDirectory() && existsSync(join(dir, VAULT_MARKER));
-  } catch {
-    return false;
-  }
+  return isDirectory(dir) && existsSync(join(dir, VAULT_MARKER));
 }
 
-export interface VaultIdentity {
+interface VaultIdentity {
   readonly version: number;
   readonly name: string;
   readonly created: string;
 }
 
+/**
+ * What a vault's `vault.json` says about it. A missing file reads as version
+ * 1 with no name, which is what a vault from before the file had a version is.
+ *
+ * @throws YanError `vault_invalid` when the file is there and is not a JSON
+ *   object: yan wrote it, so that is exit 1, and reading it as version 1
+ *   could let an older build write over a newer vault.
+ */
 export function readVaultJson(dir: string): VaultIdentity {
-  const raw = readJsonIfPresent(join(dir, VAULT_MARKER));
-  const record = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const file = join(dir, VAULT_MARKER);
+  let raw: unknown;
+  try {
+    raw = readJsonIfPresent(file);
+  } catch {
+    raw = null;
+  }
+  if (raw !== undefined && recordOrNone(raw) === undefined) {
+    throw new YanError('vault_invalid', `${file} is not a JSON object, so this vault's version cannot be told - restore it from git ('git -C ${dir} checkout vault.json') or fix it by hand`);
+  }
+  const record = asRecord(raw);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
-    name: typeof record.name === 'string' ? record.name : '',
-    created: typeof record.created === 'string' ? record.created : '',
+    name: asString(record.name),
+    created: asString(record.created),
   };
 }
 
@@ -148,6 +162,30 @@ export function memDir(): string {
 /** `config.json` — agents.* and remote_git.*, which follow the context. */
 export function vaultConfigPath(): string {
   return join(vaultDir(), 'config.json');
+}
+
+/**
+ * The vault's `config.json`, opened and parsed in one place. Two modules own a
+ * section each and may not import one another — `remote_git` inside
+ * `externals/remote-git`, `agents` and `scenarios` in `cli/shared/agents.ts` —
+ * so this lives below both. Nothing here judges what is in it.
+ *
+ * A file that is not there is `undefined`; one that is there and does not
+ * parse throws, because a configuration someone wrote and got wrong is not the
+ * same as no configuration. A person writes this file, so that is exit 2 (see
+ * `YanError.usage`); an owner may still word the refusal its own way.
+ *
+ * @throws YanError `config_invalid` (exit 2) when the file is not JSON.
+ */
+export function readVaultConfig(): Record<string, unknown> | undefined {
+  const path = vaultConfigPath();
+  let raw: unknown;
+  try {
+    raw = readJsonIfPresent(path);
+  } catch {
+    throw YanError.usage('config_invalid', `${path} is not valid JSON - fix it, then run 'yan doctor'`);
+  }
+  return raw === undefined ? undefined : asRecord(raw);
 }
 
 /** `repos.json` — the portable half of the repo registry: name → url, pool_size. */

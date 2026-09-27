@@ -1,8 +1,12 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo, runYan } from '../helpers/fixtures.js';
-import { abandonAtTerminal, abandonShift, abandonTask, type AbandonAsk, type AbandonDeps } from '../../src/cli/abandon.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, liveShift, seedT042 } from '../helpers/records.js';
+import { abandonAtTerminal, abandonTask, type AbandonAsk } from '../../src/cli/abandon.js';
+import { abandonShift } from '../../src/cli/shift/abandon.js';
+import type { AbandonDeps } from '../../src/cli/shared/abandon-shift.js';
 import { YanError } from '../../src/util/error.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
@@ -22,7 +26,6 @@ const OUTBOUND = 'https://forge.invalid/acme/widget/-/merge_requests/88';
 
 let home = '';
 let clone = '';
-let previousHome: string | undefined;
 let calls: string[] = [];
 let leases: LeaseRow[] = [];
 let states: Record<string, MrState> = {};
@@ -44,28 +47,26 @@ function deps(): AbandonDeps {
         return path;
       },
     }),
-    mrStateOf: (mr) => {
-      calls.push(`mr_state ${mr}`);
-      return states[mr] ?? 'open';
+    mrStateOf: (ref) => {
+      calls.push(`mr_state ${ref.mr}`);
+      return states[ref.mr] ?? 'open';
     },
-    closeMr: (mr) => {
-      calls.push(`mr_close ${mr}`);
+    closeMr: (ref) => {
+      calls.push(`mr_close ${ref.mr}`);
       if (closeFails) throw new Error('the host said no');
     },
   };
 }
 
-function liveShift(sid: string, extra: Record<string, unknown> = {}): string {
-  const dir = join(home, 'tasks', 't042', 'shifts', sid);
-  mkdirSync(join(dir, 'run'), { recursive: true });
+/** A shift that reported done on a coding MR, holding a lease; returns its directory. */
+function shiftAt(sid: string, extra: Record<string, unknown> = {}): string {
+  const tree = join(home, 'trees', sid);
+  const dir = dirname(liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', branch: `yan/t042-auth-${sid}`, tree, clone, holder: `t042/auth/${sid}`,
+    lease_id: `lease-${sid}`, pane: 'w1:p7', scenario: 'coding', ...extra,
+  }, `2026-09-11T08:00:00Z\tdone\tmr ${MR}\n`));
   writeFileSync(join(dir, 'brief.md'), `# ${sid}\n`);
   writeFileSync(join(dir, 'outcome.md'), `# ${sid} outcome\n`);
-  const tree = join(home, 'trees', sid);
-  writeFileSync(
-    join(dir, 'run', 'meta.json'),
-    JSON.stringify({ version: 1, task: 't042', sid, unit: 'auth', branch: `yan/t042-auth-${sid}`, tree, clone, holder: `t042/auth/${sid}`, lease_id: `lease-${sid}`, pane: 'w1:p7', scenario: 'coding', ...extra }),
-  );
-  writeFileSync(join(dir, 'run', 'status'), `2026-09-11T08:00:00Z\tdone\tmr ${MR}\n`);
   leases.push({ slot: leases.length + 1, path: tree, branch: `yan/t042-auth-${sid}`, base: 'feat/auth', holder: `t042/auth/${sid}`, lease_id: `lease-${sid}`, at: 0 });
   return dir;
 }
@@ -74,25 +75,12 @@ function log(): string {
   return readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8');
 }
 
-function attempt(fn: () => unknown): { code: number; message: string } {
-  try {
-    fn();
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
-}
-
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'widget');
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'widget', clone);
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'widget', 'main', { branch: 'feat/auth' });
+  seedT042({ repo: 'widget', target: 'main', scope: [] });
   calls = [];
   leases = [];
   states = {};
@@ -100,26 +88,20 @@ beforeEach(() => {
   agentStays = false;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('yan shift abandon', () => {
   it("touches nothing without user's word, or without a reason", () => {
-    const dir = liveShift('s1');
+    const dir = shiftAt('s1');
     const noConsent = attempt(() => abandonShift('s1', { reason: 'not needed' }, deps()));
-    expect(noConsent.code).toBe(2);
-    expect(noConsent.message).toContain('--user-asked');
+    expectUsage(noConsent, '--user-asked');
     const noReason = attempt(() => abandonShift('s1', { userAsked: true }, deps()));
-    expect(noReason.code).toBe(2);
-    expect(noReason.message).toContain('--reason');
+    expectUsage(noReason, '--reason');
     expect(existsSync(join(dir, 'run'))).toBe(true);
     expect(calls).toEqual([]);
   });
 
   it('closes the open merge request, kills the agent, discards the tree, and keeps the record', () => {
-    const dir = liveShift('s1');
+    const dir = shiftAt('s1');
     const r = abandonShift('s1', { userAsked: true, reason: 'user dropped the feature' }, deps());
 
     expect(r.mr_closing).toBe('closed');
@@ -136,7 +118,7 @@ describe('yan shift abandon', () => {
   });
 
   it('never closes a merge request that already merged', () => {
-    liveShift('s1');
+    shiftAt('s1');
     states[MR] = 'merged';
     const r = abandonShift('s1', { userAsked: true, reason: 'enough' }, deps());
     expect(r.mr_closing).toBe('merged');
@@ -144,7 +126,7 @@ describe('yan shift abandon', () => {
   });
 
   it('still gives the work up when the host will not close the request, and says so', () => {
-    const dir = liveShift('s1');
+    const dir = shiftAt('s1');
     closeFails = true;
     const r = abandonShift('s1', { userAsked: true, reason: 'enough' }, deps());
     expect(r.mr_closing).toBe('failed');
@@ -153,13 +135,13 @@ describe('yan shift abandon', () => {
   });
 
   it('asks the host nothing about an explore shift, which opened no request', () => {
-    liveShift('s1', { scenario: 'explore' });
+    shiftAt('s1', { scenario: 'explore' });
     expect(abandonShift('s1', { userAsked: true, reason: 'enough' }, deps()).mr_closing).toBe('none');
     expect(calls.some((c) => c.startsWith('mr_'))).toBe(false);
   });
 
   it('reports an agent still in its pane', () => {
-    liveShift('s1');
+    shiftAt('s1');
     agentStays = true;
     const r = abandonShift('s1', { userAsked: true, reason: 'enough' }, deps());
     expect(r.pane_closed).toBe(false);
@@ -174,8 +156,8 @@ describe('yan shift abandon', () => {
 
 describe('yan abandon', () => {
   it('abandons every shift, closes the outbound request, returns every tree, and marks the task', async () => {
-    liveShift('s1');
-    liveShift('s2');
+    shiftAt('s1');
+    shiftAt('s2');
     new Task('t042').editUnit('auth', (u) => {
       u.mr = OUTBOUND;
     });
@@ -245,7 +227,7 @@ describe('yan abandon at a terminal', () => {
   }
 
   it('asks which task, why, and for a yes, then does what the flags do', async () => {
-    liveShift('s1');
+    shiftAt('s1');
     new Task('t042').editUnit('auth', (u) => {
       u.mr = OUTBOUND;
     });
@@ -264,13 +246,13 @@ describe('yan abandon at a terminal', () => {
   });
 
   it('logs an empty reason in words', async () => {
-    liveShift('s1');
+    shiftAt('s1');
     await abandonAtTerminal('t042', {}, person({ reason: '  ', yes: true }), deps());
     expect(log()).toMatch(/changed {4}task abandoned; s1 torn down; 1 merge request\(s\) closed — user gave no reason\n/);
   });
 
   it('defaults to no, and touches nothing when told no', async () => {
-    const dir = liveShift('s1');
+    const dir = shiftAt('s1');
     const r = await abandonAtTerminal('t042', {}, person({ reason: 'x' }), deps());
     expect(r).toBeUndefined();
     untouched(dir);
@@ -278,7 +260,7 @@ describe('yan abandon at a terminal', () => {
 
   for (const at of ['task', 'reason', 'confirm'] as const) {
     it(`touches nothing when cancelled at the ${at} prompt`, async () => {
-      const dir = liveShift('s1');
+      const dir = shiftAt('s1');
       const ask = person({ yes: true, cancelAt: at });
       await expect(abandonAtTerminal(undefined, {}, ask, deps())).rejects.toMatchObject({ code: 'ui_cancelled' });
       untouched(dir);
@@ -286,7 +268,7 @@ describe('yan abandon at a terminal', () => {
   }
 
   it('honours the flags it is given and skips their prompts', async () => {
-    liveShift('s1');
+    shiftAt('s1');
     const withReason = person({ yes: true });
     await abandonAtTerminal('t042', { reason: 'from the flag' }, withReason, deps());
     expect(withReason.asked).toEqual(['confirm t042  unify the auth header']);
@@ -294,7 +276,7 @@ describe('yan abandon at a terminal', () => {
   });
 
   it('takes --user-asked as the yes', async () => {
-    liveShift('s1');
+    shiftAt('s1');
     const ask = person({ reason: 'said so' });
     await abandonAtTerminal('t042', { userAsked: true }, ask, deps());
     expect(ask.asked).toEqual(['reason']);
@@ -309,7 +291,7 @@ describe('yan abandon at a terminal', () => {
   });
 
   it('without a terminal, refuses exactly as before and asks nothing', async () => {
-    const dir = liveShift('s1');
+    const dir = shiftAt('s1');
     const bare = await runYan(home, ['abandon', 't042']);
     expect(bare.code).toBe(2);
     expect(bare.stderr).toBe("yan abandon: abandoning destroys work that exists nowhere else and closes merge requests colleagues can see, so only user asks for it. Nothing was touched. When they have, re-run with --user-asked\n");

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
@@ -7,7 +7,7 @@ import type { CliInvocation } from './client.js';
 import { RemoteGit, configuredCli } from './index.js';
 
 /**
- * The five verbs, with the CLI transport replaced through the constructor.
+ * The four verbs, with the CLI transport replaced through the constructor.
  *
  * No module mocking: `new RemoteGit({ run })` is the supported way to route the
  * calls somewhere else, so the test uses the same door a caller would. What is
@@ -15,7 +15,7 @@ import { RemoteGit, configuredCli } from './index.js';
  *
  *   - callers see only yan vocabulary; no gh / glab flag leaks upward;
  *   - only the CLI named by the configured kind is ever invoked;
- *   - an unreachable host is `unknown` / `pending`, never a crash;
+ *   - an unreachable host is `unknown`, never a crash;
  *   - glab's `--auto-merge` default of true is turned off, or "merge it" would
  *     silently become "merge it later".
  */
@@ -34,7 +34,6 @@ function host(): RemoteGit {
 }
 
 let home = '';
-let previousHome: string | undefined;
 
 function configure(remoteGit: Record<string, unknown>): void {
   writeFileSync(
@@ -48,17 +47,11 @@ function configure(remoteGit: Record<string, unknown>): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
   calls.length = 0;
   nextResult = { code: 0, stdout: '', stderr: '' };
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 afterAll(cleanupTempDirs);
 
@@ -124,20 +117,16 @@ describe('a reference is required', () => {
 });
 
 describe('an unreachable host is a value, not a crash', () => {
-  it('reports unknown for the state and pending for CI', () => {
+  it('reports unknown for the state', () => {
     configure({ kind: 'github' });
-    const gh = host();
     nextResult = { code: 1, stdout: '', stderr: 'GraphQL: Could not resolve to a PullRequest' };
-    expect(gh.mrState({ mr: '1' })).toBe('unknown');
-    expect(gh.ciState({ mr: '1' })).toBe('pending');
+    expect(host().mrState({ mr: '1' })).toBe('unknown');
   });
 
   it('reports the same way when the CLI is not installed at all', () => {
     configure({ kind: 'gitlab', host: 'gitlab.example.com' });
-    const gl = host();
     nextResult = { code: 127, stdout: '', stderr: 'remote-git: glab is not on PATH' };
-    expect(gl.mrState({ mr: '3' })).toBe('unknown');
-    expect(gl.ciState({ mr: '3' })).toBe('pending');
+    expect(host().mrState({ mr: '3' })).toBe('unknown');
   });
 });
 
@@ -155,7 +144,6 @@ describe('createMr', () => {
       title: 'unify the auth header',
       body: 'why',
       draft: true,
-      repo: 'o/r',
     });
     expect(url).toBe('https://github.com/o/r/pull/31');
     expect(calls[0]?.args).toEqual([
@@ -170,8 +158,6 @@ describe('createMr', () => {
       '--body',
       'why',
       '--draft',
-      '--repo',
-      'o/r',
     ]);
   });
 
@@ -222,8 +208,8 @@ describe('closeMr', () => {
 
     calls.length = 0;
     configure({ kind: 'gitlab', host: 'gitlab.example.com' });
-    host().closeMr({ mr: '9', repo: 'o/r' });
-    expect(calls[0]?.args).toEqual(['mr', 'close', '9', '--repo', 'o/r']);
+    host().closeMr({ mr: '9' });
+    expect(calls[0]?.args).toEqual(['mr', 'close', '9']);
     expect(calls[0]?.args.join(' ')).not.toContain('branch');
   });
 
@@ -246,25 +232,8 @@ describe('mergeMr', () => {
 
   it('turns glab --auto-merge off', () => {
     configure({ kind: 'gitlab', host: 'gitlab.example.com' });
-    host().mergeMr({ mr: '7', repo: 'o/r', strategy: 'squash', deleteSource: true });
-    expect(calls[0]?.args).toEqual([
-      'mr',
-      'merge',
-      '7',
-      '--repo',
-      'o/r',
-      '--yes',
-      '--auto-merge=false',
-      '--squash',
-      '--remove-source-branch',
-    ]);
-  });
-
-  it('refuses a strategy that is not one of the three', () => {
-    configure({ kind: 'github' });
-    expect(() => host().mergeMr({ mr: '1', strategy: 'ship-it' as unknown as 'merge' })).toThrow(
-      /unknown merge strategy/,
-    );
+    host().mergeMr({ mr: '7', strategy: 'squash' });
+    expect(calls[0]?.args).toEqual(['mr', 'merge', '7', '--yes', '--auto-merge=false', '--squash']);
   });
 
   it('throws when the merge did not happen', () => {
@@ -275,10 +244,10 @@ describe('mergeMr', () => {
 });
 
 describe('reference shaping', () => {
-  it('gh takes a URL verbatim and does not also get --repo', () => {
+  it('gh takes a URL verbatim', () => {
     configure({ kind: 'github' });
     nextResult = { code: 0, stdout: '{}', stderr: '' };
-    host().mrState({ mr: 'https://github.com/o/r/pull/1', repo: 'o/r' });
+    host().mrState({ mr: 'https://github.com/o/r/pull/1' });
     expect(calls[0]?.args).toEqual([
       'pr',
       'view',

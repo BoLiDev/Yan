@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -11,6 +11,8 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, type Attempt, seedT042 } from '../helpers/records.js';
 import { openMr, type MrOptions } from '../../src/cli/mr.js';
 import { Deliverables, Task } from '../../src/records/task/index.js';
 import type { MrCreateOptions } from '../../src/externals/remote-git/index.js';
@@ -28,7 +30,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let bare = '';
-let previousHome: string | undefined;
 
 const URL_88 = 'https://forge.invalid/acme/monorepo-x/-/merge_requests/88';
 
@@ -40,14 +41,8 @@ const createMr = (options: MrCreateOptions): string => {
   return URL_88;
 };
 
-function open(options: MrOptions): { code: number; message: string } {
-  try {
-    openMr(options, createMr);
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function open(options: MrOptions): Attempt<unknown> {
+  return attempt(() => openMr(options, createMr));
 }
 
 function unitMr(task: string, unit: string): unknown {
@@ -58,10 +53,8 @@ function unitMr(task: string, unit: string): unknown {
 }
 
 beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'monorepo-x'));
@@ -70,9 +63,7 @@ beforeEach(async () => {
   await fxGit(['-C', clone, 'push', 'origin', 'main:feat/auth']);
   await fxGit(['-C', clone, 'push', 'origin', 'main:master']);
 
-  Task.create('t042', 'unify the auth header');
-  const t = new Task('t042');
-  t.addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  const t = seedT042();
   t.addUnit('proto', 'monorepo-x', 'master', { branch: 'feat/proto' });
 
   Task.create('t043', 'not pushed yet');
@@ -82,10 +73,6 @@ beforeEach(async () => {
   refuse = undefined;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('it opens the MR and records the URL', () => {
   it('runs integration branch → target and writes unit.mr', () => {
@@ -162,8 +149,7 @@ describe('a round has ONE outbound MR', () => {
   it('refuses a second, and says how a new round is started', () => {
     expect(open({ task: 't042', unit: 'auth' }).code).toBe(0);
     const again = open({ task: 't042', unit: 'auth' });
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already has an outbound merge request');
+    expectUsage(again, 'already has an outbound merge request');
     expect(again.message, 'a new round is how a second one is opened').toContain('unit set --branch');
   });
 });
@@ -195,7 +181,6 @@ describe('usage errors', () => {
     expect((await runYan(home, ['mr', '--unit', 'nosuch'], { YAN_TASK: 't042' })).out).toContain('no such unit');
 
     const both = await runYan(home, ['mr', '--unit', 'auth', '--body', 'a', '--body-file', 'b'], { YAN_TASK: 't042' });
-    expect(both.code).toBe(2);
-    expect(both.out).toContain('alternatives');
+    expectUsage(both, 'alternatives');
   });
 });

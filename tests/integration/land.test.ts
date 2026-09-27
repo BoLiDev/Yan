@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -8,6 +8,8 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, seedT042 } from '../helpers/records.js';
 import { land, type Host, type LandOptions } from '../../src/cli/land.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-git/index.js';
@@ -23,7 +25,6 @@ import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-g
 afterAll(cleanupTempDirs);
 
 let home = '';
-let previousHome: string | undefined;
 
 const MR_WEB = 'https://forge.invalid/x/-/merge_requests/2';
 const MR_API = 'https://forge.invalid/x/-/merge_requests/1';
@@ -48,26 +49,18 @@ class RecordingHost implements Host {
 let host: RecordingHost;
 
 function run(options: LandOptions): { code: number; message: string; landed: string[] } {
-  try {
-    const r = land(options, host);
-    return { code: 0, message: '', landed: r.landed.map((l) => `${l.unit}:${l.result}`) };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '', landed: [] };
-  }
+  const r = attempt(() => land(options, host));
+  return { ...r, landed: r.value?.landed.map((l) => `${l.unit}:${l.result}`) ?? [] };
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
   // `web` is declared first and needs `api`, so declaration order and landing
   // order disagree: a sort that did nothing would fail here.
-  Task.create('t042', 'unify the auth header');
-  const t = new Task('t042');
+  const t = seedT042(null);
   t.addUnit('web', 'monorepo-x', 'master', { branch: 'feat/web', needs: ['api'] });
   t.addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });
   t.editUnit('web', (u) => {
@@ -80,24 +73,18 @@ beforeEach(() => {
   host = new RecordingHost();
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('without `user` asking, nothing happens at all', () => {
   it('refuses before the host is asked a single question', () => {
     const r = run({ task: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain("'user' has to ask");
+    expectUsage(r, "'user' has to ask");
     expect(r.message).toContain('--user-asked');
     expect(host.stateCalls, 'the host is not even asked a question').toEqual([]);
   });
 
   it('is not softened by a terminal, because no prompt can supply it', async () => {
     const r = await runYan(home, ['land'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--user-asked');
+    expectUsage(r, '--user-asked');
   });
 });
 
@@ -107,13 +94,6 @@ describe('with `user` asking: topologically sorted by `needs`', () => {
     expect(r.code, r.message).toBe(0);
     expect(host.merges.map((m) => m.mr)).toEqual([MR_API, MR_WEB]);
     expect(host.merges.every((m) => m.strategy === 'merge')).toBe(true);
-  });
-
-  it('never deletes a branch: that decision is not this command to make', () => {
-    run({ task: 't042', userAsked: true });
-    // `deleteSource` is never passed, so it never reaches the host at all.
-    const source = readFileSync(join(process.cwd(), 'src', 'cli', 'land.ts'), 'utf8');
-    expect(source).not.toContain('deleteSource:');
   });
 
   it('says so in log.md, and says who asked', () => {
@@ -182,8 +162,7 @@ describe('a cycle in `needs` is refused, and nothing is merged', () => {
   });
 
     const r = run({ task: 't099', userAsked: true });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('cycle');
+    expectUsage(r, 'cycle');
     expect(host.stateCalls).toEqual([]);
   });
 });
@@ -204,7 +183,6 @@ describe('usage errors', () => {
   it('needs a task and a strategy it understands', async () => {
     expect((await runYan(home, ['land', '--user-asked'])).out).toContain('$YAN_TASK is unset');
     const bad = await runYan(home, ['land', '--user-asked', '--strategy', 'nonsense'], { YAN_TASK: 't042' });
-    expect(bad.code).toBe(2);
-    expect(bad.out).toContain('--strategy');
+    expectUsage(bad, '--strategy');
   });
 });

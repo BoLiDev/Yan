@@ -92,6 +92,15 @@ describe('a missing configuration is reported, not a crash', () => {
     expect(r.out).toContain('templates/vault/config.example.json');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
+
+  it('reports a config.json that is not JSON as a failed line', async () => {
+    writeFileSync(join(home, 'config.json'), '{ "agents": ');
+    const r = await doctor();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('missing or not valid JSON');
+    expect(r.out, 'the checklist still reaches its summary').toMatch(/\d+ ok, \d+ warn, \d+ failed/);
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
+  });
 });
 
 describe('a commit identity every leased worktree can see', () => {
@@ -124,14 +133,14 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
     expect(r.out).toContain('Hooks need review');
     expect(r.out).toContain('--dangerously-bypass-hook-trust');
 
-    // And the one that does escalate, so it is reported as the lesser problem.
+    // And the one Herdr does see as blocked, so it is reported as the lesser problem.
     expect(r.out).toContain('directory trust');
     expect(r.out).toContain('blocked');
   });
 
   it('drops the dispatch half when only the main agent is codex', async () => {
     config({ version: 1, agents: { yan: 'codex', shift: 'claude' }, remote_git: { kind: 'github' } });
-    expect((await doctor()).out).toContain('agents.shift is not codex');
+    expect((await doctor()).out).toContain('no shift runs on codex');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 });
@@ -173,6 +182,23 @@ describe('scenarios', () => {
     expect(r.out).toContain('scenarios.explore has no tiers');
     expect(r.out).toContain('scenarios.uix is missing');
     expect(r.out).toContain('scenarios.design is not a scenario');
+  });
+
+  it('reports a tier with no cli over an unset agents.shift as a line, not a crash', async () => {
+    config({ version: 1, agents: { yan: 'claude' }, scenarios: { explore: { tiers }, coding: { tiers }, uix: { tiers } }, remote_git: { kind: 'github' } });
+    const r = await doctor();
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('explore/normal names no cli and agents.shift is not set');
+    expect(r.out).toMatch(/\d+ ok, \d+ warn, \d+ failed/);
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
+  });
+
+  it('says what a shift on agy meets, rather than a bare agy heading', async () => {
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, scenarios: { explore: { tiers }, coding: { tiers }, uix: { tiers: { normal: { cli: 'agy' } } } }, remote_git: { kind: 'github' } });
+    const r = await doctor();
+    expect(r.out).toMatch(/\nagy\n.*shift trust/);
+    expect(r.out, 'the hook is the main agent\'s').not.toContain('hooks.json');
+    config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 
   it('reports the codex gates for a tier that runs codex, even when agents.shift does not', async () => {

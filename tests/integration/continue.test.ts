@@ -10,6 +10,10 @@ import {
   repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { seedT042 } from '../helpers/records.js';
+import { Task } from '../../src/records/task/index.js';
+import { enterTask } from '../../src/cli/shared/enter.js';
 
 /**
  * `yan continue`.
@@ -70,16 +74,10 @@ beforeAll(async () => {
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
   registerRepo(home, 'proto', join(home, 'repos', 'proto'));
 
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   new Task('t042').addUnit('proto', 'proto', 'master', { branch: 'feat/proto' });
   Task.create('t099', 'something else entirely');
   new Task('t099').addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 });
 
 describe('there has to be a terminal for the agent to take over', () => {
@@ -148,8 +146,7 @@ describe('a second yan on the same task', () => {
 describe('what it refuses', () => {
   it('names the argument when there is no id and no terminal to ask in', async () => {
     const r = await yan(['continue']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('yan continue <task-id>');
+    expectUsage(r, 'yan continue <task-id>');
     expect(r.out).toContain('yan ls');
   });
 
@@ -180,8 +177,7 @@ describe('what it refuses', () => {
     );
 
     const r = await runYan(other, ['continue'], { YAN_TASK: 'tx', HERDR_PANE_ID: '' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('agents.yan');
+    expectUsage(r, 'agents.yan');
     expect(existsSync(join(other, 'tasks', 'tx', '.enter.lock'))).toBe(false);
   });
 });
@@ -200,7 +196,6 @@ describe('the enter step itself, with the terminal and the harness injected', ()
     process.env.YAN_HOME = home;
     process.env.HERDR_PANE_ID = pane;
     try {
-      const { enterTask } = await import('../../src/cli/continue.js');
       const session = enterTask(
         agent === undefined ? { task } : { task, agent },
         {

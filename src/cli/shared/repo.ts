@@ -1,9 +1,9 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { yanHome } from '../../util/home.js';
-import { readJsonIfPresent } from '../../util/json.js';
+import { editJson, initJson, readJsonIfPresent } from '../../util/json.js';
 import { asRecord } from '../../util/narrow.js';
-import { normalizePath } from '../../util/paths.js';
+import { isDirectory, normalizePath } from '../../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../../util/vault.js';
 import { YanError } from '../../util/error.js';
 
@@ -73,11 +73,41 @@ export function lookup(name: string): RepoEntry | undefined {
   return registry().find((r) => r.name === name);
 }
 
-function isDir(path: string): boolean {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
+/**
+ * Write the tracked half. Merged into any entry already there: an empty `pool`
+ * keeps what is recorded.
+ */
+export function writePortable(name: string, url: string, pool: string): void {
+  const file = reposPath();
+  initJson(file, { version: 1 });
+  editJson(file, (raw) => {
+    const reg = asRecord(raw);
+    const before = asRecord(reg[name]);
+    reg[name] = {
+      ...before,
+      url,
+      pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? DEFAULT_POOL_SIZE),
+    };
+    return reg;
+  });
+}
+
+/** Write the machine half, which is never committed. */
+export function writeLocal(name: string, dir: string): void {
+  const file = localReposPath();
+  initJson(file, { version: 1 });
+  editJson(file, (raw) => ({ ...asRecord(raw), [name]: { path: normalizePath(dir) } }));
+}
+
+/** Drop `name` from both halves. A half that was never written is left that way. */
+export function unregister(name: string): void {
+  for (const file of [reposPath(), localReposPath()]) {
+    if (!existsSync(file)) continue;
+    editJson(file, (raw) => {
+      const reg = { ...asRecord(raw) };
+      delete reg[name];
+      return reg;
+    });
   }
 }
 
@@ -93,12 +123,12 @@ function isDir(path: string): boolean {
 export function repoDir(command: string, name: string, hint?: string): string {
   const entry = lookup(name);
   if (entry?.path !== undefined) {
-    if (isDir(entry.path)) return entry.path;
+    if (isDirectory(entry.path)) return entry.path;
     throw new YanError(`${command}_repo_missing`, `'${name}' is registered but ${entry.path} is not there any more - 'yan repo link ${name} <path>' says where it went`,
     );
   }
 
-  if (name !== '' && isDir(name)) return normalizePath(resolve(name));
+  if (name !== '' && isDirectory(name)) return normalizePath(resolve(name));
 
   if (entry !== undefined) {
     throw new YanError(`${command}_repo_unlinked`, `'${name}' is registered (${entry.url}) but not linked on this machine - 'yan repo add' where your clones live, or 'yan repo link ${name} <path>'`,
@@ -114,24 +144,19 @@ export function repoDir(command: string, name: string, hint?: string): string {
 /** The clone on this machine, or `undefined`. Never throws, unlike `repoDir`. */
 export function repoDirIfKnown(name: string): string | undefined {
   const path = lookup(name)?.path;
-  return path !== undefined && isDir(path) ? path : undefined;
+  return path !== undefined && isDirectory(path) ? path : undefined;
 }
 
 /**
- * How many trees this repository's pool may hold, defaulting to
- * DEFAULT_POOL_SIZE.
- *
- * @param repoKey the clone's directory name, which `repoTarget` returns. A
- *   repository registered under some other name gets the default.
+ * The clone directory plus how many trees its pool may hold: the registry's
+ * `pool_size` for the repository `name` resolves to, whether `name` is its
+ * registered name or the path of its clone, and DEFAULT_POOL_SIZE for a clone
+ * nothing registered. Throws as `repoDir` does.
  */
-export function poolSize(repoKey: string): number {
-  return lookup(repoKey)?.poolSize ?? DEFAULT_POOL_SIZE;
-}
-
-/** The clone directory plus the key `poolSize` wants. Throws as `repoDir` does. */
-export function repoTarget(command: string, name: string, hint?: string): { clone: string; key: string } {
+export function repoTarget(command: string, name: string, hint?: string): { clone: string; poolSize: number } {
   const dir = repoDir(command, name, hint);
-  return { clone: dir, key: dir.slice(dir.lastIndexOf('/') + 1) };
+  const entry = lookup(name) ?? registry().find((r) => r.path === dir);
+  return { clone: dir, poolSize: entry?.poolSize ?? DEFAULT_POOL_SIZE };
 }
 
 /** Where clones go when this machine has not said: beside yan's own clone. */

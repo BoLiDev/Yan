@@ -1,7 +1,10 @@
-import { isTty } from './resolve.js';
-import { queue } from '../ls.js';
+import { isTty } from './tty.js';
+import { load } from '../overview/overview.js';
+import { Shift } from '../../records/shift/index.js';
+import { Task } from '../../records/task/index.js';
 import type { TaskChoice } from '../../ui/prompts.js';
 import { YanError } from '../../util/error.js';
+import { tasksDir } from '../../util/vault.js';
 
 /**
  * Which task a command works on. There is no `--task` anywhere: a task id
@@ -28,19 +31,57 @@ export function insideTask(command: string): string {
 }
 
 /**
- * Every task in the queue that is not finished, in the shape every select
- * offers: bare `yan`, `yan done`, `yan continue` and `yan show` all ask this.
+ * The task `id` names, which has to exist.
+ *
+ * @throws YanError `<command>_usage` (exit 2) when there is no such task.
  */
-export function openTasks(): TaskChoice[] {
-  return queue()
-    .filter((t) => !t.complete)
-    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
+export function existingTask(command: string, id: string): Task {
+  if (!Task.exists(id)) {
+    throw YanError.usage(`${command}_usage`, `no such task: ${id} - 'yan ls' lists the tasks in ${tasksDir()}`);
+  }
+  return new Task(id);
 }
 
 /**
- * The argument, then `$YAN_TASK`, then a select among the tasks in progress —
- * and, with no terminal to ask in, a refusal naming the argument, so nothing
+ * Every task that is not finished, in the shape every select offers: bare
+ * `yan`, `yan done`, `yan continue` and `yan show` all ask this. Reads only
+ * each task's own files and its live shifts: no git, no Herdr, no forge.
+ */
+export function openTasks(): TaskChoice[] {
+  return Task.list()
+    .map(load)
+    .filter(({ data }) => !data.complete)
+    .map(({ task, data }) => ({
+      id: data.id || task.id,
+      title: data.title,
+      units: data.units.length,
+      shifts: Shift.liveIn(task.id).length,
+    }));
+}
+
+/**
+ * The first half of every "which task?": the argument, then `$YAN_TASK`. When
+ * neither says, `undefined` means the caller may ask at the terminal — and
+ * with no terminal to ask in, a refusal naming the argument, so nothing
  * unattended hangs on an answer that is not coming.
+ *
+ * @param spelled the command as a person types it, `yan done`.
+ * @throws YanError `<command>_usage` when there is no terminal to ask in.
+ */
+export function namedTask(command: string, given: string | undefined, spelled: string): string | undefined {
+  if (given !== undefined && given !== '') return given;
+
+  const fromEnv = process.env.YAN_TASK ?? '';
+  if (fromEnv !== '') return fromEnv;
+
+  if (!isTty()) {
+    throw YanError.usage(`${command}_usage`, `which task? pass it as the argument: '${spelled} <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks`);
+  }
+  return undefined;
+}
+
+/**
+ * `namedTask`, then a select among the tasks in progress.
  *
  * @throws YanError `<command>_usage` when there is nothing to choose from, or no way
  *   to ask.
@@ -50,14 +91,8 @@ export async function chosenTask(
   given: string | undefined,
   ask: { readonly spelled: string; readonly question: string },
 ): Promise<string> {
-  if (given !== undefined && given !== '') return given;
-
-  const fromEnv = process.env.YAN_TASK ?? '';
-  if (fromEnv !== '') return fromEnv;
-
-  if (!isTty()) {
-    throw YanError.usage(`${command}_usage`, `which task? pass it as the argument: '${ask.spelled} <task-id>'. Choosing interactively needs a terminal, and 'yan ls' lists the tasks`);
-  }
+  const named = namedTask(command, given, ask.spelled);
+  if (named !== undefined) return named;
 
   const open = openTasks();
   if (open.length === 0) {

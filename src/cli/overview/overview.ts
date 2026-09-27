@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task, type TaskData } from '../../records/task/index.js';
 import { activeDeps, taskActive, type ActiveDeps } from './active.js';
-import { poolLeases, taskChanged, type Changed, type LeasesOf } from './changed.js';
+import { taskChanged, type Changed } from './changed.js';
+import { poolLeases, type LeasesOf } from '../shared/leases.js';
 import { briefDescription } from './description.js';
 import { isoMoment, logTimes, type LogTimes, type Moment } from './when.js';
 
@@ -44,7 +45,7 @@ export interface Overview {
   readonly hidden: { readonly open: number; readonly done: number };
 }
 
-export interface OverviewDeps {
+interface OverviewDeps {
   readonly now: Date;
   readonly leasesOf: LeasesOf;
   readonly active: ActiveDeps;
@@ -58,12 +59,12 @@ function read(file: string): string | undefined {
   }
 }
 
-function stateOf(data: TaskData): TaskState {
+export function stateOf(data: TaskData): TaskState {
   return data.abandoned ? 'abandoned' : data.complete ? 'done' : 'open';
 }
 
 /** Each task, from its own files alone; a task.json that cannot be read is an open task with no title. */
-function load(id: string): { task: Task; data: TaskData } {
+export function load(id: string): { task: Task; data: TaskData } {
   const task = new Task(id);
   try {
     return { task, data: task.read() };
@@ -73,7 +74,7 @@ function load(id: string): { task: Task; data: TaskData } {
 }
 
 /** What a task's own files say about it, and the files themselves. */
-export interface TaskFiles {
+interface TaskFiles {
   readonly task: Omit<OverviewTask, 'changed' | 'active'>;
   readonly data: TaskData;
   /** `brief.md` as it is on disk; undefined when there is none. */

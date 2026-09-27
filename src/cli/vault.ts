@@ -1,8 +1,8 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve as resolvePath } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
-import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../util/git.js';
-import { YanError, isYanError } from '../util/error.js';
+import { currentBranch, git, remoteUrl, statusPorcelain } from '../util/git.js';
+import { YanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
 import {
@@ -14,10 +14,13 @@ import {
   setActiveVault,
   setCloneRoot,
 } from '../util/machine.js';
-import { normalizePath } from '../util/paths.js';
+import { isDirectory, normalizePath } from '../util/paths.js';
+import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
-import { resolve } from './shared/resolve.js';
+import { pullVault } from './shared/vault-pull.js';
+import { isTty } from './shared/tty.js';
+import { isRecordId } from '../util/names.js';
 
 /**
  * `yan vault …` — the context a session works in.
@@ -27,10 +30,8 @@ import { resolve } from './shared/resolve.js';
  * empty; it never creates one on a forge.
  */
 
-const NAME_RULE = /^[A-Za-z0-9._-]+$/;
-
 function checkName(name: string): void {
-  if (!NAME_RULE.test(name)) {
+  if (!isRecordId(name)) {
     throw YanError.usage('vault_usage', `'${name}' is not a usable vault name - letters, digits, dot, dash and underscore`);
   }
 }
@@ -39,7 +40,7 @@ function checkName(name: string): void {
 function emptyEnough(dir: string): boolean {
   if (!existsSync(dir)) return true;
   try {
-    return statSync(dir).isDirectory() && readdirSync(dir).length === 0;
+    return isDirectory(dir) && readdirSync(dir).length === 0;
   } catch {
     return false;
   }
@@ -58,14 +59,10 @@ function gitOrThrow(dir: string, args: readonly string[], what: string): void {
   }
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /**
  * Copy `templates/vault/` into `dir`, then write its vault.json and README.
  *
- * @throws YanError `vault_init_template_missing` when the template is not there.
+ * @throws YanError `vault_template_missing` when the template is not there.
  */
 function layDownSkeleton(dir: string, name: string): void {
   const template = join(yanHome(), 'templates', 'vault');
@@ -77,7 +74,7 @@ function layDownSkeleton(dir: string, name: string): void {
   // The template ships as an example; the vault it seeds holds the real one.
   renameSync(join(dir, 'config.example.json'), join(dir, 'config.json'));
 
-  writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: today() });
+  writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: localDay() });
 
   writeFileSync(
     join(dir, 'README.md'),
@@ -101,6 +98,35 @@ function layDownSkeleton(dir: string, name: string): void {
   );
 }
 
+/**
+ * The refusal for a value `argv` left out when there is no terminal to ask
+ * on, so nothing unattended can hang on a prompt. Each entry is a flag as a
+ * person types it and one line about it.
+ */
+function refuseMissing(missing: readonly (readonly [string, string])[]): never {
+  const flags = missing.map(([flag, describe]) => `  ${flag} <value>   ${describe}`).join('\n');
+  throw YanError.usage('missing_options', `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`);
+}
+
+async function initAnswers(name: string, remote: string): Promise<{ name: string; remote: string }> {
+  if (name !== '' && remote !== '') return { name, remote };
+  if (!isTty()) {
+    refuseMissing([
+      ...(name === '' ? [['<name>', 'a short name for this context, e.g. personal'] as const] : []),
+      ...(remote === '' ? [['--remote', 'the empty repository to push this vault to'] as const] : []),
+    ]);
+  }
+  const { askVaultInit } = await import('../ui/prompts.js');
+  return askVaultInit({ name, remote });
+}
+
+async function cloneUrl(url: string): Promise<string> {
+  if (url !== '') return url;
+  if (!isTty()) refuseMissing([['<url>', 'the vault repository to clone']]);
+  const { askVaultClone } = await import('../ui/prompts.js');
+  return askVaultClone();
+}
+
 interface InitOptions {
   readonly remote?: string;
   readonly path?: string;
@@ -114,21 +140,15 @@ const initVault = new Command('init')
   .option('--path <dir>', 'where the vault lives on this machine')
   .option('--clone-root <dir>', 'where `yan repo add <url>` clones into on this machine')
   .action(
-    action('vault_init', async (name: string | undefined, options: InitOptions) => {
-      const answers = await resolve(
-        { name: name ?? '', remote: options.remote ?? '' },
-        [
-          { name: 'name', flag: '<name>', describe: 'a short name for this context, e.g. personal' },
-          { name: 'remote', flag: '--remote', describe: 'the empty repository to push this vault to' },
-        ],
-      );
+    action('yan vault init', async (name: string | undefined, options: InitOptions) => {
+      const answers = await initAnswers(name ?? '', options.remote ?? '');
       checkName(answers.name);
 
       if (readMachine().vaults[answers.name] !== undefined) {
         throw new YanError('vault_conflict', `'${answers.name}' is already registered - 'yan vault ls' shows where`);
       }
 
-      const dir = normalizePath(resolvePath(options.path ?? defaultVaultPath(answers.name)));
+      const dir = normalizePath(resolve(options.path ?? defaultVaultPath(answers.name)));
       if (!emptyEnough(dir)) {
         throw new YanError('vault_conflict', `${dir} already exists and is not empty - pass --path, or move it aside`);
       }
@@ -142,7 +162,7 @@ const initVault = new Command('init')
         throw new YanError('vault_remote_not_empty', `${answers.remote} already has branches, so it is not an empty repository - 'yan vault clone ${answers.remote}' takes an existing vault; init needs an empty one`);
       }
 
-      const root = normalizePath(resolvePath(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
+      const root = normalizePath(resolve(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
 
       layDownSkeleton(dir, answers.name);
       gitOrThrow(dir, ['init', '--initial-branch=main'], 'git init');
@@ -166,14 +186,12 @@ const cloneVault = new Command('clone')
   .option('--name <name>', "register under this name instead of the vault's own")
   .option('--path <dir>', 'where the vault lives on this machine')
   .action(
-    action('vault_clone', async (url: string | undefined, options: { name?: string; path?: string }) => {
-      const answers = await resolve({ url: url ?? '' }, [
-        { name: 'url', flag: '<url>', describe: 'the vault repository to clone' },
-      ]);
+    action('yan vault clone', async (url: string | undefined, options: { name?: string; path?: string }) => {
+      const answers = { url: await cloneUrl(url ?? '') };
 
       // Only for the directory name: the registered name comes from vault.json.
       const provisional = options.name ?? 'vault';
-      const dir = normalizePath(resolvePath(options.path ?? defaultVaultPath(provisional)));
+      const dir = normalizePath(resolve(options.path ?? defaultVaultPath(provisional)));
       if (!emptyEnough(dir)) {
         throw new YanError('vault_conflict', `${dir} already exists and is not empty - pass --path, or move it aside`);
       }
@@ -202,7 +220,7 @@ const cloneVault = new Command('clone')
 const lsVaults = new Command('ls')
   .description('the vaults registered on this machine')
   .action(
-    action('vault_ls', () => {
+    action('yan vault ls', () => {
       const vaults = registeredVaults();
       if (vaults.length === 0) {
         out(`no vaults are registered in ${machineConfigPath()}`);
@@ -223,7 +241,7 @@ const lsVaults = new Command('ls')
  * Make a registered vault the active one, warning rather than failing when it
  * has no vault.json.
  *
- * @throws YanError `vault_use_usage` when no name is given, `vault_use_missing` when it is not
+ * @throws YanError `vault_usage` when no name is given, `vault_missing` when it is not
  *   registered here.
  */
 export function useVault(name: string | undefined): void {
@@ -251,7 +269,7 @@ const linkCommand = new Command('link')
   .argument('[name]')
   .argument('[path]')
   .action(
-    action('vault_link', (name: string | undefined, path: string | undefined) => {
+    action('yan vault link', (name: string | undefined, path: string | undefined) => {
       if (name === undefined || name === '' || path === undefined || path === '') {
         throw YanError.usage('vault_usage', "both a name and a path are required: 'yan vault link <name> <path>'");
       }
@@ -259,7 +277,7 @@ const linkCommand = new Command('link')
       if (known === undefined) {
         throw new YanError('vault_missing', `no such vault: ${name} - 'yan vault ls' lists them; 'yan vault clone <url>' registers a new one`);
       }
-      const dir = normalizePath(resolvePath(path));
+      const dir = normalizePath(resolve(path));
       if (!isVault(dir)) {
         throw new YanError('vault_invalid', `${dir} has no vault.json, so it is not a vault - move the directory first, then link it`);
       }
@@ -276,68 +294,16 @@ const linkCommand = new Command('link')
 const useCommand = new Command('use')
   .description('switch the active vault')
   .argument('[name]')
-  .action(action('vault_use', (name: string | undefined) => { useVault(name); }));
+  .action(action('yan vault use', (name: string | undefined) => { useVault(name); }));
 
 /**
  * `yan vault pull` and `yan vault push`. Pull runs automatically from
  * session-start; push is only ever run when `user` asks.
  */
-export interface PullResult {
-  readonly ok: boolean;
-  readonly message: string;
-}
-
-/**
- * Fast-forward the vault from its origin. Never throws: no vault, no origin,
- * a dirty tree or an unreachable remote all come back as `ok: false`.
- */
-export function pullVault(): PullResult {
-  let dir: string;
-  try {
-    dir = vaultDir();
-  } catch (err) {
-    return { ok: false, message: isYanError(err) ? err.message : String(err) };
-  }
-
-  if (remoteUrl(dir) === undefined) {
-    return { ok: false, message: 'this vault has no origin, so there is nothing to pull from' };
-  }
-  const dirty = statusPorcelain(dir).trim();
-  if (dirty !== '') {
-    // Refused rather than attempted: a half-finished rebase in a directory the
-    // reader does not think of as a repository is a bad place to be left.
-    return {
-      ok: false,
-      message: `the vault has uncommitted changes, so it was not rebased - 'yan vault push' first, or commit them by hand:\n${dirty.split(/\r?\n/).slice(0, 10).map((l) => `    ${l}`).join('\n')}`,
-    };
-  }
-
-  const fetched = fetch(dir);
-  if (fetched.code !== 0) {
-    return { ok: false, message: `could not reach ${remoteUrl(dir) ?? 'origin'}: ${fetched.stderr.trim()}` };
-  }
-  const branch = currentBranch(dir);
-  if (!gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) {
-    return { ok: false, message: `origin has no ${branch} yet - 'yan vault push' publishes it` };
-  }
-
-  const before = revParse(dir, ['HEAD']);
-  const rebased = rebase(dir, [`origin/${branch}`]);
-  if (rebased.code !== 0) {
-    git(dir, ['rebase', '--abort']);
-    return { ok: false, message: `rebasing onto origin/${branch} conflicts - open ${dir} and sort it out; nothing was changed` };
-  }
-  const after = revParse(dir, ['HEAD']);
-  return {
-    ok: true,
-    message: before === after ? `already up to date with origin/${branch}` : `caught up with origin/${branch}`,
-  };
-}
-
 const pullCommand = new Command('pull')
   .description('fetch and rebase the vault onto its remote')
   .action(
-    action('vault_pull', () => {
+    action('yan vault pull', () => {
       const result = pullVault();
       out(`vault pull: ${result.message}`);
       if (!result.ok) process.exitCode = 1;
@@ -345,7 +311,7 @@ const pullCommand = new Command('pull')
   );
 
 /** A commit message naming the task ids that changed, for when nobody supplied one. */
-export function pushMessage(changed: readonly string[]): string {
+function pushMessage(changed: readonly string[]): string {
   const tasks = [...new Set(changed.map((p) => /^tasks\/([^/]+)\//.exec(p)?.[1]).filter((id): id is string => id !== undefined))].sort();
   const others = changed.filter((p) => !p.startsWith('tasks/')).length;
   if (tasks.length === 0) return `vault: ${changed.length} file(s)`;
@@ -357,7 +323,7 @@ const pushCommand = new Command('push')
   .description('commit everything in the vault and push it')
   .option('-m, --message <text>', 'the commit message, instead of one derived from what changed')
   .action(
-    action('vault_push', (options: { message?: string }) => {
+    action('yan vault push', (options: { message?: string }) => {
       const dir = vaultDir();
       if (remoteUrl(dir) === undefined) {
         throw new YanError('vault_no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
@@ -389,7 +355,7 @@ const pushCommand = new Command('push')
  */
 const whereCommand = new Command('where')
   .description('the active vault directory')
-  .action(action('vault_where', () => { out(vaultDir()); }));
+  .action(action('yan vault where', () => { out(vaultDir()); }));
 
 export const command = new Command('vault')
   .description('the task assets this session works in')

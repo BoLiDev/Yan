@@ -1,9 +1,10 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { liveShift, seedT042 } from '../helpers/records.js';
 import { stateOf, type AliveReader, type StateDeps } from '../../src/cli/state.js';
-import { Task } from '../../src/records/task/index.js';
 import type { AgentStatus, Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
@@ -19,7 +20,6 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let run = '';
-let previousHome: string | undefined;
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/1';
 const TRAP_NOTE = 'LAST-LINE-IS-NOT-THE-STATE';
@@ -34,26 +34,17 @@ const deps = (): StateDeps => ({
     agentAlive: (): Alive => alive,
     agentStatus: (): AgentStatus => attention,
   } satisfies AliveReader,
-  readMrState: (mr, dir) => {
-    mrCalls.push({ mr, dir });
+  readMrState: (ref) => {
+    mrCalls.push({ mr: ref.mr, dir: ref.dir });
     return mrState;
   },
 });
 
-function meta(body: Record<string, unknown>): void {
-  writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, ...body })}\n`);
-}
-
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
 
-  run = join(home, 'tasks', 't042', 'shifts', 's1', 'run');
-  mkdirSync(run, { recursive: true });
-  meta({ unit: 'auth', branch: 'yan/t042/s1', tree: '', agent: 'claude', pane: 'w1:p7', mr: MR });
+  run = liveShift(home, 't042', 's1', { unit: 'auth', branch: 'yan/t042/s1', tree: '', agent: 'claude', pane: 'w1:p7', mr: MR });
 
   // The trap: the newest event says `done`.
   writeFileSync(
@@ -72,10 +63,6 @@ beforeEach(() => {
   mrCalls.length = 0;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the live sources decide, never the newest event', () => {
   it('reports running while the agent is alive and the MR is still open', () => {
@@ -130,11 +117,22 @@ describe('the live sources decide, never the newest event', () => {
     // `unknown` is not `dead`: rounding it that way is how work gets deleted.
     expect(facts.state).not.toBe('dead');
   });
+
+  it('reports a forge that cannot even be asked as unknown, not an error', () => {
+    const facts = stateOf('s1', 't042', {
+      ...deps(),
+      readMrState: () => {
+        throw new Error('no forge configured');
+      },
+    });
+    expect(facts.mr_state).toBe('unknown');
+    expect(facts.state).toBe('running');
+  });
 });
 
 describe('run/meta.json is read defensively', () => {
   it('survives a partial file', () => {
-    meta({ unit: 'auth' });
+    liveShift(home, 't042', 's1', { unit: 'auth' });
     const facts = stateOf('s1', 't042', deps());
     expect(facts.state).toBe('unknown');
     expect(facts.terminal_why).toContain('no terminal id');
@@ -163,7 +161,7 @@ describe('run/ gone means clocked out', () => {
 
 describe('through bin/yan', () => {
   it('renders the human view without surfacing the newest event', async () => {
-    meta({ unit: 'auth', branch: 'yan/t042/s1', agent: 'claude' });
+    liveShift(home, 't042', 's1', { unit: 'auth', branch: 'yan/t042/s1', agent: 'claude' });
     const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('state      unknown');
@@ -173,19 +171,23 @@ describe('through bin/yan', () => {
   });
 
   it('reports the same derivation as JSON', async () => {
-    meta({ unit: 'auth' });
+    liveShift(home, 't042', 's1', { unit: 'auth' });
     const r = await runYan(home, ['state', 's1', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
     expect(parsed.state).toBe('unknown');
     expect(parsed.events).toBe(3);
     expect(parsed.terminal).toBe('unknown');
+    // Version 2: the pane is named as show and session-start name it.
+    expect(parsed.version).toBe(2);
+    expect(parsed).toHaveProperty('pane');
+    expect(parsed).not.toHaveProperty('agent_id');
   });
 
   it('refuses a missing id, both output flags at once, and an unknown shift', async () => {
-    expect((await runYan(home, ['state'])).code, 'a shift id is required').toBe(2);
+    expectUsage(await runYan(home, ['state']), 'a shift id is required');
     const both = await runYan(home, ['state', 's1', '--json', '--verdict'], { YAN_TASK: 't042' });
-    expect(both.code, '--json and --verdict are alternatives').toBe(2);
+    expectUsage(both, '--json and --verdict are alternatives');
     expect((await runYan(home, ['state', 'nosuchshift'], { YAN_TASK: 't042' })).code).toBe(1);
   });
 });

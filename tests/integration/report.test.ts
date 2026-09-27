@@ -3,8 +3,12 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
-import { reportEvent, noteForYan, type ReportDeps } from '../../src/cli/report.js';
-import type { Prompter } from '../../src/cli/send.js';
+import { expectUsage } from '../helpers/usage.js';
+import { seedT042 } from '../helpers/records.js';
+import { reportEvent, noteForYan } from '../../src/cli/report.js';
+import { YanError } from '../../src/util/error.js';
+import type { ReportDeps, ReportTerminal } from '../../src/cli/report.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan report`. Two halves, and both are checked: the line it appends to
@@ -38,14 +42,8 @@ function status(): string {
 
 beforeAll(async () => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   Task.create('t007', 'retire the legacy client');
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 
   run = join(home, 'tasks', 't042', 'shifts', 's1', 'run');
   mkdirSync(join(home, 'tasks', 't042', 'shifts', 's1'), { recursive: true });
@@ -99,7 +97,7 @@ describe('exactly five states', () => {
 describe('a note is required, and it is one line', () => {
   it('refuses a state with no note, and a note with a newline in it', async () => {
     const before = status();
-    expect((await yan(['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' })).code).toBe(2);
+    expectUsage(await yan(['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' }), 'a note is required');
 
     // Built inside bash: on Windows a literal newline in argv is re-split
     // before it reaches the process, which would test the harness.
@@ -117,8 +115,7 @@ describe('a note is required, and it is one line', () => {
     // The note goes into a pane, so it takes the limit `yan send` takes.
     const before = status();
     const r = await yan(['report', 'blocked', 'x'.repeat(1200), '--sid', 's1'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('the limit is 1000');
+    expectUsage(r, 'the limit is 1000');
     expect(status()).toBe(before);
   });
 });
@@ -155,8 +152,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
       YAN_SID: '',
       YAN_SHIFT_DIR: '',
     });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('YAN_SHIFT_DIR');
+    expectUsage(r, 'YAN_SHIFT_DIR');
     expect(existsSync(join(taskDir, 'run', 'status')), 'nothing was written to the task').toBe(false);
     expect(lines(join(run, 'status')), "and nothing to a shift's").toBe(before);
 
@@ -171,8 +167,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
       YAN_TASK: '',
       YAN_SID: '',
     });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('YAN_SHIFT_DIR');
+    expectUsage(r, 'YAN_SHIFT_DIR');
   });
 
   it('refuses an id that exists under two tasks rather than guessing at it', async () => {
@@ -193,8 +188,7 @@ describe('done waits for the handover', () => {
   it('refuses done while outcome.md is missing, names the file, and writes nothing', async () => {
     mkdirSync(dir(), { recursive: true });
     const r = await yan(['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('outcome.md');
+    expectUsage(r, 'outcome.md');
     expect(existsSync(join(dir(), 'run', 'status')), 'no event').toBe(false);
     expect(existsSync(join(dir(), 'run', 'undelivered')), 'and nothing kept for yan to read').toBe(false);
   });
@@ -219,11 +213,32 @@ describe('done waits for the handover', () => {
  * would be, and the pane lookup is where the task's enter lock would be.
  */
 describe('the note is typed into yan\'s pane', () => {
-  class RecordingTerminal implements Prompter {
+  const RULE = '─'.repeat(40);
+
+  /** A Claude Code screen whose prompt box holds `typed`. */
+  function screenWith(typed: string): string {
+    return ['⏺ thinking', RULE, `❯ ${typed}`.trimEnd(), RULE, '  esc to interrupt', ''].join('\n');
+  }
+
+  class RecordingTerminal implements ReportTerminal {
     public readonly calls: { pane: string; text: string }[] = [];
     /** Thrown on the first `refuseTimes` calls, then it succeeds. */
     public refuseTimes = 0;
     public refusal: Error = new Error('agent prompt: agent_blocked');
+    /** What each successive `read` shows; the last one repeats. */
+    public screens: string[] = [screenWith('')];
+    public reads = 0;
+    /** What Herdr says runs in the pane. */
+    public kind: string | undefined = 'claude';
+
+    public read(): string {
+      this.reads += 1;
+      return this.screens[Math.min(this.reads, this.screens.length) - 1] ?? '';
+    }
+
+    public agentKind(): string | undefined {
+      return this.kind;
+    }
 
     public send(pane: string, text: string): void {
       if (this.refuseTimes > 0) {
@@ -235,7 +250,6 @@ describe('the note is typed into yan\'s pane', () => {
   }
 
   let deliveryHome = '';
-  let previousHome: string | undefined;
   let terminal: RecordingTerminal;
   let slept: number[];
   let pane: string | undefined;
@@ -255,14 +269,13 @@ describe('the note is typed into yan\'s pane', () => {
   }
 
   beforeEach(async () => {
-    previousHome = process.env.YAN_HOME;
     deliveryHome = mkYanHome(mkTempDir(), { withDist: true });
-    process.env.YAN_HOME = deliveryHome;
     process.env.YAN_TASK = 't042';
     process.env.YAN_REPORT_TRIES = '5';
     process.env.YAN_REPORT_PAUSE_MS = '7000';
-    const { Task } = await import('../../src/records/task/index.js');
-    Task.create('t042', 'unify the auth header');
+    process.env.YAN_REPORT_TYPING_WAIT_MS = '30000';
+    process.env.YAN_REPORT_TYPING_POLL_MS = '10000';
+    seedT042(null);
 
     shiftRun = join(deliveryHome, 'tasks', 't042', 'shifts', 's3', 'run');
     mkdirSync(shiftRun, { recursive: true });
@@ -273,11 +286,11 @@ describe('the note is typed into yan\'s pane', () => {
   });
 
   afterEach(() => {
-    if (previousHome === undefined) delete process.env.YAN_HOME;
-    else process.env.YAN_HOME = previousHome;
     delete process.env.YAN_TASK;
     delete process.env.YAN_REPORT_TRIES;
     delete process.env.YAN_REPORT_PAUSE_MS;
+    delete process.env.YAN_REPORT_TYPING_WAIT_MS;
+    delete process.env.YAN_REPORT_TYPING_POLL_MS;
   });
 
   it('sends the note as it stands, with the sid appended when it is missing', () => {
@@ -331,15 +344,16 @@ describe('the note is typed into yan\'s pane', () => {
     expect(slept, 'five attempts, four pauses, about thirty seconds').toHaveLength(4);
 
     const kept = undelivered().trim();
-    expect(kept).toMatch(/^\d+ conflict the merge into the integration branch conflicts in src\/cli\/state\.ts$/);
+    expect(kept).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\tconflict\tthe merge into the integration branch conflicts in src\/cli\/state\.ts$/);
     expect(readFileSync(join(shiftRun, 'status'), 'utf8'), 'the event was recorded either way').toContain('\tconflict\t');
+    expect(readFileSync(join(shiftRun, 'status'), 'utf8').trim().split('\n').at(-1), 'one report, one moment').toBe(kept);
   });
 
   it('keeps it when no yan is running, without ever asking the terminal', () => {
     pane = undefined;
     report('needs-decision', 'which branch?');
     expect(terminal.calls).toEqual([]);
-    expect(undelivered()).toContain('needs-decision which branch?');
+    expect(undelivered()).toContain('\tneeds-decision\twhich branch?\n');
   });
 
   it('appends, so two reports nobody heard are both there', () => {
@@ -347,5 +361,80 @@ describe('the note is typed into yan\'s pane', () => {
     report('blocked', 'first');
     report('conflict', 'second');
     expect(undelivered().trim().split('\n')).toHaveLength(2);
+  });
+
+  describe("user's own half-typed line is never submitted with the note", () => {
+    it('looks at the screen first, and sends at once when the prompt box is empty', () => {
+      report('done', 'mr https://x/1');
+      expect(terminal.reads).toBe(1);
+      expect(terminal.calls).toHaveLength(1);
+      expect(slept).toEqual([]);
+    });
+
+    it('waits while user is typing, and sends once the box clears', () => {
+      terminal.screens = [screenWith('merge it an'), screenWith('merge it and run'), screenWith('')];
+      report('blocked', 'the build is red');
+      expect(terminal.reads).toBe(3);
+      expect(slept).toEqual([10000, 10000]);
+      expect(terminal.calls).toHaveLength(1);
+      expect(status()).toContain('blocked');
+    });
+
+    it('gives up after the wait with exit 3, and records nothing at all', () => {
+      terminal.screens = [screenWith('still typing')];
+      let caught: unknown;
+      try {
+        report('needs-decision', 'which branch?');
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(YanError);
+      expect((caught as YanError).code).toBe('report_user_typing');
+      expect((caught as YanError).exitCode).toBe(3);
+      expect((caught as YanError).message).toContain('again in a minute');
+      // Three looks over thirty seconds, two pauses between them.
+      expect(terminal.reads).toBe(3);
+      expect(slept).toEqual([10000, 10000]);
+      expect(terminal.calls).toHaveLength(0);
+      expect(existsSync(join(shiftRun, 'status'))).toBe(false);
+      expect(undelivered()).toBe('');
+    });
+
+    it('holds nothing when the screen shows no prompt box: a dialog is delivery\'s problem', () => {
+      terminal.screens = [['⏺', RULE, '  Do you want to proceed?', '  ❯ 1. Yes', RULE, ''].join('\n')];
+      terminal.refuseTimes = 1;
+      report('conflict', 'merge conflict in a.ts');
+      expect(slept).toEqual([7000]);
+      expect(terminal.calls).toHaveLength(1);
+    });
+
+    it('reads a codex prompt box too, placeholder and all', () => {
+      const composer = (entry: string): string => ['• Done.', '', `\x1b[1m›\x1b[0m ${entry}`, '', '  GPT-6-Luna default · ~/p', ''].join('\n');
+      terminal.kind = 'codex';
+      terminal.screens = [composer('half a thou'), composer('\x1b[2mAsk Codex to do anything\x1b[0m')];
+      report('done', 'mr https://x/3');
+      expect(terminal.reads).toBe(2);
+      expect(slept).toEqual([10000]);
+      expect(terminal.calls).toHaveLength(1);
+    });
+
+    it('holds nothing under a harness whose prompt box it cannot read', () => {
+      terminal.kind = 'agy';
+      terminal.screens = [screenWith('typing')];
+      report('done', 'mr https://x/4');
+      expect(terminal.reads).toBe(1);
+      expect(slept).toEqual([]);
+      expect(terminal.calls).toHaveLength(1);
+    });
+
+    it('does not look at all for `started`, or when no yan is running', () => {
+      terminal.screens = [screenWith('typing')];
+      report('started', 'read the brief');
+      expect(terminal.reads).toBe(0);
+      pane = undefined;
+      report('done', 'mr https://x/2');
+      expect(terminal.reads).toBe(0);
+      expect(undelivered()).toContain('done');
+    });
   });
 });
