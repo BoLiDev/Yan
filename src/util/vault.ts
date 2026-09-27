@@ -1,9 +1,9 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { YanError } from './error.js';
 import { readJsonIfPresent } from './json.js';
 import { machineConfigPath, machineRevision, readMachine } from './machine.js';
-import { normalizePath } from './paths.js';
+import { isDirectory, normalizePath } from './paths.js';
 
 /**
  * Where the active vault is — one context's task assets, in a git repository
@@ -25,11 +25,7 @@ export const VAULT_VERSION = 1;
 const VAULT_MARKER = 'vault.json';
 
 export function isVault(dir: string): boolean {
-  try {
-    return statSync(dir).isDirectory() && existsSync(join(dir, VAULT_MARKER));
-  } catch {
-    return false;
-  }
+  return isDirectory(dir) && existsSync(join(dir, VAULT_MARKER));
 }
 
 interface VaultIdentity {

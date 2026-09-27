@@ -1,9 +1,9 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { yanHome } from '../../util/home.js';
 import { readJsonIfPresent } from '../../util/json.js';
 import { asRecord } from '../../util/narrow.js';
-import { normalizePath } from '../../util/paths.js';
+import { isDirectory, normalizePath } from '../../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../../util/vault.js';
 import { YanError } from '../../util/error.js';
 
@@ -73,14 +73,6 @@ export function lookup(name: string): RepoEntry | undefined {
   return registry().find((r) => r.name === name);
 }
 
-function isDir(path: string): boolean {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Which clone a `--repo` names: what this machine linked, or the argument
  * itself when it is the path of a directory.
@@ -93,12 +85,12 @@ function isDir(path: string): boolean {
 export function repoDir(command: string, name: string, hint?: string): string {
   const entry = lookup(name);
   if (entry?.path !== undefined) {
-    if (isDir(entry.path)) return entry.path;
+    if (isDirectory(entry.path)) return entry.path;
     throw new YanError(`${command}_repo_missing`, `'${name}' is registered but ${entry.path} is not there any more - 'yan repo link ${name} <path>' says where it went`,
     );
   }
 
-  if (name !== '' && isDir(name)) return normalizePath(resolve(name));
+  if (name !== '' && isDirectory(name)) return normalizePath(resolve(name));
 
   if (entry !== undefined) {
     throw new YanError(`${command}_repo_unlinked`, `'${name}' is registered (${entry.url}) but not linked on this machine - 'yan repo add' where your clones live, or 'yan repo link ${name} <path>'`,
@@ -114,7 +106,7 @@ export function repoDir(command: string, name: string, hint?: string): string {
 /** The clone on this machine, or `undefined`. Never throws, unlike `repoDir`. */
 export function repoDirIfKnown(name: string): string | undefined {
   const path = lookup(name)?.path;
-  return path !== undefined && isDir(path) ? path : undefined;
+  return path !== undefined && isDirectory(path) ? path : undefined;
 }
 
 /**

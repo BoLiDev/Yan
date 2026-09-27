@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
 import { YanError } from './error.js';
 import type { ProcessResult } from './process.js';
+import { isDirectory } from './paths.js';
 
 /**
  * Run git in a given directory. Every function takes that directory as its
@@ -17,13 +17,7 @@ function requireDir(dir: string | undefined): string {
     throw YanError.usage('git_usage', 'a directory argument is required (this module never uses the current working directory)',
     );
   }
-  let isDir = false;
-  try {
-    isDir = statSync(dir).isDirectory();
-  } catch {
-    isDir = false;
-  }
-  if (!isDir) throw YanError.usage('git_usage', `not a directory: ${dir}`);
+  if (!isDirectory(dir)) throw YanError.usage('git_usage', `not a directory: ${dir}`);
   return dir;
 }
 

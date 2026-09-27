@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { clone, remoteUrl } from '../util/git.js';
 import { editJson, initJson } from '../util/json.js';
 import { cloneRoot } from '../util/machine.js';
-import { normalizePath, samePath } from '../util/paths.js';
+import { isDirectory, normalizePath, samePath } from '../util/paths.js';
 import { localReposPath, reposPath, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry, type RepoEntry } from './shared/repo.js';
@@ -164,12 +164,7 @@ export function scan(dir: string): Candidate[] {
   const found: Candidate[] = [];
   for (const entry of names.sort()) {
     const child = join(dir, entry);
-    try {
-      if (!statSync(child).isDirectory()) continue;
-    } catch {
-      continue;
-    }
-    if (!isClone(child)) continue;
+    if (!isDirectory(child) || !isClone(child)) continue;
 
     const url = remoteUrl(child) ?? '';
     const name = url === '' ? entry : repoNameFromUrl(url);

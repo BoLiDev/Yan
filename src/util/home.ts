@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDirectory } from './paths.js';
 
 /**
  * Where the clone holding yan's own code is: `$YAN_HOME` when it is set and
@@ -9,11 +10,7 @@ import { fileURLToPath } from 'node:url';
  */
 
 function looksLikeHome(dir: string): boolean {
-  try {
-    return statSync(dir).isDirectory() && existsSync(join(dir, 'bin', 'yan'));
-  } catch {
-    return false;
-  }
+  return isDirectory(dir) && existsSync(join(dir, 'bin', 'yan'));
 }
 
 export function yanHome(): string {

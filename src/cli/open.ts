@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { chosenTask } from './shared/task-id.js';
@@ -6,6 +6,7 @@ import { openPath } from './shared/opener.js';
 import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
 import { YanError } from '../util/error.js';
+import { isDirectory } from '../util/paths.js';
 
 /**
  * `yan open <id> [--artifacts]` — print a task directory's absolute path, and
@@ -33,7 +34,7 @@ export const command = new Command('open')
         dir = join(dir, 'artifacts');
         mkdirSync(dir, { recursive: true });
       }
-      if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+      if (!isDirectory(dir)) {
         throw new YanError('open_failed', `not a directory: ${dir}`);
       }
 

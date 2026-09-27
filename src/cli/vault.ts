@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../util/git.js';
@@ -14,7 +14,7 @@ import {
   setActiveVault,
   setCloneRoot,
 } from '../util/machine.js';
-import { normalizePath } from '../util/paths.js';
+import { isDirectory, normalizePath } from '../util/paths.js';
 import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
@@ -40,7 +40,7 @@ function checkName(name: string): void {
 function emptyEnough(dir: string): boolean {
   if (!existsSync(dir)) return true;
   try {
-    return statSync(dir).isDirectory() && readdirSync(dir).length === 0;
+    return isDirectory(dir) && readdirSync(dir).length === 0;
   } catch {
     return false;
   }

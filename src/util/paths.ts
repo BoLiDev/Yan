@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { sep } from 'node:path';
 
 /**
@@ -41,6 +42,15 @@ export function normalizePath(input: string): string {
     p = p.slice(0, -1);
   }
   return p;
+}
+
+/** True when `path` is a directory; false when it is anything else or is not there. */
+export function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /** True when two paths name the same location. Case-insensitive on Windows. */
