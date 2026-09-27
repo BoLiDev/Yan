@@ -1,9 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import { openPath } from './shared/opener.js';
-import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
 import { YanError } from '../util/error.js';
 import { isDirectory } from '../util/paths.js';
@@ -27,9 +26,7 @@ export const command = new Command('open')
         spelled: 'yan open',
         question: 'Which task directory do you want to open?',
       });
-      if (!Task.exists(id)) throw new YanError('task_missing', `no such task: ${id}`);
-
-      let dir = new Task(id).dir;
+      let dir = existingTask('open', id).dir;
       if (options.artifacts === true) {
         dir = join(dir, 'artifacts');
         mkdirSync(dir, { recursive: true });

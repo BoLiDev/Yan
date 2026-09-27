@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { Command } from 'commander';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import { isTty } from './shared/resolve.js';
 import { action, out } from './shared/action.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
@@ -32,8 +32,7 @@ const LIST_LIMIT = 20;
 
 async function taskFor(command: string, given: string | undefined, question: string): Promise<string> {
   const id = await chosenTask('draft', given, { spelled: command, question });
-  if (!Task.exists(id)) throw new YanError('task_missing', `no such task: ${id}`);
-  return id;
+  return existingTask('draft', id).id;
 }
 
 /**

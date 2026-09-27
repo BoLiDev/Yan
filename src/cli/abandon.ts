@@ -4,7 +4,7 @@ import { action, out } from './shared/action.js';
 import { readNote } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
@@ -185,8 +185,7 @@ interface AbandonedTask {
  *   abandoned, or already done.
  */
 function abandonable(task: string): { record: Task; data: ReturnType<Task['read']> } {
-  if (!Task.exists(task)) throw YanError.usage('abandon_usage', `no such task: ${task}`);
-  const record = new Task(task);
+  const record = existingTask('abandon', task);
   const data = record.read();
   if (data.abandoned) throw YanError.usage('abandon_usage', `${task} is already abandoned`);
   if (data.complete) throw YanError.usage('abandon_usage', `${task} is done - there is nothing left to give up`);

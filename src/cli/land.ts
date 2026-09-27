@@ -1,10 +1,9 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -115,8 +114,7 @@ export function land(
     );
   }
 
-  if (!Task.exists(task)) throw YanError.usage('land_usage', `no such task: ${task} - 'yan ls' lists them`);
-  const record = new Task(task);
+  const record = existingTask('land', task);
   const units = record.read().units;
   if (units.length === 0) throw YanError.usage('land_usage', `task ${task} has no units`);
   for (const u of want) {

@@ -6,7 +6,7 @@ import { isMainAgentOf } from './shared/caller.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { overviewTask, type OverviewTask } from './overview/overview.js';
@@ -19,7 +19,6 @@ import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../r
 import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
-import { YanError } from '../util/error.js';
 import { poolLeases } from './shared/leases.js';
 
 /**
@@ -345,10 +344,7 @@ function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears
 
 /** Print one task. */
 function printTask(id: string, json: boolean): void {
-  if (!Task.exists(id)) {
-    const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
-    throw new YanError('task_missing', `no such task: ${id} - ${where} does not exist`);
-  }
+  existingTask('show', id);
   const show = showJson(id);
 
   // A report is deleted once the one reader it was written for has read it.

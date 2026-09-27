@@ -5,8 +5,8 @@ import { agentSpecFor, cliKind, modelFlags, type AgentSpec } from './shared/conf
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { chosenTask } from './shared/task-id.js';
-import { tasksDir, vaultConfigPath, vaultDir } from '../util/vault.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
+import { vaultConfigPath, vaultDir } from '../util/vault.js';
 import { isTty } from './shared/resolve.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Task } from '../records/task/index.js';
@@ -159,10 +159,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
     throw YanError.usage('continue_usage', "which task? pass 'yan continue <id>'. Choosing from the incomplete tasks interactively needs a terminal; 'yan ls' lists them",
     );
   }
-  if (!Task.exists(id)) {
-    throw YanError.usage('continue_usage', `no such task: ${id} - 'yan ls' lists the tasks in ${tasksDir()}`,
-    );
-  }
+  existingTask('continue', id);
 
   const configured = agentSpecFor('yan');
   // `--agent` is `user` picking another CLI for this run; the configured model

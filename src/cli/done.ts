@@ -3,14 +3,13 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import { isTty } from './shared/resolve.js';
-import { openTasks } from './shared/task-id.js';
+import { openTasks, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
 import type { WorktreePool } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift } from '../records/shift/index.js';
-import { Task } from '../records/task/index.js';
 
 /**
  * `yan done [<id>]` — mark a task complete and give its trees back, which are
@@ -87,8 +86,8 @@ function kill(shift: Shift, terminal: Closer): KilledShift {
 /**
  * Finish one task: return its trees and mark it complete.
  *
- * @throws YanError `done_usage` when no task is named, `done_missing` for an unknown
- *   one, `done_live_shifts` (exit 4) when a shift is still live and `--force` was
+ * @throws YanError `done_usage` when no task is named, for an unknown one
+ *   too, `done_live_shifts` (exit 4) when a shift is still live and `--force` was
  *   not given — nothing is touched in that case — and `done_tree_held` (exit 5)
  *   when a tree would not come back, after the others have been returned.
  */
@@ -97,12 +96,7 @@ export function finishTask(options: DoneOptions, deps: DoneDeps = {}): DoneResul
   if (task === '') {
     throw YanError.usage('done_usage', 'which task? pass it as the argument, or set $YAN_TASK');
   }
-  if (!Task.exists(task)) {
-    const where = Task.isId(task) ? new Task(task).file : `${task}/task.json`;
-    throw new YanError('done_missing', `no such task: ${task} - ${where} does not exist`);
-  }
-
-  const record = new Task(task);
+  const record = existingTask('done', task);
   const wasComplete = record.isComplete();
   const force = options.force === true;
 

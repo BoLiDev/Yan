@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { repoDir } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
-import { Deliverables, deliverableAside, Task, type Deliverable } from '../records/task/index.js';
+import { Deliverables, deliverableAside, type Deliverable } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 import { YanError } from '../util/error.js';
 
@@ -61,8 +61,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     throw YanError.usage('mr_usage', '--body and --body-file are alternatives - pass one');
   }
 
-  if (!Task.exists(task)) throw YanError.usage('mr_usage', `no such task: ${task} - 'yan ls' lists them`);
-  const record = new Task(task);
+  const record = existingTask('mr', task);
   const data = record.findUnit(unitName);
   if (data === undefined) {
     throw YanError.usage('mr_usage', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);

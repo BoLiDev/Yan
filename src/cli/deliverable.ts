@@ -3,9 +3,9 @@ import { action, out } from './shared/action.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { noted, readNote } from './shared/note.js';
 import { terminalWidth } from './shared/style.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { Log, type LogType } from '../records/log/index.js';
-import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
+import { Deliverables, type Deliverable } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -22,9 +22,7 @@ import { YanError } from '../util/error.js';
 
 /** The task this is running in, refusing early when it is not a task at all. */
 function taskId(): string {
-  const id = insideTask('deliverable');
-  if (!Task.exists(id)) throw YanError.usage('deliverable_usage', `no such task: ${id} - 'yan ls' lists them`);
-  return id;
+  return existingTask('deliverable', insideTask('deliverable')).id;
 }
 
 /**

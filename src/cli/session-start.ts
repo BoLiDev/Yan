@@ -23,6 +23,7 @@ import { YanError } from '../util/error.js';
 import { isoSecond, localStamp } from '../util/time.js';
 import { byCodePoint } from '../util/names.js';
 import { poolLeases } from './shared/leases.js';
+import { existingTask } from './shared/task-id.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -527,9 +528,7 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
         process.stderr.write(`yan session-start: vault pull: ${pulled.message}\n`);
       }
 
-      if (id !== '') {
-        if (!Task.exists(id)) throw YanError.usage('session_start_usage', `no such task: ${id}`);
-      }
+      if (id !== '') existingTask('session_start', id);
 
       const picture = rebuild(id !== '' ? [id] : Task.list());
       if (options.json === true) {

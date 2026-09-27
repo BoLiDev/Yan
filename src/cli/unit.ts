@@ -4,11 +4,10 @@ import { containerOf } from './shared/container.js';
 import { display, unitTokens } from './shared/display.js';
 import { noted, readNote } from './shared/note.js';
 import { repoDir } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { Log } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
 import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTree, push, revParse, updateRef } from '../util/git.js';
 import { YanError } from '../util/error.js';
 
@@ -248,10 +247,7 @@ export function addTaskUnit(options: AddOptions): AddResult {
     );
   }
 
-  if (!Task.exists(task)) {
-    throw YanError.usage('unit_add_usage', `no such task: ${task} - create it first`);
-  }
-  const record = new Task(task);
+  const record = existingTask('unit_add', task);
   if (record.findUnit(unit) !== undefined) {
     throw new YanError('unit_add_exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan show ${task}' shows them`,
     );
@@ -422,8 +418,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     throw YanError.usage('unit_set_usage', '--end only applies to --branch: it says how the round being replaced finished');
   }
 
-  if (!Task.exists(task)) throw YanError.usage('unit_set_usage', `no such task: ${task}`);
-  const record = new Task(task);
+  const record = existingTask('unit_set', task);
   if (record.findUnit(unitName) === undefined) {
     throw YanError.usage('unit_set_usage', `no such unit: ${unitName} in ${task}`);
   }

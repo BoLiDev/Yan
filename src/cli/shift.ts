@@ -9,7 +9,7 @@ import { placementOf } from './shared/placement.js';
 import { noted, readNote } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
 import { repoTarget } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
 import { agentNameFor, Terminal, type AgentStatus, type SplitAt, type TabLayout } from '../externals/herdr/index.js';
@@ -380,8 +380,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     throw YanError.usage('shift_new_usage', `no such brief file: ${options.brief}`);
   }
 
-  if (!Task.exists(task)) throw YanError.usage('shift_new_usage', `no such task: ${task}`);
-  const record = new Task(task);
+  const record = existingTask('shift_new', task);
   const data = record.findUnit(unitName);
   if (data === undefined) {
     throw YanError.usage('shift_new_usage', `no such unit: ${unitName} in task ${task}`);

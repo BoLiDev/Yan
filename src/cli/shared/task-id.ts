@@ -4,6 +4,7 @@ import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
 import type { TaskChoice } from '../../ui/prompts.js';
 import { YanError } from '../../util/error.js';
+import { tasksDir } from '../../util/vault.js';
 
 /**
  * Which task a command works on. There is no `--task` anywhere: a task id
@@ -27,6 +28,18 @@ export function insideTask(command: string): string {
     throw YanError.usage(`${command}_usage`, "which task? this command runs inside one, and $YAN_TASK is unset - 'yan continue <id>' sets it, and 'yan ls' lists the tasks");
   }
   return task;
+}
+
+/**
+ * The task `id` names, which has to exist.
+ *
+ * @throws YanError `<command>_usage` (exit 2) when there is no such task.
+ */
+export function existingTask(command: string, id: string): Task {
+  if (!Task.exists(id)) {
+    throw YanError.usage(`${command}_usage`, `no such task: ${id} - 'yan ls' lists the tasks in ${tasksDir()}`);
+  }
+  return new Task(id);
 }
 
 /**
