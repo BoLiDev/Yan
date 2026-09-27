@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { readNote, appendLog } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { isTty } from './shared/resolve.js';
+import { isTty } from './shared/tty.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';

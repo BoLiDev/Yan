@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { registry, repoDir } from './shared/repo.js';
 import { tasksDir } from '../util/vault.js';
-import { isTty } from './shared/resolve.js';
+import { isTty } from './shared/tty.js';
 import { enterTask, renderEntered } from './continue.js';
 import { addTaskUnit, freshenClone } from './unit.js';
 import { Task, briefText } from '../records/task/index.js';

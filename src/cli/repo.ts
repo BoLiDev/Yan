@@ -17,7 +17,7 @@ import {
   writePortable,
   type RepoEntry,
 } from './shared/repo.js';
-import { isTty } from './shared/resolve.js';
+import { isTty } from './shared/tty.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 import { isRecordId } from '../util/names.js';

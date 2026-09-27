@@ -1,4 +1,5 @@
 import { YanError } from '../../util/error.js';
+import { isTty } from './tty.js';
 
 /**
  * How a missing option is filled in: a prompt when stdin is a tty, and a
@@ -25,11 +26,6 @@ let installedPrompter: Prompter | undefined;
 
 export function setPrompter(prompter: Prompter | undefined): void {
   installedPrompter = prompter;
-}
-
-/** Can a person answer a prompt right now? Asked of stdin only. */
-export function isTty(): boolean {
-  return process.stdin.isTTY === true;
 }
 
 function refuse(missing: readonly OptionSpec[]): never {
