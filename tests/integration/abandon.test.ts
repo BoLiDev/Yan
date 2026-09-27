@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo, runYan } from '../helpers/fixtures.js';
@@ -22,7 +22,6 @@ const OUTBOUND = 'https://forge.invalid/acme/widget/-/merge_requests/88';
 
 let home = '';
 let clone = '';
-let previousHome: string | undefined;
 let calls: string[] = [];
 let leases: LeaseRow[] = [];
 let states: Record<string, MrState> = {};
@@ -85,9 +84,7 @@ function attempt(fn: () => unknown): { code: number; message: string } {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'widget');
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'widget', clone);
@@ -100,10 +97,6 @@ beforeEach(() => {
   agentStays = false;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('yan shift abandon', () => {
   it("touches nothing without user's word, or without a reason", () => {

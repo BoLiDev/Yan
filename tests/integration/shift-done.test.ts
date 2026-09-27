@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -31,7 +31,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let tree = '';
-let previousHome: string | undefined;
 let calls: string[] = [];
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/31';
@@ -117,10 +116,8 @@ function dispatched(sid: string, overrides: Record<string, unknown> = {}): strin
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'monorepo-x', clone);
@@ -136,10 +133,6 @@ beforeEach(() => {
   leases = [];
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('an unmerged merge request stops everything', () => {
   it('exits 4 and tears nothing down', () => {

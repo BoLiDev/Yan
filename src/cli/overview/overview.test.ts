@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { hostname } from 'node:os';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -125,18 +125,11 @@ describe('dates off log.md', () => {
 // --- against a vault ----------------------------------------------------------------
 
 let home = '';
-let previousHome: string | undefined;
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 const noHerdr = (): ReadonlyMap<string, HerdrAgent> => new Map();
 

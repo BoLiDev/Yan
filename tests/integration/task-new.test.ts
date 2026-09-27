@@ -195,8 +195,6 @@ describe('the clone is fetched once per clone, not once per unit', () => {
   function createWithFakes(units: Array<{ repo: string; target: string; scope?: string[] }>) {
     const freshened: string[] = [];
     const addedWith: Array<{ repo: string; fetched: boolean }> = [];
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
     try {
       const result = createTask(
         {
@@ -227,8 +225,6 @@ describe('the clone is fetched once per clone, not once per unit', () => {
       );
       return { result, freshened, addedWith };
     } finally {
-      if (previous === undefined) delete process.env.YAN_HOME;
-      else process.env.YAN_HOME = previous;
     }
   }
 

@@ -6,6 +6,7 @@ import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../h
 import { reportEvent, noteForYan } from '../../src/cli/report.js';
 import { YanError } from '../../src/util/error.js';
 import type { ReportDeps, ReportTerminal } from '../../src/cli/report.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan report`. Two halves, and both are checked: the line it appends to
@@ -39,14 +40,9 @@ function status(): string {
 
 beforeAll(async () => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
   Task.create('t007', 'retire the legacy client');
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 
   run = join(home, 'tasks', 't042', 'shifts', 's1', 'run');
   mkdirSync(join(home, 'tasks', 't042', 'shifts', 's1'), { recursive: true });
@@ -257,7 +253,6 @@ describe('the note is typed into yan\'s pane', () => {
   }
 
   let deliveryHome = '';
-  let previousHome: string | undefined;
   let terminal: RecordingTerminal;
   let slept: number[];
   let pane: string | undefined;
@@ -277,15 +272,12 @@ describe('the note is typed into yan\'s pane', () => {
   }
 
   beforeEach(async () => {
-    previousHome = process.env.YAN_HOME;
     deliveryHome = mkYanHome(mkTempDir(), { withDist: true });
-    process.env.YAN_HOME = deliveryHome;
     process.env.YAN_TASK = 't042';
     process.env.YAN_REPORT_TRIES = '5';
     process.env.YAN_REPORT_PAUSE_MS = '7000';
     process.env.YAN_REPORT_TYPING_WAIT_MS = '30000';
     process.env.YAN_REPORT_TYPING_POLL_MS = '10000';
-    const { Task } = await import('../../src/records/task/index.js');
     Task.create('t042', 'unify the auth header');
 
     shiftRun = join(deliveryHome, 'tasks', 't042', 'shifts', 's3', 'run');
@@ -297,8 +289,6 @@ describe('the note is typed into yan\'s pane', () => {
   });
 
   afterEach(() => {
-    if (previousHome === undefined) delete process.env.YAN_HOME;
-    else process.env.YAN_HOME = previousHome;
     delete process.env.YAN_TASK;
     delete process.env.YAN_REPORT_TRIES;
     delete process.env.YAN_REPORT_PAUSE_MS;

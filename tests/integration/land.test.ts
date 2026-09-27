@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -23,7 +23,6 @@ import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-g
 afterAll(cleanupTempDirs);
 
 let home = '';
-let previousHome: string | undefined;
 
 const MR_WEB = 'https://forge.invalid/x/-/merge_requests/2';
 const MR_API = 'https://forge.invalid/x/-/merge_requests/1';
@@ -58,9 +57,7 @@ function run(options: LandOptions): { code: number; message: string; landed: str
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   mkdirSync(join(home, 'repos', 'monorepo-x'), { recursive: true });
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
@@ -80,10 +77,6 @@ beforeEach(() => {
   host = new RecordingHost();
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('without `user` asking, nothing happens at all', () => {
   it('refuses before the host is asked a single question', () => {

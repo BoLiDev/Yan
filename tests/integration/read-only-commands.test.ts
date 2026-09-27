@@ -1,7 +1,9 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import { repoNameFromUrl } from '../../src/cli/repo.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * The read-only commands: `open` and `repo`. They are exercised through
@@ -12,7 +14,6 @@ import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan
 afterAll(cleanupTempDirs);
 
 let home = '';
-let previousHome: string | undefined;
 
 // The shared helper, bound to this file's home.
 function yan(args: readonly string[], env: Record<string, string> = {}) {
@@ -20,22 +21,15 @@ function yan(args: readonly string[], env: Record<string, string> = {}) {
 }
 
 
-beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
+beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
-  const store = await import('../../src/records/task/index.js');
-  store.Task.create('t042', 'unify the auth header');
-  new store.Task('t042').addUnit('auth', 'monorepo-x', 'master', {
+  Task.create('t042', 'unify the auth header');
+  new Task('t042').addUnit('auth', 'monorepo-x', 'master', {
     branch: 'feat/auth',
     scope: ['apps/auth'],
   });
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('yan open', () => {
   it('always prints the absolute path and exits 0', async () => {
@@ -245,7 +239,6 @@ describe('yan repo add', () => {
   });
 
   it('derives a name from every URL spelling a forge hands out', async () => {
-    const { repoNameFromUrl } = await import('../../src/cli/repo.js');
     expect(repoNameFromUrl('git@host:org/name.git')).toBe('name');
     expect(repoNameFromUrl('ssh://git@host:22/org/name.git')).toBe('name');
     expect(repoNameFromUrl('https://host/org/name.git')).toBe('name');

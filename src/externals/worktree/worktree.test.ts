@@ -36,7 +36,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let poolRoot = '';
-let previousHome: string | undefined;
 let previousPool: string | undefined;
 
 /** The pool under test. `clone` is only known once beforeEach has run. */
@@ -46,12 +45,10 @@ function pool(): WorktreePool {
 
 
 beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
   previousPool = process.env.YAN_POOL_ROOT;
   home = mkYanHome(mkTempDir(), { withDist: true });
   // The pool never touches the real ~/.yan-trees during a test run.
   poolRoot = mkTempDir('yan-pool-');
-  process.env.YAN_HOME = home;
   process.env.YAN_POOL_ROOT = poolRoot;
 
   // A repository whose integration branch exists only on the remote, which is
@@ -76,8 +73,6 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousPool === undefined) delete process.env.YAN_POOL_ROOT;
   else process.env.YAN_POOL_ROOT = previousPool;
 });

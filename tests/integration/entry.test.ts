@@ -8,6 +8,8 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { Task } from '../../src/records/task/index.js';
+import { openTasks } from '../../src/cli/shared/task-id.js';
 
 /**
  * Bare `yan`.
@@ -29,16 +31,11 @@ beforeAll(async () => {
   mkdirSync(join(home, 'repos', 'demo'), { recursive: true });
   registerRepo(home, 'demo', join(home, 'repos', 'demo'));
 
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
   Task.create('t001', 'unify the auth header');
   new Task('t001').addUnit('auth', 'demo', 'main', { branch: 'feat/auth' });
   Task.create('t002', 'gateway retry budget');
   Task.create('t003', 'finished ages ago');
   new Task('t003').setComplete(true);
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 
   // One live shift on t001, which the hint counts: `run/` is the whole fact.
   mkdirSync(join(home, 'tasks', 't001', 'shifts', 's1', 'run'), { recursive: true });
@@ -60,25 +57,17 @@ describe('without a TTY', () => {
 
 describe('the rows the select offers', () => {
   it('are create-new-task plus the live tasks, from `yan ls`\'s own scan', async () => {
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
-    try {
-      const { openTasks } = await import('../../src/cli/shared/task-id.js');
-      const rows = openTasks();
-      // t003 is complete, so it is not something to continue.
-      expect(rows.map((r) => r.id)).toEqual(['t001', 't002']);
-      expect(rows[0]).toEqual({ id: 't001', title: 'unify the auth header', units: 1, shifts: 1 });
-      expect(rows[1]?.shifts).toBe(0);
+    const rows = openTasks();
+    // t003 is complete, so it is not something to continue.
+    expect(rows.map((r) => r.id)).toEqual(['t001', 't002']);
+    expect(rows[0]).toEqual({ id: 't001', title: 'unify the auth header', units: 1, shifts: 1 });
+    expect(rows[1]?.shifts).toBe(0);
 
-      // …and they really are the same numbers `yan show --json` reports, rather
-      // than a second count that can drift from it.
-      const shown = JSON.parse((await runYan(home, ['show', 't001', '--json'])).stdout) as {
-        shifts: unknown[];
-      };
-      expect(shown.shifts.length).toBe(rows[0]?.shifts);
-    } finally {
-      if (previous === undefined) delete process.env.YAN_HOME;
-      else process.env.YAN_HOME = previous;
-    }
+    // …and they really are the same numbers `yan show --json` reports, rather
+    // than a second count that can drift from it.
+    const shown = JSON.parse((await runYan(home, ['show', 't001', '--json'])).stdout) as {
+      shifts: unknown[];
+    };
+    expect(shown.shifts.length).toBe(rows[0]?.shifts);
   });
 });

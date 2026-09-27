@@ -37,7 +37,6 @@ let home = '';
 let bare = '';
 let clone = '';
 let poolRoot = '';
-let previousHome: string | undefined;
 let previousPool: string | undefined;
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/31';
@@ -97,9 +96,7 @@ beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = join(tmp, 'trees');
-  previousHome = process.env.YAN_HOME;
   previousPool = process.env.YAN_POOL_ROOT;
-  process.env.YAN_HOME = home;
   process.env.YAN_POOL_ROOT = poolRoot;
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
@@ -116,8 +113,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousPool === undefined) delete process.env.YAN_POOL_ROOT;
   else process.env.YAN_POOL_ROOT = previousPool;
 });

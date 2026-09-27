@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -34,7 +34,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let tree = '';
-let previousHome: string | undefined;
 let calls: string[] = [];
 
 /** What the pool hands out, and what it was holding when. */
@@ -170,10 +169,8 @@ function useCli(cli: string): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
 
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
@@ -194,10 +191,6 @@ beforeEach(() => {
   terminal = new FakeTerminal();
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the order', () => {
   it('makes the container, then leases, then starts the agent', () => {

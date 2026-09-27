@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
@@ -34,7 +34,6 @@ function host(): RemoteGit {
 }
 
 let home = '';
-let previousHome: string | undefined;
 
 function configure(remoteGit: Record<string, unknown>): void {
   writeFileSync(
@@ -48,17 +47,11 @@ function configure(remoteGit: Record<string, unknown>): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
   calls.length = 0;
   nextResult = { code: 0, stdout: '', stderr: '' };
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 afterAll(cleanupTempDirs);
 

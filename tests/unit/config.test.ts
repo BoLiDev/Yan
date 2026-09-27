@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
+import { cleanupTempDirs, mkTempDir, mkYanHome, restoreVault } from '../helpers/fixtures.js';
 import {
   agentSpecFor,
   modelFlags,
@@ -17,8 +17,6 @@ import {
 afterAll(cleanupTempDirs);
 
 let home = '';
-let previousHome: string | undefined;
-let previousVault: string | undefined;
 
 function config(body: Record<string, unknown>): void {
   writeFileSync(join(home, 'config.json'), `${JSON.stringify(body, null, 2)}\n`);
@@ -44,18 +42,10 @@ const SCENARIOS = {
 };
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
-  previousVault = process.env.YAN_VAULT;
   home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-  if (previousVault === undefined) delete process.env.YAN_VAULT;
-  else process.env.YAN_VAULT = previousVault;
-});
+afterEach(restoreVault);
 
 describe('agents.<role>', () => {
   it('takes a bare string as the CLI alone', () => {

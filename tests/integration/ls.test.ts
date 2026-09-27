@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan ls`.
@@ -51,9 +52,6 @@ beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
 
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
 
   // An empty home answers before anything exists.
   expect((await runYan(home, ['ls'])).stdout).toContain('no tasks yet — start one with yan task new');
@@ -70,8 +68,6 @@ beforeAll(async () => {
     branch: 'chore/retire', scope: ['src/client'],
   });
   new Task('t007').setComplete(true);
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 
   // A live shift, which is run/meta.json existing and nothing else.
   treePath = join(tmp, 'trees', '1', 'monorepo-x').replace(/\\/g, '/');
@@ -144,12 +140,7 @@ describe('the queue', () => {
   });
 
   it('is DERIVED: a task directory added by hand appears, with nothing told about it', async () => {
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
-    const { Task } = await import('../../src/records/task/index.js');
     Task.create('t900', 'a third task');
-    if (previous === undefined) delete process.env.YAN_HOME;
-    else process.env.YAN_HOME = previous;
 
     expect((await json<Queue>(['ls', '--json', '--status', 'all'])).tasks).toHaveLength(3);
     rmSync(join(home, 'tasks', 't900'), { recursive: true, force: true });
@@ -159,12 +150,7 @@ describe('the queue', () => {
 
 describe('a task missing its files', () => {
   it('still prints, in ls and in show, with a brief.md and a log.md gone', async () => {
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
-    const { Task } = await import('../../src/records/task/index.js');
     Task.create('t901', 'bare');
-    if (previous === undefined) delete process.env.YAN_HOME;
-    else process.env.YAN_HOME = previous;
     for (const file of ['brief.md', 'log.md']) rmSync(join(home, 'tasks', 't901', file), { force: true });
     try {
       for (const args of [['ls'], ['ls', '--status', 'all'], ['show', 't901']]) {

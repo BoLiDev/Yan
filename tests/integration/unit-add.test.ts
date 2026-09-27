@@ -11,6 +11,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan unit add` against real git and a local bare remote. Nothing here
@@ -52,12 +53,7 @@ beforeAll(async () => {
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   registerRepo(home, 'demo', clone, { url: bare });
 
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
   Task.create('t1', 'a demo task');
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 });
 
 describe('target is never defaulted', () => {

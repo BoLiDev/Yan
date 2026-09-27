@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -28,7 +28,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let bare = '';
-let previousHome: string | undefined;
 
 const URL_88 = 'https://forge.invalid/acme/monorepo-x/-/merge_requests/88';
 
@@ -58,10 +57,8 @@ function unitMr(task: string, unit: string): unknown {
 }
 
 beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
 
   bare = await mkBareRemote(join(tmp, 'remote.git'));
   clone = await mkClone(bare, join(home, 'repos', 'monorepo-x'));
@@ -82,10 +79,6 @@ beforeEach(async () => {
   refuse = undefined;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('it opens the MR and records the URL', () => {
   it('runs integration branch → target and writes unit.mr', () => {

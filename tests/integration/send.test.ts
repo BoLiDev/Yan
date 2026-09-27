@@ -17,7 +17,6 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let run = '';
-let previousHome: string | undefined;
 
 class RecordingTerminal implements Prompter {
   public readonly calls: { pane: string; text: string }[] = [];
@@ -46,9 +45,7 @@ function send(sid: string, line?: string): { code: number; message: string } {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   Task.create('t042', 'unify the auth header');
 
   run = join(home, 'tasks', 't042', 'shifts', 's3', 'run');
@@ -58,8 +55,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   delete process.env.YAN_SEND_MAX;
 });
 

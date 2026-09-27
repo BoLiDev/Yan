@@ -13,6 +13,7 @@ import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
+import { openTasks } from '../../src/cli/shared/task-id.js';
 
 /**
  * `yan done` — the command that finishes a task.
@@ -35,7 +36,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let tree = '';
-let previousHome: string | undefined;
 let previousTask: string | undefined;
 let calls: string[] = [];
 
@@ -111,11 +111,9 @@ function held(sid: string): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   previousTask = process.env.YAN_TASK;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   delete process.env.YAN_TASK;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
@@ -132,8 +130,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousTask === undefined) delete process.env.YAN_TASK;
   else process.env.YAN_TASK = previousTask;
 });
@@ -287,7 +283,6 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   it('offers exactly the tasks that are still open, and drops them as they finish', async () => {
     // The rows of the multi-select, which come from `yan ls`'s own scan.
     // Clack itself is not driven here; the choices are.
-    const { openTasks } = await import('../../src/cli/shared/task-id.js');
     Task.create('t043', 'the second one');
 
     expect(openTasks().map((t) => t.id)).toEqual(['t042', 't043']);

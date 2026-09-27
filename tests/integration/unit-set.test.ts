@@ -31,7 +31,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let bare = '';
-let previousHome: string | undefined;
 
 const MR = 'https://forge.invalid/acme/demo/-/merge_requests/7';
 
@@ -85,8 +84,6 @@ beforeAll(async () => {
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   registerRepo(home, 'demo', clone);
 
-  previousHome = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
   Task.create('t1', 'a demo task');
   for (const name of ['auth', 'proto']) {
     const r = await runYan(home, ['unit', 'add', '--unit', name, '--repo', 'demo', '--target', 'main'], { YAN_TASK: 't1' });
@@ -99,10 +96,6 @@ afterEach(() => {
   hostAsked = 0;
 });
 
-afterAll(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('what it refuses before it touches anything', () => {
   it('changes nothing unless asked, and names the missing identifiers', async () => {

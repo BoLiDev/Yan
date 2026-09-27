@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan, type RunResult } from '../helpers/fixtures.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan deliverable`. Every subcommand is driven through `bin/yan`, because
@@ -35,16 +36,11 @@ function entries(): string[] {
     .map((l) => l.replace(/^- \d{2}-\d{2} {2}/, ''));
 }
 
-beforeEach(async () => {
+beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
   Task.create('t042', 'unify the auth header');
   Task.create('t043', 'a finished one');
-  new (await import('../../src/records/task/index.js')).Task('t043').setComplete(true);
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
+  new Task('t043').setComplete(true);
 });
 
 describe('add', () => {

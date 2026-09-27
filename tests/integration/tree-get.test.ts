@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -29,18 +29,15 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let poolRoot = '';
-let previousHome: string | undefined;
 
 function yan(args: readonly string[], env: Record<string, string | undefined> = {}): Promise<RunResult> {
   return runYan(home, ['tree', ...args], { YAN_POOL_ROOT: poolRoot, ...env });
 }
 
 beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
   poolRoot = mkTempDir('yan-pool-');
-  process.env.YAN_HOME = home;
 
   const bare = await mkBareRemote(join(tmp, 'origin.git'));
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
@@ -51,10 +48,6 @@ beforeEach(async () => {
   new Task('t042').addUnit('auth', 'demo', 'main', { branch: 'yan/t042-auth-r1' });
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the standing tree', () => {
   it('leases the unit\'s integration branch, held as <task>/<unit>', async () => {

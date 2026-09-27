@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
-import type { Report, ReportTask } from '../../src/cli/ui/collect.js';
+import { collectReport, type Report, type ReportTask } from '../../src/cli/ui/collect.js';
 
 /**
  * `yan ui` against `tests/fixtures/ui-vault`, whose report is written out in
@@ -32,15 +32,10 @@ function snapshot(dir: string): string[] {
   return out;
 }
 
-beforeAll(async () => {
+beforeAll(() => {
   home = mkYanHome(join(mkTempDir(), 'home'), { withDist: true });
   cpSync(join(repoRoot, 'tests', 'fixtures', 'ui-vault', 'tasks'), join(home, 'tasks'), { recursive: true });
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { collectReport } = await import('../../src/cli/ui/collect.js');
   report = collectReport({ since: '2026-08-01', until: null }, new Date('2026-09-18T15:04:05.678Z'));
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 });
 
 describe('the collector', () => {

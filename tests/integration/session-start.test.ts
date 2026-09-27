@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
@@ -29,7 +29,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let run = '';
-let previousHome: string | undefined;
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/31';
 const TREE = 'C:/pool/monorepo-x/1';
@@ -71,9 +70,7 @@ function snapshot(): string {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'monorepo-x', clone);
@@ -106,10 +103,6 @@ beforeEach(() => {
   asked.mrs = [];
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the rebuild', () => {
   it('asks all four sources, in yan vocabulary', () => {

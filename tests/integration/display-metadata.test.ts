@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readdirSync } from 'node:fs';
@@ -27,7 +27,6 @@ import { Task } from '../../src/records/task/index.js';
 afterAll(cleanupTempDirs);
 
 let home = '';
-let previousHome: string | undefined;
 
 class FakeLabeller implements Labeller {
   public readonly calls: { workspace: string; tokens: Record<string, string> }[] = [];
@@ -60,10 +59,8 @@ function enterLock(task: string, pane: string): void {
 }
 
 beforeEach(async () => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
@@ -71,10 +68,6 @@ beforeEach(async () => {
   new Task('t042').addUnit('auth', 'monorepo-x', 'main', { branch: 'main' });
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the workspace is derived, never created', () => {
   it('is undefined when nothing is running, because there is nothing to relabel', () => {

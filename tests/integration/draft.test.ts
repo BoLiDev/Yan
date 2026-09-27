@@ -18,7 +18,6 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let drafts = '';
-let previousHome: string | undefined;
 const previousEditor = process.env.DRAFT_EDITOR;
 
 function yan(args: readonly string[], env: Record<string, string> = {}) {
@@ -41,17 +40,13 @@ function editor(body: string): string {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   Task.create('t042', 'unify the auth header');
   Task.create('t099', 'a task with no drafts');
   drafts = join(home, 'tasks', 't042', 'artifacts', 'drafts');
 });
 
 afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
   if (previousEditor === undefined) delete process.env.DRAFT_EDITOR;
   else process.env.DRAFT_EDITOR = previousEditor;
   delete process.env.YAN_SID;

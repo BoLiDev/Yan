@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
@@ -19,7 +19,6 @@ afterAll(cleanupTempDirs);
 
 let home = '';
 let run = '';
-let previousHome: string | undefined;
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/1';
 const TRAP_NOTE = 'LAST-LINE-IS-NOT-THE-STATE';
@@ -45,9 +44,7 @@ function meta(body: Record<string, unknown>): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   home = mkYanHome(mkTempDir(), { withDist: true });
-  process.env.YAN_HOME = home;
   Task.create('t042', 'unify the auth header');
   new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
 
@@ -72,10 +69,6 @@ beforeEach(() => {
   mrCalls.length = 0;
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the live sources decide, never the newest event', () => {
   it('reports running while the agent is alive and the MR is still open', () => {
