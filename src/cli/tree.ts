@@ -74,7 +74,7 @@ branch, held as <task>/<unit> for as long as the task lasts, and where yan and
 running at once plus one per unit.`,
   )
   .action(
-    action('yan tree', (options: GetOptions) => {
+    action('yan tree get', (options: GetOptions) => {
       const asked = standingTree(options);
       const target = repoTarget('tree', asked.repo);
       const grant = new WorktreePool(target.clone).get(target.poolSize, asked.branch, asked.branch, asked.holder);
@@ -94,7 +94,7 @@ const returnTree = new Command('return')
   .option('--user-asked', 'required with --discard: `user` said the work can go')
   .action(
     action(
-      'yan tree',
+      'yan tree return',
       (
         positional: string | undefined,
         options: CommonOptions & {
@@ -138,7 +138,7 @@ const status = new Command('status')
   .option('--repo <repo>', 'a repository registered under repos/, or the path to a clone')
   .option('--json', 'print the leases as an array')
   .action(
-    action('yan tree', (options: CommonOptions & { json?: boolean }) => {
+    action('yan tree status', (options: CommonOptions & { json?: boolean }) => {
       const target = targetOf(options);
       const leases = new WorktreePool(target.clone).status();
       if (options.json === true) {

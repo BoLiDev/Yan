@@ -183,7 +183,7 @@ const ls = new Command('ls')
   .option('--limit <n>', `at most n drafts (default ${LIST_LIMIT} when listing)`)
   .option('--since <date>', 'only drafts updated at or after this date')
   .action(
-    action('draft ls', async (given: string | undefined, options: LsOptions) => {
+    action('yan draft ls', async (given: string | undefined, options: LsOptions) => {
       const listing = options.plain === true || options.json === true || !isTty();
       const limit = positiveInt('--limit', options.limit) ?? (listing ? LIST_LIMIT : undefined);
       const since = dateOf(options.since);
@@ -216,7 +216,7 @@ const cat = new Command('cat')
   .argument('<draft-id>', "as 'yan draft ls --plain' lists it")
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .action(
-    action('draft cat', async (id: string, given: string | undefined) => {
+    action('yan draft cat', async (id: string, given: string | undefined) => {
       const task = await taskFor('yan draft cat <draft-id>', given, 'Whose draft is it?');
       const drafts = new Drafts(task);
       const draft = drafts.get(id);
@@ -238,7 +238,7 @@ const search = new Command('search')
   .option('--json', 'the hits as JSON')
   .option('--limit <n>', `at most n hits (default ${LIST_LIMIT})`)
   .action(
-    action('draft search', async (words: string[], options: SearchOptions) => {
+    action('yan draft search', async (words: string[], options: SearchOptions) => {
       // The task comes last so a session can leave it off; a last word is the
       // task only when a task of that name exists, never by its spelling.
       const last = words.at(-1);
@@ -264,7 +264,7 @@ const dir = new Command('dir')
   .description('print the drafts folder')
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .action(
-    action('draft dir', async (given: string | undefined) => {
+    action('yan draft dir', async (given: string | undefined) => {
       const task = await taskFor('yan draft dir', given, 'Whose drafts folder do you want?');
       const drafts = new Drafts(task);
       out(drafts.dir);
@@ -295,7 +295,7 @@ The editor is $DRAFT_EDITOR, else $EDITOR, else nvim. A draft left empty, or
 with nothing but its --title, is discarded when the editor exits.`,
   )
   .action(
-    action('draft', async (given: string | undefined, options: { title?: string }) => {
+    action('yan draft', async (given: string | undefined, options: { title?: string }) => {
       const task = await taskFor('yan draft', given, 'Which task is this draft about?');
       const title = (options.title ?? '').split(/\s+/).filter((w) => w !== '');
       writeDraft(task, title);

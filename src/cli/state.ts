@@ -192,7 +192,7 @@ a shift, when user asks about one, and when one has been quiet longer than its
 work should take.`,
   )
   .action(
-    action('state', (sid: string | undefined, options: { json?: boolean; verdict?: boolean }) => {
+    action('yan state', (sid: string | undefined, options: { json?: boolean; verdict?: boolean }) => {
       if (sid === undefined || sid === '') {
         throw YanError.usage('state_usage', 'a shift id is required');
       }

@@ -247,7 +247,7 @@ const addRepo = new Command('add')
   .option('--pool-size <n>', 'how many worktrees this repository may lease at once')
   .option('--path <dir>', 'clone into this directory instead of clone_root')
   .action(
-    action('repo_add', async (target: string | undefined, options: AddOptions) => {
+    action('yan repo add', async (target: string | undefined, options: AddOptions) => {
       if (target === undefined || target === '') {
         await addByScan(process.cwd(), options);
         return;
@@ -269,7 +269,7 @@ const linkRepo = new Command('link')
   .argument('[name]')
   .argument('[path]')
   .action(
-    action('repo_link', (name: string | undefined, path: string | undefined) => {
+    action('yan repo link', (name: string | undefined, path: string | undefined) => {
       if (name === undefined || name === '' || path === undefined || path === '') {
         throw YanError.usage('repo_usage', "both a name and a path are required: 'yan repo link <name> <path>'");
       }
@@ -361,7 +361,7 @@ const rmRepo = new Command('rm')
   .description('take repositories out of the registry: by name, or pick from a list - the clone on disk is left alone')
   .argument('[name]', 'a registered name, or nothing to choose from a list')
   .action(
-    action('repo_rm', async (name: string | undefined) => {
+    action('yan repo rm', async (name: string | undefined) => {
       if (name === undefined || name === '') {
         await rmBySelect();
         return;
@@ -373,7 +373,7 @@ const rmRepo = new Command('rm')
 const lsRepos = new Command('ls')
   .description('what this vault knows about, and what is linked on this machine')
   .action(
-    action('repo_ls', () => {
+    action('yan repo ls', () => {
       const repos = registry();
       if (repos.length === 0) {
         out(`no repositories are registered in ${reposPath()}`);

@@ -7,4 +7,4 @@ import { useVault } from './vault.js';
 export const command = new Command('use')
   .description('switch the active vault (alias for `yan vault use`)')
   .argument('[name]')
-  .action(action('use', (name: string | undefined) => { useVault(name); }));
+  .action(action('yan use', (name: string | undefined) => { useVault(name); }));

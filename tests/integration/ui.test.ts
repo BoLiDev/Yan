@@ -162,7 +162,7 @@ describe('yan ui', () => {
     ] as const) {
       const r = await runYan(home, ['ui', '--json', ...args]);
       expect(r.code, r.out).toBe(2);
-      expect(r.stderr).toBe(`ui: ${says}\n`);
+      expect(r.stderr).toBe(`yan ui: ${says}\n`);
       expect(r.stdout).toBe('');
     }
   });
@@ -250,6 +250,6 @@ describe('yan ui', () => {
   it('says so when it cannot write the page', async () => {
     const r = await runYan(home, ['ui', '--no-open', '--out', mkTempDir()]);
     expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/^ui: cannot write /);
+    expect(r.stderr).toMatch(/^yan ui: cannot write /);
   });
 });

@@ -72,7 +72,7 @@ separate Enter to send, and no first Enter for the agent to swallow.
 A pane with no live agent is refused rather than typed into.`,
   )
   .action(
-    action('send', (sid: string | undefined, line: string | undefined) => {
+    action('yan send', (sid: string | undefined, line: string | undefined) => {
       sendLine(sid, line);
     }),
   );

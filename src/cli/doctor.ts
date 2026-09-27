@@ -365,7 +365,7 @@ function checkAgy(report: Report, agents: Agents): void {
 export const command = new Command('doctor')
   .description('check this machine can run yan')
   .action(
-    action('doctor', () => {
+    action('yan doctor', () => {
       const report: Report = { ok: 0, warn: 0, fail: 0 };
 
       out('yan doctor');

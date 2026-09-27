@@ -143,7 +143,7 @@ const initVault = new Command('init')
   .option('--path <dir>', 'where the vault lives on this machine')
   .option('--clone-root <dir>', 'where `yan repo add <url>` clones into on this machine')
   .action(
-    action('vault_init', async (name: string | undefined, options: InitOptions) => {
+    action('yan vault init', async (name: string | undefined, options: InitOptions) => {
       const answers = await initAnswers(name ?? '', options.remote ?? '');
       checkName(answers.name);
 
@@ -189,7 +189,7 @@ const cloneVault = new Command('clone')
   .option('--name <name>', "register under this name instead of the vault's own")
   .option('--path <dir>', 'where the vault lives on this machine')
   .action(
-    action('vault_clone', async (url: string | undefined, options: { name?: string; path?: string }) => {
+    action('yan vault clone', async (url: string | undefined, options: { name?: string; path?: string }) => {
       const answers = { url: await cloneUrl(url ?? '') };
 
       // Only for the directory name: the registered name comes from vault.json.
@@ -223,7 +223,7 @@ const cloneVault = new Command('clone')
 const lsVaults = new Command('ls')
   .description('the vaults registered on this machine')
   .action(
-    action('vault_ls', () => {
+    action('yan vault ls', () => {
       const vaults = registeredVaults();
       if (vaults.length === 0) {
         out(`no vaults are registered in ${machineConfigPath()}`);
@@ -272,7 +272,7 @@ const linkCommand = new Command('link')
   .argument('[name]')
   .argument('[path]')
   .action(
-    action('vault_link', (name: string | undefined, path: string | undefined) => {
+    action('yan vault link', (name: string | undefined, path: string | undefined) => {
       if (name === undefined || name === '' || path === undefined || path === '') {
         throw YanError.usage('vault_usage', "both a name and a path are required: 'yan vault link <name> <path>'");
       }
@@ -297,7 +297,7 @@ const linkCommand = new Command('link')
 const useCommand = new Command('use')
   .description('switch the active vault')
   .argument('[name]')
-  .action(action('vault_use', (name: string | undefined) => { useVault(name); }));
+  .action(action('yan vault use', (name: string | undefined) => { useVault(name); }));
 
 /**
  * `yan vault pull` and `yan vault push`. Pull runs automatically from
@@ -306,7 +306,7 @@ const useCommand = new Command('use')
 const pullCommand = new Command('pull')
   .description('fetch and rebase the vault onto its remote')
   .action(
-    action('vault_pull', () => {
+    action('yan vault pull', () => {
       const result = pullVault();
       out(`vault pull: ${result.message}`);
       if (!result.ok) process.exitCode = 1;
@@ -326,7 +326,7 @@ const pushCommand = new Command('push')
   .description('commit everything in the vault and push it')
   .option('-m, --message <text>', 'the commit message, instead of one derived from what changed')
   .action(
-    action('vault_push', (options: { message?: string }) => {
+    action('yan vault push', (options: { message?: string }) => {
       const dir = vaultDir();
       if (remoteUrl(dir) === undefined) {
         throw new YanError('vault_no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
@@ -358,7 +358,7 @@ const pushCommand = new Command('push')
  */
 const whereCommand = new Command('where')
   .description('the active vault directory')
-  .action(action('vault_where', () => { out(vaultDir()); }));
+  .action(action('yan vault where', () => { out(vaultDir()); }));
 
 export const command = new Command('vault')
   .description('the task assets this session works in')

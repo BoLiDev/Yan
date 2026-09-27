@@ -350,7 +350,7 @@ gives a shift; and an undelivered report's "at" is an ISO 8601 string, as a
 last_event's is, rather than epoch seconds.`,
   )
   .action(
-    action('show', async (id: string | undefined, options: { json?: boolean }) => {
+    action('yan show', async (id: string | undefined, options: { json?: boolean }) => {
       const task = await chosenTask('show', id, {
         spelled: 'yan show',
         question: 'Which task do you want to see?',

@@ -289,7 +289,7 @@ step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid is for yan
 itself and for tests.`,
   )
   .action(
-    action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
+    action('yan report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
       reportEvent(state, note, options);
     }),
   );
