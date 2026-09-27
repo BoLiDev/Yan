@@ -1,10 +1,12 @@
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { display } from './display.js';
 import { repoDir, repoDirIfKnown } from './repo.js';
 import { Terminal } from '../../externals/herdr/index.js';
 import { WorktreePool, type LeaseRow, type ReturnOptions } from '../../externals/worktree/index.js';
 import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
+import { normalizePath } from '../../util/paths.js';
 
 /**
  * The four steps every teardown repeats — `yan done`, `yan abandon`,
@@ -107,32 +109,31 @@ interface Held extends LeaseRow {
  * repository that cannot be resolved is skipped rather than fatal.
  */
 export function leasesHeldBy(task: string, pool?: Statuser): Held[] {
-  const repos = new Set<string>();
+  // Two kinds of answer: a unit names its repository as registered, a live
+  // shift records the path of the clone it came from.
+  const names = new Set<string>();
   try {
     for (const unit of new Task(task).read().units) {
-      if (unit.repo !== '') repos.add(unit.repo);
+      if (unit.repo !== '') names.add(unit.repo);
     }
   } catch {
     // A task that cannot be read still has shifts whose clones can be.
   }
+  const clones = new Set<string>();
+  for (const name of names) {
+    try {
+      clones.add(repoDir('teardown', name));
+    } catch {
+      // Not registered on this machine; nothing of it can be leased here.
+    }
+  }
   for (const shift of Shift.liveIn(task)) {
     const clone = shift.meta().clone ?? '';
-    if (clone !== '' && existsSync(clone)) repos.add(clone);
+    if (clone !== '' && existsSync(clone)) clones.add(normalizePath(resolve(clone)));
   }
 
-  const seen = new Set<string>();
   const held: Held[] = [];
-  for (const repo of repos) {
-    // `repo` is a registry name, or already the path of a clone.
-    let clone: string;
-    try {
-      clone = repoDir('teardown', repo);
-    } catch {
-      continue;
-    }
-    if (seen.has(clone)) continue;
-    seen.add(clone);
-
+  for (const clone of clones) {
     let leases: readonly LeaseRow[];
     try {
       leases = (pool?.(clone) ?? new WorktreePool(clone)).status();

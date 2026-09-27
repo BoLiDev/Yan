@@ -210,7 +210,7 @@ export function cleanFd(dir: string): ProcessResult {
 // --- cloning ---------------------------------------------------------------
 
 /** <dir> is the directory the clone is created in. */
-export function clone(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
+export function cloneRepo(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
   return git(dir, ['clone', ...args, url, dest]);
 }
 

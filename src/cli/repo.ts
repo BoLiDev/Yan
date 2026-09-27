@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
-import { clone, remoteUrl } from '../util/git.js';
+import { cloneRepo, remoteUrl } from '../util/git.js';
 import { cloneRoot } from '../util/machine.js';
 import { isDirectory, normalizePath, samePath } from '../util/paths.js';
 import { reposPath } from '../util/vault.js';
@@ -217,7 +217,7 @@ function addByUrl(url: string, options: AddOptions): void {
   } else {
     mkdirSync(root, { recursive: true });
     out(`repo add: cloning ${url} into ${dest}`);
-    if (clone(root, url, name).code !== 0) {
+    if (cloneRepo(root, url, name).code !== 0) {
       throw new YanError('repo_clone_failed', `clone failed: ${url}`);
     }
   }

@@ -23,7 +23,7 @@ interface CommonOptions {
   repo?: string;
 }
 
-function clone(options: CommonOptions): { clone: string; poolSize: number } {
+function targetOf(options: CommonOptions): { clone: string; poolSize: number } {
   if (options.repo === undefined || options.repo === '') {
     throw YanError.usage('tree_usage', '--repo is required: a repository name under repos/, or the path to a clone',
     );
@@ -106,7 +106,7 @@ const returnTree = new Command('return')
           userAsked?: boolean;
         },
       ) => {
-        const target = clone(options);
+        const target = targetOf(options);
         const which = options.path ?? positional ?? options.slot ?? '';
         if (which === '') {
           throw YanError.usage('tree_usage', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
@@ -139,7 +139,7 @@ const status = new Command('status')
   .option('--json', 'print the leases as an array')
   .action(
     action('yan tree', (options: CommonOptions & { json?: boolean }) => {
-      const target = clone(options);
+      const target = targetOf(options);
       const leases = new WorktreePool(target.clone).status();
       if (options.json === true) {
         out(JSON.stringify(leases, null, 2));

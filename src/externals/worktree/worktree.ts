@@ -76,32 +76,32 @@ export class WorktreePool {
    * Reset and clean a tree, then release its lease, and return its path. A
    * tree that is already gone releases its lease and reports the path.
    *
-   * @param target the path `get` printed, or a slot number.
+   * @param tree the path `get` printed, or a slot number.
    * @param expect fields compared before anything destructive happens, so a
    *   mismatch costs nothing and a retry is safe. An absent field is not
    *   compared; `force` skips the orphan-commit guard but never the identity
    *   check.
    * @throws YanError `worktree_mismatch` when `expect` disagrees, `worktree_failed` when no
-   *   lease matches `target` or the guard refuses.
+   *   lease matches `tree` or the guard refuses.
    */
-  public return(target: string, expect: ReturnOptions = {}): string {
-    if (!target) {
+  public return(tree: string, expect: ReturnOptions = {}): string {
+    if (!tree) {
       throw YanError.usage('worktree_usage',
         "which tree? pass the path 'yan tree get' printed, or its slot number",
       );
     }
 
-    const slot = slotOf(this.dir, target);
+    const slot = slotOf(this.dir, tree);
     if (slot === undefined) {
       throw new YanError('worktree_failed',
-        `no lease matches '${target}' - 'yan tree status' lists what the pool is holding`,
+        `no lease matches '${tree}' - 'yan tree status' lists what the pool is holding`,
       );
     }
 
     const lease = readLease(leaseFile(this.dir, slot));
     const haveId = lease?.lease_id ?? '';
     const haveHolder = lease?.holder ?? '';
-    const tree = lease?.path ?? '';
+    const path = lease?.path ?? '';
 
     if (expect.leaseId !== undefined && expect.leaseId !== '' && expect.leaseId !== haveId) {
       throw new YanError('worktree_mismatch',
@@ -116,18 +116,18 @@ export class WorktreePool {
       );
     }
 
-    if (tree === '' || !existsSync(tree)) {
+    if (path === '' || !existsSync(path)) {
       process.stderr.write(
-        `worktree: the leased tree is gone: ${tree === '' ? '<unknown>' : tree} - releasing the lease on slot ${slot}\n`,
+        `worktree: the leased tree is gone: ${path === '' ? '<unknown>' : path} - releasing the lease on slot ${slot}\n`,
       );
       releaseLease(this.dir, slot);
-      return tree;
+      return path;
     }
 
-    if (expect.force !== true) assertReturnable(tree);
-    wipe(tree);
+    if (expect.force !== true) assertReturnable(path);
+    wipe(path);
     releaseLease(this.dir, slot);
-    return tree;
+    return path;
   }
 
   /** The leases, sorted by slot. */
