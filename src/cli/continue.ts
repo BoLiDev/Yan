@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { agentSpecFor, cliKind, modelFlags, type AgentSpec } from './shared/config.js';
+import { agentSpecFor, type AgentSpec } from './shared/agents.js';
+import { launchArgs } from '../externals/harness/index.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { repoDirIfKnown } from './shared/repo.js';
@@ -95,35 +96,6 @@ const startMain: StartMain = (cli, argv, options) =>
     env: options.env,
     windowsHide: true,
   }).status ?? 1;
-
-/**
- * The flags the main agent's harness needs: the extra directories, and running
- * unattended. Unattended even though `user` is at the pane, because a shift's
- * report is typed into this agent's pane and starts a turn with nobody
- * watching, and a permission prompt raised then stalls the thing that answers
- * shifts.
- *
- * Agy needs one thing the other two do not: `home` on the `--add-dir` list.
- * Claude and Codex take the directory they were started in as the root of what
- * they may touch, so `cwd` covers yan's own clone; agy does not look at `cwd`
- * at all. Its working set is the workspace named by `--add-dir`, and with an
- * empty one it invents a project under `~/.gemini` and writes there instead —
- * a yan that cannot see its own `dist/` is a yan that cannot run a hook.
- */
-function harnessArgs(spec: AgentSpec, home: string, addDirs: readonly string[]): string[] {
-  const kind = cliKind(spec.cli);
-  const args: string[] = modelFlags(spec.cli, spec);
-  if (kind === 'claude') {
-    for (const d of addDirs) args.push('--add-dir', d);
-    args.push('--dangerously-skip-permissions');
-  } else if (kind === 'codex') {
-    args.push('--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust');
-  } else if (kind === 'agy') {
-    for (const d of [home, ...addDirs]) args.push('--add-dir', d);
-    args.push('--dangerously-skip-permissions');
-  }
-  return args;
-}
 
 /** The clones this task's yan may see, in unit order and without repeats. */
 function addDirsFor(task: Task): string[] {
@@ -233,7 +205,8 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
     });
   }
 
-  const argv = harnessArgs(spec, cwd, addDirsFor(record));
+  // Unattended, like a shift, even though `user` is at the pane: see `launchArgs`.
+  const argv = launchArgs(agent, { model: spec.model, effort: spec.effort, workdir: cwd, addDirs: addDirsFor(record) });
   const start = deps.start ?? startMain;
 
   return {

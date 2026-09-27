@@ -1,4 +1,5 @@
-import { agentSpecFor, cliKind } from '../shared/config.js';
+import { agentSpecFor } from '../shared/agents.js';
+import { cliKind } from '../../externals/harness/index.js';
 import { enterLockFile } from '../shared/enter-lock.js';
 import { Terminal } from '../../externals/herdr/index.js';
 import { harnessEnv, lastSpoke, type AgentFacts, type HarnessEnv } from '../../externals/harness/index.js';
