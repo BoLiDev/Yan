@@ -58,6 +58,11 @@ describe('agents.<role>', () => {
     expect(agentSpecFor('yan')).toEqual({ cli: 'agy', model: 'gemini-3.8-flash-high', effort: 'high' });
     expect(agentSpecFor('shift')).toEqual({ cli: '', model: '', effort: '' });
   });
+
+  it('calls a config.json that is not JSON a usage error, since a person wrote it', () => {
+    writeFileSync(join(home, 'config.json'), '{ "agents": ');
+    expect(() => agentSpecFor('yan')).toThrow(expect.objectContaining({ code: 'config_invalid', exitCode: 2 }));
+  });
 });
 
 describe('resolveShift', () => {

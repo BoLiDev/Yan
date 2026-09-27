@@ -105,10 +105,7 @@ function layDownSkeleton(dir: string, name: string): void {
  */
 function refuseMissing(missing: readonly (readonly [string, string])[]): never {
   const flags = missing.map(([flag, describe]) => `  ${flag} <value>   ${describe}`).join('\n');
-  throw new YanError('missing_options',
-    `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`,
-    { exitCode: 2 },
-  );
+  throw YanError.usage('missing_options', `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`);
 }
 
 async function initAnswers(name: string, remote: string): Promise<{ name: string; remote: string }> {

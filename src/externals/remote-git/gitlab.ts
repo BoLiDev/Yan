@@ -54,9 +54,7 @@ function refArgs(mr: string): string[] {
   }
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
-    throw new YanError('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
-      { exitCode: 2 },
-    );
+    throw YanError.usage('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`);
   }
 
   const args = [iid];

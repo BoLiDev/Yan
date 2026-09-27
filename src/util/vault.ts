@@ -154,12 +154,19 @@ export function vaultConfigPath(): string {
  *
  * A file that is not there is `undefined`; one that is there and does not
  * parse throws, because a configuration someone wrote and got wrong is not the
- * same as no configuration, and each owner words that refusal its own way.
+ * same as no configuration. A person writes this file, so that is exit 2 (see
+ * `YanError.usage`); an owner may still word the refusal its own way.
  *
- * @throws YanError `json_invalid` when the file is not JSON.
+ * @throws YanError `config_invalid` (exit 2) when the file is not JSON.
  */
 export function readVaultConfig(): Record<string, unknown> | undefined {
-  const raw = readJsonIfPresent(vaultConfigPath());
+  const path = vaultConfigPath();
+  let raw: unknown;
+  try {
+    raw = readJsonIfPresent(path);
+  } catch {
+    throw YanError.usage('config_invalid', `${path} is not valid JSON - fix it, then run 'yan doctor'`);
+  }
   return raw === undefined ? undefined : asRecord(raw);
 }
 

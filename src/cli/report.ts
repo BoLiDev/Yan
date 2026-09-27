@@ -225,9 +225,7 @@ export function reportEvent(
 
   // The handover has to exist before the event that sends yan to read it.
   if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
-    throw new YanError('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
-      { exitCode: 2 },
-    );
+    throw YanError.usage('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`);
   }
 
   // The note is typed into a pane, so it is held to the line `yan send`
