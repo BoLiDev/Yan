@@ -12,6 +12,7 @@ import { isTty } from './shared/resolve.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 import { isRecordId } from '../util/names.js';
+import type { RepoCandidate, RepoRemovable } from '../ui/prompts.js';
 
 /**
  * `yan repo add | link | ls | rm` — which repositories this context knows
@@ -139,14 +140,6 @@ function checkFlags(options: AddOptions): { pool: string } {
   return { pool };
 }
 
-interface Candidate {
-  readonly name: string;
-  readonly dir: string;
-  readonly url: string;
-  /** Why it cannot be selected, or the empty string when it can. */
-  readonly blocked: string;
-}
-
 /**
  * The immediate children of `dir` that are git clones, sorted, each with what
  * blocks it. Never recursive, and a clone with no `origin` is listed as
@@ -154,7 +147,7 @@ interface Candidate {
  *
  * @throws YanError `repo_usage` when `dir` cannot be read.
  */
-export function scan(dir: string): Candidate[] {
+export function scan(dir: string): RepoCandidate[] {
   let names: string[];
   try {
     names = readdirSync(dir);
@@ -162,7 +155,7 @@ export function scan(dir: string): Candidate[] {
     throw YanError.usage('repo_usage', `cannot read ${dir}`);
   }
 
-  const found: Candidate[] = [];
+  const found: RepoCandidate[] = [];
   for (const entry of names.sort()) {
     const child = join(dir, entry);
     if (!isDirectory(child) || !isClone(child)) continue;
@@ -196,8 +189,15 @@ async function addByScan(dir: string, options: AddOptions): Promise<void> {
     throw new YanError('repo_empty', `no git clones directly under ${dir} - the scan is one level deep, so cd to the directory that holds them`);
   }
 
-  const { chooseReposToAdd } = await import('../ui/prompts.js');
-  const chosen = await chooseReposToAdd(dir, candidates);
+  const { chooseRepos } = await import('../ui/prompts.js');
+  const chosen = await chooseRepos({
+    intro: `yan repo add — ${dir}`,
+    message: 'Which of these does this context work in?',
+    emptyTitle: 'nothing here can be added',
+    cancelled: 'nothing was registered',
+    rows: candidates,
+    hintOf: (c) => (c.url === '' ? c.dir : c.url),
+  });
   for (const name of chosen) {
     const candidate = candidates.find((c) => c.name === name);
     if (candidate === undefined) continue;
@@ -354,17 +354,8 @@ function rmByName(name: string): void {
   remove(entry);
 }
 
-interface Removable {
-  readonly name: string;
-  readonly url: string;
-  /** Where it is on this machine, or the empty string when it is not linked here. */
-  readonly path: string;
-  /** Why it cannot be selected, or the empty string when it can. */
-  readonly blocked: string;
-}
-
 /** Every registered repository as `rm`'s select offers it, each with what blocks it. */
-export function removable(): Removable[] {
+export function removable(): RepoRemovable[] {
   return registry().map((entry) => ({
     name: entry.name,
     url: entry.url,
@@ -384,8 +375,15 @@ async function rmBySelect(): Promise<void> {
     throw new YanError('repo_empty', `no repositories are registered in ${reposPath()}`);
   }
 
-  const { chooseReposToRemove } = await import('../ui/prompts.js');
-  const chosen = await chooseReposToRemove(candidates);
+  const { chooseRepos } = await import('../ui/prompts.js');
+  const chosen = await chooseRepos({
+    intro: 'yan repo rm',
+    message: 'Which of these should this context forget? Clones on disk are left alone.',
+    emptyTitle: 'nothing here can be removed',
+    cancelled: 'nothing was removed',
+    rows: candidates,
+    hintOf: (r) => (r.path === '' ? `${r.url}  not linked here` : r.path),
+  });
   for (const name of chosen) {
     // Looked up again rather than trusted: a task may have taken it since the list was drawn.
     rmByName(name);
