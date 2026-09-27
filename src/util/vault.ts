@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { YanError } from './error.js';
-import { readJsonIfPresent, readJsonOrNone } from './json.js';
-import { asRecord, asString } from './narrow.js';
+import { readJsonIfPresent } from './json.js';
+import { asRecord, asString, recordOrNone } from './narrow.js';
 import { machineConfigPath, machineRevision, readMachine } from './machine.js';
 import { isDirectory, normalizePath } from './paths.js';
 
@@ -35,8 +35,26 @@ interface VaultIdentity {
   readonly created: string;
 }
 
+/**
+ * What a vault's `vault.json` says about it. A missing file reads as version
+ * 1 with no name, which is what a vault from before the file had a version is.
+ *
+ * @throws YanError `vault_invalid` when the file is there and is not a JSON
+ *   object: yan wrote it, so that is exit 1, and reading it as version 1
+ *   could let an older build write over a newer vault.
+ */
 export function readVaultJson(dir: string): VaultIdentity {
-  const record = asRecord(readJsonOrNone(join(dir, VAULT_MARKER)));
+  const file = join(dir, VAULT_MARKER);
+  let raw: unknown;
+  try {
+    raw = readJsonIfPresent(file);
+  } catch {
+    raw = null;
+  }
+  if (raw !== undefined && recordOrNone(raw) === undefined) {
+    throw new YanError('vault_invalid', `${file} is not a JSON object, so this vault's version cannot be told - restore it from git ('git -C ${dir} checkout vault.json') or fix it by hand`);
+  }
+  const record = asRecord(raw);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     name: asString(record.name),

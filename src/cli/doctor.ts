@@ -94,12 +94,19 @@ function checkVault(report: Report): void {
         : `'${active}' is active but does not resolve to a vault - 'yan vault ls' shows what is registered`,
     );
   } else {
-    const identity = readVaultJson(dir);
-    line(report, identity.version > VAULT_VERSION ? 'fail' : 'ok', 'vault',
-      identity.version > VAULT_VERSION
-        ? `${dir} was written by a newer yan (vault.json version ${identity.version}) - update this clone`
-        : `${identity.name === '' ? '(unnamed)' : identity.name} → ${dir}`,
-    );
+    let identity: ReturnType<typeof readVaultJson> | undefined;
+    try {
+      identity = readVaultJson(dir);
+    } catch (err) {
+      line(report, 'fail', 'vault', isYanError(err) ? err.message : String(err));
+    }
+    if (identity !== undefined) {
+      line(report, identity.version > VAULT_VERSION ? 'fail' : 'ok', 'vault',
+        identity.version > VAULT_VERSION
+          ? `${dir} was written by a newer yan (vault.json version ${identity.version}) - update this clone`
+          : `${identity.name === '' ? '(unnamed)' : identity.name} → ${dir}`,
+      );
+    }
 
     const origin = remoteUrl(dir);
     if (origin === undefined) {
