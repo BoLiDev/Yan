@@ -4,6 +4,7 @@ import { action, out } from './shared/action.js';
 import { isMainAgentOf } from './shared/caller.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
+import { branchRef } from './shared/branch.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
@@ -90,17 +91,10 @@ function sessionOf(id: string): ShowJson['session'] {
   return { running, pane: running ? (paneOfEnterLock(id) ?? null) : null };
 }
 
-/** `origin/<name>` when the clone has it, `<name>` when only a local ref exists, else undefined. */
-function refIn(clone: string, name: string): string | undefined {
-  if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`])) return `origin/${name}`;
-  if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])) return name;
-  return undefined;
-}
-
 function aheadOf(clone: string | undefined, branch: string, target: string): number | null {
   if (clone === undefined || branch === '' || target === '') return null;
-  const from = refIn(clone, target);
-  const to = refIn(clone, branch);
+  const from = branchRef(clone, target);
+  const to = branchRef(clone, branch);
   if (from === undefined || to === undefined) return null;
   const count = Number.parseInt(gitLines(clone, ['rev-list', '--count', `${from}..${to}`])[0] ?? '', 10);
   return Number.isNaN(count) ? null : count;
