@@ -3,7 +3,7 @@ import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { Command } from 'commander';
 import { chosenTask, existingTask } from './shared/task-id.js';
-import { isTty } from './shared/resolve.js';
+import { isTty } from './shared/tty.js';
 import { action, out } from './shared/action.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
 import { Task } from '../records/task/index.js';

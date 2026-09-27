@@ -37,7 +37,7 @@ export function checkSendLength(line: string, code: string): void {
 }
 
 /** What `yan send` needs from the terminal. `Terminal` is the real one. */
-export interface Prompter {
+export interface LineSender {
   send(pane: string, text: string): void;
 }
 
@@ -53,7 +53,7 @@ export function sendLine(
   sid: string | undefined,
   line: string | undefined,
   task = '',
-  terminal?: Prompter,
+  terminal?: LineSender,
 ): void {
   if (sid === undefined || sid === '') {
     throw YanError.usage('send_usage', 'a shift id is required');

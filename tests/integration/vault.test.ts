@@ -98,6 +98,26 @@ describe('vault init', () => {
     expect(taken.out).toContain('not empty');
     expect(existsSync(join(occupied, 'vault.json'))).toBe(false);
   });
+
+  // No terminal to ask on: the refusal names exactly the values still missing.
+  it('refuses without a terminal, naming what to pass', async () => {
+    const env = isolated('no-tty');
+    const both = await runYan(home, ['vault', 'init'], env);
+    expect(both.code).toBe(2);
+    expect(both.out).toContain('missing required options; pass:');
+    expect(both.out).toContain('<name> <value>');
+    expect(both.out).toContain('--remote <value>');
+
+    const remoteOnly = await runYan(home, ['vault', 'init', 'named'], env);
+    expect(remoteOnly.code).toBe(2);
+    expect(remoteOnly.out).toContain('missing required option; pass:');
+    expect(remoteOnly.out).not.toContain('<name> <value>');
+
+    const clone = await runYan(home, ['vault', 'clone'], env);
+    expect(clone.code).toBe(2);
+    expect(clone.out).toContain('<url> <value>');
+    expect(machineConfig('no-tty').vaults).toBeUndefined();
+  });
 });
 
 describe('resolution', () => {
