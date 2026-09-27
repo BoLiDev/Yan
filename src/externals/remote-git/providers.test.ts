@@ -3,14 +3,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as github from './github.js';
 import * as gitlab from './gitlab.js';
-import { CI_STATES, MR_STATES } from './types.js';
-import type { CiState, MrState } from './types.js';
+import { MR_STATES } from './types.js';
+import type { MrState } from './types.js';
 import { repoRoot } from '../../../tests/helpers/fixtures.js';
 
 /**
- * What is under test: `MrState` is one of {merged, closed, open, unknown} and
- * `CiState` one of {green, red, pending, none}, for every fixture under
- * tests/fixtures/forge/.
+ * What is under test: `MrState` is one of {merged, closed, open, unknown}, for
+ * every fixture under tests/fixtures/forge/.
  *
  * Every case is driven by a payload a real CLI printed (GitHub) or a shape
  * from the published API documentation (GitLab); PROVENANCE.json says which.
@@ -68,52 +67,6 @@ describe('GitHub: merge request state', () => {
   });
 });
 
-describe('GitHub: CI', () => {
-  it('maps the checks API', () => {
-    expect(github.mapCiState(fx('github/ci-none.json'))).toBe('none');
-    expect(github.mapCiState(fx('github/ci-checks-green.json'))).toBe('green');
-    expect(github.mapCiState(fx('github/ci-checks-mixed-red.json'))).toBe('red');
-    expect(github.mapCiState(fx('github/ci-checks-running.json'))).toBe('pending');
-  });
-
-  it('maps the legacy commit-status API, in the same array', () => {
-    expect(github.mapCiState(fx('github/ci-status-green.json'))).toBe('green');
-    expect(github.mapCiState(fx('github/ci-status-pending.json'))).toBe('pending');
-    expect(github.mapCiState(fx('github/ci-status-red.json'))).toBe('red');
-  });
-
-  it('lets red beat pending', () => {
-    // A run that is still going but has already failed is red. The caller can
-    // dispatch the fix now; waiting for the rest only delays it.
-    expect(github.mapCiState(fx('github/ci-red-beats-pending.json'))).toBe('red');
-  });
-
-  it('tells "no checks" from "no answer"', () => {
-    expect(github.mapCiState('{"statusCheckRollup":null}')).toBe('none');
-    // A payload with no rollup at all is not none - that would be a confident
-    // wrong answer.
-    expect(github.mapCiState('{}')).toBe('pending');
-    expect(github.mapCiState('')).toBe('pending');
-    expect(github.mapCiState('GraphQL: Could not resolve to a PullRequest')).toBe('pending');
-  });
-
-  it('classifies each conclusion the way the comment says', () => {
-    const rollup = (...entries: string[]): string =>
-      `{"statusCheckRollup":[${entries.join(',')}]}`;
-    const run = (status: string, conclusion: string): string =>
-      `{"__typename":"CheckRun","status":"${status}","conclusion":"${conclusion}"}`;
-
-    expect(github.mapCiState(rollup(run('COMPLETED', 'NEUTRAL'), run('COMPLETED', 'SKIPPED')))).toBe(
-      'green',
-    );
-    expect(github.mapCiState(rollup(run('COMPLETED', 'TIMED_OUT')))).toBe('red');
-    expect(github.mapCiState(rollup(run('COMPLETED', 'CANCELLED')))).toBe('red');
-    // A superseded check is neither a pass nor a failure.
-    expect(github.mapCiState(rollup(run('COMPLETED', 'STALE')))).toBe('pending');
-    expect(github.mapCiState(rollup(run('QUEUED', '')))).toBe('pending');
-  });
-});
-
 describe('GitLab: merge request state', () => {
   it('maps the four states onto yan\'s three plus unknown', () => {
     expect(gitlab.mapMrState(fx('gitlab/mr-merged.json'))).toBe('merged');
@@ -137,30 +90,6 @@ describe('GitLab: merge request state', () => {
   });
 });
 
-describe('GitLab: CI', () => {
-  it('maps one pipeline, one status', () => {
-    expect(gitlab.mapCiState(fx('gitlab/mr-merged.json'))).toBe('green');
-    expect(gitlab.mapCiState(fx('gitlab/mr-opened.json'))).toBe('pending');
-    // manual means it is waiting for a human, which is pending.
-    expect(gitlab.mapCiState(fx('gitlab/mr-locked.json'))).toBe('pending');
-    expect(gitlab.mapCiState(fx('gitlab/ci-failed.json'))).toBe('red');
-    // A cancelled pipeline did not pass.
-    expect(gitlab.mapCiState(fx('gitlab/ci-canceled.json'))).toBe('red');
-    // Skipped means nothing ran.
-    expect(gitlab.mapCiState(fx('gitlab/ci-skipped.json'))).toBe('none');
-    expect(gitlab.mapCiState(fx('gitlab/ci-pending-created.json'))).toBe('pending');
-    expect(gitlab.mapCiState(fx('gitlab/ci-no-pipeline.json'))).toBe('none');
-    // Older GitLab exposes `pipeline` rather than `head_pipeline`.
-    expect(gitlab.mapCiState(fx('gitlab/ci-legacy-pipeline-field.json'))).toBe('green');
-  });
-
-  it('falls back to pending for anything it does not recognise', () => {
-    expect(gitlab.mapCiState('')).toBe('pending');
-    expect(gitlab.mapCiState('{"head_pipeline":{"status":"canceling"}}')).toBe('pending');
-    expect(gitlab.mapCiState('{"head_pipeline":{"status":"who_knows"}}')).toBe('pending');
-  });
-});
-
 describe('every fixture lands inside the closed set', () => {
   // Not a spot check: run the lot through both providers' mappers and refuse
   // anything that is not a member.
@@ -169,58 +98,39 @@ describe('every fixture lands inside the closed set', () => {
     for (const v of [github.mapMrState(body), gitlab.mapMrState(body)]) {
       expect(MR_STATES).toContain(v);
     }
-    for (const v of [github.mapCiState(body), gitlab.mapCiState(body)]) {
-      expect(CI_STATES).toContain(v);
-    }
   });
 });
 
 /**
- * The verdict every fixture produced, all four mappers, frozen.
+ * The verdict every fixture produced, both mappers, frozen.
  *
  * Frozen rather than re-derived, so a changed mapping shows up as a diff here
  * rather than as a quietly different verdict. A row that has to change is a
  * behaviour change.
  */
-const RECORDED: readonly [string, MrState, CiState, MrState, CiState][] = [
-  ['github/ci-checks-green.json', 'unknown', 'green', 'unknown', 'none'],
-  ['github/ci-checks-mixed-red.json', 'unknown', 'red', 'unknown', 'none'],
-  ['github/ci-checks-running.json', 'unknown', 'pending', 'unknown', 'none'],
-  ['github/ci-none.json', 'unknown', 'none', 'unknown', 'none'],
-  ['github/ci-red-beats-pending.json', 'unknown', 'red', 'unknown', 'none'],
-  ['github/ci-status-green.json', 'unknown', 'green', 'unknown', 'none'],
-  ['github/ci-status-pending.json', 'unknown', 'pending', 'unknown', 'none'],
-  ['github/ci-status-red.json', 'unknown', 'red', 'unknown', 'none'],
-  ['github/mr-closed-unmerged.json', 'closed', 'pending', 'closed', 'none'],
-  ['github/mr-merged-mergecommit.json', 'merged', 'pending', 'merged', 'none'],
-  ['github/mr-merged-squash-branch-deleted.json', 'merged', 'pending', 'merged', 'none'],
-  ['github/mr-open.json', 'open', 'pending', 'unknown', 'none'],
-  ['gitlab/ci-canceled.json', 'unknown', 'pending', 'open', 'red'],
-  ['gitlab/ci-failed.json', 'unknown', 'pending', 'open', 'red'],
-  ['gitlab/ci-legacy-pipeline-field.json', 'unknown', 'pending', 'open', 'green'],
-  ['gitlab/ci-no-pipeline.json', 'unknown', 'pending', 'open', 'none'],
-  ['gitlab/ci-pending-created.json', 'unknown', 'pending', 'open', 'pending'],
-  ['gitlab/ci-skipped.json', 'unknown', 'pending', 'open', 'none'],
-  ['gitlab/mr-closed.json', 'closed', 'pending', 'closed', 'none'],
-  ['gitlab/mr-locked.json', 'unknown', 'pending', 'open', 'pending'],
-  ['gitlab/mr-merged.json', 'merged', 'pending', 'merged', 'green'],
-  ['gitlab/mr-opened.json', 'unknown', 'pending', 'open', 'pending'],
-  ['gitlab/mr-state-unknown-to-yan.json', 'unknown', 'pending', 'unknown', 'none'],
-  ['github/mr-api-error.stderr.txt', 'unknown', 'pending', 'unknown', 'pending'],
-  ['github/mr-api-error.stdout.txt', 'unknown', 'pending', 'unknown', 'pending'],
+const RECORDED: readonly [string, MrState, MrState][] = [
+  ['github/mr-closed-unmerged.json', 'closed', 'closed'],
+  ['github/mr-merged-mergecommit.json', 'merged', 'merged'],
+  ['github/mr-merged-squash-branch-deleted.json', 'merged', 'merged'],
+  ['github/mr-open.json', 'open', 'unknown'],
+  ['gitlab/mr-closed.json', 'closed', 'closed'],
+  ['gitlab/mr-locked.json', 'unknown', 'open'],
+  ['gitlab/mr-merged.json', 'merged', 'merged'],
+  ['gitlab/mr-opened.json', 'unknown', 'open'],
+  ['gitlab/mr-state-unknown-to-yan.json', 'unknown', 'unknown'],
+  ['github/mr-api-error.stderr.txt', 'unknown', 'unknown'],
+  ['github/mr-api-error.stdout.txt', 'unknown', 'unknown'],
 ];
 
-describe('every fixture, all four mappers, against the recorded verdicts', () => {
+describe('every fixture, both mappers, against the recorded verdicts', () => {
   it('covers every fixture on disk, so the table cannot quietly shrink', () => {
     expect(RECORDED.map((r) => r[0]).sort()).toEqual([...everyFixture()].sort());
   });
 
-  it.each(RECORDED)('%s', (name, ghMr, ghCi, glMr, glCi) => {
+  it.each(RECORDED)('%s', (name, ghMr, glMr) => {
     const body = fx(name);
     expect(github.mapMrState(body), `${name} github mr`).toBe(ghMr);
-    expect(github.mapCiState(body), `${name} github ci`).toBe(ghCi);
     expect(gitlab.mapMrState(body), `${name} gitlab mr`).toBe(glMr);
-    expect(gitlab.mapCiState(body), `${name} gitlab ci`).toBe(glCi);
   });
 });
 

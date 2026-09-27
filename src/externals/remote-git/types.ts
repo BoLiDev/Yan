@@ -4,16 +4,13 @@
  */
 
 export type MrState = 'merged' | 'closed' | 'open' | 'unknown';
-export type CiState = 'green' | 'red' | 'pending' | 'none';
 export type MergeStrategy = 'merge' | 'squash' | 'rebase';
 export type HostKind = 'github' | 'gitlab';
 
 export const MR_STATES: readonly MrState[] = ['merged', 'closed', 'open', 'unknown'];
-export const CI_STATES: readonly CiState[] = ['green', 'red', 'pending', 'none'];
 
-/** A repository, named either by slug or by the path of a clone of it. */
+/** A repository, named by the path of a clone of it. */
 export interface RepoRef {
-  readonly repo?: string;
   readonly dir?: string;
 }
 
@@ -33,5 +30,4 @@ export interface MrRef extends RepoRef {
 
 export interface MrMergeOptions extends MrRef {
   readonly strategy?: MergeStrategy;
-  readonly deleteSource?: boolean;
 }

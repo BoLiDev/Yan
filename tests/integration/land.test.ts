@@ -109,13 +109,6 @@ describe('with `user` asking: topologically sorted by `needs`', () => {
     expect(host.merges.every((m) => m.strategy === 'merge')).toBe(true);
   });
 
-  it('never deletes a branch: that decision is not this command to make', () => {
-    run({ task: 't042', userAsked: true });
-    // `deleteSource` is never passed, so it never reaches the host at all.
-    const source = readFileSync(join(process.cwd(), 'src', 'cli', 'land.ts'), 'utf8');
-    expect(source).not.toContain('deleteSource:');
-  });
-
   it('says so in log.md, and says who asked', () => {
     run({ task: 't042', userAsked: true });
     const log = readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8');
