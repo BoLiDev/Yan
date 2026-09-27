@@ -227,7 +227,6 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
   return { version: 1, home: vaultDir(), repos: knownRepos(), tasks };
 }
 
-
 /** How many of the most recent log entries a session starts with. */
 export const LOG_TAIL = 20;
 

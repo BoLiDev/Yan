@@ -61,7 +61,7 @@ export class Shift {
     return reportedMr(this.run);
   }
 
-  /** Append one event and touch the wake marker. */
+  /** Append one event to run/status, and nothing beside it. */
   public appendEvent(state: string, note = ''): void {
     appendEvent(this.run, state, note);
   }

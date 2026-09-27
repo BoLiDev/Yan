@@ -7,9 +7,10 @@ import { join } from 'node:path';
  * it cannot type the note into yan's pane: yan was sitting in a dialog, none
  * was running, or Herdr could not be reached.
  *
- * `yan show` and `yan session-start` print the lines and then remove the
- * file, which is the whole of its life. Read first and clear second, so a
- * crash in between repeats a report rather than losing one.
+ * `yan show` and `yan session-start` print the lines, and when they run as the
+ * task's own main agent they then remove the file, which is the whole of its
+ * life; run from anywhere else they only print. Read first and clear second,
+ * so a crash in between repeats a report rather than losing one.
  */
 
 export interface Undelivered {

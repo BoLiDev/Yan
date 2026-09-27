@@ -30,10 +30,11 @@ import { vaultDir } from '../util/vault.js';
 /**
  * `yan shift new` — dispatch a shift.
  *
- *   1  lease a tree, cutting the shift branch `yan/<task>-<unit>-<sid>`
- *   2  write shifts/<sid>/brief.md
- *   3  refuse if the sub-agent's working directory is inside the main clone
- *   4  start the agent, and confirm it
+ *   1  claim the sid, the container and the pane to split, under a lock
+ *   2  lease a tree, cutting the shift branch `yan/<task>-<unit>-<sid>`
+ *   3  write shifts/<sid>/brief.md
+ *   4  refuse if the sub-agent's working directory is inside the main clone
+ *   5  start the agent, and confirm it
  *
  * The tree is returned and the shift directory removed on any failure before
  * the agent is running. Nothing here fetches or touches `target`: a shift's
@@ -455,7 +456,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     const tree = grant.path;
     mkdirSync(join(taskDir, 'artifacts'), { recursive: true });
 
-    // --- 2. write the work order -------------------------------------------
+    // --- 3. write the work order -------------------------------------------
     const work =
       options.brief !== undefined
         ? readFileSync(options.brief, 'utf8')
@@ -479,7 +480,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills, scenario: spec.scenario }),
     );
 
-    // --- 3. refuse the main clone -------------------------------------------
+    // --- 4. refuse the main clone -------------------------------------------
     if (isInside(clone, workdir)) {
       process.stderr.write(`yan shift new: the sub-agent would have started in ${workdir}\n`);
       process.stderr.write(`yan shift new: that is the main clone (${clone}), which yan only ever fetches into\n`);
@@ -630,12 +631,14 @@ main clone and the dispatch was refused.`,
 /**
  * `yan shift done` — clock a shift out, in this order:
  *
- *   verify the MR is merged
- *     → write outcome.md
- *       → write the log line
- *         → rm -rf run/
- *           → return the tree
- *             → then delete the remote shift branch
+ *   0  uix work only: user has accepted it (--user-accepted)
+ *   1  a coding shift's merge request is merged; any other needs outcome.md
+ *   2  write outcome.md, if the shift did not
+ *   3  write the log line
+ *   4  rm -rf run/
+ *   5  return the tree
+ *   6  then delete the remote shift branch
+ *   7  close the agent's pane
  *
  * Merged is the host's answer and never git ancestry, because a squash-merged
  * branch is not an ancestor of what it landed on. The tree goes back before

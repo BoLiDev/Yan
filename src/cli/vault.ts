@@ -68,7 +68,7 @@ function today(): string {
 /**
  * Copy `templates/vault/` into `dir`, then write its vault.json and README.
  *
- * @throws YanError `vault_init_template_missing` when the template is not there.
+ * @throws YanError `vault_template_missing` when the template is not there.
  */
 function layDownSkeleton(dir: string, name: string): void {
   const template = join(yanHome(), 'templates', 'vault');
@@ -226,7 +226,7 @@ const lsVaults = new Command('ls')
  * Make a registered vault the active one, warning rather than failing when it
  * has no vault.json.
  *
- * @throws YanError `vault_use_usage` when no name is given, `vault_use_missing` when it is not
+ * @throws YanError `vault_usage` when no name is given, `vault_missing` when it is not
  *   registered here.
  */
 export function useVault(name: string | undefined): void {

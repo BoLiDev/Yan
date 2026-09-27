@@ -31,7 +31,7 @@ function yanVersion(home: string): string {
   return 'unknown';
 }
 
-/** What every ported subcommand module must export. */
+/** What every subcommand module must export. */
 interface CommandModule {
   readonly command: Command;
 }

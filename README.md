@@ -5,8 +5,8 @@ breaks it into pieces that can be handed out, each piece goes to a single-use su
 working in an isolated git worktree, and the result is delivered as a merge request.
 
 Status: **V3 implemented**. TypeScript on [Herdr](https://herdr.dev), on Git Bash (Windows)
-and Linux. The MVP's bash-and-tmux runtime has been deleted; `bin/` holds three shell stubs
-and nothing else.
+and Linux. The MVP's bash-and-tmux runtime has been deleted; `bin/` holds two stubs, the
+bash `yan` and the `yan.mjs` npm puts on PATH, and nothing else.
 
 **This repository is code.** Tasks, briefs, logs, outcomes, memory and the repository
 registry live in a **vault**: a git repository of your own, one per context — personal

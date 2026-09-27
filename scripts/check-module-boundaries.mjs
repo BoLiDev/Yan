@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 //
-// The module boundaries, checked by lint. Three rules:
+// The module boundaries, checked by lint. Four rules:
 //
-//   1. Nothing outside src/externals/<m>/ may import a file inside it other
-//      than its index.ts, which is the module's whole public surface.
+//   1. Nothing outside src/externals/<m>/ or src/records/<m>/ may import a
+//      file inside it other than its index.ts, which is the module's whole
+//      public surface.
 //   2. No module under src/externals/<a>/ may import src/externals/<b>/.
 //   3. Nothing under src/ may import src/ui/ except src/cli/, so nothing but
 //      a command can prompt.
+//   4. Every module under src/externals/ and src/records/ has an index.ts.
 //
 // A module's own colocated test is inside the module, so rule 1 lets it reach
 // the internals.

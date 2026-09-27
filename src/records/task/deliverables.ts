@@ -272,7 +272,7 @@ export class Deliverables {
 
 /**
  * A task's deliverables without a throw anywhere in the path, for a reader
- * that covers every task: the work report, and `yan ls`. A task id that is
+ * that covers every task: the work report. A task id that is
  * not a task, a vault that cannot be resolved and a file that does not
  * validate all come back as an empty list with a problem.
  */
