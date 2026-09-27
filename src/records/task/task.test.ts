@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task, briefText } from './index.js';
@@ -18,19 +18,11 @@ function requireUnitOf(task: TaskData, name: string): UnitData {
   return found;
 }
 
-let home = '';
-let previousHome: string | undefined;
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
-  home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
+  mkYanHome(mkTempDir());
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 afterAll(cleanupTempDirs);
 

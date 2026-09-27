@@ -1,8 +1,6 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import {
   cleanupTempDirs,
   fxGit,
@@ -13,6 +11,8 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, enterLock, seedT042 } from '../helpers/records.js';
 import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
 import { Task } from '../../src/records/task/index.js';
 import { type LeaseGrant, type ReturnOptions } from '../../src/externals/worktree/index.js';
@@ -34,7 +34,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let tree = '';
-let previousHome: string | undefined;
 let calls: string[] = [];
 
 /** What the pool hands out, and what it was holding when. */
@@ -130,21 +129,9 @@ function deps(): Deps {
   };
 }
 
-/** The lock `yan continue` holds, stamped with the pane the main agent is in. */
-function enterLock(task: string, pane: string): void {
-  writeFileSync(
-    join(home, 'tasks', task, '.enter.lock'),
-    `${JSON.stringify({ pid: process.pid, host: hostname(), at: 0, identity: enterIdentity(task, pane) })}\n`,
-  );
-}
-
 function run(options: NewOptions): { code: number; message: string; meta: Partial<ShiftMeta> } {
-  try {
-    return { code: 0, message: '', meta: dispatch({ scenario: 'coding', ...options }, deps()) };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '', meta: {} };
-  }
+  const r = attempt(() => dispatch({ scenario: 'coding', ...options }, deps()));
+  return { ...r, meta: r.value ?? {} };
 }
 
 /**
@@ -170,10 +157,8 @@ function useCli(cli: string): void {
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
 
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
@@ -182,11 +167,7 @@ beforeEach(() => {
   mkdirSync(join(tree, 'apps', 'auth'), { recursive: true });
   mkdirSync(join(tree, 'apps', 'common'), { recursive: true });
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', {
-    branch: 'feat/auth',
-    scope: ['apps/auth', 'apps/common'],
-  });
+  seedT042({ scope: ['apps/auth', 'apps/common'] });
 
   calls = [];
   pool = new FakePool();
@@ -194,10 +175,6 @@ beforeEach(() => {
   terminal = new FakeTerminal();
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('the order', () => {
   it('makes the container, then leases, then starts the agent', () => {
@@ -235,7 +212,7 @@ describe('the order', () => {
 
 describe('one task is one container', () => {
   it('joins the workspace the main agent is in, rather than making a new one', () => {
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = 'w7';
 
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
@@ -246,7 +223,7 @@ describe('one task is one container', () => {
   });
 
   it('follows the first shift, so a second one lands beside it', () => {
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = 'w7';
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
 
@@ -272,7 +249,7 @@ describe('one task is one container', () => {
   it('creates one when the lock names a pane herdr no longer knows', () => {
     // The stamped pane is gone — a yan that was killed, or a workspace `user`
     // closed. `workspaceOfPane` says undefined and the fallback carries on.
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = undefined;
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
     expect(r.code, r.message).toBe(0);
@@ -289,7 +266,7 @@ describe('a shift is a split of the main agent tab', () => {
   const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
 
   it('halves the main pane to the right for the first shift', () => {
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = 'w7';
     terminal.layout = { workspace: 'w7', tab: 'w7:t1', panes: [{ pane: 'w7:p1', rect: rect(0, 0, 200, 50) }] };
 
@@ -300,7 +277,7 @@ describe('a shift is a split of the main agent tab', () => {
   });
 
   it('splits the first shift down for the second, reading the pane it recorded', () => {
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = 'w7';
     terminal.layout = { workspace: 'w7', tab: 'w7:t1', panes: [{ pane: 'w7:p1', rect: rect(0, 0, 200, 50) }] };
     terminal.nextPane = 'w7:p2';
@@ -318,7 +295,7 @@ describe('a shift is a split of the main agent tab', () => {
   });
 
   it('makes a tab when the main agent tab cannot be read', () => {
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = 'w7';
     terminal.layout = undefined;
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
@@ -338,11 +315,11 @@ describe('a shift is a split of the main agent tab', () => {
     // s1 put the container in w7; the main agent has since been restarted in
     // w9. Splitting its pane would put the shift outside the container it is
     // recorded in.
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     terminal.paneWorkspace = 'w7';
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
 
-    enterLock('t042', 'w9:p1');
+    enterLock(home, 't042', 'w9:p1');
     terminal.layout = { workspace: 'w9', tab: 'w9:t1', panes: [{ pane: 'w9:p1', rect: rect(0, 0, 200, 50) }] };
     const second = run({ task: 't042', unit: 'auth', sid: 's2', briefText: 'x' });
     expect(second.code, second.message).toBe(0);
@@ -445,8 +422,7 @@ describe('the sid is claimed by making its directory', () => {
   it('refuses a sid that is already taken rather than dispatching over it', () => {
     expect(run({ task: 't042', unit: 'auth', sid: 's5', briefText: 'one' }).code).toBe(0);
     const again = run({ task: 't042', unit: 'auth', sid: 's5', briefText: 'two' });
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already exists');
+    expectUsage(again, 'already exists');
   });
 
   it('gives the sid back when the dispatch fails, so it leaves no hole', () => {
@@ -539,7 +515,7 @@ describe('--note', () => {
 
   it('refuses a note on more than one line before leasing anything', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', note: 'a\nb' });
-    expect(r.code).toBe(2);
+    expectUsage(r, '--note is one line');
     expect(briefState()).toBe('absent');
   });
 });
@@ -593,8 +569,7 @@ describe('sid is derived, and it increases', () => {
   it('refuses a sid that already exists', () => {
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'first' });
     const again = run({ task: 't042', unit: 'auth', sid: 's1' });
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already exists');
+    expectUsage(again, 'already exists');
   });
 });
 
@@ -667,8 +642,7 @@ describe('usage', () => {
     expect(run({ unit: 'auth' }).message).toContain('$YAN_TASK is unset');
     expect(run({ task: 't042' }).message).toContain('--unit is required');
     const r = run({ task: 't042', unit: 'nosuch' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('no such unit');
+    expectUsage(r, 'no such unit');
   });
 
   it('is reachable as `yan shift new` through the dispatcher', async () => {
@@ -681,15 +655,13 @@ describe('usage', () => {
 describe('scenario and tier', () => {
   it('refuses a dispatch that names no scenario, before leasing anything', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', scenario: '' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('--scenario is required');
+    expectUsage(r, '--scenario is required');
     expect(calls).toEqual([]);
   });
 
   it('refuses a tier the configuration does not have, before leasing anything', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', tier: 'max' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain("'max' is not a tier of coding");
+    expectUsage(r, "'max' is not a tier of coding");
     expect(calls).toEqual([]);
   });
 

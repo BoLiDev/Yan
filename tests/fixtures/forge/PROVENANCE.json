@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "why": "Mapping raw forge JSON to yan's closed return sets is the part of lib-forge.sh most likely to be wrong in production, so it is tested against payloads that really came off the wire - not against shapes someone remembered. Every file below says where it came from and whether it was verified against a live server. Read `verified: false` as 'nobody has ever seen a server send exactly this'.",
+  "why": "Mapping raw forge JSON to yan's closed return sets is the part of src/externals/remote-git (mapMrState in github.ts and gitlab.ts) most likely to be wrong in production, so it is tested against payloads that really came off the wire - not against shapes someone remembered. Every file below says where it came from and whether it was verified against a live server. Read `verified: false` as 'nobody has ever seen a server send exactly this'.",
   "captured_on": "2026-08-09",
   "tooling": { "gh": "2.97.0", "glab": "1.112.0" },
   "files": {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isInside, normalizePath, samePath } from '../../src/util/paths.js';
+import { isInside, normalizePath, samePath } from './paths.js';
 
 /**
  * A path yan built and a path an external tool printed only compare after

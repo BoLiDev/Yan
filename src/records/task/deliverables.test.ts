@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { Deliverables, Task, deliverableAside, readDeliverables } from './index.js';
 import { refLink, type DeliverableFile } from './deliverables.js';
@@ -12,20 +12,12 @@ import { YanError } from '../../util/error.js';
  * report uses cannot throw, whatever is on disk.
  */
 
-let home = '';
-let previousHome: string | undefined;
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
-  home = mkYanHome(mkTempDir());
-  process.env.YAN_HOME = home;
+  mkYanHome(mkTempDir());
   Task.create('t042', 'unify the auth header');
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 afterAll(cleanupTempDirs);
 

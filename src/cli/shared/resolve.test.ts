@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resolve, setPrompter } from '../../src/cli/shared/resolve.js';
-import { YanError } from '../../src/util/error.js';
+import { resolve, setPrompter } from './resolve.js';
+import { YanError } from '../../util/error.js';
 
 /**
  * How a missing option is filled in. The half that matters is the refusal:

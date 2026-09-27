@@ -2,15 +2,17 @@ import { defineConfig } from 'vitest/config';
 
 // Where a test lives says who it is for:
 //
-//   src/<module>/*.test.ts   the MODULE's own test. It may import the module's
-//                            internal files, which is exactly why it lives
-//                            here: a test in tests/ could only reach them by
-//                            widening the public surface.
-//   tests/integration/       cross-module, at the level of a command: through
-//                            bin/yan, or a command's exported function with
-//                            its deps injected
+//   src/<module>/*.test.ts   one module's own test, beside the file it tests,
+//                            whether or not it needs the internals. It may
+//                            import the module's internal files, which a test
+//                            in tests/ could only reach by widening the
+//                            public surface.
+//   tests/integration/       command-level: through bin/yan, or a command's
+//                            exported function with its deps injected
 //   tests/e2e/               real Herdr, real forge; skipped loudly when absent
-//   tests/unit/              what is left: shared helpers and cross-cutting rules
+//   tests/unit/              rules that belong to no one module: the module
+//                            and entry boundaries, the harness bindings, the
+//                            instructions, the shell stub
 //
 // Only *.test.ts is collected. `tsconfig.json` excludes src/**/*.test.ts from
 // the build, so colocated tests never reach dist/.

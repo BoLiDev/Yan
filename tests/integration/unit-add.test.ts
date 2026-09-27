@@ -11,6 +11,9 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { unitField, hasBranch } from '../helpers/records.js';
+import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan unit add` against real git and a local bare remote. Nothing here
@@ -27,22 +30,11 @@ let home = '';
 let clone = '';
 let bare = '';
 
-function unitField(task: string, unit: string, field: string): unknown {
-  const doc = JSON.parse(readFileSync(join(home, 'tasks', task, 'task.json'), 'utf8')) as {
-    units: Record<string, unknown>[];
-  };
-  return doc.units.find((u) => u.name === unit)?.[field] ?? '';
-}
-
 function unitCount(task: string): number {
   const doc = JSON.parse(readFileSync(join(home, 'tasks', task, 'task.json'), 'utf8')) as {
     units: unknown[];
   };
   return doc.units.length;
-}
-
-async function hasBranch(branch: string): Promise<boolean> {
-  return (await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`])).code === 0;
 }
 
 beforeAll(async () => {
@@ -52,19 +44,13 @@ beforeAll(async () => {
   clone = await mkClone(bare, join(home, 'repos', 'demo'));
   registerRepo(home, 'demo', clone, { url: bare });
 
-  const previous = process.env.YAN_HOME;
-  process.env.YAN_HOME = home;
-  const { Task } = await import('../../src/records/task/index.js');
   Task.create('t1', 'a demo task');
-  if (previous === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previous;
 });
 
 describe('target is never defaulted', () => {
   it('refuses an add with no --target, and writes nothing', async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'auth', '--repo', 'demo'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--target is required');
+    expectUsage(r, '--target is required');
     expect(r.out).toContain('no safe default');
     expect(unitCount('t1')).toBe(0);
   });
@@ -78,8 +64,7 @@ describe('target is never defaulted', () => {
   it('refuses an unknown option and an unknown task', async () => {
     expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main', '--bogus'], { YAN_TASK: 't1' })).code).not.toBe(0);
     const r = await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main'], { YAN_TASK: 'nope' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('no such task');
+    expectUsage(r, 'no such task');
   });
 });
 
@@ -87,10 +72,10 @@ describe('with no hook installed, the built-in default applies', () => {
   it('cuts yan/<task>-<unit>-r1 from the target', async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'auth', '--repo', 'demo', '--target', 'main', '--scope', 'apps/auth'], { YAN_TASK: 't1' });
     expect(r.code, r.out).toBe(0);
-    expect(unitField('t1', 'auth', 'branch')).toBe('yan/t1-auth-r1');
-    expect(unitField('t1', 'auth', 'target')).toBe('main');
-    expect(unitField('t1', 'auth', 'scope')).toEqual(['apps/auth']);
-    expect(await hasBranch('yan/t1-auth-r1')).toBe(true);
+    expect(unitField(home, 't1', 'auth', 'branch')).toBe('yan/t1-auth-r1');
+    expect(unitField(home, 't1', 'auth', 'target')).toBe('main');
+    expect(unitField(home, 't1', 'auth', 'scope')).toEqual(['apps/auth']);
+    expect(await hasBranch(clone, 'yan/t1-auth-r1')).toBe(true);
     expect((await fxGit(['-C', clone, 'rev-parse', 'yan/t1-auth-r1'])).stdout.trim()).toBe(
       (await fxGit(['-C', clone, 'rev-parse', 'origin/main'])).stdout.trim(),
     );
@@ -122,17 +107,16 @@ describe('a name of your own, however it is spelled', () => {
     ] as const) {
       const r = await runYan(home, ['unit', 'add', '--unit', unit, '--repo', 'demo', '--target', 'main', '--branch', given], { YAN_TASK: 't1' });
       expect(r.code, r.out).toBe(0);
-      expect(unitField('t1', unit, 'branch'), given).toBe(expected);
-      expect(await hasBranch(expected)).toBe(true);
+      expect(unitField(home, 't1', unit, 'branch'), given).toBe(expected);
+      expect(await hasBranch(clone, expected)).toBe(true);
     }
   });
 
   it('refuses a name no normalisation can rescue, and quotes what was given', async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'bad', '--repo', 'demo', '--target', 'main', '--branch', 'refs/heads/'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('not usable as a git ref');
+    expectUsage(r, 'not usable as a git ref');
     expect(r.out, 'the raw text, or the reader hunts for a name their tool never printed').toContain('refs/heads/');
-    expect(unitField('t1', 'bad', 'branch')).toBe('');
+    expect(unitField(home, 't1', 'bad', 'branch')).toBe('');
   });
 });
 
@@ -140,12 +124,12 @@ describe('making the branch exist', () => {
   it('adopts a branch that is already on the remote rather than re-cutting it', async () => {
     await fxGit(['-C', clone, 'push', 'origin', 'main:already/there']);
     await fxGit(['-C', clone, 'update-ref', '-d', 'refs/remotes/origin/already/there']);
-    expect(await hasBranch('already/there')).toBe(false);
+    expect(await hasBranch(clone, 'already/there')).toBe(false);
 
     const r = await runYan(home, ['unit', 'add', '--unit', 'legacy', '--repo', 'demo', '--target', 'main', '--branch', 'already/there'], { YAN_TASK: 't1' });
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain('adopted');
-    expect(await hasBranch('already/there')).toBe(true);
+    expect(await hasBranch(clone, 'already/there')).toBe(true);
     expect((await fxGit(['-C', clone, 'rev-parse', 'already/there'])).stdout.trim()).toBe(
       (await fxGit(['-C', bare, 'rev-parse', 'already/there'])).stdout.trim(),
     );
@@ -155,7 +139,7 @@ describe('making the branch exist', () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'ghost', '--repo', 'demo', '--target', 'no/such/branch'], { YAN_TASK: 't1' });
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('cannot resolve the base');
-    expect(unitField('t1', 'ghost', 'branch')).toBe('');
+    expect(unitField(home, 't1', 'ghost', 'branch')).toBe('');
   });
 });
 

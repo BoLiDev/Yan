@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { agySessionStart } from '../../src/hooks/agy-session-start.js';
+import { agySessionStart } from './agy-session-start.js';
 
 /**
  * Agy's `PreInvocation` stand-in for a `SessionStart` hook. What matters here

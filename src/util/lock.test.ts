@@ -2,9 +2,9 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { isStale, withLock } from '../../src/util/lock.js';
-import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
-import { YanError } from '../../src/util/error.js';
+import { isStale, withLock } from './lock.js';
+import { cleanupTempDirs, mkTempDir } from '../../tests/helpers/fixtures.js';
+import { YanError } from './error.js';
 
 /**
  * The one locking primitive: an exclusive file create, with the owner's stamp

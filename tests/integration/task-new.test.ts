@@ -3,13 +3,14 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
-  fxGit,
   mkBareRemote,
   mkTempDir,
   mkYanHome,
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { hasBranch } from '../helpers/records.js';
 import { createTask } from '../../src/cli/task.js';
 
 /**
@@ -45,12 +46,6 @@ async function detail(id: string): Promise<{ title: string; units: Array<Record<
   const r = await yan(['show', id, '--json']);
   expect(r.code, r.out).toBe(0);
   return JSON.parse(r.stdout) as { title: string; units: Array<Record<string, unknown>> };
-}
-
-async function hasBranch(repo: string, branch: string): Promise<boolean> {
-  return (
-    (await fxGit(['-C', join(home, 'repos', repo), 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`])).code === 0
-  );
 }
 
 beforeAll(async () => {
@@ -103,9 +98,9 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(d.units[0]?.target).toBe('main');
 
     // The integration branches really exist in the main clones.
-    expect(await hasBranch('monorepo-x', 'yan/t001-auth-r1')).toBe(true);
-    expect(await hasBranch('monorepo-x', 'yan/t001-admin-r1')).toBe(true);
-    expect(await hasBranch('proto', 'yan/t001-proto-r1')).toBe(true);
+    expect(await hasBranch(join(home, 'repos', 'monorepo-x'), 'yan/t001-auth-r1')).toBe(true);
+    expect(await hasBranch(join(home, 'repos', 'monorepo-x'), 'yan/t001-admin-r1')).toBe(true);
+    expect(await hasBranch(join(home, 'repos', 'proto'), 'yan/t001-proto-r1')).toBe(true);
 
     // …and create ended by trying to enter. This runner's stdio has no
     // terminal on it, so there is nowhere to put the agent and it says so —
@@ -136,8 +131,7 @@ describe('the id', () => {
 
   it('refuses an id that is already taken, before anything is written', async () => {
     const r = await yan(['task', 'new', '--id', 't042', '--title', 'again', '--repo', 'proto', '--target', 'main']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('already exists');
+    expectUsage(r, 'already exists');
   });
 });
 
@@ -163,21 +157,18 @@ describe('--json carries the enter record too; it only changes how it is printed
 describe('what it refuses, and never guesses', () => {
   it('names every unit that has no --target, by repo', async () => {
     const r = await yan(['task', 'new', '--title', 'no target', '--repo', 'proto']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--target is required for --repo proto');
+    expectUsage(r, '--target is required for --repo proto');
     expect(r.out).toContain('never guesses');
   });
 
   it('refuses a unit flag with no --repo before it', async () => {
     const r = await yan(['task', 'new', '--title', 'orphan', '--scope', 'apps/auth', '--repo', 'proto', '--target', 'main']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('has to come after a --repo');
+    expectUsage(r, 'has to come after a --repo');
   });
 
   it('refuses with no title and no repo, and names the flags, because there is no TTY here', async () => {
     const r = await yan(['task', 'new']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--title');
+    expectUsage(r, '--title');
     expect(r.out).toContain('--repo');
   });
 
@@ -195,8 +186,6 @@ describe('the clone is fetched once per clone, not once per unit', () => {
   function createWithFakes(units: Array<{ repo: string; target: string; scope?: string[] }>) {
     const freshened: string[] = [];
     const addedWith: Array<{ repo: string; fetched: boolean }> = [];
-    const previous = process.env.YAN_HOME;
-    process.env.YAN_HOME = home;
     try {
       const result = createTask(
         {
@@ -227,8 +216,6 @@ describe('the clone is fetched once per clone, not once per unit', () => {
       );
       return { result, freshened, addedWith };
     } finally {
-      if (previous === undefined) delete process.env.YAN_HOME;
-      else process.env.YAN_HOME = previous;
     }
   }
 

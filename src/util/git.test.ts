@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import * as g from '../../src/util/git.js';
-import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../helpers/fixtures.js';
-import { YanError } from '../../src/util/error.js';
+import * as g from './git.js';
+import { cleanupTempDirs, fxGit, mkTempDir, repoRoot } from '../../tests/helpers/fixtures.js';
+import { YanError } from './error.js';
 
 /**
  * `util/git.ts` refuses to run without an explicit directory, and never

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -8,9 +8,10 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
+import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
-import { Task } from '../../src/records/task/index.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 import { YanError } from '../../src/util/error.js';
@@ -31,7 +32,6 @@ afterAll(cleanupTempDirs);
 let home = '';
 let clone = '';
 let tree = '';
-let previousHome: string | undefined;
 let calls: string[] = [];
 
 const MR = 'https://forge.invalid/acme/widget/-/merge_requests/31';
@@ -81,14 +81,8 @@ function deps(): DoneDeps {
   };
 }
 
-function run(sid: string, options: DoneOptions = {}): { code: number; message: string } {
-  try {
-    clockOut(sid, options, deps());
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function run(sid: string, options: DoneOptions = {}): Attempt<unknown> {
+  return attempt(() => clockOut(sid, options, deps()));
 }
 
 /** Comments may name what is forbidden; code may not run it. */
@@ -98,17 +92,12 @@ function stripComments(source: string): string {
 
 /** A dispatched shift, as `yan shift new` leaves one. */
 function dispatched(sid: string, overrides: Record<string, unknown> = {}): string {
-  const run_ = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-  mkdirSync(run_, { recursive: true });
-  writeFileSync(
-    join(run_, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
-      branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
-      holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
-      container: 'w1', pane: 'w1:p7', mr: MR, ...overrides,
-    })}\n`,
-  );
+  const run_ = liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
+    branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
+    holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
+    container: 'w1', pane: 'w1:p7', mr: MR, ...overrides,
+  });
   writeFileSync(join(run_, 'status'), '2026-08-09T09:00:00Z\tstarted\tread the brief\n');
   leases = [
     { slot: 1, path: tree, branch: `yan/t042-auth-${sid}`, base: 'feat/auth', holder: `t042/auth/${sid}`, lease_id: LEASE, at: 0 },
@@ -117,18 +106,15 @@ function dispatched(sid: string, overrides: Record<string, unknown> = {}): strin
 }
 
 beforeEach(() => {
-  previousHome = process.env.YAN_HOME;
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  process.env.YAN_HOME = home;
   clone = join(home, 'repos', 'monorepo-x');
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'monorepo-x', clone);
   tree = join(tmp, 'tree1');
   mkdirSync(tree, { recursive: true });
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
 
   calls = [];
   hostSays = 'merged';
@@ -136,10 +122,6 @@ beforeEach(() => {
   leases = [];
 });
 
-afterEach(() => {
-  if (previousHome === undefined) delete process.env.YAN_HOME;
-  else process.env.YAN_HOME = previousHome;
-});
 
 describe('an unmerged merge request stops everything', () => {
   it('exits 4 and tears nothing down', () => {
@@ -221,8 +203,7 @@ describe('merged: the whole teardown, in order', () => {
 
   it('refuses to clock the same shift out twice', () => {
     const again = run('s1');
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already clocked out');
+    expectUsage(again, 'already clocked out');
   });
 });
 
@@ -282,17 +263,15 @@ describe('a teardown that stopped at the tree return can be finished', () => {
     mkdirSync(join(home, 'tasks', 't042', 'shifts', 's4'), { recursive: true });
     leases = [];
     const r = run('s4');
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('already clocked out');
+    expectUsage(r, 'already clocked out');
   });
 });
 
 describe('usage', () => {
   it('needs a shift id, and is reachable as `yan shift done`', async () => {
-    expect(run('').code).toBe(2);
+    expectUsage(run(''), 'a shift id is required');
     const r = await runYan(home, ['shift', 'done'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('a shift id is required');
+    expectUsage(r, 'a shift id is required');
   });
 });
 
@@ -351,8 +330,7 @@ describe('a coding shift with nothing to merge', () => {
   it('is refused without the flag, since no merge request was recorded', () => {
     const run_ = dispatched('s1', { scenario: 'coding', mr: '' });
     const r = run('s1');
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('no merge request recorded');
+    expectUsage(r, 'no merge request recorded');
     expect(existsSync(run_)).toBe(true);
   });
 
@@ -374,8 +352,7 @@ describe('a coding shift with nothing to merge', () => {
   it('a dispatch record from before scenarios existed is a coding shift', () => {
     const run_ = dispatched('s1', { mr: '' });
     const r = run('s1');
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('no merge request recorded');
+    expectUsage(r, 'no merge request recorded');
     expect(existsSync(run_)).toBe(true);
   });
 });
