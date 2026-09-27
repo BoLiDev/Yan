@@ -9,7 +9,7 @@ import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../.
 import { Task } from '../../records/task/index.js';
 import { vaultDir } from '../../util/vault.js';
 import { registry } from '../shared/repo.js';
-import type { PullResult } from '../vault.js';
+import type { PullResult } from '../shared/vault-pull.js';
 import { samePath } from '../../util/paths.js';
 import { isoSecond } from '../../util/time.js';
 import { poolLeases } from '../shared/leases.js';

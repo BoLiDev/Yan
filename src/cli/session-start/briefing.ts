@@ -109,9 +109,10 @@ function renderMemory(id: string, complete: boolean): void {
   renderDeliverables(id, complete);
   renderDrafts(id);
 
-  const log = new Log(id).excerpt(LOG_KEPT, LOG_TAIL);
+  const taskLog = new Log(id);
+  const log = taskLog.excerpt(LOG_KEPT, LOG_TAIL);
   out('');
-  out(`── log  ${log.lines.length < log.total ? `${log.lines.length} of ${log.total} entries` : `${log.total} entries`}  ${new Log(id).file}`);
+  out(`── log  ${log.lines.length < log.total ? `${log.lines.length} of ${log.total} entries` : `${log.total} entries`}  ${taskLog.file}`);
   out(`Every agreed and changed entry, and the last ${LOG_TAIL} of any kind. An agreed`);
   out('entry is what was understood then, not a verdict for ever: a later one');
   out('overrides it, and an option dropped before can be raised again if you say it');

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { Task } from '../records/task/index.js';
-import { pullVault } from './vault.js';
+import { pullVault } from './shared/vault-pull.js';
 import { YanError } from '../util/error.js';
 import { existingTask } from './shared/task-id.js';
 import { clearSurfaced, rebuild, render } from './session-start/picture.js';
