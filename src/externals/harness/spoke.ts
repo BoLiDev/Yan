@@ -171,13 +171,6 @@ function agySpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
   return newest([join(logs, 'transcript.jsonl'), join(logs, 'transcript_full.jsonl')]);
 }
 
-// --- codex -------------------------------------------------------------------
-
-/** Not read: codex is not run on the machines yan was built on, and `user` left it out. */
-function codexSpoke(): Spoke | undefined {
-  return undefined;
-}
-
 // --- the entry point ---------------------------------------------------------
 
 /** pid → parent pid, from `ps`. Empty where there is no `ps`. */
@@ -210,7 +203,7 @@ export function lastSpoke(facts: AgentFacts, env: HarnessEnv = harnessEnv()): Sp
   try {
     if (facts.kind === 'claude') return claudeSpoke(facts, env);
     if (facts.kind === 'agy') return agySpoke(facts, env);
-    if (facts.kind === 'codex') return codexSpoke();
+    // Codex is not read: it is not run on the machines yan was built on, and `user` left it out.
   } catch {
     // Whatever went wrong, the answer is "not known".
   }

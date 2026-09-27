@@ -59,13 +59,9 @@ export interface ShiftSpec extends AgentSpec {
   readonly skills: readonly string[];
 }
 
-function readConfig(): Record<string, unknown> {
-  return readVaultConfig() ?? {};
-}
-
 /** `agents.<role>` in full. Every field is `''` when it is not configured. */
 export function agentSpecFor(role: string): AgentSpec {
-  const value = recordOrNone(readConfig().agents)?.[role];
+  const value = recordOrNone(readVaultConfig()?.agents)?.[role];
   if (typeof value === 'string') return { cli: value.trim(), model: '', effort: '' };
   const spec = recordOrNone(value);
   return { cli: asString(spec?.cli).trim(), model: asString(spec?.model).trim(), effort: asString(spec?.effort).trim() };
@@ -73,7 +69,7 @@ export function agentSpecFor(role: string): AgentSpec {
 
 /** `scenarios`, read without throwing: whatever cannot be used is named in `problems`. */
 export function readScenarios(): ScenarioReading {
-  const raw = recordOrNone(readConfig().scenarios);
+  const raw = recordOrNone(readVaultConfig()?.scenarios);
   const problems: string[] = [];
   const scenarios: ScenarioConfig[] = [];
   if (raw === undefined) {
