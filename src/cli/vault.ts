@@ -58,8 +58,11 @@ function gitOrThrow(dir: string, args: readonly string[], what: string): void {
   }
 }
 
+/** The local day, `YYYY-MM-DD`, as every other date yan writes. */
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
 }
 
 /**
