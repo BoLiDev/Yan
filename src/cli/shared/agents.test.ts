@@ -4,10 +4,9 @@ import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, restoreVault } from '../../../tests/helpers/fixtures.js';
 import {
   agentSpecFor,
-  modelFlags,
   readScenarios,
   resolveShift,
-} from './config.js';
+} from './agents.js';
 
 /**
  * `agents.*` and `scenarios`: what a role runs by default, and the only ways a
@@ -133,21 +132,5 @@ describe('readScenarios', () => {
     expect(problems.join('\n')).toContain('scenarios.explore has no tiers');
     expect(problems.join('\n')).toContain("scenarios.coding.default 'huge' is not one of its tiers");
     expect(problems.join('\n')).toContain('scenarios.uix.default is not set');
-  });
-});
-
-describe('modelFlags', () => {
-  const spec = { model: 'm', effort: 'e' };
-
-  it("speaks each CLI's spelling", () => {
-    expect(modelFlags('claude', spec)).toEqual(['--model', 'm', '--effort', 'e']);
-    expect(modelFlags('C:/tools/agy.exe', spec)).toEqual(['--model', 'm', '--effort', 'e']);
-    expect(modelFlags('codex', spec)).toEqual(['-m', 'm', '-c', 'model_reasoning_effort=e']);
-  });
-
-  it('passes nothing that was not configured, and nothing to a CLI it does not know', () => {
-    expect(modelFlags('claude', { model: '', effort: '' })).toEqual([]);
-    expect(modelFlags('codex', { model: '', effort: 'high' })).toEqual(['-c', 'model_reasoning_effort=high']);
-    expect(modelFlags('node', spec)).toEqual([]);
   });
 });

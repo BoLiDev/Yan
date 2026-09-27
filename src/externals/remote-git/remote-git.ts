@@ -1,6 +1,6 @@
 import type { ProcessResult } from '../../util/process.js';
 import { runCli, type CliInvocation } from './client.js';
-import { hostFor, readConfig } from './config.js';
+import { hostFor, remoteGitConfig } from './config.js';
 import { githubProvider } from './github.js';
 import { gitlabProvider } from './gitlab.js';
 import type { Provider } from './provider.js';
@@ -39,7 +39,7 @@ export class RemoteGit {
   private readonly run: CliRunner;
 
   public constructor(options: RemoteGitOptions = {}) {
-    const config = readConfig();
+    const config = remoteGitConfig();
     this.provider = config.kind === 'github' ? githubProvider : gitlabProvider;
     this.host = hostFor(config);
     this.run = options.run ?? runCli;
@@ -124,5 +124,5 @@ export class RemoteGit {
  * `RemoteGit`.
  */
 export function configuredCli(): 'gh' | 'glab' {
-  return readConfig().kind === 'github' ? 'gh' : 'glab';
+  return remoteGitConfig().kind === 'github' ? 'gh' : 'glab';
 }

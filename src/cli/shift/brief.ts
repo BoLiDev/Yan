@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { ShiftSpec } from '../shared/config.js';
+import type { ShiftSpec } from '../shared/agents.js';
 import { readLearnings } from '../../records/memory/index.js';
 import type { UnitData } from '../../records/task/index.js';
 import { yanHome } from '../../util/home.js';

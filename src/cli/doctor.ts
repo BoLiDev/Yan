@@ -13,7 +13,8 @@ import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/
 import { configuredCli } from '../externals/remote-git/index.js';
 import { isYanError } from '../util/error.js';
 import { action, out } from './shared/action.js';
-import { agentSpecFor, cliKind, readScenarios, resolveShift, runsAs, type AgentSpec } from './shared/config.js';
+import { agentSpecFor, readScenarios, resolveShift, runsAs, type AgentSpec } from './shared/agents.js';
+import { cliKind } from '../externals/harness/index.js';
 import { registry } from './shared/repo.js';
 
 /**

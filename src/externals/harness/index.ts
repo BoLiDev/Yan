@@ -8,6 +8,7 @@
  * installed here, or keeps no file yan can find, is the ordinary case.
  */
 
-export { lastSpoke, harnessEnv, claudeProjectSlug } from './harness.js';
+export { lastSpoke, harnessEnv, claudeProjectSlug } from './spoke.js';
+export { cliKind, modelFlags } from './launch.js';
 export { typedInput } from './typed-input.js';
 export type { AgentFacts, HarnessEnv } from './types.js';

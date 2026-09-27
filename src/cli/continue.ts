@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { agentSpecFor, cliKind, modelFlags, type AgentSpec } from './shared/config.js';
+import { agentSpecFor, type AgentSpec } from './shared/agents.js';
+import { cliKind, modelFlags } from '../externals/harness/index.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { repoDirIfKnown } from './shared/repo.js';

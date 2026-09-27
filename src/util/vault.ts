@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { YanError } from './error.js';
-import { readJsonOrNone } from './json.js';
+import { readJsonIfPresent, readJsonOrNone } from './json.js';
 import { asRecord, asString } from './narrow.js';
 import { machineConfigPath, machineRevision, readMachine } from './machine.js';
 import { isDirectory, normalizePath } from './paths.js';
@@ -144,6 +144,23 @@ export function memDir(): string {
 /** `config.json` — agents.* and remote_git.*, which follow the context. */
 export function vaultConfigPath(): string {
   return join(vaultDir(), 'config.json');
+}
+
+/**
+ * The vault's `config.json`, opened and parsed in one place. Two modules own a
+ * section each and may not import one another — `remote_git` inside
+ * `externals/remote-git`, `agents` and `scenarios` in `cli/shared/agents.ts` —
+ * so this lives below both. Nothing here judges what is in it.
+ *
+ * A file that is not there is `undefined`; one that is there and does not
+ * parse throws, because a configuration someone wrote and got wrong is not the
+ * same as no configuration, and each owner words that refusal its own way.
+ *
+ * @throws YanError `json_invalid` when the file is not JSON.
+ */
+export function readVaultConfig(): Record<string, unknown> | undefined {
+  const raw = readJsonIfPresent(vaultConfigPath());
+  return raw === undefined ? undefined : asRecord(raw);
 }
 
 /** `repos.json` — the portable half of the repo registry: name → url, pool_size. */

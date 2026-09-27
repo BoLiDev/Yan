@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from '../shared/action.js';
-import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from '../shared/config.js';
+import { resolveShift, runsAs, type ShiftSpec } from '../shared/agents.js';
+import { cliKind, modelFlags } from '../../externals/harness/index.js';
 import { resolveContainer } from '../shared/container.js';
 import { display } from '../shared/display.js';
 import { placementOf } from '../shared/placement.js';
