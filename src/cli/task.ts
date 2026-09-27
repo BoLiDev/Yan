@@ -5,7 +5,7 @@ import { action, out } from './shared/action.js';
 import { registry, repoDir } from './shared/repo.js';
 import { tasksDir } from '../util/vault.js';
 import { isTty } from './shared/tty.js';
-import { enterTask, renderEntered } from './continue.js';
+import { enterTask, renderEntered } from './shared/enter.js';
 import { freshenClone } from './shared/branch.js';
 import { addTaskUnit } from './shared/unit-add.js';
 import { Task, briefText } from '../records/task/index.js';

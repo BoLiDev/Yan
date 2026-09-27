@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { dash } from './shared/table.js';
+import { dash } from './shared/style.js';
 import { Terminal, type AgentStatus, type Alive } from '../externals/herdr/index.js';
 import type { MrState } from '../externals/remote-git/index.js';
 import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';

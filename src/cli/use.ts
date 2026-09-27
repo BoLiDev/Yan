@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { action } from './shared/action.js';
+// The one command that imports another: an alias is `yan vault use` by definition.
 import { useVault } from './vault.js';
 
 /** `yan use <name>` — the alias for `yan vault use`, sharing its implementation. */

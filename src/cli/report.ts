@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { paneOfEnterLock } from './shared/enter-lock.js';
-import { checkSendLength, type LineSender } from './send.js';
+import { checkSendLength, type LineSender } from './shared/pane-line.js';
 import { typedInput } from '../externals/harness/index.js';
 import { Terminal, type ReadFormat, type ReadSource } from '../externals/herdr/index.js';
 import { Shift, recordUndelivered, undeliveredFile } from '../records/shift/index.js';

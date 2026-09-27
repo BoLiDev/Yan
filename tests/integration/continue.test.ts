@@ -13,7 +13,7 @@ import {
 import { expectUsage } from '../helpers/usage.js';
 import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
-import { enterTask } from '../../src/cli/continue.js';
+import { enterTask } from '../../src/cli/shared/enter.js';
 
 /**
  * `yan continue`.

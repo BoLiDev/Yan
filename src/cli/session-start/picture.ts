@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isMainAgentOf } from '../shared/caller.js';
 import { out } from '../shared/action.js';
-import { dash } from '../shared/table.js';
+import { dash } from '../shared/style.js';
 import { Terminal, type Alive } from '../../externals/herdr/index.js';
 import type { MrRef, MrState } from '../../externals/remote-git/index.js';
 import { mrStateOrUnknown, type MrStateReader } from '../shared/mr-state.js';

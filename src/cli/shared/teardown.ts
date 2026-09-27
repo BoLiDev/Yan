@@ -5,7 +5,6 @@ import { Terminal } from '../../externals/herdr/index.js';
 import { WorktreePool, type LeaseRow, type ReturnOptions } from '../../externals/worktree/index.js';
 import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
-import type { Closer } from './terminal.js';
 
 /**
  * The four steps every teardown repeats — `yan done`, `yan abandon`,
@@ -27,6 +26,18 @@ import type { Closer } from './terminal.js';
 export type PoolFor = (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
 type Returner = (clone: string) => Pick<WorktreePool, 'return'>;
 type Statuser = (clone: string) => Pick<WorktreePool, 'status'>;
+
+/**
+ * What a command that tears something down needs from the terminal. `Terminal`
+ * is the real one; a test passes its own. `agentAlive` is optional because
+ * only `yan shift done` asks — it reports an agent that survived the close
+ * rather than assuming it went.
+ */
+export interface Closer {
+  close(pane: string): void;
+  clearPaneTitle(pane: string): void;
+  agentAlive?(pane: string): 'alive' | 'dead' | 'unknown';
+}
 
 /**
  * Close a shift's pane and answer whether its agent really went. Never throws:

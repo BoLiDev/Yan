@@ -1,14 +1,11 @@
-import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { readNote, appendLog } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/tty.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
-import type { Closer } from './shared/terminal.js';
-import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
-import { RemoteGit } from '../externals/remote-git/index.js';
-import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
+import { leasesHeldBy, returnLease } from './shared/teardown.js';
+import { closeIfOpen, describeShift, requireConsent, tearDown, type AbandonDeps, type AbandonedShift, type MrClosing } from './shared/abandon.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { isYanError, YanError } from '../util/error.js';
@@ -17,143 +14,14 @@ import { isYanError, YanError } from '../util/error.js';
  * Giving work up: `yan shift abandon <sid>` for one shift, `yan abandon <id>`
  * for a whole task. Both destroy work that exists nowhere else and close merge
  * requests colleagues can see, so both need `--user-asked`, and both need a
- * reason, which is what the log keeps.
+ * reason, which is what the log keeps. This is the task's; the shift's is
+ * `shift/abandon.ts`, and the teardown both run is `shared/abandon.ts`.
  *
  * What goes: the agent and its pane, `run/`, the tree with anything
  * uncommitted in it, and any merge request still open. What stays: the brief,
  * outcome.md, and every pushed branch — an unmerged branch is never deleted,
  * and abandoned work may still be wanted.
  */
-
-/** What abandoning needs from the outside. Each defaults to the real one. */
-export interface AbandonDeps {
-  readonly terminal?: Closer;
-  readonly pool?: PoolFor;
-  readonly mrStateOf?: MrStateReader;
-  readonly closeMr?: (mr: string, dir: string | undefined) => void;
-}
-
-/** What became of a merge request that was asked to close. */
-type MrClosing = 'closed' | 'already-closed' | 'merged' | 'unknown' | 'failed' | 'none';
-
-interface AbandonedShift {
-  readonly sid: string;
-  readonly unit: string;
-  readonly mr: string;
-  readonly mr_closing: MrClosing;
-  readonly tree_returned: boolean;
-  readonly pane_closed: boolean;
-  readonly pane: string;
-}
-
-function requireConsent(command: string, userAsked: boolean | undefined, reason: string | undefined): string {
-  if (userAsked !== true) {
-    throw YanError.usage(`${command}_usage`, "abandoning destroys work that exists nowhere else and closes merge requests colleagues can see, so only user asks for it. Nothing was touched. When they have, re-run with --user-asked");
-  }
-  const text = readNote(command, reason);
-  if (text === '') {
-    throw YanError.usage(`${command}_usage`, '--reason is required - one line saying why this is being given up, which is what the log keeps');
-  }
-  return text;
-}
-
-/**
- * Close a merge request that is still open, and answer what became of it.
- * Never throws: a forge that cannot be reached must not keep the local work
- * alive, so the failure is reported instead.
- */
-function closeIfOpen(mr: string, dir: string | undefined, deps: AbandonDeps): MrClosing {
-  if (mr === '') return 'none';
-  const state = mrStateOrUnknown({ mr, dir }, deps.mrStateOf);
-  if (state === 'merged') return 'merged';
-  if (state === 'closed') return 'already-closed';
-  if (state === 'unknown') return 'unknown';
-  try {
-    (deps.closeMr ?? ((url: string, d: string | undefined) => new RemoteGit().closeMr({ mr: url, dir: d })))(mr, dir);
-    return 'closed';
-  } catch {
-    return 'failed';
-  }
-}
-
-/**
- * Tear one live shift down without accepting its work. The caller has the
- * consent and the reason; this does the work and never throws for the forge,
- * the terminal or the pool, reporting each instead.
- */
-function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
-  const meta = shift.meta();
-  const unit = meta.unit ?? '';
-  const tree = meta.tree ?? '';
-  const pane = meta.pane ?? '';
-  const clone = meta.clone ?? cloneOf(shift.task, unit);
-
-  const mr = shift.openedMr(meta);
-  const mrClosing = closeIfOpen(mr, clone === '' ? undefined : clone, deps);
-
-  // The agent first, so nothing is still writing into the tree being wiped.
-  const paneClosed = closePane(pane, deps.terminal);
-  rmSync(shift.run, { recursive: true, force: true });
-
-  let returned = false;
-  if (tree !== '' && clone !== '') {
-    const back = returnLease(
-      clone,
-      tree,
-      { leaseId: meta.lease_id, holder: meta.holder, force: true },
-      deps.pool,
-    );
-    returned = back.returned;
-    if (!back.returned) {
-      process.stderr.write(`yan abandon: the tree at ${tree} could not be returned - 'yan tree status' shows the lease (${back.reason ?? ''})\n`);
-    }
-  }
-
-  return { sid: shift.sid, unit, mr, mr_closing: mrClosing, tree_returned: returned, pane_closed: paneClosed, pane };
-}
-
-function mrPhrase(r: { mr: string; mr_closing: MrClosing }): string {
-  switch (r.mr_closing) {
-    case 'closed':
-      return `; ${r.mr} closed`;
-    case 'failed':
-      return `; ${r.mr} could NOT be closed`;
-    case 'unknown':
-      return `; the host could not say what became of ${r.mr}, so it was left`;
-    case 'merged':
-      return `; ${r.mr} had already merged`;
-    default:
-      return '';
-  }
-}
-
-interface ShiftAbandonOptions {
-  task?: string;
-  reason?: string;
-  userAsked?: boolean;
-  json?: boolean;
-}
-
-/**
- * `yan shift abandon <sid>` without the process around it.
- *
- * @throws YanError `shift_abandon_usage` without `--user-asked` or `--reason`, for a
- *   missing sid, or for a shift that has already clocked out.
- */
-export function abandonShift(sid: string | undefined, options: ShiftAbandonOptions, deps: AbandonDeps = {}): AbandonedShift {
-  if (sid === undefined || sid === '') throw YanError.usage('shift_abandon_usage', 'a shift id is required');
-  const reason = requireConsent('shift_abandon', options.userAsked, options.reason);
-  const shift = Shift.resolve(sid, options.task ?? '');
-  if (!shift.isLive()) {
-    throw YanError.usage('shift_abandon_usage', `shift ${shift.label()} is not live - run/ is gone, so there is nothing to abandon`);
-  }
-
-  const result = tearDown(shift, deps);
-  if (shift.task !== '') {
-    appendLog('yan shift abandon', shift.task, 'changed', `${result.sid} ${result.unit}  abandoned${mrPhrase(result)}`, reason);
-  }
-  return result;
-}
 
 interface TaskAbandonOptions {
   task?: string;
@@ -306,43 +174,6 @@ export async function abandonAtTerminal(
 function atTerminal(): boolean {
   return isTty() && process.stdout.isTTY === true;
 }
-
-/** Lines a person reads about a torn-down shift, and whether anything is left to do by hand. */
-function describeShift(r: AbandonedShift): { lines: string[]; leftover: boolean } {
-  const lines = [`${r.sid} abandoned`];
-  if (r.mr !== '') lines.push(`  mr     ${r.mr} (${r.mr_closing})`);
-  lines.push(`  tree   ${r.tree_returned ? 'returned' : 'NOT returned'}`);
-  let leftover = !r.tree_returned || r.mr_closing === 'failed';
-  if (!r.pane_closed) {
-    lines.push(`  pane   ${r.pane} is still running an agent - close it by hand`);
-    leftover = true;
-  }
-  return { lines, leftover };
-}
-
-export const shiftAbandonCommand = new Command('abandon')
-  .description("give a shift up: close its merge request, kill its agent, discard its tree - only when user asks")
-  .argument('[sid]')
-  .option('--reason <text>', 'REQUIRED: one line saying why, for log.md')
-  .option('--user-asked', 'REQUIRED: user said this work is to be given up')
-  .option('--json', 'print the record instead of a summary')
-  .addHelpText(
-    'after',
-    `
-Closes the shift's merge request if it is still open, closes its pane and
-checks the agent went, deletes run/, and returns its tree with anything
-uncommitted in it. The brief, outcome.md and any pushed branch stay. Exit 1
-when something is left to do by hand.`,
-  )
-  .action(
-    action('yan shift abandon', (sid: string | undefined, options: ShiftAbandonOptions) => {
-      const r = abandonShift(sid, options);
-      if (options.json === true) out(JSON.stringify(r));
-      const { lines, leftover } = describeShift(r);
-      if (options.json !== true) for (const line of lines) out(line);
-      if (leftover) process.exitCode = 1;
-    }),
-  );
 
 export const command = new Command('abandon')
   .description('give a whole task up - only when user asks')
