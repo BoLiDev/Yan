@@ -5,7 +5,7 @@ import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/tty.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import { leasesHeldBy, returnLease } from './shared/teardown.js';
-import { closeIfOpen, describeShift, requireConsent, tearDown, type AbandonDeps, type AbandonedShift, type MrClosing } from './shared/abandon.js';
+import { closeIfOpen, describeShift, requireConsent, tearDown, type AbandonDeps, type AbandonedShift, type MrClosing } from './shared/abandon-shift.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { isYanError, YanError } from '../util/error.js';
@@ -15,7 +15,7 @@ import { isYanError, YanError } from '../util/error.js';
  * for a whole task. Both destroy work that exists nowhere else and close merge
  * requests colleagues can see, so both need `--user-asked`, and both need a
  * reason, which is what the log keeps. This is the task's; the shift's is
- * `shift/abandon.ts`, and the teardown both run is `shared/abandon.ts`.
+ * `shift/abandon.ts`, and the teardown both run is `shared/abandon-shift.ts`.
  *
  * What goes: the agent and its pane, `run/`, the tree with anything
  * uncommitted in it, and any merge request still open. What stays: the brief,

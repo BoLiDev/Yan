@@ -6,7 +6,7 @@ import { expectUsage } from '../helpers/usage.js';
 import { attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { abandonAtTerminal, abandonTask, type AbandonAsk } from '../../src/cli/abandon.js';
 import { abandonShift } from '../../src/cli/shift/abandon.js';
-import type { AbandonDeps } from '../../src/cli/shared/abandon.js';
+import type { AbandonDeps } from '../../src/cli/shared/abandon-shift.js';
 import { YanError } from '../../src/util/error.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';

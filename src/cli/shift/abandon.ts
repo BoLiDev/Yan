@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { action, out } from '../shared/action.js';
 import { appendLog } from '../shared/note.js';
-import { describeShift, mrPhrase, requireConsent, tearDown, type AbandonDeps, type AbandonedShift } from '../shared/abandon.js';
+import { describeShift, mrPhrase, requireConsent, tearDown, type AbandonDeps, type AbandonedShift } from '../shared/abandon-shift.js';
 import { Shift } from '../../records/shift/index.js';
 import { YanError } from '../../util/error.js';
 
