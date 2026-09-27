@@ -479,6 +479,27 @@ describe('the scenarios reach the session', () => {
     expect(r.stdout).toContain('normal (default)  claude opus high');
     expect(r.stdout).toContain('normal (default)  agy gemini-3.1-pro-high /design');
   });
+
+  it('warns about a tier with no cli over an unset agents.shift, and finishes the picture', async () => {
+    writeFileSync(
+      join(home, 'config.json'),
+      JSON.stringify({
+        version: 1,
+        agents: { yan: 'claude' },
+        scenarios: {
+          explore: { tiers: { normal: {} } },
+          coding: { tiers: { normal: { cli: 'claude', model: 'opus' } } },
+          uix: { tiers: { normal: { cli: 'agy' } } },
+        },
+        remote_git: { kind: 'github' },
+      }),
+    );
+    const r = await runYan(home, ['session-start', 't042']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('normal (default)  WARN explore/normal names no cli and agents.shift is not set');
+    expect(r.stdout, 'the tiers that do resolve are still listed').toContain('normal (default)  claude opus');
+    expect(r.stdout).toContain('normal (default)  agy');
+  });
 });
 
 /**

@@ -37,8 +37,8 @@ describe('one line', () => {
 
   it('is the same in both files', () => {
     const run = join(mkTempDir(), 'run');
-    appendEvent(run, 'blocked', 'which header wins');
-    recordUndelivered(run, 'blocked', 'which header wins');
+    const at = appendEvent(run, 'blocked', 'which header wins');
+    recordUndelivered(run, 'blocked', 'which header wins', at);
     const line = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\tblocked\twhich header wins\n$/;
     expect(readFileSync(join(run, 'status'), 'utf8')).toMatch(line);
     expect(readFileSync(undeliveredFile(run), 'utf8')).toMatch(line);

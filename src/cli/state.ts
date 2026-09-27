@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { dash } from './shared/table.js';
+import { dash } from './shared/style.js';
 import { Terminal, type AgentStatus, type Alive } from '../externals/herdr/index.js';
 import type { MrState } from '../externals/remote-git/index.js';
 import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
@@ -35,14 +35,15 @@ export interface AliveReader {
 }
 
 interface StateFacts {
-  readonly version: 1;
+  readonly version: 2;
   readonly sid: string;
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
   readonly tree: string;
   readonly agent: string;
-  readonly agent_id: string;
+  /** The terminal pane the agent runs in, as `yan show --json` names it. */
+  readonly pane: string;
   readonly live: boolean;
   readonly terminal: Alive;
   readonly terminal_why: string;
@@ -79,7 +80,7 @@ export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFact
   const branch = meta.branch ?? '';
   const tree = meta.tree ?? '';
   const agent = meta.agent ?? '';
-  const agentId = meta.pane ?? '';
+  const pane = meta.pane ?? '';
   const mr = meta.mr ?? '';
 
   // Source 1: the terminal.
@@ -88,14 +89,14 @@ export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFact
   let attention: AgentStatus | 'unasked' = 'unasked';
   if (!live) {
     terminalWhy = 'run/ is gone; there is nothing left to ask about';
-  } else if (agentId === '') {
+  } else if (pane === '') {
     terminalWhy = 'no terminal id in run/meta.json';
   } else {
     const screen = deps.terminal ?? new Terminal();
-    terminal = screen.agentAlive(agentId);
+    terminal = screen.agentAlive(pane);
     // Asked separately, and only of an agent that is there: a pane with no
     // agent in it has no status worth reporting.
-    if (terminal === 'alive') attention = screen.agentStatus(agentId);
+    if (terminal === 'alive') attention = screen.agentStatus(pane);
   }
 
   // Source 2: git.
@@ -133,14 +134,14 @@ export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFact
   else state = 'unknown';
 
   return {
-    version: 1,
+    version: 2,
     sid: shift.sid,
     task: shift.task,
     unit,
     branch,
     tree,
     agent,
-    agent_id: agentId,
+    pane,
     live,
     terminal,
     terminal_why: terminalWhy,
@@ -189,10 +190,14 @@ events; this command counts them and never reads the last one as the state.
 
 Nothing watches a shift, so this is how you find out: run it before you act on
 a shift, when user asks about one, and when one has been quiet longer than its
-work should take.`,
+work should take.
+
+--json is version 2. Since version 1: "agent_id" is "pane", as in 'yan show
+--json'. "events" stays a count: unlike show, this command never surfaces the
+newest event, which is not the state.`,
   )
   .action(
-    action('state', (sid: string | undefined, options: { json?: boolean; verdict?: boolean }) => {
+    action('yan state', (sid: string | undefined, options: { json?: boolean; verdict?: boolean }) => {
       if (sid === undefined || sid === '') {
         throw YanError.usage('state_usage', 'a shift id is required');
       }
@@ -221,7 +226,7 @@ work should take.`,
       out('');
       row('terminal', facts.terminal_why !== ''
         ? `${facts.terminal}  (${facts.terminal_why})`
-        : `${facts.terminal}  (id ${facts.agent_id})`);
+        : `${facts.terminal}  (pane ${facts.pane})`);
       if (facts.attention !== 'unasked') row('screen', attentionLine(facts.attention));
       row('git', facts.head_branch !== '' && facts.branch !== '' && facts.head_branch !== facts.branch
         ? `${facts.tree_state}  (HEAD is on ${facts.head_branch}, meta says ${facts.branch})`

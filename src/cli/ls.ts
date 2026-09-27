@@ -24,7 +24,7 @@ export const command = new Command('ls')
 One task in depth is 'yan show <id>'.`,
   )
   .action(
-    action('ls', (options: { json?: boolean; status: StatusFilter }) => {
+    action('yan ls', (options: { json?: boolean; status: StatusFilter }) => {
       const now = new Date();
       const found = overview(options.status, { now });
       if (options.json === true) out(JSON.stringify(found));

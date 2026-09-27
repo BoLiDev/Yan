@@ -61,11 +61,12 @@ export class Log {
   /**
    * Append one line, creating the file if needed.
    *
-   * @param when the mm-dd date to stamp; defaults to today.
+   * @param monthDay the date to stamp, `MM-DD` as log.md writes it; `''` for
+   *   today, the local day.
    * @throws YanError when `type` is not one of LOG_TYPES, or `text` is empty
    *   or contains a newline.
    */
-  public append(type: LogType, text: string, when = ''): void {
+  public append(type: LogType, text: string, monthDay = ''): void {
     if (!isLogType(type)) {
       throw YanError.usage('log_usage', `'${String(type)}' is not a log type - one of: ${LOG_TYPES.join(' ')}`);
     }
@@ -75,7 +76,7 @@ export class Log {
     }
     this.init();
     try {
-      appendFileSync(this.file, `- ${when === '' ? localMonthDay() : when}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
+      appendFileSync(this.file, `- ${monthDay === '' ? localMonthDay() : monthDay}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
     } catch (cause) {
       throw new YanError('log_failed', `cannot append to ${this.file}`, { cause });
     }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { paneOfEnterLock } from './shared/enter-lock.js';
-import { checkSendLength, type LineSender } from './send.js';
+import { checkSendLength, type LineSender } from './shared/pane-line.js';
 import { typedInput } from '../externals/harness/index.js';
 import { Terminal, type ReadFormat, type ReadSource } from '../externals/herdr/index.js';
 import { Shift, recordUndelivered, undeliveredFile } from '../records/shift/index.js';
@@ -225,9 +225,7 @@ export function reportEvent(
 
   // The handover has to exist before the event that sends yan to read it.
   if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
-    throw new YanError('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
-      { exitCode: 2 },
-    );
+    throw YanError.usage('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`);
   }
 
   // The note is typed into a pane, so it is held to the line `yan send`
@@ -240,7 +238,7 @@ export function reportEvent(
     waitWhileUserTypes(shift.task, deps);
   }
 
-  shift.appendEvent(state, note);
+  const at = shift.appendEvent(state, note);
   out(`recorded ${state} in ${join(shift.run, 'status')}`);
 
   // `started` says the shift read its brief, which is nothing yan has to act
@@ -253,7 +251,9 @@ export function reportEvent(
     out('delivered to yan');
     return;
   }
-  recordUndelivered(shift.run, state, note);
+  // The moment the report was made, not this later one: the two lines are one
+  // report, and delivery may have spent seconds waiting on yan's pane.
+  recordUndelivered(shift.run, state, note, at);
   out(`NOT delivered to yan: ${why}`);
   out(`it is recorded in ${undeliveredFile(shift.run)}, which 'yan show' and the next session start print`);
 }
@@ -289,7 +289,7 @@ step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid is for yan
 itself and for tests.`,
   )
   .action(
-    action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
+    action('yan report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
       reportEvent(state, note, options);
     }),
   );

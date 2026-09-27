@@ -21,7 +21,7 @@ export const command = new Command('open')
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--artifacts', 'open tasks/<id>/artifacts/ instead')
   .action(
-    action('open', async (given: string | undefined, options: { artifacts?: boolean }) => {
+    action('yan open', async (given: string | undefined, options: { artifacts?: boolean }) => {
       const id = await chosenTask('open', given, {
         spelled: 'yan open',
         question: 'Which task directory do you want to open?',

@@ -33,7 +33,7 @@ const directoryFirst: Array<[string, (dir: string) => unknown]> = [
   ['cleanFd', (d) => g.cleanFd(d)],
   ['branchesContainingHead', (d) => g.branchesContainingHead(d)],
   ['revParse', (d) => g.revParse(d, ['HEAD'])],
-  ['clone', (d) => g.clone(d, 'https://example.invalid/x.git', 'dest')],
+  ['cloneRepo', (d) => g.cloneRepo(d, 'https://example.invalid/x.git', 'dest')],
   ['remoteUrl', (d) => g.remoteUrl(d)],
 ];
 

@@ -120,6 +120,10 @@ export function codexConfigFile(): string {
  * Whether codex's settings, as text, record `hooksFile` as trusted. The key is
  * `<path to the hooks file>:<event>:<n>:<n>`; the path spelling is codex's, so
  * the test is on the file, not on an exact key.
+ *
+ * Written for codex's Windows spelling, with backslashes. macOS and Linux are
+ * unverified: if codex writes `/` in the key there, this never matches and
+ * doctor warns about hooks that are in fact trusted.
  */
 export function codexTrustsHooks(config: string, hooksFile: string): boolean {
   return config.toLowerCase().includes(`${hooksFile.toLowerCase().replace(/\//g, '\\')}:`);

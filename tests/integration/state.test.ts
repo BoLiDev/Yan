@@ -178,6 +178,10 @@ describe('through bin/yan', () => {
     expect(parsed.state).toBe('unknown');
     expect(parsed.events).toBe(3);
     expect(parsed.terminal).toBe('unknown');
+    // Version 2: the pane is named as show and session-start name it.
+    expect(parsed.version).toBe(2);
+    expect(parsed).toHaveProperty('pane');
+    expect(parsed).not.toHaveProperty('agent_id');
   });
 
   it('refuses a missing id, both output flags at once, and an unknown shift', async () => {

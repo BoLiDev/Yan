@@ -11,6 +11,7 @@ import { Terminal } from '../externals/herdr/index.js';
 import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
 import type { Task, UnitData } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
+import { isDate } from '../util/time.js';
 
 /**
  * `yan unit add` / `yan unit set`.
@@ -103,7 +104,7 @@ const set = new Command('set')
   .option('--base <ref>', 'what to cut the new branch from when it does not exist')
   .option('--end <end>', 'delivered | abandoned - how the round being replaced finished')
   .option('--reason <text>', 'why, appended to the log line')
-  .option('--at <date>', 'the retirement date recorded in history[] (default: today)')
+  .option('--at <date>', 'the retirement date recorded in history[], YYYY-MM-DD (default: today)')
   .option('--scope <path>', 'repeatable; REPLACES the whole scope list', collect, undefined)
   .option('--needs <unit>', 'repeatable; REPLACES the whole needs list', collect, undefined)
   .option('--note <text>', 'one line for log.md: why this changed')
@@ -146,6 +147,9 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   }
   if (end0 !== '' && !wantBranch) {
     throw YanError.usage('unit_set_usage', '--end only applies to --branch: it says how the round being replaced finished');
+  }
+  if (options.at !== undefined && !isDate(options.at)) {
+    throw YanError.usage('unit_set_usage', `--at takes a date as YYYY-MM-DD, not '${options.at}'`);
   }
 
   const record = existingTask('unit_set', task);

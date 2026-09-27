@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { action } from './shared/action.js';
+import { checkSendLength, type LineSender } from './shared/pane-line.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Shift } from '../records/shift/index.js';
 import { YanError } from '../util/error.js';
@@ -12,34 +13,6 @@ import { YanError } from '../util/error.js';
  * The pane comes from `run/meta.json`, and nothing is sent to a pane with no
  * live agent — the text would be typed into whatever shell is there.
  */
-
-/** The longest line this will send, from `$YAN_SEND_MAX`. */
-function sendMax(): number {
-  const raw = process.env.YAN_SEND_MAX;
-  const n = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
-  return Number.isInteger(n) && n > 0 ? n : 1000;
-}
-
-/**
- * Hold a line to what one `herdr agent prompt` submission may carry.
- * `yan report` holds its note to the same limit, because the note goes down
- * this same channel into a pane, and one limit is one answer to how long a
- * line may be.
- *
- * @throws YanError, carrying `code`, when the line is over it.
- */
-export function checkSendLength(line: string, code: string): void {
-  const max = sendMax();
-  if (line.length > max) {
-    throw YanError.usage(code, `that line is ${line.length} characters and the limit is ${max} - write the detail to a file and name its path in the line`,
-    );
-  }
-}
-
-/** What `yan send` needs from the terminal. `Terminal` is the real one. */
-export interface LineSender {
-  send(pane: string, text: string): void;
-}
 
 /**
  * Send one line to a shift's agent.
@@ -99,7 +72,7 @@ separate Enter to send, and no first Enter for the agent to swallow.
 A pane with no live agent is refused rather than typed into.`,
   )
   .action(
-    action('send', (sid: string | undefined, line: string | undefined) => {
+    action('yan send', (sid: string | undefined, line: string | undefined) => {
       sendLine(sid, line);
     }),
   );

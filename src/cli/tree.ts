@@ -23,7 +23,7 @@ interface CommonOptions {
   repo?: string;
 }
 
-function clone(options: CommonOptions): { clone: string; poolSize: number } {
+function targetOf(options: CommonOptions): { clone: string; poolSize: number } {
   if (options.repo === undefined || options.repo === '') {
     throw YanError.usage('tree_usage', '--repo is required: a repository name under repos/, or the path to a clone',
     );
@@ -74,7 +74,7 @@ branch, held as <task>/<unit> for as long as the task lasts, and where yan and
 running at once plus one per unit.`,
   )
   .action(
-    action('yan tree', (options: GetOptions) => {
+    action('yan tree get', (options: GetOptions) => {
       const asked = standingTree(options);
       const target = repoTarget('tree', asked.repo);
       const grant = new WorktreePool(target.clone).get(target.poolSize, asked.branch, asked.branch, asked.holder);
@@ -94,7 +94,7 @@ const returnTree = new Command('return')
   .option('--user-asked', 'required with --discard: `user` said the work can go')
   .action(
     action(
-      'yan tree',
+      'yan tree return',
       (
         positional: string | undefined,
         options: CommonOptions & {
@@ -106,7 +106,7 @@ const returnTree = new Command('return')
           userAsked?: boolean;
         },
       ) => {
-        const target = clone(options);
+        const target = targetOf(options);
         const which = options.path ?? positional ?? options.slot ?? '';
         if (which === '') {
           throw YanError.usage('tree_usage', "which tree? pass --path <path> (what 'yan tree get' printed) or --slot <n>",
@@ -138,8 +138,8 @@ const status = new Command('status')
   .option('--repo <repo>', 'a repository registered under repos/, or the path to a clone')
   .option('--json', 'print the leases as an array')
   .action(
-    action('yan tree', (options: CommonOptions & { json?: boolean }) => {
-      const target = clone(options);
+    action('yan tree status', (options: CommonOptions & { json?: boolean }) => {
+      const target = targetOf(options);
       const leases = new WorktreePool(target.clone).status();
       if (options.json === true) {
         out(JSON.stringify(leases, null, 2));

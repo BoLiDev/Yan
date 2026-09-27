@@ -105,6 +105,12 @@ describe('what it refuses before it touches anything', () => {
     const r = await runYan(home, ['unit', 'set', '--unit', 'auth', '--end', 'delivered', '--target', 'main'], { YAN_TASK: 't1' });
     expectUsage(r, 'only applies to --branch');
   });
+
+  it('takes --at as YYYY-MM-DD, the way history[] dates a round, before touching any branch', async () => {
+    const r = await runYan(home, ['unit', 'set', '--unit', 'auth', '--branch', 'x', '--at', '08-01'], { YAN_TASK: 't1' });
+    expectUsage(r, 'YYYY-MM-DD');
+    expect(new Task('t1').findUnit('auth')?.history).toEqual([]);
+  });
 });
 
 describe('a round with nothing on it is replaced without an interrogation', () => {

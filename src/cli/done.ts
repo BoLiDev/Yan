@@ -1,9 +1,8 @@
 import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
+import { closePane, leasesHeldBy, returnLease, type Closer } from './shared/teardown.js';
 import { existingTask, namedTask, openTasks } from './shared/task-id.js';
-import type { Closer } from './shared/terminal.js';
 import { YanError, isYanError } from '../util/error.js';
 import { Terminal } from '../externals/herdr/index.js';
 import type { WorktreePool } from '../externals/worktree/index.js';

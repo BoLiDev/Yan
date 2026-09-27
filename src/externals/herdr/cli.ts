@@ -80,7 +80,9 @@ export function herdrCall(run: HerdrRunner, args: readonly string[], what: strin
  */
 export function mapError(result: ProcessResult, what: string): YanError {
   if (result.code === 2) {
-    return new YanError('term_bug', `herdr refused the command shape (${what}): ${result.stderr.trim()}`, { exitCode: 2 });
+    // Herdr's exit 2 is yan calling it wrongly, which is yan's bug and not
+    // the caller's mistake: exit 1, like any other failure.
+    return new YanError('term_bug', `herdr refused the command shape (${what}): ${result.stderr.trim()}`);
   }
   if (result.code === 127) {
     return new YanError('term_unreachable', `cannot reach herdr (${what}): ${result.stderr.trim()}`);

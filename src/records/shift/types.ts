@@ -17,7 +17,10 @@ export interface ShiftMeta {
   readonly repo?: string;
   /** The shift branch. */
   readonly branch?: string;
-  /** The integration branch it was cut from. */
+  /**
+   * The integration branch it was cut from: its unit's `branch` in task.json
+   * at dispatch, which is also where its merge request goes.
+   */
   readonly base?: string;
   readonly tree?: string;
   /** The main clone the leased tree came from. */

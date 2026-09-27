@@ -5,7 +5,7 @@ import { githubProvider } from './github.js';
 import { gitlabProvider } from './gitlab.js';
 import type { Provider } from './provider.js';
 import type { MrCreateOptions, MrMergeOptions, MrRef, MrState } from './types.js';
-import { bodyText, checkDir, requireMr, unreachable } from './validate.js';
+import { bodyText, checkDir, requireMr } from './validate.js';
 import { YanError } from '../../util/error.js';
 
 /** How a CLI is actually run. Replaceable so a test needs no module mocking. */
@@ -125,4 +125,12 @@ export class RemoteGit {
  */
 export function configuredCli(): 'gh' | 'glab' {
   return remoteGitConfig().kind === 'github' ? 'gh' : 'glab';
+}
+
+/** Write one line on stderr saying the host could not be asked. */
+function unreachable(what: string, fallback: string, result: ProcessResult): void {
+  const detail = result.stderr.trim().replace(/\n/g, ' ');
+  process.stderr.write(
+    `remote-git: cannot ask the host about ${what} - reporting ${fallback}${detail === '' ? '' : ` (${detail})`}\n`,
+  );
 }

@@ -7,8 +7,7 @@ import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { branchRef } from './shared/branch.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
-import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
-import { dash } from './shared/table.js';
+import { blue, bold, cyan, dash, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { overviewTask, stateOf, type OverviewTask, type TaskState } from './overview/overview.js';
 import { shiftFacts, type ShiftFacts } from './overview/shift-facts.js';
 import { renderHeader } from './overview/render.js';
@@ -351,7 +350,7 @@ gives a shift; and an undelivered report's "at" is an ISO 8601 string, as a
 last_event's is, rather than epoch seconds.`,
   )
   .action(
-    action('show', async (id: string | undefined, options: { json?: boolean }) => {
+    action('yan show', async (id: string | undefined, options: { json?: boolean }) => {
       const task = await chosenTask('show', id, {
         spelled: 'yan show',
         question: 'Which task do you want to see?',

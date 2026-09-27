@@ -97,15 +97,19 @@ export function reportedMr(run: string): string | undefined {
  * This is the persistent half of a report and the whole of what is kept.
  * Telling yan is `yan report`'s own job, and it types the note into yan's
  * pane rather than leaving a marker for something to notice.
+ *
+ * @returns the moment stamped on the line, so a copy of it elsewhere —
+ *   `run/undelivered` — can carry the same one.
  */
-export function appendEvent(run: string, state: string, note = ''): void {
+export function appendEvent(run: string, state: string, note = '', at = new Date()): Date {
   if (!state) throw YanError.usage('shift_usage', 'an event needs a state');
   if (`${state}${note}`.includes('\n')) {
     throw YanError.usage('shift_usage', 'an event is one line - a newline would forge a second event');
   }
   mkdirSync(run, { recursive: true });
 
-  appendFileSync(statusFile(run), eventLine(state, note));
+  appendFileSync(statusFile(run), eventLine(state, note, at));
+  return at;
 }
 
 // --- the queue: run/undelivered -------------------------------------------

@@ -42,7 +42,7 @@ export const command = new Command('ui')
   .option('--no-open', 'write the page and print its path, but do not open it')
   .option('--json', 'print the report data, version 3, and write nothing')
   .action(
-    action('ui', (options: { since?: string; until?: string; out?: string; open: boolean; json?: boolean }) => {
+    action('yan ui', (options: { since?: string; until?: string; out?: string; open: boolean; json?: boolean }) => {
       const since = day('--since', options.since);
       const until = day('--until', options.until);
       if (since !== null && until !== null && since > until) {

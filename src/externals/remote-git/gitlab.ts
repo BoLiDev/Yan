@@ -1,7 +1,7 @@
 import type { ProcessResult } from '../../util/process.js';
 import type { Provider } from './provider.js';
 import type { MergeStrategy, MrCreateOptions, MrState } from './types.js';
-import { asObject, extractUrl, lower } from './validate.js';
+import { asObject, extractUrl, lower } from './reply.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -54,9 +54,7 @@ function refArgs(mr: string): string[] {
   }
 
   if (iid === '' || !/^[0-9]+$/.test(iid)) {
-    throw new YanError('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`,
-      { exitCode: 2 },
-    );
+    throw YanError.usage('remote_git_usage', `cannot work out the merge request number from '${mr}' - pass a number or a full merge request URL`);
   }
 
   const args = [iid];

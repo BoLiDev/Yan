@@ -3,7 +3,9 @@ import { isYanError } from '../../util/error.js';
 /**
  * Wrap a subcommand body so a `YanError` becomes a line on stderr and an exit:
  *
- *   ls: no such task: t042
+ *   yan ls: no such task: t042
+ *
+ * `name` is the command as a person types it, `yan <command> [<sub>]`.
  *
  * 0 fine, 2 you called this wrongly, 1 it did not work. Anything that is not a
  * `YanError` propagates with its stack.

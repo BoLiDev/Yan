@@ -11,7 +11,7 @@ import {
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { clockOut, type ClockOutDeps, type ClockOutOptions } from '../../src/cli/shift/done.js';
-import type { Closer } from '../../src/cli/shared/terminal.js';
+import type { Closer } from '../../src/cli/shared/teardown.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 import { YanError } from '../../src/util/error.js';

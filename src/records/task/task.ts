@@ -5,7 +5,7 @@ import { editJson, initJson, readJson } from '../../util/json.js';
 import { asRecord, asString } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
-import { isoSecond, localDay } from '../../util/time.js';
+import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { Log } from '../log/index.js';
 import { Deliverables } from './deliverables.js';
 import { ENDS, type AddUnitOptions, type HistoryEnd, type HistoryEntry, type TaskData, type UnitData } from './types.js';
@@ -201,16 +201,19 @@ export class Task {
    * into `history[]` under `end`, then move to `newBranch` and clear mr. One
    * write, so a crash leaves either the old round or the new one.
    *
-   * @param at an ISO date, or `''` for today, the local day.
-   * @throws YanError when `newBranch` is empty or `end` is not one of ENDS.
+   * @param day the retirement date, `YYYY-MM-DD` as history[].at has it; `''`
+   *   for today, the local day.
+   * @throws YanError when `newBranch` is empty, `end` is not one of ENDS, or
+   *   `day` is not a date.
    */
-  public rotateUnit(name: string, end: string, newBranch: string, at = ''): void {
+  public rotateUnit(name: string, end: string, newBranch: string, day = ''): void {
     if (!newBranch) throw YanError.usage('task_usage', 'rotating a unit needs the new branch name');
+    if (day !== '' && !isDate(day)) throw YanError.usage('task_usage', `a history date is YYYY-MM-DD, not '${day}'`);
     this.editUnit(name, (unit) => {
       const entry = historyEntry(
         asString(unit.branch),
         asString(unit.target),
-        at,
+        day,
         end,
         typeof unit.mr === 'string' ? unit.mr : null,
       );

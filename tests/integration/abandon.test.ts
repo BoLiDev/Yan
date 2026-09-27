@@ -4,7 +4,9 @@ import { dirname, join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, liveShift, seedT042 } from '../helpers/records.js';
-import { abandonAtTerminal, abandonShift, abandonTask, type AbandonAsk, type AbandonDeps } from '../../src/cli/abandon.js';
+import { abandonAtTerminal, abandonTask, type AbandonAsk } from '../../src/cli/abandon.js';
+import { abandonShift } from '../../src/cli/shift/abandon.js';
+import type { AbandonDeps } from '../../src/cli/shared/abandon-shift.js';
 import { YanError } from '../../src/util/error.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
@@ -49,8 +51,8 @@ function deps(): AbandonDeps {
       calls.push(`mr_state ${ref.mr}`);
       return states[ref.mr] ?? 'open';
     },
-    closeMr: (mr) => {
-      calls.push(`mr_close ${mr}`);
+    closeMr: (ref) => {
+      calls.push(`mr_close ${ref.mr}`);
       if (closeFails) throw new Error('the host said no');
     },
   };

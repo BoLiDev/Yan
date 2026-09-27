@@ -156,13 +156,13 @@ describe('history only ever grows', () => {
     new Task('t042').editUnit('auth', (u) => {
       u.mr = 'mr/1';
     });
-    new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '08-01');
-    new Task('t042').rotateUnit('auth', 'abandoned', 'feat/auth-r3', '08-05');
+    new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '2026-08-01');
+    new Task('t042').rotateUnit('auth', 'abandoned', 'feat/auth-r3', '2026-08-05');
 
     const history = requireUnitOf(new Task('t042').read(), 'auth').history;
     expect(history).toEqual([
-      { branch: 'feat/auth-r1', target: 'master', at: '08-01', end: 'delivered', mr: 'mr/1' },
-      { branch: 'feat/auth-r2', target: 'master', at: '08-05', end: 'abandoned' },
+      { branch: 'feat/auth-r1', target: 'master', at: '2026-08-01', end: 'delivered', mr: 'mr/1' },
+      { branch: 'feat/auth-r2', target: 'master', at: '2026-08-05', end: 'abandoned' },
     ]);
   });
 
@@ -171,12 +171,17 @@ describe('history only ever grows', () => {
     expect(() => new Task('t042').rotateUnit('auth', 'finished', 'feat/auth-r2')).toThrow(YanError);
   });
 
+  it('refuses a date that is not YYYY-MM-DD, as log.md\'s MM-DD would be', () => {
+    seed();
+    expect(() => new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '08-01')).toThrow(/YYYY-MM-DD/);
+  });
+
   it('rotate archives the round and clears mr, atomically', () => {
     seed();
     new Task('t042').editUnit('auth', (u) => {
       u.mr = 'https://example.invalid/mr/31';
     });
-    new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '08-09');
+    new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2', '2026-08-09');
 
     const unit = requireUnitOf(new Task('t042').read(), 'auth');
     expect(unit.branch).toBe('feat/auth-r2');
@@ -185,7 +190,7 @@ describe('history only ever grows', () => {
       {
         branch: 'feat/auth-r1',
         target: 'master',
-        at: '08-09',
+        at: '2026-08-09',
         end: 'delivered',
         mr: 'https://example.invalid/mr/31',
       },

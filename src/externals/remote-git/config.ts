@@ -20,25 +20,25 @@ export function remoteGitConfig(): RemoteGitConfig {
   try {
     root = readVaultConfig();
   } catch {
-    throw new YanError('remote_git_config', `cannot read ${path} - it is not valid JSON; run 'yan doctor'`, { exitCode: 2 });
+    throw YanError.usage('remote_git_config', `cannot read ${path} - it is not valid JSON; run 'yan doctor'`);
   }
   if (root === undefined) {
-    throw new YanError('remote_git_config', `no configuration at ${path} - copy templates/vault/config.example.json there and set remote_git.kind`, { exitCode: 2 });
+    throw YanError.usage('remote_git_config', `no configuration at ${path} - copy templates/vault/config.example.json there and set remote_git.kind`);
   }
 
   const data = asRecord(root.remote_git);
 
   const kind = typeof data.kind === 'string' ? data.kind : '';
   if (kind === '') {
-    throw new YanError('remote_git_config', `remote_git.kind is not set in ${path} - set it to github or gitlab, then run 'yan doctor'`, { exitCode: 2 });
+    throw YanError.usage('remote_git_config', `remote_git.kind is not set in ${path} - set it to github or gitlab, then run 'yan doctor'`);
   }
   if (kind !== 'github' && kind !== 'gitlab') {
-    throw new YanError('remote_git_config', `remote_git.kind is '${kind}', which yan does not support - use github or gitlab`, { exitCode: 2 });
+    throw YanError.usage('remote_git_config', `remote_git.kind is '${kind}', which yan does not support - use github or gitlab`);
   }
 
   const host = typeof data.host === 'string' ? data.host : '';
   if (kind === 'gitlab' && host === '') {
-    throw new YanError('remote_git_config', `remote_git.host is required when remote_git.kind is gitlab - set it in ${path} (hostname, no scheme), then run 'yan doctor'`, { exitCode: 2 });
+    throw YanError.usage('remote_git_config', `remote_git.host is required when remote_git.kind is gitlab - set it in ${path} (hostname, no scheme), then run 'yan doctor'`);
   }
   return { kind, host };
 }

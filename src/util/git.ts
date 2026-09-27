@@ -159,9 +159,7 @@ function isForceFlag(arg: string): boolean {
 export function push(dir: string, args: readonly string[] = []): ProcessResult {
   for (const a of args) {
     if (isForceFlag(a)) {
-      throw new YanError('git_force_refused', 'refusing to force-push: it rewrites history other people have already pulled',
-        { exitCode: 2 },
-      );
+      throw YanError.usage('git_force_refused', 'refusing to force-push: it rewrites history other people have already pulled');
     }
   }
   return git(dir, ['push', ...args]);
@@ -210,7 +208,7 @@ export function cleanFd(dir: string): ProcessResult {
 // --- cloning ---------------------------------------------------------------
 
 /** <dir> is the directory the clone is created in. */
-export function clone(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
+export function cloneRepo(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
   return git(dir, ['clone', ...args, url, dest]);
 }
 

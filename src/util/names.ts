@@ -1,10 +1,11 @@
 /**
  * Names yan turns into a directory or file name: a task or shift id, a
  * repository or vault name, a harness session id. One rule for all of them,
- * letters, digits, dot, dash and underscore, so none can carry a separator.
+ * letters, digits, dot, dash and underscore, so none can carry a separator —
+ * and not dots alone, which would name the directory itself or its parent.
  */
 export function isRecordId(name: string): boolean {
-  return /^[A-Za-z0-9._-]+$/.test(name);
+  return /^[A-Za-z0-9._-]+$/.test(name) && !/^\.+$/.test(name);
 }
 
 /**

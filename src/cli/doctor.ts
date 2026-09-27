@@ -94,12 +94,19 @@ function checkVault(report: Report): void {
         : `'${active}' is active but does not resolve to a vault - 'yan vault ls' shows what is registered`,
     );
   } else {
-    const identity = readVaultJson(dir);
-    line(report, identity.version > VAULT_VERSION ? 'fail' : 'ok', 'vault',
-      identity.version > VAULT_VERSION
-        ? `${dir} was written by a newer yan (vault.json version ${identity.version}) - update this clone`
-        : `${identity.name === '' ? '(unnamed)' : identity.name} → ${dir}`,
-    );
+    let identity: ReturnType<typeof readVaultJson> | undefined;
+    try {
+      identity = readVaultJson(dir);
+    } catch (err) {
+      line(report, 'fail', 'vault', isYanError(err) ? err.message : String(err));
+    }
+    if (identity !== undefined) {
+      line(report, identity.version > VAULT_VERSION ? 'fail' : 'ok', 'vault',
+        identity.version > VAULT_VERSION
+          ? `${dir} was written by a newer yan (vault.json version ${identity.version}) - update this clone`
+          : `${identity.name === '' ? '(unnamed)' : identity.name} → ${dir}`,
+      );
+    }
 
     const origin = remoteUrl(dir);
     if (origin === undefined) {
@@ -176,7 +183,12 @@ function runs(agents: Agents, kind: HarnessKind): { main: boolean; shift: boolea
 /** `agents.*` and `scenarios`, and every agent they can start. */
 function checkConfig(report: Report): Agents {
   const path = vaultConfigPath();
-  const parsed = readJsonIfPresent(path);
+  let parsed: unknown;
+  try {
+    parsed = readJsonIfPresent(path);
+  } catch {
+    parsed = undefined;
+  }
   if (parsed === undefined) {
     line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.*, scenarios and remote_git.* live; copy templates/vault/config.example.json to ${path}`);
     return { shifts: [] };
@@ -200,9 +212,17 @@ function checkConfig(report: Report): Agents {
   for (const problem of problems) line(report, 'fail', 'scenarios', `${problem} - shift new refuses what it cannot resolve`);
   for (const scenario of scenarios) {
     for (const tier of scenario.tiers) {
-      const spec = resolveShift('doctor', scenario.name, tier.name);
+      const label = `${scenario.name}/${tier.name}`;
+      let spec: AgentSpec;
+      try {
+        spec = resolveShift('doctor', scenario.name, tier.name);
+      } catch (err) {
+        // A tier with no cli over an unset agents.shift: one line, not a crash.
+        line(report, 'fail', label, isYanError(err) ? err.message : String(err));
+        continue;
+      }
       shifts.push(spec);
-      checkCli(report, `${scenario.name}/${tier.name}`, spec, tier.name === scenario.defaultTier ? ', default' : '');
+      checkCli(report, label, spec, tier.name === scenario.defaultTier ? ', default' : '');
     }
   }
   return { ...(main === undefined ? {} : { main }), shifts };
@@ -355,9 +375,17 @@ function checkAgy(report: Report, agents: Agents): void {
 
     // The one screen where agy stops and Herdr does not notice. The main agent
     // meets it in `user`'s own pane, which is why this is a note rather than a
-    // warning; a shift meets it unattended, and `Terminal.settle` answers it.
+    // warning.
     line(report, 'ok', 'project trust',
       'the first `yan continue` in a new workspace stops on "Do you trust the contents of this project?". Herdr reads that screen as \'idle\', not \'blocked\', and --dangerously-skip-permissions does NOT cover it - answer it once in your own pane',
+    );
+  }
+
+  // A shift meets the same screen unattended, and the startup dialogs a
+  // dispatch answers are claude's alone (externals/herdr/start.ts).
+  if (shift) {
+    line(report, 'warn', 'shift trust',
+      'a shift runs on agy, and nothing answers "Do you trust the contents of this project?" for it: Herdr reads that screen as \'idle\', so \'yan state\' says running while it waits - look in its pane when it has been quiet',
     );
   }
 }
@@ -365,7 +393,7 @@ function checkAgy(report: Report, agents: Agents): void {
 export const command = new Command('doctor')
   .description('check this machine can run yan')
   .action(
-    action('doctor', () => {
+    action('yan doctor', () => {
       const report: Report = { ok: 0, warn: 0, fail: 0 };
 
       out('yan doctor');
