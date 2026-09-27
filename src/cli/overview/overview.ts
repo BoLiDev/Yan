@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task, type TaskData } from '../../records/task/index.js';
 import { activeDeps, taskActive, type ActiveDeps } from './active.js';
-import { poolLeases, taskChanged, type Changed, type LeasesOf } from './changed.js';
+import { taskChanged, type Changed } from './changed.js';
+import { poolLeases, type LeasesOf } from '../shared/leases.js';
 import { briefDescription } from './description.js';
 import { isoMoment, logTimes, type LogTimes, type Moment } from './when.js';
 

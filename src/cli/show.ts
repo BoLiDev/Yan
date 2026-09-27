@@ -13,13 +13,14 @@ import { overviewTask, type OverviewTask } from './overview/overview.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
 import { isoMoment, secondMoment } from './overview/when.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
 import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
 import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
 import { YanError } from '../util/error.js';
+import { poolLeases } from './shared/leases.js';
 
 /**
  * `yan show [<id>] [--json]` — one task at a glance: whether a yan is running
@@ -131,18 +132,8 @@ function lastEvent(shift: Shift): ShowJson['shifts'][number]['last_event'] {
 function showJson(id: string): ShowJson {
   const task = new Task(id);
   const data = task.read();
-  const leasesByClone = new Map<string, readonly LeaseRow[]>();
-  const leasesOf = (clone: string | undefined): readonly LeaseRow[] => {
-    if (clone === undefined) return [];
-    if (!leasesByClone.has(clone)) {
-      try {
-        leasesByClone.set(clone, new WorktreePool(clone).status());
-      } catch {
-        leasesByClone.set(clone, []);
-      }
-    }
-    return leasesByClone.get(clone) ?? [];
-  };
+  const pool = poolLeases();
+  const leasesOf = (clone: string | undefined): readonly LeaseRow[] => (clone === undefined ? [] : (pool(clone) ?? []));
 
   const units = data.units.map((u) => {
     const clone = repoDirIfKnown(u.repo);

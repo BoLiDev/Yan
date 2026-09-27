@@ -9,7 +9,7 @@ import { terminalWidth } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import type { LeaseRow } from '../externals/worktree/index.js';
 import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
 import { Deliverables, Task } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
@@ -22,6 +22,7 @@ import { normalizePath, samePath } from '../util/paths.js';
 import { YanError } from '../util/error.js';
 import { isoSecond, localStamp } from '../util/time.js';
 import { byCodePoint } from '../util/names.js';
+import { poolLeases } from './shared/leases.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -123,17 +124,10 @@ function askHost(sources: Sources, mr: string, dir: string): MrReport {
  * is per call and never touches disk.
  */
 function poolAsker(sources: Sources): (clone: string, tree: string, leaseId: string) => PoolState {
-  const cache = new Map<string, readonly LeaseRow[] | undefined>();
+  const leasesOf = poolLeases(sources.leasesOf);
   return (clone, tree, leaseId) => {
     if (clone === '' || !existsSync(clone)) return 'unknown';
-    if (!cache.has(clone)) {
-      try {
-        cache.set(clone, (sources.leasesOf ?? ((c: string) => new WorktreePool(c).status()))(clone));
-      } catch {
-        cache.set(clone, undefined);
-      }
-    }
-    const leases = cache.get(clone);
+    const leases = leasesOf(clone);
     if (leases === undefined) return 'unknown';
     const held = leases.some(
       (l) => (tree !== '' && samePath(l.path, tree)) || (leaseId !== '' && l.lease_id === leaseId),
