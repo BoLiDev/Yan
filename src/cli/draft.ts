@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
-import { basename, delimiter, join } from 'node:path';
+import { basename } from 'node:path';
 import { Command } from 'commander';
 import { chosenTask } from './shared/task-id.js';
 import { isTty } from './shared/resolve.js';
@@ -9,6 +9,7 @@ import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummar
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 import { localStamp } from '../util/time.js';
+import { which } from '../util/which.js';
 
 /**
  * `yan draft` — `user`'s own notes about one task, kept in
@@ -52,23 +53,6 @@ function userOnly(what: string, tty: () => boolean): void {
 // ------------------------------------------------------------------ editor --
 
 /** The command as something spawnable, or null when it is not there. */
-function resolveCmd(cmd: string): string | null {
-  if (cmd.includes('/') || cmd.includes('\\')) return existsSync(cmd) ? cmd : null;
-  const exts = process.platform === 'win32' ? ['', ...(process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';')] : [''];
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    if (dir === '') continue;
-    for (const ext of exts) {
-      const full = join(dir, cmd + ext);
-      try {
-        if (statSync(full).isFile()) return full;
-      } catch {
-        // Not in this directory.
-      }
-    }
-  }
-  return null;
-}
-
 /** Split a command line into argv, honouring double quotes around a path with spaces. */
 function splitCommand(line: string): string[] {
   const parts: string[] = [];
@@ -98,12 +82,12 @@ function editorCommand(): string[] {
     const line = (process.env[name] ?? '').trim();
     if (line === '') continue;
     const parts = splitCommand(line);
-    const first = parts[0] === undefined ? null : resolveCmd(parts[0]);
-    if (first !== null) return [first, ...parts.slice(1)];
+    const first = parts[0] === undefined ? undefined : which(parts[0]);
+    if (first !== undefined) return [first, ...parts.slice(1)];
     throw new YanError('draft_no_editor', `$${name} is '${line}', and ${parts[0] ?? 'it'} is not on PATH`);
   }
-  const nvim = resolveCmd('nvim');
-  if (nvim !== null) return [nvim];
+  const nvim = which('nvim');
+  if (nvim !== undefined) return [nvim];
   throw new YanError('draft_no_editor', 'no editor: set $DRAFT_EDITOR or $EDITOR, or put nvim on PATH');
 }
 
