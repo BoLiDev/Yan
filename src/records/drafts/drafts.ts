@@ -27,17 +27,17 @@ export interface DraftSummary {
   readonly preview: string;
 }
 
-export interface Draft extends DraftSummary {
+interface Draft extends DraftSummary {
   readonly path: string;
   readonly body: string;
 }
 
-export interface SearchHit extends DraftSummary {
+interface SearchHit extends DraftSummary {
   /** Text around the first match. */
   readonly snippet: string;
 }
 
-export interface ListOptions {
+interface ListOptions {
   readonly limit?: number;
   /** Only drafts modified at or after this time. */
   readonly since?: Date;

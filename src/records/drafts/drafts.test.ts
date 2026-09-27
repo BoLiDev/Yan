@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readdirSync, utimesSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
-import { Drafts, discardIfUntouched, isValidId, newDraftId, slugify, titleTemplate } from './index.js';
+import { Drafts, discardIfUntouched, newDraftId, titleTemplate } from './index.js';
+import { isValidId, slugify } from './drafts.js';
 
 /**
  * The store keeps cli-kit's `draft` format, so what its own suite guarantees

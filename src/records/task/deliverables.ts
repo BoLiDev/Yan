@@ -52,8 +52,8 @@ interface Base {
    */
   readonly text: string;
 }
-export interface Todo extends Base { readonly status: 'todo' }
-export interface Done extends Base {
+interface Todo extends Base { readonly status: 'todo' }
+interface Done extends Base {
   readonly status: 'done';
   /** Local `YYYY-MM-DD`. */
   readonly doneAt: string;
@@ -64,20 +64,19 @@ export interface Done extends Base {
    */
   readonly refs?: readonly string[];
 }
-export interface Abandoned extends Base {
+interface Abandoned extends Base {
   readonly status: 'abandoned';
   /** Required. */
   readonly reason: string;
 }
 
-export const DELIVERABLE_STATUSES = ['todo', 'done', 'abandoned'] as const;
-export type DeliverableStatus = (typeof DELIVERABLE_STATUSES)[number];
+const DELIVERABLE_STATUSES = ['todo', 'done', 'abandoned'] as const;
 
 /** An empty file: a task that has not been broken down yet. */
 const EMPTY: DeliverableFile = { version: 1, nextId: 1, deliverables: [] };
 
 /** The file name, relative to a task directory. */
-export const DELIVERABLE_FILE = 'deliverable.json';
+const DELIVERABLE_FILE = 'deliverable.json';
 
 /**
  * What a reader that must not fail gets: the deliverables, and the reason the
@@ -86,7 +85,7 @@ export const DELIVERABLE_FILE = 'deliverable.json';
  * the work report covers every task and one bad file cannot take the rest
  * down with it.
  */
-export interface DeliverablesRead {
+interface DeliverablesRead {
   /** Empty when the file is missing or does not validate. */
   readonly deliverables: readonly Deliverable[];
   /** What is wrong with the file, as a sentence naming it; null when it is fine. */
@@ -149,11 +148,6 @@ export class Deliverables {
     } catch (err) {
       return { deliverables: [], problem: err instanceof Error ? err.message : String(err) };
     }
-  }
-
-  /** One deliverable by id, or undefined. */
-  public find(id: string): Deliverable | undefined {
-    return this.read().deliverables.find((d) => d.id === id);
   }
 
   /**
@@ -293,7 +287,7 @@ export function readDeliverables(taskId: string): DeliverablesRead {
  * Only `http:` and `https:` ever give an address. `javascript:` and every
  * other scheme come back as text, to be printed as they were typed.
  */
-export interface RefLink {
+interface RefLink {
   /** How it reads: `PR #58`, `MR !87`, a host, or the ref as it was typed. */
   readonly label: string;
   /** The address to open; null when the ref is not an http(s) URL. */
@@ -326,7 +320,7 @@ export function refLink(ref: string): RefLink {
  * form, so a line of terminal stays readable, anything else as it was typed.
  * The stored ref never changes - `yan ui --json` hands back what is on disk.
  */
-export function shortRef(ref: string): string {
+function shortRef(ref: string): string {
   return refLink(ref).label;
 }
 
@@ -344,7 +338,7 @@ export function today(now = new Date()): string {
 }
 
 /** `YYYY-MM-DD`, and a day that exists: `2026-02-30` is not one. */
-export function isDate(value: string): boolean {
+function isDate(value: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (m === null) return false;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];

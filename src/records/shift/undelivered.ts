@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -22,11 +22,6 @@ export interface Undelivered {
 
 export function undeliveredFile(run: string): string {
   return join(run, 'undelivered');
-}
-
-/** Whether anything is waiting to be surfaced. Never throws. */
-export function hasUndelivered(run: string): boolean {
-  return existsSync(undeliveredFile(run));
 }
 
 /**
