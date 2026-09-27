@@ -61,13 +61,14 @@ export function checkRefName(command: string, branch: string, raw?: string): voi
 }
 
 /**
- * `origin/<branch>` when it resolves, otherwise `''`. Preferred over a local
- * ref of the same name, which a main clone never pulls into.
+ * How to name `branch` in a clone: `origin/<branch>` when it resolves, since
+ * a main clone never pulls into its local refs; `<branch>` when only a local
+ * ref exists; undefined when neither does.
  */
-export function remoteRef(clone: string, branch: string): string {
-  return gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])
-    ? `origin/${branch}`
-    : '';
+export function branchRef(clone: string, branch: string): string | undefined {
+  if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) return `origin/${branch}`;
+  if (branchExists(clone, branch)) return branch;
+  return undefined;
 }
 
 /**
@@ -91,18 +92,19 @@ export function freshenClone(command: string, clone: string, repo: string): void
 export function ensureBranch(command: string, clone: string, branch: string, base: string): string {
   if (branchExists(clone, branch)) return 'adopted the existing local branch';
 
-  if (remoteRef(clone, branch) !== '') {
-    if (createBranch(clone, branch, `origin/${branch}`).code !== 0) {
+  // With no local branch of that name, this finds only a remote one.
+  const remote = branchRef(clone, branch);
+  if (remote !== undefined) {
+    if (createBranch(clone, branch, remote).code !== 0) {
       throw new YanError(`${command}_branch_failed`, `cannot create a local ref for the existing remote branch '${branch}'`,
       );
     }
-    return `adopted origin/${branch}`;
+    return `adopted ${remote}`;
   }
 
-  let baseRef = remoteRef(clone, base);
-  if (baseRef === '') {
-    if (branchExists(clone, base)) baseRef = base;
-    else if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `${base}^{commit}`])) baseRef = base;
+  let baseRef = branchRef(clone, base);
+  if (baseRef === undefined) {
+    if (gitOk(clone, ['rev-parse', '--verify', '--quiet', `${base}^{commit}`])) baseRef = base;
     else {
       throw new YanError(`${command}_base_unresolved`, `cannot resolve the base '${base}' in ${clone} - fetch it, or pass --base with something that exists`,
       );
