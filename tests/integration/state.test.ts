@@ -34,8 +34,8 @@ const deps = (): StateDeps => ({
     agentAlive: (): Alive => alive,
     agentStatus: (): AgentStatus => attention,
   } satisfies AliveReader,
-  readMrState: (mr, dir) => {
-    mrCalls.push({ mr, dir });
+  readMrState: (ref) => {
+    mrCalls.push({ mr: ref.mr, dir: ref.dir });
     return mrState;
   },
 });
@@ -116,6 +116,17 @@ describe('the live sources decide, never the newest event', () => {
     expect(facts.state).toBe('unknown');
     // `unknown` is not `dead`: rounding it that way is how work gets deleted.
     expect(facts.state).not.toBe('dead');
+  });
+
+  it('reports a forge that cannot even be asked as unknown, not an error', () => {
+    const facts = stateOf('s1', 't042', {
+      ...deps(),
+      readMrState: () => {
+        throw new Error('no forge configured');
+      },
+    });
+    expect(facts.mr_state).toBe('unknown');
+    expect(facts.state).toBe('running');
   });
 });
 

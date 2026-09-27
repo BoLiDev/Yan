@@ -8,7 +8,7 @@ import { insideTask, existingTask } from './shared/task-id.js';
 import { checkRefName, decideBranchName, ensureBranch, freshenClone, inheritRound } from './shared/branch.js';
 import { addTaskUnit, type AddOptions } from './shared/unit-add.js';
 import { Terminal } from '../externals/herdr/index.js';
-import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
+import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
 import type { Task, UnitData } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
@@ -85,12 +85,6 @@ interface SetOptions {
   note?: string;
   json?: boolean;
 }
-
-/**
- * What `unit set` needs from the remote host: how the round being replaced
- * ended. `RemoteGit` is the real one.
- */
-type MrStateReader = (mr: string, dir: string) => MrState;
 
 /** What `unit set` reports to Herdr. Display only, and never fatal. */
 export interface Labeller {
@@ -289,13 +283,7 @@ function endOfRound(
   if (before.mr === null || before.mr === '') {
     return { end: 'unused', from: 'no merge request was ever opened for it' };
   }
-  const ask = readMrState ?? ((mr: string, dir: string) => new RemoteGit().mrState({ mr, dir }));
-  let state: MrState = 'unknown';
-  try {
-    state = ask(before.mr, clone);
-  } catch {
-    state = 'unknown';
-  }
+  const state = mrStateOrUnknown({ mr: before.mr, dir: clone }, readMrState);
   if (state === 'merged') return { end: 'delivered', from: `the host says ${before.mr} is merged` };
   if (state === 'closed') return { end: 'abandoned', from: `the host says ${before.mr} is closed` };
   if (state === 'open') return { end: 'unknown', from: `${before.mr} was still open when the round was replaced` };

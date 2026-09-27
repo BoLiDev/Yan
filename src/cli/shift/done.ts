@@ -5,7 +5,7 @@ import { action, out } from '../shared/action.js';
 import { readNote, appendLog } from '../shared/note.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from '../shared/teardown.js';
 import type { Closer } from '../shared/terminal.js';
-import { RemoteGit, type MrState } from '../../externals/remote-git/index.js';
+import { remoteMrState, type MrStateReader } from '../shared/mr-state.js';
 import type { WorktreePool } from '../../externals/worktree/index.js';
 import { opensMr, Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
@@ -50,7 +50,7 @@ export interface ClockOutOptions {
 export interface ClockOutDeps {
   readonly terminal?: Closer;
   readonly pool?: (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
-  readonly mrStateOf?: (mr: string, dir: string | undefined) => MrState;
+  readonly mrStateOf?: MrStateReader;
   readonly deleteBranch?: (clone: string, branch: string) => boolean;
   /** Asked only on a resume that cannot tell whether the branch was ever pushed. */
   readonly onOrigin?: (clone: string, branch: string) => boolean;
@@ -246,8 +246,9 @@ export function clockOut(sid: string | undefined, options: ClockOutOptions, deps
         );
       }
       const dir = tree !== '' && existsSync(tree) ? tree : clone !== '' && existsSync(clone) ? clone : undefined;
-      const ask = deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
-      const state = ask(mr, dir);
+      // Not `mrStateOrUnknown`: a forge that is not configured says so here,
+      // where the gate is, rather than surfacing as "'unknown', not merged".
+      const state = (deps.mrStateOf ?? remoteMrState)({ mr, dir });
       if (state !== 'merged') {
         throw new YanError('shift_done_not_merged', `${mr} is '${state}', not merged - a shift clocks out once its last round's merge request has merged into the integration branch, and nothing sooner`,
           { exitCode: RC_NOT_MERGED },

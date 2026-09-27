@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { dash } from './shared/table.js';
 import { Terminal, type AgentStatus, type Alive } from '../externals/herdr/index.js';
-import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
+import type { MrState } from '../externals/remote-git/index.js';
+import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
 import { Shift } from '../records/shift/index.js';
 import { currentBranch, isClean } from '../util/git.js';
 import { existsSync } from 'node:fs';
@@ -32,9 +33,6 @@ export interface AliveReader {
   agentAlive(pane: string): Alive;
   agentStatus(pane: string): AgentStatus;
 }
-
-/** What `yan state` needs from the host. `RemoteGit` is the real one. */
-type MrStateReader = (mr: string, dir: string | undefined) => MrState;
 
 interface StateFacts {
   readonly version: 1;
@@ -121,9 +119,7 @@ export function stateOf(sid: string, task = '', deps: StateDeps = {}): StateFact
   // nothing here searches for one by branch.
   let mrState: MrState | 'none' = 'none';
   if (mr !== '') {
-    const dir = tree !== '' && existsSync(tree) ? tree : undefined;
-    const ask = deps.readMrState ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d }));
-    mrState = ask(mr, dir);
+    mrState = mrStateOrUnknown(tree !== '' && existsSync(tree) ? { mr, dir: tree } : { mr }, deps.readMrState);
   }
 
   let state: Verdict;
