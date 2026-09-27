@@ -10,7 +10,7 @@ import {
 } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
-import { rebuild, type Sources } from '../../src/cli/session-start.js';
+import { rebuild, type Sources } from '../../src/cli/session-start/picture.js';
 import { Task } from '../../src/records/task/index.js';
 import type { Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';

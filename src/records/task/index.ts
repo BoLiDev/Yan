@@ -9,5 +9,5 @@
 
 export { Task, briefText } from './task.js';
 export type { TaskData, UnitData } from './types.js';
-export { Deliverables, deliverableAside, readDeliverables } from './deliverables.js';
+export { Deliverables, readDeliverables } from './deliverables.js';
 export type { Deliverable } from './deliverables.js';
