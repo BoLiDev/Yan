@@ -12,6 +12,7 @@ import {
   mkYanHome,
   registerRepo,
 } from '../../../tests/helpers/fixtures.js';
+import { liveShift } from '../../../tests/helpers/records.js';
 import { claudeProjectSlug, type HarnessEnv } from '../../externals/harness/index.js';
 import type { LeaseRow } from '../../externals/worktree/index.js';
 import { Task } from '../../records/task/index.js';
@@ -243,10 +244,7 @@ describe('active, rung by rung', () => {
   const lastLog: Moment = { at: '2026-09-17', precision: 'day', source: 'log' };
 
   function shift(sid: string, meta: Record<string, unknown>): string {
-    const run = join(home, 'tasks', 't1', 'shifts', sid, 'run');
-    mkdirSync(run, { recursive: true });
-    writeFileSync(join(run, 'meta.json'), JSON.stringify({ version: 1, agent: 'claude', tree, workdir: tree, at: '2026-09-18T09:00:00Z', ...meta }));
-    return run;
+    return liveShift(home, 't1', sid, { agent: 'claude', tree, workdir: tree, at: '2026-09-18T09:00:00Z', ...meta });
   }
 
   function sessionFile(harnessHome: string, at: number): void {

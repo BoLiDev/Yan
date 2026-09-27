@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   cleanupTempDirs,
   mkTempDir,
@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
 import { rebuild, type Sources } from '../../src/cli/session-start.js';
 import { Task } from '../../src/records/task/index.js';
 import type { Alive } from '../../src/externals/herdr/index.js';
@@ -55,18 +56,8 @@ function sources(overrides: Partial<Sources> = {}): Sources {
 }
 
 /** Every file under $YAN_HOME, with its size. */
-function snapshot(): string {
-  const files: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry);
-      const st = statSync(full);
-      if (st.isDirectory()) walk(full);
-      else files.push(`${relative(home, full).replace(/\\/g, '/')} ${st.size}`);
-    }
-  };
-  walk(home);
-  return files.sort().join('\n');
+function listing(): string {
+  return snapshot(home, { size: true }).join('\n');
 }
 
 beforeEach(() => {
@@ -75,22 +66,16 @@ beforeEach(() => {
   mkdirSync(clone, { recursive: true });
   registerRepo(home, 'monorepo-x', clone);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   Task.create('t099', 'a task nobody has started');
   new Task('t099').addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });
 
-  run = join(home, 'tasks', 't042', 'shifts', 's2', 'run');
-  mkdirSync(run, { recursive: true });
-  writeFileSync(
-    join(run, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid: 's2', unit: 'auth', repo: 'monorepo-x',
-      branch: 'yan/t042-auth-s2', base: 'feat/auth', tree: TREE, clone,
-      holder: 't042/auth/s2', lease_id: LEASE, agent: 'claude',
-      container: 'w1', pane: 'w1:p7', mr: MR,
-    })}\n`,
-  );
+  run = liveShift(home, 't042', 's2', {
+    task: 't042', sid: 's2', unit: 'auth', repo: 'monorepo-x',
+    branch: 'yan/t042-auth-s2', base: 'feat/auth', tree: TREE, clone,
+    holder: 't042/auth/s2', lease_id: LEASE, agent: 'claude',
+    container: 'w1', pane: 'w1:p7', mr: MR,
+  });
   writeFileSync(join(run, 'status'), '2026-08-09T09:00:00Z\tstarted\tread the brief\n');
 
   // s1 has already clocked out: its run/ is gone and only the long-lived files
@@ -134,16 +119,16 @@ describe('the rebuild', () => {
 
 describe('it writes nothing, anywhere', () => {
   it('leaves $YAN_HOME byte-for-byte identical, on every path', async () => {
-    const before = snapshot();
+    const before = listing();
 
     expect((await runYan(home, ['session-start'], { YAN_TASK: 't042' })).code).toBe(0);
-    expect(snapshot(), 'session-start must not create or change a single file').toBe(before);
+    expect(listing(), 'session-start must not create or change a single file').toBe(before);
 
     expect((await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' })).code).toBe(0);
-    expect(snapshot(), 'nor on the --json path').toBe(before);
+    expect(listing(), 'nor on the --json path').toBe(before);
 
     expect((await runYan(home, ['session-start', '--all'])).code).toBe(0);
-    expect(snapshot()).toBe(before);
+    expect(listing()).toBe(before);
   });
 });
 
@@ -446,9 +431,9 @@ describe('the task memory reaches the session', () => {
     logLines(['- 08-01  agreed     x']);
     mkdirSync(join(home, 'tasks', 't042', 'artifacts', 'drafts'), { recursive: true });
     writeFileSync(join(home, 'tasks', 't042', 'artifacts', 'drafts', '2026-09-16_051516.md'), '# a note\n');
-    const before = snapshot();
+    const before = listing();
     await runYan(home, ['session-start', 't042']);
-    expect(snapshot()).toBe(before);
+    expect(listing()).toBe(before);
   });
 });
 
@@ -528,9 +513,7 @@ describe('undelivered reports', () => {
 
   it("leaves another task's lines alone, and clears only its own", async () => {
     // t099 has a live shift of its own with a report nobody has read.
-    const other = join(home, 'tasks', 't099', 'shifts', 's9', 'run');
-    mkdirSync(other, { recursive: true });
-    writeFileSync(join(other, 'meta.json'), JSON.stringify({ version: 1, unit: 'api', pane: 'w2:p1' }));
+    const other = liveShift(home, 't099', 's9', { unit: 'api', pane: 'w2:p1' });
     writeFileSync(join(other, 'undelivered'), '1757577800 blocked t099 is waiting on a credential\n');
     seed();
 

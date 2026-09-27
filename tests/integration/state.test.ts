@@ -1,9 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { liveShift, seedT042 } from '../helpers/records.js';
 import { stateOf, type AliveReader, type StateDeps } from '../../src/cli/state.js';
-import { Task } from '../../src/records/task/index.js';
 import type { AgentStatus, Alive } from '../../src/externals/herdr/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
@@ -39,18 +39,11 @@ const deps = (): StateDeps => ({
   },
 });
 
-function meta(body: Record<string, unknown>): void {
-  writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, ...body })}\n`);
-}
-
 beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
 
-  run = join(home, 'tasks', 't042', 'shifts', 's1', 'run');
-  mkdirSync(run, { recursive: true });
-  meta({ unit: 'auth', branch: 'yan/t042/s1', tree: '', agent: 'claude', pane: 'w1:p7', mr: MR });
+  run = liveShift(home, 't042', 's1', { unit: 'auth', branch: 'yan/t042/s1', tree: '', agent: 'claude', pane: 'w1:p7', mr: MR });
 
   // The trap: the newest event says `done`.
   writeFileSync(
@@ -127,7 +120,7 @@ describe('the live sources decide, never the newest event', () => {
 
 describe('run/meta.json is read defensively', () => {
   it('survives a partial file', () => {
-    meta({ unit: 'auth' });
+    liveShift(home, 't042', 's1', { unit: 'auth' });
     const facts = stateOf('s1', 't042', deps());
     expect(facts.state).toBe('unknown');
     expect(facts.terminal_why).toContain('no terminal id');
@@ -156,7 +149,7 @@ describe('run/ gone means clocked out', () => {
 
 describe('through bin/yan', () => {
   it('renders the human view without surfacing the newest event', async () => {
-    meta({ unit: 'auth', branch: 'yan/t042/s1', agent: 'claude' });
+    liveShift(home, 't042', 's1', { unit: 'auth', branch: 'yan/t042/s1', agent: 'claude' });
     const r = await runYan(home, ['state', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('state      unknown');
@@ -166,7 +159,7 @@ describe('through bin/yan', () => {
   });
 
   it('reports the same derivation as JSON', async () => {
-    meta({ unit: 'auth' });
+    liveShift(home, 't042', 's1', { unit: 'auth' });
     const r = await runYan(home, ['state', 's1', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     const parsed = JSON.parse(r.stdout) as Record<string, unknown>;

@@ -12,6 +12,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { attempt, type Attempt, unitField } from '../helpers/records.js';
 import { setUnit } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
@@ -50,23 +51,13 @@ function doc(): { units: Record<string, unknown>[] } {
   return JSON.parse(readFileSync(taskFile(), 'utf8')) as { units: Record<string, unknown>[] };
 }
 
-function unitField(name: string, field: string): unknown {
-  return doc().units.find((u) => u.name === name)?.[field] ?? '';
-}
-
 function history(name: string): Record<string, string>[] {
   return (doc().units.find((u) => u.name === name)?.history ?? []) as Record<string, string>[];
 }
 
 /** Run `setUnit` and report the way the command layer would: code plus message. */
-function run(options: Parameters<typeof setUnit>[0]): { code: number; message: string } {
-  try {
-    setUnit(options, host);
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function run(options: Parameters<typeof setUnit>[0]): Attempt<unknown> {
+  return attempt(() => setUnit(options, host));
 }
 
 let snapshot = '';
@@ -89,7 +80,7 @@ beforeAll(async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', name, '--repo', 'demo', '--target', 'main'], { YAN_TASK: 't1' });
     expect(r.code, r.out).toBe(0);
   }
-  expect(unitField('auth', 'branch')).toBe('yan/t1-auth-r1');
+  expect(unitField(home, 't1', 'auth', 'branch')).toBe('yan/t1-auth-r1');
 });
 
 afterEach(() => {
@@ -133,8 +124,8 @@ describe('a round with nothing on it is replaced without an interrogation', () =
       end: 'unused',
     });
     expect(h[0].mr, 'a round that never opened an MR stores no mr field').toBeUndefined();
-    expect(unitField('auth', 'branch')).toBe('feat/auth-r2');
-    expect(unitField('auth', 'mr')).toBe('');
+    expect(unitField(home, 't1', 'auth', 'branch')).toBe('feat/auth-r2');
+    expect(unitField(home, 't1', 'auth', 'mr')).toBe('');
     // The host was never asked: there was no MR to ask about.
     expect(hostAsked).toBe(0);
   });
@@ -169,7 +160,7 @@ describe('an open MR does not block the rotation any more', () => {
     // Rotating away from an open MR is allowed, and says so loudly.
     expect(h[1].end).toBe('unknown');
     expect(h[1].mr, 'it is awkward to look up once the branch is gone').toBe(MR);
-    expect(unitField('auth', 'branch')).toBe('feat/auth-r3');
+    expect(unitField(home, 't1', 'auth', 'branch')).toBe('feat/auth-r3');
     expect((await fxGit(['-C', clone, 'show-ref', '--verify', '--quiet', 'refs/heads/feat/auth-r3'])).code).toBe(0);
 
     const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
@@ -218,7 +209,7 @@ describe('merged means delivered', () => {
     const h = history('auth');
     expect(h[3].end).toBe('delivered');
     expect(h[3].at).toBe('2026-08-27');
-    expect(unitField('auth', 'branch')).toBe('feat/auth-r5');
+    expect(unitField(home, 't1', 'auth', 'branch')).toBe('feat/auth-r5');
     expect((await fxGit(['-C', clone, 'rev-parse', 'feat/auth-r5'])).stdout.trim()).toBe(
       (await fxGit(['-C', clone, 'rev-parse', 'origin/main'])).stdout.trim(),
     );
@@ -264,7 +255,7 @@ describe("the built-in default carries the NEXT round's number", () => {
       reason: 'starting the third round from scratch',
     });
     expect(r.code, r.message).toBe(0);
-    expect(unitField('proto', 'branch'), 'r1 and r2 are already in history, so the default is r3').toBe('yan/t1-proto-r4');
+    expect(unitField(home, 't1', 'proto', 'branch'), 'r1 and r2 are already in history, so the default is r3').toBe('yan/t1-proto-r4');
     expect(history('proto')).toHaveLength(3);
     expect(history('proto')[2].branch).toBe('feat/proto-r3');
   });
@@ -273,10 +264,10 @@ describe("the built-in default carries the NEXT round's number", () => {
 describe('the three plain scalars, each of them a decision', () => {
   it('sets target and scope', async () => {
     expect((await runYan(home, ['unit', 'set', '--unit', 'proto', '--target', 'release/8'], { YAN_TASK: 't1' })).code).toBe(0);
-    expect(unitField('proto', 'target')).toBe('release/8');
+    expect(unitField(home, 't1', 'proto', 'target')).toBe('release/8');
 
     expect((await runYan(home, ['unit', 'set', '--unit', 'proto', '--scope', 'libs/proto', '--scope', 'libs/shared'], { YAN_TASK: 't1' })).code).toBe(0);
-    expect(unitField('proto', 'scope')).toEqual(['libs/proto', 'libs/shared']);
+    expect(unitField(home, 't1', 'proto', 'scope')).toEqual(['libs/proto', 'libs/shared']);
   });
 });
 
@@ -360,7 +351,7 @@ describe('the work on the old round is carried forward', () => {
 
     const r = run({ task: 't1', unit: 'carry', branch: 'feat/carry-r3', base: 'main' });
     expect(r.code, 'a conflict does not fail the rotation: the branch and the history are right').toBe(0);
-    expect(unitField('carry', 'branch')).toBe('feat/carry-r3');
+    expect(unitField(home, 't1', 'carry', 'branch')).toBe('feat/carry-r3');
 
     const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
     expect(log).toContain('did NOT carry forward');
@@ -373,14 +364,14 @@ describe('--needs, and --note', () => {
   it('replaces the needs list, and says so in log.md with the reason', () => {
     const r = run({ task: 't1', unit: 'auth', needs: ['proto'], note: 'proto ships the schema auth reads' });
     expect(r.code, r.message).toBe(0);
-    expect(unitField('auth', 'needs')).toEqual(['proto']);
+    expect(unitField(home, 't1', 'auth', 'needs')).toEqual(['proto']);
     const log = readFileSync(join(home, 'tasks', 't1', 'log.md'), 'utf8');
     expect(log).toMatch(/changed {4}auth {2}needs → proto — proto ships the schema auth reads/);
   });
 
   it("clears it with --needs ''", () => {
     expect(run({ task: 't1', unit: 'auth', needs: [''] }).code).toBe(0);
-    expect(unitField('auth', 'needs')).toEqual([]);
+    expect(unitField(home, 't1', 'auth', 'needs')).toEqual([]);
   });
 
   it('refuses a unit the task does not have, or the unit itself, and changes nothing', () => {

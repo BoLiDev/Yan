@@ -8,9 +8,9 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
-import { Task } from '../../src/records/task/index.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 import { YanError } from '../../src/util/error.js';
@@ -80,14 +80,8 @@ function deps(): DoneDeps {
   };
 }
 
-function run(sid: string, options: DoneOptions = {}): { code: number; message: string } {
-  try {
-    clockOut(sid, options, deps());
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function run(sid: string, options: DoneOptions = {}): Attempt<unknown> {
+  return attempt(() => clockOut(sid, options, deps()));
 }
 
 /** Comments may name what is forbidden; code may not run it. */
@@ -97,17 +91,12 @@ function stripComments(source: string): string {
 
 /** A dispatched shift, as `yan shift new` leaves one. */
 function dispatched(sid: string, overrides: Record<string, unknown> = {}): string {
-  const run_ = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-  mkdirSync(run_, { recursive: true });
-  writeFileSync(
-    join(run_, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
-      branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
-      holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
-      container: 'w1', pane: 'w1:p7', mr: MR, ...overrides,
-    })}\n`,
-  );
+  const run_ = liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
+    branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
+    holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
+    container: 'w1', pane: 'w1:p7', mr: MR, ...overrides,
+  });
   writeFileSync(join(run_, 'status'), '2026-08-09T09:00:00Z\tstarted\tread the brief\n');
   leases = [
     { slot: 1, path: tree, branch: `yan/t042-auth-${sid}`, base: 'feat/auth', holder: `t042/auth/${sid}`, lease_id: LEASE, at: 0 },
@@ -124,8 +113,7 @@ beforeEach(() => {
   tree = join(tmp, 'tree1');
   mkdirSync(tree, { recursive: true });
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
 
   calls = [];
   hostSays = 'merged';

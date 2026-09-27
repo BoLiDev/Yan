@@ -11,6 +11,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { attempt, type Attempt, seedT042 } from '../helpers/records.js';
 import { openMr, type MrOptions } from '../../src/cli/mr.js';
 import { Deliverables, Task } from '../../src/records/task/index.js';
 import type { MrCreateOptions } from '../../src/externals/remote-git/index.js';
@@ -39,14 +40,8 @@ const createMr = (options: MrCreateOptions): string => {
   return URL_88;
 };
 
-function open(options: MrOptions): { code: number; message: string } {
-  try {
-    openMr(options, createMr);
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function open(options: MrOptions): Attempt<unknown> {
+  return attempt(() => openMr(options, createMr));
 }
 
 function unitMr(task: string, unit: string): unknown {
@@ -67,9 +62,7 @@ beforeEach(async () => {
   await fxGit(['-C', clone, 'push', 'origin', 'main:feat/auth']);
   await fxGit(['-C', clone, 'push', 'origin', 'main:master']);
 
-  Task.create('t042', 'unify the auth header');
-  const t = new Task('t042');
-  t.addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  const t = seedT042();
   t.addUnit('proto', 'monorepo-x', 'master', { branch: 'feat/proto' });
 
   Task.create('t043', 'not pushed yet');

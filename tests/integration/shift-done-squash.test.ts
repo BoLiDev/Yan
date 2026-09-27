@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import {
   cleanupTempDirs,
   fxGit,
@@ -11,9 +11,9 @@ import {
   mkYanHome,
   registerRepo,
 } from '../helpers/fixtures.js';
+import { liveShift, seedT042 } from '../helpers/records.js';
 import { clockOut, type DoneDeps } from '../../src/cli/shift.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
-import { Task } from '../../src/records/task/index.js';
 import { WorktreePool } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 
@@ -55,17 +55,12 @@ async function dispatch(sid: string): Promise<string> {
   await mkCommit(grant.path, join('apps', 'auth', `${sid}.txt`), `work from ${sid}`, `${sid}: parse the header`);
   await fxGit(['-C', grant.path, 'push', '-u', 'origin', branch]);
 
-  const run = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-  mkdirSync(run, { recursive: true });
-  writeFileSync(
-    join(run, 'meta.json'),
-    `${JSON.stringify({
-      version: 1, task: 't042', sid, unit: 'auth', repo: 'widget',
-      branch, base: 'feat/auth', tree: grant.path, clone,
-      holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
-      container: 'w1', pane: 'w1:p7', mr: MR,
-    })}\n`,
-  );
+  liveShift(home, 't042', sid, {
+    task: 't042', sid, unit: 'auth', repo: 'widget',
+    branch, base: 'feat/auth', tree: grant.path, clone,
+    holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
+    container: 'w1', pane: 'w1:p7', mr: MR,
+  });
   return grant.path;
 }
 
@@ -108,8 +103,7 @@ beforeAll(async () => {
   await fxGit(['-C', clone, 'push', '-u', 'origin', 'feat/auth']);
   await fxGit(['-C', clone, 'checkout', 'main']);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'widget', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042({ repo: 'widget' });
 });
 
 afterAll(() => {
@@ -221,17 +215,12 @@ describe('an interrupted teardown of an explore shift', () => {
     const sid = 's6';
     const branch = `yan/t042-auth-${sid}`;
     const grant = new WorktreePool(clone).get(4, 'feat/auth', branch, `t042/auth/${sid}`);
-    const shiftDir = join(home, 'tasks', 't042', 'shifts', sid);
-    mkdirSync(join(shiftDir, 'run'), { recursive: true });
-    writeFileSync(
-      join(shiftDir, 'run', 'meta.json'),
-      `${JSON.stringify({
-        version: 1, task: 't042', sid, unit: 'auth', repo: 'widget', scenario: 'explore',
-        branch, base: 'feat/auth', tree: grant.path, clone,
-        holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
-        container: 'w1', pane: 'w1:p8',
-      })}\n`,
-    );
+    const shiftDir = dirname(liveShift(home, 't042', sid, {
+      task: 't042', sid, unit: 'auth', repo: 'widget', scenario: 'explore',
+      branch, base: 'feat/auth', tree: grant.path, clone,
+      holder: `t042/auth/${sid}`, lease_id: grant.lease_id, agent: 'claude',
+      container: 'w1', pane: 'w1:p8',
+    }));
     writeFileSync(join(shiftDir, 'outcome.md'), '# s6 auth\n\nThe header is parsed in two places.\n');
     writeFileSync(join(grant.path, 'leftover.txt'), 'generated\n');
 

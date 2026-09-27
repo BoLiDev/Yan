@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan, type RunResult } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
@@ -38,7 +39,7 @@ function entries(): string[] {
 
 beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
+  seedT042(null);
   Task.create('t043', 'a finished one');
   new Task('t043').setComplete(true);
 });

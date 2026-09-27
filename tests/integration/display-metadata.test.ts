@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readdirSync } from 'node:fs';
 import {
@@ -12,9 +12,8 @@ import {
   repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
-import { hostname } from 'node:os';
+import { enterLock, liveShift, seedT042 } from '../helpers/records.js';
 import { containerOf } from '../../src/cli/shared/container.js';
-import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import { setUnit, type Labeller } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -44,18 +43,9 @@ class FakeLabeller implements Labeller {
   }
 }
 
-function liveShift(sid: string, container: string): void {
-  const run = join(home, 'tasks', 't042', 'shifts', sid, 'run');
-  mkdirSync(run, { recursive: true });
-  writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, container, pane: 'w1:p2' })}\n`);
-}
-
-/** The lock `yan continue` holds, stamped with the pane the main agent is in. */
-function enterLock(task: string, pane: string): void {
-  writeFileSync(
-    join(home, 'tasks', task, '.enter.lock'),
-    `${JSON.stringify({ pid: process.pid, host: hostname(), at: 0, identity: enterIdentity(task, pane) })}\n`,
-  );
+/** A live shift of t042 in the given workspace. */
+function running(sid: string, container: string): void {
+  liveShift(home, 't042', sid, { container, pane: 'w1:p2' });
 }
 
 beforeEach(async () => {
@@ -64,8 +54,7 @@ beforeEach(async () => {
   await mkClone(await mkBareRemote(join(tmp, 'remote.git')), join(home, 'repos', 'monorepo-x'));
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'main', { branch: 'main' });
+  seedT042({ target: 'main', branch: 'main', scope: [] });
 });
 
 
@@ -75,29 +64,29 @@ describe('the workspace is derived, never created', () => {
   });
 
   it('is the container a live shift recorded', () => {
-    liveShift('s1', 'w3');
+    running('s1', 'w3');
     expect(containerOf('t042')).toBe('w3');
   });
 
   it('falls back to the workspace the main agent is in', () => {
     // No shift has run yet, so the container comes from the pane stamped on
     // the enter lock.
-    enterLock('t042', 'w7:p1');
+    enterLock(home, 't042', 'w7:p1');
     const terminal = new FakeLabeller();
     terminal.paneWorkspace = 'w7';
     expect(containerOf('t042', terminal)).toBe('w7');
   });
 
   it('prefers a live shift over the lock, so the answer cannot move mid-task', () => {
-    liveShift('s1', 'w3');
-    enterLock('t042', 'w7:p1');
+    running('s1', 'w3');
+    enterLock(home, 't042', 'w7:p1');
     const terminal = new FakeLabeller();
     terminal.paneWorkspace = 'w7';
     expect(containerOf('t042', terminal)).toBe('w3');
   });
 
   it('is undefined when the lock names no pane, because yan is not under Herdr', () => {
-    enterLock('t042', '');
+    enterLock(home, 't042', '');
     const terminal = new FakeLabeller();
     terminal.paneWorkspace = 'w7';
     expect(containerOf('t042', terminal)).toBeUndefined();
@@ -118,7 +107,7 @@ describe('the workspace is derived, never created', () => {
 
 describe('`unit set --branch` rewrites the tokens for the new round', () => {
   it('reports task, unit and branch', () => {
-    liveShift('s1', 'w3');
+    running('s1', 'w3');
     const labeller = new FakeLabeller();
     setUnit(
       { task: 't042', unit: 'auth', branch: 'feat/auth-r2', reason: 'starting again' },
@@ -131,7 +120,7 @@ describe('`unit set --branch` rewrites the tokens for the new round', () => {
   });
 
   it('is never fatal: a refused call costs a line, not the rotation', () => {
-    liveShift('s1', 'w3');
+    running('s1', 'w3');
     const labeller = new FakeLabeller();
     labeller.refuse = true;
 

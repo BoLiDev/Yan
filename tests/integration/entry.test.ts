@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { liveShift } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { openTasks } from '../../src/cli/shared/task-id.js';
 
@@ -38,11 +39,7 @@ beforeAll(async () => {
   new Task('t003').setComplete(true);
 
   // One live shift on t001, which the hint counts: `run/` is the whole fact.
-  mkdirSync(join(home, 'tasks', 't001', 'shifts', 's1', 'run'), { recursive: true });
-  writeFileSync(
-    join(home, 'tasks', 't001', 'shifts', 's1', 'run', 'meta.json'),
-    `${JSON.stringify({ version: 1, task: 't001', sid: 's1', unit: 'auth' })}\n`,
-  );
+  liveShift(home, 't001', 's1', { task: 't001', sid: 's1', unit: 'auth' });
 });
 
 describe('without a TTY', () => {

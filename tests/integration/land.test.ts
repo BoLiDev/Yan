@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { attempt, seedT042 } from '../helpers/records.js';
 import { land, type Host, type LandOptions } from '../../src/cli/land.js';
 import { Task } from '../../src/records/task/index.js';
 import type { MergeStrategy, MrRef, MrState } from '../../src/externals/remote-git/index.js';
@@ -47,13 +48,8 @@ class RecordingHost implements Host {
 let host: RecordingHost;
 
 function run(options: LandOptions): { code: number; message: string; landed: string[] } {
-  try {
-    const r = land(options, host);
-    return { code: 0, message: '', landed: r.landed.map((l) => `${l.unit}:${l.result}`) };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '', landed: [] };
-  }
+  const r = attempt(() => land(options, host));
+  return { ...r, landed: r.value?.landed.map((l) => `${l.unit}:${l.result}`) ?? [] };
 }
 
 beforeEach(() => {
@@ -63,8 +59,7 @@ beforeEach(() => {
 
   // `web` is declared first and needs `api`, so declaration order and landing
   // order disagree: a sort that did nothing would fail here.
-  Task.create('t042', 'unify the auth header');
-  const t = new Task('t042');
+  const t = seedT042(null);
   t.addUnit('web', 'monorepo-x', 'master', { branch: 'feat/web', needs: ['api'] });
   t.addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });
   t.editUnit('web', (u) => {

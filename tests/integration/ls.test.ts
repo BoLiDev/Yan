@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
@@ -38,16 +39,6 @@ async function json<T>(args: readonly string[]): Promise<T> {
   return JSON.parse(r.stdout) as T;
 }
 
-function snapshot(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir).sort()) {
-    const full = join(dir, entry);
-    out.push(full);
-    if (statSync(full).isDirectory()) out.push(...snapshot(full));
-  }
-  return out;
-}
-
 beforeAll(async () => {
   const tmp = mkTempDir();
   home = mkYanHome(join(tmp, 'home'), { withDist: true });
@@ -57,8 +48,7 @@ beforeAll(async () => {
   expect((await runYan(home, ['ls'])).stdout).toContain('no tasks yet — start one with yan task new');
   expect((await json<Queue>(['ls', '--json'])).tasks).toHaveLength(0);
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   new Task('t042').addUnit('gateway', 'monorepo-x', 'master', {
     branch: 'feat/gw', scope: ['apps/gateway'], needs: ['auth'],
   });
@@ -72,11 +62,7 @@ beforeAll(async () => {
   // A live shift, which is run/meta.json existing and nothing else.
   treePath = join(tmp, 'trees', '1', 'monorepo-x').replace(/\\/g, '/');
   mkdirSync(treePath, { recursive: true });
-  mkdirSync(join(home, 'tasks', 't042', 'shifts', 's3', 'run'), { recursive: true });
-  writeFileSync(
-    join(home, 'tasks', 't042', 'shifts', 's3', 'run', 'meta.json'),
-    `${JSON.stringify({ version: 1, unit: 'auth', branch: 'yan/t042-auth-s3', tree: treePath, agent: 'claude' }, null, 2)}\n`,
-  );
+  liveShift(home, 't042', 's3', { unit: 'auth', branch: 'yan/t042-auth-s3', tree: treePath, agent: 'claude' });
 
   // A clocked-out shift keeps brief.md and outcome.md but no run/, so it must
   // not show up as live.

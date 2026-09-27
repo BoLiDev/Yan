@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { reportEvent, noteForYan } from '../../src/cli/report.js';
 import { YanError } from '../../src/util/error.js';
 import type { ReportDeps, ReportTerminal } from '../../src/cli/report.js';
@@ -40,8 +41,7 @@ function status(): string {
 
 beforeAll(async () => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   Task.create('t007', 'retire the legacy client');
 
   run = join(home, 'tasks', 't042', 'shifts', 's1', 'run');
@@ -278,7 +278,7 @@ describe('the note is typed into yan\'s pane', () => {
     process.env.YAN_REPORT_PAUSE_MS = '7000';
     process.env.YAN_REPORT_TYPING_WAIT_MS = '30000';
     process.env.YAN_REPORT_TYPING_POLL_MS = '10000';
-    Task.create('t042', 'unify the auth header');
+    seedT042(null);
 
     shiftRun = join(deliveryHome, 'tasks', 't042', 'shifts', 's3', 'run');
     mkdirSync(shiftRun, { recursive: true });

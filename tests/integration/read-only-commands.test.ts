@@ -2,8 +2,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { repoNameFromUrl } from '../../src/cli/repo.js';
-import { Task } from '../../src/records/task/index.js';
 
 /**
  * The read-only commands: `open` and `repo`. They are exercised through
@@ -23,11 +23,7 @@ function yan(args: readonly string[], env: Record<string, string> = {}) {
 
 beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', {
-    branch: 'feat/auth',
-    scope: ['apps/auth'],
-  });
+  seedT042();
 });
 
 

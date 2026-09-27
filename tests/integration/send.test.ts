@@ -1,9 +1,8 @@
 import { afterAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { sendLine, type Prompter } from '../../src/cli/send.js';
-import { Task } from '../../src/records/task/index.js';
 
 /**
  * `yan send`. Text and Enter go in one call, so what is pinned here is the
@@ -30,27 +29,15 @@ class RecordingTerminal implements Prompter {
 
 let terminal: RecordingTerminal;
 
-function meta(body: Record<string, unknown>): void {
-  writeFileSync(join(run, 'meta.json'), `${JSON.stringify({ version: 1, ...body })}\n`);
-}
-
-function send(sid: string, line?: string): { code: number; message: string } {
-  try {
-    sendLine(sid, line, 't042', terminal);
-    return { code: 0, message: '' };
-  } catch (err) {
-    const e = err as { exitCode?: number; message?: string };
-    return { code: e.exitCode ?? 1, message: e.message ?? '' };
-  }
+function send(sid: string, line?: string): Attempt<unknown> {
+  return attempt(() => sendLine(sid, line, 't042', terminal));
 }
 
 beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
+  seedT042(null);
 
-  run = join(home, 'tasks', 't042', 'shifts', 's3', 'run');
-  mkdirSync(run, { recursive: true });
-  meta({ unit: 'auth', branch: 'yan/t042/s3', agent: 'claude', pane: 'w1:p7' });
+  run = liveShift(home, 't042', 's3', { unit: 'auth', branch: 'yan/t042/s3', agent: 'claude', pane: 'w1:p7' });
   terminal = new RecordingTerminal();
 });
 
@@ -98,14 +85,14 @@ describe('one line, up to 1000 characters', () => {
 describe('the pane id comes from meta.json, and it is an id', () => {
   it('refuses a label rather than looking a shift up by one', async () => {
     // The seam is what enforces this; the command must not work around it.
-    meta({ agent: 'claude', pane: 's3-auth' });
+    liveShift(home, 't042', 's3', { agent: 'claude', pane: 's3-auth' });
     const real = await runYan(home, ['send', 's3', 'hello'], { YAN_TASK: 't042' });
     expect(real.code).not.toBe(0);
     expect(real.out, 'a label is not a source of truth').toContain('never a label');
   });
 
   it('reports a missing terminal id rather than silently doing nothing', () => {
-    meta({ agent: 'claude' });
+    liveShift(home, 't042', 's3', { agent: 'claude' });
     const r = send('s3', 'hello');
     expect(r.code).toBe(1);
     expect(r.message).toContain('no terminal id');

@@ -3,13 +3,13 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
-  fxGit,
   mkBareRemote,
   mkTempDir,
   mkYanHome,
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { hasBranch } from '../helpers/records.js';
 import { createTask } from '../../src/cli/task.js';
 
 /**
@@ -45,12 +45,6 @@ async function detail(id: string): Promise<{ title: string; units: Array<Record<
   const r = await yan(['show', id, '--json']);
   expect(r.code, r.out).toBe(0);
   return JSON.parse(r.stdout) as { title: string; units: Array<Record<string, unknown>> };
-}
-
-async function hasBranch(repo: string, branch: string): Promise<boolean> {
-  return (
-    (await fxGit(['-C', join(home, 'repos', repo), 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`])).code === 0
-  );
 }
 
 beforeAll(async () => {
@@ -103,9 +97,9 @@ describe('three units across two repositories, in one order-sensitive run', () =
     expect(d.units[0]?.target).toBe('main');
 
     // The integration branches really exist in the main clones.
-    expect(await hasBranch('monorepo-x', 'yan/t001-auth-r1')).toBe(true);
-    expect(await hasBranch('monorepo-x', 'yan/t001-admin-r1')).toBe(true);
-    expect(await hasBranch('proto', 'yan/t001-proto-r1')).toBe(true);
+    expect(await hasBranch(join(home, 'repos', 'monorepo-x'), 'yan/t001-auth-r1')).toBe(true);
+    expect(await hasBranch(join(home, 'repos', 'monorepo-x'), 'yan/t001-admin-r1')).toBe(true);
+    expect(await hasBranch(join(home, 'repos', 'proto'), 'yan/t001-proto-r1')).toBe(true);
 
     // …and create ended by trying to enter. This runner's stdio has no
     // terminal on it, so there is nowhere to put the agent and it says so —

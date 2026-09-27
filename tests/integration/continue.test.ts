@@ -10,6 +10,7 @@ import {
   repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { enterTask } from '../../src/cli/continue.js';
 
@@ -72,8 +73,7 @@ beforeAll(async () => {
   registerRepo(home, 'monorepo-x', join(home, 'repos', 'monorepo-x'));
   registerRepo(home, 'proto', join(home, 'repos', 'proto'));
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'monorepo-x', 'master', { branch: 'feat/auth', scope: ['apps/auth'] });
+  seedT042();
   new Task('t042').addUnit('proto', 'proto', 'master', { branch: 'feat/proto' });
   Task.create('t099', 'something else entirely');
   new Task('t099').addUnit('api', 'monorepo-x', 'master', { branch: 'feat/api' });

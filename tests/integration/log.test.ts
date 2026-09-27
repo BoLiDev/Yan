@@ -3,8 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { expectUsage } from '../helpers/usage.js';
-import { Task } from '../../src/records/task/index.js';
 
 /** `yan log`: the one way yan writes an entry no command wrote for it. */
 
@@ -18,7 +18,7 @@ function log(): string {
 
 beforeAll(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
+  seedT042(null);
 });
 
 describe('yan log', () => {

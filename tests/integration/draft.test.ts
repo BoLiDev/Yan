@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { writeDraft } from '../../src/cli/draft.js';
 
@@ -41,7 +42,7 @@ function editor(body: string): string {
 
 beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  Task.create('t042', 'unify the auth header');
+  seedT042(null);
   Task.create('t099', 'a task with no drafts');
   drafts = join(home, 'tasks', 't042', 'artifacts', 'drafts');
 });

@@ -12,6 +12,7 @@ import {
   runYan,
   type RunResult,
 } from '../helpers/fixtures.js';
+import { seedT042 } from '../helpers/records.js';
 import { expectUsage } from '../helpers/usage.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -44,8 +45,7 @@ beforeEach(async () => {
   await fxGit(['branch', 'yan/t042-auth-r1', 'main'], clone);
   registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 
-  Task.create('t042', 'unify the auth header');
-  new Task('t042').addUnit('auth', 'demo', 'main', { branch: 'yan/t042-auth-r1' });
+  seedT042({ repo: 'demo', target: 'main', branch: 'yan/t042-auth-r1', scope: [] });
 });
 
 
