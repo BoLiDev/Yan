@@ -78,10 +78,9 @@ export function vaultDirIfAny(): string | undefined {
 }
 
 /**
- * What the answer depends on. `Task`, `Shift` and `Supervision` each ask in
- * their constructor and `yan wait` builds them every few seconds, so the
- * resolved directory is cached against this rather than re-read three times a
- * call. A process never switches vaults of its own accord, and the two
+ * What the answer depends on. `Task` and `Shift` each ask in their
+ * constructor, so the resolved directory is cached against this rather than
+ * re-read on every one. A process never switches vaults of its own accord, and the two
  * variables plus the registry revision cover everything that could move the
  * answer under one that does — `yan vault use`, `init` and `clone` all write
  * through `editMachine`.

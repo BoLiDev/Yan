@@ -1,20 +1,31 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { reportEvent, noteForYan, type ReportDeps } from '../../src/cli/report.js';
+import type { Prompter } from '../../src/cli/send.js';
 
 /**
- * `yan report`.
+ * `yan report`. Two halves, and both are checked: the line it appends to
+ * `run/status`, which is the persistent fact, and the line it types into
+ * yan's pane, which is the whole of how yan hears anything.
  *
- * It accepts only the five allowed states, and appends `run/status` and
- * touches `run/signal` in one go: one invocation, then both effects checked.
+ * A recording stand-in stands where the terminal does, so "one call, with
+ * exactly this text" is an exact assertion; the paths that go through
+ * `bin/yan` deliver nothing, because no yan holds the enter lock, and the
+ * retry knobs keep that from costing thirty seconds a call.
  */
 
 afterAll(cleanupTempDirs);
 
 let home = '';
 let run = '';
+
+/** The real CLI, with the retries turned down: nothing here waits on a pane. */
+function yan(args: readonly string[], env: Record<string, string> = {}) {
+  return runYan(home, args, { YAN_REPORT_TRIES: '1', YAN_REPORT_PAUSE_MS: '0', ...env });
+}
 
 function lines(file: string): number {
   if (!existsSync(file)) return 0;
@@ -43,14 +54,12 @@ beforeAll(async () => {
   writeFileSync(join(home, 'tasks', 't007', 'shifts', 's1', 'outcome.md'), '# s1\n');
 });
 
-describe('one command, both effects', () => {
-  it('appends the event and touches the wake marker', async () => {
+describe('the event is recorded, and nothing else is left beside it', () => {
+  it('appends one timestamped line, state in its own field', async () => {
     expect(existsSync(join(run, 'status'))).toBe(false);
 
-    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/1', '--sid', 's1'], { YAN_TASK: 't042' });
+    const r = await yan(['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/1', '--sid', 's1'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
-    expect(existsSync(join(run, 'status')), 'the event was appended').toBe(true);
-    expect(existsSync(join(run, 'signal')), 'the wake marker was touched by the same command').toBe(true);
     expect(lines(join(run, 'status'))).toBe(1);
 
     const first = status().split('\n')[0] ?? '';
@@ -59,21 +68,10 @@ describe('one command, both effects', () => {
     expect(first).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
   });
 
-  it('records started without touching the wake marker: there is nothing to act on', async () => {
-    rmSync(join(run, 'signal'));
-    const r = await runYan(home, ['report', 'started', 'read the brief', '--sid', 's1'], { YAN_TASK: 't042' });
-    expect(r.code, r.out).toBe(0);
-    expect(lines(join(run, 'status')), 'the event is still appended').toBe(2);
-    expect(status()).toContain('\tstarted\t');
-    expect(existsSync(join(run, 'signal')), 'but nobody is woken for it').toBe(false);
-  });
-
-  it('re-touches the wake marker on every other report, not only the first', async () => {
-    rmSync(join(run, 'signal'), { force: true });
-    const r = await runYan(home, ['report', 'blocked', 'waiting for a credential', '--sid', 's1'], { YAN_TASK: 't042' });
-    expect(r.code, r.out).toBe(0);
-    expect(existsSync(join(run, 'signal')), 'signal is written again on the next report').toBe(true);
-    expect(lines(join(run, 'status')), 'run/status is appended, never replaced').toBe(3);
+  it('writes no wake marker: there is nothing left to notice one', async () => {
+    await yan(['report', 'blocked', 'waiting for a credential', '--sid', 's1'], { YAN_TASK: 't042' });
+    expect(existsSync(join(run, 'signal')), 'run/signal is gone from the design').toBe(false);
+    expect(lines(join(run, 'status')), 'run/status is appended, never replaced').toBe(2);
     expect(status(), 'the earlier event survived').toContain('merge_requests/1');
   });
 });
@@ -81,16 +79,16 @@ describe('one command, both effects', () => {
 describe('exactly five states', () => {
   it('accepts the other three', async () => {
     for (const state of ['started', 'needs-decision', 'conflict']) {
-      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's1'], { YAN_TASK: 't042' });
+      const r = await yan(['report', state, `note for ${state}`, '--sid', 's1'], { YAN_TASK: 't042' });
       expect(r.code, `${state} must be accepted: ${r.out}`).toBe(0);
     }
-    expect(lines(join(run, 'status')), 'all five allowed states were accepted').toBe(6);
+    expect(lines(join(run, 'status')), 'all five allowed states were accepted').toBe(5);
   });
 
   it('refuses a sixth word loudly, and writes nothing at all', async () => {
     const before = status();
     for (const bad of ['progress', 'DONE', 'finished', 'failed', 'stuck', 'note', '']) {
-      const r = await runYan(home, ['report', bad, 'a note', '--sid', 's1'], { YAN_TASK: 't042' });
+      const r = await yan(['report', bad, 'a note', '--sid', 's1'], { YAN_TASK: 't042' });
       expect(r.code, `'${bad}' is not one of the five and must be refused loudly`).toBe(2);
       expect(r.out, 'the refusal names the whole allowed set').toContain('started done blocked needs-decision conflict');
     }
@@ -101,17 +99,26 @@ describe('exactly five states', () => {
 describe('a note is required, and it is one line', () => {
   it('refuses a state with no note, and a note with a newline in it', async () => {
     const before = status();
-    expect((await runYan(home, ['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' })).code).toBe(2);
+    expect((await yan(['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' })).code).toBe(2);
 
     // Built inside bash: on Windows a literal newline in argv is re-split
     // before it reaches the process, which would test the harness.
     const r = spawnSync(
       bashCommand(),
       ['-c', `bash "$1" report done $'two\\nlines' --sid s1`, '_', join(home, 'bin', 'yan')],
-      { encoding: 'utf8', env: { ...process.env, YAN_HOME: home, YAN_TASK: 't042' }, windowsHide: true },
+      { encoding: 'utf8', env: { ...process.env, YAN_HOME: home, YAN_TASK: 't042', YAN_REPORT_TRIES: '1' }, windowsHide: true },
     );
     expect(r.status, 'a newline would forge a second event').toBe(2);
     expect(`${r.stdout ?? ''}${r.stderr ?? ''}`).toContain('one line');
+    expect(status()).toBe(before);
+  });
+
+  it('refuses a note too long for one submission, and writes nothing', async () => {
+    // The note goes into a pane, so it takes the limit `yan send` takes.
+    const before = status();
+    const r = await yan(['report', 'blocked', 'x'.repeat(1200), '--sid', 's1'], { YAN_TASK: 't042' });
+    expect(r.code).toBe(2);
+    expect(r.out).toContain('the limit is 1000');
     expect(status()).toBe(before);
   });
 });
@@ -119,18 +126,19 @@ describe('a note is required, and it is one line', () => {
 describe('who is reporting: the spawn environment, not an argument', () => {
   it('reads all three spellings', async () => {
     const shiftDir = join(home, 'tasks', 't042', 'shifts', 's1');
-    expect((await runYan(home, ['report', 'done', 'via YAN_SHIFT_DIR'], { YAN_SHIFT_DIR: shiftDir })).code).toBe(0);
-    expect(lines(join(run, 'status'))).toBe(7);
+    const before = lines(join(run, 'status'));
+    expect((await yan(['report', 'done', 'via YAN_SHIFT_DIR'], { YAN_SHIFT_DIR: shiftDir })).code).toBe(0);
+    expect(lines(join(run, 'status'))).toBe(before + 1);
 
-    expect((await runYan(home, ['report', 'done', 'via YAN_TASK_DIR as the shift dir'], { YAN_TASK_DIR: shiftDir })).code).toBe(0);
+    expect((await yan(['report', 'done', 'via YAN_TASK_DIR as the shift dir'], { YAN_TASK_DIR: shiftDir })).code).toBe(0);
     expect(
-      (await runYan(home, ['report', 'done', 'via YAN_TASK_DIR plus YAN_SID'], {
+      (await yan(['report', 'done', 'via YAN_TASK_DIR plus YAN_SID'], {
         YAN_TASK_DIR: join(home, 'tasks', 't042'),
         YAN_SID: 's1',
       })).code,
     ).toBe(0);
-    expect((await runYan(home, ['report', 'done', 'via ids only'], { YAN_TASK: 't042', YAN_SID: 's1' })).code).toBe(0);
-    expect(lines(join(run, 'status'))).toBe(10);
+    expect((await yan(['report', 'done', 'via ids only'], { YAN_TASK: 't042', YAN_SID: 's1' })).code).toBe(0);
+    expect(lines(join(run, 'status'))).toBe(before + 4);
   });
 
   it("does not take the main agent's task directory for a shift's", async () => {
@@ -141,7 +149,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
     writeFileSync(join(taskDir, 'outcome.md'), 'not a shift\n');
     const before = lines(join(run, 'status'));
 
-    const r = await runYan(home, ['report', 'done', 'yan is not a shift'], {
+    const r = await yan(['report', 'done', 'yan is not a shift'], {
       YAN_TASK: 't042',
       YAN_TASK_DIR: taskDir,
       YAN_SID: '',
@@ -157,7 +165,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
   });
 
   it('says so rather than guessing when nothing identifies the shift', async () => {
-    const r = await runYan(home, ['report', 'done', 'nobody knows who I am'], {
+    const r = await yan(['report', 'done', 'nobody knows who I am'], {
       YAN_SHIFT_DIR: '',
       YAN_TASK_DIR: '',
       YAN_TASK: '',
@@ -168,7 +176,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
   });
 
   it('refuses an id that exists under two tasks rather than guessing at it', async () => {
-    const r = await runYan(home, ['report', 'done', 'ambiguous'], {
+    const r = await yan(['report', 'done', 'ambiguous'], {
       YAN_SID: 's1',
       YAN_TASK: '',
       YAN_TASK_DIR: '',
@@ -184,24 +192,160 @@ describe('done waits for the handover', () => {
 
   it('refuses done while outcome.md is missing, names the file, and writes nothing', async () => {
     mkdirSync(dir(), { recursive: true });
-    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
+    const r = await yan(['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
     expect(r.code).toBe(2);
     expect(r.out).toContain('outcome.md');
     expect(existsSync(join(dir(), 'run', 'status')), 'no event').toBe(false);
-    expect(existsSync(join(dir(), 'run', 'signal')), 'nobody is woken to read a handover that is not there').toBe(false);
+    expect(existsSync(join(dir(), 'run', 'undelivered')), 'and nothing kept for yan to read').toBe(false);
   });
 
   it('still takes every other state without one', async () => {
     for (const state of ['started', 'blocked', 'needs-decision', 'conflict']) {
-      const r = await runYan(home, ['report', state, `note for ${state}`, '--sid', 's2'], { YAN_TASK: 't042' });
+      const r = await yan(['report', state, `note for ${state}`, '--sid', 's2'], { YAN_TASK: 't042' });
       expect(r.code, `${state}: ${r.out}`).toBe(0);
     }
   });
 
   it('takes done once the file exists', async () => {
     writeFileSync(join(dir(), 'outcome.md'), '# s2 auth\n\nResult: done.\n');
-    const r = await runYan(home, ['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
+    const r = await yan(['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
     expect(readFileSync(join(dir(), 'run', 'status'), 'utf8')).toContain('\tdone\t');
+  });
+});
+
+/**
+ * The delivery, driven in process: the recording terminal is where Herdr
+ * would be, and the pane lookup is where the task's enter lock would be.
+ */
+describe('the note is typed into yan\'s pane', () => {
+  class RecordingTerminal implements Prompter {
+    public readonly calls: { pane: string; text: string }[] = [];
+    /** Thrown on the first `refuseTimes` calls, then it succeeds. */
+    public refuseTimes = 0;
+    public refusal: Error = new Error('agent prompt: agent_blocked');
+
+    public send(pane: string, text: string): void {
+      if (this.refuseTimes > 0) {
+        this.refuseTimes -= 1;
+        throw this.refusal;
+      }
+      this.calls.push({ pane, text });
+    }
+  }
+
+  let deliveryHome = '';
+  let previousHome: string | undefined;
+  let terminal: RecordingTerminal;
+  let slept: number[];
+  let pane: string | undefined;
+  let shiftRun = '';
+
+  function deps(): ReportDeps {
+    return { terminal, paneOf: () => pane, sleep: (ms) => slept.push(ms) };
+  }
+
+  function report(state: string, note: string, sid = 's3'): void {
+    reportEvent(state, note, { sid }, deps());
+  }
+
+  function undelivered(): string {
+    const file = join(shiftRun, 'undelivered');
+    return existsSync(file) ? readFileSync(file, 'utf8') : '';
+  }
+
+  beforeEach(async () => {
+    previousHome = process.env.YAN_HOME;
+    deliveryHome = mkYanHome(mkTempDir(), { withDist: true });
+    process.env.YAN_HOME = deliveryHome;
+    process.env.YAN_TASK = 't042';
+    process.env.YAN_REPORT_TRIES = '5';
+    process.env.YAN_REPORT_PAUSE_MS = '7000';
+    const { Task } = await import('../../src/records/task/index.js');
+    Task.create('t042', 'unify the auth header');
+
+    shiftRun = join(deliveryHome, 'tasks', 't042', 'shifts', 's3', 'run');
+    mkdirSync(shiftRun, { recursive: true });
+    writeFileSync(join(deliveryHome, 'tasks', 't042', 'shifts', 's3', 'outcome.md'), '# s3\n');
+    terminal = new RecordingTerminal();
+    slept = [];
+    pane = 'w1:p4';
+  });
+
+  afterEach(() => {
+    if (previousHome === undefined) delete process.env.YAN_HOME;
+    else process.env.YAN_HOME = previousHome;
+    delete process.env.YAN_TASK;
+    delete process.env.YAN_REPORT_TRIES;
+    delete process.env.YAN_REPORT_PAUSE_MS;
+  });
+
+  it('sends the note as it stands, with the sid appended when it is missing', () => {
+    report('blocked', 'the auth fixture needs a credential I do not have');
+    expect(terminal.calls).toEqual([
+      { pane: 'w1:p4', text: 'the auth fixture needs a credential I do not have (s3)' },
+    ]);
+  });
+
+  it('adds nothing at all when the note already names the shift', () => {
+    report('done', 's3 is done: mr https://forge.invalid/x/1');
+    expect(terminal.calls[0]?.text).toBe('s3 is done: mr https://forge.invalid/x/1');
+  });
+
+  it('is not fooled by another shift\'s id inside the note', () => {
+    // `s3` is not in `s30`, so the tag still goes on: a note about another
+    // shift must not stand in for this one's name.
+    expect(noteForYan('s30 merged first', 's3')).toBe('s30 merged first (s3)');
+    expect(noteForYan('handed over to s3, taking the next round', 's3')).toBe(
+      'handed over to s3, taking the next round',
+    );
+  });
+
+  it('carries no prefix and no state word: the note is what yan reads', () => {
+    report('needs-decision', 'which target branch should the outbound MR aim at?');
+    const text = terminal.calls[0]?.text ?? '';
+    expect(text.startsWith('which target branch')).toBe(true);
+    expect(text).not.toContain('needs-decision');
+    expect(text).not.toContain('[shift');
+  });
+
+  it('records `started` and sends nothing', () => {
+    report('started', 'read the brief');
+    expect(terminal.calls).toEqual([]);
+    expect(readFileSync(join(shiftRun, 'status'), 'utf8')).toContain('\tstarted\t');
+    expect(undelivered(), 'and started never lands in undelivered either').toBe('');
+  });
+
+  it('retries a refusal and keeps the report when the pane frees up', () => {
+    terminal.refuseTimes = 2;
+    report('blocked', 'waiting on a credential');
+    expect(terminal.calls, 'the third attempt landed').toHaveLength(1);
+    expect(slept, 'and it waited between attempts').toEqual([7000, 7000]);
+    expect(undelivered(), 'nothing is kept once it arrives').toBe('');
+  });
+
+  it('gives up after five attempts and keeps the line for yan to find', () => {
+    terminal.refuseTimes = 99;
+    report('conflict', 'the merge into the integration branch conflicts in src/cli/state.ts');
+    expect(terminal.calls).toEqual([]);
+    expect(slept, 'five attempts, four pauses, about thirty seconds').toHaveLength(4);
+
+    const kept = undelivered().trim();
+    expect(kept).toMatch(/^\d+ conflict the merge into the integration branch conflicts in src\/cli\/state\.ts$/);
+    expect(readFileSync(join(shiftRun, 'status'), 'utf8'), 'the event was recorded either way').toContain('\tconflict\t');
+  });
+
+  it('keeps it when no yan is running, without ever asking the terminal', () => {
+    pane = undefined;
+    report('needs-decision', 'which branch?');
+    expect(terminal.calls).toEqual([]);
+    expect(undelivered()).toContain('needs-decision which branch?');
+  });
+
+  it('appends, so two reports nobody heard are both there', () => {
+    pane = undefined;
+    report('blocked', 'first');
+    report('conflict', 'second');
+    expect(undelivered().trim().split('\n')).toHaveLength(2);
   });
 });

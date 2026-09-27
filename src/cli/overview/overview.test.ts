@@ -266,7 +266,7 @@ describe('active, rung by rung', () => {
   it('1: the session file, by the id in the dispatch record', () => {
     Task.create('t1', 'x');
     const run = shift('s1', { agent_session: SID });
-    writeFileSync(join(run, 'pulse'), `${T / 1000 + 50} ${T / 1000 + 60} abc\n`);
+    writeFileSync(join(run, 'status'), '2026-09-18T08:00:00Z\tstarted\t\n');
     const h = mkTempDir();
     sessionFile(h, T);
     expect(taskActive('t1', lastLog, deps(h))).toEqual({ at: '2026-09-18T10:00:00Z', precision: 'second', source: 'session' });
@@ -281,15 +281,7 @@ describe('active, rung by rung', () => {
     expect(taskActive('t1', lastLog, deps(h, herdr))?.source).toBe('session');
   });
 
-  it('2: the pulse, when there is no session file', () => {
-    Task.create('t1', 'x');
-    const run = shift('s1', { agent_session: SID });
-    writeFileSync(join(run, 'pulse'), `${T / 1000} ${T / 1000 + 60} abc\n`);
-    writeFileSync(join(run, 'status'), '2026-09-18T11:00:00Z\tstarted\t\n');
-    expect(taskActive('t1', lastLog, deps(mkTempDir()))).toEqual({ at: '2026-09-18T10:00:00Z', precision: 'second', source: 'pulse' });
-  });
-
-  it('3: the last line of run/status, when nothing sampled a pulse', () => {
+  it('2: the last line of run/status, when there is no session file', () => {
     Task.create('t1', 'x');
     const run = shift('s1', {});
     writeFileSync(join(run, 'status'), '2026-09-18T08:00:00Z\tstarted\t\n2026-09-18T09:30:00Z\tdone\tmr x\n');

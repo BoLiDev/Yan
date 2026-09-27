@@ -29,7 +29,7 @@ A vault is *not* a workspace and not a worktree — those words are taken, and t
           brief.md         what the shift was told
           outcome.md       the shift's handover to yan, read before merging
           run/             ← gitignored: throwaway, and pane ids are machine-local
-      run/                 ← gitignored: wait lock, beacon, wake
+      run/                 ← gitignored: the agy session marker
       .enter.lock          ← gitignored
   mem/
     user.md                judgements about a person, written only when asked

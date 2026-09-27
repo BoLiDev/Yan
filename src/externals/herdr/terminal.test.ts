@@ -33,7 +33,7 @@ function seamSource(): string {
 
 describe('ids are used, nothing is located by label alone', () => {
   // A name is cleared when its agent exits, so it cannot identify a shift that
-  // has died — which is exactly what supervision has to do.
+  // has died — which is exactly what `yan state` has to do.
   const notPaneIds = ['yan', 's3-auth', '', '@3', '%7', 'w1', 'w1:t1', '3', 'w1:p'];
 
   it.each(notPaneIds)('send refuses %j', (bad) => {
@@ -449,7 +449,7 @@ describe('an agent that is not really there', () => {
   it('leaves a question it does not recognise standing, and says so', () => {
     // The agent is running in a leased tree, so tearing the dispatch down
     // would destroy live work: the honest answer is `blocked`, which is what
-    // supervision wakes on.
+    // `yan shift new` reports and `yan state` says again on demand.
     const run = (args: readonly string[]) => {
       const verb = `${args[0]} ${args[1]}`;
       if (verb === 'tab create') {

@@ -2,33 +2,192 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { Shift } from '../records/shift/index.js';
+import { paneOfEnterLock } from './shared/enter-lock.js';
+import { checkSendLength, type Prompter } from './send.js';
+import { Terminal } from '../externals/herdr/index.js';
+import { Shift, recordUndelivered, undeliveredFile } from '../records/shift/index.js';
 import { YanError } from '../util/error.js';
 
 /**
  * `yan report <state> "<note>"` — the shift → yan channel, and the only
- * command a shift needs. Appends one timestamped line to `run/status` and
- * touches `run/signal`, in one call, and touches nothing else.
+ * command a shift needs. It appends one timestamped line to `run/status` and
+ * then types the note into yan's own pane, the same way `yan send` types a
+ * line into a shift's. Every harness queues input arriving while it works, so
+ * the note lands as a user message in yan's conversation, whatever yan is in
+ * the middle of.
  *
  * Five states, and any other is refused:
  *
- *   started         the agent booted and read its brief; recorded, but wakes
- *                   nobody, since there is nothing for yan to act on
+ *   started         the agent booted and read its brief; recorded, and not
+ *                   sent, since there is nothing for yan to act on
  *   done            with the scenario's deliverable in the note, e.g. `mr <url>`;
  *                   refused until the shift has written outcome.md
  *   blocked         it is waiting on something
  *   needs-decision  it needs an answer from yan
  *   conflict        the merge has conflicts
  *
- * This is the half of supervision that does not depend on Herdr recognising a
- * screen: a shift that says it is blocked is believed either way.
+ * Nothing watches a shift, so this is the whole of how yan learns anything: a
+ * note that cannot be delivered is kept in `run/undelivered`, which `yan
+ * show` and the next session start print.
  */
 
 export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
 
+/** How many times a note is offered to yan's pane, from `$YAN_REPORT_TRIES`. */
+function deliveryTries(): number {
+  const n = Number.parseInt(process.env.YAN_REPORT_TRIES ?? '', 10);
+  return Number.isInteger(n) && n > 0 ? n : 5;
+}
+
+/** The pause between those attempts, from `$YAN_REPORT_PAUSE_MS`. */
+function deliveryPauseMs(): number {
+  const n = Number.parseInt(process.env.YAN_REPORT_PAUSE_MS ?? '', 10);
+  return Number.isInteger(n) && n >= 0 ? n : 7000;
+}
+
+/** Block the whole process: a report has nothing else to do while it waits. */
+function sleepMs(ms: number): void {
+  if (ms <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** The sources a delivery uses; each defaults to the real one. */
+export interface ReportDeps {
+  readonly terminal?: Prompter;
+  /** Which pane the live yan for a task is in. */
+  readonly paneOf?: (task: string) => string | undefined;
+  readonly sleep?: (ms: number) => void;
+}
+
+/**
+ * The note as yan will read it: its own words, with ` (<sid>)` appended when
+ * it does not already name the shift. That tag is the only decoration — no
+ * prefix and no state word, because the line goes into a conversation rather
+ * than into a log.
+ *
+ * "Already names it" is a whole word: a note about `s12` does not stand in
+ * for a report from `s1`.
+ */
+export function noteForYan(note: string, sid: string): string {
+  const escaped = sid.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+  const named = new RegExp(`(^|[^A-Za-z0-9._-])${escaped}([^A-Za-z0-9._-]|$)`).test(note);
+  return named ? note : `${note} (${sid})`;
+}
+
+/**
+ * Offer the line to yan's pane once. Answers `''` when it arrived, and why
+ * not otherwise. The pane is looked up on every attempt, because a yan that
+ * restarts comes back in a different one.
+ */
+function offer(task: string, line: string, deps: ReportDeps): string {
+  if (task === '') return 'this shift is not under a task, so there is no enter lock naming a pane';
+  const pane = (deps.paneOf ?? paneOfEnterLock)(task);
+  if (pane === undefined) {
+    return `no live yan holds task ${task}'s enter lock, so nothing is running to read this`;
+  }
+  try {
+    (deps.terminal ?? new Terminal()).send(pane, line);
+    return '';
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
+
+/**
+ * Type the line into yan's pane, retrying while it will not go: yan sitting
+ * in a dialog, no yan running, or Herdr out of reach are all states that pass
+ * within seconds. Answers `''` once it lands, and the last reason otherwise.
+ */
+export function deliver(task: string, line: string, deps: ReportDeps = {}): string {
+  const tries = deliveryTries();
+  const pause = deliveryPauseMs();
+  const wait = deps.sleep ?? sleepMs;
+
+  let why = '';
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    why = offer(task, line, deps);
+    if (why === '') return '';
+    if (attempt < tries) wait(pause);
+  }
+  return why;
+}
+
 interface ReportOptions {
   sid?: string;
   dir?: string;
+}
+
+/**
+ * Record the event and tell yan about it.
+ *
+ * @throws YanError `report_usage` for anything wrong with the state, the note
+ *   or who is reporting, and `report_no_outcome` for a `done` with no
+ *   handover written. Nothing is written when one of these throws.
+ */
+export function reportEvent(
+  state: string | undefined,
+  note: string | undefined,
+  options: ReportOptions = {},
+  deps: ReportDeps = {},
+): void {
+  // Checked first, so a refused state writes nothing at all.
+  if (state === undefined || state === '') {
+    throw YanError.usage('report_usage', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
+  }
+  if (!(REPORT_STATES as readonly string[]).includes(state)) {
+    throw YanError.usage('report_usage', `'${state}' is not a shift state - use one of: ${REPORT_STATES.join(' ')}`,
+    );
+  }
+  if (note === undefined || note === '') {
+    throw YanError.usage('report_usage', 'a note is required - say in one line what yan has to act on');
+  }
+  if (note.includes('\n')) {
+    throw YanError.usage('report_usage', 'a note is one line - every line in run/status is one event, so a newline would forge a second one',
+    );
+  }
+
+  // A shift reports about itself, so the id comes from its environment.
+  let shift: Shift | undefined;
+  if (options.dir !== undefined && options.dir !== '') {
+    shift = Shift.fromDir(options.dir);
+  } else if (options.sid !== undefined && options.sid !== '') {
+    shift = Shift.resolve(options.sid);
+  } else {
+    shift = Shift.fromEnv();
+  }
+  if (shift === undefined) {
+    throw YanError.usage('report_usage', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
+    );
+  }
+
+  // The handover has to exist before the event that sends yan to read it.
+  if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
+    throw new YanError('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
+      { exitCode: 2 },
+    );
+  }
+
+  // The note is typed into a pane, so it is held to the line `yan send`
+  // allows - checked before anything is written, like every refusal above.
+  const line = noteForYan(note, shift.sid);
+  if (state !== 'started') checkSendLength(line, 'report_usage');
+
+  shift.appendEvent(state, note);
+  out(`recorded ${state} in ${join(shift.run, 'status')}`);
+
+  // `started` says the shift read its brief, which is nothing yan has to act
+  // on: four shifts dispatched together would otherwise cost four messages
+  // that each end in "nothing to do".
+  if (state === 'started') return;
+
+  const why = deliver(shift.task, line, deps);
+  if (why === '') {
+    out('delivered to yan');
+    return;
+  }
+  recordUndelivered(shift.run, state, note);
+  out(`NOT delivered to yan: ${why}`);
+  out(`it is recorded in ${undeliveredFile(shift.run)}, which 'yan show' and the next session start print`);
 }
 
 export const command = new Command('report')
@@ -40,9 +199,18 @@ export const command = new Command('report')
   .addHelpText(
     'after',
     `
-Appends the event to run/status and touches run/signal in one go - except
-\`started\`, which is recorded without waking yan. \`done\` is refused, and
-nothing is written, until the shift directory has outcome.md.
+Appends the event to run/status and types the note into yan's pane, where it
+arrives as a line in yan's conversation - except \`started\`, which is recorded
+and not sent. \`done\` is refused, and nothing is written, until the shift
+directory has outcome.md.
+
+The note is what yan reads, so write it the way you would tell a colleague:
+who you are, what happened, where to look. Your sid is appended when the note
+does not already carry it, and nothing else is added.
+
+A note that will not go - yan in a dialog, no yan running, no herdr - is
+retried for about thirty seconds and then kept in run/undelivered, which
+'yan show' and the next session start print. The command still exits 0.
 
 Which shift is reporting is normally taken from the environment the spawn
 step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid / --dir are for
@@ -50,44 +218,6 @@ yan itself and for tests.`,
   )
   .action(
     action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {
-      // Checked first, so a refused state writes nothing at all.
-      if (state === undefined || state === '') {
-        throw YanError.usage('report_usage', `a state is required - one of: ${REPORT_STATES.join(' ')}`);
-      }
-      if (!(REPORT_STATES as readonly string[]).includes(state)) {
-        throw YanError.usage('report_usage', `'${state}' is not a shift state - use one of: ${REPORT_STATES.join(' ')}`,
-        );
-      }
-      if (note === undefined || note === '') {
-        throw YanError.usage('report_usage', 'a note is required - say in one line what yan has to act on');
-      }
-      if (note.includes('\n')) {
-        throw YanError.usage('report_usage', 'a note is one line - every line in run/status is one event, so a newline would forge a second one',
-        );
-      }
-
-      // A shift reports about itself, so the id comes from its environment.
-      let shift: Shift | undefined;
-      if (options.dir !== undefined && options.dir !== '') {
-        shift = Shift.fromDir(options.dir);
-      } else if (options.sid !== undefined && options.sid !== '') {
-        shift = Shift.resolve(options.sid);
-      } else {
-        shift = Shift.fromEnv();
-      }
-      if (shift === undefined) {
-        throw YanError.usage('report_usage', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
-        );
-      }
-
-      // The handover has to exist before the event that sends yan to read it.
-      if (state === 'done' && !existsSync(join(shift.dir, 'outcome.md'))) {
-        throw new YanError('report_no_outcome', `write ${join(shift.dir, 'outcome.md')} first, then report done again - it is the handover yan reads before merging, and your brief says what goes in it`,
-          { exitCode: 2 },
-        );
-      }
-
-      shift.appendEvent(state, note);
-      out(`recorded ${state} in ${join(shift.run, 'status')}`);
+      reportEvent(state, note, options);
     }),
   );

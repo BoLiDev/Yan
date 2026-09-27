@@ -1,6 +1,6 @@
 ---
 name: yan-dev
-description: Developing yan itself - what differs from a regular repository when the repo is `yan`: the runtime is a second clone outside the task, the tree's CLAUDE.md is the main agent's prompt and not the shift's, testing runs the new yan against its own tree, landing does not deploy, and how to set the second clone up on a new machine.
+description: Developing yan itself - what differs from a regular repository when the repo is `yan`: the runtime is a second clone outside the task, the tree's AGENTS.md is the main agent's prompt and not the shift's, testing runs the new yan against its own tree, landing does not deploy, and how to set the second clone up on a new machine.
 ---
 
 # yan-dev
@@ -23,15 +23,15 @@ hooks and its prompt while it is still running. So `$YAN_HOME` is outside every
 task: never move its branch, never build in it, never lease from it. Treat it
 the way the authority table treats a repository outside the task.
 
-## 2. The tree's CLAUDE.md is not the shift's instructions
+## 2. The tree's AGENTS.md is not the shift's instructions
 
 Every tree of this repository carries the main agent's prompt as its root
-`CLAUDE.md`, `AGENTS.md` and `GEMINI.md`, and a shift's harness reads that file
-as if it were addressed to the shift. In a regular repository the root file is
-a contributor guide; here it tells the reader it is yan. Until the prompt moves
-out of the repository root, every brief says, in its own words: those three
-files are the main agent's prompt, you are not the main agent, and they are
-files you may edit rather than instructions to you.
+`AGENTS.md`, and a shift's harness reads that file as if it were addressed to
+the shift. In a regular repository the root file is a contributor guide; here
+it tells the reader it is yan. Until the prompt moves out of the repository
+root, every brief says, in its own words: that file is the main agent's
+prompt, you are not the main agent, and it is a file you may edit rather than
+instructions to you.
 
 ## 3. Verifying runs the new yan against its own tree
 

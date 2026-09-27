@@ -114,7 +114,7 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
     expect((await doctor()).out).not.toContain('hook review');
   });
 
-  it('names both gates, and which of the two supervision can see', async () => {
+  it('names both gates, and which of the two Herdr can see', async () => {
     config({ version: 1, agents: { yan: 'codex', shift: 'codex' }, remote_git: { kind: 'github' } });
     const r = await doctor();
 

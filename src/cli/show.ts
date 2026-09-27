@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
+import { isMainAgentOf } from './shared/caller.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { repoDirIfKnown } from './shared/repo.js';
@@ -11,10 +12,10 @@ import { dash } from './shared/table.js';
 import { overviewTask, type OverviewTask } from './overview/overview.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
-import { isoMoment } from './overview/when.js';
+import { isoMoment, secondMoment } from './overview/when.js';
 import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift } from '../records/shift/index.js';
+import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
 import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
@@ -73,6 +74,8 @@ export interface ShowJson {
     readonly leftover: boolean;
     /** Reported done on an open task: its work is merged or delivered, and waits to be tried and accepted. */
     readonly awaiting_acceptance: boolean;
+    /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
+    readonly undelivered: readonly Undelivered[];
   }[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
@@ -169,6 +172,7 @@ export function showJson(id: string): ShowJson {
       last_event: lastEvent(shift),
       leftover: data.complete,
       awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',
+      undelivered: readUndelivered(shift.run),
     };
   });
 
@@ -238,8 +242,11 @@ function section(label: string, aside = ''): void {
  * The task as `yan ls` shows it, with its state, its whole description and
  * everything below. The pane a yan runs in is for the main agent, in --json;
  * a person reads the task, not an address.
+ *
+ * `clears` says whether this caller is about to consume the undelivered
+ * reports it is being shown, which changes only what their heading says.
  */
-export function renderShow(show: ShowJson, task: OverviewTask, now = new Date()): void {
+export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears = false): void {
   for (const line of renderHeader(task, show.session, { now, cols: terminalWidth() })) out(line);
 
   section(
@@ -320,6 +327,21 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date())
     );
   }
 
+  const missed = show.shifts.filter((s) => s.undelivered.length > 0);
+  if (missed.length > 0) {
+    // Whether these are being consumed or only looked at is part of the
+    // heading: `user` reading over yan's shoulder must be able to tell.
+    const aside = clears
+      ? 'said while no yan could hear it'
+      : 'said while no yan could hear it (kept: not this task\'s yan)';
+    section('Undelivered reports', aside);
+    for (const s of missed) {
+      for (const u of s.undelivered) {
+        out(`   ${bold(s.sid)}  ${paintEvent(u.state)}  ${dim(ago(secondMoment(u.at * 1000, 'status'), now))}  ${u.note}`);
+      }
+    }
+  }
+
   section('Log', show.log.total === 0 ? '' : `last ${show.log.lines.length} of ${show.log.total}`);
   if (show.log.lines.length === 0) out(`   ${dim('nothing logged yet')}`);
   // Indent, date, type and their gaps come to 21 columns before the text.
@@ -337,10 +359,23 @@ export function printTask(id: string, json: boolean): void {
     throw new YanError('task_missing', `no such task: ${id} - ${where} does not exist`);
   }
   const show = showJson(id);
+
+  // A report is deleted once the one reader it was written for has read it.
+  // `user` runs `yan show` from their own pane constantly, and a shift or the
+  // yan of another task may run it too; any of them clearing the file would
+  // lose the report for good, since session start would not find it either.
+  const clears = isMainAgentOf(id);
+
   if (json) out(JSON.stringify(show));
   else {
     const now = new Date();
-    renderShow(show, overviewTask(id, { now }), now);
+    renderShow(show, overviewTask(id, { now }), now, clears);
+  }
+  if (!clears) return;
+  // Printed first and cleared second, so a crash in between repeats a report
+  // rather than losing one. This is the whole of `run/undelivered`'s life.
+  for (const s of show.shifts) {
+    if (s.undelivered.length > 0) clearUndelivered(new Shift(id, s.sid).run);
   }
 }
 
@@ -353,7 +388,12 @@ export const command = new Command('show')
     `
 Everything shown is read from this machine: no forge is asked. A shift's
 line is the last event it reported - 'yan state <sid>' says what is true now -
-and "ahead" counts commits by the refs the clone last fetched.`,
+and "ahead" counts commits by the refs the clone last fetched.
+
+Undelivered reports are printed to anyone, and cleared only for the task's own
+main agent - the one whose $YAN_TASK is this task and which is not a shift.
+Read from any other pane they are left where they are, so nobody else's glance
+swallows a report yan has not seen.`,
   )
   .action(
     action('show', async (id: string | undefined, options: { json?: boolean }) => {

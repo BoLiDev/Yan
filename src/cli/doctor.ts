@@ -93,7 +93,7 @@ function checkRequired(report: Report): void {
   const onPath = which('node');
   line(report, onPath === undefined ? 'warn' : 'ok', 'node',
     onPath === undefined
-      ? `${process.version} at ${process.execPath}, but 'node' is not on PATH - the Stop hooks and any pane that starts yan by name will not find it`
+      ? `${process.version} at ${process.execPath}, but 'node' is not on PATH - the session-start hook and any pane that starts yan by name will not find it`
       : `${process.version} (${onPath})`,
   );
 
@@ -359,15 +359,15 @@ function checkAgy(report: Report, agents: Record<string, string>): void {
   out('');
   out('agy');
 
-  // The hooks supervise the main agent; a shift on agy needs none of them.
+  // The hook rebuilds the main agent's picture; a shift on agy needs none of it.
   const main = roles.some(([role]) => role === 'yan');
   if (main) {
     const ours = join(yanHome(), '.agents', 'hooks.json');
     const registered = existsSync(ours);
     line(report, registered ? 'ok' : 'fail', 'hooks.json',
       registered
-        ? `${ours} - the autoarm, the guard, and the session-start stand-in`
-        : `${ours} is missing, so nothing supervises a turn: no autoarm, no turn-end guard, and no rebuilt picture at startup`,
+        ? `${ours} - the session-start stand-in`
+        : `${ours} is missing, so a conversation starts with no picture - run 'yan session-start' by hand`,
     );
   }
 
@@ -416,14 +416,14 @@ export const command = new Command('doctor')
       // Said once, plainly, because the natural reading of "integration
       // installed" is exactly wrong for the two agents yan dispatches: at v7
       // the Claude and Codex integrations report session identity only and
-      // never push state, so `blocked` and `done` are screen matches either
-      // way, and a shift's own report is the half that does not depend on a
-      // screen being recognised.
+      // never push state, so `yan state`'s `blocked` and `done` are screen
+      // matches either way.
       out('');
       out('  note  an installed integration records the agent session id. It does not');
       out('        make agent state authoritative: for claude and codex, Herdr classifies');
-      out('        state by matching the screen, so `run/signal` - what a shift reports');
-      out('        with `yan report` - stays the other half of supervision.');
+      out("        state by matching the screen, which is what 'yan state' reads. What a");
+      out('        shift says with `yan report` does not depend on a screen being');
+      out('        recognised, and it is how yan hears anything at all.');
 
       out('');
       out(`${report.ok} ok, ${report.warn} warn, ${report.fail} failed`);

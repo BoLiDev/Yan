@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
@@ -112,16 +112,21 @@ describe('run/meta.json is read once, and defensively', () => {
 });
 
 describe('reporting', () => {
-  it('writes the event and then the wake marker, in that order', () => {
+  it('writes the event, timestamped, with the state its own field', () => {
     const run = seed('t042', 's1');
     const shift = Shift.resolve('s1');
     shift.appendEvent('done', 'mr https://example.invalid/mr/31');
 
     const line = readFileSync(join(run, 'status'), 'utf8').trim();
     expect(line).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:]{8}Z\tdone\tmr https:/);
-    expect(existsSync(join(run, 'signal'))).toBe(true);
     expect(shift.eventCount()).toBe(1);
     expect(shift.reportedMr()).toBe('https://example.invalid/mr/31');
+  });
+
+  it('leaves nothing beside the log: telling yan is `yan report`\'s job', () => {
+    const run = seed('t042', 's1');
+    Shift.resolve('s1').appendEvent('done', 'mr https://example.invalid/mr/31');
+    expect(readdirSync(run)).toEqual(['status']);
   });
 
   it('appends rather than replacing, so an earlier event is never lost', () => {
@@ -135,8 +140,6 @@ describe('reporting', () => {
     expect(lines[0]).toContain('first');
     expect(lines[1]).toContain('second');
     expect(shift.eventCount()).toBe(2);
-    // The marker survives the second report; it is touched, not recreated.
-    expect(existsSync(join(run, 'signal'))).toBe(true);
   });
 
   it('refuses a newline, which would forge a second event', () => {
