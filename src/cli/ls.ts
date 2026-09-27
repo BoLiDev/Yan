@@ -33,7 +33,6 @@ export interface QueueTask {
   readonly shifts: number;
 }
 
-
 /** A string field of a file yan did not write: null, absent and false read as empty. */
 function text(value: unknown): string {
   if (typeof value === 'string') return value;

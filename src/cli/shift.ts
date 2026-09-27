@@ -8,7 +8,7 @@ import { display } from './shared/display.js';
 import { placementOf } from './shared/placement.js';
 import { noted, readNote } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
-import { poolSize, repoTarget } from './shared/repo.js';
+import { repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
@@ -30,10 +30,11 @@ import { vaultDir } from '../util/vault.js';
 /**
  * `yan shift new` — dispatch a shift.
  *
- *   1  lease a tree, cutting the shift branch `yan/<task>-<unit>-<sid>`
- *   2  write shifts/<sid>/brief.md
- *   3  refuse if the sub-agent's working directory is inside the main clone
- *   4  start the agent, and confirm it
+ *   1  claim the sid, the container and the pane to split, under a lock
+ *   2  lease a tree, cutting the shift branch `yan/<task>-<unit>-<sid>`
+ *   3  write shifts/<sid>/brief.md
+ *   4  refuse if the sub-agent's working directory is inside the main clone
+ *   5  start the agent, and confirm it
  *
  * The tree is returned and the shift directory removed on any failure before
  * the agent is running. Nothing here fetches or touches `target`: a shift's
@@ -393,7 +394,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     );
   }
 
-  const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
+  const { clone, poolSize } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
 
   // Before anything is claimed: the shift's merge request needs this branch on
   // origin to have a base, and pushing it is yan's to do.
@@ -443,7 +444,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     // --- 2. lease a tree, cutting the shift branch --------------------------
     const pool = deps.pool?.(clone) ?? new WorktreePool(clone);
     try {
-      grant = pool.get(poolSize(key), data.branch, branch, holder);
+      grant = pool.get(poolSize, data.branch, branch, holder);
     } catch (err) {
       if (isYanError(err) && err.code === 'worktree_full') {
         throw new YanError('shift_new_pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
@@ -456,7 +457,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     const tree = grant.path;
     mkdirSync(join(taskDir, 'artifacts'), { recursive: true });
 
-    // --- 2. write the work order -------------------------------------------
+    // --- 3. write the work order -------------------------------------------
     const work =
       options.brief !== undefined
         ? readFileSync(options.brief, 'utf8')
@@ -480,7 +481,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       briefBody({ sid, task, unit: unitName, data, tree, clone, branch, taskDir, work, skills: spec.skills, scenario: spec.scenario }),
     );
 
-    // --- 3. refuse the main clone -------------------------------------------
+    // --- 4. refuse the main clone -------------------------------------------
     if (isInside(clone, workdir)) {
       process.stderr.write(`yan shift new: the sub-agent would have started in ${workdir}\n`);
       process.stderr.write(`yan shift new: that is the main clone (${clone}), which yan only ever fetches into\n`);
@@ -631,12 +632,14 @@ main clone and the dispatch was refused.`,
 /**
  * `yan shift done` — clock a shift out, in this order:
  *
- *   verify the MR is merged
- *     → write outcome.md
- *       → write the log line
- *         → rm -rf run/
- *           → return the tree
- *             → then delete the remote shift branch
+ *   0  uix work only: user has accepted it (--user-accepted)
+ *   1  a coding shift's merge request is merged; any other needs outcome.md
+ *   2  write outcome.md, if the shift did not
+ *   3  write the log line
+ *   4  rm -rf run/
+ *   5  return the tree
+ *   6  then delete the remote shift branch
+ *   7  close the agent's pane
  *
  * Merged is the host's answer and never git ancestry, because a squash-merged
  * branch is not an ancestor of what it landed on. The tree goes back before
@@ -666,6 +669,8 @@ export interface DoneDeps {
   readonly pool?: (clone: string) => Pick<WorktreePool, 'return' | 'status'>;
   readonly mrStateOf?: (mr: string, dir: string | undefined) => MrState;
   readonly deleteBranch?: (clone: string, branch: string) => boolean;
+  /** Asked only on a resume, which cannot tell whether the branch was ever pushed. */
+  readonly onOrigin?: (clone: string, branch: string) => boolean;
 }
 
 export interface DoneResult {
@@ -674,9 +679,17 @@ export interface DoneResult {
   readonly task: string;
   readonly unit: string;
   readonly branch: string;
-  /** The last round's merge request, or '' for a scenario that opens none. */
+  /**
+   * The last round's merge request, or '' for a scenario that opens none. On a
+   * resume it is whatever URL outcome.md names, or ''.
+   */
   readonly mr: string;
-  readonly mr_state: 'merged' | 'none';
+  /**
+   * `unknown` on a resume: run/ is gone by then, and with it the scenario, so
+   * nothing says whether the shift opened a merge request at all.
+   */
+  readonly mr_state: 'merged' | 'none' | 'unknown';
+  /** `unknown` on a resume, for the same reason. */
   readonly scenario: string;
   readonly tree: string;
   readonly outcome_by: string;
@@ -775,11 +788,13 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   const outcomeFile = join(shift.dir, 'outcome.md');
   let outcomeBy: string;
 
+  // On a resume run/ is gone, so this is readMeta's default rather than what
+  // the shift was: only the path below that did not resume may act on it.
   const scenario = meta.scenario;
   // Merging is the floor for coding, not the definition of done - whether the
   // merged work is accepted is yan's and user's judgement - unless the shift
   // concluded that nothing needs merging, which user says with the flag.
-  const needsMerge = opensMr(scenario) && options.nothingToMerge !== true;
+  const needsMerge = !resuming && opensMr(scenario) && options.nothingToMerge !== true;
 
   // Steps 1 to 4 already ran in the attempt that stopped, and the URL they
   // needed went with run/, so a resume starts at the tree return.
@@ -864,7 +879,6 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     if (mr === '' && existsSync(outcomeFile)) {
       mr = /https?:\/\/\S+/.exec(readFileSync(outcomeFile, 'utf8'))?.[0] ?? '';
     }
-    if (mr === '') mr = '(recorded in outcome.md)';
   }
 
   // --- 5. return the tree, before the branch is deleted ---------------------
@@ -888,8 +902,11 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
 
   // --- 6. and only now, the remote shift branch -----------------------------
   let deleted = false;
-  // Only a merge request's branch was ever pushed.
-  if (needsMerge && clone !== '' && existsSync(clone)) {
+  // Only a merge request's branch was ever pushed. A resume cannot tell whether
+  // this shift opened one, so it asks origin whether there is a branch at all.
+  const onOrigin = deps.onOrigin ?? ((c: string, b: string) => remoteBranchExists(c, b));
+  const pushed = resuming ? clone !== '' && existsSync(clone) && onOrigin(clone, branch) : needsMerge;
+  if (pushed && clone !== '' && existsSync(clone)) {
     const drop =
       deps.deleteBranch ?? ((c: string, b: string) => deleteRemoteBranch(c, 'origin', b).code === 0);
     deleted = drop(clone, branch);
@@ -911,8 +928,8 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
     unit,
     branch,
     mr,
-    mr_state: needsMerge ? 'merged' : 'none',
-    scenario,
+    mr_state: resuming ? 'unknown' : needsMerge ? 'merged' : 'none',
+    scenario: resuming ? 'unknown' : scenario,
     tree: returned !== '' ? returned : tree,
     outcome_by: outcomeBy,
     run_removed: true,
@@ -932,7 +949,7 @@ const doneShift = new Command('done')
   .option('--user-accepted', 'user has said they are satisfied - required for uix work')
   .option('--nothing-to-merge', 'a coding shift concluded that no change is needed; its outcome.md is accepted instead of a merge request')
   .option('--keep-pane', "leave the agent's pane open")
-  .option('--json', 'print the teardown record instead of a summary')
+  .option('--json', "print the teardown record instead of a summary; mr_state is merged, none, or unknown after a resume")
   .addHelpText(
     'after',
     `
@@ -951,6 +968,11 @@ squash merge:
 An explore or uix shift opens none, and needs its outcome.md instead. Whether
 a request merged is asked of the host, never inferred from git ancestry.
 
+A teardown that stopped at the tree return is finished by running it again.
+run/ is gone by then, and with it the scenario, so the record says 'unknown'
+for both scenario and mr_state, and the remote branch is deleted only when
+origin has one.
+
 Exit code 4 means nothing was clocked out yet: the merge request has not
 merged, the report is missing, or user has not accepted uix work. Exit code 1
 after a teardown means the agent was still in its pane after closing it.`,
@@ -963,10 +985,12 @@ after a teardown means the agent was still in its pane after closing it.`,
       } else {
         out(`${r.sid} clocked out`);
         if (r.mr_state === 'merged') out(`mr       ${r.mr} (merged)`);
+        if (r.mr_state === 'unknown' && r.mr !== '') out(`mr       ${r.mr} (from outcome.md)`);
         out(`outcome  ${join(new Shift(r.task, r.sid).dir, 'outcome.md')} (${r.outcome_by})`);
         out('run      removed');
         out(`tree     ${r.tree_returned ? r.tree : 'not returned'}`);
         if (r.mr_state === 'merged') out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'left on origin'}`);
+        if (r.mr_state === 'unknown') out(`branch   ${r.branch} ${r.branch_deleted ? 'deleted on origin' : 'not deleted on origin'}`);
       }
       if (!r.pane_closed) {
         process.stderr.write(`yan shift done: the agent in ${r.pane} was still running after its pane was closed - close ${r.pane} by hand\n`);

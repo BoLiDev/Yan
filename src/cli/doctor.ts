@@ -314,6 +314,7 @@ function checkCodex(report: Report, agents: Record<string, string>): void {
   // codex's, so the test is on the file, not on an exact key.
   const ours = join(yanHome(), '.codex', 'hooks.json');
   const trusted = config.toLowerCase().includes(`${ours.toLowerCase().replace(/\//g, '\\')}:`);
+  // Any shift tier on codex, not only agents.shift itself.
   const shift = roles.some(([role]) => role.startsWith('shift'));
   const main = roles.some(([role]) => role === 'yan');
 
@@ -322,20 +323,20 @@ function checkCodex(report: Report, agents: Record<string, string>): void {
     trusted
       ? `${ours} is recorded as trusted`
       : main
-        ? `${ours} has never been trusted, so codex will stop on "Hooks need review" and WAIT. Herdr reads that screen as 'idle', not 'blocked', so nothing wakes yan - answer it once in your own pane. It re-arms whenever the file changes`
+        ? `${ours} has never been trusted, so codex will stop on "Hooks need review" and WAIT. Herdr reads that screen as 'idle', not 'blocked', so nothing flags it - answer it once in your own pane. It re-arms whenever the file changes`
         : 'shifts pass --dangerously-bypass-hook-trust, so no dispatch meets this prompt',
   );
 
   if (shift) {
     line(report, 'warn', 'hook trust',
-      "agents.shift is codex, so every shift runs with --dangerously-bypass-hook-trust: hooks shipped BY THE REPOSITORY IT IS WORKING IN run without review. That is deliberate - the alternative is a shift parking silently on a prompt Herdr reports as 'idle' - but it is a standing decision about other people's code, and it should be withdrawn once Herdr's manifest learns the prompt",
+      "a shift runs on codex (agents.shift or a tier), so every codex shift runs with --dangerously-bypass-hook-trust: hooks shipped BY THE REPOSITORY IT IS WORKING IN run without review. That is deliberate - the alternative is a shift parking silently on a prompt Herdr reports as 'idle' - but it is a standing decision about other people's code, and it should be withdrawn once Herdr's manifest learns the prompt",
     );
   }
 
   line(report, shift ? 'warn' : 'ok', 'directory trust',
     shift
-      ? "agents.shift is codex: the first dispatch into each repository stops on \"Do you trust the contents of this directory?\". Herdr does read that as 'blocked', so yan escalates and you answer once per repository - but --dangerously-bypass-approvals-and-sandbox does NOT cover it"
-      : 'agents.shift is not codex, so no dispatch meets the directory-trust prompt',
+      ? "a shift runs on codex (agents.shift or a tier): the first codex dispatch into each repository stops on \"Do you trust the contents of this directory?\". Herdr does read that as 'blocked', so 'yan state' shows the shift blocked and you answer once per repository - but --dangerously-bypass-approvals-and-sandbox does NOT cover it"
+      : 'no shift runs on codex, so no dispatch meets the directory-trust prompt',
   );
 }
 

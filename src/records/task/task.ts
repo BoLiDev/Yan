@@ -6,7 +6,7 @@ import { asRecord, asString } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 import { Log } from '../log/index.js';
-import { Deliverables } from './deliverables.js';
+import { Deliverables, today } from './deliverables.js';
 import { ENDS, type AddUnitOptions, type HistoryEnd, type HistoryEntry, type TaskData, type UnitData } from './types.js';
 
 /**
@@ -199,7 +199,7 @@ export class Task {
    * into `history[]` under `end`, then move to `newBranch` and clear mr. One
    * write, so a crash leaves either the old round or the new one.
    *
-   * @param at an ISO date, or `''` for today.
+   * @param at an ISO date, or `''` for today, the local day.
    * @throws YanError when `newBranch` is empty or `end` is not one of ENDS.
    */
   public rotateUnit(name: string, end: string, newBranch: string, at = ''): void {
@@ -307,7 +307,8 @@ function historyEntry(
   if (!(ENDS as readonly string[]).includes(end)) {
     throw YanError.usage('task_usage', `invalid end '${end}' - one of: ${ENDS.join(' ')}`);
   }
-  const when = at === '' ? new Date().toISOString().slice(0, 10) : at;
+  // The local day, as log.md and a deliverable's doneAt have it.
+  const when = at === '' ? today() : at;
   const entry: HistoryEntry = { branch, target, at: when, end: end as HistoryEnd };
   if (mr !== null && mr !== '') entry.mr = mr;
   return entry;

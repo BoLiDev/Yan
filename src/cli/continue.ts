@@ -15,8 +15,9 @@ import { claim, isStale, owner, release } from '../util/lock.js';
 import { YanError } from '../util/error.js';
 
 /**
- * `yan continue <id>` — start the main agent in the pane this was typed in, as a child sharing its stdin, stdout and stderr. Creates no container
- * and focuses nothing.
+ * `yan continue <id>` — start the main agent in the pane this was typed in, as
+ * a child sharing its stdin, stdout and stderr. Creates no container and
+ * focuses nothing.
  *
  * One yan per task: a per-task lock, whose live pid is the fact, holds for
  * exactly as long as the agent runs. A second `yan continue` on the same task
@@ -97,9 +98,10 @@ const startMain: StartMain = (cli, argv, options) =>
 
 /**
  * The flags the main agent's harness needs: the extra directories, and running
- * unattended. Unattended even though `user` is at the pane, because the Stop
- * hook wakes this agent between turns with nobody watching, and a permission
- * prompt raised then stalls the thing that does the noticing.
+ * unattended. Unattended even though `user` is at the pane, because a shift's
+ * report is typed into this agent's pane and starts a turn with nobody
+ * watching, and a permission prompt raised then stalls the thing that answers
+ * shifts.
  *
  * Agy needs one thing the other two do not: `home` on the `--add-dir` list.
  * Claude and Codex take the directory they were started in as the root of what
@@ -144,7 +146,6 @@ function currentPane(): string {
   const pane = process.env.HERDR_PANE_ID ?? '';
   return pane.trim();
 }
-
 
 /**
  * Take the task's enter lock and prepare its main agent.

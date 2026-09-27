@@ -8,8 +8,8 @@ import { YanError } from '../../src/util/error.js';
  */
 
 const SPEC = [
-  { name: 'task', flag: '--task', describe: 'the task id' },
-  { name: 'unit', flag: '--unit', describe: 'the unit name' },
+  { name: 'name', flag: '--name', describe: 'the vault name' },
+  { name: 'remote', flag: '--remote', describe: 'the remote URL' },
 ];
 
 afterEach(() => {
@@ -25,9 +25,9 @@ function setTty(value: boolean): void {
 describe('resolve', () => {
   it('runs straight through when every value is present', async () => {
     setTty(false);
-    await expect(resolve({ task: 't042', unit: 'auth' }, SPEC)).resolves.toEqual({
-      task: 't042',
-      unit: 'auth',
+    await expect(resolve({ name: 'personal', remote: 'git@example.invalid:v.git' }, SPEC)).resolves.toEqual({
+      name: 'personal',
+      remote: 'git@example.invalid:v.git',
     });
   });
 
@@ -35,31 +35,31 @@ describe('resolve', () => {
     setTty(false);
     let thrown: unknown;
     try {
-      await resolve({ task: undefined, unit: undefined }, SPEC);
+      await resolve({ name: undefined, remote: undefined }, SPEC);
     } catch (e) {
       thrown = e;
     }
     expect(thrown).toBeInstanceOf(YanError);
     expect((thrown as YanError).code).toBe('missing_options');
     expect((thrown as YanError).exitCode).toBe(2);
-    expect((thrown as YanError).message).toContain('--task');
-    expect((thrown as YanError).message).toContain('--unit');
+    expect((thrown as YanError).message).toContain('--name');
+    expect((thrown as YanError).message).toContain('--remote');
   });
 
   it('refuses with a TTY when no prompter is installed', async () => {
     // With no prompter installed there is no soft path at all.
     setTty(true);
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ name: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
   });
 
   it('prompts only for what is missing, and only with a TTY', async () => {
     setTty(true);
-    const prompter = vi.fn(async () => ({ unit: 'auth' }));
+    const prompter = vi.fn(async () => ({ remote: 'git@example.invalid:v.git' }));
     setPrompter(prompter);
 
-    await expect(resolve({ task: 't042', unit: undefined }, SPEC)).resolves.toEqual({
-      task: 't042',
-      unit: 'auth',
+    await expect(resolve({ name: 'personal', remote: undefined }, SPEC)).resolves.toEqual({
+      name: 'personal',
+      remote: 'git@example.invalid:v.git',
     });
     expect(prompter).toHaveBeenCalledTimes(1);
     expect((prompter.mock.calls[0] as unknown[] | undefined)?.[0]).toEqual([SPEC[1]]);
@@ -67,21 +67,21 @@ describe('resolve', () => {
 
   it('never prompts without a TTY, even when a prompter is installed', async () => {
     setTty(false);
-    const prompter = vi.fn(async () => ({ task: 'nope' }));
+    const prompter = vi.fn(async () => ({ name: 'nope' }));
     setPrompter(prompter);
 
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ name: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
     expect(prompter).not.toHaveBeenCalled();
   });
 
   it('refuses when the prompt came back empty', async () => {
     setTty(true);
     setPrompter(async () => ({}));
-    await expect(resolve({ task: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ name: undefined }, SPEC.slice(0, 1))).rejects.toBeInstanceOf(YanError);
   });
 
   it('treats an empty string as missing', async () => {
     setTty(false);
-    await expect(resolve({ task: '', unit: 'auth' }, SPEC)).rejects.toBeInstanceOf(YanError);
+    await expect(resolve({ name: '', remote: 'git@example.invalid:v.git' }, SPEC)).rejects.toBeInstanceOf(YanError);
   });
 });

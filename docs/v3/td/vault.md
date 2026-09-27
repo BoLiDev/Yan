@@ -80,9 +80,9 @@ Keeping them separate means `yan vault init` can write a marker that a hand-edit
 
 ### What is tracked and what is not
 
-Tracked: everything that answers "what did we decide, what did we try, what did we learn". That explicitly includes `shifts/*/brief.md` and `shifts/*/outcome.md` — a shift's handover is where the detail behind a `delivered` log line lives, and what a shift hit on the way, and [the third thing a brief must carry](../../mvp/td/agents.md) is what has already been tried. Losing those to a disk is the failure V3 exists to prevent.
+Tracked: everything that answers "what did we decide, what did we try, what did we learn". That explicitly includes `shifts/*/brief.md` and `shifts/*/outcome.md` — a shift's handover is where the detail behind a `delivered` log line lives, and what a shift hit on the way, and one of the things a brief must carry is what has already been tried. Losing those to a disk is the failure V3 exists to prevent.
 
-Not tracked, and the rule is one line: **`run/` is throwaway, and machine-local things are wrong elsewhere.** So `tasks/*/run/`, `tasks/*/shifts/*/run/`, `tasks/*/.enter.lock`, and all of `.local/`. `run/meta.json` holds Herdr pane ids; committing them would let one machine's session state look authoritative on another, which is exactly the kind of second answer [design principle 1](../../mvp/td/INDEX.md#0-what-yan-is) forbids.
+Not tracked, and the rule is one line: **`run/` is throwaway, and machine-local things are wrong elsewhere.** So `tasks/*/run/`, `tasks/*/shifts/*/run/`, `tasks/*/.enter.lock`, and all of `.local/`. `run/meta.json` holds Herdr pane ids; committing them would let one machine's session state look authoritative on another, which is exactly the kind of second answer yan's first design principle forbids: do not store state you can derive.
 
 The vault's `.gitignore` ships in the template and is the only place this list lives.
 

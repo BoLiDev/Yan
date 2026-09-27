@@ -9,9 +9,9 @@ import { YanError } from '../../util/error.js';
  */
 
 export interface OptionSpec {
-  /** The key Commander parses the value into, e.g. `task`. */
+  /** The key Commander parses the value into, e.g. `remote`. */
   readonly name: string;
-  /** The flag as a person types it, e.g. `--task`. */
+  /** The flag as a person types it, e.g. `--remote`. */
   readonly flag: string;
   /** One line. Used by the prompt and by the refusal alike. */
   readonly describe: string;

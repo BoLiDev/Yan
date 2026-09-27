@@ -158,7 +158,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
 
   const record = new Task(id);
 
-  // `Task.create` has already written brief.md with an empty Description.
+  // `Task.create` has already written brief.md as the title line alone.
   const description = options.description ?? '';
   if (description !== '') {
     writeFileSync(join(record.dir, 'brief.md'), briefText(id, title, description));
@@ -210,7 +210,7 @@ export function createTask(options: TaskNewOptions, deps: TaskNewDeps = {}): Tas
         fetched: !unresolved.has(spec.repo),
       });
     } catch (err) {
-      throw new YanError('task_new_unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue --task ${id}'`,
+      throw new YanError('task_new_unit_failed', `task ${id} was created, but unit '${name}' could not be added (${err instanceof Error ? err.message : String(err)}). Fix it, then finish with 'yan unit add' and enter with 'yan continue ${id}'`,
       );
     }
     added.push(name);
@@ -296,7 +296,7 @@ export function buildTaskCommand(): Command {
   const newTask = new Command('new')
     .description('create a task, its brief and its units, then enter it')
     .option('--title <text>', 'what this task is called')
-    .option('--description <text>', "the background and the core ask, written under brief.md's Description")
+    .option('--description <text>', 'the background and the core ask, written into brief.md below its title line')
     .option('--id <id>', 'the task id; the next free t<NNN> when omitted')
     .option('--agent <cli>', 'override agents.yan for the enter step')
     .option('--repo <name>', 'OPENS A UNIT: a repository under repos/, or a path to a clone', opens)

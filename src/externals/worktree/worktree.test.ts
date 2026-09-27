@@ -2,14 +2,12 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
-  bashCommand,
   cleanupTempDirs,
   fxGit,
   mkTempDir,
   mkYanHome,
-  registerRepo,
-  runYan,
 } from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
 import { cloneDir } from './layout.js';
@@ -75,7 +73,6 @@ beforeEach(async () => {
   await fxGit(['clone', bare, clone], home);
   await fxGit(['config', 'user.name', 'yan tests'], clone);
   await fxGit(['config', 'user.email', 'yan-tests@localhost'], clone);
-  registerRepo(home, 'demo', clone, { url: bare, pool_size: 2 });
 });
 
 afterEach(() => {
@@ -332,27 +329,17 @@ describe('a full pool is backpressure, not silent growth', () => {
 
 describe('two concurrent gets never hand out the same tree', () => {
   it('and never collide inside git either', async () => {
-    // Two separate processes, started together, through the real dispatcher.
+    // Two separate processes, started together, each with a pool of its own
+    // over the same clone: the lock is all that keeps them apart.
+    const entry = pathToFileURL(join(home, 'dist', 'externals', 'worktree', 'index.js')).href;
     const race = (branch: string, holder: string): Promise<{ code: number; out: string }> =>
       new Promise((done) => {
-        const child = spawn(
-          bashCommand(),
-          [
-            join(home, 'bin', 'yan'),
-            'tree',
-            'get',
-            '--repo',
-            'demo',
-            '--base',
-            'integ',
-            '--branch',
-            branch,
-            '--holder',
-            holder,
-            '--json',
-          ],
-          { env: { ...process.env, YAN_HOME: home, YAN_POOL_ROOT: poolRoot }, windowsHide: true },
-        );
+        const script = `import { WorktreePool } from ${JSON.stringify(entry)};
+process.stdout.write(JSON.stringify(new WorktreePool(${JSON.stringify(clone)}).get(2, 'integ', ${JSON.stringify(branch)}, ${JSON.stringify(holder)})));`;
+        const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
+          env: { ...process.env, YAN_POOL_ROOT: poolRoot },
+          windowsHide: true,
+        });
         let out = '';
         child.stdout.on('data', (d: Buffer) => (out += d.toString()));
         child.stderr.on('data', (d: Buffer) => (out += d.toString()));
@@ -375,64 +362,5 @@ describe('two concurrent gets never hand out the same tree', () => {
 
     // The lock is always released.
     expect(existsSync(join(cloneDir(clone), 'lock'))).toBe(false);
-  });
-});
-
-describe('yan tree, the command layer', () => {
-  function yan(args: readonly string[]) {
-    return runYan(home, ['tree', ...args], { YAN_POOL_ROOT: poolRoot });
-  }
-
-  it('reads pool_size from the vault registry, which this module must not read', async () => {
-    // Tuning lives on the portable half: it follows the repository between
-    // machines, unlike the path beside it.
-    registerRepo(home, 'demo', clone, { url: 'x', pool_size: 1 });
-    expect((await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1'])).code).toBe(0);
-    const full = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's2', '--holder', 't/u/2']);
-    expect(full.code).not.toBe(0);
-    expect(full.stderr).toContain('pool is full');
-    expect((await yan(['status', '--repo', 'demo'])).stdout).toContain('1 of 1 trees leased');
-  });
-
-  it('exits 3 on a refused conditional return, and 2 when called wrongly', async () => {
-    const got = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1', '--json']);
-    expect(got.code, got.stderr).toBe(0);
-    const grant = JSON.parse(got.stdout) as { path: string };
-
-    const refused = await yan(['return', '--repo', 'demo', '--path', grant.path, '--if-lease-id', 'nope']);
-    expect(refused.code).toBe(3);
-
-    expect((await yan(['get', '--repo', 'demo', '--base', 'integ'])).code).toBe(2);
-    expect((await yan(['return', '--repo', 'demo'])).code).toBe(2);
-    expect((await yan(['status', '--repo', 'nosuchrepo'])).code).toBe(2);
-  });
-
-  it('will not discard work without being told `user` said so, and says the slot is still held', async () => {
-    const got = await yan(['get', '--repo', 'demo', '--base', 'integ', '--branch', 's1', '--holder', 't/u/1', '--json']);
-    expect(got.code, got.stderr).toBe(0);
-    const grant = JSON.parse(got.stdout) as { path: string };
-    writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
-
-    // --discard on its own is the shape a retry would have, and a retry must
-    // never be able to destroy this.
-    const alone = await yan(['return', '--repo', 'demo', '--path', grant.path, '--discard']);
-    expect(alone.code).toBe(2);
-    expect(alone.stderr).toContain('--user-asked');
-    expect(existsSync(join(grant.path, 'stray.txt')), 'and nothing was touched').toBe(true);
-
-    // So is --user-asked with nothing to answer.
-    expect((await yan(['return', '--repo', 'demo', '--path', grant.path, '--user-asked'])).code).toBe(2);
-
-    // The plain refusal names both ways out rather than dead-ending.
-    const refused = await yan(['return', '--repo', 'demo', '--path', grant.path]);
-    expect(refused.code).not.toBe(0);
-    expect(refused.stderr).toContain('stray.txt');
-    expect(refused.stderr).toContain('--discard --user-asked');
-
-    // Together they release the slot, which is the whole point of the door.
-    const discarded = await yan(['return', '--repo', 'demo', '--path', grant.path, '--discard', '--user-asked']);
-    expect(discarded.code, discarded.stderr).toBe(0);
-    expect(existsSync(join(grant.path, 'stray.txt'))).toBe(false);
-    expect((await yan(['status', '--repo', 'demo'])).stdout).not.toContain('t/u/1');
   });
 });

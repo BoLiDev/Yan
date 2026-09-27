@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { DEFAULT_POOL_SIZE, poolSize, repoTarget } from './shared/repo.js';
+import { DEFAULT_POOL_SIZE, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { Task } from '../records/task/index.js';
@@ -11,10 +11,9 @@ import { YanError } from '../util/error.js';
  * it resolves which repository is meant, reads its `pool_size` from the
  * registry, and formats what the pool reports.
  *
- * `get` has two shapes. `--unit <name>` is the standing tree yan and `user`
- * share for one unit of the task they are in: every value is read off
- * task.json, so there is nothing to get wrong. The four explicit flags are
- * what a shift's dispatch and the tests use, and cut a new branch.
+ * `get` is the standing tree yan and `user` share for one unit of the task
+ * they are in: every value is read off task.json, so there is nothing to get
+ * wrong. A shift's tree is leased by `yan shift new`, straight from the pool.
  *
  * Exit codes: 0 fine, 2 you called this wrongly, 3 a conditional return was
  * refused because the lease identity did not match (nothing was touched),
@@ -25,7 +24,7 @@ interface CommonOptions {
   repo?: string;
 }
 
-function clone(options: CommonOptions): { clone: string; key: string } {
+function clone(options: CommonOptions): { clone: string; poolSize: number } {
   if (options.repo === undefined || options.repo === '') {
     throw YanError.usage('tree_usage', '--repo is required: a repository name under repos/, or the path to a clone',
     );
@@ -33,29 +32,24 @@ function clone(options: CommonOptions): { clone: string; key: string } {
   return repoTarget('tree', options.repo);
 }
 
-interface GetOptions extends CommonOptions {
+interface GetOptions {
   unit?: string;
-  base?: string;
-  branch?: string;
-  holder?: string;
   json?: boolean;
 }
 
 /**
- * The four values `--unit` stands for, read off the unit of the task this is
- * running in. Both branch flags are the integration branch, which is what
+ * What `--unit` stands for, read off the unit of the task this is running in.
+ * The base and the branch are both the integration branch, which is what
  * makes it a standing tree rather than a new one: the branch already exists,
  * so the pool checks it out instead of cutting anything.
  *
- * @throws YanError `tree_usage` when the other flags were passed too, when
- *   $YAN_TASK is unset, or when the unit is unknown or has no branch.
+ * @throws YanError `tree_usage` when --unit is missing, when $YAN_TASK is
+ *   unset, or when the unit is unknown or has no branch.
  */
-function standingTree(options: GetOptions): { repo: string; base: string; branch: string; holder: string } {
+function standingTree(options: GetOptions): { repo: string; branch: string; holder: string } {
   const unit = options.unit ?? '';
-  for (const [flag, value] of [['--repo', options.repo], ['--base', options.base], ['--branch', options.branch], ['--holder', options.holder]] as const) {
-    if (value !== undefined && value !== '') {
-      throw YanError.usage('tree_usage', `${flag} and --unit are alternatives - --unit reads all four off task.json`);
-    }
+  if (unit === '') {
+    throw YanError.usage('tree_usage', "--unit is required: the unit whose standing tree this is - 'yan show' lists them");
   }
   const task = insideTask('tree');
   if (!Task.exists(task)) throw YanError.usage('tree_usage', `no such task: ${task}`);
@@ -66,16 +60,12 @@ function standingTree(options: GetOptions): { repo: string; base: string; branch
   if (data.branch === '') {
     throw YanError.usage('tree_usage', `unit ${unit} has no integration branch yet - 'yan unit set --branch' sets one`);
   }
-  return { repo: data.repo, base: data.branch, branch: data.branch, holder: `${task}/${unit}` };
+  return { repo: data.repo, branch: data.branch, holder: `${task}/${unit}` };
 }
 
 const get = new Command('get')
-  .description('lease a tree: the unit\'s standing tree, or a new branch cut from a base')
+  .description("lease the unit's standing tree")
   .option('--unit <name>', "the unit whose standing tree this is; reads the rest off task.json")
-  .option('--repo <repo>', 'a repository registered under repos/, or the path to a clone')
-  .option('--base <branch>', 'the integration branch the shift branch is cut from')
-  .option('--branch <branch>', 'the shift branch to create')
-  .option('--holder <holder>', 'who is taking it, in the form <task>/<unit>/<sid>')
   .option('--json', 'print {path, lease_id, holder}')
   .addHelpText(
     'after',
@@ -86,37 +76,12 @@ branch, held as <task>/<unit> for as long as the task lasts, and where yan and
 running at once plus one per unit.`,
   )
   .action(
-    action(
-      'yan tree',
-      (options: GetOptions) => {
-        const asked =
-          options.unit !== undefined && options.unit !== ''
-            ? standingTree(options)
-            : { repo: '', base: options.base ?? '', branch: options.branch ?? '', holder: options.holder ?? '' };
-
-        const target = options.unit !== undefined && options.unit !== ''
-          ? repoTarget('tree', asked.repo)
-          : clone(options);
-        if (asked.base === '') {
-          throw YanError.usage('tree_usage', '--base is required: a tree is always cut from an explicit integration branch',
-          );
-        }
-        if (asked.branch === '') {
-          throw YanError.usage('tree_usage', '--branch is required: leasing a tree creates the shift branch');
-        }
-        if (asked.holder === '') {
-          throw YanError.usage('tree_usage', '--holder is required, in the form <task>/<unit>/<sid>');
-        }
-
-        const grant = new WorktreePool(target.clone).get(
-          poolSize(target.key),
-          asked.base,
-          asked.branch,
-          asked.holder,
-        );
-        out(options.json === true ? JSON.stringify(grant, null, 2) : grant.path);
-      },
-    ),
+    action('yan tree', (options: GetOptions) => {
+      const asked = standingTree(options);
+      const target = repoTarget('tree', asked.repo);
+      const grant = new WorktreePool(target.clone).get(target.poolSize, asked.branch, asked.branch, asked.holder);
+      out(options.json === true ? JSON.stringify(grant, null, 2) : grant.path);
+    }),
   );
 
 const returnTree = new Command('return')
@@ -185,7 +150,7 @@ const status = new Command('status')
       for (const l of leases) {
         out(`slot ${l.slot}\t${l.holder}\t${l.branch}\t${l.path}`);
       }
-      out(`${leases.length} of ${poolSize(target.key)} trees leased`);
+      out(`${leases.length} of ${target.poolSize} trees leased`);
     }),
   );
 

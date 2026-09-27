@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task, briefText } from './index.js';
@@ -198,6 +198,22 @@ describe('history only ever grows', () => {
         mr: 'https://example.invalid/mr/31',
       },
     ]);
+  });
+
+  it('stamps the local day, as log.md and doneAt do, not the UTC one', () => {
+    seed();
+    const tz = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    // 19:00 on the 25th in Los Angeles is already the 26th in UTC.
+    vi.useFakeTimers({ now: new Date('2026-09-26T02:00:00Z'), toFake: ['Date'] });
+    try {
+      new Task('t042').rotateUnit('auth', 'delivered', 'feat/auth-r2');
+    } finally {
+      vi.useRealTimers();
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
+    expect(requireUnitOf(new Task('t042').read(), 'auth').history[0]?.at).toBe('2026-09-25');
   });
 });
 

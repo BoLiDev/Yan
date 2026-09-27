@@ -118,20 +118,15 @@ export function repoDirIfKnown(name: string): string | undefined {
 }
 
 /**
- * How many trees this repository's pool may hold, defaulting to
- * DEFAULT_POOL_SIZE.
- *
- * @param repoKey the clone's directory name, which `repoTarget` returns. A
- *   repository registered under some other name gets the default.
+ * The clone directory plus how many trees its pool may hold: the registry's
+ * `pool_size` for the repository `name` resolves to, whether `name` is its
+ * registered name or the path of its clone, and DEFAULT_POOL_SIZE for a clone
+ * nothing registered. Throws as `repoDir` does.
  */
-export function poolSize(repoKey: string): number {
-  return lookup(repoKey)?.poolSize ?? DEFAULT_POOL_SIZE;
-}
-
-/** The clone directory plus the key `poolSize` wants. Throws as `repoDir` does. */
-export function repoTarget(command: string, name: string, hint?: string): { clone: string; key: string } {
+export function repoTarget(command: string, name: string, hint?: string): { clone: string; poolSize: number } {
   const dir = repoDir(command, name, hint);
-  return { clone: dir, key: dir.slice(dir.lastIndexOf('/') + 1) };
+  const entry = lookup(name) ?? registry().find((r) => r.path === dir);
+  return { clone: dir, poolSize: entry?.poolSize ?? DEFAULT_POOL_SIZE };
 }
 
 /** Where clones go when this machine has not said: beside yan's own clone. */

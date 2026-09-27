@@ -58,14 +58,17 @@ function gitOrThrow(dir: string, args: readonly string[], what: string): void {
   }
 }
 
+/** The local day, `YYYY-MM-DD`, as every other date yan writes. */
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
 }
 
 /**
  * Copy `templates/vault/` into `dir`, then write its vault.json and README.
  *
- * @throws YanError `vault_init_template_missing` when the template is not there.
+ * @throws YanError `vault_template_missing` when the template is not there.
  */
 function layDownSkeleton(dir: string, name: string): void {
   const template = join(yanHome(), 'templates', 'vault');
@@ -223,7 +226,7 @@ const lsVaults = new Command('ls')
  * Make a registered vault the active one, warning rather than failing when it
  * has no vault.json.
  *
- * @throws YanError `vault_use_usage` when no name is given, `vault_use_missing` when it is not
+ * @throws YanError `vault_usage` when no name is given, `vault_missing` when it is not
  *   registered here.
  */
 export function useVault(name: string | undefined): void {
