@@ -9,6 +9,7 @@ import { checkRefName, decideBranchName, ensureBranch, freshenClone, inheritRoun
 import { addTaskUnit, type AddOptions } from './shared/unit-add.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
+import type { Task, UnitData } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -125,10 +126,9 @@ appended to each line this writes to log.md. --needs '' clears the list.`,
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 
 /**
- * `yan unit set` without the process around it. `--branch` rotates the unit:
- * it archives the current round under an `end` it works out, makes the new
- * branch exist, carries any un-landed commits forward, and relabels the
- * workspace. Narrates to stdout.
+ * `yan unit set` without the process around it. `--branch` rotates the unit
+ * (see `rotateRound`); the other three fields are each one edit and one log
+ * line. Narrates to stdout.
  *
  * @throws YanError `unit_set_usage` for a missing argument, nothing to change, an
  *   unknown task or unit, or a new branch equal to the current one;
@@ -138,7 +138,6 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   const task = options.task ?? insideTask('unit_set');
   const unitName = options.unit ?? '';
   const wantBranch = options.branch !== undefined;
-  const givenBranch = typeof options.branch === 'string' ? options.branch : undefined;
   const wantScope = options.scope !== undefined;
   const wantNeeds = options.needs !== undefined;
 
@@ -172,124 +171,135 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
   }
 
   const changed: string[] = [];
-
-  if (wantBranch) {
-    const before = record.unit(unitName);
-    const clone = repoDir('unit_set', before.repo, 'the unit names it, but nothing on this machine says where it is');
-    // The rotation appends one history entry, so the round being started is
-    // two past what history holds now.
-    const retiring = before.history.length + 1;
-    const round = before.history.length + 2;
-
-    if (before.branch === '') {
-      throw new YanError('unit_set_no_branch', "this unit has no current branch to replace - 'yan unit add' should have set one",
-      );
-    }
-
-    let end = end0;
-    let endFrom = '';
-    if (end !== '') {
-      endFrom = 'user';
-    } else if (before.mr === null || before.mr === '') {
-      end = 'unused';
-      endFrom = 'no merge request was ever opened for it';
-    } else {
-      const ask = readMrState ?? ((mr: string, dir: string) => new RemoteGit().mrState({ mr, dir }));
-      let state: MrState = 'unknown';
-      try {
-        state = ask(before.mr, clone);
-      } catch {
-        state = 'unknown';
-      }
-      if (state === 'merged') {
-        end = 'delivered';
-        endFrom = `the host says ${before.mr} is merged`;
-      } else if (state === 'closed') {
-        end = 'abandoned';
-        endFrom = `the host says ${before.mr} is closed`;
-      } else if (state === 'open') {
-        end = 'unknown';
-        endFrom = `${before.mr} was still open when the round was replaced`;
-      } else {
-        end = 'unknown';
-        endFrom = `the forge could not say what became of ${before.mr}`;
-      }
-    }
-
-    const { branch, from: nameFrom, raw } = decideBranchName(givenBranch, { task, unit: unitName, round });
-    if (branch === before.branch) {
-      throw YanError.usage('unit_set_usage', `the new integration branch is the same as the current one (${branch}) - a round is replaced by a DIFFERENT branch`,
-      );
-    }
-    checkRefName('unit_set', branch, raw);
-
-    // An abandoned round is followed by a branch off the old branch, so the
-    // dropped work is still there to pick over; anything else off the target.
-    const base =
-      options.base ?? (end === 'abandoned' ? before.branch : (options.target ?? before.target));
-    freshenClone('yan unit set', clone, before.repo);
-    const how = ensureBranch('yan unit set', clone, branch, base);
-
-    record.rotateUnit(unitName, end, branch, options.at ?? '');
-
-    // After the rotation is recorded, so a failure here cannot undo it.
-    const carried = inheritRound(clone, before.branch, branch);
-    out(`yan unit set: ${carried.said}`);
-    if (carried.conflicts.length > 0) {
-      out(`yan unit set: conflicting: ${carried.conflicts.join(' ')}`);
-      out(`yan unit set: ${before.branch} still has that work - dispatch a shift to merge it into ${branch}, or leave it`);
-    }
-
-    const line =
-      end === 'delivered'
-        ? `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`
-        : `${unitName}  ${end} ${before.branch} → ${branch} (${endFrom}${options.reason ? `; ${options.reason}` : ''}) — ${carried.said}`;
-    appendLog('yan unit set', task, 'changed', line, note);
-
-    // A task with nothing on screen has no workspace, and none is created.
-    const labeller = terminal ?? new Terminal();
-    const container = containerOf(task, labeller);
-    if (container !== undefined) {
-      display('could not rewrite the workspace tokens', () => {
-        labeller.setWorkspaceTokens(container, unitTokens(task, unitName, branch));
-      });
-    }
-
-    changed.push(`round ${retiring} ${end} on ${before.branch}; round ${round} is now ${branch} (${how}, name from ${nameFrom})`,
-    );
-  }
+  if (wantBranch) changed.push(rotateRound(record, unitName, options, note, readMrState, terminal));
 
   // After the rotation, so the history entry records the target the retired
   // round used rather than the new one.
-  if (options.target) {
+  const edits: { fields: Partial<UnitData>; line: string; changed: string }[] = [];
+  const target = options.target;
+  if (target) {
     const old = record.unit(unitName).target;
-    const target = options.target;
-    record.editUnit(unitName, (u) => {
-      u.target = target;
-    });
-    appendLog('yan unit set', task, 'changed', `${unitName}  target ${old} → ${options.target}`, note);
-    changed.push(`target=${options.target}`);
+    edits.push({ fields: { target }, line: `target ${old} → ${target}`, changed: `target=${target}` });
   }
-
   if (wantScope) {
     const scope = options.scope ?? [];
-    record.editUnit(unitName, (u) => {
-      u.scope = [...scope];
-    });
-    appendLog('yan unit set', task, 'changed', `${unitName}  scope → ${scope.join(' ')}`, note);
-    changed.push(`scope=${scope.join(' ')}`);
+    edits.push({ fields: { scope: [...scope] }, line: `scope → ${scope.join(' ')}`, changed: `scope=${scope.join(' ')}` });
   }
-
   if (wantNeeds) {
-    record.editUnit(unitName, (u) => {
-      u.needs = [...needs];
-    });
-    appendLog('yan unit set', task, 'changed', `${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note);
-    changed.push(`needs=${needs.join(' ')}`);
+    const line = `needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`;
+    edits.push({ fields: { needs: [...needs] }, line, changed: `needs=${needs.join(' ')}` });
+  }
+  for (const edit of edits) {
+    record.editUnit(unitName, (u) => Object.assign(u, edit.fields));
+    appendLog('yan unit set', task, 'changed', `${unitName}  ${edit.line}`, note);
+    changed.push(edit.changed);
   }
 
   if (options.json === true) out(JSON.stringify(record.unit(unitName), null, 2));
   else out(`${task} ${unitName}  ${changed.join(' ')}`);
+}
+
+/**
+ * Replace a unit's round: archive the current one under the end
+ * `endOfRound` works out, make the new branch exist, carry any un-landed
+ * commits forward, and relabel the workspace. Narrates to stdout.
+ *
+ * @returns what changed, for `setUnit`'s summary line.
+ * @throws YanError `unit_set_no_branch` when there is no round to replace,
+ *   `unit_set_usage` when the new branch is the current one.
+ */
+function rotateRound(
+  record: Task,
+  unitName: string,
+  options: SetOptions,
+  note: string,
+  readMrState?: MrStateReader,
+  terminal?: Labeller,
+): string {
+  const task = record.id;
+  const before = record.unit(unitName);
+  const clone = repoDir('unit_set', before.repo, 'the unit names it, but nothing on this machine says where it is');
+  // The rotation appends one history entry, so the round being started is
+  // two past what history holds now.
+  const retiring = before.history.length + 1;
+  const round = before.history.length + 2;
+
+  if (before.branch === '') {
+    throw new YanError('unit_set_no_branch', "this unit has no current branch to replace - 'yan unit add' should have set one",
+    );
+  }
+
+  const { end, from: endFrom } = endOfRound(before, clone, options.end ?? '', readMrState);
+
+  const givenBranch = typeof options.branch === 'string' ? options.branch : undefined;
+  const { branch, from: nameFrom, raw } = decideBranchName(givenBranch, { task, unit: unitName, round });
+  if (branch === before.branch) {
+    throw YanError.usage('unit_set_usage', `the new integration branch is the same as the current one (${branch}) - a round is replaced by a DIFFERENT branch`,
+    );
+  }
+  checkRefName('unit_set', branch, raw);
+
+  // An abandoned round is followed by a branch off the old branch, so the
+  // dropped work is still there to pick over; anything else off the target.
+  const base =
+    options.base ?? (end === 'abandoned' ? before.branch : (options.target ?? before.target));
+  freshenClone('yan unit set', clone, before.repo);
+  const how = ensureBranch('yan unit set', clone, branch, base);
+
+  record.rotateUnit(unitName, end, branch, options.at ?? '');
+
+  // After the rotation is recorded, so a failure here cannot undo it.
+  const carried = inheritRound(clone, before.branch, branch);
+  out(`yan unit set: ${carried.said}`);
+  if (carried.conflicts.length > 0) {
+    out(`yan unit set: conflicting: ${carried.conflicts.join(' ')}`);
+    out(`yan unit set: ${before.branch} still has that work - dispatch a shift to merge it into ${branch}, or leave it`);
+  }
+
+  const line =
+    end === 'delivered'
+      ? `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`
+      : `${unitName}  ${end} ${before.branch} → ${branch} (${endFrom}${options.reason ? `; ${options.reason}` : ''}) — ${carried.said}`;
+  appendLog('yan unit set', task, 'changed', line, note);
+
+  // A task with nothing on screen has no workspace, and none is created.
+  const labeller = terminal ?? new Terminal();
+  const container = containerOf(task, labeller);
+  if (container !== undefined) {
+    display('could not rewrite the workspace tokens', () => {
+      labeller.setWorkspaceTokens(container, unitTokens(task, unitName, branch));
+    });
+  }
+
+  return `round ${retiring} ${end} on ${before.branch}; round ${round} is now ${branch} (${how}, name from ${nameFrom})`;
+}
+
+/**
+ * How the round being replaced ended, and what says so: `--end` when it was
+ * given (`end0`), otherwise the forge's word on the round's merge request.
+ * An unreachable forge is `unknown`, never an error.
+ */
+function endOfRound(
+  before: UnitData,
+  clone: string,
+  end0: string,
+  readMrState?: MrStateReader,
+): { end: string; from: string } {
+  if (end0 !== '') return { end: end0, from: 'user' };
+  if (before.mr === null || before.mr === '') {
+    return { end: 'unused', from: 'no merge request was ever opened for it' };
+  }
+  const ask = readMrState ?? ((mr: string, dir: string) => new RemoteGit().mrState({ mr, dir }));
+  let state: MrState = 'unknown';
+  try {
+    state = ask(before.mr, clone);
+  } catch {
+    state = 'unknown';
+  }
+  if (state === 'merged') return { end: 'delivered', from: `the host says ${before.mr} is merged` };
+  if (state === 'closed') return { end: 'abandoned', from: `the host says ${before.mr} is closed` };
+  if (state === 'open') return { end: 'unknown', from: `${before.mr} was still open when the round was replaced` };
+  return { end: 'unknown', from: `the forge could not say what became of ${before.mr}` };
 }
 
 export const command = new Command('unit')
