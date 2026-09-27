@@ -5,7 +5,7 @@ import { normalizePath } from '../../util/paths.js';
 import { Task } from '../task/index.js';
 import { readMeta, readTeardown, writeTeardown } from './meta.js';
 import { opensMr } from './scenario.js';
-import { appendEvent, countEvents, reportedMr } from './status.js';
+import { appendEvent, countEvents, reportedMr } from './events.js';
 import type { ShiftMeta, TeardownRecord } from './types.js';
 import { YanError } from '../../util/error.js';
 import { byCodePoint, isRecordId } from '../../util/names.js';

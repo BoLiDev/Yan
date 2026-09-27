@@ -6,9 +6,8 @@ import { isoSecond, localDay } from '../../util/time.js';
 /**
  * The data behind `yan ui`: every task, as a reader who has never heard of
  * yan understands it — a task, the problems it was opened for, and what it
- * has to build. Nothing of yan's own. The shape is
- * `artifacts/uix-html/data-shape-v3.md` of task t128; `--json` prints it and
- * the page is written from it.
+ * has to build. Nothing of yan's own. The shape is `Report` below, version 3;
+ * `--json` prints it and the page is written from it.
  *
  * Read from each task's own files and nothing else: the forge, git, the pool
  * and Herdr are never asked, and one task that cannot be read is a task with
@@ -29,6 +28,7 @@ export interface ReportTask {
   readonly title: string;
   /** The `repo` of the first unit; null with none. */
   readonly project: string | null;
+  /** `open`, `done`, or `abandoned` for a task given up on. */
   readonly state: TaskState;
   /**
    * `brief.md` as `briefDescription` reads it: the prose under the title

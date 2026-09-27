@@ -7,8 +7,7 @@ import { clamp, lineText, wrap } from '../shared/wrap.js';
 import { cells, fit, padEnd, padStart } from '../shared/style.js';
 
 /**
- * The print of `yan ls` and the `yan show` header, at the seams the design
- * named (t128, artifacts/uix/design.md, "For the coding shift"): pure
+ * The print of `yan ls` and the `yan show` header, at their seams: pure
  * functions, fed made-up tasks, a fixed clock and a width. Local time: every
  * moment here is built from local fields, so the suite passes in any zone.
  */
