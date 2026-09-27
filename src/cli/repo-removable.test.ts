@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo } from '../helpers/fixtures.js';
-import { removable } from '../../src/cli/repo.js';
-import { Task } from '../../src/records/task/index.js';
+import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo } from '../../tests/helpers/fixtures.js';
+import { removable } from './repo.js';
+import { Task } from '../records/task/index.js';
 
 /**
  * `yan repo rm`'s list.

@@ -1,13 +1,13 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, restoreVault } from '../helpers/fixtures.js';
+import { cleanupTempDirs, mkTempDir, mkYanHome, restoreVault } from '../../../tests/helpers/fixtures.js';
 import {
   agentSpecFor,
   modelFlags,
   readScenarios,
   resolveShift,
-} from '../../src/cli/shared/config.js';
+} from './config.js';
 
 /**
  * `agents.*` and `scenarios`: what a role runs by default, and the only ways a

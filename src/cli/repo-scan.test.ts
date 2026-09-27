@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome, registerRepo } from '../helpers/fixtures.js';
-import { scan } from '../../src/cli/repo.js';
+import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome, registerRepo } from '../../tests/helpers/fixtures.js';
+import { scan } from './repo.js';
 
 /**
  * `yan repo add`'s scan.
