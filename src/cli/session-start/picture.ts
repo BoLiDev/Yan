@@ -5,13 +5,15 @@ import { dash } from '../shared/table.js';
 import { Terminal, type Alive } from '../../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../../externals/remote-git/index.js';
 import type { LeaseRow } from '../../externals/worktree/index.js';
-import { Shift, clearUndelivered, readUndelivered, type ShiftEvent } from '../../records/shift/index.js';
+import { Shift, clearUndelivered } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
 import { vaultDir } from '../../util/vault.js';
 import { registry } from '../shared/repo.js';
 import type { PullResult } from '../shared/vault-pull.js';
 import { samePath } from '../../util/paths.js';
 import { poolLeases } from '../shared/leases.js';
+import { stateOf, type TaskState } from '../overview/overview.js';
+import { shiftFacts, type ShiftFacts } from '../overview/shift-facts.js';
 
 /**
  * The picture half of `yan session-start`: every task, each live shift's
@@ -27,28 +29,20 @@ type Reported = Alive | 'n/a';
 type PoolState = 'leased' | 'free' | 'unknown' | 'n/a';
 type MrReport = MrState | 'none' | 'n/a';
 
-interface ShiftRow {
-  readonly sid: string;
-  readonly unit: string;
-  readonly branch: string;
-  readonly tree: string;
-  readonly agent: string;
-  readonly agent_id: string;
-  readonly container: string;
-  readonly live: boolean;
+/**
+ * A shift's own facts, and what the live sources say about a live one. This
+ * task's own main agent clears `undelivered` by reading it.
+ */
+interface ShiftRow extends ShiftFacts {
   readonly terminal: Reported;
   readonly pool: PoolState;
-  readonly mr: string;
   readonly mr_state: MrReport;
-  readonly events: number;
-  /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
-  readonly undelivered: readonly ShiftEvent[];
 }
 
 interface TaskRow {
   readonly id: string;
   readonly title: string;
-  readonly complete: boolean;
+  readonly state: TaskState;
   readonly units: {
     name: string;
     repo: string;
@@ -153,32 +147,22 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
     const shifts: ShiftRow[] = [];
     for (const shift of Shift.allIn(id)) {
       const meta = shift.meta();
-      const live = shift.isLive();
-      const tree = meta.tree ?? '';
+      const facts = shiftFacts(shift, meta);
+      const { live, tree } = facts;
       const clone = meta.clone ?? '';
 
       shifts.push({
-        sid: shift.sid,
-        unit: meta.unit ?? '',
-        branch: meta.branch ?? '',
-        tree,
-        agent: meta.agent ?? '',
-        agent_id: meta.pane ?? '',
-        container: meta.container ?? '',
-        live,
-        terminal: live ? askTerminal(sources, meta.pane ?? '') : 'n/a',
+        ...facts,
+        terminal: live ? askTerminal(sources, facts.pane) : 'n/a',
         pool: live ? askPool(clone, tree, meta.lease_id ?? '') : 'n/a',
-        mr: meta.mr ?? '',
-        mr_state: live ? askHost(sources, meta.mr ?? '', tree !== '' ? tree : clone) : 'n/a',
-        events: shift.eventCount(),
-        undelivered: live ? readUndelivered(shift.run) : [],
+        mr_state: live ? askHost(sources, facts.mr, tree !== '' ? tree : clone) : 'n/a',
       });
     }
 
     tasks.push({
       id: data.id,
       title: data.title,
-      complete: data.complete === true,
+      state: stateOf(data),
       units: data.units.map((u) => ({
         name: u.name,
         repo: u.repo,
@@ -214,7 +198,7 @@ export function render(picture: Picture, pulled: PullResult): boolean {
 
   for (const t of picture.tasks) {
     out('');
-    out(`${t.id}  ${dash(t.title)}   [${t.complete ? 'done' : 'open'}]`);
+    out(`${t.id}  ${dash(t.title)}   [${t.state}]`);
     for (const u of t.units) {
       out(`  unit ${dash(u.name)}  branch ${dash(u.branch)}  target ${dash(u.target)}  mr ${dash(u.mr)}`,
       );
@@ -226,7 +210,7 @@ export function render(picture: Picture, pulled: PullResult): boolean {
       out(
         `  shift ${s.sid}  ${dash(s.unit)}  ${dash(s.branch)}` +
           `  terminal=${s.terminal}  pool=${s.pool}  mr=${s.mr_state}` +
-          `  events=${s.events}` +
+          `  last=${s.last_event === null ? 'none' : `${dash(s.last_event.state)}@${dash(s.last_event.at)}`}` +
           (s.live ? '' : '  (clocked out)'),
       );
     }

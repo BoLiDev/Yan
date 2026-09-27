@@ -45,8 +45,11 @@ A source that cannot be reached is reported as \`unknown\` rather than being
 treated as an error: a fresh machine has no Herdr server yet, and a train has
 no forge. Nothing is stored, which is what makes restarting yan a non-event.
 
---json is version 2. Since version 1: an undelivered report's "at" is an
-ISO 8601 string rather than epoch seconds.`,
+--json is version 2. Since version 1: a task's "complete" is "state", open,
+done or abandoned, as in 'yan ls --json'; a shift's "agent_id" is "pane", as
+in 'yan show --json'; its "events" count is "last_event", the newest line of
+run/status or null; it also carries scenario and tier; and an undelivered
+report's "at" is an ISO 8601 string rather than epoch seconds.`,
   )
   .action(
     action('yan session-start', (positional: string | undefined, options: { all?: boolean; json?: boolean }) => {
@@ -82,7 +85,7 @@ ISO 8601 string rather than epoch seconds.`,
         return;
       }
       if (render(picture, pulled)) {
-        renderBriefing(id !== '' ? id : undefined, picture.tasks.find((t) => t.id === id)?.complete === true);
+        renderBriefing(id !== '' ? id : undefined, (picture.tasks.find((t) => t.id === id)?.state ?? 'open') !== 'open');
       }
       clearSurfaced(picture);
     }),

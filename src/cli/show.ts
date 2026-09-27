@@ -9,13 +9,14 @@ import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
-import { overviewTask, type OverviewTask } from './overview/overview.js';
+import { overviewTask, stateOf, type OverviewTask, type TaskState } from './overview/overview.js';
+import { shiftFacts, type ShiftFacts } from './overview/shift-facts.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
 import { isoMoment } from './overview/when.js';
 import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift, clearUndelivered, lastEvent, readUndelivered, type ShiftEvent } from '../records/shift/index.js';
+import { Shift, clearUndelivered } from '../records/shift/index.js';
 import { Task, type Deliverable, readDeliverables } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
@@ -38,8 +39,7 @@ export interface ShowJson {
   readonly version: 2;
   readonly id: string;
   readonly title: string;
-  readonly complete: boolean;
-  readonly abandoned: boolean;
+  readonly state: TaskState;
   readonly dir: string;
   /** Whether a live `yan continue` holds the task, and the pane it is in. */
   readonly session: { readonly running: boolean; readonly pane: string | null };
@@ -60,23 +60,13 @@ export interface ShowJson {
     /** The standing tree leased to `<task>/<unit>`, and how many paths are uncommitted in it. */
     readonly tree: { readonly path: string; readonly dirty: number | null } | null;
   }[];
-  readonly shifts: readonly {
-    readonly sid: string;
-    readonly unit: string;
-    readonly branch: string;
-    readonly tree: string;
-    readonly scenario: string;
-    readonly tier: string;
-    readonly pane: string;
-    /** The newest line of run/status: an event, not the shift's state. */
-    readonly last_event: { readonly state: string; readonly at: string; readonly note: string } | null;
+  /** The live shifts. This task's own main agent clears their `undelivered` by reading them. */
+  readonly shifts: readonly (ShiftFacts & {
     /** The task is done and this shift never clocked out: its run/ is left over, not running. */
     readonly leftover: boolean;
     /** Reported done on an open task: its work is merged or delivered, and waits to be tried and accepted. */
     readonly awaiting_acceptance: boolean;
-    /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
-    readonly undelivered: readonly ShiftEvent[];
-  }[];
+  })[];
   readonly log: { readonly lines: readonly string[]; readonly total: number };
 }
 
@@ -130,20 +120,11 @@ function showJson(id: string): ShowJson {
   });
 
   const shifts = Shift.liveIn(id).map((shift) => {
-    const meta = shift.meta();
-    const last = lastEvent(shift.run) ?? null;
+    const facts = shiftFacts(shift);
     return {
-      sid: shift.sid,
-      unit: meta.unit ?? '',
-      branch: meta.branch ?? '',
-      tree: meta.tree ?? '',
-      scenario: meta.scenario,
-      tier: meta.tier ?? '',
-      pane: meta.pane ?? '',
-      last_event: last,
+      ...facts,
       leftover: data.complete,
-      awaiting_acceptance: !data.complete && last?.state === 'done',
-      undelivered: readUndelivered(shift.run),
+      awaiting_acceptance: !data.complete && facts.last_event?.state === 'done',
     };
   });
 
@@ -153,8 +134,7 @@ function showJson(id: string): ShowJson {
     version: 2,
     id: data.id,
     title: data.title,
-    complete: data.complete,
-    abandoned: data.abandoned,
+    state: stateOf(data),
     dir: task.dir,
     session: sessionOf(id),
     deliverables: said.deliverables,
@@ -229,7 +209,7 @@ function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears
   } else if (show.deliverables.length === 0) {
     // One quiet line. What to do about it is session start's to say, to the
     // main agent; this is `user` at a terminal looking at a task.
-    out(`   ${dim(show.complete ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
+    out(`   ${dim(show.state !== 'open' ? 'none recorded' : 'none yet - yan deliverable add "<text>"')}`);
   } else {
     for (const line of deliverableLines(show.deliverables, { id: bold, status: statusPaint, aside: dim }, terminalWidth())) {
       out(` ${line}`);
@@ -364,8 +344,11 @@ main agent - the one whose $YAN_TASK is this task and which is not a shift.
 Read from any other pane they are left where they are, so nobody else's glance
 swallows a report yan has not seen.
 
---json is version 2. Since version 1: an undelivered report's "at" is an
-ISO 8601 string, as a last_event's is, rather than epoch seconds.`,
+--json is version 2. Since version 1: "complete" and "abandoned" are one
+"state", open, done or abandoned, as in 'yan ls --json'; each shift also
+carries agent, container, mr and live, the facts 'yan session-start --json'
+gives a shift; and an undelivered report's "at" is an ISO 8601 string, as a
+last_event's is, rather than epoch seconds.`,
   )
   .action(
     action('show', async (id: string | undefined, options: { json?: boolean }) => {

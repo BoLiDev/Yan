@@ -141,7 +141,17 @@ describe('through bin/yan', () => {
     expect(r.stdout).toContain('unit auth');
     expect(r.stdout).toContain('branch feat/auth');
     expect(r.stdout).toContain('shift s2');
+    expect(r.stdout, "a shift's last reported event, not a count").toContain('last=started@2026-08-09T09:00:00Z');
     expect(r.stdout, 's1 is reported, and reported as finished').toContain('clocked out');
+    expect(r.stdout, 'a clocked-out shift has no run/status left').toMatch(/shift s1 .* last=none/);
+  });
+
+  it('prints each task in one of three states, so an abandoned task is not called done', async () => {
+    new Task('t099').setAbandoned();
+    const r = await runYan(home, ['session-start', '--all']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('t042  unify the auth header   [open]');
+    expect(r.stdout).toContain('t099  a task nobody has started   [abandoned]');
   });
 
   it('reports every task when no id is given', async () => {
@@ -158,10 +168,19 @@ describe('through bin/yan', () => {
   it('is machine readable, with the same derivation', async () => {
     const r = await runYan(home, ['session-start', '--json'], { YAN_TASK: 't042' });
     expect(r.code, r.out).toBe(0);
-    const picture = JSON.parse(r.stdout) as { tasks: { id: string; shifts: { sid: string; live: boolean }[] }[] };
-    expect(picture.tasks[0].id).toBe('t042');
+    const picture = JSON.parse(r.stdout) as {
+      version: number;
+      tasks: { id: string; state: string; shifts: { sid: string; live: boolean; pane: string; last_event: unknown }[] }[];
+    };
+    expect(picture.version).toBe(2);
+    expect(picture.tasks[0]).toMatchObject({ id: 't042', state: 'open' });
     expect(picture.tasks[0].shifts).toHaveLength(2);
-    expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')?.live).toBe(false);
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's1')).toMatchObject({ live: false, pane: '', last_event: null });
+    expect(picture.tasks[0].shifts.find((s) => s.sid === 's2')).toMatchObject({
+      live: true,
+      pane: 'w1:p7',
+      last_event: { at: '2026-08-09T09:00:00Z', state: 'started', note: 'read the brief' },
+    });
   });
 
   it('tells a shift whose picture this is, and prints nothing else', async () => {
