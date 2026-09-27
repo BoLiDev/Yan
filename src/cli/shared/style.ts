@@ -57,6 +57,11 @@ export function columnsOf(char: string): number {
     : 1;
 }
 
+/** A character that takes two columns; `undefined`, off either end of a string, is not. */
+export function wide(char: string | undefined): boolean {
+  return char !== undefined && columnsOf(char) === 2;
+}
+
 /** Columns a string takes, a wide character counting two. Plain text only. */
 export function cells(text: string): number {
   let n = 0;
