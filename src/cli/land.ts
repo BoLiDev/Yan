@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import { action, out, collect } from './shared/action.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { insideTask, existingTask } from './shared/task-id.js';
-import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
+import { RemoteGit, type MergeStrategy, type MrRef } from '../externals/remote-git/index.js';
+import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
 import { YanError } from '../util/error.js';
 import { appendLog } from './shared/note.js';
 
@@ -23,7 +24,7 @@ const STRATEGIES: readonly MergeStrategy[] = ['merge', 'squash', 'rebase'];
 
 /** What `yan land` needs from the host. `RemoteGit` is the real one. */
 export interface Host {
-  mrState(ref: MrRef): MrState;
+  readonly mrState: MrStateReader;
   mergeMr(options: MrRef & { strategy: MergeStrategy }): void;
 }
 
@@ -163,12 +164,7 @@ export function land(
     const ref: MrRef = clone === undefined ? { mr } : { mr, dir: clone };
 
     // Whether it merged is the host's answer, never git ancestry.
-    let state: MrState;
-    try {
-      state = remote.mrState(ref);
-    } catch {
-      state = 'unknown';
-    }
+    const state = mrStateOrUnknown(ref, (r) => remote.mrState(r));
     if (state === 'merged') {
       landed.push({ unit: name, mr, result: 'already merged' });
       say(`${name.padEnd(16)} ${mr}  already merged`);

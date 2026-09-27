@@ -3,7 +3,8 @@ import { isMainAgentOf } from '../shared/caller.js';
 import { out } from '../shared/action.js';
 import { dash } from '../shared/table.js';
 import { Terminal, type Alive } from '../../externals/herdr/index.js';
-import { RemoteGit, type MrRef, type MrState } from '../../externals/remote-git/index.js';
+import type { MrRef, MrState } from '../../externals/remote-git/index.js';
+import { mrStateOrUnknown, type MrStateReader } from '../shared/mr-state.js';
 import type { LeaseRow } from '../../externals/worktree/index.js';
 import { Shift, clearUndelivered } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
@@ -75,7 +76,7 @@ export interface Picture {
 export interface Sources {
   readonly aliveOf?: (paneId: string) => Alive;
   readonly leasesOf?: (clone: string) => readonly LeaseRow[];
-  readonly mrStateOf?: (ref: MrRef) => MrState;
+  readonly mrStateOf?: MrStateReader;
 }
 
 function askTerminal(sources: Sources, paneId: string): Alive {
@@ -90,11 +91,7 @@ function askTerminal(sources: Sources, paneId: string): Alive {
 function askHost(sources: Sources, mr: string, dir: string): MrReport {
   if (mr === '') return 'none';
   const ref: MrRef = dir !== '' && existsSync(dir) ? { mr, dir } : { mr };
-  try {
-    return (sources.mrStateOf ?? ((r: MrRef) => new RemoteGit().mrState(r)))(ref);
-  } catch {
-    return 'unknown';
-  }
+  return mrStateOrUnknown(ref, sources.mrStateOf);
 }
 
 /**

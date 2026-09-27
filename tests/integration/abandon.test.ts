@@ -45,9 +45,9 @@ function deps(): AbandonDeps {
         return path;
       },
     }),
-    mrStateOf: (mr) => {
-      calls.push(`mr_state ${mr}`);
-      return states[mr] ?? 'open';
+    mrStateOf: (ref) => {
+      calls.push(`mr_state ${ref.mr}`);
+      return states[ref.mr] ?? 'open';
     },
     closeMr: (mr) => {
       calls.push(`mr_close ${mr}`);

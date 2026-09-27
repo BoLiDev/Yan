@@ -69,8 +69,8 @@ function deps(): ClockOutDeps {
   return {
     terminal: new FakeTerminal(),
     pool: () => new FakePool(),
-    mrStateOf: (mr) => {
-      calls.push(`mr_state mr=${mr}`);
+    mrStateOf: (ref) => {
+      calls.push(`mr_state mr=${ref.mr}`);
       return hostSays;
     },
     deleteBranch: (_c, b) => {

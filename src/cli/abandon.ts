@@ -7,7 +7,8 @@ import { isTty } from './shared/tty.js';
 import { chosenTask, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
-import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
+import { RemoteGit } from '../externals/remote-git/index.js';
+import { mrStateOrUnknown, type MrStateReader } from './shared/mr-state.js';
 import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { isYanError, YanError } from '../util/error.js';
@@ -28,7 +29,7 @@ import { isYanError, YanError } from '../util/error.js';
 export interface AbandonDeps {
   readonly terminal?: Closer;
   readonly pool?: PoolFor;
-  readonly mrStateOf?: (mr: string, dir: string | undefined) => MrState;
+  readonly mrStateOf?: MrStateReader;
   readonly closeMr?: (mr: string, dir: string | undefined) => void;
 }
 
@@ -63,12 +64,7 @@ function requireConsent(command: string, userAsked: boolean | undefined, reason:
  */
 function closeIfOpen(mr: string, dir: string | undefined, deps: AbandonDeps): MrClosing {
   if (mr === '') return 'none';
-  let state: MrState;
-  try {
-    state = (deps.mrStateOf ?? ((url: string, d: string | undefined) => new RemoteGit().mrState({ mr: url, dir: d })))(mr, dir);
-  } catch {
-    return 'unknown';
-  }
+  const state = mrStateOrUnknown({ mr, dir }, deps.mrStateOf);
   if (state === 'merged') return 'merged';
   if (state === 'closed') return 'already-closed';
   if (state === 'unknown') return 'unknown';
