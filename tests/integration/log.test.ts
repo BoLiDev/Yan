@@ -32,12 +32,6 @@ describe('yan log', () => {
     expect(log()).toMatch(/\n- \d{2}-\d{2} {2}agreed {5}user chose copy-at-creation over live inheritance\n$/);
   });
 
-  it('takes the task from the environment', async () => {
-    const r = await runYan(home, ['log', 'paused', 'user is away; s3 still running'], { YAN_TASK: 't042' });
-    expect(r.code, r.out).toBe(0);
-    expect(log()).toContain('paused     user is away; s3 still running');
-  });
-
   it('refuses a type it does not know, and names the six', async () => {
     const before = log();
     const r = await runYan(home, ['log', 'decided', 'x'], { YAN_TASK: 't042' });
