@@ -10,7 +10,8 @@ export {
   readUndelivered,
   recordUndelivered,
   undeliveredFile,
+  lastEvent,
+  type ShiftEvent,
   type Undelivered,
-} from './undelivered.js';
-export { lastEvent, type ShiftEvent } from './status.js';
+} from './events.js';
 export type { ShiftMeta, ShiftMetaPlaceholder } from './types.js';

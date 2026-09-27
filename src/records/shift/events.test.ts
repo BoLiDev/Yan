@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { clearUndelivered, readUndelivered, recordUndelivered, undeliveredFile } from './undelivered.js';
+import { clearUndelivered, readUndelivered, recordUndelivered, undeliveredFile } from './events.js';
 
 /**
  * `run/undelivered`, on its own: the line format a report is written in, and
