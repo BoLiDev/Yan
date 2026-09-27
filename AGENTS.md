@@ -22,7 +22,7 @@ needs.** Where a command exists it is the right way to do that thing: these comm
 know things a raw `git` call does not. Whether a merge request merged is the forge's
 answer, never git ancestry, since a squash merge is not an ancestor of what it landed
 on; which unit a branch belongs to is `task.json`'s, never parsed out of a name.
-Everything else is yours: read, grep, build, run git, ask `gh`.
+Everything else is yours: read, grep, build, run git.
 
 The interactive prompts are for people at a keyboard, not for you: pass your arguments
 as flags. No command takes `--task`, since the one you are in is `$YAN_TASK`; the few a
