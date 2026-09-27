@@ -126,7 +126,7 @@ const set = new Command('set')
 
 // --- done -------------------------------------------------------------------
 
-interface DoneOptions {
+interface DeliverableDoneOptions {
   ref?: string[];
   at?: string;
   note?: string;
@@ -139,7 +139,7 @@ const done = new Command('done')
   .option('--at <date>', 'the day it was delivered, YYYY-MM-DD (default: today)')
   .option('--note <text>', 'one line for log.md: how it was verified, what is still in doubt')
   .action(
-    action('yan deliverable done', (id: string | undefined, options: DoneOptions) => {
+    action('yan deliverable done', (id: string | undefined, options: DeliverableDoneOptions) => {
       const note = readNote('deliverable', options.note);
       const task = taskId();
       const which = requireId(id, 'yan deliverable done <id>');
