@@ -186,10 +186,11 @@ describe('no Herdr error code escapes the seam', () => {
       expect(busy.code, herdrCode).toBe('term_busy');
     }
 
-    // rc 2 is a CLI syntax error - a bug in yan, never a runtime condition.
-    expect(mapError({ code: 2, stdout: '', stderr: 'usage: …' }, 'pane split').code).toBe(
-      'term_bug',
-    );
+    // rc 2 is a CLI syntax error - a bug in yan, never a runtime condition,
+    // and never the caller's mistake, so it is not yan's own exit 2.
+    const bug = mapError({ code: 2, stdout: '', stderr: 'usage: …' }, 'pane split');
+    expect(bug.code).toBe('term_bug');
+    expect(bug.exitCode).toBe(1);
 
     // rc 1 with no structured error is a transport problem, not a verdict.
     expect(mapError({ code: 1, stdout: '', stderr: 'boom' }, 'agent list').code).toBe(
