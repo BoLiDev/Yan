@@ -79,7 +79,6 @@ export interface StartAgentOptions {
    * its work order is still working at the deadline.
    */
   readonly prompt?: string;
-  readonly timeoutMs?: number;
   /** What to call the agent's tab. Display only, and unused for a split. */
   readonly label?: string;
 }

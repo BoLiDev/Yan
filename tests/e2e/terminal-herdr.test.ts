@@ -66,7 +66,6 @@ describe.runIf(present)('the seven functions, round-trip', () => {
       kind: 'claude',
       cwd: repoRoot,
       env: { YAN_TASK: 't-e2e', YAN_E2E: '1' },
-      timeoutMs: 120_000,
     });
     expect(started.name).toBe(named(''));
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
@@ -117,7 +116,6 @@ describe.runIf(present)('the seven functions, round-trip', () => {
       kind: 'claude',
       cwd: repoRoot,
       argv: ['--append-system-prompt', 'YANPROBE_MARKER is zx9q7. Spaces and : survive.'],
-      timeoutMs: 120_000,
     });
     expect(started.pane).toMatch(/^w[0-9A-Za-z]+:p[0-9A-Za-z]+$/);
     new Terminal().close(started.pane);
@@ -141,7 +139,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     const first = placeShift(main, before!, []);
     expect(first).toEqual({ pane: main, direction: 'right' });
     const s1 = new Terminal().startAgent({
-      container: container.workspace, split: first, name: named('s1'), kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
+      container: container.workspace, split: first, name: named('s1'), kind: 'claude', cwd: repoRoot,
     });
     const afterOne = new Terminal().tabLayout(main);
     const rect = (pane: string) => afterOne?.panes.find((p) => p.pane === pane)?.rect;
@@ -153,7 +151,7 @@ describe.runIf(present)('the seven functions, round-trip', () => {
     const second = placeShift(main, afterOne!, [{ sid: 's1', pane: s1.pane }]);
     expect(second).toEqual({ pane: s1.pane, direction: 'down' });
     const s2 = new Terminal().startAgent({
-      container: container.workspace, split: second, name: named('s2'), kind: 'claude', cwd: repoRoot, timeoutMs: 120_000,
+      container: container.workspace, split: second, name: named('s2'), kind: 'claude', cwd: repoRoot,
     });
     const afterTwo = new Terminal().tabLayout(main);
     const top = afterTwo?.panes.find((p) => p.pane === s1.pane)?.rect;
