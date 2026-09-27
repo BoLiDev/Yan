@@ -1,5 +1,4 @@
-import { spawnSync } from 'node:child_process';
-import type { ProcessResult } from '../../util/process.js';
+import { NOT_STARTED, runProcess, type ProcessResult } from '../../util/process.js';
 
 /**
  * The one place a host CLI is executed. stdout and stderr come back separately
@@ -17,10 +16,7 @@ export interface CliInvocation {
   readonly host?: string;
 }
 
-/** The code reported when the CLI is not on PATH. */
-const CLI_MISSING = 127;
-
-/** Never throws: a CLI that will not start comes back as `CLI_MISSING`. */
+/** Never throws: a CLI that will not start comes back as `NOT_STARTED`. */
 export function runCli(invocation: CliInvocation): ProcessResult {
   const env = { ...process.env };
   if (invocation.host !== undefined && invocation.host !== '') {
@@ -28,25 +24,9 @@ export function runCli(invocation: CliInvocation): ProcessResult {
     else env.GITLAB_HOST = invocation.host;
   }
 
-  const spawned = spawnSync(invocation.cli, [...invocation.args], {
-    cwd: invocation.cwd,
-    encoding: 'utf8',
-    env,
-    windowsHide: true,
-  });
-
-  if (spawned.error !== undefined) {
-    return {
-      code: CLI_MISSING,
-      stdout: '',
-      stderr: `remote-git: ${invocation.cli} is not on PATH - install it, then run 'yan doctor'`,
-    };
+  const r = runProcess(invocation.cli, invocation.args, { cwd: invocation.cwd, env });
+  if (r.code === NOT_STARTED) {
+    return { ...r, stderr: `remote-git: ${invocation.cli} is not on PATH - install it, then run 'yan doctor'` };
   }
-
-  const clean = (s: string | null): string => (s ?? '').replace(/\r/g, '');
-  return {
-    code: spawned.status ?? 1,
-    stdout: clean(spawned.stdout),
-    stderr: clean(spawned.stderr),
-  };
+  return { code: r.code, stdout: r.stdout.replace(/\r/g, ''), stderr: r.stderr.replace(/\r/g, '') };
 }

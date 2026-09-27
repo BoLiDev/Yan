@@ -8,6 +8,7 @@ import { typedInput } from '../externals/harness/index.js';
 import { Terminal, type ReadFormat, type ReadSource } from '../externals/herdr/index.js';
 import { Shift, recordUndelivered, undeliveredFile } from '../records/shift/index.js';
 import { YanError } from '../util/error.js';
+import { sleepMs } from '../util/process.js';
 
 /**
  * `yan report <state> "<note>"` — the shift → yan channel, and the only
@@ -62,12 +63,6 @@ function typingWaitMs(): number {
 function typingPollMs(): number {
   const n = Number.parseInt(process.env.YAN_REPORT_TYPING_POLL_MS ?? '', 10);
   return Number.isInteger(n) && n > 0 ? n : 5000;
-}
-
-/** Block the whole process: a report has nothing else to do while it waits. */
-function sleepMs(ms: number): void {
-  if (ms <= 0) return;
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 /**

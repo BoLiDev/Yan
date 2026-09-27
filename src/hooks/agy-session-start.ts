@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Task } from '../records/task/index.js';
 import { yanHome } from '../util/home.js';
+import { NOT_STARTED, runProcess } from '../util/process.js';
 import { readStdin } from './stdin.js';
 
 /**
@@ -84,21 +84,16 @@ function rebuildPicture(io: SessionStartIo): string {
     return '';
   }
 
-  const rebuilt = spawnSync(process.execPath, [yan, 'session-start'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, YAN_HOME: home },
-    windowsHide: true,
-  });
+  const rebuilt = runProcess(process.execPath, [yan, 'session-start'], { env: { ...process.env, YAN_HOME: home } });
 
-  if (rebuilt.error !== undefined) {
-    io.note(`could not run 'yan session-start': ${rebuilt.error.message}`);
+  if (rebuilt.code === NOT_STARTED) {
+    io.note(`could not run 'yan session-start': ${rebuilt.stderr}`);
     return '';
   }
-  if (rebuilt.status !== 0) {
-    io.note(`'yan session-start' exited ${String(rebuilt.status)}: ${(rebuilt.stderr ?? '').trim()}`);
+  if (rebuilt.code !== 0) {
+    io.note(`'yan session-start' exited ${String(rebuilt.code)}: ${rebuilt.stderr.trim()}`);
   }
-  return (rebuilt.stdout ?? '').trim();
+  return rebuilt.stdout.trim();
 }
 
 export async function agySessionStart(io: SessionStartIo): Promise<number> {

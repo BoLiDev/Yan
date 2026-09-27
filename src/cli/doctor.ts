@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -6,6 +5,7 @@ import { Command } from 'commander';
 import { gitOut, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
+import { runProcess } from '../util/process.js';
 import { cloneRoot, machineConfigPath, readMachine } from '../util/machine.js';
 import { VAULT_VERSION, readVaultJson, vaultConfigPath, vaultDirIfAny } from '../util/vault.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
@@ -63,8 +63,8 @@ function which(command: string): string | undefined {
 }
 
 function gitConfig(scope: '--global' | '--system', key: string): string {
-  const r = spawnSync('git', ['config', scope, key], { encoding: 'utf8', windowsHide: true });
-  return r.status === 0 ? (r.stdout ?? '').trim() : '';
+  const r = runProcess('git', ['config', scope, key]);
+  return r.code === 0 ? r.stdout.trim() : '';
 }
 
 /**

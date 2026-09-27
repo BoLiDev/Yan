@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readJsonOrNone } from '../../util/json.js';
+import { runProcess } from '../../util/process.js';
 import { asRecord } from '../../util/narrow.js';
 import { samePath } from '../../util/paths.js';
 import type { AgentFacts, HarnessEnv, Spoke } from './types.js';
@@ -183,14 +183,11 @@ function codexSpoke(): Spoke | undefined {
 function processTable(): ReadonlyMap<number, number> {
   const table = new Map<number, number>();
   if (process.platform === 'win32') return table;
-  try {
-    const r = spawnSync('ps', ['-A', '-o', 'pid=,ppid='], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
-    for (const line of (r.stdout ?? '').split('\n')) {
-      const [pid, ppid] = line.trim().split(/\s+/).map(Number);
-      if (pid !== undefined && ppid !== undefined && Number.isInteger(pid) && Number.isInteger(ppid)) table.set(pid, ppid);
-    }
-  } catch {
-    // No table: the parent match is skipped.
+  // No `ps` is no table, and the parent match is skipped.
+  const r = runProcess('ps', ['-A', '-o', 'pid=,ppid='], { timeoutMs: 5000 });
+  for (const line of r.stdout.split('\n')) {
+    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+    if (pid !== undefined && ppid !== undefined && Number.isInteger(pid) && Number.isInteger(ppid)) table.set(pid, ppid);
   }
   return table;
 }

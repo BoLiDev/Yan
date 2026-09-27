@@ -1,4 +1,5 @@
 import { nativePath } from '../../util/paths.js';
+import { sleepMs } from '../../util/process.js';
 import { herdrCall, mapError, runHerdr, type HerdrRunner } from './cli.js';
 import { isPaneId, paneIsIn, requireAgentName, requirePaneId, requireWorkspaceId } from './ids.js';
 import { asRecord, asString } from '../../util/narrow.js';
@@ -52,10 +53,6 @@ const BUSY_RETRY_MS = 15000;
 
 /** The pause between asking a busy pane again. */
 const BUSY_INTERVAL_MS = 500;
-
-function sleepMs(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
 
 /** How long a freshly started agent is given to reach `working` or `blocked`. */
 const SETTLE_MS = 8000;

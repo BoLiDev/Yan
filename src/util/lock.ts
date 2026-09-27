@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 import { dirname } from 'node:path';
 import { YanError } from './error.js';
 import { readJsonOrNone } from './json.js';
+import { sleepMs } from './process.js';
 
 /**
  * The one locking primitive in yan: a file created exclusively, holding the
@@ -26,11 +27,6 @@ interface LockOwner {
 
 /** A lock with no pid stamp yet is given this long before it is reclaimable. */
 const UNSTAMPED_GRACE_SECONDS = 10;
-
-/** Blocks the thread. */
-function sleepMs(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
 
 function readRecord(file: string): LockOwner | undefined {
   return readJsonOrNone(file) as LockOwner | undefined;

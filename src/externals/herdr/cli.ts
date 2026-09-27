@@ -1,5 +1,4 @@
-import { spawnSync } from 'node:child_process';
-import type { ProcessResult } from '../../util/process.js';
+import { NOT_STARTED, runProcess, type ProcessResult } from '../../util/process.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -36,18 +35,8 @@ export function herdrErrorCode(stderr: string): string | undefined {
  * herdr that will not start is 127.
  */
 export function runHerdr(args: readonly string[]): ProcessResult {
-  const spawned = spawnSync('herdr', [...args], {
-    encoding: 'utf8',
-    windowsHide: true,
-  });
-  if (spawned.error !== undefined) {
-    return { code: 127, stdout: '', stderr: `herdr is not on PATH: ${spawned.error.message}` };
-  }
-  return {
-    code: spawned.status ?? 1,
-    stdout: spawned.stdout ?? '',
-    stderr: spawned.stderr ?? '',
-  };
+  const r = runProcess('herdr', args);
+  return r.code === NOT_STARTED ? { ...r, stderr: `herdr is not on PATH: ${r.stderr}` } : r;
 }
 
 /** How a herdr command is run; replaceable in a test. */
