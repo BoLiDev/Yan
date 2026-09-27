@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { out } from '../shared/action.js';
-import { readScenarios, resolveShift, runsAs } from '../shared/config.js';
+import { readScenarios, resolveShift, runsAs } from '../shared/agents.js';
 import { deliverableLines, deliverableTally, NO_DELIVERABLES_NOTICE } from '../shared/deliverables.js';
 import { terminalWidth } from '../shared/style.js';
 import { Deliverables, Task, readDeliverables } from '../../records/task/index.js';

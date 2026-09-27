@@ -1,6 +1,5 @@
-import { readVaultConfig } from '../../util/config.js';
 import { asRecord } from '../../util/narrow.js';
-import { vaultConfigPath } from '../../util/vault.js';
+import { readVaultConfig, vaultConfigPath } from '../../util/vault.js';
 import type { HostKind } from './types.js';
 import { YanError } from '../../util/error.js';
 
@@ -15,7 +14,7 @@ interface RemoteGitConfig {
  * @throws YanError `remote_git_config` (exit 2) when the file is missing, unparseable,
  *   names no supported `kind`, or is a gitlab config with no `host`.
  */
-export function readConfig(): RemoteGitConfig {
+export function remoteGitConfig(): RemoteGitConfig {
   const path = vaultConfigPath();
   let root: Record<string, unknown> | undefined;
   try {

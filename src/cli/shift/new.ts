@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from '../shared/action.js';
-import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from '../shared/config.js';
+import { resolveShift, runsAs, type ShiftSpec } from '../shared/agents.js';
+import { launchArgs, promptInArgv } from '../../externals/harness/index.js';
 import { resolveContainer } from '../shared/container.js';
 import { display } from '../shared/display.js';
 import { placementOf } from '../shared/placement.js';
@@ -10,7 +11,7 @@ import { readNote, appendLog } from '../shared/note.js';
 import { repoTarget } from '../shared/repo.js';
 import { insideTask, existingTask } from '../shared/task-id.js';
 import { returnLease } from '../shared/teardown.js';
-import { agentNameFor, Terminal, type AgentStatus, type SplitAt, type TabLayout } from '../../externals/herdr/index.js';
+import { agentNameFor, Terminal, type AgentStatus, type StartAgentOptions, type TabLayout } from '../../externals/herdr/index.js';
 import { WorktreePool, type LeaseGrant } from '../../externals/worktree/index.js';
 import { opensMr, Shift, type ShiftMeta, type ShiftMetaPlaceholder } from '../../records/shift/index.js';
 import { Task, type UnitData } from '../../records/task/index.js';
@@ -105,61 +106,6 @@ function publishBase(clone: string, branch: string): void {
 }
 
 /**
- * The whole argv one harness needs: the extra directories and running
- * unattended. An unflagged harness would stop at its first permission prompt
- * in a pane nobody is watching.
- *
- * The work order is not in here for claude and codex: it is typed in once the
- * harness is up, by `startAgent`. Herdr's `agent start` returns only when the
- * agent is ready for input, and one started with its prompt in argv goes
- * straight to work and is still working at the deadline - every shift came
- * back as `timeout`. Agy keeps its prompt on the command line, because `-i`
- * is what makes it act on one and then stay open.
- *
- * A shift that delivers a report rather than a merge request - `explore` and
- * `uix` - runs unattended too. Read-only by permission mode is the one thing
- * it must not be: `--permission-mode plan` ends at "ready to execute - would
- * you like to proceed?", which is an approval nobody is there to give, so
- * every scout parked there and delivered nothing. What keeps it from pushing
- * is its brief, plus a deny rule that makes the obvious way to do it fail;
- * what makes that affordable is that its tree is thrown away and its branch is
- * never pushed. The gain is that it can run the build and the test suite it is
- * reporting on.
- */
-function harnessArgv(
-  spec: ShiftSpec,
-  workdir: string,
-  addDirs: readonly string[],
-  prompt: string,
-): string[] {
-  const kind = cliKind(spec.cli);
-  const args: string[] = [];
-  if (kind === 'claude') {
-    args.push(...modelFlags(spec.cli, spec));
-    for (const d of addDirs) args.push('--add-dir', d);
-    args.push('--dangerously-skip-permissions');
-    if (!opensMr(spec.scenario)) args.push('--disallowed-tools', 'Bash(git push:*)');
-  } else if (kind === 'codex') {
-    args.push(...modelFlags(spec.cli, spec));
-    if (!opensMr(spec.scenario)) args.push('--sandbox', 'read-only');
-    else args.push('--dangerously-bypass-approvals-and-sandbox');
-
-    // Hooks the target repository ships run without review. Codex's
-    // hook-review prompt is one Herdr classifies as `idle`, so a shift that
-    // met it would park in an unfocused pane and never wake anybody.
-    // `user` took this decision knowing what it costs.
-    args.push('--dangerously-bypass-hook-trust');
-  } else if (kind === 'agy') {
-    // Agy ignores the directory it starts in: its workspace is what --add-dir
-    // names. A prompt it should act on and then stay open for is -i's.
-    args.push(...modelFlags(spec.cli, spec));
-    for (const d of [workdir, ...addDirs]) args.push('--add-dir', d);
-    args.push('--dangerously-skip-permissions', '-i', prompt);
-  }
-  return args;
-}
-
-/**
  * Where the sub-agent starts, and the other directories it is given: the
  * unit's first scope path and the rest of them, those the tree has.
  */
@@ -237,17 +183,7 @@ export interface Dispatcher {
   workspaceOfPane(pane: string): string | undefined;
   /** How the main agent's tab is read, to place the shift in it. */
   tabLayout(pane: string): TabLayout | undefined;
-  startAgent(options: {
-    container: string;
-    split?: SplitAt;
-    name: string;
-    kind: string;
-    cwd: string;
-    label?: string;
-    env?: Record<string, string>;
-    argv?: readonly string[];
-    prompt?: string;
-  }): { pane: string; status: AgentStatus; agent_session?: string };
+  startAgent(options: StartAgentOptions): { pane: string; status: AgentStatus; agent_session?: string };
   setPaneTitle(pane: string, title: string, displayAgent?: string): void;
 }
 
@@ -408,9 +344,9 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
         YAN_SID: sid,
         YAN_SHIFT_DIR: shift.dir,
       },
-      argv: harnessArgv(spec, workdir, addDirs, prompt),
-      // Typed in once the harness is idle; agy already has it in argv.
-      ...(cliKind(agent) === 'agy' ? {} : { prompt }),
+      argv: launchArgs(agent, { model: spec.model, effort: spec.effort, workdir, addDirs, readOnly: !opensMr(spec.scenario), prompt }),
+      // Typed in once the harness is idle, unless it is already in argv.
+      ...(promptInArgv(agent) ? {} : { prompt }),
     });
     started = true;
 
