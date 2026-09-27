@@ -191,7 +191,7 @@ describe('reading drafts works anywhere', () => {
 describe('which task', () => {
   it('refuses a task that does not exist', async () => {
     const r = await yan(['draft', 'ls', '--plain', 'nope']);
-    expect(r.code).toBe(1);
+    expect(r.code).toBe(2);
     expect(r.stderr).toContain('no such task: nope');
   });
 

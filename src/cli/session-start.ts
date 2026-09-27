@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -9,18 +9,20 @@ import { terminalWidth } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { Terminal, type Alive } from '../externals/herdr/index.js';
 import { RemoteGit, type MrRef, type MrState } from '../externals/remote-git/index.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import type { LeaseRow } from '../externals/worktree/index.js';
 import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
-import { Deliverables, Task } from '../records/task/index.js';
+import { Deliverables, Task, readDeliverables } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
 import { Drafts } from '../records/drafts/index.js';
-import { localStamp } from './draft.js';
 import { memDir, vaultDir } from '../util/vault.js';
 import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
 import { normalizePath, samePath } from '../util/paths.js';
 import { YanError } from '../util/error.js';
+import { isoSecond, localStamp } from '../util/time.js';
+import { poolLeases } from './shared/leases.js';
+import { existingTask } from './shared/task-id.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -122,34 +124,16 @@ function askHost(sources: Sources, mr: string, dir: string): MrReport {
  * is per call and never touches disk.
  */
 function poolAsker(sources: Sources): (clone: string, tree: string, leaseId: string) => PoolState {
-  const cache = new Map<string, readonly LeaseRow[] | undefined>();
+  const leasesOf = poolLeases(sources.leasesOf);
   return (clone, tree, leaseId) => {
     if (clone === '' || !existsSync(clone)) return 'unknown';
-    if (!cache.has(clone)) {
-      try {
-        cache.set(clone, (sources.leasesOf ?? ((c: string) => new WorktreePool(c).status()))(clone));
-      } catch {
-        cache.set(clone, undefined);
-      }
-    }
-    const leases = cache.get(clone);
+    const leases = leasesOf(clone);
     if (leases === undefined) return 'unknown';
     const held = leases.some(
       (l) => (tree !== '' && samePath(l.path, tree)) || (leaseId !== '' && l.lease_id === leaseId),
     );
     return held ? 'leased' : 'free';
   };
-}
-
-function shiftIds(task: string): string[] {
-  const dir = join(new Task(task).dir, 'shifts');
-  try {
-    return readdirSync(dir)
-      .filter((sid) => Shift.isId(sid) && statSync(join(dir, sid)).isDirectory())
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  } catch {
-    return [];
-  }
 }
 
 /** The clones this context knows about; `[]` when the registry cannot be read. */
@@ -183,15 +167,14 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
     }
 
     const shifts: ShiftRow[] = [];
-    for (const sid of shiftIds(id)) {
-      const shift = new Shift(id, sid);
+    for (const shift of Shift.allIn(id)) {
       const meta = shift.meta();
       const live = shift.isLive();
       const tree = meta.tree ?? '';
       const clone = meta.clone ?? '';
 
       shifts.push({
-        sid,
+        sid: shift.sid,
         unit: meta.unit ?? '',
         branch: meta.branch ?? '',
         tree,
@@ -265,7 +248,7 @@ function renderDrafts(id: string): void {
   out("search <words>' finds a phrase. Other tasks' drafts are plain markdown under");
   out(`${normalizePath(vaultDir())}/tasks/<id>/artifacts/drafts/ - grep there when an earlier task's note might apply.`);
   out('');
-  for (const d of shown) out(`  ${d.id}  ${localStamp(d.updated)}  ${d.title}`);
+  for (const d of shown) out(`  ${d.id}  ${localStamp(new Date(d.updated))}  ${d.title}`);
 }
 
 /**
@@ -275,7 +258,7 @@ function renderDrafts(id: string): void {
  */
 function renderDeliverables(id: string, complete: boolean): void {
   const record = new Deliverables(id);
-  const { deliverables, problem } = record.readOrNone();
+  const { deliverables, problem } = readDeliverables(id);
 
   out('');
   if (problem !== null) {
@@ -423,7 +406,7 @@ function renderUndelivered(picture: Picture): void {
   out('');
   for (const { task, shift } of missed) {
     for (const u of shift.undelivered) {
-      const when = u.at > 0 ? `${new Date(u.at * 1000).toISOString().slice(0, 19)}Z` : '(no time)';
+      const when = u.at > 0 ? isoSecond(new Date(u.at * 1000)) : '(no time)';
       out(`  ${task}  ${shift.sid}  ${u.state}  ${when}  ${u.note}`);
     }
   }
@@ -532,9 +515,7 @@ no forge. Nothing is stored, which is what makes restarting yan a non-event.`,
         process.stderr.write(`yan session-start: vault pull: ${pulled.message}\n`);
       }
 
-      if (id !== '') {
-        if (!Task.exists(id)) throw YanError.usage('session_start_usage', `no such task: ${id}`);
-      }
+      if (id !== '') existingTask('session_start', id);
 
       const picture = rebuild(id !== '' ? [id] : Task.list());
       if (options.json === true) {

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync 
 import { join } from 'node:path';
 import { Task } from '../task/index.js';
 import { normalizePath } from '../../util/paths.js';
+import { localDay, localTime } from '../../util/time.js';
 
 /**
  * One task's drafts folder. Ported from cli-kit's `drafts.ts` rather than
@@ -165,10 +166,7 @@ export function slugify(words: readonly string[]): string {
 
 /** `2026-09-12_021212`, in local time, plus `-slug` when there are title words. */
 export function newDraftId(words: readonly string[], now = new Date()): string {
-  const p = (n: number): string => String(n).padStart(2, '0');
-  const stamp =
-    `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}` +
-    `_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+  const stamp = `${localDay(now)}_${localTime(now, true).replace(/:/g, '')}`;
   const slug = slugify(words);
   return slug === '' ? stamp : `${stamp}-${slug}`;
 }

@@ -1,13 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
-import { basename, delimiter, join } from 'node:path';
+import { basename } from 'node:path';
 import { Command } from 'commander';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import { isTty } from './shared/resolve.js';
 import { action, out } from './shared/action.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
+import { localStamp } from '../util/time.js';
+import { which } from '../util/which.js';
 
 /**
  * `yan draft` — `user`'s own notes about one task, kept in
@@ -28,17 +30,9 @@ import { YanError } from '../util/error.js';
 /** The default number of rows a listing prints. */
 const LIST_LIMIT = 20;
 
-/** `2026-09-16 05:15`, in local time. */
-export function localStamp(iso: string): string {
-  const d = new Date(iso);
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 async function taskFor(command: string, given: string | undefined, question: string): Promise<string> {
   const id = await chosenTask('draft', given, { spelled: command, question });
-  if (!Task.exists(id)) throw new YanError('task_missing', `no such task: ${id}`);
-  return id;
+  return existingTask('draft', id).id;
 }
 
 /**
@@ -58,23 +52,6 @@ function userOnly(what: string, tty: () => boolean): void {
 // ------------------------------------------------------------------ editor --
 
 /** The command as something spawnable, or null when it is not there. */
-function resolveCmd(cmd: string): string | null {
-  if (cmd.includes('/') || cmd.includes('\\')) return existsSync(cmd) ? cmd : null;
-  const exts = process.platform === 'win32' ? ['', ...(process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';')] : [''];
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    if (dir === '') continue;
-    for (const ext of exts) {
-      const full = join(dir, cmd + ext);
-      try {
-        if (statSync(full).isFile()) return full;
-      } catch {
-        // Not in this directory.
-      }
-    }
-  }
-  return null;
-}
-
 /** Split a command line into argv, honouring double quotes around a path with spaces. */
 function splitCommand(line: string): string[] {
   const parts: string[] = [];
@@ -104,12 +81,12 @@ function editorCommand(): string[] {
     const line = (process.env[name] ?? '').trim();
     if (line === '') continue;
     const parts = splitCommand(line);
-    const first = parts[0] === undefined ? null : resolveCmd(parts[0]);
-    if (first !== null) return [first, ...parts.slice(1)];
+    const first = parts[0] === undefined ? undefined : which(parts[0]);
+    if (first !== undefined) return [first, ...parts.slice(1)];
     throw new YanError('draft_no_editor', `$${name} is '${line}', and ${parts[0] ?? 'it'} is not on PATH`);
   }
-  const nvim = resolveCmd('nvim');
-  if (nvim !== null) return [nvim];
+  const nvim = which('nvim');
+  if (nvim !== undefined) return [nvim];
   throw new YanError('draft_no_editor', 'no editor: set $DRAFT_EDITOR or $EDITOR, or put nvim on PATH');
 }
 
@@ -188,7 +165,7 @@ function dateOf(value: string | undefined): Date | undefined {
 }
 
 function printPlain(rows: readonly DraftSummary[]): void {
-  for (const d of rows) out(`${d.id}\t${localStamp(d.updated)}\t${d.title}`);
+  for (const d of rows) out(`${d.id}\t${localStamp(new Date(d.updated))}\t${d.title}`);
 }
 
 interface LsOptions {
@@ -229,7 +206,7 @@ const ls = new Command('ls')
         return;
       }
       const { chooseDraft } = await import('../ui/prompts.js');
-      const id = await chooseDraft(rows.map((d) => ({ ...d, updated: localStamp(d.updated) })), task);
+      const id = await chooseDraft(rows.map((d) => ({ ...d, updated: localStamp(new Date(d.updated)) })), task);
       editDraft(drafts.pathFor(id));
     }),
   );
@@ -277,7 +254,7 @@ const search = new Command('search')
         return;
       }
       for (const h of hits) {
-        out(`${h.id}\t${localStamp(h.updated)}\t${h.title}`);
+        out(`${h.id}\t${localStamp(new Date(h.updated))}\t${h.title}`);
         out(`    ${h.snippet}`);
       }
     }),

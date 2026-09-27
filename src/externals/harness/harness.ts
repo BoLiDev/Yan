@@ -1,10 +1,12 @@
-import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { readJsonOrNone } from '../../util/json.js';
+import { runProcess } from '../../util/process.js';
 import { asRecord } from '../../util/narrow.js';
 import { samePath } from '../../util/paths.js';
 import type { AgentFacts, HarnessEnv, Spoke } from './types.js';
+import { isRecordId } from '../../util/names.js';
 
 /**
  * When an agent last wrote to its own session file, one adapter per harness
@@ -72,19 +74,15 @@ function claudeRegistry(home: string): ClaudeRegistryEntry[] {
   const found: ClaudeRegistryEntry[] = [];
   for (const name of entries(dir)) {
     if (!name.endsWith('.json')) continue;
-    try {
-      const raw = asRecord(JSON.parse(readFileSync(join(dir, name), 'utf8')));
-      const { pid, sessionId, cwd, startedAt } = raw;
-      if (typeof pid !== 'number' || typeof sessionId !== 'string' || sessionId === '') continue;
-      found.push({
-        pid,
-        sessionId,
-        cwd: typeof cwd === 'string' ? cwd : '',
-        startedAt: typeof startedAt === 'number' ? startedAt : 0,
-      });
-    } catch {
-      // Half-written or not Claude's: not this agent.
-    }
+    // Half-written or not Claude's: not this agent.
+    const { pid, sessionId, cwd, startedAt } = asRecord(readJsonOrNone(join(dir, name)));
+    if (typeof pid !== 'number' || typeof sessionId !== 'string' || sessionId === '') continue;
+    found.push({
+      pid,
+      sessionId,
+      cwd: typeof cwd === 'string' ? cwd : '',
+      startedAt: typeof startedAt === 'number' ? startedAt : 0,
+    });
   }
   return found;
 }
@@ -149,7 +147,7 @@ function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
     id = found.id;
     cwd = found.cwd === '' ? cwd : found.cwd;
   }
-  if (!/^[A-Za-z0-9._-]+$/.test(id)) return undefined;
+  if (!isRecordId(id)) return undefined;
   return newest(claudeFiles(env.home, id, cwd));
 }
 
@@ -168,7 +166,7 @@ function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
  */
 function agySpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
   const id = facts.sessionId;
-  if (id === undefined || !/^[A-Za-z0-9._-]+$/.test(id)) return undefined;
+  if (id === undefined || !isRecordId(id)) return undefined;
   const logs = join(env.home, '.gemini', 'antigravity-cli', 'brain', id, '.system_generated', 'logs');
   return newest([join(logs, 'transcript.jsonl'), join(logs, 'transcript_full.jsonl')]);
 }
@@ -186,14 +184,11 @@ function codexSpoke(): Spoke | undefined {
 function processTable(): ReadonlyMap<number, number> {
   const table = new Map<number, number>();
   if (process.platform === 'win32') return table;
-  try {
-    const r = spawnSync('ps', ['-A', '-o', 'pid=,ppid='], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
-    for (const line of (r.stdout ?? '').split('\n')) {
-      const [pid, ppid] = line.trim().split(/\s+/).map(Number);
-      if (pid !== undefined && ppid !== undefined && Number.isInteger(pid) && Number.isInteger(ppid)) table.set(pid, ppid);
-    }
-  } catch {
-    // No table: the parent match is skipped.
+  // No `ps` is no table, and the parent match is skipped.
+  const r = runProcess('ps', ['-A', '-o', 'pid=,ppid='], { timeoutMs: 5000 });
+  for (const line of r.stdout.split('\n')) {
+    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+    if (pid !== undefined && ppid !== undefined && Number.isInteger(pid) && Number.isInteger(ppid)) table.set(pid, ppid);
   }
   return table;
 }

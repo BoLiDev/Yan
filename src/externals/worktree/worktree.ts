@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as git from '../../util/git.js';
 import { withLock } from '../../util/lock.js';
@@ -8,6 +8,7 @@ import { absolute, cloneDir, leaseFile, leasesDir, lockFile, repoName, slotTree 
 import { allLeases, newLeaseId, readLease, reclaim, releaseLease, slotOf, writeLease } from './lease.js';
 import type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
 import { YanError } from '../../util/error.js';
+import { isDirectory } from '../../util/paths.js';
 
 /**
  * The worktree pool for one main clone: a fixed set of slots, reused warm so a
@@ -27,13 +28,7 @@ export class WorktreePool {
    */
   public constructor(clone: string) {
     if (!clone) throw YanError.usage('worktree_usage', 'a main clone directory is required');
-    let isDir = false;
-    try {
-      isDir = statSync(clone).isDirectory();
-    } catch {
-      isDir = false;
-    }
-    if (!isDir) throw YanError.usage('worktree_usage', `not a directory: ${clone}`);
+    if (!isDirectory(clone)) throw YanError.usage('worktree_usage', `not a directory: ${clone}`);
 
     this.clone = clone;
     this.dir = cloneDir(clone);

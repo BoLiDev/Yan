@@ -1,6 +1,5 @@
 import { join } from 'node:path';
-import { readJsonIfPresent } from '../../util/json.js';
-import { recordOrNone } from '../../util/narrow.js';
+import { readJsonOrNone } from '../../util/json.js';
 import type { ShiftMeta } from './types.js';
 
 /**
@@ -9,13 +8,7 @@ import type { ShiftMeta } from './types.js';
  * and any field the file does not carry is absent rather than empty.
  */
 export function readMeta(run: string): ShiftMeta {
-  let raw: unknown;
-  try {
-    raw = readJsonIfPresent(join(run, 'meta.json'));
-  } catch {
-    raw = undefined;
-  }
-  const meta = recordOrNone(raw) ?? {};
+  const meta = readJsonOrNone(join(run, 'meta.json')) ?? {};
 
   // The keys `yan shift new` writes, and nothing else: a second spelling that
   // no writer produces is a reader guessing.

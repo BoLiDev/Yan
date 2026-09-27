@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
@@ -6,6 +5,8 @@ import { openTasks } from './shared/task-id.js';
 import { isTty, setPrompter } from './shared/resolve.js';
 import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
+import { readJsonOrNone } from '../util/json.js';
+import { asString } from '../util/narrow.js';
 
 /**
  * The Commander root, and the only place subcommands are composed. A command
@@ -21,14 +22,7 @@ import { yanHome, subcommands } from '../util/home.js';
  * CLI: the version is the least of what `yan --version` is asked for.
  */
 function yanVersion(home: string): string {
-  try {
-    const pkg: unknown = JSON.parse(readFileSync(join(home, 'package.json'), 'utf8'));
-    const version = (pkg as { version?: unknown } | null)?.version;
-    if (typeof version === 'string' && version !== '') return version;
-  } catch {
-    // Unreadable or not JSON.
-  }
-  return 'unknown';
+  return asString(readJsonOrNone(join(home, 'package.json'))?.version) || 'unknown';
 }
 
 /** What every subcommand module must export. */

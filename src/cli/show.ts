@@ -1,25 +1,24 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { isMainAgentOf } from './shared/caller.js';
 import { enterLockFile, paneOfEnterLock } from './shared/enter-lock.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import { blue, bold, cyan, dim, fit, gray, green, magenta, red, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { dash } from './shared/table.js';
 import { overviewTask, type OverviewTask } from './overview/overview.js';
 import { renderHeader } from './overview/render.js';
 import { ago } from './overview/time.js';
 import { isoMoment, secondMoment } from './overview/when.js';
-import { WorktreePool, type LeaseRow } from '../externals/worktree/index.js';
+import type { LeaseRow } from '../externals/worktree/index.js';
 import { Log } from '../records/log/index.js';
-import { Shift, clearUndelivered, readUndelivered, type Undelivered } from '../records/shift/index.js';
-import { Deliverables, Task, type Deliverable } from '../records/task/index.js';
+import { Shift, clearUndelivered, lastEvent, readUndelivered, type Undelivered } from '../records/shift/index.js';
+import { Task, type Deliverable, readDeliverables } from '../records/task/index.js';
 import { gitLines, gitOk } from '../util/git.js';
 import { isStale, owner } from '../util/lock.js';
-import { YanError } from '../util/error.js';
+import { poolLeases } from './shared/leases.js';
 
 /**
  * `yan show [<id>] [--json]` — one task at a glance: whether a yan is running
@@ -115,34 +114,11 @@ function standingTree(leases: readonly LeaseRow[], holder: string): ShowJson['un
   return { path: lease.path, dirty: gitLines(lease.path, ['status', '--porcelain']).length };
 }
 
-function lastEvent(shift: Shift): ShowJson['shifts'][number]['last_event'] {
-  let text = '';
-  try {
-    text = readFileSync(join(shift.run, 'status'), 'utf8');
-  } catch {
-    return null;
-  }
-  const line = text.split(/\r?\n/).filter((l) => l !== '').pop();
-  if (line === undefined) return null;
-  const [at = '', state = '', ...note] = line.split('\t');
-  return { state, at, note: note.join('\t') };
-}
-
 function showJson(id: string): ShowJson {
   const task = new Task(id);
   const data = task.read();
-  const leasesByClone = new Map<string, readonly LeaseRow[]>();
-  const leasesOf = (clone: string | undefined): readonly LeaseRow[] => {
-    if (clone === undefined) return [];
-    if (!leasesByClone.has(clone)) {
-      try {
-        leasesByClone.set(clone, new WorktreePool(clone).status());
-      } catch {
-        leasesByClone.set(clone, []);
-      }
-    }
-    return leasesByClone.get(clone) ?? [];
-  };
+  const pool = poolLeases();
+  const leasesOf = (clone: string | undefined): readonly LeaseRow[] => (clone === undefined ? [] : (pool(clone) ?? []));
 
   const units = data.units.map((u) => {
     const clone = repoDirIfKnown(u.repo);
@@ -161,6 +137,7 @@ function showJson(id: string): ShowJson {
 
   const shifts = Shift.liveIn(id).map((shift) => {
     const meta = shift.meta();
+    const last = lastEvent(shift.run) ?? null;
     return {
       sid: shift.sid,
       unit: meta.unit ?? '',
@@ -169,14 +146,14 @@ function showJson(id: string): ShowJson {
       scenario: meta.scenario,
       tier: meta.tier ?? '',
       pane: meta.pane ?? '',
-      last_event: lastEvent(shift),
+      last_event: last,
       leftover: data.complete,
-      awaiting_acceptance: !data.complete && lastEvent(shift)?.state === 'done',
+      awaiting_acceptance: !data.complete && last?.state === 'done',
       undelivered: readUndelivered(shift.run),
     };
   });
 
-  const said = new Deliverables(id).readOrNone();
+  const said = readDeliverables(id);
 
   return {
     version: 1,
@@ -354,10 +331,7 @@ function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears
 
 /** Print one task. */
 function printTask(id: string, json: boolean): void {
-  if (!Task.exists(id)) {
-    const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
-    throw new YanError('task_missing', `no such task: ${id} - ${where} does not exist`);
-  }
+  existingTask('show', id);
   const show = showJson(id);
 
   // A report is deleted once the one reader it was written for has read it.

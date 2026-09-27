@@ -1,23 +1,34 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { clone, remoteUrl } from '../util/git.js';
-import { editJson, initJson } from '../util/json.js';
 import { cloneRoot } from '../util/machine.js';
-import { normalizePath, samePath } from '../util/paths.js';
-import { localReposPath, reposPath, vaultDir } from '../util/vault.js';
+import { isDirectory, normalizePath, samePath } from '../util/paths.js';
+import { reposPath } from '../util/vault.js';
 import { action, out } from './shared/action.js';
-import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry, type RepoEntry } from './shared/repo.js';
+import {
+  DEFAULT_POOL_SIZE,
+  defaultCloneRoot,
+  isClone,
+  lookup,
+  registry,
+  unregister,
+  writeLocal,
+  writePortable,
+  type RepoEntry,
+} from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
+import { isRecordId } from '../util/names.js';
+import type { RepoCandidate, RepoRemovable } from '../ui/prompts.js';
 
 /**
  * `yan repo add | link | ls | rm` — which repositories this context knows
  * about, and where they are on this machine.
  *
- * The only writer of either half of the registry — `repos.json` and
- * `.local/repos.json`.
+ * The only command that writes either half of the registry — `repos.json`
+ * and `.local/repos.json` — through `shared/repo.ts`, which reads them too.
  *
  * `add` reads its argument rather than demanding a URL:
  *
@@ -59,45 +70,13 @@ function sameUrl(a: string, b: string): boolean {
 }
 
 function checkName(name: string): void {
-  if (name === '' || !/^[A-Za-z0-9._-]+$/.test(name)) {
+  if (!isRecordId(name)) {
     throw YanError.usage('repo_usage', `'${name}' is not a usable repository name - pass --name`);
   }
   if (name === 'version') {
     // Repositories sit at the registry's top level, beside `version`.
     throw YanError.usage('repo_usage', "'version' is not a usable repository name - pass --name");
   }
-}
-
-/**
- * Write the tracked half. Merged into any entry already there: an empty `pool`
- * keeps what is recorded.
- */
-function writePortable(name: string, url: string, pool: string): void {
-  const file = reposPath();
-  mkdirSync(vaultDir(), { recursive: true });
-  initJson(file, { version: 1 });
-  editJson(file, (raw) => {
-    const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    const before = { ...(typeof reg[name] === 'object' && reg[name] !== null ? reg[name] : {}) } as Record<string, unknown>;
-    reg[name] = {
-      ...before,
-      url,
-      pool_size: pool !== '' ? Number(pool) : (before.pool_size ?? DEFAULT_POOL_SIZE),
-    };
-    return reg;
-  });
-}
-
-/** Write the machine half, which is never committed. */
-function writeLocal(name: string, dir: string): void {
-  const file = localReposPath();
-  mkdirSync(join(vaultDir(), '.local'), { recursive: true });
-  initJson(file, { version: 1 });
-  editJson(file, (raw) => {
-    const reg = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    reg[name] = { path: normalizePath(dir) };
-    return reg;
-  });
 }
 
 /**
@@ -138,14 +117,6 @@ function checkFlags(options: AddOptions): { pool: string } {
   return { pool };
 }
 
-interface Candidate {
-  readonly name: string;
-  readonly dir: string;
-  readonly url: string;
-  /** Why it cannot be selected, or the empty string when it can. */
-  readonly blocked: string;
-}
-
 /**
  * The immediate children of `dir` that are git clones, sorted, each with what
  * blocks it. Never recursive, and a clone with no `origin` is listed as
@@ -153,7 +124,7 @@ interface Candidate {
  *
  * @throws YanError `repo_usage` when `dir` cannot be read.
  */
-export function scan(dir: string): Candidate[] {
+export function scan(dir: string): RepoCandidate[] {
   let names: string[];
   try {
     names = readdirSync(dir);
@@ -161,15 +132,10 @@ export function scan(dir: string): Candidate[] {
     throw YanError.usage('repo_usage', `cannot read ${dir}`);
   }
 
-  const found: Candidate[] = [];
+  const found: RepoCandidate[] = [];
   for (const entry of names.sort()) {
     const child = join(dir, entry);
-    try {
-      if (!statSync(child).isDirectory()) continue;
-    } catch {
-      continue;
-    }
-    if (!isClone(child)) continue;
+    if (!isDirectory(child) || !isClone(child)) continue;
 
     const url = remoteUrl(child) ?? '';
     const name = url === '' ? entry : repoNameFromUrl(url);
@@ -200,8 +166,15 @@ async function addByScan(dir: string, options: AddOptions): Promise<void> {
     throw new YanError('repo_empty', `no git clones directly under ${dir} - the scan is one level deep, so cd to the directory that holds them`);
   }
 
-  const { chooseReposToAdd } = await import('../ui/prompts.js');
-  const chosen = await chooseReposToAdd(dir, candidates);
+  const { chooseRepos } = await import('../ui/prompts.js');
+  const chosen = await chooseRepos({
+    intro: `yan repo add — ${dir}`,
+    message: 'Which of these does this context work in?',
+    emptyTitle: 'nothing here can be added',
+    cancelled: 'nothing was registered',
+    rows: candidates,
+    hintOf: (c) => (c.url === '' ? c.dir : c.url),
+  });
   for (const name of chosen) {
     const candidate = candidates.find((c) => c.name === name);
     if (candidate === undefined) continue;
@@ -313,16 +286,6 @@ const linkRepo = new Command('link')
     }),
   );
 
-/** Drop `name` from one half of the registry. A half that was never written is left that way. */
-function dropFrom(file: string, name: string): void {
-  if (!existsSync(file)) return;
-  editJson(file, (raw) => {
-    const reg = { ...(typeof raw === 'object' && raw !== null ? raw : {}) } as Record<string, unknown>;
-    delete reg[name];
-    return reg;
-  });
-}
-
 /**
  * The open tasks with a unit on this repository. A unit names its repository
  * by registered name, or by the path of a clone.
@@ -343,8 +306,7 @@ function heldBy(entry: RepoEntry): string {
 }
 
 function remove(entry: RepoEntry): void {
-  dropFrom(reposPath(), entry.name);
-  dropFrom(localReposPath(), entry.name);
+  unregister(entry.name);
   out(`repo rm: ${entry.name}  ${entry.path === undefined ? '(was not linked here)' : `${entry.path} is left as it is`}`);
 }
 
@@ -358,17 +320,8 @@ function rmByName(name: string): void {
   remove(entry);
 }
 
-interface Removable {
-  readonly name: string;
-  readonly url: string;
-  /** Where it is on this machine, or the empty string when it is not linked here. */
-  readonly path: string;
-  /** Why it cannot be selected, or the empty string when it can. */
-  readonly blocked: string;
-}
-
 /** Every registered repository as `rm`'s select offers it, each with what blocks it. */
-export function removable(): Removable[] {
+export function removable(): RepoRemovable[] {
   return registry().map((entry) => ({
     name: entry.name,
     url: entry.url,
@@ -388,8 +341,15 @@ async function rmBySelect(): Promise<void> {
     throw new YanError('repo_empty', `no repositories are registered in ${reposPath()}`);
   }
 
-  const { chooseReposToRemove } = await import('../ui/prompts.js');
-  const chosen = await chooseReposToRemove(candidates);
+  const { chooseRepos } = await import('../ui/prompts.js');
+  const chosen = await chooseRepos({
+    intro: 'yan repo rm',
+    message: 'Which of these should this context forget? Clones on disk are left alone.',
+    emptyTitle: 'nothing here can be removed',
+    cancelled: 'nothing was removed',
+    rows: candidates,
+    hintOf: (r) => (r.path === '' ? `${r.url}  not linked here` : r.path),
+  });
   for (const name of chosen) {
     // Looked up again rather than trusted: a task may have taken it since the list was drawn.
     rmByName(name);

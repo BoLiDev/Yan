@@ -1,11 +1,13 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { YanError } from '../../util/error.js';
+import { isoSecond } from '../../util/time.js';
 
 /**
  * `run/status` is an append-only log of `<ts>\t<state>\t<note>` lines, one per
- * event. Nothing here reads the newest line, and callers wanting the shift's
- * current state must ask `yan state` rather than the log.
+ * event. The newest line is the last event the shift reported, not its state:
+ * a shift that reported `working` an hour ago may be dead now, so what is
+ * true about it right now is `yan state`'s to answer, not the log's.
  */
 
 function statusFile(run: string): string {
@@ -23,6 +25,28 @@ export function countEvents(run: string): number {
   } catch {
     return 0;
   }
+}
+
+/** One `run/status` line. */
+export interface ShiftEvent {
+  /** ISO 8601 UTC to the second, as it was written. */
+  readonly at: string;
+  readonly state: string;
+  readonly note: string;
+}
+
+/** The newest line of the log; `undefined` when there is none or it cannot be read. */
+export function lastEvent(run: string): ShiftEvent | undefined {
+  let text: string;
+  try {
+    text = readFileSync(statusFile(run), 'utf8');
+  } catch {
+    return undefined;
+  }
+  const line = text.split(/\r?\n/).filter((l) => l !== '').pop();
+  if (line === undefined) return undefined;
+  const [at = '', state = '', ...note] = line.split('\t');
+  return { at, state, note: note.join('\t') };
 }
 
 /**
@@ -58,6 +82,5 @@ export function appendEvent(run: string, state: string, note = ''): void {
   }
   mkdirSync(run, { recursive: true });
 
-  const ts = `${new Date().toISOString().slice(0, 19)}Z`;
-  appendFileSync(statusFile(run), `${ts}\t${state}\t${note}\n`);
+  appendFileSync(statusFile(run), `${isoSecond()}\t${state}\t${note}\n`);
 }

@@ -1,8 +1,7 @@
 import { Command } from 'commander';
 import { DEFAULT_POOL_SIZE, repoTarget } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { WorktreePool } from '../externals/worktree/index.js';
-import { Task } from '../records/task/index.js';
 import { action, out } from './shared/action.js';
 import { YanError } from '../util/error.js';
 
@@ -52,8 +51,7 @@ function standingTree(options: GetOptions): { repo: string; branch: string; hold
     throw YanError.usage('tree_usage', "--unit is required: the unit whose standing tree this is - 'yan show' lists them");
   }
   const task = insideTask('tree');
-  if (!Task.exists(task)) throw YanError.usage('tree_usage', `no such task: ${task}`);
-  const data = new Task(task).findUnit(unit);
+  const data = existingTask('tree', task).findUnit(unit);
   if (data === undefined) {
     throw YanError.usage('tree_usage', `no such unit: ${unit} in ${task} - 'yan show ${task}' lists them`);
   }

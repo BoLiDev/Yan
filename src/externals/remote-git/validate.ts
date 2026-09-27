@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { recordOrNone } from '../../util/narrow.js';
 import type { ProcessResult } from '../../util/process.js';
 import type { MrCreateOptions, MrRef, RepoRef } from './types.js';
 import { YanError } from '../../util/error.js';
+import { isDirectory } from '../../util/paths.js';
 
 /**
  * Everything the verbs check before they talk to a CLI, and the readers of
@@ -33,13 +34,7 @@ export function lower(value: unknown): string {
  */
 export function checkDir(ref: RepoRef): string | undefined {
   if (ref.dir === undefined || ref.dir === '') return undefined;
-  let isDir = false;
-  try {
-    isDir = statSync(ref.dir).isDirectory();
-  } catch {
-    isDir = false;
-  }
-  if (!isDir) throw YanError.usage('remote_git_usage', `dir is not a directory: ${ref.dir}`);
+  if (!isDirectory(ref.dir)) throw YanError.usage('remote_git_usage', `dir is not a directory: ${ref.dir}`);
   return ref.dir;
 }
 

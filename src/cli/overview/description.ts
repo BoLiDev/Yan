@@ -1,4 +1,4 @@
-import { columnsOf } from '../shared/style.js';
+import { wide } from '../shared/style.js';
 
 /**
  * What a task is for, as its `brief.md` says it.
@@ -85,14 +85,12 @@ export function isBullet(line: string): boolean {
   return /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line);
 }
 
-const wide = (char: string | undefined): boolean => char !== undefined && columnsOf(char) === 2;
-
 /**
  * One hard-wrapped paragraph as one line: each line trimmed, joined with a
  * space, except between two wide characters, which join with nothing, and
  * runs of whitespace collapsed.
  */
-export function unwrapParagraph(text: string): string {
+function unwrapParagraph(text: string): string {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '');
   let out = '';
   for (const line of lines) {

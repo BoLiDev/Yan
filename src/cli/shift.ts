@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -6,16 +6,15 @@ import { cliKind, modelFlags, resolveShift, runsAs, type ShiftSpec } from './sha
 import { resolveContainer } from './shared/container.js';
 import { display } from './shared/display.js';
 import { placementOf } from './shared/placement.js';
-import { noted, readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
 import { repoTarget } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
 import { agentNameFor, Terminal, type AgentStatus, type SplitAt, type TabLayout } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
 import { WorktreePool, type LeaseGrant } from '../externals/worktree/index.js';
-import { Log } from '../records/log/index.js';
 import { readLearnings } from '../records/memory/index.js';
 import { opensMr, Shift, type ShiftMeta, type ShiftMetaPlaceholder } from '../records/shift/index.js';
 import { Task, type UnitData } from '../records/task/index.js';
@@ -26,6 +25,8 @@ import { withLock } from '../util/lock.js';
 import { branchExists, deleteRemoteBranch, push, remoteBranchExists } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
 import { vaultDir } from '../util/vault.js';
+import { isoSecond } from '../util/time.js';
+import { nextNumbered } from '../util/names.js';
 
 /**
  * `yan shift new` — dispatch a shift.
@@ -49,18 +50,7 @@ const RC_MAIN_CLONE = 4;
 
 /** One past the highest `s<n>` under `shifts/`, counting every round. */
 function nextSid(task: string): string {
-  const dir = join(new Task(task).dir, 'shifts');
-  let max = 0;
-  try {
-    for (const entry of readdirSync(dir)) {
-      if (!statSync(join(dir, entry)).isDirectory()) continue;
-      const m = /^s(\d+)$/.exec(entry);
-      if (m !== null) max = Math.max(max, Number.parseInt(m[1] as string, 10));
-    }
-  } catch {
-    max = 0;
-  }
-  return `s${max + 1}`;
+  return nextNumbered(Shift.allIn(task).map((shift) => shift.sid), 's');
 }
 
 /** How long a dispatch waits for the task's prologue lock. */
@@ -379,8 +369,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     throw YanError.usage('shift_new_usage', `no such brief file: ${options.brief}`);
   }
 
-  if (!Task.exists(task)) throw YanError.usage('shift_new_usage', `no such task: ${task}`);
-  const record = new Task(task);
+  const record = existingTask('shift_new', task);
   const data = record.findUnit(unitName);
   if (data === undefined) {
     throw YanError.usage('shift_new_usage', `no such unit: ${unitName} in task ${task}`);
@@ -517,7 +506,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       container,
       pane: '',
       mr: '',
-      at: new Date().toISOString().slice(0, 19) + 'Z',
+      at: isoSecond(),
     };
     writeJson(metaFile, meta);
 
@@ -564,9 +553,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       terminal.setPaneTitle(startedAgent.pane, `${sid}-${unitName} · unit=${unitName}`, 'yan:shift');
     });
 
-    try {
-      new Log(task).append('started', noted(`${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note));
-    } catch { /* the shift is running; a missing log line is not worth failing for */ }
+    appendLog('yan shift new', task, 'started', `${sid} ${unitName}  dispatched on ${branch} as ${spec.scenario}/${spec.tier} (${runsAs(spec)} in ${workdir})`, note);
 
     return meta;
   } finally {
@@ -756,7 +743,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   let leaseId = meta.lease_id ?? '';
   let pane = meta.pane ?? '';
   // The shift opens its own MR, so the URL usually arrives on its `done` event.
-  let mr = options.mr ?? meta.mr ?? shift.reportedMr() ?? '';
+  let mr = options.mr ?? shift.openedMr(meta);
 
   let resuming = false;
   if (!shift.isLive()) {
@@ -858,12 +845,10 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
 
     // --- 3. the log line ----------------------------------------------------
     if (shift.task !== '') {
-      try {
-        const what = needsMerge
-          ? `${mr} merged into the integration branch`
-          : options.nothingToMerge === true ? 'nothing to merge, report accepted' : scenario === 'uix' ? 'artifacts accepted by user' : 'report accepted';
-        new Log(shift.task).append('delivered', noted(`${shift.sid} ${unit}  ${what}`, note));
-      } catch { /* the teardown matters more than its log line */ }
+      const what = needsMerge
+        ? `${mr} merged into the integration branch`
+        : options.nothingToMerge === true ? 'nothing to merge, report accepted' : scenario === 'uix' ? 'artifacts accepted by user' : 'report accepted';
+      appendLog('yan shift done', shift.task, 'delivered', `${shift.sid} ${unit}  ${what}`, note);
     }
 
     // --- 4. rm -rf run/, the whole throwaway layer --------------------------

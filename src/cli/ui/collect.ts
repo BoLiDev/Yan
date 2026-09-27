@@ -1,6 +1,7 @@
 import { readDeliverables, Task, type Deliverable } from '../../records/task/index.js';
 import { taskFiles, type TaskState } from '../overview/overview.js';
 import type { Moment } from '../overview/when.js';
+import { isoSecond, localDay } from '../../util/time.js';
 
 /**
  * The data behind `yan ui`: every task, as a reader who has never heard of
@@ -52,13 +53,6 @@ export interface Report {
   readonly tasks: readonly ReportTask[];
 }
 
-const two = (n: number): string => String(n).padStart(2, '0');
-
-/** The local calendar day of a date. */
-export function localDay(d: Date): string {
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
-}
-
 /** A moment reduced to its local day: the report has no use for the hour. */
 function dayOf(m: Moment | null): string | null {
   if (m === null) return null;
@@ -83,7 +77,7 @@ function reportTask(id: string, now: Date): ReportTask {
 export function collectReport(range: ReportRange | null, now: Date = new Date()): Report {
   return {
     version: 3,
-    generated_at: `${now.toISOString().slice(0, 19)}Z`,
+    generated_at: isoSecond(now),
     range,
     tasks: Task.list().map((id) => reportTask(id, now)),
   };

@@ -4,9 +4,12 @@ import { tasksDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { Task } from '../task/index.js';
 import { readMeta } from './meta.js';
+import { opensMr } from './scenario.js';
 import { appendEvent, countEvents, reportedMr } from './status.js';
 import type { ShiftMeta } from './types.js';
 import { YanError } from '../../util/error.js';
+import { byCodePoint, isRecordId } from '../../util/names.js';
+import { isDirectory } from '../../util/paths.js';
 
 /**
  * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory. Holds
@@ -25,11 +28,7 @@ export class Shift {
    * @throws YanError when `sid` is not a valid id.
    */
   public constructor(task: string, sid: string, dir?: string) {
-    if (!Shift.isId(sid)) {
-      throw YanError.usage('shift_usage',
-        `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
-      );
-    }
+    requireSid(sid);
     this.task = task;
     this.sid = sid;
     this.dir = dir ?? normalizePath(join(new Task(task).dir, 'shifts', sid));
@@ -61,13 +60,24 @@ export class Shift {
     return reportedMr(this.run);
   }
 
+  /**
+   * The merge request this shift opened: the one recorded in `meta.json`,
+   * else the one it reported; `''` when it opened none, which is always so
+   * outside the scenario that opens one.
+   *
+   * @param meta the shift's `meta()`, when the caller has read it already.
+   */
+  public openedMr(meta: ShiftMeta = this.meta()): string {
+    return opensMr(meta.scenario) ? (meta.mr ?? this.reportedMr() ?? '') : '';
+  }
+
   /** Append one event to run/status, and nothing beside it. */
   public appendEvent(state: string, note = ''): void {
     appendEvent(this.run, state, note);
   }
 
   public static isId(sid: string): boolean {
-    return sid !== '' && /^[A-Za-z0-9._-]+$/.test(sid);
+    return isRecordId(sid);
   }
 
   /**
@@ -78,11 +88,8 @@ export class Shift {
    *   exists under more than one task and no task was named.
    */
   public static resolve(sid: string, task = ''): Shift {
-    if (!Shift.isId(sid)) {
-      throw YanError.usage('shift_usage',
-        `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
-      );
-    }
+    // Before the scan below builds a path out of it, not only in the constructor.
+    requireSid(sid);
     const want = task !== '' ? task : (process.env.YAN_TASK ?? '');
 
     if (want !== '') {
@@ -168,8 +175,11 @@ export class Shift {
     return undefined;
   }
 
-  /** Every shift of a task that still has `run/meta.json`, in id order. */
-  public static liveIn(task: string): Shift[] {
+  /**
+   * Every shift a task has ever had, live or clocked out: each directory under
+   * `shifts/` whose name is a shift id, in id order.
+   */
+  public static allIn(task: string): Shift[] {
     const dir = join(new Task(task).dir, 'shifts');
     let entries: string[];
     try {
@@ -178,8 +188,20 @@ export class Shift {
       return [];
     }
     return entries
-      .filter((sid) => Shift.isId(sid) && existsSync(join(dir, sid, 'run', 'meta.json')))
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      .filter((sid) => Shift.isId(sid) && isDirectory(join(dir, sid)))
+      .sort(byCodePoint)
       .map((sid) => new Shift(task, sid));
+  }
+
+  /** Every shift of a task that still has `run/meta.json`, in id order. */
+  public static liveIn(task: string): Shift[] {
+    return Shift.allIn(task).filter((shift) => existsSync(join(shift.run, 'meta.json')));
+  }
+}
+
+/** @throws YanError `shift_usage` when `sid` is not a usable shift id. */
+function requireSid(sid: string): void {
+  if (!isRecordId(sid)) {
+    throw YanError.usage('shift_usage', `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`);
   }
 }

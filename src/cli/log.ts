@@ -1,8 +1,7 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { Log, LOG_TYPES, isLogType } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -39,9 +38,7 @@ turns out to be wrong is answered by a later \`changed\` line.`,
       if (/[\r\n]/.test(line)) {
         throw YanError.usage('log_usage', 'an entry is one line - write several entries instead');
       }
-      const task = insideTask('log');
-      if (!Task.exists(task)) throw YanError.usage('log_usage', `no such task: ${task}`);
-
+      const task = existingTask('log', insideTask('log')).id;
       const log = new Log(task);
       log.append(type, line);
       out(`${type} → ${log.file}`);

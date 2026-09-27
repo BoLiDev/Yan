@@ -1,5 +1,5 @@
 import * as git from '../../util/git.js';
-import { pathKey } from './layout.js';
+import { samePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 
 /** What the pool asks git. Reads only; nothing here writes. */
@@ -50,8 +50,7 @@ function worktrees(clone: string): Worktree[] {
 
 /** True when git knows `path` as a worktree of `clone`. */
 export function isRegisteredWorktree(clone: string, path: string): boolean {
-  const want = pathKey(path);
-  return worktrees(clone).some((w) => pathKey(w.path) === want);
+  return worktrees(clone).some((w) => samePath(w.path, path));
 }
 
 /**

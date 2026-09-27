@@ -27,3 +27,11 @@ export function action<A extends unknown[]>(
 export function out(line: string): void {
   process.stdout.write(`${line}\n`);
 }
+
+/**
+ * Commander's accumulator for a repeatable option: each `--scope a --scope b`
+ * appends. The option's default is where it starts, `undefined` included.
+ */
+export function collect(value: string, previous: readonly string[] | undefined): string[] {
+  return [...(previous ?? []), value];
+}

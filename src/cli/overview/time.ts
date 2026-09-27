@@ -1,4 +1,5 @@
 import { momentMs, type Moment } from './when.js';
+import { localMonthDay, localTime } from '../../util/time.js';
 
 /**
  * How a moment is printed, the same way in `yan ls` and `yan show`:
@@ -15,8 +16,6 @@ import { momentMs, type Moment } from './when.js';
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-
-const two = (n: number): string => String(n).padStart(2, '0');
 
 const dayOnly = (m: Moment): boolean => m.precision === 'day';
 
@@ -43,8 +42,8 @@ export function stampParts(m: Moment, impliedYear: number): { date: string; time
   const d = new Date(momentMs(m));
   const year = d.getFullYear() === impliedYear ? '' : `${d.getFullYear()}-`;
   return {
-    date: `${year}${two(d.getMonth() + 1)}-${two(d.getDate())}`,
-    time: dayOnly(m) ? '' : `${two(d.getHours())}:${two(d.getMinutes())}`,
+    date: `${year}${localMonthDay(d)}`,
+    time: dayOnly(m) ? '' : localTime(d),
   };
 }
 

@@ -1,4 +1,4 @@
-import { cells, columnsOf, fit } from '../shared/style.js';
+import { cells, columnsOf, fit, wide } from './style.js';
 
 /**
  * A paragraph broken into lines of a given width, for text in English and in
@@ -8,10 +8,13 @@ import { cells, columnsOf, fit } from '../shared/style.js';
  * after it, so no line starts with `。` or ends with `（`.
  */
 
+/** No terminal to ask: a paragraph still has to wrap somewhere. */
+export const PIPE_WIDTH = 80;
+/** Past this a paragraph stops being readable, however wide the terminal is. */
+export const MAX_WIDTH = 96;
+
 const NO_LINE_START = new Set([...'，。、；：？！）」』】》〉’”…,.;:?!)]}']);
 const NO_LINE_END = new Set([...'（「『【《〈‘“([{']);
-
-const wide = (char: string | undefined): boolean => char !== undefined && columnsOf(char) === 2;
 
 /** A piece of text never broken, and whether a space came before it. */
 interface Unit {

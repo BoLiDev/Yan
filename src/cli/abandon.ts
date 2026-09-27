@@ -1,15 +1,14 @@
 import { rmSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { isTty } from './shared/resolve.js';
-import { chosenTask } from './shared/task-id.js';
+import { chosenTask, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
-import { opensMr, Shift } from '../records/shift/index.js';
+import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { isYanError, YanError } from '../util/error.js';
 
@@ -93,8 +92,7 @@ function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
   const pane = meta.pane ?? '';
   const clone = meta.clone ?? cloneOf(shift.task, unit);
 
-  // Only coding opens merge requests.
-  const mr = opensMr(meta.scenario) ? (meta.mr ?? shift.reportedMr() ?? '') : '';
+  const mr = shift.openedMr(meta);
   const mrClosing = closeIfOpen(mr, clone === '' ? undefined : clone, deps);
 
   // The agent first, so nothing is still writing into the tree being wiped.
@@ -156,9 +154,7 @@ export function abandonShift(sid: string | undefined, options: ShiftAbandonOptio
 
   const result = tearDown(shift, deps);
   if (shift.task !== '') {
-    try {
-      new Log(shift.task).append('changed', `${result.sid} ${result.unit}  abandoned${mrPhrase(result)} — ${reason}`);
-    } catch { /* the teardown is done; its log line is not worth failing for */ }
+    appendLog('yan shift abandon', shift.task, 'changed', `${result.sid} ${result.unit}  abandoned${mrPhrase(result)}`, reason);
   }
   return result;
 }
@@ -185,8 +181,7 @@ interface AbandonedTask {
  *   abandoned, or already done.
  */
 function abandonable(task: string): { record: Task; data: ReturnType<Task['read']> } {
-  if (!Task.exists(task)) throw YanError.usage('abandon_usage', `no such task: ${task}`);
-  const record = new Task(task);
+  const record = existingTask('abandon', task);
   const data = record.read();
   if (data.abandoned) throw YanError.usage('abandon_usage', `${task} is already abandoned`);
   if (data.complete) throw YanError.usage('abandon_usage', `${task} is done - there is nothing left to give up`);
@@ -236,11 +231,9 @@ function giveUp(task: string, why: string, deps: AbandonDeps): AbandonedTask {
   }
 
   record.setAbandoned();
-  try {
-    const closed = [...shifts, ...outbound].filter((r) => r.mr_closing === 'closed').length;
-    const killed = shifts.length > 0 ? `; ${shifts.map((s) => s.sid).join(' ')} torn down` : '';
-    new Log(task).append('changed', `task abandoned${killed}${closed > 0 ? `; ${closed} merge request(s) closed` : ''} ${why}`);
-  } catch { /* the task is abandoned either way */ }
+  const closed = [...shifts, ...outbound].filter((r) => r.mr_closing === 'closed').length;
+  const killed = shifts.length > 0 ? `; ${shifts.map((s) => s.sid).join(' ')} torn down` : '';
+  appendLog('yan abandon', task, 'changed', `task abandoned${killed}${closed > 0 ? `; ${closed} merge request(s) closed` : ''} ${why}`);
 
   return { version: 1, task, shifts, outbound, trees };
 }
@@ -268,7 +261,7 @@ function abandonPlan(task: string, deps: AbandonDeps = {}): string[] {
   const lines: string[] = [];
   for (const s of Shift.liveIn(task)) {
     const meta = s.meta();
-    const mr = opensMr(meta.scenario) ? (meta.mr ?? s.reportedMr() ?? '') : '';
+    const mr = s.openedMr(meta);
     lines.push(`${s.sid} ${meta.unit ?? ''}  abandoned: its agent killed, its tree discarded with anything uncommitted${mr === '' ? '' : `, ${mr} closed if still open`}`);
   }
   for (const u of data.units) {

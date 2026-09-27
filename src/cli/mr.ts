@@ -3,12 +3,12 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { repoDir } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MrCreateOptions } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
-import { Deliverables, deliverableAside, Task, type Deliverable } from '../records/task/index.js';
+import { deliverableAside, type Deliverable, readDeliverables } from '../records/task/index.js';
 import { remoteBranchExists } from '../util/git.js';
 import { YanError } from '../util/error.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan mr` — open the outbound merge request, integration branch → target,
@@ -61,8 +61,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     throw YanError.usage('mr_usage', '--body and --body-file are alternatives - pass one');
   }
 
-  if (!Task.exists(task)) throw YanError.usage('mr_usage', `no such task: ${task} - 'yan ls' lists them`);
-  const record = new Task(task);
+  const record = existingTask('mr', task);
   const data = record.findUnit(unitName);
   if (data === undefined) {
     throw YanError.usage('mr_usage', `no such unit: ${unitName} in ${task} - 'yan show ${task}' lists them`);
@@ -105,7 +104,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   let bodyFile = options.bodyFile;
   if (body === undefined && bodyFile === undefined) {
     const brief = join(record.dir, 'brief.md');
-    const deliverables = new Deliverables(task).readOrNone().deliverables;
+    const deliverables = readDeliverables(task).deliverables;
     if (deliverables.length > 0) body = defaultBody(existsSync(brief) ? readFileSync(brief, 'utf8') : '', deliverables);
     else if (existsSync(brief)) bodyFile = brief;
   }
@@ -136,11 +135,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
     );
   }
 
-  try {
-    new Log(task).append('delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
-  } catch {
-    process.stderr.write('yan mr: the MR was recorded in task.json but log.md was not appended to\n');
-  }
+  appendLog('yan mr', task, 'delivered', `${unitName}  outbound MR opened: ${data.branch} → ${data.target}  ${url}`);
 
   return {
     version: 1,

@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { sep } from 'node:path';
 
 /**
@@ -43,20 +44,36 @@ export function normalizePath(input: string): string {
   return p;
 }
 
+/** True when `path` is a directory; false when it is anything else or is not there. */
+export function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The comparable form of a path: normalised, and lower-cased on Windows only.
+ * Purely lexical, so it works for a path that does not exist yet and never
+ * resolves a symlink.
+ */
+export function pathKey(path: string): string {
+  const n = normalizePath(path);
+  return isWindows ? n.toLowerCase() : n;
+}
+
 /** True when two paths name the same location. Case-insensitive on Windows. */
 export function samePath(a: string, b: string): boolean {
-  const na = normalizePath(a);
-  const nb = normalizePath(b);
-  return isWindows ? na.toLowerCase() === nb.toLowerCase() : na === nb;
+  return pathKey(a) === pathKey(b);
 }
 
 /** True when `child` is `parent` or lives underneath it. */
 export function isInside(parent: string, child: string): boolean {
-  const p = normalizePath(parent);
-  const c = normalizePath(child);
-  if (samePath(p, c)) return true;
-  const prefix = p.endsWith('/') ? p : `${p}/`;
-  return isWindows ? c.toLowerCase().startsWith(prefix.toLowerCase()) : c.startsWith(prefix);
+  const p = pathKey(parent);
+  const c = pathKey(child);
+  if (p === c) return true;
+  return c.startsWith(p.endsWith('/') ? p : `${p}/`);
 }
 
 /** The platform's own spelling — backslashes on Windows. */

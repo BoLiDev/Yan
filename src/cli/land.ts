@@ -1,11 +1,10 @@
 import { Command } from 'commander';
-import { action, out } from './shared/action.js';
+import { action, out, collect } from './shared/action.js';
 import { repoDirIfKnown } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
+import { appendLog } from './shared/note.js';
 
 /**
  * `yan land` — merge the outbound merge requests into `target`, in `needs`
@@ -115,8 +114,7 @@ export function land(
     );
   }
 
-  if (!Task.exists(task)) throw YanError.usage('land_usage', `no such task: ${task} - 'yan ls' lists them`);
-  const record = new Task(task);
+  const record = existingTask('land', task);
   const units = record.read().units;
   if (units.length === 0) throw YanError.usage('land_usage', `task ${task} has no units`);
   for (const u of want) {
@@ -194,19 +192,11 @@ export function land(
     }
 
     landed.push({ unit: name, mr, result: 'merged' });
-    try {
-      new Log(task).append('delivered', `${name}  landed: ${mr} merged into ${unit.target} ('user' asked)`);
-    } catch {
-      process.stderr.write(`yan land: ${name} landed but log.md was not appended to\n`);
-    }
+    appendLog('yan land', task, 'delivered', `${name}  landed: ${mr} merged into ${unit.target} ('user' asked)`);
     say(`${name.padEnd(16)} ${mr}  merged into ${unit.target}`);
   }
 
   return { version: 1, task, strategy, landed };
-}
-
-function collect(value: string, previous: string[]): string[] {
-  return [...previous, value];
 }
 
 export const command = new Command('land')

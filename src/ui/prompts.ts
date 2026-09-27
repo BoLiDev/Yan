@@ -166,89 +166,63 @@ export async function chooseDraft(drafts: readonly DraftChoice[], task: string):
   return answered(chosen, 'no draft was opened');
 }
 
-/** One row of `yan repo add`'s scan, as the command layer worked it out. */
-interface RepoCandidate {
+/** What a repository select needs of a row. */
+interface RepoRow {
   readonly name: string;
-  readonly dir: string;
-  readonly url: string;
   /** Why it cannot be selected, or the empty string when it can. */
   readonly blocked: string;
 }
 
-/**
- * `yan repo add` with no argument: which of the scanned directories to
- * register. A blocked candidate is listed with its reason and dropped from
- * the result even if it is picked.
- */
-export async function chooseReposToAdd(
-  dir: string,
-  candidates: readonly RepoCandidate[],
-): Promise<string[]> {
-  intro(`yan repo add — ${dir}`);
-  const selectable = candidates.filter((c) => c.blocked === '');
-  if (selectable.length === 0) {
-    note(
-      candidates.map((c) => `${c.name}  —  ${c.blocked}`).join('\n'),
-      'nothing here can be added',
-    );
-    return [];
-  }
-
-  const chosen = await autocompleteMultiselect({
-    message: 'Which of these does this context work in?',
-    placeholder: PLACEHOLDER,
-    options: candidates.map((c) => ({
-      value: c.name,
-      label: c.blocked === '' ? c.name : `${c.name}  (${c.blocked})`,
-      hint: c.url === '' ? c.dir : c.url,
-    })),
-    required: false,
-  });
-  if (isCancel(chosen)) throw cancelled('nothing was registered');
-
-  const blocked = new Set(candidates.filter((c) => c.blocked !== '').map((c) => c.name));
-  return [...chosen].map((v) => String(v)).filter((name) => !blocked.has(name));
+/** One row of `yan repo add`'s scan, as the command layer worked it out. */
+export interface RepoCandidate extends RepoRow {
+  readonly dir: string;
+  readonly url: string;
 }
 
 /** One row of `yan repo rm`'s list, as the command layer worked it out. */
-interface RepoRemovable {
-  readonly name: string;
+export interface RepoRemovable extends RepoRow {
   readonly url: string;
   /** Where it is on this machine, or the empty string when it is not linked here. */
   readonly path: string;
-  /** Why it cannot be selected, or the empty string when it can. */
-  readonly blocked: string;
 }
 
 /**
- * `yan repo rm` with no argument: which registered repositories to take out.
- * A blocked one is listed with its reason and dropped from the result even if
- * it is picked.
+ * `yan repo add` and `yan repo rm` with no argument: which of `rows` to act
+ * on. A blocked row is listed with its reason and dropped from the result even
+ * if it is picked; when every row is blocked, nothing is asked.
  */
-export async function chooseReposToRemove(candidates: readonly RepoRemovable[]): Promise<string[]> {
-  intro('yan repo rm');
-  const selectable = candidates.filter((c) => c.blocked === '');
-  if (selectable.length === 0) {
-    note(
-      candidates.map((c) => `${c.name}  —  ${c.blocked}`).join('\n'),
-      'nothing here can be removed',
-    );
+export async function chooseRepos<R extends RepoRow>(select: {
+  /** The heading, `yan repo add — <dir>`. */
+  readonly intro: string;
+  readonly message: string;
+  /** The note's title when every row is blocked. */
+  readonly emptyTitle: string;
+  /** What escape leaves undone, `nothing was registered`. */
+  readonly cancelled: string;
+  readonly rows: readonly R[];
+  /** The dimmed text beside a row. */
+  readonly hintOf: (row: R) => string;
+}): Promise<string[]> {
+  intro(select.intro);
+  const { rows } = select;
+  if (rows.every((r) => r.blocked !== '')) {
+    note(rows.map((r) => `${r.name}  —  ${r.blocked}`).join('\n'), select.emptyTitle);
     return [];
   }
 
   const chosen = await autocompleteMultiselect({
-    message: 'Which of these should this context forget? Clones on disk are left alone.',
+    message: select.message,
     placeholder: PLACEHOLDER,
-    options: candidates.map((c) => ({
-      value: c.name,
-      label: c.blocked === '' ? c.name : `${c.name}  (${c.blocked})`,
-      hint: c.path === '' ? `${c.url}  not linked here` : c.path,
+    options: rows.map((r) => ({
+      value: r.name,
+      label: r.blocked === '' ? r.name : `${r.name}  (${r.blocked})`,
+      hint: select.hintOf(r),
     })),
     required: false,
   });
-  if (isCancel(chosen)) throw cancelled('nothing was removed');
+  if (isCancel(chosen)) throw cancelled(select.cancelled);
 
-  const blocked = new Set(candidates.filter((c) => c.blocked !== '').map((c) => c.name));
+  const blocked = new Set(rows.filter((r) => r.blocked !== '').map((r) => r.name));
   return [...chosen].map((v) => String(v)).filter((name) => !blocked.has(name));
 }
 

@@ -1,4 +1,5 @@
 import { nativePath } from '../../util/paths.js';
+import { sleepMs } from '../../util/process.js';
 import { herdrCall, mapError, resultOf, runHerdr, type HerdrRunner } from './cli.js';
 import { isPaneId, paneIsIn, requirePaneId, requireWorkspaceId } from './ids.js';
 import { asRecord, asString, recordOrNone } from '../../util/narrow.js';
@@ -50,10 +51,6 @@ interface TerminalOptions {
   readonly busyRetryMs?: number;
   /** Blocks for a number of milliseconds between those attempts. */
   readonly sleep?: (ms: number) => void;
-}
-
-function sleepMs(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 export class Terminal {

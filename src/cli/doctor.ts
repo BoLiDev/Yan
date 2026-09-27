@@ -1,11 +1,12 @@
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import { gitOut, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
+import { runProcess } from '../util/process.js';
+import { which } from '../util/which.js';
 import { cloneRoot, machineConfigPath, readMachine } from '../util/machine.js';
 import { VAULT_VERSION, readVaultJson, vaultConfigPath, vaultDirIfAny } from '../util/vault.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
@@ -34,37 +35,9 @@ function line(report: Report, state: 'ok' | 'warn' | 'fail', name: string, detai
   out(`  ${mark}  ${name.padEnd(16)}${detail}`);
 }
 
-/**
- * Where a command is, or `undefined`. Honours `PATHEXT` on Windows, so `gh`
- * finds `gh.exe` and `claude` finds `claude.cmd`. Needs no shell.
- */
-function which(command: string): string | undefined {
-  if (command.includes('/') || command.includes('\\')) {
-    try {
-      return statSync(command).isFile() ? command : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-  const exts =
-    process.platform === 'win32'
-      ? ['', ...(process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';')]
-      : [''];
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    if (dir === '') continue;
-    for (const ext of exts) {
-      const candidate = join(dir, `${command}${ext}`);
-      try {
-        if (statSync(candidate).isFile()) return candidate;
-      } catch { /* next candidate */ }
-    }
-  }
-  return undefined;
-}
-
 function gitConfig(scope: '--global' | '--system', key: string): string {
-  const r = spawnSync('git', ['config', scope, key], { encoding: 'utf8', windowsHide: true });
-  return r.status === 0 ? (r.stdout ?? '').trim() : '';
+  const r = runProcess('git', ['config', scope, key]);
+  return r.code === 0 ? r.stdout.trim() : '';
 }
 
 /**

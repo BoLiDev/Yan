@@ -1,14 +1,12 @@
 import { Command } from 'commander';
-import { action, out } from './shared/action.js';
+import { action, out, collect } from './shared/action.js';
 import { containerOf } from './shared/container.js';
 import { display, unitTokens } from './shared/display.js';
-import { noted, readNote } from './shared/note.js';
+import { readNote, appendLog } from './shared/note.js';
 import { repoDir } from './shared/repo.js';
-import { insideTask } from './shared/task-id.js';
+import { insideTask, existingTask } from './shared/task-id.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { Log } from '../records/log/index.js';
-import { Task } from '../records/task/index.js';
 import { branchExists, commitTree, createBranch, fetch, gitLines, gitOk, mergeTree, push, revParse, updateRef } from '../util/git.js';
 import { YanError } from '../util/error.js';
 
@@ -193,11 +191,6 @@ function inheritRound(clone: string, from: string, to: string): Inherited {
   };
 }
 
-/** Commander's repeatable-option accumulator. */
-function collect(value: string, previous: readonly string[] | undefined): string[] {
-  return [...(previous ?? []), value];
-}
-
 // --- unit add ---------------------------------------------------------------
 
 interface AddOptions {
@@ -248,10 +241,7 @@ export function addTaskUnit(options: AddOptions): AddResult {
     );
   }
 
-  if (!Task.exists(task)) {
-    throw YanError.usage('unit_add_usage', `no such task: ${task} - create it first`);
-  }
-  const record = new Task(task);
+  const record = existingTask('unit_add', task);
   if (record.findUnit(unit) !== undefined) {
     throw new YanError('unit_add_exists', `unit already exists: ${unit} - 'yan unit set' changes one, 'yan show ${task}' shows them`,
     );
@@ -278,11 +268,7 @@ export function addTaskUnit(options: AddOptions): AddResult {
     );
   }
 
-  try {
-    new Log(task).append('started', noted(`${unit}  unit added on ${branch} → ${target} (${how}; name from ${from})`, note));
-  } catch {
-    process.stderr.write('yan unit add: the unit was written but log.md was not appended to\n');
-  }
+  appendLog('yan unit add', task, 'started', `${unit}  unit added on ${branch} → ${target} (${how}; name from ${from})`, note);
 
   return { task, unit, branch, target, name_from: from, branch_state: how };
 }
@@ -422,8 +408,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     throw YanError.usage('unit_set_usage', '--end only applies to --branch: it says how the round being replaced finished');
   }
 
-  if (!Task.exists(task)) throw YanError.usage('unit_set_usage', `no such task: ${task}`);
-  const record = new Task(task);
+  const record = existingTask('unit_set', task);
   if (record.findUnit(unitName) === undefined) {
     throw YanError.usage('unit_set_usage', `no such unit: ${unitName} in ${task}`);
   }
@@ -512,11 +497,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
       end === 'delivered'
         ? `${unitName}  delivered ${before.branch} → ${branch} (based on ${base}${options.reason ? `; ${options.reason}` : ''})`
         : `${unitName}  ${end} ${before.branch} → ${branch} (${endFrom}${options.reason ? `; ${options.reason}` : ''}) — ${carried.said}`;
-    try {
-      new Log(task).append('changed', noted(line, note));
-    } catch {
-      process.stderr.write('yan unit set: task.json was updated but log.md was not appended to\n');
-    }
+    appendLog('yan unit set', task, 'changed', line, note);
 
     // A task with nothing on screen has no workspace, and none is created.
     const labeller = terminal ?? new Terminal();
@@ -539,9 +520,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     record.editUnit(unitName, (u) => {
       u.target = target;
     });
-    try {
-      new Log(task).append('changed', noted(`${unitName}  target ${old} → ${options.target}`, note));
-    } catch { /* the change is recorded; a missing log line is not worth failing for */ }
+    appendLog('yan unit set', task, 'changed', `${unitName}  target ${old} → ${options.target}`, note);
     changed.push(`target=${options.target}`);
   }
 
@@ -550,9 +529,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     record.editUnit(unitName, (u) => {
       u.scope = [...scope];
     });
-    try {
-      new Log(task).append('changed', noted(`${unitName}  scope → ${scope.join(' ')}`, note));
-    } catch { /* as above */ }
+    appendLog('yan unit set', task, 'changed', `${unitName}  scope → ${scope.join(' ')}`, note);
     changed.push(`scope=${scope.join(' ')}`);
   }
 
@@ -560,9 +537,7 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
     record.editUnit(unitName, (u) => {
       u.needs = [...needs];
     });
-    try {
-      new Log(task).append('changed', noted(`${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note));
-    } catch { /* as above */ }
+    appendLog('yan unit set', task, 'changed', `${unitName}  needs → ${needs.length > 0 ? needs.join(' ') : '(none)'}`, note);
     changed.push(`needs=${needs.join(' ')}`);
   }
 

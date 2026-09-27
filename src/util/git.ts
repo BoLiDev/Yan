@@ -1,7 +1,6 @@
-import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
 import { YanError } from './error.js';
-import type { ProcessResult } from './process.js';
+import { NOT_STARTED, runProcess, type ProcessResult } from './process.js';
+import { isDirectory } from './paths.js';
 
 /**
  * Run git in a given directory. Every function takes that directory as its
@@ -17,13 +16,7 @@ function requireDir(dir: string | undefined): string {
     throw YanError.usage('git_usage', 'a directory argument is required (this module never uses the current working directory)',
     );
   }
-  let isDir = false;
-  try {
-    isDir = statSync(dir).isDirectory();
-  } catch {
-    isDir = false;
-  }
-  if (!isDir) throw YanError.usage('git_usage', `not a directory: ${dir}`);
+  if (!isDirectory(dir)) throw YanError.usage('git_usage', `not a directory: ${dir}`);
   return dir;
 }
 
@@ -46,15 +39,9 @@ function requireArg(value: string | undefined, message: string): string {
  */
 export function git(dir: string, args: readonly string[], options: { timeoutMs?: number } = {}): ProcessResult {
   const d = requireDir(dir);
-  const r = spawnSync('git', ['-C', d, ...args], {
-    encoding: 'utf8',
-    windowsHide: true,
-    ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
-  });
-  if (r.error) {
-    throw new YanError('git_failed', `cannot run git: ${r.error.message}`, { cause: r.error });
-  }
-  return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  const r = runProcess('git', ['-C', d, ...args], options);
+  if (r.code === NOT_STARTED) throw new YanError('git_failed', `cannot run git: ${r.stderr}`);
+  return r;
 }
 
 /** True when git exited 0. */

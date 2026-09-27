@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../util/git.js';
@@ -14,10 +14,12 @@ import {
   setActiveVault,
   setCloneRoot,
 } from '../util/machine.js';
-import { normalizePath } from '../util/paths.js';
+import { isDirectory, normalizePath } from '../util/paths.js';
+import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { resolve } from './shared/resolve.js';
+import { isRecordId } from '../util/names.js';
 
 /**
  * `yan vault …` — the context a session works in.
@@ -27,10 +29,8 @@ import { resolve } from './shared/resolve.js';
  * empty; it never creates one on a forge.
  */
 
-const NAME_RULE = /^[A-Za-z0-9._-]+$/;
-
 function checkName(name: string): void {
-  if (!NAME_RULE.test(name)) {
+  if (!isRecordId(name)) {
     throw YanError.usage('vault_usage', `'${name}' is not a usable vault name - letters, digits, dot, dash and underscore`);
   }
 }
@@ -39,7 +39,7 @@ function checkName(name: string): void {
 function emptyEnough(dir: string): boolean {
   if (!existsSync(dir)) return true;
   try {
-    return statSync(dir).isDirectory() && readdirSync(dir).length === 0;
+    return isDirectory(dir) && readdirSync(dir).length === 0;
   } catch {
     return false;
   }
@@ -58,13 +58,6 @@ function gitOrThrow(dir: string, args: readonly string[], what: string): void {
   }
 }
 
-/** The local day, `YYYY-MM-DD`, as every other date yan writes. */
-function today(): string {
-  const now = new Date();
-  const two = (n: number): string => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
-}
-
 /**
  * Copy `templates/vault/` into `dir`, then write its vault.json and README.
  *
@@ -80,7 +73,7 @@ function layDownSkeleton(dir: string, name: string): void {
   // The template ships as an example; the vault it seeds holds the real one.
   renameSync(join(dir, 'config.example.json'), join(dir, 'config.json'));
 
-  writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: today() });
+  writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: localDay() });
 
   writeFileSync(
     join(dir, 'README.md'),
