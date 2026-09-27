@@ -188,7 +188,6 @@ export function waitWhileUserTypes(task: string, deps: ReportDeps = {}): void {
 
 interface ReportOptions {
   sid?: string;
-  dir?: string;
 }
 
 /**
@@ -222,14 +221,8 @@ export function reportEvent(
   }
 
   // A shift reports about itself, so the id comes from its environment.
-  let shift: Shift | undefined;
-  if (options.dir !== undefined && options.dir !== '') {
-    shift = Shift.fromDir(options.dir);
-  } else if (options.sid !== undefined && options.sid !== '') {
-    shift = Shift.resolve(options.sid);
-  } else {
-    shift = Shift.fromEnv();
-  }
+  const shift =
+    options.sid !== undefined && options.sid !== '' ? Shift.resolve(options.sid) : Shift.fromEnv();
   if (shift === undefined) {
     throw YanError.usage('report_usage', 'cannot tell which shift is reporting - set YAN_SHIFT_DIR (or YAN_TASK_DIR and YAN_SID) as the spawn step does, or pass --sid <sid>',
     );
@@ -275,7 +268,6 @@ export const command = new Command('report')
   .argument('[state]', `one of: ${REPORT_STATES.join(' ')}`)
   .argument('[note]', 'one short line saying what happened')
   .option('--sid <sid>', 'which shift is reporting (yan and tests only)')
-  .option('--dir <shift-dir>', 'the shift directory outright')
   .addHelpText(
     'after',
     `
@@ -298,8 +290,8 @@ exits 3 with nothing recorded: run the same report again in a minute. It can
 read the prompt box of claude and codex; under another harness it sends at once.
 
 Which shift is reporting is normally taken from the environment the spawn
-step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid / --dir are for
-yan itself and for tests.`,
+step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid is for yan
+itself and for tests.`,
   )
   .action(
     action('report', (state: string | undefined, note: string | undefined, options: ReportOptions) => {

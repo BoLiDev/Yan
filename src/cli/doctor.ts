@@ -7,12 +7,12 @@ import { gitOut, remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readJsonIfPresent } from '../util/json.js';
 import { cloneRoot, machineConfigPath, readMachine } from '../util/machine.js';
-import { VAULT_VERSION, readVaultJson, vaultDirIfAny } from '../util/vault.js';
+import { VAULT_VERSION, readVaultJson, vaultConfigPath, vaultDirIfAny } from '../util/vault.js';
 import { HERDR_PROTOCOL, HERDR_SCHEMA_VERSION, herdrHealth } from '../externals/herdr/index.js';
 import { configuredCli } from '../externals/remote-git/index.js';
 import { isYanError } from '../util/error.js';
 import { action, out } from './shared/action.js';
-import { agentSpecFor, cliKind, configPath, readScenarios, resolveShift, runsAs, type AgentSpec } from './shared/config.js';
+import { agentSpecFor, cliKind, readScenarios, resolveShift, runsAs, type AgentSpec } from './shared/config.js';
 import { registry } from './shared/repo.js';
 
 /**
@@ -165,21 +165,16 @@ function checkYanOnPath(report: Report): void {
   line(report, 'ok', 'yan on PATH', found);
 }
 
-/** How a CLI runs, in one phrase: `claude opus high`. */
-function describeSpec(spec: AgentSpec): string {
-  return runsAs(spec);
-}
-
 /** One configured CLI: on PATH, and able to take the model and effort it was given. */
 function checkCli(report: Report, label: string, spec: AgentSpec, suffix = ''): void {
   const found = which(cliKind(spec.cli));
   const known = ['claude', 'codex', 'agy'].includes(cliKind(spec.cli));
   if (!known && (spec.model !== '' || spec.effort !== '')) {
-    line(report, 'warn', label, `${describeSpec(spec)} - yan does not know how to pass a model or effort to '${cliKind(spec.cli)}', so both are ignored`);
+    line(report, 'warn', label, `${runsAs(spec)} - yan does not know how to pass a model or effort to '${cliKind(spec.cli)}', so both are ignored`);
   } else if (found === undefined) {
-    line(report, 'warn', label, `${describeSpec(spec)}${suffix} - '${cliKind(spec.cli)}' is not on PATH yet`);
+    line(report, 'warn', label, `${runsAs(spec)}${suffix} - '${cliKind(spec.cli)}' is not on PATH yet`);
   } else {
-    line(report, 'ok', label, `${describeSpec(spec)}${suffix} (${found})`);
+    line(report, 'ok', label, `${runsAs(spec)}${suffix} (${found})`);
   }
 }
 
@@ -188,7 +183,7 @@ function checkCli(report: Report, label: string, spec: AgentSpec, suffix = ''): 
  * `yan`, `shift`, and `shift:<scenario>/<tier>` for each tier.
  */
 function checkConfig(report: Report): { agents: Record<string, string> } {
-  const path = configPath();
+  const path = vaultConfigPath();
   const parsed = readJsonIfPresent(path);
   if (parsed === undefined) {
     line(report, 'fail', 'config.json', `missing or not valid JSON - the vault's config.json is where agents.*, scenarios and remote_git.* live; copy templates/vault/config.example.json to ${path}`);
@@ -370,12 +365,10 @@ function checkAgy(report: Report, agents: Record<string, string>): void {
         ? `${ours} - the session-start stand-in`
         : `${ours} is missing, so a conversation starts with no picture - run 'yan session-start' by hand`,
     );
-  }
 
-  // The one screen where agy stops and Herdr does not notice. The main agent
-  // meets it in `user`'s own pane, which is why this is a note rather than a
-  // warning; a shift meets it unattended, and `Terminal.settle` answers it.
-  if (main) {
+    // The one screen where agy stops and Herdr does not notice. The main agent
+    // meets it in `user`'s own pane, which is why this is a note rather than a
+    // warning; a shift meets it unattended, and `Terminal.settle` answers it.
     line(report, 'ok', 'project trust',
       'the first `yan continue` in a new workspace stops on "Do you trust the contents of this project?". Herdr reads that screen as \'idle\', not \'blocked\', and --dangerously-skip-permissions does NOT cover it - answer it once in your own pane',
     );

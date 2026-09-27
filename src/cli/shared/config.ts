@@ -1,5 +1,5 @@
 import { readVaultConfig } from '../../util/config.js';
-import { recordOrNone } from '../../util/narrow.js';
+import { asString, recordOrNone } from '../../util/narrow.js';
 import { vaultConfigPath } from '../../util/vault.js';
 import { YanError } from '../../util/error.js';
 
@@ -13,10 +13,6 @@ import { YanError } from '../../util/error.js';
  *                   SCENARIOS, each with at least one tier. A tier overrides
  *                   agents.shift field by field.
  */
-
-export function configPath(): string {
-  return vaultConfigPath();
-}
 
 /** The kinds of work a shift is dispatched for. Fixed: `user` configures tiers, not scenarios. */
 export const SCENARIOS = ['explore', 'coding', 'uix'] as const;
@@ -64,10 +60,6 @@ export interface ShiftSpec extends AgentSpec {
   readonly skills: readonly string[];
 }
 
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 function readConfig(): Record<string, unknown> {
   return readVaultConfig() ?? {};
 }
@@ -77,7 +69,7 @@ export function agentSpecFor(role: string): AgentSpec {
   const value = recordOrNone(readConfig().agents)?.[role];
   if (typeof value === 'string') return { cli: value.trim(), model: '', effort: '' };
   const spec = recordOrNone(value);
-  return { cli: text(spec?.cli), model: text(spec?.model), effort: text(spec?.effort) };
+  return { cli: asString(spec?.cli).trim(), model: asString(spec?.model).trim(), effort: asString(spec?.effort).trim() };
 }
 
 /** `scenarios`, read without throwing: whatever cannot be used is named in `problems`. */
@@ -114,10 +106,10 @@ export function readScenarios(): ScenarioReading {
       }
       tiers.push({
         name: tierName,
-        description: text(tier.description),
-        cli: text(tier.cli),
-        model: text(tier.model),
-        effort: text(tier.effort),
+        description: asString(tier.description).trim(),
+        cli: asString(tier.cli).trim(),
+        model: asString(tier.model).trim(),
+        effort: asString(tier.effort).trim(),
         skills: Array.isArray(skills)
           ? skills.filter((s): s is string => typeof s === 'string' && s.trim() !== '').map((s) => s.trim().replace(/^\//, ''))
           : [],
@@ -127,7 +119,7 @@ export function readScenarios(): ScenarioReading {
       problems.push(`scenarios.${name} has no tiers - it needs at least one`);
       continue;
     }
-    let defaultTier = text(entry.default);
+    let defaultTier = asString(entry.default).trim();
     if (defaultTier === '' && tiers.length === 1) defaultTier = (tiers[0] as Tier).name;
     if (!tiers.some((t) => t.name === defaultTier)) {
       problems.push(
@@ -162,7 +154,7 @@ export function resolveShift(command: string, scenario: string | undefined, tier
   const found = scenarios.find((s) => s.name === asked);
   if (found === undefined) {
     const why = problems.filter((p) => p.includes(`scenarios.${asked}`) || p.startsWith('no scenarios'));
-    throw YanError.usage(`${command}_usage`, `scenario '${asked}' cannot be used: ${why.join('; ')} - fix it in ${configPath()}`);
+    throw YanError.usage(`${command}_usage`, `scenario '${asked}' cannot be used: ${why.join('; ')} - fix it in ${vaultConfigPath()}`);
   }
 
   const tierName = (tier ?? '').trim() === '' ? found.defaultTier : (tier as string).trim();
@@ -174,7 +166,7 @@ export function resolveShift(command: string, scenario: string | undefined, tier
   const base = agentSpecFor('shift');
   const cli = chosen.cli !== '' ? chosen.cli : base.cli;
   if (cli === '') {
-    throw YanError.usage(`${command}_usage`, `${asked}/${tierName} names no cli and agents.shift is not set - set one in ${configPath()}`);
+    throw YanError.usage(`${command}_usage`, `${asked}/${tierName} names no cli and agents.shift is not set - set one in ${vaultConfigPath()}`);
   }
   // A tier that changes the CLI does not inherit a model meant for another one.
   const sameCli = chosen.cli === '' || chosen.cli === base.cli;

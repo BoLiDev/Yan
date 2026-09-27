@@ -76,7 +76,7 @@ function taskOption(task: TaskChoice): Choice {
 /** What `chooseEntry` returns for "create a new task"; the rest are task ids. */
 export const CREATE_NEW = '\0create';
 
-export async function chooseEntry(tasks: readonly TaskChoice[], vault = ''): Promise<string> {
+export async function chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string> {
   // The vault is named in the header: two on one machine is ordinary.
   intro(vault === '' ? 'yan' : `yan · ${vault}`);
   const chosen = await autocomplete({
@@ -113,8 +113,8 @@ export async function chooseTasksToFinish(tasks: readonly TaskChoice[]): Promise
  */
 export async function chooseTask(
   tasks: readonly TaskChoice[],
-  command = 'yan continue',
-  message = 'Which task do you want to continue?',
+  command: string,
+  message: string,
 ): Promise<string> {
   intro(command);
   const chosen = await autocomplete({
