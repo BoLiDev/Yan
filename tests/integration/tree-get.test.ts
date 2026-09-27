@@ -95,3 +95,29 @@ describe('the explicit form, which shifts and tests use', () => {
     expect((await yan(['status', '--repo', 'demo'])).stdout).toContain('t042/auth/s1');
   });
 });
+
+describe('pool_size', () => {
+  it('is read off the registered name when the clone directory is called something else', async () => {
+    // Registered as `yan`, cloned into `Yan-Dev`: the size has to come from
+    // the registry entry, not from a lookup by the directory's name.
+    const bare = await mkBareRemote(join(home, 'yan.git'));
+    const other = await mkClone(bare, join(home, 'repos', 'Yan-Dev'));
+    registerRepo(home, 'yan', other, { url: bare, pool_size: 3 });
+    const task = new Task('t042');
+    for (const unit of ['a', 'b', 'c', 'd']) {
+      await fxGit(['branch', `yan/t042-${unit}-r1`, 'main'], other);
+      task.addUnit(unit, 'yan', 'main', { branch: `yan/t042-${unit}-r1` });
+    }
+
+    expect((await yan(['status', '--repo', 'yan'])).stdout).toContain('0 of 3 trees leased');
+    expect((await yan(['status', '--repo', other])).stdout, 'the clone path finds the same entry').toContain('0 of 3 trees leased');
+
+    for (const unit of ['a', 'b', 'c']) {
+      const got = await yan(['get', '--unit', unit], { YAN_TASK: 't042' });
+      expect(got.code, got.out).toBe(0);
+    }
+    const fourth = await yan(['get', '--unit', 'd'], { YAN_TASK: 't042' });
+    expect(fourth.code).not.toBe(0);
+    expect(fourth.out).toContain('all 3 trees are leased');
+  });
+});

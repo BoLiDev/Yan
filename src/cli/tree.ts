@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { DEFAULT_POOL_SIZE, poolSize, repoTarget } from './shared/repo.js';
+import { DEFAULT_POOL_SIZE, repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { WorktreePool } from '../externals/worktree/index.js';
 import { Task } from '../records/task/index.js';
@@ -25,7 +25,7 @@ interface CommonOptions {
   repo?: string;
 }
 
-function clone(options: CommonOptions): { clone: string; key: string } {
+function clone(options: CommonOptions): { clone: string; poolSize: number } {
   if (options.repo === undefined || options.repo === '') {
     throw YanError.usage('tree_usage', '--repo is required: a repository name under repos/, or the path to a clone',
     );
@@ -109,7 +109,7 @@ running at once plus one per unit.`,
         }
 
         const grant = new WorktreePool(target.clone).get(
-          poolSize(target.key),
+          target.poolSize,
           asked.base,
           asked.branch,
           asked.holder,
@@ -185,7 +185,7 @@ const status = new Command('status')
       for (const l of leases) {
         out(`slot ${l.slot}\t${l.holder}\t${l.branch}\t${l.path}`);
       }
-      out(`${leases.length} of ${poolSize(target.key)} trees leased`);
+      out(`${leases.length} of ${target.poolSize} trees leased`);
     }),
   );
 

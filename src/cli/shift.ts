@@ -8,7 +8,7 @@ import { display } from './shared/display.js';
 import { placementOf } from './shared/placement.js';
 import { noted, readNote } from './shared/note.js';
 import { shiftAbandonCommand } from './abandon.js';
-import { poolSize, repoTarget } from './shared/repo.js';
+import { repoTarget } from './shared/repo.js';
 import { insideTask } from './shared/task-id.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease } from './shared/teardown.js';
 import type { Closer } from './shared/terminal.js';
@@ -392,7 +392,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     );
   }
 
-  const { clone, key } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
+  const { clone, poolSize } = repoTarget('shift_new', data.repo, 'the unit names it, but nothing on this machine says where it is');
 
   // Before anything is claimed: the shift's merge request needs this branch on
   // origin to have a base, and pushing it is yan's to do.
@@ -442,7 +442,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
     // --- 2. lease a tree, cutting the shift branch --------------------------
     const pool = deps.pool?.(clone) ?? new WorktreePool(clone);
     try {
-      grant = pool.get(poolSize(key), data.branch, branch, holder);
+      grant = pool.get(poolSize, data.branch, branch, holder);
     } catch (err) {
       if (isYanError(err) && err.code === 'worktree_full') {
         throw new YanError('shift_new_pool_full', `the pool is full, cannot start a new shift - 'yan tree status --repo ${data.repo}' shows who holds the trees`,
