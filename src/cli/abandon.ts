@@ -263,7 +263,7 @@ export interface AbandonAsk {
  * Asks nothing of the forge: an outbound request is closed only if it is still
  * open, which is the forge's answer at the time.
  */
-export function abandonPlan(task: string, deps: AbandonDeps = {}): string[] {
+function abandonPlan(task: string, deps: AbandonDeps = {}): string[] {
   const { data } = abandonable(task);
   const lines: string[] = [];
   for (const s of Shift.liveIn(task)) {

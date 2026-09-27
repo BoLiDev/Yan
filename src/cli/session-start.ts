@@ -41,7 +41,7 @@ type Reported = Alive | 'n/a';
 type PoolState = 'leased' | 'free' | 'unknown' | 'n/a';
 type MrReport = MrState | 'none' | 'n/a';
 
-export interface ShiftRow {
+interface ShiftRow {
   readonly sid: string;
   readonly unit: string;
   readonly branch: string;
@@ -228,10 +228,10 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
 }
 
 /** How many of the most recent log entries a session starts with. */
-export const LOG_TAIL = 20;
+const LOG_TAIL = 20;
 
 /** How many of the newest drafts a session starts with. */
-export const DRAFTS_SHOWN = 10;
+const DRAFTS_SHOWN = 10;
 
 /** The log entries a session starts with in full, however old. */
 const LOG_KEPT: readonly LogType[] = ['agreed', 'changed'];

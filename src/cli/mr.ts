@@ -158,7 +158,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
  * task is for, and what this round is meant to have built. The marks are the
  * ones a reader of yan's own notes already knows.
  */
-export function defaultBody(brief: string, deliverables: readonly Deliverable[]): string {
+function defaultBody(brief: string, deliverables: readonly Deliverable[]): string {
   const lines = deliverables.map((d) => {
     // The same aside the terminal prints, so a ref that is a URL reads as
     // `PR #58` here too rather than as a line of address.

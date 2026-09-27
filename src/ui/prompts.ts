@@ -24,7 +24,7 @@ function suggestTarget(dir: string): string | undefined {
  */
 
 /** What `resolve()` describes a missing option with, restated structurally. */
-export interface Missing {
+interface Missing {
   readonly name: string;
   readonly flag: string;
   readonly describe: string;
@@ -145,7 +145,7 @@ export async function confirmAbandon(title: string, plan: readonly string[]): Pr
 }
 
 /** One draft as `yan draft ls` offers it; `updated` is already formatted. */
-export interface DraftChoice {
+interface DraftChoice {
   readonly id: string;
   readonly updated: string;
   readonly title: string;
@@ -167,7 +167,7 @@ export async function chooseDraft(drafts: readonly DraftChoice[], task: string):
 }
 
 /** One row of `yan repo add`'s scan, as the command layer worked it out. */
-export interface RepoCandidate {
+interface RepoCandidate {
   readonly name: string;
   readonly dir: string;
   readonly url: string;
@@ -211,7 +211,7 @@ export async function chooseReposToAdd(
 }
 
 /** One row of `yan repo rm`'s list, as the command layer worked it out. */
-export interface RepoRemovable {
+interface RepoRemovable {
   readonly name: string;
   readonly url: string;
   /** Where it is on this machine, or the empty string when it is not linked here. */
@@ -252,7 +252,7 @@ export async function chooseReposToRemove(candidates: readonly RepoRemovable[]):
   return [...chosen].map((v) => String(v)).filter((name) => !blocked.has(name));
 }
 
-export interface TaskNewAnswers {
+interface TaskNewAnswers {
   readonly title: string;
   readonly description: string;
   readonly units: readonly PlannedUnit[];

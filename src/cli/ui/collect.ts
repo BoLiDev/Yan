@@ -65,7 +65,7 @@ function dayOf(m: Moment | null): string | null {
   return m.precision === 'day' ? m.at : localDay(new Date(m.at));
 }
 
-export function reportTask(id: string, now: Date): ReportTask {
+function reportTask(id: string, now: Date): ReportTask {
   const { task, data } = taskFiles(id, now);
   return {
     id: task.id,

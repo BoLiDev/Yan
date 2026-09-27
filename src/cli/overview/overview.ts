@@ -44,7 +44,7 @@ export interface Overview {
   readonly hidden: { readonly open: number; readonly done: number };
 }
 
-export interface OverviewDeps {
+interface OverviewDeps {
   readonly now: Date;
   readonly leasesOf: LeasesOf;
   readonly active: ActiveDeps;
@@ -73,7 +73,7 @@ export function load(id: string): { task: Task; data: TaskData } {
 }
 
 /** What a task's own files say about it, and the files themselves. */
-export interface TaskFiles {
+interface TaskFiles {
   readonly task: Omit<OverviewTask, 'changed' | 'active'>;
   readonly data: TaskData;
   /** `brief.md` as it is on disk; undefined when there is none. */

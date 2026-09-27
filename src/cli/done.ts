@@ -61,7 +61,7 @@ interface ReturnedTree {
   readonly reason?: string;
 }
 
-export interface DoneResult {
+interface DoneResult {
   readonly version: 1;
   readonly task: string;
   readonly title: string;

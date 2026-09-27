@@ -28,7 +28,7 @@ const MARGIN = 1; // columns kept free on both sides
 const GAP = 2; // between the id and what follows it
 const SEP = ' · ';
 
-export interface RenderOptions {
+interface RenderOptions {
   readonly now: Date;
   /** The terminal's width; undefined for a pipe. */
   readonly cols: number | undefined;
@@ -254,7 +254,7 @@ export function renderOverview(ov: Overview, opts: RenderOptions): string[] {
 }
 
 /** Whether a yan is on the task: `yan show` knows, the overview does not. */
-export interface HeaderSession {
+interface HeaderSession {
   readonly running: boolean;
 }
 

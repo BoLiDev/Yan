@@ -18,7 +18,7 @@ export interface CliInvocation {
 }
 
 /** The code reported when the CLI is not on PATH. */
-export const CLI_MISSING = 127;
+const CLI_MISSING = 127;
 
 /** Never throws: a CLI that will not start comes back as `CLI_MISSING`. */
 export function runCli(invocation: CliInvocation): ProcessResult {

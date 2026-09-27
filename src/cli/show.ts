@@ -32,7 +32,7 @@ import { YanError } from '../util/error.js';
  */
 
 /** How many log entries are shown. */
-export const SHOW_LOG_TAIL = 5;
+const SHOW_LOG_TAIL = 5;
 
 export interface ShowJson {
   readonly version: 1;
@@ -128,7 +128,7 @@ function lastEvent(shift: Shift): ShowJson['shifts'][number]['last_event'] {
   return { state, at, note: note.join('\t') };
 }
 
-export function showJson(id: string): ShowJson {
+function showJson(id: string): ShowJson {
   const task = new Task(id);
   const data = task.read();
   const leasesByClone = new Map<string, readonly LeaseRow[]>();
@@ -246,7 +246,7 @@ function section(label: string, aside = ''): void {
  * `clears` says whether this caller is about to consume the undelivered
  * reports it is being shown, which changes only what their heading says.
  */
-export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears = false): void {
+function renderShow(show: ShowJson, task: OverviewTask, now = new Date(), clears = false): void {
   for (const line of renderHeader(task, show.session, { now, cols: terminalWidth() })) out(line);
 
   section(
@@ -353,7 +353,7 @@ export function renderShow(show: ShowJson, task: OverviewTask, now = new Date(),
 }
 
 /** Print one task. */
-export function printTask(id: string, json: boolean): void {
+function printTask(id: string, json: boolean): void {
   if (!Task.exists(id)) {
     const where = Task.isId(id) ? new Task(id).file : `${id}/task.json`;
     throw new YanError('task_missing', `no such task: ${id} - ${where} does not exist`);

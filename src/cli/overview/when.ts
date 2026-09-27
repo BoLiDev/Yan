@@ -5,7 +5,7 @@
  */
 
 /** Where a moment was read. */
-export type MomentSource = 'task.json' | 'log' | 'session' | 'status' | 'tree' | 'branch';
+type MomentSource = 'task.json' | 'log' | 'session' | 'status' | 'tree' | 'branch';
 
 export interface Moment {
   /**
@@ -49,13 +49,13 @@ export function later(a: Moment | undefined, b: Moment | undefined): Moment | un
 const two = (n: number): string => String(n).padStart(2, '0');
 
 /** One `log.md` entry: its `MM-DD` and the rest of the line. */
-export interface LogEntry {
+interface LogEntry {
   readonly mmdd: string;
   readonly text: string;
 }
 
 /** The dated entries of a `log.md`, in file order. */
-export function logEntries(log: string): LogEntry[] {
+function logEntries(log: string): LogEntry[] {
   const found: LogEntry[] = [];
   for (const line of log.replace(/\r/g, '').split('\n')) {
     const m = /^- (\d{2})-(\d{2})\b\s*(.*)$/.exec(line);

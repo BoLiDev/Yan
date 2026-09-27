@@ -15,11 +15,11 @@ import { YanError } from '../../util/error.js';
  */
 
 /** The kinds of work a shift is dispatched for. Fixed: `user` configures tiers, not scenarios. */
-export const SCENARIOS = ['explore', 'coding', 'uix'] as const;
-export type Scenario = (typeof SCENARIOS)[number];
+const SCENARIOS = ['explore', 'coding', 'uix'] as const;
+type Scenario = (typeof SCENARIOS)[number];
 
 /** What each scenario covers, which is how the main agent chooses one. */
-export const SCENARIO_DESCRIPTIONS: Record<Scenario, string> = {
+const SCENARIO_DESCRIPTIONS: Record<Scenario, string> = {
   explore: 'investigating: reading code, researching, answering a question - no code meant to merge',
   coding: 'implementing a feature, fixing a bug, refactoring - code meant to merge',
   uix: 'interface and interaction design: prototypes and visual proposals',
@@ -33,14 +33,14 @@ export interface AgentSpec {
 }
 
 /** One tier of a scenario. An empty field inherits from `agents.shift`. */
-export interface Tier extends AgentSpec {
+interface Tier extends AgentSpec {
   readonly name: string;
   readonly description: string;
   /** Skills the shift invokes before it reads its brief. Never inherited. */
   readonly skills: readonly string[];
 }
 
-export interface ScenarioConfig {
+interface ScenarioConfig {
   readonly name: Scenario;
   readonly description: string;
   readonly defaultTier: string;
@@ -48,7 +48,7 @@ export interface ScenarioConfig {
 }
 
 /** The scenarios as configured, and everything wrong with them. */
-export interface ScenarioReading {
+interface ScenarioReading {
   readonly scenarios: readonly ScenarioConfig[];
   readonly problems: readonly string[];
 }

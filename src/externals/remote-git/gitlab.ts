@@ -36,7 +36,7 @@ export function mapMrState(payload: string): MrState {
  *
  * @throws YanError `remote_git_usage` when no number can be worked out.
  */
-export function refArgs(mr: string): string[] {
+function refArgs(mr: string): string[] {
   let iid = mr;
   let project = '';
 

@@ -36,7 +36,7 @@ export interface ListedAgent {
 }
 
 /** Which way a split puts the new pane: beside its target, or under it. */
-export type SplitDirection = 'right' | 'down';
+type SplitDirection = 'right' | 'down';
 
 /** Start the agent in a new pane split off `pane`, rather than in a new tab. */
 export interface SplitAt {

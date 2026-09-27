@@ -48,7 +48,7 @@ export function pathKey(path: string): string {
 }
 
 /** Creates the pool root if it is absent. */
-export function rootDir(): string {
+function rootDir(): string {
   const root = process.env.YAN_POOL_ROOT ?? join(homedir(), '.yan-trees');
   try {
     mkdirSync(root, { recursive: true });

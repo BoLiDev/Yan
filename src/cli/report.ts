@@ -38,7 +38,7 @@ import { YanError } from '../util/error.js';
  * nothing recorded so the shift can come back.
  */
 
-export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
+const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
 
 /** How many times a note is offered to yan's pane, from `$YAN_REPORT_TRIES`. */
 function deliveryTries(): number {
@@ -126,7 +126,7 @@ function offer(task: string, line: string, deps: ReportDeps): string {
  * in a dialog, no yan running, or Herdr out of reach are all states that pass
  * within seconds. Answers `''` once it lands, and the last reason otherwise.
  */
-export function deliver(task: string, line: string, deps: ReportDeps = {}): string {
+function deliver(task: string, line: string, deps: ReportDeps = {}): string {
   const tries = deliveryTries();
   const pause = deliveryPauseMs();
   const wait = deps.sleep ?? sleepMs;
@@ -167,7 +167,7 @@ function typedInYanPane(pane: string, deps: ReportDeps): string | undefined {
  * @throws YanError `report_user_typing`, exit 3, when the box still has text
  *   in it at the end.
  */
-export function waitWhileUserTypes(task: string, deps: ReportDeps = {}): void {
+function waitWhileUserTypes(task: string, deps: ReportDeps = {}): void {
   if (task === '') return;
   const pane = (deps.paneOf ?? paneOfEnterLock)(task);
   if (pane === undefined) return;

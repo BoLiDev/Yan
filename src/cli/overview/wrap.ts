@@ -19,7 +19,7 @@ interface Unit {
   space: boolean;
 }
 
-export type Line = readonly Unit[];
+type Line = readonly Unit[];
 
 function units(text: string): Unit[] {
   const out: Unit[] = [];

@@ -140,7 +140,7 @@ function claudeFiles(home: string, id: string, cwd: string | undefined): string[
   return [];
 }
 
-export function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
+function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
   let id = facts.sessionId;
   let cwd = facts.cwd;
   if (id === undefined || id === '') {
@@ -166,7 +166,7 @@ export function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefin
  * without the id Herdr reports there is no file to read. Taken from the
  * documentation, not from an installed agy.
  */
-export function agySpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
+function agySpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
   const id = facts.sessionId;
   if (id === undefined || !/^[A-Za-z0-9._-]+$/.test(id)) return undefined;
   const logs = join(env.home, '.gemini', 'antigravity-cli', 'brain', id, '.system_generated', 'logs');
@@ -176,7 +176,7 @@ export function agySpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined 
 // --- codex -------------------------------------------------------------------
 
 /** Not read: codex is not run on the machines yan was built on, and `user` left it out. */
-export function codexSpoke(): Spoke | undefined {
+function codexSpoke(): Spoke | undefined {
   return undefined;
 }
 

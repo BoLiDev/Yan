@@ -669,7 +669,7 @@ export interface DoneDeps {
   readonly onOrigin?: (clone: string, branch: string) => boolean;
 }
 
-export interface DoneResult {
+interface DoneResult {
   readonly version: 1;
   readonly sid: string;
   readonly task: string;

@@ -27,7 +27,7 @@ export interface LeaseGrant {
 export type LeaseRow = Omit<Lease, 'version' | 'pid'>;
 
 /** An optional identity check for `return()`. An absent field is not compared. */
-export interface ReturnExpectation {
+interface ReturnExpectation {
   readonly leaseId?: string;
   readonly holder?: string;
 }

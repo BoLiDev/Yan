@@ -135,7 +135,7 @@ function mtimeOf(path: string): number {
   }
 }
 
-export interface DraftDeps {
+interface DraftDeps {
   readonly tty?: () => boolean;
 }
 

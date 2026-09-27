@@ -54,7 +54,7 @@ export function closePane(pane: string, terminal?: Closer): boolean {
 }
 
 /** What became of one tree. `path` is where it ended up, or where it still is. */
-export interface Returned {
+interface Returned {
   readonly returned: boolean;
   readonly path: string;
   /** Why it did not come back. Absent when it did. */
@@ -83,7 +83,7 @@ export function returnLease(
 }
 
 /** A lease of one task, with the clone whose pool is holding it. */
-export interface Held extends LeaseRow {
+interface Held extends LeaseRow {
   readonly clone: string;
 }
 

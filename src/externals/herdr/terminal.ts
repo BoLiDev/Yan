@@ -28,7 +28,7 @@ import type {
  * split, and could not start its agent in — and nothing here focuses, since
  * focusing a pane marks it seen and changes what `agent get` reports about it.
  */
-export interface TerminalOptions {
+interface TerminalOptions {
   /** Defaults to the real `herdr`. */
   readonly run?: HerdrRunner;
   /**

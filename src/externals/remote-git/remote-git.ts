@@ -9,9 +9,9 @@ import { bodyText, checkDir, requireMr, unreachable } from './validate.js';
 import { YanError } from '../../util/error.js';
 
 /** How a CLI is actually run. Replaceable so a test needs no module mocking. */
-export type CliRunner = (invocation: CliInvocation) => ProcessResult;
+type CliRunner = (invocation: CliInvocation) => ProcessResult;
 
-export interface RemoteGitOptions {
+interface RemoteGitOptions {
   /** Defaults to the real `gh` / `glab`. */
   readonly run?: CliRunner;
 }

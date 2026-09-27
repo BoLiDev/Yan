@@ -6,7 +6,7 @@ import { YanError } from '../../util/error.js';
 
 /** The vault config's `remote_git` section. */
 
-export interface RemoteGitConfig {
+interface RemoteGitConfig {
   readonly kind: HostKind;
   readonly host: string;
 }
