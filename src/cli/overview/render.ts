@@ -3,7 +3,7 @@ import type { Overview, OverviewTask } from './overview.js';
 import { age, ageTier, ago, stamp, stampParts, yearOf, type AgeTier } from './time.js';
 import { isBullet } from './description.js';
 import { momentMs, type Moment } from './when.js';
-import { clamp, lineText, wrap } from './wrap.js';
+import { clamp, lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from '../shared/wrap.js';
 
 /**
  * The print of `yan ls` and the header of `yan show`, from the overview and
@@ -19,8 +19,6 @@ import { clamp, lineText, wrap } from './wrap.js';
  * Every width is in cells, and no line ends in spaces.
  */
 
-const PIPE_WIDTH = 80; // no terminal to ask: a paragraph still has to wrap somewhere
-const MAX_WIDTH = 96; // past this a paragraph stops being readable; the rest stays empty
 const MIN_WIDTH = 32; // below this, lay out at 32 and let the terminal wrap
 const NARROW = 60; // below this, a ledger row keeps its closing date and drops the rest
 const CLAMP = 3; // lines of description on a card

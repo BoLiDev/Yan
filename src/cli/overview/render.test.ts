@@ -3,7 +3,7 @@ import type { Overview, OverviewTask } from './overview.js';
 import { renderHeader, renderOverview } from './render.js';
 import { age, ageTier, ago, stamp } from './time.js';
 import type { Moment } from './when.js';
-import { clamp, lineText, wrap } from './wrap.js';
+import { clamp, lineText, wrap } from '../shared/wrap.js';
 import { cells, fit, padEnd, padStart } from '../shared/style.js';
 
 /**

@@ -1,5 +1,5 @@
 import { deliverableAside, type Deliverable } from '../../records/task/index.js';
-import { lineText, wrap } from '../overview/wrap.js';
+import { lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from './wrap.js';
 
 /**
  * How a task's deliverables are printed, in the one place `yan deliverable
@@ -33,9 +33,6 @@ const AS_IS = (s: string): string => s;
 /** Widest status word, so the text column lines up whatever the list holds. */
 const STATUS_WIDTH = 'abandoned'.length;
 
-/** `yan ls`'s widths: no terminal to ask still wraps, and past 96 a line stops being readable. */
-const PIPE_WIDTH = 80;
-const MAX_WIDTH = 96;
 /** Under this the text column is too narrow to wrap into; the terminal may fold the rest. */
 const MIN_TEXT = 20;
 
