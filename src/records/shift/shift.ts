@@ -4,6 +4,7 @@ import { tasksDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { Task } from '../task/index.js';
 import { readMeta } from './meta.js';
+import { opensMr } from './scenario.js';
 import { appendEvent, countEvents, reportedMr } from './status.js';
 import type { ShiftMeta } from './types.js';
 import { YanError } from '../../util/error.js';
@@ -57,6 +58,17 @@ export class Shift {
   /** The merge request URL this shift reported, if any. */
   public reportedMr(): string | undefined {
     return reportedMr(this.run);
+  }
+
+  /**
+   * The merge request this shift opened: the one recorded in `meta.json`,
+   * else the one it reported; `''` when it opened none, which is always so
+   * outside the scenario that opens one.
+   *
+   * @param meta the shift's `meta()`, when the caller has read it already.
+   */
+  public openedMr(meta: ShiftMeta = this.meta()): string {
+    return opensMr(meta.scenario) ? (meta.mr ?? this.reportedMr() ?? '') : '';
   }
 
   /** Append one event to run/status, and nothing beside it. */

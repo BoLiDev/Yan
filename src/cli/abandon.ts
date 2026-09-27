@@ -8,7 +8,7 @@ import { chosenTask, existingTask } from './shared/task-id.js';
 import type { Closer } from './shared/terminal.js';
 import { cloneOf, closePane, leasesHeldBy, returnLease, type PoolFor } from './shared/teardown.js';
 import { RemoteGit, type MrState } from '../externals/remote-git/index.js';
-import { opensMr, Shift } from '../records/shift/index.js';
+import { Shift } from '../records/shift/index.js';
 import { Task } from '../records/task/index.js';
 import { isYanError, YanError } from '../util/error.js';
 
@@ -92,8 +92,7 @@ function tearDown(shift: Shift, deps: AbandonDeps): AbandonedShift {
   const pane = meta.pane ?? '';
   const clone = meta.clone ?? cloneOf(shift.task, unit);
 
-  // Only coding opens merge requests.
-  const mr = opensMr(meta.scenario) ? (meta.mr ?? shift.reportedMr() ?? '') : '';
+  const mr = shift.openedMr(meta);
   const mrClosing = closeIfOpen(mr, clone === '' ? undefined : clone, deps);
 
   // The agent first, so nothing is still writing into the tree being wiped.
@@ -262,7 +261,7 @@ function abandonPlan(task: string, deps: AbandonDeps = {}): string[] {
   const lines: string[] = [];
   for (const s of Shift.liveIn(task)) {
     const meta = s.meta();
-    const mr = opensMr(meta.scenario) ? (meta.mr ?? s.reportedMr() ?? '') : '';
+    const mr = s.openedMr(meta);
     lines.push(`${s.sid} ${meta.unit ?? ''}  abandoned: its agent killed, its tree discarded with anything uncommitted${mr === '' ? '' : `, ${mr} closed if still open`}`);
   }
   for (const u of data.units) {

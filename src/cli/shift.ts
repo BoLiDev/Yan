@@ -743,7 +743,7 @@ export function clockOut(sid: string | undefined, options: DoneOptions, deps: Do
   let leaseId = meta.lease_id ?? '';
   let pane = meta.pane ?? '';
   // The shift opens its own MR, so the URL usually arrives on its `done` event.
-  let mr = options.mr ?? meta.mr ?? shift.reportedMr() ?? '';
+  let mr = options.mr ?? shift.openedMr(meta);
 
   let resuming = false;
   if (!shift.isLive()) {
