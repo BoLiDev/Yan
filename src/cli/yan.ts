@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
 import { openTasks } from './shared/task-id.js';
-import { setPrompter } from './shared/resolve.js';
 import { isTty } from './shared/tty.js';
 import { isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
@@ -13,8 +12,9 @@ import { asString } from '../util/narrow.js';
  * The Commander root, and the only place subcommands are composed. A command
  * is a `dist/cli/<name>.js` exporting a `command`, discovered from disk.
  *
- * No option anywhere under `src/cli/` may be declared `.requiredOption()`:
- * Commander would exit before `shared/resolve.ts` could ask for it.
+ * No option anywhere under `src/cli/` is declared `.requiredOption()`: a
+ * command asks for what is missing when there is a terminal, and Commander
+ * would refuse before it got the chance.
  */
 
 /**
@@ -110,22 +110,10 @@ async function chooseEntryPoint(): Promise<string[]> {
   return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', chosen];
 }
 
-/**
- * Give `resolve()` its prompter. The import is dynamic, so no path that never
- * prompts loads the prompt library.
- */
-function installPrompter(): void {
-  setPrompter(async (missing) => {
-    const { askFor } = await import('../ui/prompts.js');
-    return askFor(missing);
-  });
-}
-
 async function main(argv: readonly string[]): Promise<number> {
   const home = yanHome();
   const found = subcommands(home);
   const program = await buildProgram(home);
-  installPrompter();
 
   let words = [...argv];
 
