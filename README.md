@@ -88,7 +88,9 @@ model, agy chooses its own). Two things differ from the other two:
 A shift tells the main agent what happened by typing one line into its pane, with
 `yan report`; nothing watches a shift, and `yan state <sid>` answers on demand. A line
 that will not go — the main agent is in a dialog, or none is running — is kept and
-listed by `yan show` and at the next session start.
+listed by `yan show` and at the next session start. One that would land while you are
+typing in the main agent's pane waits for your line to go, up to three minutes, and then
+fails so the shift tries again later.
 
 The one hook in `.claude/settings.json`, `.codex/hooks.json` and `.agents/hooks.json` is
 the MAIN AGENT's: it rebuilds the picture at session start. A shift working on this

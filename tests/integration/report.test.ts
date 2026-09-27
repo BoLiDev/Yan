@@ -3,8 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
-import { reportEvent, noteForYan, type ReportDeps } from '../../src/cli/report.js';
-import type { Prompter } from '../../src/cli/send.js';
+import { reportEvent, noteForYan } from '../../src/cli/report.js';
+import { YanError } from '../../src/util/error.js';
+import type { ReportDeps, ReportTerminal } from '../../src/cli/report.js';
 
 /**
  * `yan report`. Two halves, and both are checked: the line it appends to
@@ -219,11 +220,26 @@ describe('done waits for the handover', () => {
  * would be, and the pane lookup is where the task's enter lock would be.
  */
 describe('the note is typed into yan\'s pane', () => {
-  class RecordingTerminal implements Prompter {
+  const RULE = '─'.repeat(40);
+
+  /** A Claude Code screen whose prompt box holds `typed`. */
+  function screenWith(typed: string): string {
+    return ['⏺ thinking', RULE, `❯ ${typed}`.trimEnd(), RULE, '  esc to interrupt', ''].join('\n');
+  }
+
+  class RecordingTerminal implements ReportTerminal {
     public readonly calls: { pane: string; text: string }[] = [];
     /** Thrown on the first `refuseTimes` calls, then it succeeds. */
     public refuseTimes = 0;
     public refusal: Error = new Error('agent prompt: agent_blocked');
+    /** What each successive `read` shows; the last one repeats. */
+    public screens: string[] = [screenWith('')];
+    public reads = 0;
+
+    public read(): string {
+      this.reads += 1;
+      return this.screens[Math.min(this.reads, this.screens.length) - 1] ?? '';
+    }
 
     public send(pane: string, text: string): void {
       if (this.refuseTimes > 0) {
@@ -261,6 +277,8 @@ describe('the note is typed into yan\'s pane', () => {
     process.env.YAN_TASK = 't042';
     process.env.YAN_REPORT_TRIES = '5';
     process.env.YAN_REPORT_PAUSE_MS = '7000';
+    process.env.YAN_REPORT_TYPING_WAIT_MS = '30000';
+    process.env.YAN_REPORT_TYPING_POLL_MS = '10000';
     const { Task } = await import('../../src/records/task/index.js');
     Task.create('t042', 'unify the auth header');
 
@@ -278,6 +296,8 @@ describe('the note is typed into yan\'s pane', () => {
     delete process.env.YAN_TASK;
     delete process.env.YAN_REPORT_TRIES;
     delete process.env.YAN_REPORT_PAUSE_MS;
+    delete process.env.YAN_REPORT_TYPING_WAIT_MS;
+    delete process.env.YAN_REPORT_TYPING_POLL_MS;
   });
 
   it('sends the note as it stands, with the sid appended when it is missing', () => {
@@ -347,5 +367,61 @@ describe('the note is typed into yan\'s pane', () => {
     report('blocked', 'first');
     report('conflict', 'second');
     expect(undelivered().trim().split('\n')).toHaveLength(2);
+  });
+
+  describe("user's own half-typed line is never submitted with the note", () => {
+    it('looks at the screen first, and sends at once when the prompt box is empty', () => {
+      report('done', 'mr https://x/1');
+      expect(terminal.reads).toBe(1);
+      expect(terminal.calls).toHaveLength(1);
+      expect(slept).toEqual([]);
+    });
+
+    it('waits while user is typing, and sends once the box clears', () => {
+      terminal.screens = [screenWith('merge it an'), screenWith('merge it and run'), screenWith('')];
+      report('blocked', 'the build is red');
+      expect(terminal.reads).toBe(3);
+      expect(slept).toEqual([10000, 10000]);
+      expect(terminal.calls).toHaveLength(1);
+      expect(status()).toContain('blocked');
+    });
+
+    it('gives up after the wait with exit 3, and records nothing at all', () => {
+      terminal.screens = [screenWith('still typing')];
+      let caught: unknown;
+      try {
+        report('needs-decision', 'which branch?');
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(YanError);
+      expect((caught as YanError).code).toBe('report_user_typing');
+      expect((caught as YanError).exitCode).toBe(3);
+      expect((caught as YanError).message).toContain('again in a minute');
+      // Three looks over thirty seconds, two pauses between them.
+      expect(terminal.reads).toBe(3);
+      expect(slept).toEqual([10000, 10000]);
+      expect(terminal.calls).toHaveLength(0);
+      expect(existsSync(join(shiftRun, 'status'))).toBe(false);
+      expect(undelivered()).toBe('');
+    });
+
+    it('holds nothing when the screen shows no prompt box: a dialog is delivery\'s problem', () => {
+      terminal.screens = [['⏺', RULE, '  Do you want to proceed?', '  ❯ 1. Yes', RULE, ''].join('\n')];
+      terminal.refuseTimes = 1;
+      report('conflict', 'merge conflict in a.ts');
+      expect(slept).toEqual([7000]);
+      expect(terminal.calls).toHaveLength(1);
+    });
+
+    it('does not look at all for `started`, or when no yan is running', () => {
+      terminal.screens = [screenWith('typing')];
+      report('started', 'read the brief');
+      expect(terminal.reads).toBe(0);
+      pane = undefined;
+      report('done', 'mr https://x/2');
+      expect(terminal.reads).toBe(0);
+      expect(undelivered()).toContain('done');
+    });
   });
 });

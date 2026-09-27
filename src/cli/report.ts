@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { paneOfEnterLock } from './shared/enter-lock.js';
 import { checkSendLength, type Prompter } from './send.js';
-import { Terminal } from '../externals/herdr/index.js';
+import { Terminal, typedInput, type ReadSource } from '../externals/herdr/index.js';
 import { Shift, recordUndelivered, undeliveredFile } from '../records/shift/index.js';
 import { YanError } from '../util/error.js';
 
@@ -29,6 +29,12 @@ import { YanError } from '../util/error.js';
  * Nothing watches a shift, so this is the whole of how yan learns anything: a
  * note that cannot be delivered is kept in `run/undelivered`, which `yan
  * show` and the next session start print.
+ *
+ * One thing is not queued: a line typed while `user` is half-way through
+ * their own. `agent prompt` appends to the prompt box and submits it, so the
+ * note would go out inside `user`'s sentence. A report therefore waits while
+ * that box has text in it, for up to three minutes, and then fails with
+ * nothing recorded so the shift can come back.
  */
 
 export const REPORT_STATES = ['started', 'done', 'blocked', 'needs-decision', 'conflict'] as const;
@@ -45,15 +51,32 @@ function deliveryPauseMs(): number {
   return Number.isInteger(n) && n >= 0 ? n : 7000;
 }
 
+/** How long a report waits for `user` to finish typing, from `$YAN_REPORT_TYPING_WAIT_MS`. */
+function typingWaitMs(): number {
+  const n = Number.parseInt(process.env.YAN_REPORT_TYPING_WAIT_MS ?? '', 10);
+  return Number.isInteger(n) && n >= 0 ? n : 180_000;
+}
+
+/** How often it looks at the prompt box meanwhile, from `$YAN_REPORT_TYPING_POLL_MS`. */
+function typingPollMs(): number {
+  const n = Number.parseInt(process.env.YAN_REPORT_TYPING_POLL_MS ?? '', 10);
+  return Number.isInteger(n) && n > 0 ? n : 5000;
+}
+
 /** Block the whole process: a report has nothing else to do while it waits. */
 function sleepMs(ms: number): void {
   if (ms <= 0) return;
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+/** What a report needs from the terminal: to type a line, and to see the screen first. */
+export interface ReportTerminal extends Prompter {
+  read(pane: string, lines?: number, source?: ReadSource): string;
+}
+
 /** The sources a delivery uses; each defaults to the real one. */
 export interface ReportDeps {
-  readonly terminal?: Prompter;
+  readonly terminal?: ReportTerminal;
   /** Which pane the live yan for a task is in. */
   readonly paneOf?: (task: string) => string | undefined;
   readonly sleep?: (ms: number) => void;
@@ -112,6 +135,48 @@ export function deliver(task: string, line: string, deps: ReportDeps = {}): stri
   return why;
 }
 
+/**
+ * What `user` has typed into yan's prompt box and not sent, `''` for an empty
+ * box, and `undefined` when there is nothing to go on: the screen cannot be
+ * read, or shows no prompt box. Never throws.
+ */
+function typedInYanPane(pane: string, deps: ReportDeps): string | undefined {
+  try {
+    return typedInput((deps.terminal ?? new Terminal()).read(pane, 40, 'visible'));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Hold the report while `user` is typing in yan's pane, looking again every
+ * few seconds for up to `typingWaitMs`. Runs before the event is written, so
+ * a report that gives up leaves no status line for the retry to duplicate.
+ * No live yan, or a screen with no prompt box on it, holds nothing: `deliver`
+ * deals with those.
+ *
+ * @throws YanError `report_user_typing`, exit 3, when the box still has text
+ *   in it at the end.
+ */
+export function waitWhileUserTypes(task: string, deps: ReportDeps = {}): void {
+  if (task === '') return;
+  const pane = (deps.paneOf ?? paneOfEnterLock)(task);
+  if (pane === undefined) return;
+
+  const poll = typingPollMs();
+  const waitMs = typingWaitMs();
+  const looks = Math.max(1, Math.ceil(waitMs / poll));
+  const wait = deps.sleep ?? sleepMs;
+  for (let look = 1; look <= looks; look += 1) {
+    const typed = typedInYanPane(pane, deps);
+    if (typed === undefined || typed === '') return;
+    if (look < looks) wait(poll);
+  }
+  throw new YanError('report_user_typing', `user has been typing in yan's pane (${pane}) for the last ${Math.round(waitMs / 1000)}s, and this note would land inside their line - nothing was recorded; run the same report again in a minute`,
+    { exitCode: 3 },
+  );
+}
+
 interface ReportOptions {
   sid?: string;
   dir?: string;
@@ -121,8 +186,9 @@ interface ReportOptions {
  * Record the event and tell yan about it.
  *
  * @throws YanError `report_usage` for anything wrong with the state, the note
- *   or who is reporting, and `report_no_outcome` for a `done` with no
- *   handover written. Nothing is written when one of these throws.
+ *   or who is reporting, `report_no_outcome` for a `done` with no handover
+ *   written, and `report_user_typing` when `user` kept typing in yan's pane
+ *   for the whole wait. Nothing is written when one of these throws.
  */
 export function reportEvent(
   state: string | undefined,
@@ -170,7 +236,12 @@ export function reportEvent(
   // The note is typed into a pane, so it is held to the line `yan send`
   // allows - checked before anything is written, like every refusal above.
   const line = noteForYan(note, shift.sid);
-  if (state !== 'started') checkSendLength(line, 'report_usage');
+  if (state !== 'started') {
+    checkSendLength(line, 'report_usage');
+    // Last of the refusals, and the only one that takes time: nothing is
+    // recorded until user's prompt box is clear for the note to go into.
+    waitWhileUserTypes(shift.task, deps);
+  }
 
   shift.appendEvent(state, note);
   out(`recorded ${state} in ${join(shift.run, 'status')}`);
@@ -211,6 +282,10 @@ does not already carry it, and nothing else is added.
 A note that will not go - yan in a dialog, no yan running, no herdr - is
 retried for about thirty seconds and then kept in run/undelivered, which
 'yan show' and the next session start print. The command still exits 0.
+
+While user is typing in yan's pane the note would land inside their line, so
+the command waits for the prompt box to clear, up to three minutes, and then
+exits 3 with nothing recorded: run the same report again in a minute.
 
 Which shift is reporting is normally taken from the environment the spawn
 step set (YAN_SHIFT_DIR, or YAN_TASK_DIR plus YAN_SID); --sid / --dir are for
