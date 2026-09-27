@@ -63,7 +63,7 @@ function stateOf(data: TaskData): TaskState {
 }
 
 /** Each task, from its own files alone; a task.json that cannot be read is an open task with no title. */
-function load(id: string): { task: Task; data: TaskData } {
+export function load(id: string): { task: Task; data: TaskData } {
   const task = new Task(id);
   try {
     return { task, data: task.read() };

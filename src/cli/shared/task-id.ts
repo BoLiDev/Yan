@@ -1,5 +1,7 @@
 import { isTty } from './resolve.js';
-import { queue } from '../ls.js';
+import { load } from '../overview/overview.js';
+import { Shift } from '../../records/shift/index.js';
+import { Task } from '../../records/task/index.js';
 import type { TaskChoice } from '../../ui/prompts.js';
 import { YanError } from '../../util/error.js';
 
@@ -28,13 +30,20 @@ export function insideTask(command: string): string {
 }
 
 /**
- * Every task in the queue that is not finished, in the shape every select
- * offers: bare `yan`, `yan done`, `yan continue` and `yan show` all ask this.
+ * Every task that is not finished, in the shape every select offers: bare
+ * `yan`, `yan done`, `yan continue` and `yan show` all ask this. Reads only
+ * each task's own files and its live shifts: no git, no Herdr, no forge.
  */
 export function openTasks(): TaskChoice[] {
-  return queue()
-    .filter((t) => !t.complete)
-    .map((t) => ({ id: t.id, title: t.title, units: t.units.length, shifts: t.shifts }));
+  return Task.list()
+    .map(load)
+    .filter(({ data }) => !data.complete)
+    .map(({ task, data }) => ({
+      id: data.id || task.id,
+      title: data.title,
+      units: data.units.length,
+      shifts: Shift.liveIn(task.id).length,
+    }));
 }
 
 /**
