@@ -9,6 +9,7 @@ import { isoSecond, localDay } from '../../util/time.js';
 import { Log } from '../log/index.js';
 import { Deliverables } from './deliverables.js';
 import { ENDS, type AddUnitOptions, type HistoryEnd, type HistoryEntry, type TaskData, type UnitData } from './types.js';
+import { byCodePoint, isRecordId } from '../../util/names.js';
 
 /**
  * A handle on one `tasks/<id>/task.json` — which branch a unit is on, where it
@@ -228,7 +229,7 @@ export class Task {
   }
 
   public static isId(id: string): boolean {
-    return id !== '' && /^[A-Za-z0-9._-]+$/.test(id);
+    return isRecordId(id);
   }
 
   /** Does this string name a task? False for a malformed id, never a throw. */
@@ -268,7 +269,7 @@ export class Task {
     }
     return entries
       .filter((id) => Task.isId(id) && existsSync(join(dir, id, 'task.json')))
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      .sort(byCodePoint);
   }
 }
 

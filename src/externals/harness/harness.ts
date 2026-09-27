@@ -6,6 +6,7 @@ import { runProcess } from '../../util/process.js';
 import { asRecord } from '../../util/narrow.js';
 import { samePath } from '../../util/paths.js';
 import type { AgentFacts, HarnessEnv, Spoke } from './types.js';
+import { isRecordId } from '../../util/names.js';
 
 /**
  * When an agent last wrote to its own session file, one adapter per harness
@@ -146,7 +147,7 @@ function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
     id = found.id;
     cwd = found.cwd === '' ? cwd : found.cwd;
   }
-  if (!/^[A-Za-z0-9._-]+$/.test(id)) return undefined;
+  if (!isRecordId(id)) return undefined;
   return newest(claudeFiles(env.home, id, cwd));
 }
 
@@ -165,7 +166,7 @@ function claudeSpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
  */
 function agySpoke(facts: AgentFacts, env: HarnessEnv): Spoke | undefined {
   const id = facts.sessionId;
-  if (id === undefined || !/^[A-Za-z0-9._-]+$/.test(id)) return undefined;
+  if (id === undefined || !isRecordId(id)) return undefined;
   const logs = join(env.home, '.gemini', 'antigravity-cli', 'brain', id, '.system_generated', 'logs');
   return newest([join(logs, 'transcript.jsonl'), join(logs, 'transcript_full.jsonl')]);
 }

@@ -11,6 +11,7 @@ import { DEFAULT_POOL_SIZE, defaultCloneRoot, isClone, lookup, registry, type Re
 import { isTty } from './shared/resolve.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
+import { isRecordId } from '../util/names.js';
 
 /**
  * `yan repo add | link | ls | rm` — which repositories this context knows
@@ -59,7 +60,7 @@ function sameUrl(a: string, b: string): boolean {
 }
 
 function checkName(name: string): void {
-  if (name === '' || !/^[A-Za-z0-9._-]+$/.test(name)) {
+  if (!isRecordId(name)) {
     throw YanError.usage('repo_usage', `'${name}' is not a usable repository name - pass --name`);
   }
   if (name === 'version') {

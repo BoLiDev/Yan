@@ -19,6 +19,7 @@ import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { resolve } from './shared/resolve.js';
+import { isRecordId } from '../util/names.js';
 
 /**
  * `yan vault …` — the context a session works in.
@@ -28,10 +29,8 @@ import { resolve } from './shared/resolve.js';
  * empty; it never creates one on a forge.
  */
 
-const NAME_RULE = /^[A-Za-z0-9._-]+$/;
-
 function checkName(name: string): void {
-  if (!NAME_RULE.test(name)) {
+  if (!isRecordId(name)) {
     throw YanError.usage('vault_usage', `'${name}' is not a usable vault name - letters, digits, dot, dash and underscore`);
   }
 }

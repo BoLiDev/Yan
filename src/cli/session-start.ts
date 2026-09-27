@@ -21,6 +21,7 @@ import { pullVault, type PullResult } from './vault.js';
 import { normalizePath, samePath } from '../util/paths.js';
 import { YanError } from '../util/error.js';
 import { isoSecond, localStamp } from '../util/time.js';
+import { byCodePoint } from '../util/names.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -146,7 +147,7 @@ function shiftIds(task: string): string[] {
   try {
     return readdirSync(dir)
       .filter((sid) => Shift.isId(sid) && statSync(join(dir, sid)).isDirectory())
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      .sort(byCodePoint);
   } catch {
     return [];
   }

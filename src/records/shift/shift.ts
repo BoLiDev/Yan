@@ -7,6 +7,7 @@ import { readMeta } from './meta.js';
 import { appendEvent, countEvents, reportedMr } from './status.js';
 import type { ShiftMeta } from './types.js';
 import { YanError } from '../../util/error.js';
+import { byCodePoint, isRecordId } from '../../util/names.js';
 
 /**
  * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory. Holds
@@ -25,11 +26,7 @@ export class Shift {
    * @throws YanError when `sid` is not a valid id.
    */
   public constructor(task: string, sid: string, dir?: string) {
-    if (!Shift.isId(sid)) {
-      throw YanError.usage('shift_usage',
-        `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
-      );
-    }
+    requireSid(sid);
     this.task = task;
     this.sid = sid;
     this.dir = dir ?? normalizePath(join(new Task(task).dir, 'shifts', sid));
@@ -67,7 +64,7 @@ export class Shift {
   }
 
   public static isId(sid: string): boolean {
-    return sid !== '' && /^[A-Za-z0-9._-]+$/.test(sid);
+    return isRecordId(sid);
   }
 
   /**
@@ -78,11 +75,8 @@ export class Shift {
    *   exists under more than one task and no task was named.
    */
   public static resolve(sid: string, task = ''): Shift {
-    if (!Shift.isId(sid)) {
-      throw YanError.usage('shift_usage',
-        `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`,
-      );
-    }
+    // Before the scan below builds a path out of it, not only in the constructor.
+    requireSid(sid);
     const want = task !== '' ? task : (process.env.YAN_TASK ?? '');
 
     if (want !== '') {
@@ -179,7 +173,14 @@ export class Shift {
     }
     return entries
       .filter((sid) => Shift.isId(sid) && existsSync(join(dir, sid, 'run', 'meta.json')))
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      .sort(byCodePoint)
       .map((sid) => new Shift(task, sid));
+  }
+}
+
+/** @throws YanError `shift_usage` when `sid` is not a usable shift id. */
+function requireSid(sid: string): void {
+  if (!isRecordId(sid)) {
+    throw YanError.usage('shift_usage', `invalid shift id: '${sid}' - use letters, digits, dot, dash or underscore`);
   }
 }
