@@ -486,8 +486,12 @@ describe('the scenarios reach the session', () => {
 
 /**
  * The reports that never reached yan. They belong to the main agent's picture
- * and to nobody else, and printing them is what clears them — one of the two
+ * and to nobody else, and reading them is what clears them — one of the two
  * places `run/undelivered` is surfaced, the other being `yan show`.
+ *
+ * Cleared for the task this caller is the main agent of, and for no other:
+ * a bare `session-start` prints every task on the machine, and the yan of
+ * t042 starting up must not consume what the yan of t099 has not seen.
  */
 describe('undelivered reports', () => {
   const kept = (): string => join(run, 'undelivered');
@@ -527,6 +531,31 @@ describe('undelivered reports', () => {
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).not.toContain('undelivered');
     expect(existsSync(kept()), 'and a shift must not swallow them').toBe(true);
+  });
+
+  it("leaves another task's lines alone, and clears only its own", async () => {
+    // t099 has a live shift of its own with a report nobody has read.
+    const other = join(home, 'tasks', 't099', 'shifts', 's9', 'run');
+    mkdirSync(other, { recursive: true });
+    writeFileSync(join(other, 'meta.json'), JSON.stringify({ version: 1, unit: 'api', pane: 'w2:p1' }));
+    writeFileSync(join(other, 'undelivered'), '1757577800 blocked t099 is waiting on a credential\n');
+    seed();
+
+    const r = await runYan(home, ['session-start', '--all'], { YAN_TASK: 't042' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout, 'both are printed: nothing is hidden').toContain('the auth fixture needs a credential');
+    expect(r.stdout).toContain('t099 is waiting on a credential');
+
+    expect(existsSync(kept()), "this yan's own task is cleared").toBe(false);
+    expect(existsSync(join(other, 'undelivered')), "t099's yan has not seen its own yet").toBe(true);
+  });
+
+  it('clears nothing at all when no task is named, as in a bare shell', async () => {
+    seed();
+    const r = await runYan(home, ['session-start', '--all'], { YAN_TASK: undefined });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('the auth fixture needs a credential');
+    expect(existsSync(kept())).toBe(true);
   });
 
   it('says nothing at all when there are none', async () => {

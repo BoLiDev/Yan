@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
+import { isMainAgentOf } from './shared/caller.js';
 import { readScenarios, resolveShift, runsAs } from './shared/config.js';
 import { deliverableLines, deliverableTally, NO_DELIVERABLES_NOTICE } from './shared/deliverables.js';
 import { terminalWidth } from './shared/style.js';
@@ -31,8 +32,9 @@ import { YanError } from '../util/error.js';
  * with the world; its own test asserts `$YAN_HOME` is byte-for-byte
  * unchanged. The one thing it does write is a removal: a shift's
  * `run/undelivered` is printed and then deleted, because a report that has
- * been read is said. A source that will not answer costs one fact, reported
- * as `unknown`, and never a crash.
+ * been read is said — and only for the task this caller is the main agent
+ * of. A source that will not answer costs one fact, reported as `unknown`,
+ * and never a crash.
  */
 
 type Reported = Alive | 'n/a';
@@ -53,7 +55,7 @@ export interface ShiftRow {
   readonly mr: string;
   readonly mr_state: MrReport;
   readonly events: number;
-  /** Reports that reached run/status and never reached yan. Printing them clears them. */
+  /** Reports that reached run/status and never reached yan. This task's own main agent clears them by reading them. */
   readonly undelivered: readonly Undelivered[];
 }
 
@@ -416,8 +418,9 @@ function renderUndelivered(picture: Picture): void {
   out('── undelivered reports');
   out('What a shift reported while nothing was there to hear it. Each line is the');
   out('shift speaking to you; act on it as you would on one that arrived, and run');
-  out("'yan state <sid>' before you do, since nobody has been watching. Printing");
-  out('them is what clears them, so they are said once.');
+  out("'yan state <sid>' before you do, since nobody has been watching. Reading");
+  out('them clears the ones belonging to your own task, so those are said once;');
+  out("another task's are left for its own yan, and you will see them again.");
   out('');
   for (const { task, shift } of missed) {
     for (const u of shift.undelivered) {
@@ -427,9 +430,18 @@ function renderUndelivered(picture: Picture): void {
   }
 }
 
-/** Forget what has been printed. Read first, cleared second: see the record. */
+/**
+ * Forget what has been printed — for this task only. Read first, cleared
+ * second: see the record.
+ *
+ * `--all`, and a bare `session-start` on a machine with several tasks, print
+ * every task's lines, and the yan of t133 starting up must not consume the
+ * reports the yan of t134 has not seen. So the test is per task, and it is
+ * the same one `yan show` applies: this caller is that task's main agent.
+ */
 function clearSurfaced(picture: Picture): void {
   for (const t of picture.tasks) {
+    if (!isMainAgentOf(t.id)) continue;
     for (const s of t.shifts) {
       if (s.undelivered.length > 0) clearUndelivered(new Shift(t.id, s.sid).run);
     }

@@ -264,8 +264,11 @@ describe('a shift that reported done on an open task', () => {
 describe('reports that never reached yan', () => {
   /**
    * `run/undelivered` is what a shift writes when it could not type its note
-   * into yan's pane. `yan show` is one of the two places it surfaces, and
-   * printing it is what clears it: a report is said once.
+   * into yan's pane. `yan show` is one of the two places it surfaces — and
+   * only the task's own main agent clears it by reading it. `user` runs
+   * `yan show` from their own pane constantly, and their shell carries no
+   * $YAN_TASK; if that cleared the file, the report yan was meant to read
+   * would be gone before yan ever ran.
    */
   const run = (): string => join(home, 'tasks', 't062', 'shifts', 's4', 'run');
 
@@ -276,7 +279,11 @@ describe('reports that never reached yan', () => {
     writeFileSync(join(run(), 'undelivered'), '1757577600 blocked the auth fixture needs a credential\n1757577700 conflict src/cli/state.ts conflicts\n');
   }
 
-  it('prints every line, then removes the file', async () => {
+  function kept(): boolean {
+    return existsSync(join(run(), 'undelivered'));
+  }
+
+  it("prints them to user's own shell, which carries no task, and keeps them", async () => {
     Task.create('t062', 'undelivered reports');
     seed();
 
@@ -284,22 +291,49 @@ describe('reports that never reached yan', () => {
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('Undelivered reports');
     expect(r.stdout).toContain('the auth fixture needs a credential');
+    expect(r.stdout, 'and says why they are still there').toContain("not this task's yan");
+    expect(kept(), 'user glancing at a task must not swallow its reports').toBe(true);
+  });
+
+  it('keeps them for the yan of a different task, too', async () => {
+    const r = await show(['show', 't062'], { YAN_TASK: 't042' });
+    expect(r.stdout).toContain('the auth fixture needs a credential');
+    expect(r.stdout).toContain("not this task's yan");
+    expect(kept()).toBe(true);
+  });
+
+  it('keeps them for a shift, whose $YAN_TASK is its own task', async () => {
+    const r = await show(['show', 't062'], { YAN_TASK: 't062', YAN_SID: 's4' });
+    expect(r.stdout).toContain('the auth fixture needs a credential');
+    expect(kept(), 'a shift reading the task picture is not the reader they were for').toBe(true);
+  });
+
+  it("prints every line to the task's own yan, then removes the file", async () => {
+    const r = await show(['show', 't062'], { YAN_TASK: 't062' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('Undelivered reports');
+    expect(r.stdout).toContain('the auth fixture needs a credential');
     expect(r.stdout).toContain('src/cli/state.ts conflicts');
     expect(r.stdout, 'the shift is named, since it is how yan answers').toContain('s4');
-    expect(existsSync(join(run(), 'undelivered')), 'printed is said').toBe(false);
+    expect(r.stdout, 'and the heading does not say they were kept').not.toContain("not this task's yan");
+    expect(kept(), 'printed is said').toBe(false);
 
-    const again = await show(['show', 't062']);
+    const again = await show(['show', 't062'], { YAN_TASK: 't062' });
     expect(again.stdout, 'and it is not said twice').not.toContain('Undelivered reports');
   });
 
-  it('carries them into --json, and clears them there too', async () => {
+  it('carries them into --json, and clears them there on the same rule', async () => {
     seed();
-    const parsed = JSON.parse((await show(['show', 't062', '--json'])).stdout) as ShowJson;
-    expect(parsed.shifts[0]?.undelivered).toEqual([
+    const asUser = JSON.parse((await show(['show', 't062', '--json'])).stdout) as ShowJson;
+    expect(asUser.shifts[0]?.undelivered).toHaveLength(2);
+    expect(kept(), '--json is a read like any other').toBe(true);
+
+    const asYan = JSON.parse((await show(['show', 't062', '--json'], { YAN_TASK: 't062' })).stdout) as ShowJson;
+    expect(asYan.shifts[0]?.undelivered).toEqual([
       { at: 1757577600, state: 'blocked', note: 'the auth fixture needs a credential' },
       { at: 1757577700, state: 'conflict', note: 'src/cli/state.ts conflicts' },
     ]);
-    expect(existsSync(join(run(), 'undelivered'))).toBe(false);
+    expect(kept()).toBe(false);
   });
 
   it('says nothing at all when there are none', async () => {
