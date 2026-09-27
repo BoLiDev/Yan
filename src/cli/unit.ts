@@ -46,7 +46,6 @@ function decideBranchName(
   return { branch: `yan/${context.task}-${context.unit}-r${context.round}`, from: 'default' };
 }
 
-
 /**
  * A branch name as a tool may have printed it — `refs/heads/x`, `origin/x`,
  * quoted, or with a trailing CR — reduced to the plain name.
@@ -126,8 +125,6 @@ function ensureBranch(command: string, clone: string, branch: string, base: stri
   }
   return `cut from ${baseRef}`;
 }
-
-
 
 interface Inherited {
   /** What happened, in one line, for the caller to print and to log. */
@@ -377,7 +374,7 @@ const set = new Command('set')
   .option('--target <branch>', 'where this unit delivers')
   .option('--base <ref>', 'what to cut the new branch from when it does not exist')
   .option('--end <end>', 'delivered | abandoned - how the round being replaced finished')
-  .option('--reason <text>', 'REQUIRED when the round ends as abandoned')
+  .option('--reason <text>', 'why, appended to the log line')
   .option('--at <date>', 'the retirement date recorded in history[] (default: today)')
   .option('--scope <path>', 'repeatable; REPLACES the whole scope list', collect, undefined)
   .option('--needs <unit>', 'repeatable; REPLACES the whole needs list', collect, undefined)
@@ -390,9 +387,7 @@ const set = new Command('set')
   BRANCH when it was abandoned, so the abandoned work is not lost.
 
 Every one of these is a decision, and --note is where its reason goes: it is
-appended to each line this writes to log.md. --needs '' clears the list.
-
-Exit 4 means nothing was changed and \`user\` has to answer something first.`,
+appended to each line this writes to log.md. --needs '' clears the list.`,
   )
   .action(action('yan unit set', (options: SetOptions) => setUnit(options)));
 
@@ -488,8 +483,6 @@ export function setUnit(options: SetOptions, readMrState?: MrStateReader, termin
         endFrom = `the forge could not say what became of ${before.mr}`;
       }
     }
-
-
 
     const { branch, from: nameFrom, raw } = decideBranchName(givenBranch, { task, unit: unitName, round });
     if (branch === before.branch) {

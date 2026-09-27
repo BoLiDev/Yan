@@ -95,7 +95,7 @@ One line of up to 1000 characters, never a newline. For more, write it to a
 file and name the path in the line: "round 2 feedback is in <path>".
 
 Herdr's \`agent prompt\` submits the text and the Enter together, so there is no
---enter / --no-enter to retry, and no first Enter for the agent to swallow.
+separate Enter to send, and no first Enter for the agent to swallow.
 A pane with no live agent is refused rather than typed into.`,
   )
   .action(

@@ -124,14 +124,14 @@ describe("codex's first-run gates are reported before a dispatch meets them", ()
     expect(r.out).toContain('Hooks need review');
     expect(r.out).toContain('--dangerously-bypass-hook-trust');
 
-    // And the one that does escalate, so it is reported as the lesser problem.
+    // And the one Herdr does see as blocked, so it is reported as the lesser problem.
     expect(r.out).toContain('directory trust');
     expect(r.out).toContain('blocked');
   });
 
   it('drops the dispatch half when only the main agent is codex', async () => {
     config({ version: 1, agents: { yan: 'codex', shift: 'claude' }, remote_git: { kind: 'github' } });
-    expect((await doctor()).out).toContain('agents.shift is not codex');
+    expect((await doctor()).out).toContain('no shift runs on codex');
     config({ version: 1, agents: { yan: 'claude', shift: 'claude' }, remote_git: { kind: 'github' } });
   });
 });

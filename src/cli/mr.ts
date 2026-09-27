@@ -69,7 +69,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
   }
 
   if (data.mr !== null && data.mr !== '') {
-    throw YanError.usage('mr_usage', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - to start a new round, 'user' has to ask for 'yan unit set --branch <new>'`,
+    throw YanError.usage('mr_usage', `unit ${unitName} already has an outbound merge request: ${data.mr}. One round has one outbound MR - once it has merged, 'yan unit set --branch <new>' starts the next round`,
     );
   }
   if (data.branch === '') {
@@ -131,7 +131,7 @@ export function openMr(options: MrOptions, createMr?: MrCreator): MrResult {
       u.mr = url;
     });
   } catch (err) {
-    throw new YanError('mr_not_recorded', `the merge request is open at ${url} but task.json was not updated - record it with 'yan unit set' or re-run after fixing the error above`,
+    throw new YanError('mr_not_recorded', `the merge request is open at ${url} but task.json was not updated - set the unit's "mr" in task.json to that URL by hand; re-running would try to open it again`,
       { cause: err },
     );
   }
