@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { YanError } from '../../util/error.js';
+import { isoSecond } from '../../util/time.js';
 
 /**
  * `run/status` is an append-only log of `<ts>\t<state>\t<note>` lines, one per
@@ -58,6 +59,5 @@ export function appendEvent(run: string, state: string, note = ''): void {
   }
   mkdirSync(run, { recursive: true });
 
-  const ts = `${new Date().toISOString().slice(0, 19)}Z`;
-  appendFileSync(statusFile(run), `${ts}\t${state}\t${note}\n`);
+  appendFileSync(statusFile(run), `${isoSecond()}\t${state}\t${note}\n`);
 }

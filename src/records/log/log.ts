@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { taskDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
+import { localMonthDay } from '../../util/time.js';
 
 /**
  * What a line records. Every line carries exactly one.
@@ -74,7 +75,7 @@ export class Log {
     }
     this.init();
     try {
-      appendFileSync(this.file, `- ${when === '' ? today() : when}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
+      appendFileSync(this.file, `- ${when === '' ? localMonthDay() : when}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
     } catch (cause) {
       throw new YanError('log_failed', `cannot append to ${this.file}`, { cause });
     }
@@ -102,11 +103,4 @@ export class Log {
     });
     return { lines, total: entries.length };
   }
-}
-
-function today(): string {
-  const now = new Date();
-  const mm = `${now.getMonth() + 1}`.padStart(2, '0');
-  const dd = `${now.getDate()}`.padStart(2, '0');
-  return `${mm}-${dd}`;
 }

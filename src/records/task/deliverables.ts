@@ -5,6 +5,7 @@ import { initJson, readJson, writeJson } from '../../util/json.js';
 import { recordOrNone } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
+import { isDate, localDay } from '../../util/time.js';
 
 /**
  * `tasks/<id>/deliverable.json` — the requirements a task is ticking off:
@@ -189,7 +190,7 @@ export class Deliverables {
    *   not a real `YYYY-MM-DD`.
    */
   public done(id: string, at: string, refs: readonly string[]): Done {
-    const doneAt = at === '' ? today() : at;
+    const doneAt = at === '' ? localDay() : at;
     if (!isDate(doneAt)) {
       throw YanError.usage('deliverable_usage', `--at takes a real date as YYYY-MM-DD, not '${at}'`);
     }
@@ -329,21 +330,6 @@ export function deliverableAside(d: Deliverable): string {
   if (d.status === 'done') return [d.doneAt, ...(d.refs ?? []).map(shortRef)].join(' · ');
   if (d.status === 'abandoned') return d.reason;
   return '';
-}
-
-/** Today, as a local `YYYY-MM-DD`. */
-export function today(now = new Date()): string {
-  const two = (n: number): string => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
-}
-
-/** `YYYY-MM-DD`, and a day that exists: `2026-02-30` is not one. */
-function isDate(value: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (m === null) return false;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  if (mo < 1 || mo > 12 || d < 1) return false;
-  return d <= new Date(y, mo, 0).getDate();
 }
 
 /**

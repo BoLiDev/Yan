@@ -15,6 +15,7 @@ import {
   setCloneRoot,
 } from '../util/machine.js';
 import { normalizePath } from '../util/paths.js';
+import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { resolve } from './shared/resolve.js';
@@ -58,13 +59,6 @@ function gitOrThrow(dir: string, args: readonly string[], what: string): void {
   }
 }
 
-/** The local day, `YYYY-MM-DD`, as every other date yan writes. */
-function today(): string {
-  const now = new Date();
-  const two = (n: number): string => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
-}
-
 /**
  * Copy `templates/vault/` into `dir`, then write its vault.json and README.
  *
@@ -80,7 +74,7 @@ function layDownSkeleton(dir: string, name: string): void {
   // The template ships as an example; the vault it seeds holds the real one.
   renameSync(join(dir, 'config.example.json'), join(dir, 'config.json'));
 
-  writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: today() });
+  writeJson(join(dir, 'vault.json'), { version: VAULT_VERSION, name, created: localDay() });
 
   writeFileSync(
     join(dir, 'README.md'),

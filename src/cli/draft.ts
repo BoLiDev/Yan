@@ -8,6 +8,7 @@ import { action, out } from './shared/action.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
 import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
+import { localStamp } from '../util/time.js';
 
 /**
  * `yan draft` — `user`'s own notes about one task, kept in
@@ -27,13 +28,6 @@ import { YanError } from '../util/error.js';
 
 /** The default number of rows a listing prints. */
 const LIST_LIMIT = 20;
-
-/** `2026-09-16 05:15`, in local time. */
-export function localStamp(iso: string): string {
-  const d = new Date(iso);
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 async function taskFor(command: string, given: string | undefined, question: string): Promise<string> {
   const id = await chosenTask('draft', given, { spelled: command, question });
@@ -188,7 +182,7 @@ function dateOf(value: string | undefined): Date | undefined {
 }
 
 function printPlain(rows: readonly DraftSummary[]): void {
-  for (const d of rows) out(`${d.id}\t${localStamp(d.updated)}\t${d.title}`);
+  for (const d of rows) out(`${d.id}\t${localStamp(new Date(d.updated))}\t${d.title}`);
 }
 
 interface LsOptions {
@@ -229,7 +223,7 @@ const ls = new Command('ls')
         return;
       }
       const { chooseDraft } = await import('../ui/prompts.js');
-      const id = await chooseDraft(rows.map((d) => ({ ...d, updated: localStamp(d.updated) })), task);
+      const id = await chooseDraft(rows.map((d) => ({ ...d, updated: localStamp(new Date(d.updated)) })), task);
       editDraft(drafts.pathFor(id));
     }),
   );
@@ -277,7 +271,7 @@ const search = new Command('search')
         return;
       }
       for (const h of hits) {
-        out(`${h.id}\t${localStamp(h.updated)}\t${h.title}`);
+        out(`${h.id}\t${localStamp(new Date(h.updated))}\t${h.title}`);
         out(`    ${h.snippet}`);
       }
     }),

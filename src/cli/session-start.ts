@@ -15,12 +15,12 @@ import { Deliverables, Task } from '../records/task/index.js';
 import { Log, type LogType } from '../records/log/index.js';
 import { readLearnings, readSkills, type Indexed } from '../records/memory/index.js';
 import { Drafts } from '../records/drafts/index.js';
-import { localStamp } from './draft.js';
 import { memDir, vaultDir } from '../util/vault.js';
 import { registry } from './shared/repo.js';
 import { pullVault, type PullResult } from './vault.js';
 import { normalizePath, samePath } from '../util/paths.js';
 import { YanError } from '../util/error.js';
+import { isoSecond, localStamp } from '../util/time.js';
 
 /**
  * `yan session-start` — rebuild the whole picture, and the SessionStart hook
@@ -265,7 +265,7 @@ function renderDrafts(id: string): void {
   out("search <words>' finds a phrase. Other tasks' drafts are plain markdown under");
   out(`${normalizePath(vaultDir())}/tasks/<id>/artifacts/drafts/ - grep there when an earlier task's note might apply.`);
   out('');
-  for (const d of shown) out(`  ${d.id}  ${localStamp(d.updated)}  ${d.title}`);
+  for (const d of shown) out(`  ${d.id}  ${localStamp(new Date(d.updated))}  ${d.title}`);
 }
 
 /**
@@ -423,7 +423,7 @@ function renderUndelivered(picture: Picture): void {
   out('');
   for (const { task, shift } of missed) {
     for (const u of shift.undelivered) {
-      const when = u.at > 0 ? `${new Date(u.at * 1000).toISOString().slice(0, 19)}Z` : '(no time)';
+      const when = u.at > 0 ? isoSecond(new Date(u.at * 1000)) : '(no time)';
       out(`  ${task}  ${shift.sid}  ${u.state}  ${when}  ${u.note}`);
     }
   }

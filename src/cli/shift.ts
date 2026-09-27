@@ -26,6 +26,7 @@ import { withLock } from '../util/lock.js';
 import { branchExists, deleteRemoteBranch, push, remoteBranchExists } from '../util/git.js';
 import { isInside, normalizePath } from '../util/paths.js';
 import { vaultDir } from '../util/vault.js';
+import { isoSecond } from '../util/time.js';
 
 /**
  * `yan shift new` — dispatch a shift.
@@ -517,7 +518,7 @@ export function dispatch(options: NewOptions, deps: Deps = {}): ShiftMeta {
       container,
       pane: '',
       mr: '',
-      at: new Date().toISOString().slice(0, 19) + 'Z',
+      at: isoSecond(),
     };
     writeJson(metaFile, meta);
 

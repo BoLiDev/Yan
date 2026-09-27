@@ -2,10 +2,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { YanError } from '../util/error.js';
+import { isDate } from '../util/time.js';
 import { machineDir } from '../util/machine.js';
 import { action, out } from './shared/action.js';
 import { openPath } from './shared/opener.js';
-import { collectReport, localDay, type ReportRange } from './ui/collect.js';
+import { collectReport, type ReportRange } from './ui/collect.js';
 import { copyFonts } from './ui/fonts.js';
 import { reportPage } from './ui/page.js';
 
@@ -29,9 +30,7 @@ import { reportPage } from './ui/page.js';
 /** A local `YYYY-MM-DD` that names a real day, or a usage error naming the flag. */
 function day(flag: string, value: string | undefined): string | null {
   if (value === undefined) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const real = m !== null && localDay(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) === value;
-  if (!real) throw YanError.usage('ui_usage', `${flag} takes a date as YYYY-MM-DD, not '${value}'`);
+  if (!isDate(value)) throw YanError.usage('ui_usage', `${flag} takes a date as YYYY-MM-DD, not '${value}'`);
   return value;
 }
 
