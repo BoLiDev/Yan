@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -122,7 +123,7 @@ describe('the queue', () => {
   });
 
   it('refuses a status it does not know', async () => {
-    expect((await runYan(home, ['ls', '--status', 'closed'])).code).toBe(2);
+    expectUsage(await runYan(home, ['ls', '--status', 'closed']), "argument 'closed' is invalid");
   });
 
   it('is DERIVED: a task directory added by hand appears, with nothing told about it', async () => {
@@ -153,8 +154,7 @@ describe('a task missing its files', () => {
 describe('one task is yan show, and only yan show', () => {
   // Two commands printing the same page is two commands to keep in step.
   it('refuses an id rather than printing the task', async () => {
-    const r = await runYan(home, ['ls', 't042']);
-    expect(r.code).toBe(2);
+    expectUsage(await runYan(home, ['ls', 't042']), "too many arguments for 'ls'");
   });
 });
 
@@ -176,7 +176,7 @@ describe('nothing is stored', () => {
 
 describe('errors', () => {
   it('refuses an argument and an unknown option alike', async () => {
-    expect((await runYan(home, ['ls', 'nosuchtask'])).code).toBe(2);
-    expect((await runYan(home, ['ls', '--nope'])).code).toBe(2);
+    expectUsage(await runYan(home, ['ls', 'nosuchtask']), "too many arguments for 'ls'");
+    expectUsage(await runYan(home, ['ls', '--nope']), "unknown option '--nope'");
   });
 });

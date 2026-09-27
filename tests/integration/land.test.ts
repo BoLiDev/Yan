@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, seedT042 } from '../helpers/records.js';
 import { land, type Host, type LandOptions } from '../../src/cli/land.js';
 import { Task } from '../../src/records/task/index.js';
@@ -76,16 +77,14 @@ beforeEach(() => {
 describe('without `user` asking, nothing happens at all', () => {
   it('refuses before the host is asked a single question', () => {
     const r = run({ task: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain("'user' has to ask");
+    expectUsage(r, "'user' has to ask");
     expect(r.message).toContain('--user-asked');
     expect(host.stateCalls, 'the host is not even asked a question').toEqual([]);
   });
 
   it('is not softened by a terminal, because no prompt can supply it', async () => {
     const r = await runYan(home, ['land'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--user-asked');
+    expectUsage(r, '--user-asked');
   });
 });
 
@@ -163,8 +162,7 @@ describe('a cycle in `needs` is refused, and nothing is merged', () => {
   });
 
     const r = run({ task: 't099', userAsked: true });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('cycle');
+    expectUsage(r, 'cycle');
     expect(host.stateCalls).toEqual([]);
   });
 });
@@ -185,7 +183,6 @@ describe('usage errors', () => {
   it('needs a task and a strategy it understands', async () => {
     expect((await runYan(home, ['land', '--user-asked'])).out).toContain('$YAN_TASK is unset');
     const bad = await runYan(home, ['land', '--user-asked', '--strategy', 'nonsense'], { YAN_TASK: 't042' });
-    expect(bad.code).toBe(2);
-    expect(bad.out).toContain('--strategy');
+    expectUsage(bad, '--strategy');
   });
 });

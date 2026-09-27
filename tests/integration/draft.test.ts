@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { writeDraft } from '../../src/cli/draft.js';
@@ -145,8 +146,8 @@ describe('reading drafts works anywhere', () => {
   });
 
   it('ls refuses a bad --limit or --since', async () => {
-    expect((await yan(['draft', 'ls', '--limit', '0', 't042'])).code).toBe(2);
-    expect((await yan(['draft', 'ls', '--since', 'someday', 't042'])).code).toBe(2);
+    expectUsage(await yan(['draft', 'ls', '--limit', '0', 't042']), '--limit needs a positive whole number');
+    expectUsage(await yan(['draft', 'ls', '--since', 'someday', 't042']), '--since needs a date');
   });
 
   it('cat prints one, with the task last or from $YAN_TASK', async () => {

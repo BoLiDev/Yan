@@ -11,6 +11,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, seedT042 } from '../helpers/records.js';
 import { openMr, type MrOptions } from '../../src/cli/mr.js';
 import { Deliverables, Task } from '../../src/records/task/index.js';
@@ -148,8 +149,7 @@ describe('a round has ONE outbound MR', () => {
   it('refuses a second, and says how a new round is started', () => {
     expect(open({ task: 't042', unit: 'auth' }).code).toBe(0);
     const again = open({ task: 't042', unit: 'auth' });
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already has an outbound merge request');
+    expectUsage(again, 'already has an outbound merge request');
     expect(again.message, 'a new round is how a second one is opened').toContain('unit set --branch');
   });
 });
@@ -181,7 +181,6 @@ describe('usage errors', () => {
     expect((await runYan(home, ['mr', '--unit', 'nosuch'], { YAN_TASK: 't042' })).out).toContain('no such unit');
 
     const both = await runYan(home, ['mr', '--unit', 'auth', '--body', 'a', '--body-file', 'b'], { YAN_TASK: 't042' });
-    expect(both.code).toBe(2);
-    expect(both.out).toContain('alternatives');
+    expectUsage(both, 'alternatives');
   });
 });

@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { rmSync } from 'node:fs';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { sendLine, type Prompter } from '../../src/cli/send.js';
 
@@ -77,7 +78,7 @@ describe('one line, up to 1000 characters', () => {
   });
 
   it('refuses an empty line', () => {
-    expect(send('s3', '').code).toBe(2);
+    expectUsage(send('s3', ''), 'empty line');
     expect(terminal.calls).toEqual([]);
   });
 });
@@ -125,8 +126,8 @@ describe('a shift that has clocked out has no terminal', () => {
 
 describe('usage', () => {
   it('needs a shift id and a line, and an unknown shift is an error', async () => {
-    expect((await runYan(home, ['send'])).code).toBe(2);
-    expect((await runYan(home, ['send', 's3'], { YAN_TASK: 't042' })).code, 'a line is required').toBe(2);
+    expectUsage(await runYan(home, ['send']), 'a shift id is required');
+    expectUsage(await runYan(home, ['send', 's3'], { YAN_TASK: 't042' }), 'a line is required');
     expect((await runYan(home, ['send', 'nosuchshift', 'hello'], { YAN_TASK: 't042' })).code).toBe(1);
   });
 

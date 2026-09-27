@@ -13,6 +13,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
 import { enterIdentity } from '../../src/cli/shared/enter-lock.js';
 import { tildePath } from '../../src/cli/shared/style.js';
@@ -185,15 +186,14 @@ describe('one task at a glance', () => {
 
   it('is the only command that prints it: yan ls is the queue alone', async () => {
     const r = await show(['ls', 't042']);
-    expect(r.code, 'one task in depth is yan show').toBe(2);
+    expectUsage(r, "too many arguments for 'ls'");
   });
 });
 
 describe('choosing, and refusing', () => {
   it('needs an id when there is no terminal to choose on', async () => {
     const r = await show(['show']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain("'yan show <task-id>'");
+    expectUsage(r, "'yan show <task-id>'");
   });
 
   it('falls back to the task this session is in', async () => {

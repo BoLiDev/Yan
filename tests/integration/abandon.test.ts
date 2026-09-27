@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, registerRepo, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { abandonAtTerminal, abandonShift, abandonTask, type AbandonAsk, type AbandonDeps } from '../../src/cli/abandon.js';
 import { YanError } from '../../src/util/error.js';
@@ -90,11 +91,9 @@ describe('yan shift abandon', () => {
   it("touches nothing without user's word, or without a reason", () => {
     const dir = shiftAt('s1');
     const noConsent = attempt(() => abandonShift('s1', { reason: 'not needed' }, deps()));
-    expect(noConsent.code).toBe(2);
-    expect(noConsent.message).toContain('--user-asked');
+    expectUsage(noConsent, '--user-asked');
     const noReason = attempt(() => abandonShift('s1', { userAsked: true }, deps()));
-    expect(noReason.code).toBe(2);
-    expect(noReason.message).toContain('--reason');
+    expectUsage(noReason, '--reason');
     expect(existsSync(join(dir, 'run'))).toBe(true);
     expect(calls).toEqual([]);
   });

@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { liveShift, seedT042 } from '../helpers/records.js';
 import { stateOf, type AliveReader, type StateDeps } from '../../src/cli/state.js';
 import type { AgentStatus, Alive } from '../../src/externals/herdr/index.js';
@@ -169,9 +170,9 @@ describe('through bin/yan', () => {
   });
 
   it('refuses a missing id, both output flags at once, and an unknown shift', async () => {
-    expect((await runYan(home, ['state'])).code, 'a shift id is required').toBe(2);
+    expectUsage(await runYan(home, ['state']), 'a shift id is required');
     const both = await runYan(home, ['state', 's1', '--json', '--verdict'], { YAN_TASK: 't042' });
-    expect(both.code, '--json and --verdict are alternatives').toBe(2);
+    expectUsage(both, '--json and --verdict are alternatives');
     expect((await runYan(home, ['state', 'nosuchshift'], { YAN_TASK: 't042' })).code).toBe(1);
   });
 });

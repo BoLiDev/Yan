@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { snapshot, liveShift, seedT042 } from '../helpers/records.js';
 import { rebuild, type Sources } from '../../src/cli/session-start.js';
 import { Task } from '../../src/records/task/index.js';
@@ -179,8 +180,7 @@ describe('through bin/yan', () => {
 
   it('refuses a task that does not exist', async () => {
     const r = await runYan(home, ['session-start'], { YAN_TASK: 'nosuchtask' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('no such task');
+    expectUsage(r, 'no such task');
   });
 });
 

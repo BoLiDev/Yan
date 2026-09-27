@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bashCommand, cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { seedT042 } from '../helpers/records.js';
 import { reportEvent, noteForYan } from '../../src/cli/report.js';
 import { YanError } from '../../src/util/error.js';
@@ -96,7 +97,7 @@ describe('exactly five states', () => {
 describe('a note is required, and it is one line', () => {
   it('refuses a state with no note, and a note with a newline in it', async () => {
     const before = status();
-    expect((await yan(['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' })).code).toBe(2);
+    expectUsage(await yan(['report', 'done', '--sid', 's1'], { YAN_TASK: 't042' }), 'a note is required');
 
     // Built inside bash: on Windows a literal newline in argv is re-split
     // before it reaches the process, which would test the harness.
@@ -114,8 +115,7 @@ describe('a note is required, and it is one line', () => {
     // The note goes into a pane, so it takes the limit `yan send` takes.
     const before = status();
     const r = await yan(['report', 'blocked', 'x'.repeat(1200), '--sid', 's1'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('the limit is 1000');
+    expectUsage(r, 'the limit is 1000');
     expect(status()).toBe(before);
   });
 });
@@ -152,8 +152,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
       YAN_SID: '',
       YAN_SHIFT_DIR: '',
     });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('YAN_SHIFT_DIR');
+    expectUsage(r, 'YAN_SHIFT_DIR');
     expect(existsSync(join(taskDir, 'run', 'status')), 'nothing was written to the task').toBe(false);
     expect(lines(join(run, 'status')), "and nothing to a shift's").toBe(before);
 
@@ -168,8 +167,7 @@ describe('who is reporting: the spawn environment, not an argument', () => {
       YAN_TASK: '',
       YAN_SID: '',
     });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('YAN_SHIFT_DIR');
+    expectUsage(r, 'YAN_SHIFT_DIR');
   });
 
   it('refuses an id that exists under two tasks rather than guessing at it', async () => {
@@ -190,8 +188,7 @@ describe('done waits for the handover', () => {
   it('refuses done while outcome.md is missing, names the file, and writes nothing', async () => {
     mkdirSync(dir(), { recursive: true });
     const r = await yan(['report', 'done', 'mr https://forge.invalid/x/-/merge_requests/2', '--sid', 's2'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('outcome.md');
+    expectUsage(r, 'outcome.md');
     expect(existsSync(join(dir(), 'run', 'status')), 'no event').toBe(false);
     expect(existsSync(join(dir(), 'run', 'undelivered')), 'and nothing kept for yan to read').toBe(false);
   });

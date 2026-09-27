@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { seedT042 } from '../helpers/records.js';
 import { repoNameFromUrl } from '../../src/cli/repo.js';
 
@@ -52,7 +53,7 @@ describe('yan open', () => {
 
   it('refuses an unknown task and a missing argument', async () => {
     expect((await yan(['open', 'nope'])).code).not.toBe(0);
-    expect((await yan(['open'])).code).toBe(2);
+    expectUsage(await yan(['open']), 'which task?');
   });
 });
 
@@ -127,8 +128,8 @@ describe('yan repo add', () => {
   });
 
   it('refuses the reserved name and an unusable one', async () => {
-    expect((await yan(['repo', 'add', 'https://example.invalid/x.git', '--name', 'version'])).code).toBe(2);
-    expect((await yan(['repo', 'add', 'https://example.invalid/x.git', '--name', 'has space'])).code).toBe(2);
+    expectUsage(await yan(['repo', 'add', 'https://example.invalid/x.git', '--name', 'version']), "'version' is not a usable repository name");
+    expectUsage(await yan(['repo', 'add', 'https://example.invalid/x.git', '--name', 'has space']), "'has space' is not a usable repository name");
   });
 
   it('with no argument and no terminal, refuses instead of waiting on a prompt', async () => {

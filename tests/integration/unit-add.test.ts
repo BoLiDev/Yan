@@ -11,6 +11,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { unitField, hasBranch } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -49,8 +50,7 @@ beforeAll(async () => {
 describe('target is never defaulted', () => {
   it('refuses an add with no --target, and writes nothing', async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'auth', '--repo', 'demo'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--target is required');
+    expectUsage(r, '--target is required');
     expect(r.out).toContain('no safe default');
     expect(unitCount('t1')).toBe(0);
   });
@@ -64,8 +64,7 @@ describe('target is never defaulted', () => {
   it('refuses an unknown option and an unknown task', async () => {
     expect((await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main', '--bogus'], { YAN_TASK: 't1' })).code).not.toBe(0);
     const r = await runYan(home, ['unit', 'add', '--unit', 'a', '--repo', 'demo', '--target', 'main'], { YAN_TASK: 'nope' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('no such task');
+    expectUsage(r, 'no such task');
   });
 });
 
@@ -115,8 +114,7 @@ describe('a name of your own, however it is spelled', () => {
 
   it('refuses a name no normalisation can rescue, and quotes what was given', async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'bad', '--repo', 'demo', '--target', 'main', '--branch', 'refs/heads/'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('not usable as a git ref');
+    expectUsage(r, 'not usable as a git ref');
     expect(r.out, 'the raw text, or the reader hunts for a name their tool never printed').toContain('refs/heads/');
     expect(unitField(home, 't1', 'bad', 'branch')).toBe('');
   });

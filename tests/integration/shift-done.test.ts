@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
@@ -202,8 +203,7 @@ describe('merged: the whole teardown, in order', () => {
 
   it('refuses to clock the same shift out twice', () => {
     const again = run('s1');
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already clocked out');
+    expectUsage(again, 'already clocked out');
   });
 });
 
@@ -263,17 +263,15 @@ describe('a teardown that stopped at the tree return can be finished', () => {
     mkdirSync(join(home, 'tasks', 't042', 'shifts', 's4'), { recursive: true });
     leases = [];
     const r = run('s4');
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('already clocked out');
+    expectUsage(r, 'already clocked out');
   });
 });
 
 describe('usage', () => {
   it('needs a shift id, and is reachable as `yan shift done`', async () => {
-    expect(run('').code).toBe(2);
+    expectUsage(run(''), 'a shift id is required');
     const r = await runYan(home, ['shift', 'done'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('a shift id is required');
+    expectUsage(r, 'a shift id is required');
   });
 });
 
@@ -332,8 +330,7 @@ describe('a coding shift with nothing to merge', () => {
   it('is refused without the flag, since no merge request was recorded', () => {
     const run_ = dispatched('s1', { scenario: 'coding', mr: '' });
     const r = run('s1');
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('no merge request recorded');
+    expectUsage(r, 'no merge request recorded');
     expect(existsSync(run_)).toBe(true);
   });
 
@@ -355,8 +352,7 @@ describe('a coding shift with nothing to merge', () => {
   it('a dispatch record from before scenarios existed is a coding shift', () => {
     const run_ = dispatched('s1', { mr: '' });
     const r = run('s1');
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('no merge request recorded');
+    expectUsage(r, 'no merge request recorded');
     expect(existsSync(run_)).toBe(true);
   });
 });

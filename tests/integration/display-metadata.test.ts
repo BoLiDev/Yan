@@ -12,6 +12,7 @@ import {
   repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { enterLock, liveShift, seedT042 } from '../helpers/records.js';
 import { containerOf } from '../../src/cli/shared/container.js';
 import { setUnit, type Labeller } from '../../src/cli/unit.js';
@@ -154,8 +155,7 @@ describe('every metadata call goes through the one door that cannot throw', () =
 describe('`target` is never defaulted by any command', () => {
   it('is required outright by `unit add`', async () => {
     const r = await runYan(home, ['unit', 'add', '--unit', 'x', '--repo', 'monorepo-x'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('never guessed');
+    expectUsage(r, 'never guessed');
   });
 
   it('is never invented by the commands that read it', () => {

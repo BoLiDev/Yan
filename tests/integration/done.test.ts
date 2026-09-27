@@ -8,6 +8,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
 import { finishTask, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
@@ -255,8 +256,7 @@ describe('through bin/yan, the way a person and an agent reach it', () => {
   it('refuses without a terminal rather than hanging on a prompt it cannot show', async () => {
     // An agent, a hook or a script that reached the multi-select would hang.
     const none = await yan(['done'], { YAN_TASK: undefined });
-    expect(none.code).toBe(2);
-    expect(none.out).toContain('which task?');
+    expectUsage(none, 'which task?');
   });
 
   it('refuses an unknown task, and takes the argument over the environment', async () => {

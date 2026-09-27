@@ -11,6 +11,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, enterLock, seedT042 } from '../helpers/records.js';
 import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
 import { Task } from '../../src/records/task/index.js';
@@ -421,8 +422,7 @@ describe('the sid is claimed by making its directory', () => {
   it('refuses a sid that is already taken rather than dispatching over it', () => {
     expect(run({ task: 't042', unit: 'auth', sid: 's5', briefText: 'one' }).code).toBe(0);
     const again = run({ task: 't042', unit: 'auth', sid: 's5', briefText: 'two' });
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already exists');
+    expectUsage(again, 'already exists');
   });
 
   it('gives the sid back when the dispatch fails, so it leaves no hole', () => {
@@ -515,7 +515,7 @@ describe('--note', () => {
 
   it('refuses a note on more than one line before leasing anything', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', note: 'a\nb' });
-    expect(r.code).toBe(2);
+    expectUsage(r, '--note is one line');
     expect(briefState()).toBe('absent');
   });
 });
@@ -569,8 +569,7 @@ describe('sid is derived, and it increases', () => {
   it('refuses a sid that already exists', () => {
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'first' });
     const again = run({ task: 't042', unit: 'auth', sid: 's1' });
-    expect(again.code).toBe(2);
-    expect(again.message).toContain('already exists');
+    expectUsage(again, 'already exists');
   });
 });
 
@@ -643,8 +642,7 @@ describe('usage', () => {
     expect(run({ unit: 'auth' }).message).toContain('$YAN_TASK is unset');
     expect(run({ task: 't042' }).message).toContain('--unit is required');
     const r = run({ task: 't042', unit: 'nosuch' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('no such unit');
+    expectUsage(r, 'no such unit');
   });
 
   it('is reachable as `yan shift new` through the dispatcher', async () => {
@@ -657,15 +655,13 @@ describe('usage', () => {
 describe('scenario and tier', () => {
   it('refuses a dispatch that names no scenario, before leasing anything', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', scenario: '' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('--scenario is required');
+    expectUsage(r, '--scenario is required');
     expect(calls).toEqual([]);
   });
 
   it('refuses a tier the configuration does not have, before leasing anything', () => {
     const r = run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x', tier: 'max' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain("'max' is not a tier of coding");
+    expectUsage(r, "'max' is not a tier of coding");
     expect(calls).toEqual([]);
   });
 

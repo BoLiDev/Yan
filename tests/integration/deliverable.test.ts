@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan, type RunResult } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -64,8 +65,7 @@ describe('add', () => {
 
   it('refuses nothing to add, and writes no log line', async () => {
     const r = await yan(['deliverable', 'add']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('at least one');
+    expectUsage(r, 'at least one');
     expect(entries()).toEqual([]);
   });
 });
@@ -98,15 +98,13 @@ describe('the rest of the moves', () => {
     expect((await yan(['deliverable', 'done', 'd1'])).code).toBe(0);
     expect(file().deliverables[0]?.doneAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const r = await yan(['deliverable', 'done', 'd2', '--at', '09-18']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('YYYY-MM-DD');
+    expectUsage(r, 'YYYY-MM-DD');
     expect(file().deliverables[1]?.status).toBe('todo');
   });
 
   it('refuses abandon without a reason, and keeps the reason when there is one', async () => {
     const refused = await yan(['deliverable', 'abandon', 'd3']);
-    expect(refused.code).toBe(2);
-    expect(refused.out).toContain('--reason is required');
+    expectUsage(refused, '--reason is required');
     expect(file().deliverables[2]?.status).toBe('todo');
 
     expect((await yan(['deliverable', 'abandon', 'd3', '--reason', 'yan show is where those are read'])).code).toBe(0);
@@ -147,7 +145,7 @@ describe('the rest of the moves', () => {
 
   it('refuses a subcommand with no id at all', async () => {
     for (const verb of ['set', 'done', 'abandon', 'todo', 'rm']) {
-      expect((await yan(['deliverable', verb])).code, verb).toBe(2);
+      expectUsage(await yan(['deliverable', verb]), 'which deliverable?');
     }
   });
 });
@@ -194,15 +192,14 @@ describe('ls', () => {
 
 describe('which task', () => {
   it('reads $YAN_TASK, and refuses when it is unset or names no task', async () => {
-    expect((await runYan(home, ['deliverable', 'ls'], { YAN_TASK: '' })).code).toBe(2);
+    expectUsage(await runYan(home, ['deliverable', 'ls'], { YAN_TASK: '' }), '$YAN_TASK is unset');
     const r = await yan(['deliverable', 'ls'], 't404');
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('no such task: t404');
+    expectUsage(r, 'no such task: t404');
   });
 
   it('never prompts: no terminal, no question, just the refusal', async () => {
     const r = await runYan(home, ['deliverable', 'add'], { YAN_TASK: 't042' });
-    expect(r.code).toBe(2);
+    expectUsage(r, 'nothing to add');
     expect(r.out).not.toContain('?');
   });
 });

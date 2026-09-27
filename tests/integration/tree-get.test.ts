@@ -64,8 +64,7 @@ describe('the standing tree', () => {
 
   it('takes the task from the environment, and says so when there is none', async () => {
     const none = await yan(['get', '--unit', 'auth'], { YAN_TASK: undefined });
-    expect(none.code).toBe(2);
-    expect(none.out).toContain('$YAN_TASK is unset');
+    expectUsage(none, '$YAN_TASK is unset');
   });
 
   it('is the only shape: the flags it once stood for are gone', async () => {
@@ -78,8 +77,7 @@ describe('the standing tree', () => {
 
   it('refuses a unit the task does not have', async () => {
     const nope = await yan(['get', '--unit', 'gateway'], { YAN_TASK: 't042' });
-    expect(nope.code).toBe(2);
-    expect(nope.out).toContain('no such unit');
+    expectUsage(nope, 'no such unit');
   });
 });
 

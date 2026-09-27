@@ -12,6 +12,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, unitField } from '../helpers/records.js';
 import { setUnit } from '../../src/cli/unit.js';
 import { Task } from '../../src/records/task/index.js';
@@ -91,21 +92,18 @@ afterEach(() => {
 describe('what it refuses before it touches anything', () => {
   it('changes nothing unless asked, and names the missing identifiers', async () => {
     const r = await runYan(home, ['unit', 'set', '--unit', 'auth'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('nothing to change');
+    expectUsage(r, 'nothing to change');
     expect((await runYan(home, ['unit', 'set', '--unit', 'auth', '--branch', 'x'])).out).toContain('$YAN_TASK is unset');
   });
 
   it("takes 'delivered' or 'abandoned' for --end; the host's own words never leak in", async () => {
     const r = await runYan(home, ['unit', 'set', '--unit', 'auth', '--end', 'merged', '--branch', 'x'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('delivered');
+    expectUsage(r, 'delivered');
   });
 
   it('refuses --end without --branch: it says how the round being replaced finished', async () => {
     const r = await runYan(home, ['unit', 'set', '--unit', 'auth', '--end', 'delivered', '--target', 'main'], { YAN_TASK: 't1' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('only applies to --branch');
+    expectUsage(r, 'only applies to --branch');
   });
 });
 
@@ -275,8 +273,7 @@ describe('the same branch twice is not a new round', () => {
   it('is refused, and moves nothing', () => {
     snap();
     const r = run({ task: 't1', unit: 'auth', branch: 'feat/auth-r5', end: 'delivered' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('same as the current one');
+    expectUsage(r, 'same as the current one');
     assertUntouched();
   });
 });
@@ -377,17 +374,15 @@ describe('--needs, and --note', () => {
   it('refuses a unit the task does not have, or the unit itself, and changes nothing', () => {
     snap();
     const ghost = run({ task: 't1', unit: 'auth', needs: ['ghost'] });
-    expect(ghost.code).toBe(2);
-    expect(ghost.message).toContain('ghost');
-    expect(run({ task: 't1', unit: 'auth', needs: ['auth'] }).code).toBe(2);
+    expectUsage(ghost, 'ghost');
+    expectUsage(run({ task: 't1', unit: 'auth', needs: ['auth'] }), 'cannot need itself');
     assertUntouched();
   });
 
   it('refuses a note on more than one line before it changes anything', () => {
     snap();
     const r = run({ task: 't1', unit: 'auth', target: 'release/9', note: 'one\ntwo' });
-    expect(r.code).toBe(2);
-    expect(r.message).toContain('one line');
+    expectUsage(r, 'one line');
     assertUntouched();
   });
 });

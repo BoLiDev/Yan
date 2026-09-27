@@ -9,6 +9,7 @@ import {
   runYan,
   type RunResult,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 
 /**
  * `bin/yan`, which is a stub and nothing else: find `$YAN_HOME`, check git and
@@ -89,7 +90,7 @@ describe('in a built tree', () => {
 
     rmSync(file);
     expect((await yan(home, ['--help'])).out).not.toContain('conjured');
-    expect((await yan(home, ['conjured'])).code).toBe(2);
+    expectUsage(await yan(home, ['conjured']), "unknown command 'conjured'");
   });
 
   it('reaches a two-word command by either spelling', async () => {

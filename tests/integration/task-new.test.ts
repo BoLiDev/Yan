@@ -9,6 +9,7 @@ import {
   registerRepo,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { hasBranch } from '../helpers/records.js';
 import { createTask } from '../../src/cli/task.js';
 
@@ -130,8 +131,7 @@ describe('the id', () => {
 
   it('refuses an id that is already taken, before anything is written', async () => {
     const r = await yan(['task', 'new', '--id', 't042', '--title', 'again', '--repo', 'proto', '--target', 'main']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('already exists');
+    expectUsage(r, 'already exists');
   });
 });
 
@@ -157,21 +157,18 @@ describe('--json carries the enter record too; it only changes how it is printed
 describe('what it refuses, and never guesses', () => {
   it('names every unit that has no --target, by repo', async () => {
     const r = await yan(['task', 'new', '--title', 'no target', '--repo', 'proto']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--target is required for --repo proto');
+    expectUsage(r, '--target is required for --repo proto');
     expect(r.out).toContain('never guesses');
   });
 
   it('refuses a unit flag with no --repo before it', async () => {
     const r = await yan(['task', 'new', '--title', 'orphan', '--scope', 'apps/auth', '--repo', 'proto', '--target', 'main']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('has to come after a --repo');
+    expectUsage(r, 'has to come after a --repo');
   });
 
   it('refuses with no title and no repo, and names the flags, because there is no TTY here', async () => {
     const r = await yan(['task', 'new']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('--title');
+    expectUsage(r, '--title');
     expect(r.out).toContain('--repo');
   });
 

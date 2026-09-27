@@ -10,6 +10,7 @@ import {
   repoRoot,
   runYan,
 } from '../helpers/fixtures.js';
+import { expectUsage } from '../helpers/usage.js';
 import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { enterTask } from '../../src/cli/continue.js';
@@ -145,8 +146,7 @@ describe('a second yan on the same task', () => {
 describe('what it refuses', () => {
   it('names the argument when there is no id and no terminal to ask in', async () => {
     const r = await yan(['continue']);
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('yan continue <task-id>');
+    expectUsage(r, 'yan continue <task-id>');
     expect(r.out).toContain('yan ls');
   });
 
@@ -177,8 +177,7 @@ describe('what it refuses', () => {
     );
 
     const r = await runYan(other, ['continue'], { YAN_TASK: 'tx', HERDR_PANE_ID: '' });
-    expect(r.code).toBe(2);
-    expect(r.out).toContain('agents.yan');
+    expectUsage(r, 'agents.yan');
     expect(existsSync(join(other, 'tasks', 'tx', '.enter.lock'))).toBe(false);
   });
 });
