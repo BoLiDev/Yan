@@ -50,7 +50,7 @@ The error matters more than usual now, because "registered but not linked on thi
 
 This is the one real consequence, and it is worth stating plainly rather than discovering.
 
-**The rule does not change:** `repos/<name>` was read-only except for `git fetch` ([boundaries.md §9.1](../../mvp/td/boundaries.md)), and the registered clone is read-only except for `git fetch` too. Code changes happen in leased worktrees, which is unaffected — the pool keys trees by the clone's absolute path hash ([layout.ts](../../../src/externals/worktree/layout.ts)), so a clone anywhere on disk works exactly as before.
+**The rule does not change:** `repos/<name>` was read-only except for `git fetch`, and the registered clone is read-only except for `git fetch` too. Code changes happen in leased worktrees, which is unaffected — the pool keys trees by the clone's absolute path hash ([layout.ts](../../../src/externals/worktree/layout.ts)), so a clone anywhere on disk works exactly as before.
 
 **What does change** is a git constraint that used to be structurally impossible: a branch cannot be checked out in two places at once. If you have `yan/t103-poe-tools-r1` checked out in your own clone and then `yan sync` tries to lease a tree on it, git refuses. Under `repos/` this could not happen, because nobody ever checked anything out there.
 

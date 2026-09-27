@@ -4,13 +4,13 @@
 
 V2 changed the material `yan` is built from — TypeScript, Herdr, a new entry. V3 changes nothing about how `yan` works and everything about **where its data lives**. One sentence: `$YAN_HOME` stops being three things at once.
 
-Everything the [MVP design](../../mvp/td/INDEX.md) says about `task` / `unit` / `shift`, branching, scope, delivery, boundaries and memory is carried over unchanged, and so is all of [V2](../../v2/td/INDEX.md). If a V3 document seems to contradict one of those, it is wrong — except where it explicitly retires a layout rule, and there are exactly two of those, both in §2.
+What the earlier designs settled about `task` / `unit` / `shift`, branching, scope, delivery, boundaries and memory is carried over unchanged, and so is the V2 runtime. If a V3 document seems to contradict one of those, it is wrong — except where it explicitly retires a layout rule, and there are exactly two of those, both in §2.
 
 ---
 
 ## 0. The problem
 
-`$YAN_HOME` is this clone. [MVP td §3](../../mvp/td/architecture.md#3-repository-layout) said so on purpose — *"bootstrapping is simplest that way, and a single-person tool does not need install once, run N homes"* — and for one person on one machine with one kind of project it was right.
+`$YAN_HOME` is this clone. The MVP design said so on purpose — *"bootstrapping is simplest that way, and a single-person tool does not need install once, run N homes"* — and for one person on one machine with one kind of project it was right.
 
 It stops being right the moment there are two contexts. Personal projects at home on GitHub, company projects at work on an internal GitLab: those two sets of tasks must not mix, their `remote_git` hosts are different, and their assets belong in different remotes — one of which you are not allowed to push the other into. Today they would share `tasks/`, share `mem/repos.json`, and share the single `conf/config.json` that names the forge.
 
@@ -54,8 +54,8 @@ It also splits one file in half, and that half-split is the only genuinely fiddl
 
 ### The two layout rules V3 retires
 
-1. **[MVP td §3](../../mvp/td/architecture.md#3-repository-layout): "`$YAN_HOME` is this clone itself, so the tracked code and the gitignored private data live in one tree."** Half of it stands — `$YAN_HOME` is still this clone, and `yanHome()` still derives it the same way. The rest is replaced by §2 above.
-2. **[MVP td §4.3, "artifacts go in `$YAN_TASK_DIR/artifacts/`"](../../mvp/td/memory.md#43-artifacts)** — unchanged in wording, but `$YAN_TASK_DIR` now resolves inside the vault. Nothing that reads it needs to know.
+1. **The MVP's repository layout: "`$YAN_HOME` is this clone itself, so the tracked code and the gitignored private data live in one tree."** Half of it stands — `$YAN_HOME` is still this clone, and `yanHome()` still derives it the same way. The rest is replaced by §2 above.
+2. **The MVP's "artifacts go in `$YAN_TASK_DIR/artifacts/`"** — unchanged in wording, but `$YAN_TASK_DIR` now resolves inside the vault. Nothing that reads it needs to know.
 
 ---
 
@@ -63,7 +63,7 @@ It also splits one file in half, and that half-split is the only genuinely fiddl
 
 - Two contexts on one machine, or one context on two machines, with `yan use <name>`.
 - A colleague clones the mechanics, runs `npm run setup`, points at their own vault, and shares none of your data — the mechanics repository has no private data left in it to leak.
-- `outcome.md` and `brief.md` become durable. "What has already been tried" — [the third thing every brief must carry](../../mvp/td/agents.md) — stops depending on one disk surviving.
+- `outcome.md` and `brief.md` become durable. "What has already been tried" — one of the things every brief must carry — stops depending on one disk surviving.
 - The code repository becomes reviewable again: a diff is a change to yan, never a task that happened to run.
 
 ---
