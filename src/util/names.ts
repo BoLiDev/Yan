@@ -14,3 +14,17 @@ export function isRecordId(name: string): boolean {
 export function byCodePoint(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
+
+/**
+ * The next id in a `<prefix><n>` series: one past the highest `n` among `ids`,
+ * zero-padded to `pad` digits. Ids that are not in the series are ignored, and
+ * `n` is read in base 10, so `t008` is eight rather than an invalid octal.
+ */
+export function nextNumbered(ids: readonly string[], prefix: string, pad = 1): string {
+  let max = 0;
+  for (const id of ids) {
+    const n = id.slice(prefix.length);
+    if (id.startsWith(prefix) && /^\d+$/.test(n)) max = Math.max(max, Number.parseInt(n, 10));
+  }
+  return `${prefix}${String(max + 1).padStart(pad, '0')}`;
+}

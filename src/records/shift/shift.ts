@@ -8,6 +8,7 @@ import { appendEvent, countEvents, reportedMr } from './status.js';
 import type { ShiftMeta } from './types.js';
 import { YanError } from '../../util/error.js';
 import { byCodePoint, isRecordId } from '../../util/names.js';
+import { isDirectory } from '../../util/paths.js';
 
 /**
  * One `tasks/<id>/shifts/<sid>/` and its throwaway `run/` directory. Holds
@@ -162,8 +163,11 @@ export class Shift {
     return undefined;
   }
 
-  /** Every shift of a task that still has `run/meta.json`, in id order. */
-  public static liveIn(task: string): Shift[] {
+  /**
+   * Every shift a task has ever had, live or clocked out: each directory under
+   * `shifts/` whose name is a shift id, in id order.
+   */
+  public static allIn(task: string): Shift[] {
     const dir = join(new Task(task).dir, 'shifts');
     let entries: string[];
     try {
@@ -172,9 +176,14 @@ export class Shift {
       return [];
     }
     return entries
-      .filter((sid) => Shift.isId(sid) && existsSync(join(dir, sid, 'run', 'meta.json')))
+      .filter((sid) => Shift.isId(sid) && isDirectory(join(dir, sid)))
       .sort(byCodePoint)
       .map((sid) => new Shift(task, sid));
+  }
+
+  /** Every shift of a task that still has `run/meta.json`, in id order. */
+  public static liveIn(task: string): Shift[] {
+    return Shift.allIn(task).filter((shift) => existsSync(join(shift.run, 'meta.json')));
   }
 }
 

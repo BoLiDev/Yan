@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -26,6 +26,7 @@ import { branchExists, deleteRemoteBranch, push, remoteBranchExists } from '../u
 import { isInside, normalizePath } from '../util/paths.js';
 import { vaultDir } from '../util/vault.js';
 import { isoSecond } from '../util/time.js';
+import { nextNumbered } from '../util/names.js';
 
 /**
  * `yan shift new` — dispatch a shift.
@@ -49,18 +50,7 @@ const RC_MAIN_CLONE = 4;
 
 /** One past the highest `s<n>` under `shifts/`, counting every round. */
 function nextSid(task: string): string {
-  const dir = join(new Task(task).dir, 'shifts');
-  let max = 0;
-  try {
-    for (const entry of readdirSync(dir)) {
-      if (!statSync(join(dir, entry)).isDirectory()) continue;
-      const m = /^s(\d+)$/.exec(entry);
-      if (m !== null) max = Math.max(max, Number.parseInt(m[1] as string, 10));
-    }
-  } catch {
-    max = 0;
-  }
-  return `s${max + 1}`;
+  return nextNumbered(Shift.allIn(task).map((shift) => shift.sid), 's');
 }
 
 /** How long a dispatch waits for the task's prologue lock. */

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
@@ -21,7 +21,6 @@ import { pullVault, type PullResult } from './vault.js';
 import { normalizePath, samePath } from '../util/paths.js';
 import { YanError } from '../util/error.js';
 import { isoSecond, localStamp } from '../util/time.js';
-import { byCodePoint } from '../util/names.js';
 import { poolLeases } from './shared/leases.js';
 import { existingTask } from './shared/task-id.js';
 
@@ -137,17 +136,6 @@ function poolAsker(sources: Sources): (clone: string, tree: string, leaseId: str
   };
 }
 
-function shiftIds(task: string): string[] {
-  const dir = join(new Task(task).dir, 'shifts');
-  try {
-    return readdirSync(dir)
-      .filter((sid) => Shift.isId(sid) && statSync(join(dir, sid)).isDirectory())
-      .sort(byCodePoint);
-  } catch {
-    return [];
-  }
-}
-
 /** The clones this context knows about; `[]` when the registry cannot be read. */
 function knownRepos(): RepoRow[] {
   try {
@@ -179,15 +167,14 @@ export function rebuild(ids: readonly string[], sources: Sources = {}): Picture 
     }
 
     const shifts: ShiftRow[] = [];
-    for (const sid of shiftIds(id)) {
-      const shift = new Shift(id, sid);
+    for (const shift of Shift.allIn(id)) {
       const meta = shift.meta();
       const live = shift.isLive();
       const tree = meta.tree ?? '';
       const clone = meta.clone ?? '';
 
       shifts.push({
-        sid,
+        sid: shift.sid,
         unit: meta.unit ?? '',
         branch: meta.branch ?? '',
         tree,
