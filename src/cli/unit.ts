@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { action, out } from './shared/action.js';
+import { action, out, collect } from './shared/action.js';
 import { containerOf } from './shared/container.js';
 import { display, unitTokens } from './shared/display.js';
 import { readNote, appendLog } from './shared/note.js';
@@ -189,11 +189,6 @@ function inheritRound(clone: string, from: string, to: string): Inherited {
     moved: true,
     conflicts: [],
   };
-}
-
-/** Commander's repeatable-option accumulator. */
-function collect(value: string, previous: readonly string[] | undefined): string[] {
-  return [...(previous ?? []), value];
 }
 
 // --- unit add ---------------------------------------------------------------

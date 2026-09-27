@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { action, out } from './shared/action.js';
+import { action, out, collect } from './shared/action.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { insideTask, existingTask } from './shared/task-id.js';
 import { RemoteGit, type MergeStrategy, type MrRef, type MrState } from '../externals/remote-git/index.js';
@@ -197,10 +197,6 @@ export function land(
   }
 
   return { version: 1, task, strategy, landed };
-}
-
-function collect(value: string, previous: string[]): string[] {
-  return [...previous, value];
 }
 
 export const command = new Command('land')

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { action, out } from './shared/action.js';
+import { action, out, collect } from './shared/action.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { readNote, appendLog } from './shared/note.js';
 import { terminalWidth } from './shared/style.js';
@@ -22,11 +22,6 @@ import { YanError } from '../util/error.js';
 /** The task this is running in, refusing early when it is not a task at all. */
 function taskId(): string {
   return existingTask('deliverable', insideTask('deliverable')).id;
-}
-
-/** Commander's repeatable-option accumulator. */
-function collect(value: string, previous: readonly string[] | undefined): string[] {
-  return [...(previous ?? []), value];
 }
 
 /** @throws YanError `deliverable_usage` when no id was given. */
