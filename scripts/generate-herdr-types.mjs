@@ -37,7 +37,7 @@ try {
 const schema = JSON.parse(raw);
 
 // The enums yan branches on. Anything not named here is Herdr's business:
-// `AgentStatus` decides what `yan wait` does about a shift, and `ReadSource`
+// `AgentStatus` is what `yan state` reports about a shift, and `ReadSource`
 // is the `--source` of `agent read`. A name that stops appearing in the
 // schema is an error rather than a silent omission, because that is a Herdr
 // change yan has to answer.

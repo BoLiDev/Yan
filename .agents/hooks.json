@@ -6,18 +6,6 @@
         "command": "node ../dist/hooks/agy-session-start.js",
         "timeout": 120
       }
-    ],
-    "Stop": [
-      {
-        "type": "command",
-        "command": "node ../dist/hooks/autoarm.js --agy",
-        "timeout": 28800
-      },
-      {
-        "type": "command",
-        "command": "node ../dist/hooks/turnend-guard.js --agy",
-        "timeout": 30
-      }
     ]
   }
 }

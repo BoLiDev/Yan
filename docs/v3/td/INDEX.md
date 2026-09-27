@@ -40,7 +40,7 @@ This is the whole design, and every placement question below is answered by it.
 | --- | --- | --- | --- |
 | **mechanics** | the code, the docs, the hook templates | `$YAN_HOME` — this clone | yes, and it is now shareable |
 | **vault** | tasks, briefs, outcomes, logs, artifacts, memory, the repository registry, the forge choice | a repository you own, one per context | yes, and it is pushed |
-| **machine** | which vault is active, where each clone is on *this* disk, locks, beacons, panes | `~/.yan/` and `<vault>/.local/` | never |
+| **machine** | which vault is active, where each clone is on *this* disk, locks, panes | `~/.yan/` and `<vault>/.local/` | never |
 
 The test for which layer something belongs to:
 

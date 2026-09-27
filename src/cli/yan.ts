@@ -145,8 +145,8 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
 
     await program.parseAsync([...joinTwoWordCommand(words, found)], { from: 'user' });
-    // A subcommand that set an exit code of its own keeps it: `yan wait`'s
-    // 124, 3 and 4 are answers rather than errors.
+    // A subcommand that set an exit code of its own keeps it: `yan tree
+    // return`'s 3 is an answer rather than an error.
     return typeof process.exitCode === 'number' ? process.exitCode : 0;
   } catch (err) {
     if (err instanceof CommanderError) {

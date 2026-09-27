@@ -4,7 +4,7 @@ import { agentSpecFor, cliKind } from '../shared/config.js';
 import { enterLockFile } from '../shared/enter-lock.js';
 import { Terminal } from '../../externals/herdr/index.js';
 import { harnessEnv, lastSpoke, type AgentFacts, type HarnessEnv } from '../../externals/harness/index.js';
-import { readPulse, Shift } from '../../records/shift/index.js';
+import { Shift } from '../../records/shift/index.js';
 import { isStale, owner } from '../../util/lock.js';
 import { later, secondMoment, type Moment } from './when.js';
 
@@ -13,8 +13,7 @@ import { later, secondMoment, type Moment } from './when.js';
  * and every live shift, each read off a ladder that falls rung by rung —
  *
  *   1. the harness's own session file (`session`)
- *   2. the shift's pulse, when it has been sampled (`pulse`)
- *   3. the last line of the shift's run/status (`status`)
+ *   2. the last line of the shift's run/status (`status`)
  *
  * and, when no agent gave anything, the task's last log entry, to the day.
  */
@@ -116,12 +115,6 @@ function shiftActive(shift: Shift, deps: ActiveDeps): Moment | undefined {
   try {
     const spoke = lastSpoke(shiftFacts(shift, deps), deps.harness);
     if (spoke !== undefined) return secondMoment(spoke.at, 'session');
-  } catch {
-    // Next rung.
-  }
-  try {
-    const pulse = readPulse(shift.run);
-    if (pulse !== undefined && pulse.seen > 0) return secondMoment(pulse.changed * 1000, 'pulse');
   } catch {
     // Next rung.
   }

@@ -262,8 +262,16 @@ function briefBody(options: {
     '  Leave out a section with nothing in it. Do not restate the brief or walk the diff',
     '  file by file. If yan sends you more work after that, rewrite the file before you',
     '  report done again. `yan report done` refuses until the file exists.',
-    '- Report only when yan has to act:',
-    `      ${home}/bin/yan report <started|done|blocked|needs-decision|conflict> "<one line>"`,
+    '- You have one line to yan:',
+    `      ${home}/bin/yan report <done|blocked|needs-decision|conflict> "<line>"`,
+    "  The line lands in yan's conversation exactly as you wrote it, so write it the",
+    '  way you would tell a colleague: who you are, what happened, where to look.',
+    '  `started` is recorded and not sent. Longer than a line goes in outcome.md.',
+    '- Report only when yan has to act. Progress is not a report; it goes in outcome.md.',
+    '- Never end a turn leaving yan something to act on without a report. If you are',
+    '  about to end your reply with a question, that question is a `needs-decision`',
+    '  report instead. Do not use question dialogs or plan mode: nobody is watching',
+    '  your screen, and a dialog is where a shift goes quiet for hours.',
   ];
   if (opensMr(options.scenario)) {
     lines.push(
@@ -273,9 +281,10 @@ function briefBody(options: {
     );
   }
   lines.push(
-    '- Reporting done does not end this shift. yan tries the work, and when it needs more of',
-    '  the same - a fix, a change, another pass - it sends you the next round here, since',
-    '  you already know the work. Stay until yan clocks you out.',
+    '- yan answers with a line in your conversation, which may name a file; read it',
+    '  and carry on. Another round is the same shift, you, so stay until yan clocks',
+    '  you out. Reporting done ends a round, not the shift. After done, wait quietly:',
+    '  yan may take a while to come back.',
   );
   if (opensMr(options.scenario)) {
     lines.push(
@@ -288,7 +297,6 @@ function briefBody(options: {
     lines.push('  For a new round, do the work, rewrite outcome.md, and report done again.');
   }
   lines.push(
-    '- A line from yan may name a file; read it, since it carries what did not fit in the line.',
     '- The scope in the table above is where this work belongs. Going outside it is not',
     "  forbidden, but it is not yours to decide quietly: report it, say what you need and",
     '  why, and let yan answer.',
@@ -308,7 +316,6 @@ function briefBody(options: {
       '  them or asks for another round.',
     );
   }
-  lines.push('- Do not talk to other shifts, and do not talk to user. Everything goes through yan.');
   return `${lines.join('\n')}\n`;
 }
 

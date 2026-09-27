@@ -1,11 +1,11 @@
 /**
  * A point in time as the overview reports it, and how exactly it is known.
- * `task.json`, a session file, a pulse or a commit give the second; `log.md`
- * gives `MM-DD` and nothing more, so a time read off it is a day.
+ * `task.json`, a session file, a status line or a commit give the second;
+ * `log.md` gives `MM-DD` and nothing more, so a time read off it is a day.
  */
 
 /** Where a moment was read. */
-export type MomentSource = 'task.json' | 'log' | 'session' | 'pulse' | 'status' | 'tree' | 'branch';
+export type MomentSource = 'task.json' | 'log' | 'session' | 'status' | 'tree' | 'branch';
 
 export interface Moment {
   /**

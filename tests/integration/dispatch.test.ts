@@ -52,7 +52,7 @@ describe('in a built tree', () => {
     const r = await yan(home, ['--help']);
     expect(r.code).toBe(0);
     expect(r.out).toContain('Usage: yan');
-    for (const name of ['doctor', 'ls', 'session-start', 'shift', 'wait']) {
+    for (const name of ['doctor', 'ls', 'session-start', 'shift', 'report']) {
       expect(r.out, name).toContain(name);
     }
   });

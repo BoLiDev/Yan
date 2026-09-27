@@ -10,17 +10,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/hooks/turnend-guard.js --codex",
-            "timeout": 30
-          }
-        ]
-      }
     ]
   }
 }

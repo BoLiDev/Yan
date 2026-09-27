@@ -24,10 +24,8 @@ import type {
  * cleared when its agent exits, which is when yan most needs to identify it.
  * Nothing here closes a workspace or a tab — the one pane closed is either
  * named by its caller or the pane `startAgent` just made, by a new tab or a
- * split, and could not start its agent in — and nothing here focuses — a
- * focused pane is marked seen, which turns a `done` yan would be woken by into
- * an `idle` it ignores. Seen is per pane, not per tab, so a shift split into
- * the tab `user` is looking at still finishes as `done`.
+ * split, and could not start its agent in — and nothing here focuses, since
+ * focusing a pane marks it seen and changes what `agent get` reports about it.
  */
 export interface TerminalOptions {
   /** Defaults to the real `herdr`. */
@@ -68,7 +66,7 @@ const STARTUP_DIALOG_ROUNDS = 3;
  * The dialogs a harness puts up before it has read its prompt, whose Enter
  * default answers the question yan already decided by choosing the directory
  * it started the agent in. Nothing else is answered blind: an unrecognised
- * question is left standing, for supervision to wake yan about.
+ * question is left standing, and `yan state` is what finds it.
  *
  * `--dangerously-skip-permissions` does not cover this one; it is asked before
  * permissions are consulted at all, and it is asked once per directory that
@@ -132,8 +130,7 @@ export class Terminal {
    * `status` is therefore the settled one, read after the agent has had time
    * to move, and a recognised startup dialog has been answered by then. A
    * `blocked` here means something yan does not recognise is on the screen —
-   * the agent is running, so the caller keeps the tree and lets supervision
-   * wake `user`.
+   * the agent is running, so the caller keeps the tree and tells `user`.
    *
    * @throws YanError `term_usage` for a missing argument, `term_not_found` when no
    *   agent is in the pane afterwards.
@@ -230,7 +227,7 @@ export class Terminal {
   /**
    * Type the work order into an agent that is at its input line. A `blocked`
    * agent is asking something nobody here recognises, and the prompt would be
-   * typed into that dialog; it is left standing for supervision to raise.
+   * typed into that dialog; it is left standing for the caller to raise.
    */
   private handOver(pane: string, status: AgentStatus, prompt?: string): AgentStatus {
     if (status === 'blocked' || prompt === undefined || prompt === '') return status;
@@ -238,7 +235,7 @@ export class Terminal {
       this.send(pane, prompt);
       return this.statusOrUnknown(pane);
     } catch {
-      // The agent is up and the pane is recorded; supervision has it from here.
+      // The agent is up and the pane is recorded; the caller has it from here.
       return status;
     }
   }
