@@ -10,7 +10,7 @@ import {
 } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
-import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
+import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift/done.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
 import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';

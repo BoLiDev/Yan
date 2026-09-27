@@ -13,7 +13,7 @@ import {
 } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { attempt, enterLock, seedT042 } from '../helpers/records.js';
-import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift.js';
+import { dispatch, type Deps, type Dispatcher, type NewOptions } from '../../src/cli/shift/new.js';
 import { Task } from '../../src/records/task/index.js';
 import { type LeaseGrant, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import { YanError } from '../../src/util/error.js';
