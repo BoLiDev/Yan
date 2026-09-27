@@ -19,7 +19,7 @@
 /** Every CSI sequence: colours, cursor moves, the lot. */
 const CSI = /\x1b\[([0-?]*)([ -/]*)([@-~])/g;
 
-export function stripAnsi(text: string): string {
+function stripAnsi(text: string): string {
   return text.replace(CSI, '');
 }
 

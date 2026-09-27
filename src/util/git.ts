@@ -160,7 +160,7 @@ export function rebase(dir: string, args: readonly string[]): ProcessResult {
 
 const FORCE = `--${'force'}`;
 
-export function isForceFlag(arg: string): boolean {
+function isForceFlag(arg: string): boolean {
   return arg === '-f' || arg === FORCE || arg.startsWith(`${FORCE}-`) || arg.startsWith(`${FORCE}=`);
 }
 

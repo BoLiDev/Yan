@@ -1,10 +1,10 @@
 import type { ProcessResult } from '../../util/process.js';
-import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
+import type { MergeStrategy, MrCreateOptions, MrState } from './types.js';
 
 /**
  * What differs between GitHub and GitLab, and nothing else — argument shapes,
- * terminology, JSON shapes and the CI model. `RemoteGit` implements each verb
- * once against this.
+ * terminology and JSON shapes. `RemoteGit` implements each verb once against
+ * this.
  */
 export interface Provider {
   readonly cli: 'gh' | 'glab';
@@ -21,23 +21,14 @@ export interface Provider {
   createdUrl(result: ProcessResult): string;
 
   /** Arguments that ask for a merge request's state. */
-  stateArgs(mr: string, repo: string | undefined): string[];
-
-  /** Arguments that ask for a merge request's CI. */
-  ciArgs(mr: string, repo: string | undefined): string[];
+  stateArgs(mr: string): string[];
 
   /** Arguments that merge now — never "merge when the pipeline passes". */
-  mergeArgs(
-    mr: string,
-    repo: string | undefined,
-    strategy: MergeStrategy,
-    deleteSource: boolean,
-  ): string[];
+  mergeArgs(mr: string, strategy: MergeStrategy): string[];
 
   /** Arguments that close a merge request without merging it, leaving its branch. */
-  closeArgs(mr: string, repo: string | undefined): string[];
+  closeArgs(mr: string): string[];
 
   /** Pure: the payload is the CLI's stdout, and nothing else is consulted. */
   mapMrState(payload: string): MrState;
-  mapCiState(payload: string): CiState;
 }

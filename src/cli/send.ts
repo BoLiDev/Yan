@@ -14,7 +14,7 @@ import { YanError } from '../util/error.js';
  */
 
 /** The longest line this will send, from `$YAN_SEND_MAX`. */
-export function sendMax(): number {
+function sendMax(): number {
   const raw = process.env.YAN_SEND_MAX;
   const n = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
   return Number.isInteger(n) && n > 0 ? n : 1000;

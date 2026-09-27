@@ -17,9 +17,3 @@ export const AGENT_STATUS: readonly AgentStatus[] = [
 ];
 
 export type ReadSource = 'visible' | 'recent' | 'recent_unwrapped' | 'detection';
-export const READ_SOURCE: readonly ReadSource[] = [
-  'visible',
-  'recent',
-  'recent_unwrapped',
-  'detection',
-];

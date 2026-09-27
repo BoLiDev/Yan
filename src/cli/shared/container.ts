@@ -13,7 +13,7 @@ import { paneOfEnterLock } from './enter-lock.js';
  */
 
 /** What container resolution needs from the terminal; `Terminal` is the real one. */
-export interface ContainerTerminal {
+interface ContainerTerminal {
   workspaceOfPane(pane: string): string | undefined;
 }
 
@@ -32,7 +32,7 @@ export function containerOf(task: string, terminal?: ContainerTerminal): string 
 }
 
 /** What creating a container needs from the terminal. */
-export interface CreatingTerminal extends ContainerTerminal {
+interface CreatingTerminal extends ContainerTerminal {
   createContainer(label: string): { workspace: string };
 }
 

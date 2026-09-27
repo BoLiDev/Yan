@@ -29,7 +29,7 @@ export function fontSourceDir(): string {
 }
 
 /** What `copyFonts` did to one file. `same` means it was already byte for byte there. */
-export type FontCopy = 'written' | 'same';
+type FontCopy = 'written' | 'same';
 
 /**
  * Put the face in `<pageDir>/fonts/`, and say what each file needed.

@@ -348,7 +348,7 @@ const pullCommand = new Command('pull')
   );
 
 /** A commit message naming the task ids that changed, for when nobody supplied one. */
-export function pushMessage(changed: readonly string[]): string {
+function pushMessage(changed: readonly string[]): string {
   const tasks = [...new Set(changed.map((p) => /^tasks\/([^/]+)\//.exec(p)?.[1]).filter((id): id is string => id !== undefined))].sort();
   const others = changed.filter((p) => !p.startsWith('tasks/')).length;
   if (tasks.length === 0) return `vault: ${changed.length} file(s)`;

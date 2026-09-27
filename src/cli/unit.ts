@@ -50,7 +50,7 @@ function decideBranchName(
  * A branch name as a tool may have printed it — `refs/heads/x`, `origin/x`,
  * quoted, or with a trailing CR — reduced to the plain name.
  */
-export function normalizeBranchName(raw: string): string {
+function normalizeBranchName(raw: string): string {
   let name = raw.trim().replace(/\r/g, '');
   if ((name.startsWith('"') && name.endsWith('"')) || (name.startsWith("'") && name.endsWith("'"))) {
     name = name.slice(1, -1).trim();
@@ -143,7 +143,7 @@ interface Inherited {
  * left half-done. Never throws — a conflict, a failed commit or a failed push
  * all come back in `said`, with `moved` false.
  */
-export function inheritRound(clone: string, from: string, to: string): Inherited {
+function inheritRound(clone: string, from: string, to: string): Inherited {
   if (!branchExists(clone, from) || !branchExists(clone, to)) {
     return { said: 'nothing was carried forward: one of the two branches is not in this clone', moved: false, conflicts: [] };
   }
@@ -200,7 +200,7 @@ function collect(value: string, previous: readonly string[] | undefined): string
 
 // --- unit add ---------------------------------------------------------------
 
-export interface AddOptions {
+interface AddOptions {
   task?: string;
   unit?: string;
   repo?: string;
@@ -356,7 +356,7 @@ interface SetOptions {
  * What `unit set` needs from the remote host: how the round being replaced
  * ended. `RemoteGit` is the real one.
  */
-export type MrStateReader = (mr: string, dir: string) => MrState;
+type MrStateReader = (mr: string, dir: string) => MrState;
 
 /** What `unit set` reports to Herdr. Display only, and never fatal. */
 export interface Labeller {

@@ -10,4 +10,4 @@
 
 export { lastSpoke, harnessEnv, claudeProjectSlug } from './harness.js';
 export { typedInput } from './typed-input.js';
-export type { AgentFacts, HarnessEnv, Spoke } from './types.js';
+export type { AgentFacts, HarnessEnv } from './types.js';

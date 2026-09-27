@@ -108,17 +108,13 @@ function claimSid(task: string, asked: string | undefined): string {
  *
  * Never forced, and never fatal: a push that fails costs a line on stderr, and
  * the branch is still there to cut from locally.
- *
- * @returns what it found or did, for the caller to report.
  */
-export function publishBase(clone: string, branch: string): 'on-origin' | 'pushed' | 'failed' | 'local-only' {
-  if (remoteBranchExists(clone, branch)) return 'on-origin';
-  if (!branchExists(clone, branch)) return 'local-only';
+function publishBase(clone: string, branch: string): void {
+  if (remoteBranchExists(clone, branch) || !branchExists(clone, branch)) return;
 
   const pushed = push(clone, ['-u', 'origin', branch]);
-  if (pushed.code === 0) return 'pushed';
+  if (pushed.code === 0) return;
   process.stderr.write(`yan shift new: ${branch} is not on origin and could not be pushed (${pushed.stderr.trim()}) - the shift's merge request will have no base until it is\n`);
-  return 'failed';
 }
 
 /**
@@ -673,7 +669,7 @@ export interface DoneDeps {
   readonly onOrigin?: (clone: string, branch: string) => boolean;
 }
 
-export interface DoneResult {
+interface DoneResult {
   readonly version: 1;
   readonly sid: string;
   readonly task: string;

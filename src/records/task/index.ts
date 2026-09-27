@@ -8,25 +8,6 @@
  */
 
 export { Task, briefText } from './task.js';
-export type { AddUnitOptions, HistoryEnd, HistoryEntry, TaskData, UnitData } from './types.js';
-export {
-  DELIVERABLE_FILE,
-  DELIVERABLE_STATUSES,
-  Deliverables,
-  deliverableAside,
-  isDate,
-  readDeliverables,
-  refLink,
-  shortRef,
-  today,
-} from './deliverables.js';
-export type {
-  Abandoned,
-  Deliverable,
-  DeliverableFile,
-  DeliverableStatus,
-  DeliverablesRead,
-  Done,
-  RefLink,
-  Todo,
-} from './deliverables.js';
+export type { TaskData, UnitData } from './types.js';
+export { Deliverables, deliverableAside, readDeliverables } from './deliverables.js';
+export type { Deliverable } from './deliverables.js';

@@ -51,7 +51,7 @@ export function repoNameFromUrl(url: string): string {
  * Do two URLs name the same repository? Local paths are compared as paths;
  * remote URLs only ever verbatim.
  */
-export function sameUrl(a: string, b: string): boolean {
+function sameUrl(a: string, b: string): boolean {
   if (a === b) return true;
   const isLocal = (s: string): boolean => /^([/\\]|[A-Za-z]:[\\/])/.test(s);
   if (!isLocal(a) || !isLocal(b)) return false;
@@ -138,7 +138,7 @@ function checkFlags(options: AddOptions): { pool: string } {
   return { pool };
 }
 
-export interface Candidate {
+interface Candidate {
   readonly name: string;
   readonly dir: string;
   readonly url: string;
@@ -358,7 +358,7 @@ function rmByName(name: string): void {
   remove(entry);
 }
 
-export interface Removable {
+interface Removable {
   readonly name: string;
   readonly url: string;
   /** Where it is on this machine, or the empty string when it is not linked here. */

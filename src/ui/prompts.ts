@@ -24,7 +24,7 @@ function suggestTarget(dir: string): string | undefined {
  */
 
 /** What `resolve()` describes a missing option with, restated structurally. */
-export interface Missing {
+interface Missing {
   readonly name: string;
   readonly flag: string;
   readonly describe: string;
@@ -76,7 +76,7 @@ function taskOption(task: TaskChoice): Choice {
 /** What `chooseEntry` returns for "create a new task"; the rest are task ids. */
 export const CREATE_NEW = '\0create';
 
-export async function chooseEntry(tasks: readonly TaskChoice[], vault = ''): Promise<string> {
+export async function chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string> {
   // The vault is named in the header: two on one machine is ordinary.
   intro(vault === '' ? 'yan' : `yan · ${vault}`);
   const chosen = await autocomplete({
@@ -113,8 +113,8 @@ export async function chooseTasksToFinish(tasks: readonly TaskChoice[]): Promise
  */
 export async function chooseTask(
   tasks: readonly TaskChoice[],
-  command = 'yan continue',
-  message = 'Which task do you want to continue?',
+  command: string,
+  message: string,
 ): Promise<string> {
   intro(command);
   const chosen = await autocomplete({
@@ -145,7 +145,7 @@ export async function confirmAbandon(title: string, plan: readonly string[]): Pr
 }
 
 /** One draft as `yan draft ls` offers it; `updated` is already formatted. */
-export interface DraftChoice {
+interface DraftChoice {
   readonly id: string;
   readonly updated: string;
   readonly title: string;
@@ -167,7 +167,7 @@ export async function chooseDraft(drafts: readonly DraftChoice[], task: string):
 }
 
 /** One row of `yan repo add`'s scan, as the command layer worked it out. */
-export interface RepoCandidate {
+interface RepoCandidate {
   readonly name: string;
   readonly dir: string;
   readonly url: string;
@@ -211,7 +211,7 @@ export async function chooseReposToAdd(
 }
 
 /** One row of `yan repo rm`'s list, as the command layer worked it out. */
-export interface RepoRemovable {
+interface RepoRemovable {
   readonly name: string;
   readonly url: string;
   /** Where it is on this machine, or the empty string when it is not linked here. */
@@ -252,7 +252,7 @@ export async function chooseReposToRemove(candidates: readonly RepoRemovable[]):
   return [...chosen].map((v) => String(v)).filter((name) => !blocked.has(name));
 }
 
-export interface TaskNewAnswers {
+interface TaskNewAnswers {
   readonly title: string;
   readonly description: string;
   readonly units: readonly PlannedUnit[];

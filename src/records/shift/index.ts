@@ -7,7 +7,6 @@ export { Shift } from './shift.js';
 export { opensMr } from './scenario.js';
 export {
   clearUndelivered,
-  hasUndelivered,
   readUndelivered,
   recordUndelivered,
   undeliveredFile,

@@ -50,7 +50,7 @@ function hasCommand(mod: unknown): mod is CommandModule {
  * exists, so `yan shift new` and `yan shift-new` are the same. Argv that does
  * not name one is untouched.
  */
-export function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
+function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
   const [first, second, ...rest] = argv;
   if (first === undefined || second === undefined) return [...argv];
   if (/^[A-Za-z0-9_-]+$/.test(second) && known.includes(`${first}-${second}`)) {
@@ -59,7 +59,7 @@ export function joinTwoWordCommand(argv: readonly string[], known: readonly stri
   return [...argv];
 }
 
-export async function buildProgram(home: string): Promise<Command> {
+async function buildProgram(home: string): Promise<Command> {
   const program = new Command();
   const found = subcommands(home);
 
@@ -126,7 +126,7 @@ function installPrompter(): void {
   });
 }
 
-export async function main(argv: readonly string[]): Promise<number> {
+async function main(argv: readonly string[]): Promise<number> {
   const home = yanHome();
   const found = subcommands(home);
   const program = await buildProgram(home);

@@ -135,7 +135,7 @@ function mtimeOf(path: string): number {
   }
 }
 
-export interface DraftDeps {
+interface DraftDeps {
   readonly tty?: () => boolean;
 }
 
@@ -319,7 +319,6 @@ with nothing but its --title, is discarded when the editor exits.`,
   )
   .action(
     action('draft', async (given: string | undefined, options: { title?: string }) => {
-      userOnly('writing a draft', isTty);
       const task = await taskFor('yan draft', given, 'Which task is this draft about?');
       const title = (options.title ?? '').split(/\s+/).filter((w) => w !== '');
       writeDraft(task, title);

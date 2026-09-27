@@ -86,7 +86,7 @@ function run(
 }
 
 export interface YanHomeOptions {
-  /** Copy dist/ in as well, so the ported half is reachable from the fixture. */
+  /** Copy dist/ in as well, for a test that runs commands through the fixture's `bin/yan`. */
   readonly withDist?: boolean;
   readonly config?: string;
   /**
@@ -103,7 +103,7 @@ export interface YanHomeOptions {
  * `$YAN_MACHINE_DIR` at itself, for tests that call a command in process.
  */
 export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
-  for (const d of ['mem/learnings', 'tasks', 'repos', 'conf', 'hooks', '.local']) {
+  for (const d of ['mem/learnings', 'tasks', 'repos', '.local']) {
     mkdirSync(join(dest, d), { recursive: true });
   }
 
@@ -126,8 +126,6 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
     );
   }
 
-  // Both spellings: `<vault>/config.json` is what yan reads, and
-  // `conf/config.json` is what the migration test needs to find.
   const configText =
     options.config ??
     `${JSON.stringify(
@@ -145,8 +143,6 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
       2,
     )}\n`;
   writeFileSync(join(dest, 'config.json'), configText);
-  writeFileSync(join(dest, 'conf', 'config.json'), configText);
-  writeFileSync(join(dest, 'mem', 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, 'repos.json'), '{\n  "version": 1\n}\n');
   writeFileSync(join(dest, '.local', 'repos.json'), '{\n  "version": 1\n}\n');
 

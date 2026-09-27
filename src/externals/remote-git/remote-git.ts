@@ -4,42 +4,34 @@ import { hostFor, readConfig } from './config.js';
 import { githubProvider } from './github.js';
 import { gitlabProvider } from './gitlab.js';
 import type { Provider } from './provider.js';
-import type {
-  CiState,
-  HostKind,
-  MrCreateOptions,
-  MrMergeOptions,
-  MrRef,
-  MrState,
-} from './types.js';
+import type { MrCreateOptions, MrMergeOptions, MrRef, MrState } from './types.js';
 import { bodyText, checkDir, requireMr, unreachable } from './validate.js';
 import { YanError } from '../../util/error.js';
 
 /** How a CLI is actually run. Replaceable so a test needs no module mocking. */
-export type CliRunner = (invocation: CliInvocation) => ProcessResult;
+type CliRunner = (invocation: CliInvocation) => ProcessResult;
 
-export interface RemoteGitOptions {
+interface RemoteGitOptions {
   /** Defaults to the real `gh` / `glab`. */
   readonly run?: CliRunner;
 }
 
 /**
- * The remote git host — GitHub or GitLab — behind five verbs:
+ * The remote git host — GitHub or GitLab — behind four verbs:
  *
  *     createMr   open one, return its URL
  *     mrState    merged | closed | open | unknown
  *     mergeMr    merge it, now
  *     closeMr    close it unmerged, keeping its branch
- *     ciState    green | red | pending | none
  *
  * Which host is resolved once, in the constructor, and never reaches a caller.
  * Each verb takes yan's own options and no others, which the types settle: a
  * gh or glab flag has nowhere to go.
  *
- * The two query verbs always return a member of their closed set — a host that
- * cannot be reached is `unknown` / `pending` plus a note on stderr — so a
- * caller branches on the value rather than catching. The three action verbs
- * throw a YanError when they did not work.
+ * The query verb always returns a member of its closed set — a host that
+ * cannot be reached is `unknown` plus a note on stderr — so a caller branches
+ * on the value rather than catching. The three action verbs throw a YanError
+ * when they did not work.
  */
 export class RemoteGit {
   private readonly provider: Provider;
@@ -82,7 +74,7 @@ export class RemoteGit {
    */
   public mrState(ref: MrRef): MrState {
     const mr = requireMr(ref);
-    const result = this.invoke(this.provider.stateArgs(mr, ref.repo), checkDir(ref));
+    const result = this.invoke(this.provider.stateArgs(mr), checkDir(ref));
     if (result.code !== 0) {
       unreachable(mr, 'unknown', result);
       return 'unknown';
@@ -92,20 +84,14 @@ export class RemoteGit {
 
   /**
    * Merge now, with `strategy` defaulting to `merge`. The source branch
-   * survives unless `deleteSource` says otherwise.
+   * survives.
    *
-   * @throws YanError `remote_git_usage` for an unknown option or strategy, `remote_git_failed`
-   *   when the merge did not happen.
+   * @throws YanError `remote_git_usage` for an unknown option, `remote_git_failed` when the
+   *   merge did not happen.
    */
   public mergeMr(options: MrMergeOptions): void {
     const mr = requireMr(options);
-    const strategy = options.strategy ?? 'merge';
-    if (!['merge', 'squash', 'rebase'].includes(strategy)) {
-      throw YanError.usage('remote_git_usage', `unknown merge strategy '${strategy}' - use merge, squash or rebase`,
-      );
-    }
-
-    const args = this.provider.mergeArgs(mr, options.repo, strategy, options.deleteSource === true);
+    const args = this.provider.mergeArgs(mr, options.strategy ?? 'merge');
     const result = this.invoke(args, checkDir(options));
     if (result.code !== 0) {
       throw new YanError('remote_git_failed', `could not merge ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`,
@@ -122,24 +108,10 @@ export class RemoteGit {
    */
   public closeMr(ref: MrRef): void {
     const mr = requireMr(ref);
-    const result = this.invoke(this.provider.closeArgs(mr, ref.repo), checkDir(ref));
+    const result = this.invoke(this.provider.closeArgs(mr), checkDir(ref));
     if (result.code !== 0) {
       throw new YanError('remote_git_failed', `could not close ${mr} - ${result.stderr.trim().replace(/\n/g, ' ')}`);
     }
-  }
-
-  /**
-   * Exactly one of: green | red | pending | none, and never which job failed.
-   * A host that cannot be reached is `pending` with a note on stderr.
-   */
-  public ciState(ref: MrRef): CiState {
-    const mr = requireMr(ref);
-    const result = this.invoke(this.provider.ciArgs(mr, ref.repo), checkDir(ref));
-    if (result.code !== 0) {
-      unreachable(`CI for ${mr}`, 'pending', result);
-      return 'pending';
-    }
-    return this.provider.mapCiState(result.stdout);
   }
 
   private invoke(args: readonly string[], cwd: string | undefined): ProcessResult {
@@ -151,6 +123,6 @@ export class RemoteGit {
  * Which CLI the configuration names, answerable without constructing a
  * `RemoteGit`.
  */
-export function configuredCli(kind?: HostKind): 'gh' | 'glab' {
-  return (kind ?? readConfig().kind) === 'github' ? 'gh' : 'glab';
+export function configuredCli(): 'gh' | 'glab' {
+  return readConfig().kind === 'github' ? 'gh' : 'glab';
 }

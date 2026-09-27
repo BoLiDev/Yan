@@ -21,7 +21,7 @@ import { lineText, wrap } from '../overview/wrap.js';
  */
 
 /** How each column is coloured. The default paints nothing, which is what a hook's output wants. */
-export interface DeliverablePaint {
+interface DeliverablePaint {
   readonly id?: (s: string) => string;
   readonly status?: (s: string) => string;
   readonly text?: (s: string) => string;

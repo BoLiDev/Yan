@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { display } from './display.js';
 import { repoDir, repoDirIfKnown } from './repo.js';
 import { Terminal } from '../../externals/herdr/index.js';
-import { WorktreePool, type LeaseRow } from '../../externals/worktree/index.js';
+import { WorktreePool, type LeaseRow, type ReturnOptions } from '../../externals/worktree/index.js';
 import { Shift } from '../../records/shift/index.js';
 import { Task } from '../../records/task/index.js';
 import type { Closer } from './terminal.js';
@@ -53,16 +53,8 @@ export function closePane(pane: string, terminal?: Closer): boolean {
   }
 }
 
-/** What a conditional return compares before it touches anything. */
-export interface LeaseIdentity {
-  readonly leaseId?: string;
-  readonly holder?: string;
-  /** Past the orphan-commit guard: `user`'s answer, never a retry. */
-  readonly force?: boolean;
-}
-
 /** What became of one tree. `path` is where it ended up, or where it still is. */
-export interface Returned {
+interface Returned {
   readonly returned: boolean;
   readonly path: string;
   /** Why it did not come back. Absent when it did. */
@@ -79,15 +71,11 @@ export interface Returned {
 export function returnLease(
   clone: string,
   tree: string,
-  identity: LeaseIdentity,
+  identity: ReturnOptions,
   pool?: Returner,
 ): Returned {
   try {
-    const landed = (pool?.(clone) ?? new WorktreePool(clone)).return(tree, {
-      ...(identity.leaseId === undefined || identity.leaseId === '' ? {} : { leaseId: identity.leaseId }),
-      ...(identity.holder === undefined || identity.holder === '' ? {} : { holder: identity.holder }),
-      ...(identity.force === undefined ? {} : { force: identity.force }),
-    });
+    const landed = (pool?.(clone) ?? new WorktreePool(clone)).return(tree, identity);
     return { returned: true, path: landed === '' ? tree : landed };
   } catch (err) {
     return { returned: false, path: tree, reason: err instanceof Error ? err.message : String(err), cause: err };
@@ -95,7 +83,7 @@ export function returnLease(
 }
 
 /** A lease of one task, with the clone whose pool is holding it. */
-export interface Held extends LeaseRow {
+interface Held extends LeaseRow {
   readonly clone: string;
 }
 

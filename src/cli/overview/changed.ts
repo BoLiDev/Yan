@@ -62,7 +62,7 @@ function commitTime(dir: string, ref: string): number | undefined {
  * `git status --porcelain` lists. `unknown` when the tree is not a working
  * tree git can read.
  */
-export function treeChanged(tree: string): Found {
+function treeChanged(tree: string): Found {
   const status = gitStdout(tree, ['status', '--porcelain=v1', '-z']);
   if (status === undefined) return 'unknown';
 
@@ -86,7 +86,7 @@ export function treeChanged(tree: string): Found {
 }
 
 /** The integration branch's last commit in the clone, local or `origin/`, whichever is later. */
-export function branchChanged(clone: string, branch: string): Found {
+function branchChanged(clone: string, branch: string): Found {
   if (branch === '') return 'none';
   const times = [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]
     .map((ref) => commitTime(clone, ref))

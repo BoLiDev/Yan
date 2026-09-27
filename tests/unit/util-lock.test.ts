@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { isHeld, isStale, withLock } from '../../src/util/lock.js';
+import { isStale, withLock } from '../../src/util/lock.js';
 import { cleanupTempDirs, mkTempDir } from '../helpers/fixtures.js';
 import { YanError } from '../../src/util/error.js';
 
@@ -25,7 +25,7 @@ describe('holding a lock', () => {
       const record = JSON.parse(readFileSync(file, 'utf8')) as { pid: number; host: string };
       expect(record.pid).toBe(process.pid);
       expect(record.host).toBe(hostname());
-      expect(isHeld(file)).toBe(true);
+      expect(isStale(file)).toBe(false);
       return 'body ran';
     });
     expect(seen).toBe('body ran');
@@ -65,7 +65,6 @@ describe('stale locks', () => {
     // pid 2^22 is above Linux's default pid_max and is not a live process here.
     writeFileSync(file, `${JSON.stringify({ pid: 4194304, host: hostname(), at: 1 })}\n`);
     expect(isStale(file)).toBe(true);
-    expect(isHeld(file)).toBe(false);
 
     let ran = false;
     withLock(file, 5, () => {
@@ -79,7 +78,6 @@ describe('stale locks', () => {
     const file = lockPath();
     writeFileSync(file, `${JSON.stringify({ pid: 4194304, host: 'some-other-host', at: 1 })}\n`);
     expect(isStale(file)).toBe(false);
-    expect(isHeld(file)).toBe(true);
     expect(() => withLock(file, 0, () => undefined)).toThrow(YanError);
   });
 

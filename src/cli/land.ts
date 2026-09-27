@@ -54,7 +54,7 @@ interface LandResult {
  * entry naming no unit of this task is reported and then ignored; units caught
  * in a `needs` cycle come back in `cycle` instead of `order`.
  */
-export function topoSort(
+function topoSort(
   units: readonly { name: string; needs: readonly string[] }[],
   note: (line: string) => void,
   taskId: string,

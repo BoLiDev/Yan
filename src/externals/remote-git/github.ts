@@ -1,18 +1,9 @@
 import type { ProcessResult } from '../../util/process.js';
 import type { Provider } from './provider.js';
-import type { CiState, MergeStrategy, MrCreateOptions, MrState } from './types.js';
+import type { MergeStrategy, MrCreateOptions, MrState } from './types.js';
 import { asObject, extractUrl, lower } from './validate.js';
 
-/** GitHub's JSON, mapped into yan's vocabulary. Both mappers are pure. */
-
-function asArray(text: string): unknown[] | undefined {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return Array.isArray(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
+/** GitHub's JSON, mapped into yan's vocabulary. The mapper is pure. */
 
 /**
  * `gh pr view --json state,mergedAt` → yan vocabulary. `mergedAt` (or the REST
@@ -36,74 +27,6 @@ export function mapMrState(payload: string): MrState {
   }
 }
 
-/**
- * `gh pr view --json statusCheckRollup` → yan vocabulary. Handles both entry
- * shapes in the rollup, CheckRun and the legacy StatusContext, and folds them
- * red > pending > green — so a red answer can arrive before the run finishes.
- *
- * Per entry:
- *   green    success, neutral, skipped
- *   pending  not finished yet, or a `stale` conclusion
- *   red      anything else terminal
- *
- * An empty or null rollup is `none`; a payload with no rollup key at all is
- * `pending`, never `none`.
- */
-export function mapCiState(payload: string): CiState {
-  let rollup: unknown[] | undefined;
-
-  const array = asArray(payload);
-  if (array !== undefined) {
-    rollup = array;
-  } else {
-    const o = asObject(payload);
-    if (o === undefined) return 'pending';
-    if (!Object.hasOwn(o, 'statusCheckRollup')) return 'pending';
-    const value = o.statusCheckRollup;
-    if (value === null) return 'none';
-    if (!Array.isArray(value)) return 'pending';
-    rollup = value;
-  }
-
-  if (rollup.length === 0) return 'none';
-
-  const words = rollup.map((raw): CiState => {
-    const entry = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-    const isStatusContext =
-      entry.__typename === 'StatusContext' ||
-      (Object.hasOwn(entry, 'state') && !Object.hasOwn(entry, 'status'));
-
-    if (isStatusContext) {
-      const s = lower(entry.state);
-      if (s === 'success') return 'green';
-      if (s === 'failure' || s === 'error') return 'red';
-      return 'pending';
-    }
-
-    if (lower(entry.status) !== 'completed') return 'pending';
-    const c = lower(entry.conclusion);
-    if (c === 'success' || c === 'neutral' || c === 'skipped') return 'green';
-    if (c === '' || c === 'stale') return 'pending';
-    return 'red';
-  });
-
-  if (words.includes('red')) return 'red';
-  if (words.includes('pending')) return 'pending';
-  return 'green';
-}
-
-/**
- * `gh`'s way of naming one merge request: the ref verbatim, plus `--repo`
- * unless the ref is a URL, which already names the repository.
- */
-export function refArgs(mr: string, repo: string | undefined): string[] {
-  const args = [mr];
-  if (!/^https?:\/\//.test(mr) && repo !== undefined && repo !== '') {
-    args.push('--repo', repo);
-  }
-  return args;
-}
-
 export const githubProvider: Provider = {
   cli: 'gh',
 
@@ -121,7 +44,6 @@ export const githubProvider: Provider = {
       body,
     ];
     if (options.draft === true) args.push('--draft');
-    if (options.repo !== undefined && options.repo !== '') args.push('--repo', options.repo);
     return args;
   },
 
@@ -129,24 +51,18 @@ export const githubProvider: Provider = {
     return extractUrl(result.stdout, /https?:\/\/\S+\/pull\/[0-9]+/g);
   },
 
-  stateArgs(mr, repo) {
-    return ['pr', 'view', ...refArgs(mr, repo), '--json', 'state,mergedAt'];
+  /** `gh` takes the ref verbatim: a URL names its repository, a number the clone's. */
+  stateArgs(mr) {
+    return ['pr', 'view', mr, '--json', 'state,mergedAt'];
   },
 
-  ciArgs(mr, repo) {
-    return ['pr', 'view', ...refArgs(mr, repo), '--json', 'statusCheckRollup'];
+  mergeArgs(mr: string, strategy: MergeStrategy) {
+    return ['pr', 'merge', mr, `--${strategy}`];
   },
 
-  mergeArgs(mr: string, repo: string | undefined, strategy: MergeStrategy, deleteSource: boolean) {
-    const args = ['pr', 'merge', ...refArgs(mr, repo), `--${strategy}`];
-    if (deleteSource) args.push('--delete-branch');
-    return args;
-  },
-
-  closeArgs(mr: string, repo: string | undefined) {
-    return ['pr', 'close', ...refArgs(mr, repo)];
+  closeArgs(mr: string) {
+    return ['pr', 'close', mr];
   },
 
   mapMrState,
-  mapCiState,
 };

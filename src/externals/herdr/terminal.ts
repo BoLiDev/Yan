@@ -28,7 +28,7 @@ import type {
  * split, and could not start its agent in — and nothing here focuses, since
  * focusing a pane marks it seen and changes what `agent get` reports about it.
  */
-export interface TerminalOptions {
+interface TerminalOptions {
   /** Defaults to the real `herdr`. */
   readonly run?: HerdrRunner;
   /**
@@ -143,7 +143,6 @@ export class Terminal {
 
     const pane = options.split === undefined ? this.createTab(options) : this.splitPane(options.split, options);
     const startArgs = ['agent', 'start', options.name, '--kind', options.kind, '--pane', pane];
-    if (options.timeoutMs !== undefined) startArgs.push('--timeout', String(options.timeoutMs));
     // Everything after `--` reaches the agent as argv, with no shell in
     // between, so nothing here needs quoting.
     if (options.argv !== undefined && options.argv.length > 0) startArgs.push('--', ...options.argv);
@@ -307,8 +306,7 @@ export class Terminal {
   }
 
   /**
-   * Send one prompt: text and Enter in a single submission. `waitMs` waits for
-   * the agent to finish, up to that many milliseconds.
+   * Send one prompt: text and Enter in a single submission.
    *
    * Checks for a live agent first, so text is never typed into a shell that
    * would run it. Liveness is screen-based, so it catches a pane whose agent
@@ -317,7 +315,7 @@ export class Terminal {
    * @throws YanError `term_usage` for an empty pane or text, `term_not_found` when
    *   no live agent is there.
    */
-  public send(pane: string, text: string, waitMs?: number): void {
+  public send(pane: string, text: string): void {
     requirePaneId(pane, 'send');
     if (text === '') throw YanError.usage('term_usage', 'there is nothing to send');
     if (this.agentAlive(pane) !== 'alive') {
@@ -325,9 +323,7 @@ export class Terminal {
         `no live agent in ${pane} - refusing to send, because the text would be typed into whatever shell is there`,
       );
     }
-    const args = ['agent', 'prompt', pane, text];
-    if (waitMs !== undefined) args.push('--wait', '--timeout', String(waitMs));
-    this.call(args, 'agent prompt');
+    this.call(['agent', 'prompt', pane, text], 'agent prompt');
   }
 
   /**
@@ -462,25 +458,6 @@ export class Terminal {
     } catch {
       return undefined;
     }
-  }
-
-  /**
-   * The pane an agent is in now, when that differs from `recordedPane` —
-   * moving a pane between workspaces changes its id. `undefined` when the
-   * agent cannot be found or has not moved. Records nothing.
-   */
-  public reconcile(name: string, recordedPane: string): string | undefined {
-    requireAgentName(name);
-    const byName = this.run(['agent', 'get', name]);
-    if (byName.code !== 0) return undefined;
-    let pane = '';
-    try {
-      const agent = asRecord(asRecord(JSON.parse(byName.stdout)).result);
-      pane = asString(asRecord(agent.agent).pane_id) || asString(agent.pane_id);
-    } catch {
-      return undefined;
-    }
-    return pane !== '' && pane !== recordedPane ? pane : undefined;
   }
 
   /**

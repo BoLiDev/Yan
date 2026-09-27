@@ -15,18 +15,11 @@ import { YanError } from './error.js';
  * ours to judge.
  */
 
-interface LockRecord {
-  pid: number;
-  host: string;
-  at: number;
-  /** What the lock is for, when the claimer said. */
-  identity?: string;
-}
-
-export interface LockOwner {
+interface LockOwner {
   readonly pid: number;
   readonly host: string;
   readonly at: number;
+  /** What the lock is for, when the claimer said. */
   readonly identity?: string;
 }
 
@@ -38,11 +31,11 @@ function sleepMs(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function readRecord(file: string): LockRecord | undefined {
+function readRecord(file: string): LockOwner | undefined {
   try {
     const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
     if (typeof parsed !== 'object' || parsed === null) return undefined;
-    return parsed as LockRecord;
+    return parsed as LockOwner;
   } catch {
     return undefined;
   }
@@ -91,11 +84,6 @@ export function isStale(file: string): boolean {
   return !pidAlive(record.pid);
 }
 
-/** True when the lock exists and its owner is still alive. */
-export function isHeld(file: string): boolean {
-  return existsSync(file) && !isStale(file);
-}
-
 /**
  * Take the lock if it is free, and say whether it was taken. Never waits,
  * never throws, and never reclaims a stale lock — the caller decides that.
@@ -110,7 +98,7 @@ export function claim(file: string, identity?: string): boolean {
     return false;
   }
   try {
-    const record: LockRecord = {
+    const record: LockOwner = {
       pid: process.pid,
       host: hostname(),
       at: Math.floor(Date.now() / 1000),
@@ -119,30 +107,6 @@ export function claim(file: string, identity?: string): boolean {
     writeSync(fd, `${JSON.stringify(record)}\n`);
   } finally {
     closeSync(fd);
-  }
-  return true;
-}
-
-/**
- * Kill the holder and wait for it to go, so that `isStale` comes true. For an
- * owner on this host only, and never this process. Says whether the lock is
- * reclaimable now.
- *
- * SIGKILL, because a holder being evicted is one that stopped answering, and
- * a blocked event loop never runs a SIGTERM handler.
- */
-export function evict(file: string, graceMs = 2000): boolean {
-  const record = owner(file);
-  if (record === undefined || record.host !== hostname() || record.pid === process.pid) return false;
-  try {
-    process.kill(record.pid, 'SIGKILL');
-  } catch {
-    return isStale(file);
-  }
-  const deadline = Date.now() + graceMs;
-  while (pidAlive(record.pid)) {
-    if (Date.now() >= deadline) return false;
-    sleepMs(50);
   }
   return true;
 }

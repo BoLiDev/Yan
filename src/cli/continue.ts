@@ -1,12 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { agentSpecFor, cliKind, configPath, modelFlags, type AgentSpec } from './shared/config.js';
+import { agentSpecFor, cliKind, modelFlags, type AgentSpec } from './shared/config.js';
 import { display, taskTokens, UNIT_TOKEN_NAMES } from './shared/display.js';
 import { enterIdentity, enterLockFile } from './shared/enter-lock.js';
 import { repoDirIfKnown } from './shared/repo.js';
 import { chosenTask } from './shared/task-id.js';
-import { tasksDir, vaultDir } from '../util/vault.js';
+import { tasksDir, vaultConfigPath, vaultDir } from '../util/vault.js';
 import { isTty } from './shared/resolve.js';
 import { Terminal } from '../externals/herdr/index.js';
 import { Task } from '../records/task/index.js';
@@ -173,7 +173,7 @@ export function enterTask(options: ContinueOptions, deps: EnterDeps = {}): Sessi
       : configured;
   const agent = spec.cli;
   if (agent === '') {
-    throw YanError.usage('continue_usage', `no main agent configured - set agents.yan in ${configPath()}, or pass --agent`,
+    throw YanError.usage('continue_usage', `no main agent configured - set agents.yan in ${vaultConfigPath()}, or pass --agent`,
     );
   }
 

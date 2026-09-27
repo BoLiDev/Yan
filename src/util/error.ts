@@ -28,7 +28,7 @@ export class YanError extends Error {
   }
 }
 
-export interface YanErrorOptions {
+interface YanErrorOptions {
   readonly cause?: unknown;
   readonly exitCode?: number;
 }

@@ -22,7 +22,7 @@ import { normalizePath } from './paths.js';
 export const VAULT_VERSION = 1;
 
 /** The file whose presence makes a directory a vault. */
-export const VAULT_MARKER = 'vault.json';
+const VAULT_MARKER = 'vault.json';
 
 export function isVault(dir: string): boolean {
   try {
@@ -32,7 +32,7 @@ export function isVault(dir: string): boolean {
   }
 }
 
-export interface VaultIdentity {
+interface VaultIdentity {
   readonly version: number;
   readonly name: string;
   readonly created: string;

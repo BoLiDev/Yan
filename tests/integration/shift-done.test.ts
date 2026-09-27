@@ -11,7 +11,7 @@ import {
 import { clockOut, type DoneDeps, type DoneOptions } from '../../src/cli/shift.js';
 import type { Closer } from '../../src/cli/shared/terminal.js';
 import { Task } from '../../src/records/task/index.js';
-import { type LeaseRow, type ReturnExpectation } from '../../src/externals/worktree/index.js';
+import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
 import type { MrState } from '../../src/externals/remote-git/index.js';
 import { YanError } from '../../src/util/error.js';
 
@@ -46,7 +46,7 @@ class FakePool {
     return leases;
   }
 
-  public return(target: string, expect: ReturnExpectation = {}): string {
+  public return(target: string, expect: ReturnOptions = {}): string {
     const witness = existsSync(join(home, 'tasks', 't042', 'shifts', 's1', 'run')) ? 'present' : 'absent';
     calls.push(`pool_return path=${target} lease_id=${expect.leaseId ?? ''} holder=${expect.holder ?? ''} witness=${witness}`);
     if (returnRefusal !== undefined) throw returnRefusal;

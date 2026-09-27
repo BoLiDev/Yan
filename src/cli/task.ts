@@ -48,7 +48,7 @@ type UnitScalar = 'unit' | 'target' | 'branch' | 'base';
  * Accumulates the unit flags in argv order. One instance per parsed command
  * line — a shared one would carry the first line's units into the second.
  */
-export class UnitBuilder {
+class UnitBuilder {
   public readonly units: UnitSpec[] = [];
 
   public open(repo: string): void {
@@ -77,7 +77,7 @@ export class UnitBuilder {
  * A unit name from its first scope path, or the repo when it has none. Not
  * unique: the caller suffixes until it is free.
  */
-export function unitNameFrom(repo: string, firstScope: string): string {
+function unitNameFrom(repo: string, firstScope: string): string {
   const source = firstScope === '' ? repo : basename(firstScope.replace(/\/+$/, ''));
   const cleaned = source.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-/, '').replace(/-$/, '');
   return cleaned === '' ? 'unit' : cleaned;
@@ -107,7 +107,7 @@ interface TaskNewDeps {
 }
 
 /** What is missing before this can run at all, as flags a caller can pass. */
-export function missingForTaskNew(options: TaskNewOptions): string[] {
+function missingForTaskNew(options: TaskNewOptions): string[] {
   const missing: string[] = [];
   if ((options.title ?? '') === '') missing.push('--title');
   if (options.units.length === 0) missing.push('--repo (with its --target)');
@@ -274,7 +274,7 @@ async function askWhenMissing(flags: NewFlags, units: readonly UnitSpec[]): Prom
   };
 }
 
-export function buildTaskCommand(): Command {
+function buildTaskCommand(): Command {
   const builder = new UnitBuilder();
   const opens = (value: string): string => {
     builder.open(value);

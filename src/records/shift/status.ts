@@ -8,7 +8,7 @@ import { YanError } from '../../util/error.js';
  * current state must ask `yan state` rather than the log.
  */
 
-export function statusFile(run: string): string {
+function statusFile(run: string): string {
   return join(run, 'status');
 }
 

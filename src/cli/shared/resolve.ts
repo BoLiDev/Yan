@@ -8,7 +8,7 @@ import { YanError } from '../../util/error.js';
  * refusal would run before any of this.
  */
 
-export interface OptionSpec {
+interface OptionSpec {
   /** The key Commander parses the value into, e.g. `remote`. */
   readonly name: string;
   /** The flag as a person types it, e.g. `--remote`. */
@@ -17,7 +17,7 @@ export interface OptionSpec {
   readonly describe: string;
 }
 
-export type Prompter = (missing: readonly OptionSpec[]) => Promise<Record<string, string>>;
+type Prompter = (missing: readonly OptionSpec[]) => Promise<Record<string, string>>;
 
 // Installed by src/cli/yan.ts rather than imported, so a caller that does not
 // install one always takes the refusing path.

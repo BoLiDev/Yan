@@ -34,7 +34,7 @@ export interface AliveReader {
 }
 
 /** What `yan state` needs from the host. `RemoteGit` is the real one. */
-export type MrStateReader = (mr: string, dir: string | undefined) => MrState;
+type MrStateReader = (mr: string, dir: string | undefined) => MrState;
 
 interface StateFacts {
   readonly version: 1;

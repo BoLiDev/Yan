@@ -65,7 +65,7 @@ function expandGlob(root: string, pattern: string): string[] {
   return childDirs(root, (m[1] as string).replace(/\/$/, ''));
 }
 
-export interface Monorepo {
+interface Monorepo {
   readonly monorepo: boolean;
   readonly reasons: readonly string[];
   readonly packages: readonly string[];
@@ -125,7 +125,7 @@ export function detectMonorepo(repoDir: string): Monorepo {
 }
 
 /** The choice standing for the whole repository, whose scope is empty. */
-export const WHOLE_REPO = '';
+const WHOLE_REPO = '';
 
 export interface Choice {
   readonly value: string;
@@ -147,7 +147,7 @@ function sanitise(raw: string): string {
 }
 
 /** A readable unit name from a scope path, unique within this run. */
-export function unitName(scopePath: string, repoName: string, used = new Set<string>()): string {
+function unitName(scopePath: string, repoName: string, used = new Set<string>()): string {
   const base = sanitise(scopePath === '' ? repoName : basename(scopePath));
   let name = base;
   let n = 2;
