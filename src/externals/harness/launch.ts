@@ -99,8 +99,11 @@ const codex: Harness = {
   modelFlags: codexModel,
   launchArgs(launch) {
     const args = codexModel(launch.model, launch.effort);
-    if (launch.readOnly === true) args.push('--sandbox', 'read-only');
-    else args.push('--dangerously-bypass-approvals-and-sandbox');
+    // Every scenario, report-only ones included: `--sandbox read-only` on its
+    // own leaves codex's default `on-request` approval policy in force, and a
+    // shift that could not even write its outcome.md asked `user` for every
+    // write. `user` chose full permission over telling the scenarios apart.
+    args.push('--dangerously-bypass-approvals-and-sandbox');
 
     // Hooks the target repository ships run without review. Codex's
     // hook-review prompt is one Herdr classifies as `idle`, so a shift that

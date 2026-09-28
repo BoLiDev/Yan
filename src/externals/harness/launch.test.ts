@@ -43,7 +43,8 @@ describe('launchArgs', () => {
   it('keeps a report-only shift from pushing without parking it on an approval', () => {
     expect(shift('claude', true)).toContain('Bash(git push:*)');
     expect(shift('claude', true)).not.toContain('plan');
-    expect(shift('codex', true)).toEqual(['--sandbox', 'read-only', '--dangerously-bypass-hook-trust']);
+    // Codex has no per-tool deny list, so a report-only shift runs fully unattended too.
+    expect(shift('codex', true)).toEqual(['--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust']);
   });
 
   it('puts the model flags first', () => {

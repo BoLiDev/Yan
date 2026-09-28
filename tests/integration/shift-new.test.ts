@@ -396,12 +396,11 @@ describe('codex, and the gate yan cannot survive', () => {
     useCli('codex');
     run({ task: 't042', unit: 'look', sid: 's81', scenario: 'explore', briefText: 'just look' });
     expect(terminal.startArgs).toContain('--dangerously-bypass-hook-trust');
-    // What keeps a scout honest is containment, not a prompt.
-    expect(terminal.startArgs).toContain('--sandbox');
-    expect(terminal.startArgs).toContain('read-only');
-    expect(terminal.startArgs, 'a scout must never be given a free hand').not.toContain(
-      '--dangerously-bypass-approvals-and-sandbox',
-    );
+    // A read-only sandbox without `-a never` left codex's on-request approval
+    // policy in force, and the scout asked `user` for every write, its own
+    // outcome.md included. `user` chose the free hand over the prompts.
+    expect(terminal.startArgs).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(terminal.startArgs).not.toContain('--sandbox');
   });
 });
 
