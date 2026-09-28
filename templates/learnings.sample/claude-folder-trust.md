@@ -16,5 +16,8 @@ description: Claude parks on "Do you trust this folder" in the worktrees of a re
 
 This file is an example of the shape. `yan session-start` indexes every `.md`
 in `<vault>/mem/learnings/` by path, `name` and `description`, and yan opens the
-file when that line matches the problem in front of it. One topic per file,
+file when that line matches the problem in front of it. A problem earns a file
+when reading it shortens the next person's path: a trap the code does not show,
+something that ought to be simple and is hard here, with what makes it hard, or
+an unconventional design somebody would otherwise fight. One topic per file,
 named for the topic, rewritten in place when it turns out wrong.
