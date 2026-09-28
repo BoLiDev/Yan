@@ -547,7 +547,8 @@ describe('what is already known', () => {
   it('asks for what the shift learned in the handover', () => {
     run({ task: 't042', unit: 'auth', sid: 's1', briefText: 'x' });
     const body = readFileSync(join(home, 'tasks', 't042', 'shifts', 's1', 'brief.md'), 'utf8');
-    expect(body).toContain('Learnings     problems you hit and how you solved them');
+    expect(body).toContain('Learnings     only a trap the code hides');
+    expect(body).toContain('mostly there is none');
   });
 });
 
