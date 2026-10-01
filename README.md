@@ -87,8 +87,9 @@ node scripts/migrate-v4.mjs              # do it
 
 It rewrites every registered vault to version 2, moves `~/.yan-trees` to
 `~/.yan/trees` and repairs git's links to the trees, and drops `clone_root`
-from `~/.yan/config.json`. A progress bar shows each step. Nothing is
-committed: look at `git -C <vault> status`, then `yan vault push`. A vault is
+from `~/.yan/config.json`. If v3 ran with `YAN_POOL_ROOT` set, unset it
+and pass the old pool with `--old-pool <dir>`. A progress bar shows each
+step. Nothing is committed: look at `git -C <vault> status`, then `yan vault push`. A vault is
 shared, so migrate it on one machine, push, and `git pull` it on the others
 before running the script there; they skip it and only move their pool.
 

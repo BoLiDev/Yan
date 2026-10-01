@@ -8,6 +8,10 @@
 //   node scripts/migrate-v4.mjs --dry-run    say what would change, change nothing
 //   node scripts/migrate-v4.mjs --vault <dir>   only this vault (repeatable)
 //   node scripts/migrate-v4.mjs --skip-trees    leave the pool where it is
+//   node scripts/migrate-v4.mjs --old-pool <dir>   the v3 pool is here, not at
+//                                            ~/.yan-trees (v3 ran with
+//                                            YAN_POOL_ROOT set: unset it first,
+//                                            or the pool stays where it is)
 //
 // A vault is a git repository shared between machines: migrate it on one,
 // `yan vault push`, and on the others pull it (plain `git pull`) before running
@@ -57,9 +61,11 @@ const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const skipTrees = args.includes('--skip-trees');
 const onlyVaults = [];
+let oldPoolArg;
 for (let i = 0; i < args.length; i += 1) {
   const a = args[i];
   if (a === '--vault' && args[i + 1] !== undefined) onlyVaults.push(resolve(args[(i += 1)]));
+  else if (a === '--old-pool' && args[i + 1] !== undefined) oldPoolArg = resolve(args[(i += 1)]);
   else if (!['--dry-run', '--skip-trees'].includes(a)) {
     process.stderr.write(`migrate-v4: unknown argument '${a}' - see the top of ${process.argv[1]}\n`);
     process.exit(2);
@@ -67,7 +73,7 @@ for (let i = 0; i < args.length; i += 1) {
 }
 
 const machineDir = process.env.YAN_MACHINE_DIR || join(homedir(), '.yan');
-const oldPoolRoot = process.env.YAN_OLD_POOL_ROOT || join(homedir(), '.yan-trees');
+const oldPoolRoot = oldPoolArg || process.env.YAN_OLD_POOL_ROOT || join(homedir(), '.yan-trees');
 const newPoolRoot = process.env.YAN_POOL_ROOT || join(machineDir, 'trees');
 
 /** Things a person has to look at, printed at the end. */
@@ -479,7 +485,10 @@ function migrateLease(file, pool, held) {
 
 function migrateTrees() {
   said(`\npool ${oldPoolRoot} → ${newPoolRoot}`);
-  if (!isDir(oldPoolRoot)) {
+  if (resolve(oldPoolRoot) === resolve(newPoolRoot)) {
+    said('  already there - nothing to move');
+    if (process.env.YAN_POOL_ROOT) said(`  (YAN_POOL_ROOT is set; unset it and run again with --old-pool ${oldPoolRoot} to move it to ${join(machineDir, 'trees')})`);
+  } else if (!isDir(oldPoolRoot)) {
     said('  nothing at the old pool root - nothing to move');
   } else {
     const pools = listDir(oldPoolRoot).filter((n) => isDir(join(oldPoolRoot, n)));
