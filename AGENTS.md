@@ -17,32 +17,3 @@ way. `yan <command> --help` is the reference for each command.
 pool) and `harness` (how claude, codex and agy are started). `src/util/` is
 below all of them. `src/ui/prompts.ts` is the only place that prompts, and
 only `src/cli/` imports it.
-
-`scripts/check-module-boundaries.mjs` states the import rules, and
-`npm run build` enforces them: a module under `externals/` or `records/` is
-reached only through its `index.ts`, and one external never imports another.
-
-## Rules
-
-- Prompts are for a person at a keyboard. Anything an agent runs must work
-  with no terminal and refuse, naming the flag, when a value is missing.
-- Exit 2 is "called wrongly" and only `YanError.usage` produces it. Exit 1
-  is "tried and refused or failed".
-- What the agent is told at launch (`OPENING_PROMPT`) stays minimal. Add
-  to it only for when to do something; how belongs in `--help`.
-- Nothing pushes except `yan vault push`, and no force flag reaches git.
-- A returned tree is cleaned with `-fd`, never `-x`.
-
-## Checking a change
-
-`npm test` builds, checks boundaries and runs every test. A module's own
-test sits beside it in `src/`; command-level tests are in
-`tests/integration/` and run the built `bin/yan.mjs` against a throwaway
-vault. Run `npm test` before you call a change done, and look at the real
-output of the command you changed, not only the tests.
-
-## Writing
-
-File and function comments are `/** */` blocks of plain prose saying why,
-matching what is there. Commit messages say what is now true, in one line,
-in the present tense.
