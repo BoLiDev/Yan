@@ -1,161 +1,63 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as git from '../../util/git.js';
 import { withLock } from '../../util/lock.js';
 import { baseRef, isRegisteredWorktree, worktreeHolding } from './git-facts.js';
 import { assertReturnable, wipe } from './guard.js';
-import { absolute, cloneDir, leaseFile, leasesDir, lockFile, repoName, slotTree } from './layout.js';
-import { allLeases, newLeaseId, readLease, reclaim, releaseLease, slotOf, writeLease } from './lease.js';
-import type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
+import { absolute, cloneDir, leaseFile, leasesDir, lockFile, poolRoot, repoName, slotTree } from './layout.js';
+import { allLeases, newLeaseId, reclaim, releaseLease, writeLease } from './lease.js';
+import type { LeaseGrant, LeaseRow } from './types.js';
 import { YanError } from '../../util/error.js';
 import { isDirectory } from '../../util/paths.js';
 
 /**
- * The worktree pool for one main clone: a fixed set of slots, reused warm so a
- * leased tree needs no cold install.
+ * The worktree pool for one main clone: slots reused warm, so a leased tree
+ * keeps the node_modules and build caches the last task left in it.
+ *
+ * A slot is never deleted. The pool grows by one whenever every slot is
+ * leased, so its size is the most tasks this clone has had open at once.
  *
  * `get` serialises on a per-clone lock, because `git worktree add` writes the
  * shared clone's `.git/config` and two at once collide on git's config lock.
- * `return` and `status` take no lock and never block behind it.
  */
 export class WorktreePool {
   private readonly clone: string;
   private readonly dir: string;
 
-  /**
-   * @param clone the main clone this pool serves.
-   * @throws YanError when it is empty or not a directory.
-   */
+  /** @throws YanError when `clone` is empty or not a directory. */
   public constructor(clone: string) {
     if (!clone) throw YanError.usage('worktree_usage', 'a main clone directory is required');
     if (!isDirectory(clone)) throw YanError.usage('worktree_usage', `not a directory: ${clone}`);
-
     this.clone = clone;
     this.dir = cloneDir(clone);
   }
 
   /**
-   * Lease a tree and put it on `branch`, cutting it from `base` when it does
-   * not exist yet. Waits up to `$YAN_POOL_LOCK_TIMEOUT` seconds (60 by
-   * default) for the pool lock.
+   * Lease a tree to `holder` and put it on `branch`, cutting it from `base`
+   * when it does not exist yet. Waits up to `$YAN_POOL_LOCK_TIMEOUT` seconds
+   * (60 by default) for the pool lock.
    *
-   * @param size how many slots this pool may use; the caller reads it from
-   *   repos.json.
    * @throws YanError `worktree_usage` for a missing or whitespace-carrying
-   *   argument, `worktree_full` when every slot is leased, `worktree_failed` when the branch is
-   *   checked out elsewhere or the tree cannot be placed.
+   *   argument, `worktree_failed` when the branch is checked out elsewhere or
+   *   the tree cannot be placed.
    */
-  public get(size: number, base: string, branch: string, holder: string): LeaseGrant {
-    if (!Number.isInteger(size) || size <= 0) {
-      throw YanError.usage('worktree_usage', `the pool size must be a positive whole number, got: ${size}`);
-    }
-    if (!base) {
-      throw YanError.usage('worktree_usage',
-        'a base ref is required - a tree is always cut from an explicit base',
-      );
-    }
-    if (!branch) {
-      throw YanError.usage('worktree_usage',
-        'a branch name is required - a leased tree is never left on a detached HEAD',
-      );
-    }
-    if (!holder) {
-      throw YanError.usage('worktree_usage', 'a holder is required, in the form <task>/<unit>/<sid>');
-    }
-    if (/\s/.test(`${branch}${holder}`)) {
-      throw YanError.usage('worktree_usage', 'a branch name and a holder may not contain whitespace');
-    }
+  public get(base: string, branch: string, holder: string): LeaseGrant {
+    if (!base) throw YanError.usage('worktree_usage', 'a base ref is required - a tree is always cut from an explicit base');
+    if (!branch) throw YanError.usage('worktree_usage', 'a branch name is required - a leased tree is never left on a detached HEAD');
+    if (!holder) throw YanError.usage('worktree_usage', 'a holder is required');
+    if (/\s/.test(`${branch}${holder}`)) throw YanError.usage('worktree_usage', 'a branch name and a holder may not contain whitespace');
 
     mkdirSync(leasesDir(this.dir), { recursive: true });
-    return withLock(lockFile(this.dir), lockTimeoutSeconds(), () =>
-      this.getLocked(size, base, branch, holder),
-    );
+    return withLock(lockFile(this.dir), lockTimeoutSeconds(), () => this.getLocked(base, branch, holder));
   }
 
-  /**
-   * Reset and clean a tree, then release its lease, and return its path. A
-   * tree that is already gone releases its lease and reports the path.
-   *
-   * @param tree the path `get` printed, or a slot number.
-   * @param expect fields compared before anything destructive happens, so a
-   *   mismatch costs nothing and a retry is safe. An absent field is not
-   *   compared; `force` skips the orphan-commit guard but never the identity
-   *   check.
-   * @throws YanError `worktree_mismatch` when `expect` disagrees, `worktree_failed` when no
-   *   lease matches `tree` or the guard refuses.
-   */
-  public return(tree: string, expect: ReturnOptions = {}): string {
-    if (!tree) {
-      throw YanError.usage('worktree_usage',
-        "which tree? pass the path 'yan tree get' printed, or its slot number",
-      );
-    }
-
-    const slot = slotOf(this.dir, tree);
-    if (slot === undefined) {
-      throw new YanError('worktree_failed',
-        `no lease matches '${tree}' - 'yan tree status' lists what the pool is holding`,
-      );
-    }
-
-    const lease = readLease(leaseFile(this.dir, slot));
-    const haveId = lease?.lease_id ?? '';
-    const haveHolder = lease?.holder ?? '';
-    const path = lease?.path ?? '';
-
-    if (expect.leaseId !== undefined && expect.leaseId !== '' && expect.leaseId !== haveId) {
-      throw new YanError('worktree_mismatch',
-        `lease id does not match: slot ${slot} is held under '${haveId}', not '${expect.leaseId}' - nothing was touched`,
-        { exitCode: 3 },
-      );
-    }
-    if (expect.holder !== undefined && expect.holder !== '' && expect.holder !== haveHolder) {
-      throw new YanError('worktree_mismatch',
-        `holder does not match: slot ${slot} is held by '${haveHolder}', not '${expect.holder}' - nothing was touched`,
-        { exitCode: 3 },
-      );
-    }
-
-    if (path === '' || !existsSync(path)) {
-      process.stderr.write(
-        `worktree: the leased tree is gone: ${path === '' ? '<unknown>' : path} - releasing the lease on slot ${slot}\n`,
-      );
-      releaseLease(this.dir, slot);
-      return path;
-    }
-
-    if (expect.force !== true) assertReturnable(path);
-    wipe(path);
-    releaseLease(this.dir, slot);
-    return path;
-  }
-
-  /** The leases, sorted by slot. */
-  public status(): LeaseRow[] {
-    return allLeases(this.dir).map((l) => ({
-      slot: l.slot,
-      path: l.path,
-      branch: l.branch,
-      base: l.base,
-      holder: l.holder,
-      lease_id: l.lease_id,
-      at: l.at,
-    }));
-  }
-
-  private getLocked(size: number, base: string, branch: string, holder: string): LeaseGrant {
+  private getLocked(base: string, branch: string, holder: string): LeaseGrant {
     const name = repoName(absolute(this.clone));
 
     git.worktreePrune(this.clone);
     reclaim(this.dir);
 
-    const slot = this.pickSlot(size, name);
-    if (slot === undefined) {
-      throw new YanError('worktree_full',
-        `the pool is full - all ${size} trees are leased, cannot start a new shift. 'yan tree status' shows who holds them; raise pool_size in the vault's repos.json only if this machine can afford another tree`,
-      );
-    }
-
+    const slot = this.pickSlot(name);
     const tree = slotTree(this.dir, slot, name);
     mkdirSync(join(this.dir, String(slot)), { recursive: true });
     this.placeTree(tree, slot, base, branch);
@@ -166,15 +68,19 @@ export class WorktreePool {
     return { path: tree, lease_id: leaseId, holder };
   }
 
-  /** A free slot that already holds a tree, otherwise the lowest empty one. */
-  private pickSlot(size: number, name: string): number | undefined {
-    const cold: number[] = [];
-    for (let n = 1; n <= size; n += 1) {
-      if (existsSync(leaseFile(this.dir, n))) continue;
-      if (existsSync(join(this.dir, String(n), name, '.git'))) return n;
-      if (!existsSync(join(this.dir, String(n), name))) cold.push(n);
+  /**
+   * The lowest free slot that already holds a tree, so the pool reuses a warm
+   * one before it cuts a new one; otherwise the lowest slot with no tree in it.
+   * A slot whose directory holds something git did not put there is skipped.
+   */
+  private pickSlot(name: string): number {
+    const free = (n: number): boolean => !existsSync(leaseFile(this.dir, n));
+    const slots = readdirSync(this.dir).filter((e) => /^[0-9]+$/.test(e)).map(Number).sort((a, b) => a - b);
+    const warm = slots.find((n) => free(n) && existsSync(join(this.dir, String(n), name, '.git')));
+    if (warm !== undefined) return warm;
+    for (let n = 1; ; n += 1) {
+      if (free(n) && !existsSync(join(this.dir, String(n), name))) return n;
     }
-    return cold[0];
   }
 
   private placeTree(tree: string, slot: number, base: string, branch: string): void {
@@ -183,7 +89,7 @@ export class WorktreePool {
     if (isRegisteredWorktree(this.clone, tree)) {
       if (!git.isClean(tree)) {
         throw new YanError('worktree_failed',
-          `the tree in slot ${slot} still has changes: ${tree} - it was not returned properly, so investigate before it is leased again`,
+          `the tree in slot ${slot} still has changes: ${tree} - it was not returned properly, so look at it before it is leased again`,
         );
       }
       const checkout = git.branchExists(this.clone, branch)
@@ -206,22 +112,16 @@ export class WorktreePool {
       : git.worktreeAdd(this.clone, ['-b', branch, tree, ref]);
     if (added.code !== 0) {
       this.reportOccupied(branch, added.stderr);
-      throw new YanError('worktree_failed',
-        `cannot add a worktree at ${tree} on '${branch}': ${added.stderr.trim()}`,
-      );
+      throw new YanError('worktree_failed', `cannot add a worktree at ${tree} on '${branch}': ${added.stderr.trim()}`);
     }
   }
 
-  /**
-   * Throws a YanError naming the clone that holds `branch` when git's
-   * stderr says it is checked out elsewhere; returns quietly otherwise. The
-   * pool never moves a clone off a branch itself.
-   */
+  /** Throws naming the clone that holds `branch` when git says it is checked out elsewhere. */
   private reportOccupied(branch: string, stderr: string): void {
     if (!/already (used by worktree|checked out)/i.test(stderr)) return;
     const holder = worktreeHolding(this.clone, branch);
     throw new YanError('worktree_failed',
-      `'${branch}' is already checked out in ${holder ?? this.clone} - switch that clone to another branch and retry; the pool never moves a clone it does not own`,
+      `'${branch}' is already checked out in ${holder ?? this.clone} - switch that clone to another branch and retry`,
     );
   }
 
@@ -234,11 +134,59 @@ export class WorktreePool {
       current = '';
     }
     if (current !== branch) {
-      throw new YanError('worktree_failed',
-        `the tree is on '${current === '' ? 'an unknown ref' : current}', not '${branch}' - refusing to hand out a tree that is not on its shift branch`,
-      );
+      throw new YanError('worktree_failed', `the tree is on '${current === '' ? 'an unknown ref' : current}', not '${branch}'`);
     }
   }
+}
+
+/** Every pool under the root: one directory per clone. */
+function poolDirs(): string[] {
+  const root = poolRoot();
+  let entries: string[];
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return [];
+  }
+  return entries.map((e) => join(root, e)).filter((d) => isDirectory(join(d, 'leases')));
+}
+
+/**
+ * The lease `holder` has, in whichever pool it is. A lease whose tree is gone
+ * does not count. `undefined` when there is none.
+ */
+export function leaseHeldBy(holder: string): LeaseRow | undefined {
+  for (const dir of poolDirs()) {
+    for (const lease of allLeases(dir)) {
+      if (lease.holder !== holder || !existsSync(lease.path)) continue;
+      return { slot: lease.slot, path: lease.path, branch: lease.branch, base: lease.base, holder: lease.holder, lease_id: lease.lease_id, at: lease.at };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Give back the tree `holder` leased: refuse while it holds work that exists
+ * nowhere else, unless `force`, then reset and clean it and release the
+ * lease. The slot stays, warm, for the next lease. A tree already gone only
+ * has its lease released.
+ *
+ * @returns the tree's path, or `undefined` when `holder` held none.
+ * @throws YanError `worktree_failed` when the guard refuses.
+ */
+export function returnTree(holder: string, options: { force?: boolean } = {}): string | undefined {
+  for (const dir of poolDirs()) {
+    for (const lease of allLeases(dir)) {
+      if (lease.holder !== holder) continue;
+      if (existsSync(lease.path)) {
+        if (options.force !== true) assertReturnable(lease.path);
+        wipe(lease.path);
+      }
+      releaseLease(dir, lease.slot);
+      return lease.path;
+    }
+  }
+  return undefined;
 }
 
 function lockTimeoutSeconds(): number {

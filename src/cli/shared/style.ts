@@ -23,13 +23,8 @@ function sgr(open: string, close: string): Paint {
 
 export const bold = sgr('1', '22');
 export const dim = sgr('2', '22');
-export const red = sgr('31', '39');
 export const green = sgr('32', '39');
 export const yellow = sgr('33', '39');
-export const blue = sgr('34', '39');
-export const magenta = sgr('35', '39');
-export const cyan = sgr('36', '39');
-export const gray = sgr('90', '39');
 
 /**
  * How many columns a line may take: the terminal's width when stdout is one,

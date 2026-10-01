@@ -45,7 +45,7 @@ describe('normalizePath', () => {
 });
 
 describe('samePath', () => {
-  it('sees through the spellings git and herdr print', () => {
+  it('sees through the spellings git and Windows print', () => {
     expect(samePath('C:\\workspace\\Yan', 'C:/workspace/Yan')).toBe(true);
     expect(samePath('C:/workspace/Yan/', 'C:/workspace/Yan')).toBe(true);
     expect(samePath('C:/workspace/Yan', 'C:/workspace/Other')).toBe(false);

@@ -15,12 +15,17 @@ import { isDirectory, normalizePath } from './paths.js';
  *   neither                `vaultDir()` throws, `vaultDirIfAny()` says undefined
  *
  * A fresh install has no vault, so anything that must run without one —
- * `doctor`, `vault init`, `vault clone`, `vault ls`, `--help` — asks
- * `vaultDirIfAny()`.
+ * `vault init`, `vault clone`, `vault ls`, `--help` — asks `vaultDirIfAny()`.
  */
 
-/** The newest `vault.json` version this build understands. */
-export const VAULT_VERSION = 1;
+/**
+ * The `vault.json` version this build reads and writes. Version 2 is the
+ * memory-only layout: deliverables inside `task.json`, `drafts/` beside it,
+ * `learnings/` at the top. A version 1 vault is refused until
+ * `scripts/migrate-v4.mjs` has rewritten it, so nothing half-reads the old
+ * shape.
+ */
+export const VAULT_VERSION = 2;
 
 /** The file whose presence makes a directory a vault. */
 const VAULT_MARKER = 'vault.json';
@@ -64,13 +69,19 @@ export function readVaultJson(dir: string): VaultIdentity {
 
 /**
  * @throws YanError `vault_ahead` when vault.json's version is newer than this
- *   build understands, so it is never written over with an older shape.
+ *   build understands, so it is never written over with an older shape, and
+ *   `vault_old` when it predates it and has not been migrated.
  */
 function checkVersion(dir: string): void {
   const { version } = readVaultJson(dir);
   if (version > VAULT_VERSION) {
     throw new YanError('vault_ahead',
-      `${dir} was written by a newer yan (vault.json version ${version}, this build understands ${VAULT_VERSION}) - update the mechanics clone`,
+      `${dir} was written by a newer yan (vault.json version ${version}, this build understands ${VAULT_VERSION}) - update yan`,
+    );
+  }
+  if (version < VAULT_VERSION) {
+    throw new YanError('vault_old',
+      `${dir} is a version ${version} vault and this build reads version ${VAULT_VERSION} - migrate it first: node <yan>/scripts/migrate-v4.mjs`,
     );
   }
 }
@@ -79,7 +90,7 @@ function checkVersion(dir: string): void {
  * The active vault, or `undefined`. Never throws, and never checks the
  * version.
  */
-export function vaultDirIfAny(): string | undefined {
+function vaultDirIfAny(): string | undefined {
   const fromEnv = process.env.YAN_VAULT;
   if (fromEnv !== undefined && fromEnv !== '' && isVault(fromEnv)) {
     return normalizePath(resolve(fromEnv));
@@ -92,8 +103,7 @@ export function vaultDirIfAny(): string | undefined {
 }
 
 /**
- * What the answer depends on. `Task` and `Shift` each ask in their
- * constructor, so the resolved directory is cached against this rather than
+ * What the answer depends on. `Task` asks in its constructor, so the resolved directory is cached against this rather than
  * re-read on every one. A process never switches vaults of its own accord, and the two
  * variables plus the registry revision cover everything that could move the
  * answer under one that does — `yan vault use`, `init` and `clone` all write
@@ -155,25 +165,21 @@ export function taskDir(id: string): string {
   return join(vaultDir(), 'tasks', id);
 }
 
-export function memDir(): string {
-  return join(vaultDir(), 'mem');
+/** `learnings/` — what `user` asked to keep beyond one task. */
+export function learningsDir(): string {
+  return join(vaultDir(), 'learnings');
 }
 
-/** `config.json` — agents.* and remote_git.*, which follow the context. */
+/** `config.json` — which harness `yan` starts, by hand, per context. */
 export function vaultConfigPath(): string {
   return join(vaultDir(), 'config.json');
 }
 
 /**
- * The vault's `config.json`, opened and parsed in one place. Two modules own a
- * section each and may not import one another — `remote_git` inside
- * `externals/remote-git`, `agents` and `scenarios` in `cli/shared/agents.ts` —
- * so this lives below both. Nothing here judges what is in it.
- *
- * A file that is not there is `undefined`; one that is there and does not
- * parse throws, because a configuration someone wrote and got wrong is not the
- * same as no configuration. A person writes this file, so that is exit 2 (see
- * `YanError.usage`); an owner may still word the refusal its own way.
+ * The vault's `config.json`, parsed. A file that is not there is `undefined`;
+ * one that is there and does not parse throws, because a configuration
+ * someone wrote and got wrong is not the same as no configuration. A person
+ * writes this file, so that is exit 2 (see `YanError.usage`).
  *
  * @throws YanError `config_invalid` (exit 2) when the file is not JSON.
  */
@@ -183,25 +189,7 @@ export function readVaultConfig(): Record<string, unknown> | undefined {
   try {
     raw = readJsonIfPresent(path);
   } catch {
-    throw YanError.usage('config_invalid', `${path} is not valid JSON - fix it, then run 'yan doctor'`);
+    throw YanError.usage('config_invalid', `${path} is not valid JSON - fix it by hand`);
   }
   return raw === undefined ? undefined : asRecord(raw);
-}
-
-/** `repos.json` — the portable half of the repo registry: name → url, pool_size. */
-export function reposPath(): string {
-  return join(vaultDir(), 'repos.json');
-}
-
-/** `.local/repos.json` — the machine half: name → this disk's clone path, never committed. */
-export function localReposPath(): string {
-  return join(vaultDir(), '.local', 'repos.json');
-}
-
-/**
- * `skills/` — standing instructions in prose, not executables, which
- * `yan session-start` lists. See `machineSkillsDir()` for the per-box ones.
- */
-export function skillsDir(): string {
-  return join(vaultDir(), 'skills');
 }

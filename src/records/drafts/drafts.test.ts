@@ -24,16 +24,15 @@ function write(id: string, body: string, ageSeconds: number): string {
 
 beforeEach(() => {
   mkYanHome(mkTempDir());
-  Task.create('t042', 'unify the auth header');
-  drafts = new Drafts('t042');
+  drafts = new Drafts(Task.create('unify the auth header').id);
 });
 
 
 afterAll(cleanupTempDirs);
 
 describe('where drafts live', () => {
-  it('is artifacts/drafts/ under the task', () => {
-    expect(drafts.dir).toBe(`${new Task('t042').dir}/artifacts/drafts`);
+  it('is drafts/ under the task', () => {
+    expect(drafts.dir).toBe(`${new Task('t001').dir}/drafts`);
   });
 
   it('reads an absent folder as empty, and does not create it', () => {

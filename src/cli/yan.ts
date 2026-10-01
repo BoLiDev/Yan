@@ -1,16 +1,17 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, CommanderError } from 'commander';
-import { openTasks } from './shared/task-id.js';
 import { isTty } from './shared/tty.js';
-import { isYanError } from '../util/error.js';
+import { YanError, isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
 import { readJsonOrNone } from '../util/json.js';
 import { asString } from '../util/narrow.js';
 
 /**
  * The Commander root, and the only place subcommands are composed. A command
- * is a `dist/cli/<name>.js` exporting a `command`, discovered from disk.
+ * is a `dist/cli/<name>.js` exporting a `command`, discovered from disk. Bare
+ * `yan` is not a command: it picks a task and starts an agent on it
+ * (`shared/launch.ts`).
  *
  * No option anywhere under `src/cli/` is declared `.requiredOption()`: a
  * command asks for what is missing when there is a terminal, and Commander
@@ -40,30 +41,24 @@ function hasCommand(mod: unknown): mod is CommandModule {
   );
 }
 
-/**
- * Rewrite a leading `<a> <b>` into `<a>-<b>` when a command of that name
- * exists, so `yan shift new` and `yan shift-new` are the same. Argv that does
- * not name one is untouched.
- */
-function joinTwoWordCommand(argv: readonly string[], known: readonly string[]): string[] {
-  const [first, second, ...rest] = argv;
-  if (first === undefined || second === undefined) return [...argv];
-  if (/^[A-Za-z0-9_-]+$/.test(second) && known.includes(`${first}-${second}`)) {
-    return [`${first}-${second}`, ...rest];
-  }
-  return [...argv];
-}
-
 async function buildProgram(home: string): Promise<Command> {
   const program = new Command();
   const found = subcommands(home);
 
   program
     .name('yan')
-    .description('one main agent per task, orchestrating single-use shifts')
+    .description('notes that outlive an agent session: tasks, their log and deliverables')
     .version(`yan ${yanVersion(home)}`, '-V, --version')
     .enablePositionalOptions()
-    .showHelpAfterError();
+    .showHelpAfterError()
+    .addHelpText(
+      'after',
+      `
+Bare 'yan', at a terminal, picks a task or starts one and runs an agent on it
+here, in the task's worktree when it has one:
+
+  yan [--cli claude|codex|agy] [-- <args for the agent>]`,
+    );
 
   for (const name of found) {
     const file = join(home, 'dist', 'cli', `${name}.js`);
@@ -101,35 +96,54 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/** The argv the chosen entry point becomes, re-entering this same program. */
-async function chooseEntryPoint(): Promise<string[]> {
-  const { chooseEntry, CREATE_NEW } = await import('../ui/prompts.js');
-  const { readVaultJson, vaultDirIfAny } = await import('../util/vault.js');
-  const dir = vaultDirIfAny();
-  const chosen = await chooseEntry(openTasks(), dir === undefined ? '' : readVaultJson(dir).name);
-  return chosen === CREATE_NEW ? ['task', 'new'] : ['continue', chosen];
+/** What bare `yan` was given: the CLI to run instead, and what to pass it. */
+interface EntryArgs {
+  readonly cli?: string;
+  readonly extra: string[];
+}
+
+/**
+ * `argv` as bare `yan`'s, or `undefined` when it names a command or asks for
+ * help or the version.
+ *
+ * @throws YanError `yan_usage` for a flag bare `yan` does not take.
+ */
+function entryArgs(argv: readonly string[]): EntryArgs | undefined {
+  const first = argv[0];
+  if (first !== undefined && (!first.startsWith('-') || ['-h', '--help', '-V', '--version'].includes(first))) return undefined;
+  let cli: string | undefined;
+  for (let i = 0; i < argv.length; i += 1) {
+    const word = argv[i] as string;
+    if (word === '--') return { ...(cli === undefined ? {} : { cli }), extra: argv.slice(i + 1) };
+    if (word === '--cli' && argv[i + 1] !== undefined) {
+      cli = argv[i + 1];
+      i += 1;
+    } else if (word.startsWith('--cli=')) {
+      cli = word.slice('--cli='.length);
+    } else {
+      throw YanError.usage('yan_usage', `bare yan takes --cli <name> and, after --, arguments for the agent - not '${word}'`);
+    }
+  }
+  return { ...(cli === undefined ? {} : { cli }), extra: [] };
 }
 
 async function main(argv: readonly string[]): Promise<number> {
-  const home = yanHome();
-  const found = subcommands(home);
-  const program = await buildProgram(home);
-
-  let words = [...argv];
+  const program = await buildProgram(yanHome());
 
   try {
-    // Bare `yan` is the select on a terminal, and usage with exit 0 without.
-    if (words.length === 0) {
+    const entry = entryArgs(argv);
+    if (entry !== undefined) {
+      // Without a terminal there is nobody to pick a task or talk to an agent.
       if (!isTty()) {
+        if (argv.length > 0) throw YanError.usage('yan_usage', 'bare yan starts an agent, and needs a terminal to do it');
         program.outputHelp();
         return 0;
       }
-      words = await chooseEntryPoint();
+      const { enter } = await import('./shared/launch.js');
+      return await enter(entry);
     }
 
-    await program.parseAsync([...joinTwoWordCommand(words, found)], { from: 'user' });
-    // A subcommand that set an exit code of its own keeps it: `yan tree
-    // return`'s 3 is an answer rather than an error.
+    await program.parseAsync([...argv], { from: 'user' });
     return typeof process.exitCode === 'number' ? process.exitCode : 0;
   } catch (err) {
     if (err instanceof CommanderError) {

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { Command } from 'commander';
-import { chosenTask, existingTask } from './shared/task-id.js';
+import { chosenTask } from './shared/task-id.js';
 import { isTty } from './shared/tty.js';
 import { action, out } from './shared/action.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
@@ -13,7 +13,7 @@ import { which } from '../util/which.js';
 
 /**
  * `yan draft` — `user`'s own notes about one task, kept in
- * `tasks/<id>/artifacts/drafts/` in the format of cli-kit's `draft`.
+ * `tasks/<id>/drafts/` in the format of cli-kit's `draft`.
  *
  *     yan draft [task-id] [--title <words>]   write one, in the editor
  *     yan draft ls [task-id]                  pick one to open; lists when there is no terminal
@@ -23,27 +23,22 @@ import { which } from '../util/which.js';
  *
  * Writing is `user`'s alone: a draft is what they thought outside the
  * conversation, and one written by an agent would be indistinguishable from
- * it. So the paths that open an editor refuse inside a shift and without a
- * terminal, and the reading paths work anywhere.
+ * it. So the paths that open an editor refuse without a terminal, and the
+ * reading paths work anywhere.
  */
 
 /** The default number of rows a listing prints. */
 const LIST_LIMIT = 20;
 
 async function taskFor(command: string, given: string | undefined, question: string): Promise<string> {
-  const id = await chosenTask('draft', given, { spelled: command, question });
-  return existingTask('draft', id).id;
+  return (await chosenTask(given, command, question)).id;
 }
 
 /**
- * Refuse unless this is `user` at a keyboard: never inside a shift, and never
- * without a terminal, where an editor would have nobody to type into.
+ * Refuse unless this is `user` at a keyboard: never without a terminal, where
+ * an editor would have nobody to type into.
  */
 function userOnly(what: string, tty: () => boolean): void {
-  const sid = process.env.YAN_SID ?? '';
-  if (sid !== '') {
-    throw YanError.usage('draft_user_only', `${what} is user's alone: drafts are user's own notes, written at a keyboard, and shift ${sid} only reads them - 'yan draft cat <id>'`);
-  }
   if (!tty()) {
     throw YanError.usage('draft_user_only', `${what} needs a terminal: drafts are user's own notes, written at a keyboard - 'yan draft ls --plain' and 'yan draft cat <id>' read them`);
   }
@@ -51,7 +46,6 @@ function userOnly(what: string, tty: () => boolean): void {
 
 // ------------------------------------------------------------------ editor --
 
-/** The command as something spawnable, or null when it is not there. */
 /** Split a command line into argv, honouring double quotes around a path with spaces. */
 function splitCommand(line: string): string[] {
   const parts: string[] = [];
@@ -273,19 +267,18 @@ const dir = new Command('dir')
   );
 
 export const command = new Command('draft')
-  .description("user's own notes about a task: write, list, read and search them")
+  .description("the user's own notes about a task: write, list, read and search them")
   .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--title <words>', 'start the draft with this heading, and put it in the file name')
   .addHelpText(
     'after',
     `
-Drafts are user's own notes about one task, written outside the conversation
-with yan: ideas, scratch, what to raise next time. They live in
-tasks/<id>/artifacts/drafts/<draft-id>.md, in the format of the 'draft' CLI, so
-a note moves between the two by moving the file. yan's session start lists
-them, and yan reads one with 'yan draft cat' when it looks relevant; neither
-yan nor a shift ever writes one, which is why writing refuses without a
-terminal and inside a shift.
+Drafts are the user's own notes about one task, written outside the
+conversation: ideas, scratch, what to raise next time. They live in
+tasks/<id>/drafts/<draft-id>.md, in the format of the 'draft' CLI, so a note
+moves between the two by moving the file. 'yan peek' lists the newest, and an
+agent reads one with 'yan draft cat' when it looks relevant. An agent never
+writes one, which is why writing refuses without a terminal.
 
 Every command takes the task last and defaults to $YAN_TASK, so inside a
 session 'yan draft cat 2026-09-16_051516' is enough. For search, a last word

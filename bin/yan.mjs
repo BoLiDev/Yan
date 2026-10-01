@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 //
-// yan - the entry point npm installs onto PATH, beside bin/yan, which stays a
-// bash script and cannot be npm's `bin` target: npm's Windows shim hands bash
-// a Windows path, which bash reads as escape sequences.
+// yan - the entry point npm installs onto PATH.
 //
 //   1  find $YAN_HOME
-//   2  check the one remaining hard dependency
+//   2  check the one hard dependency, git
 //   3  spawn dist/cli/yan.js, with the ORIGINAL words
 //
 // Spawned rather than imported: dist/cli/yan.js only runs when process.argv[1]
@@ -22,7 +20,7 @@ function die(message) {
   process.exit(1);
 }
 
-const isYanHome = (dir) => dir !== undefined && existsSync(join(dir, 'bin', 'yan'));
+const isYanHome = (dir) => dir !== undefined && existsSync(join(dir, 'bin', 'yan.mjs'));
 
 // An exported $YAN_HOME wins, but only when it really is a yan home.
 const exported = process.env.YAN_HOME;
@@ -31,10 +29,9 @@ const YAN_HOME = isYanHome(exported)
   : dirname(dirname(fileURLToPath(import.meta.url)));
 process.env.YAN_HOME = YAN_HOME;
 
-// The forge CLI and herdr belong to `yan doctor`; git is needed before that.
 const git = spawnSync('git', ['--version'], { stdio: 'ignore', shell: process.platform === 'win32' });
 if (git.status !== 0) {
-  die("missing required dependency: git - install it, then run 'yan doctor'");
+  die('missing required dependency: git - install it, then run yan again');
 }
 
 const YAN_ROOT_JS = join(YAN_HOME, 'dist', 'cli', 'yan.js');

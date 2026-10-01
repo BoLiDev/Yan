@@ -1,26 +1,12 @@
-import { autocomplete, autocompleteMultiselect, confirm, intro, isCancel, note, text } from '@clack/prompts';
-import { defaultBranch } from '../util/git.js';
-import { detectMonorepo, scopeChoices, unitsForRepo, type Choice, type PlannedUnit, type RegisteredRepo } from './plan.js';
+import { autocomplete, autocompleteMultiselect, confirm, intro, isCancel, text } from '@clack/prompts';
 import { YanError } from '../util/error.js';
 
 /**
- * What to prefill the target box with, or `undefined` for any reason it cannot
- * be worked out. Never throws.
- */
-function suggestTarget(dir: string): string | undefined {
-  try {
-    return defaultBranch(dir);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Asking a person for a value `argv` did not carry, and nothing else: nothing
- * here writes, opens or merges. Imported dynamically by its callers, so a
- * `yan` that never prompts never loads Clack.
+ * here writes, opens or launches. Imported dynamically by its callers, so a
+ * command that never prompts never loads Clack.
  *
- * Every prompt throws `YanError` `cancelled` when `user` presses escape.
+ * Every prompt throws `YanError` `ui_cancelled` when `user` presses escape.
  */
 
 /** The placeholder every list here carries; all of them are searchable. */
@@ -65,40 +51,48 @@ export async function askVaultClone(): Promise<string> {
 export interface TaskChoice {
   readonly id: string;
   readonly title: string;
-  readonly units: number;
-  readonly shifts: number;
 }
 
-function taskOption(task: TaskChoice): Choice {
-  return {
-    value: task.id,
-    label: `${task.id}  ${task.title === '' ? '(no title)' : task.title}`,
-    hint: task.shifts === 0 ? 'idle' : `${task.shifts} shift(s) live`,
-  };
+function taskOption(task: TaskChoice): { value: string; label: string } {
+  return { value: task.id, label: `${task.id}  ${task.title === '' ? '(no title)' : task.title}` };
 }
 
-/** What `chooseEntry` returns for "create a new task"; the rest are task ids. */
-export const CREATE_NEW = '\0create';
+/** What `chooseEntry` returns for "a new task"; the rest are task ids. */
+export const CREATE_NEW = '\u0000new';
 
+/** Bare `yan`: an open task to work on, or a new one. */
 export async function chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string> {
   // The vault is named in the header: two on one machine is ordinary.
   intro(vault === '' ? 'yan' : `yan · ${vault}`);
   const chosen = await autocomplete({
-    message: 'What are we doing?',
+    message: 'What are we working on?',
     placeholder: PLACEHOLDER,
-    options: [
-      { value: CREATE_NEW, label: 'create new task' },
-      ...tasks.map(taskOption),
-    ],
+    options: [{ value: CREATE_NEW, label: 'new task' }, ...tasks.map(taskOption)],
   });
-  return answered(chosen, 'nothing was opened');
+  return answered(chosen, 'nothing was started');
 }
 
-/**
- * `yan done` with no id: a multi-select over the unfinished tasks, since a
- * round that lands usually finishes several. Each row shows how many shifts
- * are live, which is what the command would refuse over.
- */
+/** A new task's title. */
+export async function askTitle(): Promise<string> {
+  return required('What is this task called?', 'no task was created');
+}
+
+/** Whether to lease a tree of the repository `yan` was typed in. Defaults to yes. */
+export async function confirmTree(repo: string, why = ''): Promise<boolean> {
+  const message = [why, `Open a worktree of ${repo}?`].filter((s) => s !== '').join(' ');
+  const yes = await confirm({ message, initialValue: true });
+  if (isCancel(yes)) throw cancelled('nothing was started');
+  return yes;
+}
+
+/** Select one open task. `command` heads the prompt; `message` is the question. */
+export async function chooseTask(tasks: readonly TaskChoice[], command: string, message: string): Promise<string> {
+  intro(command);
+  const chosen = await autocomplete({ message, placeholder: PLACEHOLDER, options: tasks.map(taskOption) });
+  return answered(chosen, 'nothing was chosen');
+}
+
+/** `yan done` with no id: several at once, since one round usually finishes more than one. */
 export async function chooseTasksToFinish(tasks: readonly TaskChoice[]): Promise<string[]> {
   intro('yan done');
   const chosen = await autocompleteMultiselect({
@@ -107,45 +101,8 @@ export async function chooseTasksToFinish(tasks: readonly TaskChoice[]): Promise
     options: tasks.map(taskOption),
     required: true,
   });
-  if (isCancel(chosen)) throw cancelled('nothing was marked done');
+  if (isCancel(chosen)) throw cancelled('nothing was closed');
   return [...chosen].map((v) => String(v));
-}
-
-/**
- * `yan continue` or `yan show` with no id: select among the incomplete tasks.
- * `command` heads the prompt; `message` is the question.
- */
-export async function chooseTask(
-  tasks: readonly TaskChoice[],
-  command: string,
-  message: string,
-): Promise<string> {
-  intro(command);
-  const chosen = await autocomplete({
-    message,
-    placeholder: PLACEHOLDER,
-    options: tasks.map(taskOption),
-  });
-  return answered(chosen, 'nothing was opened');
-}
-
-/** `yan abandon` at a terminal: why, in one line. Empty is an answer. */
-export async function askAbandonReason(): Promise<string> {
-  return answered(
-    await text({ message: 'Why is it being given up? (optional)', placeholder: 'leave empty to skip' }),
-    'nothing was abandoned',
-  );
-}
-
-/**
- * `yan abandon` at a terminal: what will happen, then a yes or no that
- * defaults to no. `true` only for an explicit yes.
- */
-export async function confirmAbandon(title: string, plan: readonly string[]): Promise<boolean> {
-  note(plan.join('\n'), `abandoning ${title}`);
-  const yes = await confirm({ message: 'Give this task up?', initialValue: false });
-  if (isCancel(yes)) throw cancelled('nothing was abandoned');
-  return yes;
 }
 
 /** One draft as `yan draft ls` offers it; `updated` is already formatted. */
@@ -168,151 +125,4 @@ export async function chooseDraft(drafts: readonly DraftChoice[], task: string):
     })),
   });
   return answered(chosen, 'no draft was opened');
-}
-
-/** What a repository select needs of a row. */
-interface RepoRow {
-  readonly name: string;
-  /** Why it cannot be selected, or the empty string when it can. */
-  readonly blocked: string;
-}
-
-/** One row of `yan repo add`'s scan, as the command layer worked it out. */
-export interface RepoCandidate extends RepoRow {
-  readonly dir: string;
-  readonly url: string;
-}
-
-/** One row of `yan repo rm`'s list, as the command layer worked it out. */
-export interface RepoRemovable extends RepoRow {
-  readonly url: string;
-  /** Where it is on this machine, or the empty string when it is not linked here. */
-  readonly path: string;
-}
-
-/**
- * `yan repo add` and `yan repo rm` with no argument: which of `rows` to act
- * on. A blocked row is listed with its reason and dropped from the result even
- * if it is picked; when every row is blocked, nothing is asked.
- */
-export async function chooseRepos<R extends RepoRow>(select: {
-  /** The heading, `yan repo add — <dir>`. */
-  readonly intro: string;
-  readonly message: string;
-  /** The note's title when every row is blocked. */
-  readonly emptyTitle: string;
-  /** What escape leaves undone, `nothing was registered`. */
-  readonly cancelled: string;
-  readonly rows: readonly R[];
-  /** The dimmed text beside a row. */
-  readonly hintOf: (row: R) => string;
-}): Promise<string[]> {
-  intro(select.intro);
-  const { rows } = select;
-  if (rows.every((r) => r.blocked !== '')) {
-    note(rows.map((r) => `${r.name}  —  ${r.blocked}`).join('\n'), select.emptyTitle);
-    return [];
-  }
-
-  const chosen = await autocompleteMultiselect({
-    message: select.message,
-    placeholder: PLACEHOLDER,
-    options: rows.map((r) => ({
-      value: r.name,
-      label: r.blocked === '' ? r.name : `${r.name}  (${r.blocked})`,
-      hint: select.hintOf(r),
-    })),
-    required: false,
-  });
-  if (isCancel(chosen)) throw cancelled(select.cancelled);
-
-  const blocked = new Set(rows.filter((r) => r.blocked !== '').map((r) => r.name));
-  return [...chosen].map((v) => String(v)).filter((name) => !blocked.has(name));
-}
-
-interface TaskNewAnswers {
-  readonly title: string;
-  readonly description: string;
-  readonly units: readonly PlannedUnit[];
-}
-
-/**
- * `yan task new`'s wizard: title, description, repositories, per-repo scope,
- * then target. The target box is prefilled with the remote's default branch
- * where there is one, and is empty otherwise — never answered unseen.
- */
-export async function askTaskNew(
-  repos: readonly RegisteredRepo[],
-  given: { title?: string; description?: string },
-): Promise<TaskNewAnswers> {
-  intro('yan task new');
-
-  const title =
-    given.title !== undefined && given.title !== ''
-      ? given.title
-      : answered(
-          await text({ message: 'What is this task called?', validate: (v) => ((v ?? '').trim() === '' ? 'a task needs a title' : undefined) }),
-          'no task was created',
-        );
-
-  const description =
-    given.description !== undefined
-      ? given.description
-      : answered(
-          await text({ message: 'Describe it (optional)', placeholder: 'leave empty to skip' }),
-          'no task was created',
-        );
-
-  if (repos.length === 0) {
-    throw new YanError('ui_blocked', 'no repositories are registered - run `yan repo add` where your clones live, then create the task');
-  }
-
-  const chosen = await autocompleteMultiselect({
-    message: 'Which repositories does this task involve?',
-    placeholder: PLACEHOLDER,
-    options: repos.map((r) => ({ value: r.name, label: r.name, hint: r.url })),
-    required: true,
-  });
-  if (isCancel(chosen)) throw cancelled('no task was created');
-
-  const units: PlannedUnit[] = [];
-  const used = new Set<string>();
-  for (const name of chosen) {
-    const repo = repos.find((r) => r.name === name);
-    if (repo === undefined) continue;
-
-    const detection = detectMonorepo(repo.dir);
-    let scopes: string[] = [];
-    if (detection.monorepo) {
-      const picked = await autocompleteMultiselect({
-        message: `${name}: which packages are in scope?`,
-        placeholder: PLACEHOLDER,
-        options: scopeChoices(detection),
-        required: true,
-      });
-      if (isCancel(picked)) throw cancelled('no task was created');
-      scopes = [...picked];
-    }
-
-    const suggested = suggestTarget(repo.dir);
-    const target = answered(
-      await text({
-        message: `${name}: which branch does this deliver into?`,
-        ...(suggested === undefined ? {} : { initialValue: suggested }),
-        validate: (v) => ((v ?? '').trim() === '' ? 'yan never guesses a target: say which branch this unit delivers into' : undefined),
-      }),
-      'no task was created',
-    );
-
-    units.push(...unitsForRepo({ repo: name, scopes, target }, used));
-  }
-
-  note(
-    units
-      .map((u) => `${u.unit} (${u.repo}${u.scope.length > 0 ? `/${u.scope[0] as string}` : ''} → ${u.target})`)
-      .join('\n'),
-    `${units.length} unit(s)`,
-  );
-
-  return { title, description, units };
 }

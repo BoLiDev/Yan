@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -61,22 +61,24 @@ describe('vault init', () => {
     expect(r.code).toBe(0);
 
     // The layout.
-    for (const rel of ['vault.json', 'config.json', 'repos.json', '.gitignore', 'README.md', 'tasks', 'mem/learnings']) {
+    for (const rel of ['vault.json', 'config.json', '.gitignore', 'README.md', 'tasks', 'learnings']) {
       expect(existsSync(join(dir, rel)), rel).toBe(true);
     }
+    for (const gone of ['repos.json', 'mem', 'skills']) expect(existsSync(join(dir, gone)), gone).toBe(false);
     const identityJson = JSON.parse(readFileSync(join(dir, 'vault.json'), 'utf8')) as Record<string, unknown>;
     expect(identityJson.name).toBe('personal');
-    expect(identityJson.version).toBe(1);
+    expect(identityJson.version).toBe(2);
+    expect(JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8'))).toMatchObject({ cli: 'claude' });
 
     // Pushed, and the remote really has it.
     const remoteFiles = await fxGit(['-C', bare, 'ls-tree', '--name-only', 'main']);
     expect(remoteFiles.stdout).toContain('vault.json');
 
-    // Registered and active, with a clone_root defaulted beside the mechanics.
+    // Registered and active.
     const config = machineConfig('init');
     expect(config.active).toBe('personal');
     expect((config.vaults as Record<string, string>).personal.replace(/\\/g, '/')).toBe(dir.replace(/\\/g, '/'));
-    expect(typeof config.clone_root).toBe('string');
+    expect(config.clone_root).toBeUndefined();
   });
 
   it('refuses a name that is already registered, and a directory that is not empty', async () => {
@@ -169,6 +171,18 @@ describe('resolution', () => {
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('newer yan');
   });
+
+  it('refuses a version 1 vault and names the migration', async () => {
+    const bare = await mkEmptyRemote(join(tmp, 'old.git'));
+    const env = { ...isolated('old'), ...identity };
+    const dir = join(tmp, 'vaults', 'old');
+    await runYan(home, ['vault', 'init', 'old', '--remote', bare, '--path', dir], env);
+
+    writeFileSync(join(dir, 'vault.json'), `${JSON.stringify({ version: 1, name: 'old' }, null, 2)}\n`);
+    const r = await runYan(home, ['ls'], env);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('migrate-v4.mjs');
+  });
 });
 
 describe('pull and push', () => {
@@ -190,8 +204,8 @@ describe('pull and push', () => {
     const onA = { ...isolated('shared-work'), ...identity };
 
     mkdirSync(join(a, 'tasks', 't042'), { recursive: true });
-    writeFileSync(join(a, 'tasks', 't042', 'task.json'), '{"version":1,"id":"t042","title":"x","complete":false,"units":[]}\n');
-    writeFileSync(join(a, 'tasks', 't042', 'log.md'), '# t042\n');
+    writeFileSync(join(a, 'tasks', 't042', 'task.json'), '{"version":2,"id":"t042","title":"x","state":"open","nextDeliverable":1,"deliverables":[]}\n');
+    writeFileSync(join(a, 'tasks', 't042', 'log.md'), '- 10-01  agreed   x\n');
 
     const pushed = await runYan(home, ['vault', 'push'], { ...onA, YAN_VAULT: a });
     expect(pushed.code, pushed.out).toBe(0);
@@ -219,25 +233,10 @@ describe('pull and push', () => {
     expect(r.stdout).toContain('uncommitted changes');
     expect(r.stdout, 'which file, so the reader does not have to go looking').toContain('scratch.md');
   });
-
-  it('session-start pulls first, and a pull that cannot happen costs one line, not the session', async () => {
-    const { b, env } = await twoMachines('at-startup');
-
-    const fine = await runYan(home, ['session-start'], { ...env, YAN_VAULT: b });
-    expect(fine.code, fine.out).toBe(0);
-    expect(fine.stdout).toContain('vault    ');
-    expect(fine.stdout).toContain('sync     ');
-
-    // The train case: the remote is simply gone.
-    await fxGit(['-C', b, 'remote', 'set-url', 'origin', join(tmp, 'nowhere.git')]);
-    const offline = await runYan(home, ['session-start'], { ...env, YAN_VAULT: b });
-    expect(offline.code, 'a session that refuses to start because a remote is down is a worse tool').toBe(0);
-    expect(offline.stdout).toContain('WARN');
-  });
 });
 
 describe('clone, ls and use', () => {
-  it('clones a vault, takes its own name, and warns that no repository is linked yet', async () => {
+  it('clones a vault, takes its own name, and makes it active', async () => {
     const bare = await mkEmptyRemote(join(tmp, 'shared.git'));
     const first = { ...isolated('machine-a'), ...identity };
     await runYan(home, ['vault', 'init', 'shared', '--remote', bare, '--path', join(tmp, 'vaults', 'shared-a')], first);
@@ -246,46 +245,18 @@ describe('clone, ls and use', () => {
     const dir = join(tmp, 'vaults', 'shared-b');
     const r = await runYan(home, ['vault', 'clone', bare, '--path', dir], second);
     expect(r.code).toBe(0);
-    expect(r.out).toContain('yan repo add');
+    expect(r.out).toContain('(active)');
     expect(machineConfig('machine-b').active).toBe('shared');
     expect(existsSync(join(dir, 'vault.json'))).toBe(true);
   });
 
-  it('follows a vault that moved on this disk, and refuses a directory that is not one', async () => {
-    const env = { ...isolated('moved'), ...identity };
-    const before = join(tmp, 'vaults', 'before');
-    await runYan(home, ['vault', 'init', 'movable', '--remote', await mkEmptyRemote(join(tmp, 'movable.git')), '--path', before], env);
-
-    const after = join(tmp, 'vaults', 'after');
-    renameSync(before, after);
-
-    // Until it is told, yan is looking at a directory that is not there.
-    const lost = await runYan(home, ['vault', 'where'], env);
-    expect(lost.code).not.toBe(0);
-    expect(lost.out).toContain('not at');
-
-    const linked = await runYan(home, ['vault', 'link', 'movable', after], env);
-    expect(linked.code, linked.out).toBe(0);
-    const found = await runYan(home, ['vault', 'where'], env);
-    expect(found.stdout.trim().replace(/\\/g, '/')).toBe(after.replace(/\\/g, '/'));
-
-    // A path with no vault.json is refused here rather than one command later.
-    const notOne = await runYan(home, ['vault', 'link', 'movable', mkTempDir('yan-not-a-vault-')], env);
-    expect(notOne.code).not.toBe(0);
-    expect(notOne.out).toContain('no vault.json');
-
-    const unknown = await runYan(home, ['vault', 'link', 'nosuch', after], env);
-    expect(unknown.code).not.toBe(0);
-    expect(unknown.out).toContain('no such vault');
-  });
-
-  it('switches with `yan use`, and refuses a name it does not know', async () => {
+  it('switches with `yan vault use`, and refuses a name it does not know', async () => {
     const env = { ...isolated('switch'), ...identity };
     await runYan(home, ['vault', 'init', 'one', '--remote', await mkEmptyRemote(join(tmp, 'one.git')), '--path', join(tmp, 'vaults', 'one')], env);
     await runYan(home, ['vault', 'init', 'two', '--remote', await mkEmptyRemote(join(tmp, 'two.git')), '--path', join(tmp, 'vaults', 'two')], env);
     expect(machineConfig('switch').active).toBe('two');
 
-    const back = await runYan(home, ['use', 'one'], env);
+    const back = await runYan(home, ['vault', 'use', 'one'], env);
     expect(back.code).toBe(0);
     expect(machineConfig('switch').active).toBe('one');
 
@@ -293,7 +264,7 @@ describe('clone, ls and use', () => {
     expect(listed.stdout).toContain('* one');
     expect(listed.stdout).toContain('two');
 
-    const nope = await runYan(home, ['use', 'three'], env);
+    const nope = await runYan(home, ['vault', 'use', 'three'], env);
     expect(nope.code).not.toBe(0);
     expect(nope.out).toContain('no such vault: three');
     expect(nope.out).toContain('one, two');

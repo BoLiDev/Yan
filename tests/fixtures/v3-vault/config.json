@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "agents": {
+    "yan": { "cli": "codex", "model": "gpt-5", "effort": "high" },
+    "shift": { "cli": "claude" }
+  },
+  "scenarios": { "explore": { "default": "normal", "tiers": { "normal": {} } } },
+  "remote_git": { "kind": "github" }
+}

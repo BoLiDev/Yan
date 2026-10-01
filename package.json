@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "yan - one main agent per task, orchestrating single-use shifts. TypeScript on Herdr.",
+  "description": "yan - notes that outlive an agent session: tasks, their log and deliverables, and the agent started on them.",
   "engines": {
     "node": ">=20.12.0"
   },
@@ -16,8 +16,6 @@
     "link": "npm link",
     "setup": "node scripts/setup.mjs",
     "lint:boundaries": "node scripts/check-module-boundaries.mjs",
-    "types:herdr": "node scripts/generate-herdr-types.mjs",
-    "types:herdr:check": "node scripts/generate-herdr-types.mjs --check",
     "typecheck": "tsc -p tsconfig.tests.json",
     "test": "npm run build && vitest run",
     "check:ui": "node scripts/check-ui-page.mjs"

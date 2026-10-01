@@ -3,8 +3,7 @@
 // First-time (or fresh-clone) bootstrap. Runs before `yan` is on PATH, so it
 // stays a plain node script rather than a subcommand.
 //
-//   npm run setup              install, build, link, doctor
-//   npm run setup -- --skip-doctor   stop before doctor
+//   npm run setup              install, build, link
 //
 // Exit 0 on success, non-zero on the first step that failed.
 
@@ -15,7 +14,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const skipDoctor = process.argv.includes('--skip-doctor');
 
 function step(label, fn) {
   process.stdout.write(`\n→ ${label}\n`);
@@ -40,18 +38,9 @@ step('npm install', () => npm(['install']));
 step('npm run build', () => npm(['run', 'build']));
 step('npm link', () => npm(['link']));
 
-// Setup creates no vault and writes no config: `agents.*` and `remote_git.*`
-// live in a vault, which `yan vault init` lays down.
+// Setup creates no vault: where tasks are kept is `yan vault init`'s.
 const machineConfig = join(homedir(), '.yan', 'config.json');
 const hasVault = existsSync(machineConfig);
-
-if (!skipDoctor) {
-  const yan = join(repoRoot, 'dist', 'cli', 'yan.js');
-  step('yan doctor', () => {
-    // No shell: process.execPath is often under "Program Files", and cmd splits on the space.
-    run(process.execPath, [yan, 'doctor'], { ...process.env, YAN_HOME: repoRoot }, { shell: false });
-  });
-}
 
 process.stdout.write('\nSetup complete.\n');
 if (hasVault) {

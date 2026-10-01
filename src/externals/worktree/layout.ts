@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { normalizePath, pathKey } from '../../util/paths.js';
+import { machineDir } from '../../util/machine.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -12,7 +12,8 @@ import { YanError } from '../../util/error.js';
  *     leases/<slot>.json     the lease records
  *     <slot>/<repo>/         the tree itself
  *
- * The pool root is ~/.yan-trees, overridden by $YAN_POOL_ROOT.
+ * The pool root is `<machine dir>/trees`, `~/.yan/trees` unless
+ * $YAN_MACHINE_DIR moves it, and $YAN_POOL_ROOT overrides both.
  */
 
 export function absolute(path: string): string {
@@ -38,9 +39,15 @@ export function repoName(clone: string): string {
   return basename(normalizePath(clone).replace(/\/+$/, '')).replace(/\.git$/, '');
 }
 
+/** Where every pool lives, whether or not it exists yet. */
+export function poolRoot(): string {
+  const override = process.env.YAN_POOL_ROOT ?? '';
+  return absolute(override !== '' ? override : join(machineDir(), 'trees'));
+}
+
 /** Creates the pool root if it is absent. */
 function rootDir(): string {
-  const root = process.env.YAN_POOL_ROOT ?? join(homedir(), '.yan-trees');
+  const root = poolRoot();
   try {
     mkdirSync(root, { recursive: true });
   } catch (cause) {

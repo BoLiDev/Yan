@@ -2,29 +2,26 @@ import type { Deliverable } from '../../records/task/index.js';
 import { lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from './wrap.js';
 
 /**
- * How a task's deliverables are printed, in the one place `yan deliverable
- * ls`, `yan show` and `yan session-start` read from — the main agent and
- * `user` see the same block whichever they ran.
+ * How a task's deliverables are printed, in the one place `yan peek` and
+ * `yan deliverable` read from — the agent and `user` see the same block.
  *
- *   d1  done       yan ls is an overview of what is being worked on, and of
- *                  what has just landed
- *                  2026-09-18 · PR #52 · PR #53
- *   d3  todo       a task's deliverables are a record of their own
- *   d8  abandoned  units, shifts and tree counts in the overview
- *                  yan show is where those are read
+ *   d1  done       yan ls lists every open task, one line each
+ *                  2026-09-18 · PR #52
+ *   d3  todo       yan peek shows a task's tree, brief and deliverables
+ *   d8  abandoned  a card per task in yan ls
+ *                  one line reads faster
  *
  * `user` reads this block to review the plan, so the text wraps to the
  * terminal under the text column rather than running off it, and the aside
  * under it wraps the same way. Nothing is ever clipped: a deliverable is a
- * sentence or two and all of it is worth reading. The geometry is `yan ls`'s,
- * down to a pipe still wrapping at 80.
+ * sentence or two and all of it is worth reading. A pipe wraps at 80.
  */
 
 /**
- * What a ref points at, worked out from the ref itself. A ref is free text,
- * and `PR #58` cannot say which repository it belongs to - a task may have
- * several units in several repositories - so a ref that is a URL is the only
- * one that can be opened.
+ * What a ref points at, worked out from the ref itself. Refs come from
+ * deliverables marked before v4, as free text, and `PR #58` cannot say which
+ * repository it belongs to, so a ref that is a URL is the only one that can
+ * be opened.
  *
  * Only `http:` and `https:` ever give an address. `javascript:` and every
  * other scheme come back as text, to be printed as they were typed.
@@ -42,7 +39,7 @@ const PULL_PATH = /^\/[^/]+\/[^/]+\/pull\/(\d+)(?:\/|$)/;
 const MERGE_REQUEST_PATH = /\/-\/merge_requests\/(\d+)(?:\/|$)/;
 
 /** One ref as a label and, when there is one, the address behind it. */
-export function refLink(ref: string): RefLink {
+function refLink(ref: string): RefLink {
   let url: URL;
   try {
     url = new URL(ref);
@@ -67,13 +64,13 @@ function shortRef(ref: string): string {
 }
 
 /** What the file says a deliverable is done or given up for, as one short string; `''` for a to-do. */
-export function deliverableAside(d: Deliverable): string {
+function deliverableAside(d: Deliverable): string {
   if (d.status === 'done') return [d.doneAt, ...(d.refs ?? []).map(shortRef)].join(' · ');
   if (d.status === 'abandoned') return d.reason;
   return '';
 }
 
-/** How each column is coloured. The default paints nothing, which is what a hook's output wants. */
+/** How each column is coloured. The default paints nothing. */
 interface DeliverablePaint {
   readonly id?: (s: string) => string;
   readonly status?: (s: string) => string;
@@ -88,34 +85,6 @@ const STATUS_WIDTH = 'abandoned'.length;
 
 /** Under this the text column is too narrow to wrap into; the terminal may fold the rest. */
 const MIN_TEXT = 20;
-
-/**
- * What the main agent is told at session start when a task has no
- * deliverables yet: the brief it has is still the seed `user` typed, and
- * breaking it down comes before anything else it might do this turn.
- *
- * Session start only. It is addressed to the agent reading its own startup,
- * and `yan show` is read by `user` at a terminal, where it would be an
- * instruction to nobody.
- */
-export const NO_DELIVERABLES_NOTICE: readonly string[] = [
-  'This task has never been broken down: brief.md is still the seed `user` gave',
-  "when the task was created, and nothing says what it has to build. Do that now,",
-  'before anything else, and show `user` the result in your first reply:',
-  '',
-  '  - rewrite brief.md as the background and the problems to solve, short prose,',
-  '    no headings, no history and no dates;',
-  '  - write the requirements that have to be true when it is done, one statement',
-  '    each, the product as the subject and never the work - user\'s example of one',
-  '    is "the UI shows the title, and the title is green" - at the grain of a',
-  '    user story, one thing a user can do or see, not of a test assertion:',
-  '    yan deliverable add "<text>" …',
-  '',
-  'The list is the goal `user` and you are agreeing on, and it stays aligned with',
-  'them from here on: it changes in the turn they say what the task is for has',
-  'changed, and they see it as it then stands. `user` corrects both in',
-  'conversation, so a first attempt is the point.',
-];
 
 /**
  * The block, wrapped to `cols` — the terminal's width, or undefined for a

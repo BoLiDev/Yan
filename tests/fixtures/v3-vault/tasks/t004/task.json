@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "t004",
+  "title": "clean up old branches",
+  "complete": true,
+  "abandoned": false,
+  "createdAt": "2026-06-10T12:00:00Z",
+  "closedAt": "2026-06-30T12:00:00Z",
+  "units": []
+}

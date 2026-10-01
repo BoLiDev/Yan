@@ -5,11 +5,16 @@ for anything that renders the report and checks its numbers. Read-only: a test
 copies it before pointing yan at it. Every time in `task.json` is noon UTC, so the
 local day is the same from UTC-11 to UTC+11.
 
-A task's deliverables are its `deliverable.json`, written by `yan deliverable` and
-by nothing else. `brief.md` is the title line and prose: it is never parsed for
-deliverables, and a task with no record shows nothing at all where its squares would
-be, whatever its brief says: the cell stays so the dates keep their column, and the
-page puts no word where the work would be.
+A task's deliverables are the list in its `task.json`, written by `yan deliverable`
+and by nothing else. `brief.md` is prose: it is never parsed for deliverables, and
+a task with none shows nothing at all where its squares would be, whatever its brief
+says: the cell stays so the dates keep their column, and the page puts no word where
+the work would be.
+
+The tasks were written for v3 and converted by `scripts/migrate-v4.mjs`, which is
+why `repo` holds a bare name rather than a URL: this vault had no `repos.json` to
+look one up in. t007's broken list was put back by hand after the conversion,
+which sets a list it cannot read aside.
 
 Every deliverable here is written as the requirement it is: present tense, the
 product as the subject, what has to be true when the work is done. Never a test, a
@@ -27,11 +32,11 @@ for each.
 | --- | --- | --- | --- | --- | --- | --- |
 | t001 | open | site | 09-01 | | 2 · 2 · 1, done 09-10 (`PR #12`, a `javascript:` ref, a URL carrying `"><script>`), 09-15 (a GitHub pull request URL, a GitLab merge request URL on a self-hosted host) | the ring at 2/4; all three statuses in one opened row; several refs on one item; every kind of ref there is, so the page's links are proved here; an abandoned deliverable with its reason; a brief with two paragraphs and two bullets |
 | t002 | done | ledger | 08-03 | 08-20 | 3 · 0 · 1, done 08-05, 08-12 (`MR !87`), 08-20 (`PR #31` `PR #32 <!-- squashed -->`) | `</script><!--` and `$&` in the brief, in a deliverable, in a reason and in a ref |
-| t003 | done | ledger | 07-01 | 07-15 | no record; an old two-section `brief.md` with `- [x]` lines | an empty squares column: the checkbox lines are not parsed and the row does not open |
-| t004 | done | none | 06-10 | 06-30 | no record, no brief, no units | `project: null`; an empty squares column; a done task delivers once on its completion day |
+| t003 | done | ledger | 07-01 | 07-15 | no deliverables; an old two-section `brief.md` with `- [x]` lines | an empty squares column: the checkbox lines are not parsed and the row does not open; headings in a brief read as paragraphs |
+| t004 | done | none | 06-10 | 06-30 | no deliverables, an empty brief, no repo | `project: null`; an empty squares column; a done task delivers once on its completion day |
 | t005 | abandoned | site | 07-20 | 08-01 | 0 · 1 · 0 | abandoned, listed but never Finished |
 | t006 | done | yan | 2025-12-20 | 01-08 | 2 · 0 · 0, done 2025-12-30, 2026-01-05 (`MR !9`) | deliveries either side of a year boundary |
-| t007 | open | yan | 09-05 | | `deliverable.json` does not validate (`status: "shipped"`) | one broken record is a task with none, and does not fail the command |
+| t007 | open | yan | 09-05 | | its deliverable list does not validate (`status: "shipped"`) | one broken list is a task with none, keeps its title and state, and does not fail the command |
 | t008 | open | none | | | `task.json` is not JSON: title `""` | one unreadable task does not fail the command |
 | t009 | done | site | 09-08 | 09-12 | 2 · 0 · 0, done 09-09 (no refs), 09-12 (`PR #53`) | a delivered item with nothing proving it |
 | t010 | open | site | 09-14 | | an empty record | a record that exists and holds nothing is a task with none |

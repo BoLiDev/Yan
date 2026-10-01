@@ -5,15 +5,7 @@ import { currentBranch, git, remoteUrl, statusPorcelain } from '../util/git.js';
 import { YanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
-import {
-  cloneRoot,
-  machineConfigPath,
-  readMachine,
-  registerVault,
-  registeredVaults,
-  setActiveVault,
-  setCloneRoot,
-} from '../util/machine.js';
+import { machineConfigPath, readMachine, registerVault, registeredVaults, setActiveVault } from '../util/machine.js';
 import { isDirectory, normalizePath } from '../util/paths.js';
 import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
@@ -23,11 +15,11 @@ import { isTty } from './shared/tty.js';
 import { isRecordId } from '../util/names.js';
 
 /**
- * `yan vault …` — the context a session works in.
+ * `yan vault …` — which context's tasks yan reads and writes.
  *
  * The only command that runs without a vault, and the only writer of
  * `~/.yan/config.json`. `init` needs a remote that already exists and is
- * empty; it never creates one on a forge.
+ * empty; it never creates one.
  */
 
 function checkName(name: string): void {
@@ -81,18 +73,15 @@ function layDownSkeleton(dir: string, name: string): void {
     [
       `# ${name}`,
       '',
-      "A yan vault: one context's task assets — tasks, briefs, outcomes, logs,",
-      'artifacts, memory, and the repository registry.',
+      "A yan vault: one context's tasks — their briefs, logs, deliverables,",
+      'drafts and artifacts — and the learnings worth keeping beyond one task.',
       '',
-      'The mechanics live somewhere else entirely. To use this vault on another',
+      'The code lives somewhere else entirely. To use this vault on another',
       'machine:',
       '',
       '```',
       'yan vault clone <this repository>',
       '```',
-      '',
-      'then `yan repo add` in the directory holding your clones, to say where',
-      'each registered repository is on that disk.',
       '',
     ].join('\n'),
   );
@@ -130,7 +119,6 @@ async function cloneUrl(url: string): Promise<string> {
 interface InitOptions {
   readonly remote?: string;
   readonly path?: string;
-  readonly cloneRoot?: string;
 }
 
 const initVault = new Command('init')
@@ -138,7 +126,6 @@ const initVault = new Command('init')
   .argument('[name]')
   .option('--remote <url>', 'the empty repository this vault is pushed to')
   .option('--path <dir>', 'where the vault lives on this machine')
-  .option('--clone-root <dir>', 'where `yan repo add <url>` clones into on this machine')
   .action(
     action('yan vault init', async (name: string | undefined, options: InitOptions) => {
       const answers = await initAnswers(name ?? '', options.remote ?? '');
@@ -162,8 +149,6 @@ const initVault = new Command('init')
         throw new YanError('vault_remote_not_empty', `${answers.remote} already has branches, so it is not an empty repository - 'yan vault clone ${answers.remote}' takes an existing vault; init needs an empty one`);
       }
 
-      const root = normalizePath(resolve(options.cloneRoot ?? cloneRoot() ?? dirname(yanHome())));
-
       layDownSkeleton(dir, answers.name);
       gitOrThrow(dir, ['init', '--initial-branch=main'], 'git init');
       gitOrThrow(dir, ['add', '-A'], 'staging the skeleton');
@@ -172,11 +157,9 @@ const initVault = new Command('init')
       gitOrThrow(dir, ['push', '-u', 'origin', 'main'], 'the first push');
 
       registerVault(answers.name, dir);
-      setCloneRoot(root);
 
       out(`vault init: ${answers.name}  ${dir}`);
       out(`vault init: pushed to ${answers.remote}, and it is now the active vault`);
-      out(`vault init: clones on this machine go under ${root}`);
     }),
   );
 
@@ -210,10 +193,7 @@ const cloneVault = new Command('clone')
       }
 
       registerVault(name, dir);
-      if (cloneRoot() === undefined) setCloneRoot(dirname(yanHome()));
-
       out(`vault clone: ${name}  ${dir}  (active)`);
-      out(`vault clone: run 'yan repo add' where your clones live - this machine has no paths for them yet`);
     }),
   );
 
@@ -233,7 +213,6 @@ const lsVaults = new Command('ls')
         const state = isVault(path) ? '' : '   MISSING';
         out(`${mark} ${name.padEnd(16)}${path}${state}`);
       }
-      out(`clone_root  ${cloneRoot() ?? '(unset)'}`);
     }),
   );
 
@@ -260,46 +239,12 @@ export function useVault(name: string | undefined): void {
   }
 }
 
-/**
- * `yan vault link <name> <path>` — record where an already-registered vault is
- * on this machine. Refuses a directory with no vault.json.
- */
-const linkCommand = new Command('link')
-  .description('say where a registered vault is on this machine')
-  .argument('[name]')
-  .argument('[path]')
-  .action(
-    action('yan vault link', (name: string | undefined, path: string | undefined) => {
-      if (name === undefined || name === '' || path === undefined || path === '') {
-        throw YanError.usage('vault_usage', "both a name and a path are required: 'yan vault link <name> <path>'");
-      }
-      const known = readMachine().vaults[name];
-      if (known === undefined) {
-        throw new YanError('vault_missing', `no such vault: ${name} - 'yan vault ls' lists them; 'yan vault clone <url>' registers a new one`);
-      }
-      const dir = normalizePath(resolve(path));
-      if (!isVault(dir)) {
-        throw new YanError('vault_invalid', `${dir} has no vault.json, so it is not a vault - move the directory first, then link it`);
-      }
-      const found = readVaultJson(dir).name;
-      if (found !== '' && found !== name) {
-        // Not fatal: the registered name is this machine's label.
-        out(`vault link: note - ${dir} calls itself '${found}', and it is registered here as '${name}'`);
-      }
-      registerVault(name, dir, readMachine().active === name);
-      out(`vault link: ${name}  ${dir}`);
-    }),
-  );
-
 const useCommand = new Command('use')
   .description('switch the active vault')
   .argument('[name]')
   .action(action('yan vault use', (name: string | undefined) => { useVault(name); }));
 
-/**
- * `yan vault pull` and `yan vault push`. Pull runs automatically from
- * session-start; push is only ever run when `user` asks.
- */
+/** `yan vault pull` and `yan vault push`: by hand, when `user` says so. */
 const pullCommand = new Command('pull')
   .description('fetch and rebase the vault onto its remote')
   .action(
@@ -358,11 +303,10 @@ const whereCommand = new Command('where')
   .action(action('yan vault where', () => { out(vaultDir()); }));
 
 export const command = new Command('vault')
-  .description('the task assets this session works in')
+  .description("the vault: one context's tasks, kept in a git repository of its own")
   .addCommand(initVault)
   .addCommand(cloneVault)
   .addCommand(lsVaults)
-  .addCommand(linkCommand)
   .addCommand(useCommand)
   .addCommand(pullCommand)
   .addCommand(pushCommand)

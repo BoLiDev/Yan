@@ -5,12 +5,12 @@ import { isDirectory } from './paths.js';
 
 /**
  * Where the clone holding yan's own code is: `$YAN_HOME` when it is set and
- * holds a `bin/yan`, and this file's own location otherwise — so a stale
+ * holds a `bin/yan.mjs`, and this file's own location otherwise — so a stale
  * exported value is ignored rather than obeyed.
  */
 
 function looksLikeHome(dir: string): boolean {
-  return isDirectory(dir) && existsSync(join(dir, 'bin', 'yan'));
+  return isDirectory(dir) && existsSync(join(dir, 'bin', 'yan.mjs'));
 }
 
 export function yanHome(): string {

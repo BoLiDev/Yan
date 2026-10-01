@@ -1,80 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { join } from 'node:path';
-import { herdrIntegration, hooksFile, isKnownCli, launchArgs, modelFlags, promptInArgv } from './launch.js';
+import { WAIT_LINE, cliKind, isKnownCli, launchArgs } from './launch.js';
 
-describe('modelFlags', () => {
-  const spec = { model: 'm', effort: 'e' };
-
-  it("speaks each CLI's spelling", () => {
-    expect(modelFlags('claude', spec)).toEqual(['--model', 'm', '--effort', 'e']);
-    expect(modelFlags('C:/tools/agy.exe', spec)).toEqual(['--model', 'm', '--effort', 'e']);
-    expect(modelFlags('codex', spec)).toEqual(['-m', 'm', '-c', 'model_reasoning_effort=e']);
-  });
-
-  it('passes nothing that was not configured, and nothing to a CLI it does not know', () => {
-    expect(modelFlags('claude', { model: '', effort: '' })).toEqual([]);
-    expect(modelFlags('codex', { model: '', effort: 'high' })).toEqual(['-c', 'model_reasoning_effort=high']);
-    expect(modelFlags('node', spec)).toEqual([]);
-  });
-});
+const plain = { model: '', effort: '', workdir: '/tree', prompt: 'the prompt' };
 
 describe('launchArgs', () => {
-  const dirs = { workdir: '/tree/apps/web', addDirs: ['/tree/apps/common'] };
-  const none = { model: '', effort: '' };
-
-  /** What `yan continue` asks for, and what `yan shift new` asks for with a coding shift. */
-  const main = (cli: string): string[] => launchArgs(cli, { ...none, ...dirs });
-  const shift = (cli: string, readOnly = false): string[] =>
-    launchArgs(cli, { ...none, ...dirs, readOnly, prompt: 'Read brief.md' });
-
-  it('gives the main agent and a shift the same argv on one CLI, the prompt aside', () => {
-    for (const cli of ['claude', 'codex', 'agy', '/opt/bin/claude']) {
-      const tail = promptInArgv(cli) ? ['-i', 'Read brief.md'] : [];
-      expect(shift(cli), cli).toEqual([...main(cli), ...tail]);
-    }
+  it('gives claude the prompt as its system prompt, so nothing starts a turn', () => {
+    expect(launchArgs('claude', plain)).toEqual(['--append-system-prompt', 'the prompt']);
   });
 
-  it('runs every CLI unattended', () => {
-    expect(main('claude')).toEqual(['--add-dir', '/tree/apps/common', '--dangerously-skip-permissions']);
-    expect(main('codex')).toEqual(['--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust']);
-    expect(main('agy')).toEqual(['--add-dir', '/tree/apps/web', '--add-dir', '/tree/apps/common', '--dangerously-skip-permissions']);
+  it('gives codex the prompt as developer instructions, quoted as a TOML string', () => {
+    const args = launchArgs('codex', { ...plain, prompt: 'say "hi"\nthen wait' });
+    expect(args).toEqual(['-c', 'developer_instructions="say \\"hi\\"\\nthen wait"']);
   });
 
-  it('keeps a report-only shift from pushing without parking it on an approval', () => {
-    expect(shift('claude', true)).toContain('Bash(git push:*)');
-    expect(shift('claude', true)).not.toContain('plan');
-    // Codex has no per-tool deny list, so a report-only shift runs fully unattended too.
-    expect(shift('codex', true)).toEqual(['--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust']);
+  it('gives agy its workspace and the prompt as a first message that asks it to wait', () => {
+    expect(launchArgs('agy', plain)).toEqual(['--add-dir', '/tree', '-i', `the prompt\n${WAIT_LINE}`]);
   });
 
-  it('puts the model flags first', () => {
-    expect(launchArgs('codex', { model: 'gpt-5', effort: 'high', ...dirs }).slice(0, 4)).toEqual(['-m', 'gpt-5', '-c', 'model_reasoning_effort=high']);
+  it("speaks each CLI's spelling of a model and an effort, first", () => {
+    const spec = { ...plain, model: 'm', effort: 'e' };
+    expect(launchArgs('claude', spec).slice(0, 4)).toEqual(['--model', 'm', '--effort', 'e']);
+    expect(launchArgs('C:/tools/agy.exe', spec).slice(0, 4)).toEqual(['--model', 'm', '--effort', 'e']);
+    expect(launchArgs('codex', spec).slice(0, 4)).toEqual(['-m', 'm', '-c', 'model_reasoning_effort=e']);
   });
 
-  it('carries the prompt only for agy, and nothing at all for a CLI it does not know', () => {
-    expect(promptInArgv('agy')).toBe(true);
-    expect(promptInArgv('claude')).toBe(false);
-    expect(promptInArgv('codex')).toBe(false);
-    expect(shift('claude')).not.toContain('Read brief.md');
-    expect(shift('node')).toEqual([]);
-    expect(promptInArgv('node')).toBe(false);
-  });
-});
-
-describe('what yan doctor checks', () => {
-  it('names the herdr integration, which for agy is not the executable', () => {
-    expect(herdrIntegration('agy')).toBe('antigravity-cli');
-    expect(herdrIntegration('/usr/local/bin/claude')).toBe('claude');
-    expect(herdrIntegration('node')).toBe('node');
-  });
-
-  it('knows three CLIs', () => {
-    expect(['claude', 'codex', 'agy', 'C:/tools/agy.exe'].every(isKnownCli)).toBe(true);
+  it('knows three CLIs and nothing else', () => {
+    expect(['claude', '/usr/local/bin/codex', 'agy.exe'].map(isKnownCli)).toEqual([true, true, true]);
     expect(isKnownCli('node')).toBe(false);
-  });
-
-  it("finds yan's hook file for each", () => {
-    expect(hooksFile('codex', '/yan')).toBe(join('/yan', '.codex', 'hooks.json'));
-    expect(hooksFile('agy', '/yan')).toBe(join('/yan', '.agents', 'hooks.json'));
+    expect(launchArgs('node', plain)).toEqual([]);
+    expect(cliKind('C:\\bin\\codex.exe --flag')).toBe('codex');
   });
 });

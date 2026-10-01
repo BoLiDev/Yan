@@ -1,7 +1,7 @@
 /**
  * How yan writes a moment. Two spellings and no third: a timestamp is ISO 8601
  * in UTC to the second, and a day is the local calendar day — the day `user`
- * would name, so `log.md`, a deliverable's `doneAt` and a unit's `history[].at`
+ * would name, so `log.md` and a deliverable's `doneAt`
  * agree with each other and with the wall clock.
  */
 

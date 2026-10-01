@@ -38,17 +38,16 @@ const OUT = resolve(flag('--shots') ?? join(scratch, 'shots'));
 mkdirSync(OUT, { recursive: true });
 
 // ── pages, written by `yan ui` ─────────────────────────────────────────────
-/** A vault in the scratch directory: the fixture's tasks, plus `extra` as { id: { task, brief, deliverables } }. */
+/** A vault in the scratch directory: the fixture's tasks, plus `extra` as { id: { task, brief } }. */
 function vault(name, { fixture = true, extra = {} } = {}) {
   const dir = join(scratch, name);
   mkdirSync(join(dir, 'tasks'), { recursive: true });
   cpSync(join(repo, 'tests', 'fixtures', 'ui-vault', 'vault.json'), join(dir, 'vault.json'));
   if (fixture) cpSync(join(repo, 'tests', 'fixtures', 'ui-vault', 'tasks'), join(dir, 'tasks'), { recursive: true });
-  for (const [id, { task, brief, deliverables }] of Object.entries(extra)) {
+  for (const [id, { task, brief }] of Object.entries(extra)) {
     mkdirSync(join(dir, 'tasks', id));
     writeFileSync(join(dir, 'tasks', id, 'task.json'), JSON.stringify(task, null, 2));
     writeFileSync(join(dir, 'tasks', id, 'brief.md'), brief);
-    if (deliverables) writeFileSync(join(dir, 'tasks', id, 'deliverable.json'), JSON.stringify(deliverables, null, 2));
   }
   return dir;
 }
@@ -67,10 +66,9 @@ function edge(id, title, done, of) {
     ? { id: `d${i + 1}`, text: `item ${i + 1}`, status: 'done', doneAt: '2026-09-17' }
     : { id: `d${i + 1}`, text: `item ${i + 1}`, status: 'todo' }));
   return {
-    task: { version: 1, id, title, complete: false, abandoned: false, createdAt: '2026-09-10T12:00:00Z',
-      units: [{ name: 'site', repo: 'site', scope: [], needs: [], branch: `${id}-r1`, target: 'main', mr: null, history: [] }] },
-    brief: `# ${id} ${title}\n\nThe ring at one of its edges.\n`,
-    deliverables: { version: 1, nextId: of + 1, deliverables: items },
+    task: { version: 2, id, title, state: 'open', createdAt: '2026-09-10T12:00:00Z', repo: 'site',
+      nextDeliverable: of + 1, deliverables: items },
+    brief: 'The ring at one of its edges.\n',
   };
 }
 

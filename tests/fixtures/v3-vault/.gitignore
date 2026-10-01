@@ -1,0 +1,3 @@
+# old ignore
+.local/
+tasks/*/run/

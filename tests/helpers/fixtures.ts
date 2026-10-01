@@ -1,15 +1,11 @@
 import { spawn } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bashCommand } from './bash.js';
-
-export { bashCommand };
-
 /**
  * The fixtures every test builds its world from: a throwaway `$YAN_HOME`, a
- * local git universe, and a way to run `bin/yan` against them. Nothing here
+ * local git universe, and a way to run `bin/yan.mjs` against them. Nothing here
  * touches the checkout's own home or the network.
  *
  * Everything that spawns a process is async, and must stay that way: a file
@@ -86,9 +82,10 @@ function run(
 }
 
 export interface YanHomeOptions {
-  /** Copy dist/ in as well, for a test that runs commands through the fixture's `bin/yan`. */
+  /** Copy dist/ in as well, for a test that runs commands through the fixture's `bin/yan.mjs`. */
   readonly withDist?: boolean;
-  readonly config?: string;
+  /** The vault's config.json; none when absent. */
+  readonly config?: Record<string, unknown>;
   /**
    * Point the vault and machine environment at this home. Default true; pass
    * false for a second home built inside a file that is already using one.
@@ -97,54 +94,30 @@ export interface YanHomeOptions {
 }
 
 /**
- * A standalone `$YAN_HOME` that is also a vault, with `bin/`, `templates/` and
- * a config. Without `withDist` it has no `dist/`, which is what a fresh clone
- * looks like. Unless `activate` is false it also points `$YAN_VAULT` and
- * `$YAN_MACHINE_DIR` at itself, for tests that call a command in process.
+ * A standalone `$YAN_HOME` that is also a version 2 vault, with `bin/` and
+ * `templates/`. Without `withDist` it has no `dist/`, which is what a fresh
+ * clone looks like. Unless `activate` is false it also points `$YAN_VAULT`
+ * and `$YAN_MACHINE_DIR` at itself, for tests that call a command in process.
  */
 export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
-  for (const d of ['mem/learnings', 'tasks', '.local']) {
-    mkdirSync(join(dest, d), { recursive: true });
-  }
-
+  for (const d of ['learnings', 'tasks']) mkdirSync(join(dest, d), { recursive: true });
   writeFileSync(
     join(dest, 'vault.json'),
-    `${JSON.stringify({ version: 1, name: 'fixture', created: '2026-01-01' }, null, 2)}\n`,
+    `${JSON.stringify({ version: 2, name: 'fixture', created: '2026-01-01' }, null, 2)}\n`,
   );
 
   cpSync(join(repoRoot, 'bin'), join(dest, 'bin'), { recursive: true });
-  // `yan vault init` reads templates/, so a home without it is incomplete.
+  // `yan vault init` and `yan ui` read templates/, so a home without it is incomplete.
   cpSync(join(repoRoot, 'templates'), join(dest, 'templates'), { recursive: true });
   if (options.withDist === true) {
     cpSync(join(repoRoot, 'dist'), join(dest, 'dist'), { recursive: true });
     cpSync(join(repoRoot, 'package.json'), join(dest, 'package.json'));
     // Linked, not copied: a junction needs no administrator on Windows.
-    symlinkSync(
-      join(repoRoot, 'node_modules'),
-      join(dest, 'node_modules'),
-      process.platform === 'win32' ? 'junction' : 'dir',
-    );
+    symlinkSync(join(repoRoot, 'node_modules'), join(dest, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
   }
-
-  const configText =
-    options.config ??
-    `${JSON.stringify(
-      {
-        version: 1,
-        agents: { yan: 'claude', shift: 'claude' },
-        scenarios: {
-          explore: { default: 'normal', tiers: { normal: {} } },
-          coding: { default: 'normal', tiers: { normal: {} } },
-          uix: { default: 'normal', tiers: { normal: {} } },
-        },
-        remote_git: { kind: 'github' },
-      },
-      null,
-      2,
-    )}\n`;
-  writeFileSync(join(dest, 'config.json'), configText);
-  writeFileSync(join(dest, 'repos.json'), '{\n  "version": 1\n}\n');
-  writeFileSync(join(dest, '.local', 'repos.json'), '{\n  "version": 1\n}\n');
+  if (options.config !== undefined) {
+    writeFileSync(join(dest, 'config.json'), `${JSON.stringify(options.config, null, 2)}\n`);
+  }
 
   // A second home built mid-file would otherwise steal the first one's vault.
   if (options.activate !== false) useVault(dest);
@@ -178,36 +151,6 @@ export function restoreVault(): void {
     else process.env[key] = value;
   }
   saved = undefined;
-}
-
-/** Register a clone in both halves of a vault's registry. */
-export function registerRepo(
-  vault: string,
-  name: string,
-  dir: string,
-  entry: { url?: string; pool_size?: number } = {},
-): void {
-  const portable = join(vault, 'repos.json');
-  const local = join(vault, '.local', 'repos.json');
-  const read = (file: string): Record<string, unknown> => {
-    try {
-      return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-    } catch {
-      return { version: 1 };
-    }
-  };
-
-  const reg = read(portable);
-  reg[name] = {
-    url: entry.url ?? `file://${dir}`,
-    pool_size: entry.pool_size ?? 8,
-  };
-  writeFileSync(portable, `${JSON.stringify(reg, null, 2)}\n`);
-
-  mkdirSync(join(vault, '.local'), { recursive: true });
-  const loc = read(local);
-  loc[name] = { path: dir.replace(/\\/g, '/') };
-  writeFileSync(local, `${JSON.stringify(loc, null, 2)}\n`);
 }
 
 /**
@@ -274,8 +217,9 @@ export async function mkCommit(dir: string, rel: string, body: string, message?:
 }
 
 /**
- * Run `bin/yan` in a fixture home, the way a person or an agent does. The home
- * is also the vault and the machine directory.
+ * Run `bin/yan.mjs` in a fixture home, the way a person or an agent does. The
+ * home is also the vault and the machine directory, and the pool lives under
+ * the machine directory.
  *
  * @param env overrides; a variable set to `undefined` is unset rather than
  *   emptied, which is how to ask for no `$YAN_HOME` at all.
@@ -284,6 +228,7 @@ export function runYan(
   home: string,
   args: readonly string[],
   env: Record<string, string | undefined> = {},
+  cwd?: string,
 ): Promise<RunResult> {
   const merged: NodeJS.ProcessEnv = {
     ...process.env,
@@ -291,9 +236,10 @@ export function runYan(
     YAN_VAULT: home,
     YAN_MACHINE_DIR: join(home, '.machine'),
   };
+  delete merged.YAN_POOL_ROOT;
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete merged[key];
     else merged[key] = value;
   }
-  return run(bashCommand(), [join(home, 'bin', 'yan'), ...args], { env: merged });
+  return run(process.execPath, [join(home, 'bin', 'yan.mjs'), ...args], { env: merged, ...(cwd === undefined ? {} : { cwd }) });
 }

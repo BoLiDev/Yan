@@ -25,17 +25,3 @@ export interface LeaseGrant {
  * is still held, so the pid says nothing about the tree.
  */
 export type LeaseRow = Omit<Lease, 'version' | 'pid'>;
-
-/** An optional identity check for `return()`. An absent field is not compared. */
-interface ReturnExpectation {
-  readonly leaseId?: string;
-  readonly holder?: string;
-}
-
-/**
- * What `return()` takes. `force` skips the orphan-commit guard, and only a
- * command carrying `user`'s consent may set it.
- */
-export interface ReturnOptions extends ReturnExpectation {
-  readonly force?: boolean;
-}

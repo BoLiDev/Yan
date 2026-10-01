@@ -1,7 +1,7 @@
 /**
- * `tasks/<id>/artifacts/drafts/`: `user`'s own notes about one task, in the
+ * `tasks/<id>/drafts/`: `user`'s own notes about one task, in the
  * same on-disk format as the `draft` CLI so a note moves between the two by
- * moving the file. yan reads them; only `user`, at a keyboard, writes them.
+ * moving the file. An agent reads them; only `user`, at a keyboard, writes them.
  */
 
 export { Drafts, discardIfUntouched, newDraftId, titleTemplate } from './drafts.js';

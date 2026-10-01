@@ -26,13 +26,6 @@ describe('writeJson', () => {
     expect(countTemps(tmp)).toBe(0);
   });
 
-  it('adds no field of its own, `version` included', () => {
-    const tmp = mkTempDir();
-    const g = join(tmp, 'b.json');
-    writeJson(g, { version: 7, b: 2 });
-    expect(readJson(g)).toEqual({ version: 7, b: 2 });
-  });
-
   it('creates nested directories', () => {
     const tmp = mkTempDir();
     const deep = join(tmp, 'x', 'y', 'z', 'deep.json');
@@ -67,7 +60,7 @@ describe('writeJson', () => {
     expect(raw).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}\n');
   });
 
-  it('refuses a value that is not JSON and leaves the target intact (NEW)', () => {
+  it('refuses a value that is not JSON and leaves the target intact', () => {
     const tmp = mkTempDir();
     const f = join(tmp, 'a.json');
     writeJson(f, { a: 1 });

@@ -27,7 +27,7 @@ const srcRoot = resolve(process.argv[2] ?? join(repoRoot, 'src'));
 const MODULE_ROOTS = ['externals', 'records'];
 
 // …but rule 2 applies to externals only: `records/` genuinely nests, so
-// `shift → task → log` is the hierarchy rather than a leak.
+// `drafts → task` is the hierarchy rather than a leak.
 const NO_SIDEWAYS_EDGES = ['externals'];
 
 function walk(dir) {

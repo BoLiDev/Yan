@@ -24,18 +24,6 @@ afterAll(() => {
 const NAMES = ['yan-round-regular.woff2', 'yan-round-bold.woff2', 'OFL.txt'];
 
 describe('the face beside the page', () => {
-  it('is in the repository, as two woff2 files and the licence', () => {
-    const dir = join(repoRoot, 'templates', 'ui', 'fonts');
-    for (const name of NAMES) expect(statSync(join(dir, name)).size).toBeGreaterThan(0);
-    // Small enough for git, large enough to be the real subset and not a stub.
-    for (const name of NAMES.slice(0, 2)) {
-      const size = statSync(join(dir, name)).size;
-      expect(size).toBeGreaterThan(500_000);
-      expect(size).toBeLessThan(1_000_000);
-    }
-    expect(readFileSync(join(dir, 'OFL.txt'), 'utf8')).toContain('SIL OPEN FONT LICENSE Version 1.1');
-  });
-
   it('is written when it is missing', () => {
     const dir = mkTempDir();
     expect(copyFonts(dir)).toEqual({

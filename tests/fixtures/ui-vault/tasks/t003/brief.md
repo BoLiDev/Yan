@@ -1,5 +1,3 @@
-# t003 ledger backups
-
 ## Description
 
 Nightly backups of the ledger database, kept for thirty days.

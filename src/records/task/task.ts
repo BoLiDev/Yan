@@ -2,39 +2,28 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { taskDir, tasksDir } from '../../util/vault.js';
 import { editJson, initJson, readJson } from '../../util/json.js';
-import { asRecord, asString } from '../../util/narrow.js';
+import { recordOrNone } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
-import { Log } from '../log/index.js';
-import { Deliverables } from './deliverables.js';
-import { ENDS, type AddUnitOptions, type HistoryEnd, type HistoryEntry, type TaskData, type UnitData } from './types.js';
-import { byCodePoint, isRecordId } from '../../util/names.js';
+import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
+import { TASK_STATES, type Deliverable, type TaskData, type TaskState } from './types.js';
 
 /**
- * A handle on one `tasks/<id>/task.json` — which branch a unit is on, where it
- * is meant to go, how far it may reach, and whether the task is finished.
+ * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
+ * is finished, which repository its tree is cut from, and the deliverables it
+ * is measured against.
  *
- * It holds identity and nothing else, because other processes write the same
- * file: `read()` goes to disk every time, and every write is one
- * read-modify-write through `util/json.ts`, landing tmp → mv with key order
- * and any field yan does not know about preserved.
- *
- * Three verbs carry everything. `read()` is the whole document; `edit(fn)` and
- * `editUnit(name, fn)` are the writes. The named methods below are the
- * handful of edits that are decisions rather than assignments — creating a
- * unit, rotating a round — plus the reads that had a name worth keeping.
+ * It holds identity and nothing else: `read()` goes to disk every time, and
+ * every write is one read-modify-write through `util/json.ts`, landing tmp →
+ * rename with any field yan does not know about preserved.
  */
 export class Task {
   public readonly id: string;
   public readonly dir: string;
   public readonly file: string;
 
-  /**
-   * `dir` and `file` come back with forward slashes on every platform.
-   *
-   * @throws YanError when `id` is not a valid task id.
-   */
+  /** @throws YanError when `id` is not a valid task id. */
   public constructor(id: string) {
     if (!Task.isId(id)) {
       throw YanError.usage('task_usage', `invalid task id: '${id}' - use letters, digits, dot, dash or underscore`);
@@ -48,185 +37,113 @@ export class Task {
     return existsSync(this.file);
   }
 
+  /** `brief.md`, whether or not it exists. */
+  public get brief(): string {
+    return normalizePath(join(this.dir, 'brief.md'));
+  }
+
   /**
-   * The whole document, with defaults filled in for whatever the file omits or
-   * mistypes, so only a missing file throws.
+   * The whole document. Fields a hand edit dropped come back as defaults; a
+   * deliverable list yan cannot read throws, because it is the only record of
+   * what the task set out to build and guessing would rewrite it.
    *
-   * @throws YanError `task_missing` when there is no task.json.
+   * @throws YanError `task_missing` when there is no task.json,
+   *   `task_invalid` when it does not validate.
    */
   public read(): TaskData {
-    const raw = asRecord(readJson(this.require()));
-    const units = Array.isArray(raw.units) ? raw.units : [];
-    return {
-      version: typeof raw.version === 'number' ? raw.version : 1,
-      id: asString(raw.id, this.id),
-      title: asString(raw.title),
-      complete: raw.complete === true,
-      abandoned: raw.abandoned === true,
-      ...(typeof raw.createdAt === 'string' && raw.createdAt !== '' ? { createdAt: raw.createdAt } : {}),
-      ...(typeof raw.closedAt === 'string' && raw.closedAt !== '' ? { closedAt: raw.closedAt } : {}),
-      units: units.map((u): UnitData => {
-        const r = asRecord(u);
-        return {
-          name: asString(r.name),
-          repo: asString(r.repo),
-          scope: asStringArray(r.scope),
-          needs: asStringArray(r.needs),
-          branch: asString(r.branch),
-          target: asString(r.target),
-          mr: typeof r.mr === 'string' && r.mr !== '' ? r.mr : null,
-          history: Array.isArray(r.history) ? (r.history as HistoryEntry[]) : [],
-        };
-      }),
-    };
+    return validate(readJson(this.require()), this);
   }
 
-  /**
-   * Read-modify-write the document, atomically. What `edit` receives is the
-   * file as it is on disk, so a field yan has no name for survives the write;
-   * anything `edit` throws leaves the file untouched.
-   */
-  public edit(edit: (task: TaskData) => void): void {
-    editJson(this.require(), (current) => {
-      const task = asRecord(current);
-      edit(task as unknown as TaskData);
-      return task;
-    });
-  }
-
-  /**
-   * The same, narrowed to one unit.
-   *
-   * @throws YanError `task_missing` when no unit of that name exists; it is
-   *   never created.
-   */
-  public editUnit(name: string, edit: (unit: UnitData) => void): void {
-    this.edit((task) => {
-      const units = Array.isArray(task.units) ? task.units : [];
-      const unit = units.find((u) => asRecord(u).name === name);
-      if (unit === undefined) throw new YanError('task_missing', `no such unit: ${name}`);
-      edit(unit);
-    });
-  }
-
-  public title(): string {
-    return this.read().title;
-  }
-
-  public isComplete(): boolean {
-    return this.read().complete;
-  }
-
-  /** Mark the task done, stamping `closedAt`, or open again, which drops it. */
-  public setComplete(complete: boolean): void {
-    this.edit((task) => {
-      task.complete = complete;
-      if (complete) task.closedAt = isoSecond();
-      else delete task.closedAt;
-    });
-  }
-
-  /** Mark the task given up on, which also makes it complete: nothing more will happen to it. */
-  public setAbandoned(): void {
-    this.edit((task) => {
-      task.complete = true;
-      task.abandoned = true;
-      task.closedAt = isoSecond();
-    });
-  }
-
-  /**
-   * The name of this task's terminal container: `<id> <title>` with `:` and
-   * `.` replaced by `-`, falling back to the id alone when the title cannot be
-   * read.
-   */
-  public containerName(): string {
-    let title = '';
+  /** The title, or `''` when task.json cannot be read. Never throws. */
+  public titleOrEmpty(): string {
     try {
-      title = this.title();
+      return this.read().title;
     } catch {
-      title = '';
+      return '';
     }
-    const name = title === '' ? this.id : `${this.id} ${title}`;
-    return name.replace(/[:.]/g, '-');
-  }
-
-  /** One unit as it is on disk right now, or undefined when the task has none of that name. */
-  public findUnit(name: string): UnitData | undefined {
-    return this.read().units.find((u) => u.name === name);
   }
 
   /**
-   * As `findUnit`, but throws instead of returning undefined.
-   *
-   * @throws YanError `task_missing`.
+   * Close the task: `done`, or `abandoned` with the reason it was given up.
+   * Stamps `closedAt`.
    */
-  public unit(name: string): UnitData {
-    const found = this.findUnit(name);
-    if (found === undefined) throw new YanError('task_missing', `no such unit: ${name}`);
-    return found;
-  }
-
-  /**
-   * Add a unit. `target` is required and never defaulted.
-   *
-   * @throws YanError when a field is missing or a unit of this name already
-   *   exists.
-   */
-  public addUnit(name: string, repo: string, target: string, options: AddUnitOptions = {}): void {
-    if (!name || !repo || !target) {
-      throw YanError.usage('task_usage', 'a unit needs a name, a repo and an explicit target');
-    }
-    this.edit((task) => {
-      const units = Array.isArray(task.units) ? task.units : [];
-      if (units.some((u) => asRecord(u).name === name)) {
-        throw new YanError('task_exists', `unit already exists: ${name}`);
-      }
-      units.push({
-        name,
-        repo,
-        scope: [...(options.scope ?? [])],
-        needs: [...(options.needs ?? [])],
-        branch: options.branch ?? '',
-        target,
-        mr: null,
-        history: [],
-      });
-      task.units = units;
+  public close(state: Exclude<TaskState, 'open'>, reason = ''): void {
+    this.edit((doc) => {
+      doc.state = state;
+      doc.closedAt = isoSecond();
+      if (state === 'abandoned' && reason.trim() !== '') doc.reason = reason.trim();
+      else delete doc.reason;
     });
   }
 
+  /** Append one deliverable per text, in order, and return the ones written. */
+  public addDeliverables(texts: readonly string[]): Deliverable[] {
+    const cleaned = texts.map((t) => oneLine('add', t));
+    if (cleaned.length === 0) throw YanError.usage('deliverable_usage', 'nothing to add - pass the text of at least one deliverable');
+    const added: Deliverable[] = [];
+    this.edit((doc, data) => {
+      let next = data.nextDeliverable;
+      for (const text of cleaned) {
+        added.push({ id: `d${next}`, text, status: 'todo' });
+        next += 1;
+      }
+      doc.nextDeliverable = next;
+      doc.deliverables = [...data.deliverables, ...added];
+    });
+    return added;
+  }
+
+  /** Reword one, keeping its id and its status. */
+  public editDeliverable(id: string, text: string): Deliverable {
+    const cleaned = oneLine('edit', text);
+    return this.replaceDeliverable(id, (d) => ({ ...d, text: cleaned }));
+  }
+
+  /** Mark one delivered today. */
+  public deliverableDone(id: string): Deliverable {
+    return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'done', doneAt: localDay() }));
+  }
+
+  /** Give one up, with the reason it is not being done. */
+  public abandonDeliverable(id: string, reason: string): Deliverable {
+    const why = oneLine('abandon', reason);
+    return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'abandoned', reason: why }));
+  }
+
+  private replaceDeliverable(id: string, edit: (d: Deliverable) => Deliverable): Deliverable {
+    let written: Deliverable | undefined;
+    this.edit((doc, data) => {
+      if (!data.deliverables.some((d) => d.id === id)) {
+        const ids = data.deliverables.map((d) => d.id);
+        throw YanError.usage('deliverable_usage',
+          `no such deliverable: ${id} - ${ids.length === 0 ? 'this task has none yet' : `this task has ${ids.join(' ')}`}`,
+        );
+      }
+      doc.deliverables = data.deliverables.map((d) => {
+        if (d.id !== id) return d;
+        written = edit(d);
+        return written;
+      });
+    });
+    return written as Deliverable;
+  }
+
   /**
-   * Start a new round of one unit: archive the current branch, target and mr
-   * into `history[]` under `end`, then move to `newBranch` and clear mr. One
-   * write, so a crash leaves either the old round or the new one.
-   *
-   * @param day the retirement date, `YYYY-MM-DD` as history[].at has it; `''`
-   *   for today, the local day.
-   * @throws YanError when `newBranch` is empty, `end` is not one of ENDS, or
-   *   `day` is not a date.
+   * Read-modify-write. `edit` gets the raw document, to change, and the
+   * validated one, to read from; anything it throws leaves the file untouched.
    */
-  public rotateUnit(name: string, end: string, newBranch: string, day = ''): void {
-    if (!newBranch) throw YanError.usage('task_usage', 'rotating a unit needs the new branch name');
-    if (day !== '' && !isDate(day)) throw YanError.usage('task_usage', `a history date is YYYY-MM-DD, not '${day}'`);
-    this.editUnit(name, (unit) => {
-      const entry = historyEntry(
-        asString(unit.branch),
-        asString(unit.target),
-        day,
-        end,
-        typeof unit.mr === 'string' ? unit.mr : null,
-      );
-      unit.history = [...(Array.isArray(unit.history) ? unit.history : []), entry];
-      unit.branch = newBranch;
-      unit.mr = null;
+  private edit(edit: (doc: Record<string, unknown>, data: TaskData) => void): void {
+    editJson(this.require(), (current) => {
+      const doc = { ...(recordOrNone(current) ?? {}) };
+      edit(doc, validate(current, this));
+      return doc;
     });
   }
 
   /** @throws YanError `task_missing` when there is no task.json. */
   private require(): string {
     if (!existsSync(this.file)) {
-      throw new YanError('task_missing', `no such task: ${this.id} - expected ${this.file}`);
+      throw YanError.usage('task_missing', `no such task: ${this.id} - 'yan ls --status all' lists them`);
     }
     return this.file;
   }
@@ -241,23 +158,28 @@ export class Task {
   }
 
   /**
-   * Create task.json, brief.md, an empty deliverable.json and an empty
-   * log.md. Re-running it on an existing task changes nothing.
+   * Create a task under the next free `t<NNN>`: task.json and an empty
+   * brief.md. log.md appears with its first line.
    *
-   * @throws YanError when `title` is empty.
+   * @param repo the remote URL of the repository its tree is cut from, or
+   *   `''` for a task with no tree.
    */
-  public static create(id: string, title: string): Task {
-    const task = new Task(id);
-    if (title === '') throw YanError.usage('task_usage', 'a task needs a title');
-
+  public static create(title: string, repo = ''): Task {
+    const name = title.trim();
+    if (name === '' || /[\r\n]/.test(name)) throw YanError.usage('task_usage', 'a task needs a title, on one line');
+    const task = new Task(nextNumbered(Task.list(), 't', 3));
     mkdirSync(task.dir, { recursive: true });
-    initJson(task.file, { version: 1, id, title, complete: false, createdAt: isoSecond(), units: [] });
-
-    const brief = join(task.dir, 'brief.md');
-    if (!existsSync(brief)) writeFileSync(brief, briefText(id, title));
-
-    new Deliverables(id).init();
-    new Log(id).init(title);
+    initJson(task.file, {
+      version: 2,
+      id: task.id,
+      title: name,
+      state: 'open',
+      createdAt: isoSecond(),
+      ...(repo === '' ? {} : { repo }),
+      nextDeliverable: 1,
+      deliverables: [],
+    });
+    if (!existsSync(task.brief)) writeFileSync(task.brief, '');
     return task;
   }
 
@@ -277,39 +199,89 @@ export class Task {
 }
 
 /**
- * A new task's brief.md: the title line, then whatever `user` said the task
- * is about, as it was given. No headings: the background and the problems to
- * solve are usually impossible to pull apart, and what the task has to build
- * is `deliverable.json`, not a section here.
+ * One line of text, trimmed.
  *
- * What `yan task new` is given is a seed. The main agent rewrites the whole
- * file in the task's first session, once it has broken the ask down.
+ * @throws YanError `deliverable_usage` when it is empty or spans lines.
  */
-export function briefText(id: string, title: string, description = ''): string {
-  const body = description.trim();
-  return `# ${id} ${title}\n${body === '' ? '' : `\n${body}\n`}`;
+function oneLine(what: string, text: string): string {
+  const cleaned = (text ?? '').trim();
+  if (cleaned === '') throw YanError.usage('deliverable_usage', `${what}: the text is required and cannot be blank`);
+  if (/[\r\n]/.test(cleaned)) throw YanError.usage('deliverable_usage', `${what}: a deliverable is one line`);
+  return cleaned;
 }
 
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+/**
+ * The parsed document, or a refusal naming the file and the first thing wrong
+ * with it.
+ *
+ * @throws YanError `task_invalid`.
+ */
+function validate(raw: unknown, task: Task): TaskData {
+  const refuse = (why: string): never => {
+    throw new YanError('task_invalid', `${task.file} is not a task record: ${why}`);
+  };
+
+  const doc = recordOrNone(raw);
+  if (doc === undefined) return refuse('the top level is not an object');
+  if (doc.version !== 2) {
+    return refuse(`version is ${JSON.stringify(doc.version)} and this build reads version 2 - migrate the vault with scripts/migrate-v4.mjs`);
+  }
+  const state = doc.state;
+  if (typeof state !== 'string' || !(TASK_STATES as readonly string[]).includes(state)) {
+    return refuse(`state is ${JSON.stringify(state)} - one of: ${TASK_STATES.join(' ')}`);
+  }
+
+  const deliverables = validateDeliverables(doc.deliverables ?? [], refuse);
+  const highest = Math.max(0, ...deliverables.map((d) => Number(/^d(\d+)$/.exec(d.id)?.[1] ?? 0)));
+  const stated = doc.nextDeliverable;
+  const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+
+  const createdAt = text(doc.createdAt);
+  const closedAt = text(doc.closedAt);
+  const reason = text(doc.reason);
+  const repo = text(doc.repo);
+  return {
+    version: 2,
+    id: text(doc.id) ?? task.id,
+    title: text(doc.title) ?? '',
+    state: state as TaskState,
+    ...(createdAt === undefined ? {} : { createdAt }),
+    ...(closedAt === undefined ? {} : { closedAt }),
+    ...(reason === undefined ? {} : { reason }),
+    ...(repo === undefined ? {} : { repo }),
+    // Kept in the file so a deliverable removed by hand cannot make the next
+    // `add` reuse an id somebody has already quoted.
+    nextDeliverable: typeof stated === 'number' && Number.isInteger(stated) && stated > highest ? stated : highest + 1,
+    deliverables,
+  };
 }
 
-function historyEntry(
-  branch: string,
-  target: string,
-  at: string,
-  end: string,
-  mr: string | null,
-): HistoryEntry {
-  if (!branch || !target || !end) {
-    throw YanError.usage('task_usage', 'a history entry needs at least branch, target and end');
+function validateDeliverables(raw: unknown, refuse: (why: string) => never): Deliverable[] {
+  if (!Array.isArray(raw)) return refuse('"deliverables" is not an array');
+  const seen = new Set<string>();
+  const out: Deliverable[] = [];
+  for (const [i, entry] of raw.entries()) {
+    const d = recordOrNone(entry);
+    if (d === undefined) return refuse(`deliverables[${i}] is not an object`);
+    const { id, text, status } = d;
+    if (typeof id !== 'string' || id === '') return refuse(`deliverables[${i}] has no id`);
+    if (seen.has(id)) return refuse(`two deliverables share the id ${id}`);
+    seen.add(id);
+    if (typeof text !== 'string' || text.trim() === '') return refuse(`${id} has no text`);
+
+    if (status === 'todo') {
+      out.push({ id, text, status });
+    } else if (status === 'done') {
+      if (typeof d.doneAt !== 'string' || !isDate(d.doneAt)) return refuse(`${id} is done but its doneAt is not a YYYY-MM-DD`);
+      // Refs come from deliverables marked before v4; nothing writes them now.
+      const refs = Array.isArray(d.refs) ? d.refs.filter((r): r is string => typeof r === 'string' && r !== '') : [];
+      out.push({ id, text, status, doneAt: d.doneAt, ...(refs.length > 0 ? { refs } : {}) });
+    } else if (status === 'abandoned') {
+      if (typeof d.reason !== 'string' || d.reason.trim() === '') return refuse(`${id} is abandoned and gives no reason`);
+      out.push({ id, text, status, reason: d.reason });
+    } else {
+      return refuse(`${id} has status ${JSON.stringify(status)} - one of: todo done abandoned`);
+    }
   }
-  if (!(ENDS as readonly string[]).includes(end)) {
-    throw YanError.usage('task_usage', `invalid end '${end}' - one of: ${ENDS.join(' ')}`);
-  }
-  // The local day, as log.md and a deliverable's doneAt have it.
-  const when = at === '' ? localDay() : at;
-  const entry: HistoryEntry = { branch, target, at: when, end: end as HistoryEnd };
-  if (mr !== null && mr !== '') entry.mr = mr;
-  return entry;
+  return out;
 }

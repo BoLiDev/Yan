@@ -1,12 +1,13 @@
 /**
- * The pool of worktrees serving one main clone: lease a tree, cut a branch in
- * it, hand it back afterwards.
+ * The pool of worktrees serving each main clone: lease a tree to a task, cut
+ * its branch, hand it back when the task is done.
  *
- * Returning a tree resets and cleans it: uncommitted work in it is gone, and
- * the orphan-commit guard refuses the return rather than let that happen
- * silently. Gitignored build state — node_modules, caches — survives on
- * purpose, so the next lease starts warm.
+ * Returning a tree resets and cleans it, and the guard refuses the return
+ * while it holds work that exists nowhere else. Gitignored build state —
+ * node_modules, caches — survives on purpose, so the next lease starts warm.
  */
 
-export { WorktreePool } from './worktree.js';
-export type { LeaseGrant, LeaseRow, ReturnOptions } from './types.js';
+export { WorktreePool, leaseHeldBy, returnTree } from './worktree.js';
+export { treeState } from './guard.js';
+export type { TreeState } from './guard.js';
+export type { LeaseGrant, LeaseRow } from './types.js';

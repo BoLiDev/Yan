@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "t005",
+  "title": "dark mode for the site",
+  "complete": false,
+  "abandoned": true,
+  "createdAt": "2026-07-20T12:00:00Z",
+  "closedAt": "2026-08-01T12:00:00Z",
+  "units": [
+    {
+      "name": "site",
+      "repo": "site",
+      "scope": [],
+      "needs": [],
+      "branch": "t005-r1",
+      "target": "main",
+      "mr": null,
+      "history": []
+    }
+  ]
+}

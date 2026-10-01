@@ -6,12 +6,11 @@ import { asRecord, asString, recordOrNone } from './narrow.js';
 import { normalizePath } from './paths.js';
 
 /**
- * `~/.yan/config.json` — which vault is active, where each one is, and where
- * `yan repo add <url>` clones into. Never committed anywhere.
+ * `~/.yan/config.json` — which vault is active and where each one is. Never
+ * committed anywhere.
  *
  *   { "version": 1,
  *     "active": "personal",
- *     "clone_root": "C:/workspace/project",
  *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" } }
  *
  * Data access only: nothing here refuses a missing or broken registration, and
@@ -22,7 +21,6 @@ import { normalizePath } from './paths.js';
 interface MachineConfig {
   readonly version: number;
   readonly active?: string;
-  readonly clone_root?: string;
   readonly vaults: Readonly<Record<string, string>>;
 }
 
@@ -32,14 +30,6 @@ export function machineDir(): string {
   const override = process.env.YAN_MACHINE_DIR;
   const dir = override !== undefined && override !== '' ? override : join(homedir(), '.yan');
   return normalizePath(dir);
-}
-
-/**
- * `~/.yan/skills/` — standing instructions about this box rather than this
- * context. The vault's own `skillsDir()` holds the rest.
- */
-export function machineSkillsDir(): string {
-  return join(machineDir(), 'skills');
 }
 
 export function machineConfigPath(): string {
@@ -64,11 +54,9 @@ export function readMachine(): MachineConfig {
   }
 
   const active = set(record.active);
-  const root = set(record.clone_root);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
-    ...(root === undefined ? {} : { clone_root: normalizePath(root) }),
     vaults,
   };
 }
@@ -84,7 +72,11 @@ export function machineRevision(): number {
   return revision;
 }
 
-/** Read-modify-write, atomically, creating the config and its directory if needed. */
+/**
+ * Read-modify-write, atomically, creating the config and its directory if
+ * needed. What `edit` returns is written whole, so a field an older yan wrote
+ * (`clone_root`) is dropped on the first write.
+ */
 function editMachine(edit: (current: MachineConfig) => MachineConfig): void {
   mkdirSync(machineDir(), { recursive: true });
   initJson(machineConfigPath(), EMPTY);
@@ -97,15 +89,6 @@ export function registeredVaults(): { name: string; path: string }[] {
   return Object.keys(vaults)
     .sort()
     .map((name) => ({ name, path: vaults[name] as string }));
-}
-
-/** Where `yan repo add <url>` clones into, or undefined when it was never set. */
-export function cloneRoot(): string | undefined {
-  return readMachine().clone_root;
-}
-
-export function setCloneRoot(dir: string): void {
-  editMachine((current) => ({ ...current, clone_root: normalizePath(dir) }));
 }
 
 /** Record a vault under `name`, overwriting any path already there. */

@@ -1,20 +1,17 @@
 {
-  "version": 1,
+  "version": 2,
   "id": "t007",
   "title": "release notes",
-  "complete": false,
-  "abandoned": false,
+  "state": "open",
   "createdAt": "2026-09-05T12:00:00Z",
-  "units": [
+  "repo": "yan",
+  "nextDeliverable": 2,
+  "deliverables": [
     {
-      "name": "yan",
-      "repo": "yan",
-      "scope": [],
-      "needs": [],
-      "branch": "t007-r1",
-      "target": "main",
-      "mr": null,
-      "history": []
+      "id": "d1",
+      "text": "The release notes name every change in the autumn release.",
+      "status": "shipped",
+      "doneAt": "2026-09-06"
     }
   ]
 }

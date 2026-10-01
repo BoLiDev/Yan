@@ -1,5 +1,3 @@
-# t001 pricing page
-
 The site has no page that says what anything costs, so every enquiry starts with
 someone asking. Three plans exist and nobody outside the company can name them.
 

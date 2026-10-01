@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "id": "t007",
+  "title": "release notes",
+  "complete": false,
+  "abandoned": false,
+  "createdAt": "2026-09-05T12:00:00Z",
+  "units": [
+    {
+      "name": "yan",
+      "repo": "yan",
+      "scope": [],
+      "needs": [],
+      "branch": "t007-r1",
+      "target": "main",
+      "mr": null,
+      "history": []
+    }
+  ]
+}

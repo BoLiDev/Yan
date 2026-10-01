@@ -13,8 +13,7 @@ import { localDay, localTime } from '../../util/time.js';
  *
  * The title is the first non-blank line with any leading `#` stripped;
  * `updated` is the file's mtime; every list is newest first. Reading never
- * creates the folder — a session start is a read — and writing creates it on
- * the first draft.
+ * creates the folder, and writing creates it on the first draft.
  */
 
 const EXT = '.md';
@@ -81,7 +80,7 @@ export class Drafts {
   public readonly dir: string;
 
   public constructor(task: string) {
-    this.dir = normalizePath(join(new Task(task).dir, 'artifacts', 'drafts'));
+    this.dir = normalizePath(join(new Task(task).dir, 'drafts'));
   }
 
   public pathFor(id: string): string {

@@ -4,11 +4,9 @@ import { isDirectory } from './paths.js';
 
 /**
  * Run git in a given directory. Every function takes that directory as its
- * first argument and throws rather than falling back on `process.cwd()`, and
- * nothing here will force-push: `push` refuses the flag.
- *
- * (The flag's literal spelling is assembled from two pieces below so a grep of
- * src/ for it stays silent; src/util/git.test.ts checks that.)
+ * first argument and throws rather than falling back on `process.cwd()`.
+ * Nothing here pushes: the one push yan makes is `yan vault push`, of the
+ * vault, and src/util/git.test.ts checks no force flag reaches git anywhere.
  */
 
 function requireDir(dir: string | undefined): string {
@@ -50,7 +48,7 @@ export function gitOk(dir: string, args: readonly string[]): boolean {
 }
 
 /** Trimmed stdout, or a YanError carrying git's stderr when it exits non-zero. */
-export function gitOut(dir: string, args: readonly string[]): string {
+function gitOut(dir: string, args: readonly string[]): string {
   const r = git(dir, args);
   if (r.code !== 0) {
     throw new YanError('git_failed', `git ${args.join(' ')} failed: ${r.stderr.trim()}`);
@@ -59,7 +57,7 @@ export function gitOut(dir: string, args: readonly string[]): string {
 }
 
 /** Non-empty lines of stdout. */
-export function gitLines(dir: string, args: readonly string[]): string[] {
+function gitLines(dir: string, args: readonly string[]): string[] {
   const out = gitOut(dir, args);
   return out === '' ? [] : out.split(/\r?\n/).filter((l) => l !== '');
 }
@@ -73,11 +71,6 @@ export function currentBranch(dir: string): string {
 export function branchExists(dir: string, branch: string): boolean {
   requireArg(branch, 'a branch name is required');
   return gitOk(dir, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]);
-}
-
-export function remoteBranchExists(dir: string, branch: string, remote = 'origin'): boolean {
-  requireArg(branch, 'a branch name is required');
-  return gitOk(dir, ['ls-remote', '--exit-code', '--heads', remote, `refs/heads/${branch}`]);
 }
 
 export function statusPorcelain(dir: string, args: readonly string[] = []): string {
@@ -99,8 +92,7 @@ export function revParse(dir: string, args: readonly string[]): string {
  * 3 s timeout. `undefined` when neither answers, so callers must have
  * somewhere to go without one.
  *
- * Only ever a suggestion to prefill a prompt. A unit's `target` is `user`'s
- * answer, and nothing running unattended may take this as one.
+ * What a new task's tree is cut from.
  */
 export function defaultBranch(dir: string, remote = 'origin'): string | undefined {
   const local = git(dir, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
@@ -133,44 +125,9 @@ export function checkout(dir: string, args: readonly string[]): ProcessResult {
   return git(dir, ['checkout', ...args]);
 }
 
-/** Cut a branch. `base` is passed through — git is never left to pick HEAD. */
-export function createBranch(dir: string, branch: string, base: string): ProcessResult {
-  return git(dir, ['branch', branch, base]);
-}
-
 export function rebase(dir: string, args: readonly string[]): ProcessResult {
   requireArg(args[0], 'rebase needs an upstream');
   return git(dir, ['rebase', ...args]);
-}
-
-// --- remote writes ---------------------------------------------------------
-
-const FORCE = `--${'force'}`;
-
-function isForceFlag(arg: string): boolean {
-  return arg === '-f' || arg === FORCE || arg.startsWith(`${FORCE}-`) || arg.startsWith(`${FORCE}=`);
-}
-
-/**
- * Push.
- *
- * @throws YanError `git_force_refused` (exit 2) when any argument is a force flag.
- */
-export function push(dir: string, args: readonly string[] = []): ProcessResult {
-  for (const a of args) {
-    if (isForceFlag(a)) {
-      throw YanError.usage('git_force_refused', 'refusing to force-push: it rewrites history other people have already pulled');
-    }
-  }
-  return git(dir, ['push', ...args]);
-}
-
-/**
- * Delete a branch on the remote. Nothing here checks whether it merged, so the
- * caller must have.
- */
-export function deleteRemoteBranch(dir: string, remote: string, branch: string): ProcessResult {
-  return git(dir, ['push', remote, '--delete', branch]);
 }
 
 // --- worktrees -------------------------------------------------------------
@@ -205,53 +162,10 @@ export function cleanFd(dir: string): ProcessResult {
   return git(dir, ['clean', '-fd']);
 }
 
-// --- cloning ---------------------------------------------------------------
-
-/** <dir> is the directory the clone is created in. */
-export function cloneRepo(dir: string, url: string, dest: string, args: readonly string[] = []): ProcessResult {
-  return git(dir, ['clone', ...args, url, dest]);
-}
+// --- remotes ---------------------------------------------------------------
 
 /** A remote's URL, or undefined when <dir> is not a repo or has no such remote. */
 export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
   const r = git(dir, ['remote', 'get-url', remote]);
   return r.code === 0 ? r.stdout.trim() : undefined;
-}
-
-// --- merging without a working tree ----------------------------------------
-//
-// These three write refs and objects only, so they are safe to run in a main
-// clone: no checkout, and the working tree is never touched. Together they
-// merge a branch without a worktree at all.
-
-/**
- * A three-way merge written straight to the object store. Needs git ≥ 2.38.
- *
- * On success `stdout` opens with the merged tree's oid; on a conflict the exit
- * code is non-zero and `stdout` is a conflict report. Nothing is left behind
- * either way.
- */
-export function mergeTree(dir: string, ours: string, theirs: string): ProcessResult {
-  return git(dir, ['merge-tree', '--write-tree', ours, theirs]);
-}
-
-/** A commit object for an existing tree. `parents` in order: ours first. */
-export function commitTree(
-  dir: string,
-  tree: string,
-  parents: readonly string[],
-  message: string,
-): ProcessResult {
-  const args = ['commit-tree', tree];
-  for (const parent of parents) args.push('-p', parent);
-  args.push('-m', message);
-  return git(dir, args);
-}
-
-/**
- * Move a ref to `to`, failing rather than moving it if it is not currently at
- * `expect` — so anything that landed in between is not discarded.
- */
-export function updateRef(dir: string, ref: string, to: string, expect: string): ProcessResult {
-  return git(dir, ['update-ref', ref, to, expect]);
 }

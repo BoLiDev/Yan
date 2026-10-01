@@ -7,9 +7,9 @@ import { collectReport, type Report, type ReportTask } from '../../src/cli/ui/co
 
 /**
  * `yan ui` against `tests/fixtures/ui-vault`, whose report is written out in
- * its README. The collector is called in process with a pinned "now", so the
- * years of an open task's dates do not move with the calendar; the command is
- * run through `bin/yan` for its flags and for what it leaves behind: nothing.
+ * its README. The collector is called in process with a pinned "now"; the
+ * command is run through `bin/yan.mjs` for its flags and for what it leaves
+ * behind: nothing.
  */
 
 afterAll(cleanupTempDirs);
@@ -83,9 +83,17 @@ describe('the collector', () => {
     });
   });
 
-  it('never reads deliverables out of a brief: an old two-section one has none', () => {
+  it('never reads deliverables out of a brief: an old two-section one has none, and its headings read as paragraphs', () => {
     expect(task('t003').deliverables).toEqual([]);
-    expect(task('t003').brief).toBe('Nightly backups of the ledger database, kept for thirty days.');
+    expect(task('t003').brief).toBe([
+      'Description',
+      '',
+      'Nightly backups of the ledger database, kept for thirty days.',
+      '',
+      'Deliverables',
+      '- [x] 07-05 · PR #21 · Nightly snapshots of the ledger.',
+      '- [ ] Restoring one, proved on a copy.',
+    ].join('\n'));
     expect(task('t003')).toMatchObject({ started: '2026-07-01', completed: '2026-07-15' });
   });
 
@@ -96,12 +104,13 @@ describe('the collector', () => {
     });
   });
 
-  it('gives a record that does not validate no deliverables, and does not fail', () => {
+  it('gives a record that does not validate no deliverables, and keeps its title and state', () => {
     expect(task('t007').deliverables).toEqual([]);
+    expect(task('t007')).toMatchObject({ title: 'release notes', state: 'open' });
     expect(task('t007').brief).toContain('The autumn release goes out in a fortnight');
   });
 
-  it('takes the project from the first unit, and null without one', () => {
+  it('takes the project from the repository, and null without one', () => {
     expect(task('t002').project).toBe('ledger');
     expect(task('t004').project).toBeNull();
   });

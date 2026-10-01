@@ -1,6 +1,5 @@
 /**
- * Names yan turns into a directory or file name: a task or shift id, a
- * repository or vault name, a harness session id. One rule for all of them,
+ * Names yan turns into a directory or file name: a task id, a vault name. One rule for all of them,
  * letters, digits, dot, dash and underscore, so none can carry a separator —
  * and not dots alone, which would name the directory itself or its parent.
  */
@@ -9,8 +8,8 @@ export function isRecordId(name: string): boolean {
 }
 
 /**
- * Order by code point, the same on every machine and locale: task ids, shift
- * ids and file names sort the way `ls` under `LC_ALL=C` shows them.
+ * Order by code point, the same on every machine and locale: task ids and file
+ * names sort the way `ls` under `LC_ALL=C` shows them.
  */
 export function byCodePoint(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;

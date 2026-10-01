@@ -1,21 +1,43 @@
 {
-  "version": 1,
+  "version": 2,
   "id": "t002",
   "title": "invoice export rounding",
-  "complete": true,
-  "abandoned": false,
+  "state": "done",
   "createdAt": "2026-08-03T12:00:00Z",
   "closedAt": "2026-08-20T12:00:00Z",
-  "units": [
+  "repo": "ledger",
+  "nextDeliverable": 5,
+  "deliverables": [
     {
-      "name": "ledger",
-      "repo": "ledger",
-      "scope": [],
-      "needs": [],
-      "branch": "t002-r1",
-      "target": "main",
-      "mr": null,
-      "history": []
+      "id": "d1",
+      "text": "An invoice PDF shows the total the ledger stores, to the cent.",
+      "status": "done",
+      "doneAt": "2026-08-05"
+    },
+    {
+      "id": "d2",
+      "text": "An invoice note reaches the PDF as it was typed, `</script><!-- x -->` and all.",
+      "status": "done",
+      "doneAt": "2026-08-12",
+      "refs": [
+        "MR !87"
+      ]
+    },
+    {
+      "id": "d3",
+      "text": "`$&`, `$1` and `$$` in an invoice print as the literal text, not as what the template engine makes of them.",
+      "status": "done",
+      "doneAt": "2026-08-20",
+      "refs": [
+        "PR #31",
+        "PR #32 <!-- squashed -->"
+      ]
+    },
+    {
+      "id": "d4",
+      "text": "The three customers with a wrong invoice have a corrected one.",
+      "status": "abandoned",
+      "reason": "finance sent them by hand, invoice notes such as `</script><!-- x -->` and `$&` included"
     }
   ]
 }

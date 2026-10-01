@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { taskDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
@@ -6,76 +6,55 @@ import { YanError } from '../../util/error.js';
 import { localMonthDay } from '../../util/time.js';
 
 /**
- * What a line records. Every line carries exactly one.
+ * What a line records. Every line yan writes carries exactly one.
  *
- *   agreed     a conclusion, plan or understanding reached with `user`
- *   started    a piece of work began, and what it is for
- *   delivered  a piece of work finished, and what it changed
- *   changed    what happened departs from what the log said before
- *   incident   something went wrong, and how it was resolved
- *   paused     work stopped: where, what is left, what it waits on
+ *   agreed   a conclusion, plan or decision reached with `user`
+ *   changed  something departs from what an earlier line said
+ *   paused   work stopped: where it stands, what is left, what it waits on
+ *
+ * A log from before v4 also holds `started`, `delivered` and `incident`
+ * lines. They are read like any other line and never written.
  */
-export const LOG_TYPES = ['agreed', 'started', 'delivered', 'changed', 'incident', 'paused'] as const;
+export const LOG_TYPES = ['agreed', 'changed', 'paused'] as const;
 export type LogType = (typeof LOG_TYPES)[number];
 
 const TYPE_WIDTH = Math.max(...LOG_TYPES.map((t) => t.length));
 
-/** `- MM-DD  <type>  <text>`, capturing the type. */
-const TYPED_LINE = new RegExp(`^- \\d{2}-\\d{2} {2}(${LOG_TYPES.join('|')})\\b`);
+/** `- MM-DD  <type>  <text>`, capturing the type, whichever word it is. */
+const TYPED_LINE = /^- \d{2}-\d{2} {2}([a-z]+)\b/;
 
 export function isLogType(value: string): value is LogType {
   return (LOG_TYPES as readonly string[]).includes(value);
 }
 
 /**
- * One task's `log.md`, which is append-only: nothing here can rewrite or
- * remove an existing line.
- *
- *   # t042 unify the auth header
- *
- *   - 08-04  started    s1 auth  dispatched on yan/t042-auth-s1 — parse the header
- *   - 08-04  delivered  s1 auth  !31 merged into the integration branch
+ * `tasks/<id>/log.md`: one line per event, appended and never edited. A line
+ * that turns out wrong is answered by a later `changed` line.
  */
 export class Log {
-  private readonly id: string;
-
   /** Absolute path of the log file, whether or not it exists yet. */
   public readonly file: string;
 
   public constructor(taskId: string) {
     if (!taskId) throw YanError.usage('log_usage', 'a task id is required');
-    this.id = taskId;
     this.file = normalizePath(join(taskDir(taskId), 'log.md'));
-  }
-
-  /**
-   * Create log.md with a `# <id> <title>` heading. An existing file is left
-   * exactly as it is, heading included.
-   */
-  public init(title = ''): void {
-    if (existsSync(this.file)) return;
-    mkdirSync(dirname(this.file), { recursive: true });
-    writeFileSync(this.file, title === '' ? `# ${this.id}\n\n` : `# ${this.id} ${title}\n\n`);
   }
 
   /**
    * Append one line, creating the file if needed.
    *
-   * @param monthDay the date to stamp, `MM-DD` as log.md writes it; `''` for
-   *   today, the local day.
+   * @param monthDay the date to stamp, `MM-DD`; `''` for today, the local day.
    * @throws YanError when `type` is not one of LOG_TYPES, or `text` is empty
-   *   or contains a newline.
+   *   or spans lines.
    */
   public append(type: LogType, text: string, monthDay = ''): void {
     if (!isLogType(type)) {
       throw YanError.usage('log_usage', `'${String(type)}' is not a log type - one of: ${LOG_TYPES.join(' ')}`);
     }
-    if (!text || text.trim() === '') throw YanError.usage('log_usage', 'usage: append(type, text, [MM-DD])');
-    if (text.includes('\n') || text.includes('\r')) {
-      throw YanError.usage('log_usage', 'a log entry is one line - write several entries instead');
-    }
-    this.init();
+    if (!text || text.trim() === '') throw YanError.usage('log_usage', 'the entry is required - say it in one line');
+    if (/[\r\n]/.test(text)) throw YanError.usage('log_usage', 'an entry is one line - write several entries instead');
     try {
+      mkdirSync(dirname(this.file), { recursive: true });
       appendFileSync(this.file, `- ${monthDay === '' ? localMonthDay() : monthDay}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);
     } catch (cause) {
       throw new YanError('log_failed', `cannot append to ${this.file}`, { cause });
@@ -83,12 +62,11 @@ export class Log {
   }
 
   /**
-   * The entries worth carrying into a new session: every line whose type is in
-   * `keep`, plus the last `tail` entries of any kind, in file order and without
-   * repeats. Lines written before entries carried a type can only arrive
-   * through the tail. `[]` when there is no log.
+   * The lines worth carrying into a new session: every `agreed` and `changed`
+   * line, plus the last `tail` lines of any kind, in file order and without
+   * repeats. `total` counts every line. Empty when there is no log.
    */
-  public excerpt(keep: readonly LogType[], tail: number): { lines: string[]; total: number } {
+  public recall(tail: number): { lines: string[]; total: number } {
     let text: string;
     try {
       text = readFileSync(this.file, 'utf8');
@@ -100,7 +78,7 @@ export class Log {
     const lines = entries.filter((line, i) => {
       if (i >= from) return true;
       const type = TYPED_LINE.exec(line)?.[1];
-      return type !== undefined && (keep as readonly string[]).includes(type);
+      return type === 'agreed' || type === 'changed';
     });
     return { lines, total: entries.length };
   }

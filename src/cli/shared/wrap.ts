@@ -1,4 +1,4 @@
-import { cells, columnsOf, fit, wide } from './style.js';
+import { cells, columnsOf, wide } from './style.js';
 
 /**
  * A paragraph broken into lines of a given width, for text in English and in
@@ -91,18 +91,4 @@ export function wrap(text: string, width: number): Line[] {
 /** A wrapped line as text; a space between units is kept inside a line and dropped at a break. */
 export function lineText(line: Line): string {
   return line.map((u, i) => (i > 0 && u.space ? ' ' : '') + u.text).join('');
-}
-
-/**
- * At most `max` lines. When text is left over, or `more` says further
- * paragraphs follow, the last line gives up whole units until `…` fits, loses
- * trailing whitespace and punctuation, and ends in `…` with no space before it.
- */
-export function clamp(lines: readonly Line[], max: number, width: number, more = false): string[] {
-  if (lines.length <= max && !more) return lines.map(lineText);
-  const kept = lines.slice(0, max);
-  const last = [...(kept[kept.length - 1] ?? [])];
-  while (last.length > 1 && cells(lineText(last)) + 1 > width) last.pop();
-  const text = lineText(last).replace(/[.,;:!?，。、；：！？\s]+$/u, '');
-  return [...kept.slice(0, -1).map(lineText), `${fit(text, width - 1)}…`];
 }

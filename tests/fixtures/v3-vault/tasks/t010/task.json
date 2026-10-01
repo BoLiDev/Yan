@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "id": "t010",
+  "title": "newsletter signup",
+  "complete": false,
+  "abandoned": false,
+  "createdAt": "2026-09-14T12:00:00Z",
+  "units": [
+    {
+      "name": "site",
+      "repo": "site",
+      "scope": [],
+      "needs": [],
+      "branch": "t010-r1",
+      "target": "main",
+      "mr": null,
+      "history": []
+    }
+  ]
+}

@@ -3,15 +3,14 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFile
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
-import { seedT042 } from '../helpers/records.js';
 import { Task } from '../../src/records/task/index.js';
 import { writeDraft } from '../../src/cli/draft.js';
 
 /**
- * `yan draft`: `user`'s notes about a task, in `artifacts/drafts/`.
+ * `yan draft`: `user`'s notes about a task, in `drafts/`.
  *
- * The reading commands are driven through `bin/yan`. Writing one needs a
- * terminal, which `runYan` never has, so through `bin/yan` the refusal is what
+ * The reading commands are driven through `bin/yan.mjs`. Writing one needs a
+ * terminal, which `runYan` never has, so through `bin/yan.mjs` the refusal is what
  * is under test; the editor round trip runs in process with the terminal check
  * answered, and a fake `$DRAFT_EDITOR` standing in for nvim.
  */
@@ -43,37 +42,24 @@ function editor(body: string): string {
 
 beforeEach(() => {
   home = mkYanHome(mkTempDir(), { withDist: true });
-  seedT042(null);
-  Task.create('t099', 'a task with no drafts');
-  drafts = join(home, 'tasks', 't042', 'artifacts', 'drafts');
+  Task.create('unify the auth header');
+  Task.create('a task with no drafts');
+  drafts = join(home, 'tasks', 't001', 'drafts');
 });
 
 afterEach(() => {
   if (previousEditor === undefined) delete process.env.DRAFT_EDITOR;
   else process.env.DRAFT_EDITOR = previousEditor;
-  delete process.env.YAN_SID;
   vi.restoreAllMocks();
 });
 
 describe('writing a draft is user at a keyboard', () => {
   it('refuses without a terminal, naming what reads them', async () => {
-    const r = await yan(['draft', 't042']);
+    const r = await yan(['draft', 't001']);
     expect(r.code, r.out).toBe(2);
     expect(r.stderr).toContain('needs a terminal');
     expect(r.stderr).toContain("user's own notes");
     expect(existsSync(drafts)).toBe(false);
-  });
-
-  it('refuses inside a shift', async () => {
-    const r = await yan(['draft', 't042', '--title', 'an idea'], { YAN_SID: 's3' });
-    expect(r.code, r.out).toBe(2);
-    expect(r.stderr).toContain('shift s3');
-    expect(existsSync(drafts)).toBe(false);
-  });
-
-  it('refuses inside a shift even with a terminal', () => {
-    process.env.YAN_SID = 's3';
-    expect(() => writeDraft('t042', [], { tty: () => true })).toThrow(/user's alone/);
   });
 });
 
@@ -81,9 +67,9 @@ describe('the editor round trip', () => {
   it('keeps a draft something was written into, titled from --title', () => {
     process.env.DRAFT_EDITOR = editor('printf "the parser should own the header\\n" >> "$1"');
     const said = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    const path = writeDraft('t042', ['Parser', 'ideas'], { tty: () => true });
+    const path = writeDraft('t001', ['Parser', 'ideas'], { tty: () => true });
 
-    expect(path).toMatch(/\/artifacts\/drafts\/\d{4}-\d{2}-\d{2}_\d{6}-parser-ideas\.md$/);
+    expect(path).toMatch(/\/t001\/drafts\/\d{4}-\d{2}-\d{2}_\d{6}-parser-ideas\.md$/);
     expect(readFileSync(path ?? '', 'utf8')).toBe('# Parser ideas\n\n\nthe parser should own the header\n');
     expect(said.mock.calls.map((c) => String(c[0])).join('')).toContain(`saved ${path}`);
   });
@@ -91,21 +77,21 @@ describe('the editor round trip', () => {
   it('discards a titled draft left as it was', () => {
     process.env.DRAFT_EDITOR = editor('true');
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    expect(writeDraft('t042', ['nothing', 'yet'], { tty: () => true })).toBeUndefined();
+    expect(writeDraft('t001', ['nothing', 'yet'], { tty: () => true })).toBeUndefined();
     expect(readdirSync(drafts)).toEqual([]);
   });
 
   it('discards an untitled draft the editor never wrote', () => {
     process.env.DRAFT_EDITOR = editor('true');
     const said = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    expect(writeDraft('t042', [], { tty: () => true })).toBeUndefined();
+    expect(writeDraft('t001', [], { tty: () => true })).toBeUndefined();
     expect(readdirSync(drafts)).toEqual([]);
     expect(said.mock.calls.map((c) => String(c[0])).join('')).toContain('no draft was kept');
   });
 
   it('names an editor that is not there', () => {
     process.env.DRAFT_EDITOR = 'no-such-editor-anywhere';
-    expect(() => writeDraft('t042', [], { tty: () => true })).toThrow(/not on PATH/);
+    expect(() => writeDraft('t001', [], { tty: () => true })).toThrow(/not on PATH/);
   });
 });
 
@@ -116,22 +102,22 @@ describe('reading drafts works anywhere', () => {
   });
 
   it('ls lists newest first without a terminal, as it does with --plain', async () => {
-    const r = await yan(['draft', 'ls', 't042']);
+    const r = await yan(['draft', 'ls', 't001']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toBe(
       '2026-09-16_051516-q4\t2026-09-16 09:30\tQ4 plan\n2026-09-14_093000\t2026-09-14 09:30\tOld idea\n',
     );
-    expect((await yan(['draft', 'ls', '--plain', 't042'])).stdout).toBe(r.stdout);
+    expect((await yan(['draft', 'ls', '--plain', 't001'])).stdout).toBe(r.stdout);
   });
 
-  it('ls takes the task from $YAN_TASK, and lists inside a shift', async () => {
-    const r = await yan(['draft', 'ls', '--limit', '1'], { YAN_TASK: 't042', YAN_SID: 's3' });
+  it('ls takes the task from $YAN_TASK', async () => {
+    const r = await yan(['draft', 'ls', '--limit', '1'], { YAN_TASK: 't001' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toBe('2026-09-16_051516-q4\t2026-09-16 09:30\tQ4 plan\n');
   });
 
   it('ls --json carries the preview', async () => {
-    const r = await yan(['draft', 'ls', '--json', 't042']);
+    const r = await yan(['draft', 'ls', '--json', 't001']);
     expect(r.code, r.out).toBe(0);
     const rows = JSON.parse(r.stdout) as { id: string; title: string; preview: string; updated: string }[];
     expect(rows.map((d) => d.id)).toEqual(['2026-09-16_051516-q4', '2026-09-14_093000']);
@@ -139,34 +125,34 @@ describe('reading drafts works anywhere', () => {
   });
 
   it('ls prints nothing for a task with no drafts, and creates nothing', async () => {
-    const r = await yan(['draft', 'ls', '--plain', 't099']);
+    const r = await yan(['draft', 'ls', '--plain', 't002']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toBe('');
-    expect(existsSync(join(home, 'tasks', 't099', 'artifacts'))).toBe(false);
+    expect(existsSync(join(home, 'tasks', 't002', 'drafts'))).toBe(false);
   });
 
   it('ls refuses a bad --limit or --since', async () => {
-    expectUsage(await yan(['draft', 'ls', '--limit', '0', 't042']), '--limit needs a positive whole number');
-    expectUsage(await yan(['draft', 'ls', '--since', 'someday', 't042']), '--since needs a date');
+    expectUsage(await yan(['draft', 'ls', '--limit', '0', 't001']), '--limit needs a positive whole number');
+    expectUsage(await yan(['draft', 'ls', '--since', 'someday', 't001']), '--since needs a date');
   });
 
   it('cat prints one, with the task last or from $YAN_TASK', async () => {
-    const named = await yan(['draft', 'cat', '2026-09-14_093000', 't042']);
+    const named = await yan(['draft', 'cat', '2026-09-14_093000', 't001']);
     expect(named.code, named.out).toBe(0);
     expect(named.stdout).toBe('# Old idea\n\nparse the header once\n');
-    const inSession = await yan(['draft', 'cat', '2026-09-14_093000'], { YAN_TASK: 't042' });
+    const inSession = await yan(['draft', 'cat', '2026-09-14_093000'], { YAN_TASK: 't001' });
     expect(inSession.stdout).toBe(named.stdout);
   });
 
   it('cat refuses a draft that is not there, or an id that leaves the folder', async () => {
-    const missing = await yan(['draft', 'cat', '2026-01-01_000000', 't042']);
+    const missing = await yan(['draft', 'cat', '2026-01-01_000000', 't001']);
     expect(missing.code).toBe(1);
-    expect(missing.stderr).toContain('yan draft ls --plain t042');
-    expect((await yan(['draft', 'cat', '../../task', 't042'])).code).toBe(1);
+    expect(missing.stderr).toContain('yan draft ls --plain t001');
+    expect((await yan(['draft', 'cat', '../../task', 't001'])).code).toBe(1);
   });
 
   it('search finds a phrase, and takes a last word naming a task as the task', async () => {
-    const r = await yan(['draft', 'search', 'q4', 'plan', 't042']);
+    const r = await yan(['draft', 'search', 'q4', 'plan', 't001']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('2026-09-16_051516-q4\t2026-09-16 09:30\tQ4 plan');
     expect(r.stdout).toContain('Q4 Plan at length');
@@ -174,17 +160,17 @@ describe('reading drafts works anywhere', () => {
   });
 
   it('search keeps a last word that is not a task in the phrase', async () => {
-    const r = await yan(['draft', 'search', 'header', 'once'], { YAN_TASK: 't042' });
+    const r = await yan(['draft', 'search', 'header', 'once'], { YAN_TASK: 't001' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('2026-09-14_093000');
-    const json = await yan(['draft', 'search', 'nothing', 'like', 'this', '--json'], { YAN_TASK: 't042' });
+    const json = await yan(['draft', 'search', 'nothing', 'like', 'this', '--json'], { YAN_TASK: 't001' });
     expect(JSON.parse(json.stdout)).toEqual([]);
   });
 
   it('dir prints the folder', async () => {
-    const r = await yan(['draft', 'dir', 't042']);
+    const r = await yan(['draft', 'dir', 't001']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout.trim()).toBe(`${new Task('t042').dir}/artifacts/drafts`);
+    expect(r.stdout.trim()).toBe(`${new Task('t001').dir}/drafts`);
   });
 });
 

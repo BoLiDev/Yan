@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "site": { "url": "git@github.com:acme/site.git", "mode_default": "mr", "pool_size": 8 },
+  "ledger": { "url": "https://gitlab.acme.internal/acme/ledger.git", "pool_size": 4 }
+}

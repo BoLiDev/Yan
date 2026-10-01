@@ -1,21 +1,27 @@
 {
-  "version": 1,
+  "version": 2,
   "id": "t009",
   "title": "search box",
-  "complete": true,
-  "abandoned": false,
+  "state": "done",
   "createdAt": "2026-09-08T12:00:00Z",
   "closedAt": "2026-09-12T12:00:00Z",
-  "units": [
+  "repo": "site",
+  "nextDeliverable": 3,
+  "deliverables": [
     {
-      "name": "site",
-      "repo": "site",
-      "scope": [],
-      "needs": [],
-      "branch": "t009-r1",
-      "target": "main",
-      "mr": null,
-      "history": []
+      "id": "d1",
+      "text": "The search box finds any page by its title.",
+      "status": "done",
+      "doneAt": "2026-09-09"
+    },
+    {
+      "id": "d2",
+      "text": "The search box is in the header on every page.",
+      "status": "done",
+      "doneAt": "2026-09-12",
+      "refs": [
+        "PR #53"
+      ]
     }
   ]
 }

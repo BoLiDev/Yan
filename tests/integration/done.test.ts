@@ -1,310 +1,87 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDirs,
-  mkTempDir,
-  mkYanHome,
-  registerRepo,
-  runYan,
-} from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
-import { attempt, type Attempt, liveShift, seedT042 } from '../helpers/records.js';
-import { finishTask, type DoneDeps, type DoneOptions } from '../../src/cli/done.js';
-import type { Closer } from '../../src/cli/shared/teardown.js';
+import { WorktreePool, leaseHeldBy } from '../../src/externals/worktree/index.js';
 import { Task } from '../../src/records/task/index.js';
-import { type LeaseRow, type ReturnOptions } from '../../src/externals/worktree/index.js';
-import { YanError } from '../../src/util/error.js';
-import { openTasks } from '../../src/cli/shared/task-id.js';
 
 /**
- * `yan done` — the command that finishes a task.
- *
- * Two properties, both of which fail quietly if they regress:
- *
- *   1. The default destroys nothing. A live shift stops the command before any
- *      tree is touched and before `complete` is set; a tree the guard will not
- *      take back leaves the task open.
- *   2. `--force` is `user`'s answer, and no other command may grow a way to
- *      reach past the guard.
- *
- * The pool is a stand-in, so the order and the authority can be asserted
- * exactly. What force does to a real tree is proved in
- * `src/externals/worktree/worktree.test.ts`.
+ * `yan done`: closing a task gives its tree back, and the tree's guard can
+ * keep the task open.
  */
 
 afterAll(cleanupTempDirs);
 
 let home = '';
-let clone = '';
+let pool = '';
 let tree = '';
-let previousTask: string | undefined;
-let calls: string[] = [];
 
-const LEASE = 'lease-abc123';
-
-let leases: LeaseRow[] = [];
-let returnRefusal: Error | undefined;
-
-class FakePool {
-  public status(): LeaseRow[] {
-    return leases;
-  }
-
-  public return(target: string, options: ReturnOptions = {}): string {
-    calls.push(
-      `pool_return path=${target} lease_id=${options.leaseId ?? ''} holder=${options.holder ?? ''} force=${options.force === true}`,
-    );
-    if (returnRefusal !== undefined) throw returnRefusal;
-    leases = leases.filter((l) => l.path !== target);
-    return target;
-  }
+function yan(args: readonly string[], env: Record<string, string | undefined> = {}) {
+  return runYan(home, args, { YAN_POOL_ROOT: pool, ...env });
 }
 
-class FakeTerminal implements Closer {
-  public close(pane: string): void {
-    calls.push(`agent_close pane=${pane}`);
-  }
-
-  public clearPaneTitle(pane: string): void {
-    calls.push(`title_clear pane=${pane}`);
-  }
-}
-
-function deps(): DoneDeps {
-  return { terminal: new FakeTerminal(), pool: () => new FakePool() };
-}
-
-function run(options: DoneOptions = {}): Attempt<unknown> {
-  return attempt(() => finishTask({ task: 't042', ...options }, deps()));
-}
-
-const complete = (): boolean => new Task('t042').isComplete();
-
-/** A dispatched shift holding a tree, as `yan shift new` leaves one. */
-function dispatched(sid: string): string {
-  const run_ = liveShift(home, 't042', sid, {
-    task: 't042', sid, unit: 'auth', repo: 'monorepo-x',
-    branch: `yan/t042-auth-${sid}`, base: 'feat/auth', tree, clone,
-    holder: `t042/auth/${sid}`, lease_id: LEASE, agent: 'claude',
-    container: 'w1', pane: 'w1:p7',
-  });
-  writeFileSync(join(run_, 'status'), '2026-08-09T09:00:00Z\tstarted\tread the brief\n');
-  held(sid);
-  return run_;
-}
-
-/** The pool holding one tree for this task, with no shift record at all. */
-function held(sid: string): void {
-  leases = [
-    { slot: 1, path: tree, branch: `yan/t042-auth-${sid}`, base: 'feat/auth', holder: `t042/auth/${sid}`, lease_id: LEASE, at: 0 },
-  ];
-}
-
-beforeEach(() => {
-  previousTask = process.env.YAN_TASK;
-  const tmp = mkTempDir();
-  home = mkYanHome(join(tmp, 'home'), { withDist: true });
-  delete process.env.YAN_TASK;
-  clone = join(home, 'repos', 'monorepo-x');
-  mkdirSync(clone, { recursive: true });
-  registerRepo(home, 'monorepo-x', clone);
-  tree = join(tmp, 'tree1');
-  mkdirSync(tree, { recursive: true });
-
-  seedT042();
-
-  calls = [];
-  leases = [];
-  returnRefusal = undefined;
+beforeEach(async () => {
+  home = mkYanHome(mkTempDir(), { withDist: true });
+  pool = mkTempDir('yan-pool-');
+  process.env.YAN_POOL_ROOT = pool;
+  const bare = await mkBareRemote(join(mkTempDir(), 'origin.git'));
+  const clone = await mkClone(bare, join(mkTempDir(), 'demo'));
+  // What a real repository ignores, so the tree can be warm and clean at once.
+  writeFileSync(join(clone, '.git', 'info', 'exclude'), 'node_modules/\n');
+  const task = Task.create('with a tree', bare);
+  tree = new WorktreePool(clone).get('origin/main', `yan/${task.id}`, task.id).path;
+  Task.create('without one');
 });
 
 afterEach(() => {
-  if (previousTask === undefined) delete process.env.YAN_TASK;
-  else process.env.YAN_TASK = previousTask;
+  delete process.env.YAN_POOL_ROOT;
 });
 
-describe('the ordinary case', () => {
-  it('marks the task done and gives its tree back', () => {
-    held('s1');
-    const r = run();
-    expect(r.code, r.message).toBe(0);
-    expect(complete()).toBe(true);
-    expect(calls).toEqual([`pool_return path=${tree} lease_id=${LEASE} holder=t042/auth/s1 force=false`]);
-    expect(leases, 'the pool slot is free again').toEqual([]);
-    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toContain('task marked done');
+describe('yan done', () => {
+  it('closes a task with no tree', async () => {
+    const r = await yan(['done', 't002']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout.trim()).toBe('t002  done');
+    expect(new Task('t002').read().state).toBe('done');
   });
 
-  it('finishes a task that never leased anything', () => {
-    expect(run().code).toBe(0);
-    expect(complete()).toBe(true);
-    expect(calls).toEqual([]);
+  it('returns a clean, pushed tree, warm, and closes the task', async () => {
+    mkdirSync(join(tree, 'node_modules'), { recursive: true });
+    writeFileSync(join(tree, 'node_modules', 'dep.js'), '');
+    const r = await yan(['done'], { YAN_TASK: 't001' });
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('tree returned');
+    expect(leaseHeldBy('t001')).toBeUndefined();
+    expect(existsSync(join(tree, 'node_modules', 'dep.js'))).toBe(true);
+    expect(new Task('t001').read().state).toBe('done');
   });
 
-  it('is idempotent: a task already done can be run again', () => {
-    new Task('t042').setComplete(true);
-    held('s1');
-    expect(run().code).toBe(0);
-    expect(complete()).toBe(true);
-    expect(calls, 'and a tree left behind is still collected').toHaveLength(1);
+  it('keeps the task open while its tree has work nowhere else, and --force throws it away', async () => {
+    writeFileSync(join(tree, 'wip.txt'), 'half done\n');
+    const refused = await yan(['done', 't001']);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain('wip.txt');
+    expect(new Task('t001').read().state).toBe('open');
+    expect(leaseHeldBy('t001')).toBeDefined();
+
+    await fxGit(['add', '.'], tree);
+    await fxGit(['commit', '-m', 'wip'], tree);
+    expect((await yan(['done', 't001'])).stderr).toContain('no remote branch contains HEAD');
+
+    const forced = await yan(['done', 't001', '--force']);
+    expect(forced.code, forced.out).toBe(0);
+    expect(new Task('t001').read().state).toBe('done');
   });
 
-  it('finds a tree left behind by a teardown that stopped halfway', () => {
-    // run/ is gone and the tree is still leased: the pool's holder is what
-    // finds it.
-    held('s7');
-    expect(run().code).toBe(0);
-    expect(calls[0]).toContain('holder=t042/auth/s7');
-  });
-});
-
-describe('a live shift stops everything, and nothing is touched', () => {
-  it('exits 4, leaves the tree leased and the task open', () => {
-    const runDir = dispatched('s1');
-
-    const r = run();
-    expect(r.code, 'a shift may be mid-edit; its tree is not yan\'s to take').toBe(4);
-    expect(r.message).toContain('still has live shifts: s1 (auth)');
-    expect(r.message).toContain('--force');
-    expect(existsSync(join(runDir, 'meta.json')), 'nothing is torn down').toBe(true);
-    expect(complete(), 'and the task stays open').toBe(false);
-    expect(calls, 'no tree was even looked at').toEqual([]);
-    expect(leases).toHaveLength(1);
-  });
-});
-
-describe('--force is user\'s answer, and it is the whole authority', () => {
-  it('kills the live shift, wipes past the guard, and marks the task done', () => {
-    const runDir = dispatched('s1');
-
-    const r = run({ force: true });
-    expect(r.code, r.message).toBe(0);
-    expect(calls).toEqual([
-      'title_clear pane=w1:p7',
-      'agent_close pane=w1:p7',
-      `pool_return path=${tree} lease_id=${LEASE} holder=t042/auth/s1 force=true`,
-    ]);
-    expect(existsSync(runDir), 'run/ is removed whole').toBe(false);
-    expect(complete()).toBe(true);
-    expect(readFileSync(join(home, 'tasks', 't042', 'log.md'), 'utf8')).toContain('--force: killed s1');
+  it('abandons with a reason, and refuses an empty one', async () => {
+    expectUsage(await yan(['done', 't002', '--abandon', ' ']), '--abandon takes the reason');
+    const r = await yan(['done', 't002', '--abandon', 'not needed']);
+    expect(r.stdout.trim()).toBe('t002  abandoned');
+    expect(new Task('t002').read()).toMatchObject({ state: 'abandoned', reason: 'not needed' });
   });
 
-  it('keeps the long-lived files of a shift it killed', () => {
-    // outcome.md and the brief survive a kill; only run/ is throwaway.
-    dispatched('s1');
-    const dir = join(home, 'tasks', 't042', 'shifts', 's1');
-    writeFileSync(join(dir, 'outcome.md'), '# s1\nI got stuck.\n');
-
-    expect(run({ force: true }).code).toBe(0);
-    expect(existsSync(join(dir, 'outcome.md'))).toBe(true);
-  });
-
-  it('never forces a return without a flag carrying `user`s word', () => {
-    // Two commands may force a return, and both carry `user`'s answer. A
-    // third would be an edit nothing else notices, so it is checked
-    // structurally: comments may name what is forbidden, code may not run it.
-    const CONSENTS = /\bforce\b|\buserAsked\b/;
-    const unguarded: string[] = [];
-    for (const file of readdirSync(join(process.cwd(), 'src', 'cli'))) {
-      if (!file.endsWith('.ts')) continue;
-      const source = readFileSync(join(process.cwd(), 'src', 'cli', file), 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/.*$/gm, '$1');
-      if (!/\.return\s*\([^)]*\bforce\b/s.test(source)) continue;
-      // It forces. Then it must read a flag that only `user` can have set.
-      if (!CONSENTS.test(source.replace(/\.return\s*\([^)]*\)/gs, ''))) unguarded.push(file);
-    }
-    expect(unguarded, 'a command may only force a return on `user`s explicit say-so').toEqual([]);
-  });
-});
-
-describe('a tree that will not come back', () => {
-  it('exits 5 and leaves the task OPEN, because the work exists in one place', () => {
-    held('s1');
-    returnRefusal = new YanError('worktree_failed', 'refusing to return: it has uncommitted changes');
-
-    const r = run();
-    expect(r.code).toBe(5);
-    expect(r.message).toContain('is NOT marked done');
-    expect(r.message).toContain('uncommitted changes');
-    expect(complete()).toBe(false);
-  });
-
-  it('under --force, says the task IS done and the slot is stranded', () => {
-    // Both halves are said: the task is finished, and a slot is stranded.
-    held('s1');
-    returnRefusal = new YanError('worktree_failed', 'cannot reset the tree');
-
-    const r = run({ force: true });
-    expect(r.code).toBe(5);
-    expect(r.message).toContain('stranded');
-    expect(complete()).toBe(true);
-  });
-});
-
-describe('through bin/yan, the way a person and an agent reach it', () => {
-  const yan = (args: readonly string[], env: Record<string, string | undefined> = {}) =>
-    runYan(home, args, env);
-
-  it('takes the task as an argument, or from $YAN_TASK', async () => {
-    expect((await yan(['done', 't042'])).code).toBe(0);
-    expect(new Task('t042').isComplete()).toBe(true);
-    expect((await yan(['done'], { YAN_TASK: 't042' })).code).toBe(0);
-    expect((await yan(['done'], { YAN_TASK: 't042' })).code).toBe(0);
-  });
-
-  it('refuses without a terminal rather than hanging on a prompt it cannot show', async () => {
-    // An agent, a hook or a script that reached the multi-select would hang.
-    const none = await yan(['done'], { YAN_TASK: undefined });
-    expectUsage(none, 'which task?');
-  });
-
-  it('refuses an unknown task, and takes the argument over the environment', async () => {
-    const nope = await yan(['done', 'nosuch']);
-    expect(nope.code).not.toBe(0);
-    expect(nope.out).toContain('no such task');
-
-    // An explicit id is somebody saying which, so it wins rather than clashing.
-    expect((await yan(['done', 't042'], { YAN_TASK: 't999' })).code).toBe(0);
-    expect(new Task('t042').isComplete()).toBe(true);
-  });
-
-  it('offers exactly the tasks that are still open, and drops them as they finish', async () => {
-    // The rows of the multi-select, which come from `yan ls`'s own scan.
-    // Clack itself is not driven here; the choices are.
-    Task.create('t043', 'the second one');
-
-    expect(openTasks().map((t) => t.id)).toEqual(['t042', 't043']);
-    expect(openTasks()[0]).toMatchObject({ title: 'unify the auth header', units: 1, shifts: 0 });
-
-    expect((await yan(['done', 't042'])).code).toBe(0);
-    expect(openTasks().map((t) => t.id), 'a finished task is no longer on offer').toEqual(['t043']);
-
-    expect((await yan(['done', 't043'])).code).toBe(0);
-    expect(openTasks()).toEqual([]);
-  });
-
-  it('turns the queue entry from open to done, which nothing could do before', async () => {
-    expect((await yan(['ls'])).stdout, 'an open task is a card in the default view').toMatch(/^ t042 {2}\S/m);
-    expect((await yan(['done', 't042'])).code).toBe(0);
-    expect((await yan(['ls'])).stdout, 'a done task leaves the default view').not.toMatch(/t042/);
-    expect((await yan(['ls', '--status', 'done'])).stdout, 'and a line in the done view').toMatch(/^ t042 {2}\S/m);
-  });
-
-  it('prints one envelope with --json, whether it finished one task or several', async () => {
-    const r = await yan(['done', 't042', '--json']);
-    expect(r.code, r.stderr).toBe(0);
-    const json = JSON.parse(r.stdout) as { version: number; tasks: Record<string, unknown>[] };
-    expect(json.version).toBe(1);
-    expect(json.tasks).toHaveLength(1);
-    expect(json.tasks[0]).toMatchObject({ task: 't042', complete: true, forced: false });
-  });
-
-  it('leaves `yan tree return` with no way past the guard', async () => {
-    // The user-facing half of the authority: the pool can be forced, but only
-    // through the command that carries `user`'s answer.
-    const r = await yan(['tree', 'return', '--repo', 'monorepo-x', '--path', tree, '--force']);
-    expect(r.code, 'there is no --force on tree return').toBe(2);
-    expect(r.out).toContain('unknown option');
+  it('asks for the task when it has neither an argument nor a terminal', async () => {
+    expectUsage(await yan(['done']), 'yan done <task-id>');
   });
 });
