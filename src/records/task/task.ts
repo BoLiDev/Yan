@@ -7,11 +7,11 @@ import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
-import { TASK_STATES, type Deliverable, type TaskData, type TaskState } from './types.js';
+import { TASK_STATES, type Deliverable, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /**
  * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
- * is finished, which repository its tree is cut from, and the deliverables it
+ * is finished, which repositories its trees are cut from, and the deliverables it
  * is measured against.
  *
  * It holds identity and nothing else: `read()` goes to disk every time, and
@@ -152,11 +152,10 @@ export class Task {
    * Create a task under the next free `t<NNN>`: task.json and an empty
    * brief.md. log.md appears with its first line.
    *
-   * @param repo the remote URL of the repository its tree is cut from, or
-   *   `''` for a task with no tree.
-   * @param scope the repository's packages it is about; `[]` for all of it.
+   * @param repos the repositories its trees are cut from, the agent's first;
+   *   none for a task with no tree.
    */
-  public static create(title: string, repo = '', scope: readonly string[] = []): Task {
+  public static create(title: string, repos: readonly TaskRepo[] = []): Task {
     const name = title.trim();
     if (name === '' || /[\r\n]/.test(name)) throw YanError.usage('task_usage', 'a task needs a title, on one line');
     const task = new Task(nextNumbered(Task.list(), 't', 3));
@@ -167,8 +166,7 @@ export class Task {
       title: name,
       state: 'open',
       createdAt: isoSecond(),
-      ...(repo === '' ? {} : { repo }),
-      ...(scope.length === 0 ? {} : { scope: [...scope] }),
+      ...(repos.length === 0 ? {} : { repos: repos.map(taskRepo) }),
       nextDeliverable: 1,
       deliverables: [],
     });
@@ -232,9 +230,8 @@ function validate(raw: unknown, task: Task): TaskData {
   const createdAt = text(doc.createdAt);
   const closedAt = text(doc.closedAt);
   const reason = text(doc.reason);
-  const repo = text(doc.repo);
-  // A path edited into something else is dropped, not refused: scope only steers.
-  const scope = Array.isArray(doc.scope) ? doc.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
+  // Before a task could have several, it had one `repo` and its `scope`.
+  const repos = Array.isArray(doc.repos) ? readRepos(doc.repos) : readRepos([{ url: doc.repo, scope: doc.scope }]);
   return {
     version: 2,
     id: text(doc.id) ?? task.id,
@@ -243,13 +240,33 @@ function validate(raw: unknown, task: Task): TaskData {
     ...(createdAt === undefined ? {} : { createdAt }),
     ...(closedAt === undefined ? {} : { closedAt }),
     ...(reason === undefined ? {} : { reason }),
-    ...(repo === undefined ? {} : { repo }),
-    ...(scope.length === 0 ? {} : { scope }),
+    repos,
     // Kept in the file so a deliverable removed by hand cannot make the next
     // `add` reuse an id somebody has already quoted.
     nextDeliverable: typeof stated === 'number' && Number.isInteger(stated) && stated > highest ? stated : highest + 1,
     deliverables,
   };
+}
+
+/** `{ url, scope }` as task.json holds it, with no empty scope written. */
+function taskRepo(repo: TaskRepo): TaskRepo {
+  return { url: repo.url, ...(repo.scope === undefined || repo.scope.length === 0 ? {} : { scope: [...repo.scope] }) };
+}
+
+/**
+ * The repositories, leaving out an entry with no URL. A scope path edited
+ * into something else is dropped, not refused: scope only steers.
+ */
+function readRepos(raw: readonly unknown[]): TaskRepo[] {
+  const repos: TaskRepo[] = [];
+  for (const entry of raw) {
+    const r = recordOrNone(entry);
+    const url = typeof r?.url === 'string' ? r.url.trim() : '';
+    if (url === '') continue;
+    const scope = Array.isArray(r?.scope) ? r.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
+    repos.push(taskRepo({ url, scope }));
+  }
+  return repos;
 }
 
 function validateDeliverables(raw: unknown, refuse: (why: string) => never): Deliverable[] {

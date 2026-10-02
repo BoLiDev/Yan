@@ -15,20 +15,25 @@ export interface TaskData {
   /** Why an abandoned task was given up. */
   readonly reason?: string;
   /**
-   * The remote URL of the repository the task's tree is cut from. Absent for
-   * a task with no tree. A URL rather than a path, so it means the same thing
-   * on every machine the vault is cloned to.
+   * The repositories the task works in, one tree each; the first is where its
+   * agent starts. Empty for a task with no tree.
    */
-  readonly repo?: string;
-  /**
-   * The repository's packages the task is about, as paths in it, picked when
-   * the task was created. Absent for the whole repository.
-   */
-  readonly scope?: readonly string[];
+  readonly repos: readonly TaskRepo[];
   /** One more than the highest deliverable id ever handed out. */
   readonly nextDeliverable: number;
   /** File order is page order. */
   readonly deliverables: readonly Deliverable[];
+}
+
+/** One repository a task works in. */
+export interface TaskRepo {
+  /**
+   * Its remote URL: a URL rather than a path, so it means the same thing on
+   * every machine the vault is cloned to.
+   */
+  readonly url: string;
+  /** The packages the task is about, as paths in it. Absent for all of it. */
+  readonly scope?: readonly string[];
 }
 
 /**

@@ -3,10 +3,10 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { normalizePath } from '../../util/paths.js';
 import { cloneDir, poolRoot as resolvedRoot } from './layout.js';
-import { WorktreePool, leaseHeldBy, returnTree, treeState } from './index.js';
+import { WorktreePool, leasesHeldBy, returnTrees, treeState } from './index.js';
 
 /**
  * The pool against real git and a real (local, bare) remote. No network.
@@ -76,8 +76,8 @@ describe('get', () => {
 
     const dir = cloneDir(clone);
     expect(grant.path).toBe(`${dir}/1/demo`);
-    expect(leaseHeldBy('t001')?.path).toBe(grant.path);
-    expect(leaseHeldBy('t002')).toBeUndefined();
+    expect(leasesHeldBy('t001').map((l) => l.path)).toEqual([grant.path]);
+    expect(leasesHeldBy('t002')).toEqual([]);
   });
 
   it('names the clone that already has the branch checked out, and moves nobody', async () => {
@@ -96,7 +96,7 @@ describe('the pool grows instead of refusing', () => {
 
     mkdirSync(join(b.path, 'node_modules'), { recursive: true });
     writeFileSync(join(b.path, 'node_modules', 'warm.js'), '');
-    returnTree('b');
+    returnTrees('b');
     const d = pool().get('origin/main', 'yan/d', 'd');
     expect(d.path, 'the free warm slot, not a fourth').toBe(b.path);
     expect(existsSync(join(d.path, 'node_modules', 'warm.js'))).toBe(true);
@@ -109,10 +109,10 @@ describe('returning a tree', () => {
     writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
 
     expect(treeState(grant.path).dirty).toEqual(['?? stray.txt']);
-    expect(() => returnTree('t001')).toThrow(/stray\.txt/);
-    expect(() => returnTree('t001')).toThrow(/--force/);
+    expect(() => returnTrees('t001')).toThrow(/stray\.txt/);
+    expect(() => returnTrees('t001')).toThrow(/--force/);
     expect(existsSync(join(grant.path, 'stray.txt'))).toBe(true);
-    expect(leaseHeldBy('t001')).toBeDefined();
+    expect(leasesHeldBy('t001')).toHaveLength(1);
   });
 
   it('refuses a committed but unpushed HEAD', async () => {
@@ -122,7 +122,7 @@ describe('returning a tree', () => {
     await fxGit(['commit', '-m', 'work'], grant.path);
 
     expect(treeState(grant.path).unpushed).toBe(true);
-    expect(() => returnTree('t001')).toThrow(/no remote branch contains HEAD/);
+    expect(() => returnTrees('t001')).toThrow(/no remote branch contains HEAD/);
 
     await fxGit(['push', 'origin', 'yan/t001'], grant.path);
     expect(treeState(grant.path).unpushed, 'pushed, it exists on origin too').toBe(false);
@@ -136,10 +136,10 @@ describe('returning a tree', () => {
     const head = (await fxGit(['rev-parse', 'HEAD'], grant.path)).stdout.trim();
     writeFileSync(join(grant.path, 'stray.txt'), 'uncommitted\n');
 
-    expect(returnTree('t001', { force: true })).toBe(grant.path);
+    expect(returnTrees('t001', { force: true })).toEqual([grant.path]);
     expect(existsSync(join(grant.path, 'stray.txt'))).toBe(false);
     expect((await fxGit(['rev-parse', 'yan/t001'], clone)).stdout.trim()).toBe(head);
-    expect(leaseHeldBy('t001')).toBeUndefined();
+    expect(leasesHeldBy('t001')).toEqual([]);
   });
 
   it('resets and cleans with -fd, never -x, so the tree stays warm', async () => {
@@ -151,7 +151,7 @@ describe('returning a tree', () => {
     await fxGit(['commit', '-m', 'work'], grant.path);
     expect((await fxGit(['push', 'origin', 'yan/t001'], grant.path)).code).toBe(0);
 
-    expect(returnTree('t001')).toBe(grant.path);
+    expect(returnTrees('t001')).toEqual([grant.path]);
     expect(existsSync(join(grant.path, 'node_modules', 'dep', 'index.js'))).toBe(true);
     expect(existsSync(join(cloneDir(clone), 'leases', '1.json'))).toBe(false);
 
@@ -160,8 +160,22 @@ describe('returning a tree', () => {
     expect(existsSync(join(next.path, 'feature.txt')), 'cut from the base, not from the last task').toBe(false);
   });
 
+  it('with trees of two repositories, touches neither while one holds work, then returns both', async () => {
+    const other = await mkClone(await mkBareRemote(join(mkTempDir(), 'web.git')), join(mkTempDir(), 'web'));
+    const a = pool().get('origin/main', 'yan/t001', 't001');
+    const b = new WorktreePool(other).get('origin/main', 'yan/t001', 't001');
+    writeFileSync(join(b.path, 'stray.txt'), 'uncommitted\n');
+
+    expect(() => returnTrees('t001')).toThrow(/stray\.txt/);
+    expect(leasesHeldBy('t001'), 'the clean one was not returned first').toHaveLength(2);
+    expect(existsSync(a.path)).toBe(true);
+
+    expect(returnTrees('t001', { force: true }).sort()).toEqual([a.path, b.path].sort());
+    expect(leasesHeldBy('t001')).toEqual([]);
+  });
+
   it('is nothing to do for a holder with no tree', () => {
-    expect(returnTree('nobody')).toBeUndefined();
+    expect(returnTrees('nobody')).toEqual([]);
   });
 });
 

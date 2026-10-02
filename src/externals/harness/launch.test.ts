@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WAIT_LINE, cliKind, isKnownCli, launchArgs } from './launch.js';
 
-const plain = { model: '', effort: '', workdir: '/tree', prompt: 'the prompt', skipPermissions: false };
+const plain = { model: '', effort: '', workdir: '/tree', addDirs: [], prompt: 'the prompt', skipPermissions: false };
 
 describe('launchArgs', () => {
   it('gives claude the prompt as its system prompt, so nothing starts a turn', () => {
@@ -29,6 +29,13 @@ describe('launchArgs', () => {
     expect(launchArgs('claude', skip)).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', 'the prompt']);
     expect(launchArgs('codex', skip)[0]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(launchArgs('agy', skip)[0]).toBe('--dangerously-skip-permissions');
+  });
+
+  it("hands every CLI the task's other trees as --add-dir", () => {
+    const more = { ...plain, addDirs: ['/b', '/c'] };
+    expect(launchArgs('claude', more)).toEqual(['--add-dir', '/b', '--add-dir', '/c', '--append-system-prompt', 'the prompt']);
+    expect(launchArgs('codex', more).slice(0, 4)).toEqual(['--add-dir', '/b', '--add-dir', '/c']);
+    expect(launchArgs('agy', more).slice(0, 6)).toEqual(['--add-dir', '/tree', '--add-dir', '/b', '--add-dir', '/c']);
   });
 
   it('knows three CLIs and nothing else', () => {

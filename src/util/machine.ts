@@ -6,12 +6,16 @@ import { asRecord, asString, recordOrNone } from './narrow.js';
 import { normalizePath } from './paths.js';
 
 /**
- * `~/.yan/config.json` — which vault is active and where each one is. Never
- * committed anywhere.
+ * `~/.yan/config.json` — which vault is active, where each one is, and where
+ * this machine keeps its clone of each repository. Never committed anywhere.
  *
  *   { "version": 1,
  *     "active": "personal",
- *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" } }
+ *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" },
+ *     "clones": { "github.com/org/web": "C:/workspace/project/web" } }
+ *
+ * A clone is keyed by `repoKey` of its URL, so every vault that registers the
+ * repository finds the same one.
  *
  * Data access only: nothing here refuses a missing or broken registration, and
  * `util/vault.ts` decides what to do about one. `$YAN_MACHINE_DIR` overrides
@@ -22,9 +26,10 @@ interface MachineConfig {
   readonly version: number;
   readonly active?: string;
   readonly vaults: Readonly<Record<string, string>>;
+  readonly clones: Readonly<Record<string, string>>;
 }
 
-const EMPTY: MachineConfig = { version: 1, vaults: {} };
+const EMPTY: MachineConfig = { version: 1, vaults: {}, clones: {} };
 
 export function machineDir(): string {
   const override = process.env.YAN_MACHINE_DIR;
@@ -47,17 +52,23 @@ export function readMachine(): MachineConfig {
   const record = recordOrNone(readJsonIfPresent(machineConfigPath()));
   if (record === undefined) return EMPTY;
 
-  const vaults: Record<string, string> = {};
-  for (const [name, path] of Object.entries(asRecord(record.vaults))) {
-    const p = set(path);
-    if (p !== undefined) vaults[name] = normalizePath(p);
-  }
+  const paths = (raw: unknown): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const [name, path] of Object.entries(asRecord(raw))) {
+      const p = set(path);
+      if (p !== undefined) out[name] = normalizePath(p);
+    }
+    return out;
+  };
+  const vaults = paths(record.vaults);
+  const clones = paths(record.clones);
 
   const active = set(record.active);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
     vaults,
+    clones,
   };
 }
 
@@ -102,4 +113,14 @@ export function registerVault(name: string, path: string, activate = true): void
 
 export function setActiveVault(name: string): void {
   editMachine((current) => ({ ...current, active: name }));
+}
+
+/** Where this machine keeps the clone of the repository `key` names, or `undefined`. */
+export function cloneOf(key: string): string | undefined {
+  return readMachine().clones[key];
+}
+
+/** Record where this machine keeps the clone of `key`, overwriting any path already there. */
+export function linkClone(key: string, path: string): void {
+  editMachine((current) => ({ ...current, clones: { ...current.clones, [key]: normalizePath(path) } }));
 }

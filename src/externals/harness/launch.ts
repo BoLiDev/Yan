@@ -14,8 +14,10 @@ export interface Launch {
   /** Empty for the CLI's own default. */
   readonly model: string;
   readonly effort: string;
-  /** Where it starts: the task's tree, or wherever `user` typed `yan`. */
+  /** Where it starts: the task's first tree, or wherever `user` typed `yan`. */
   readonly workdir: string;
+  /** The task's other trees, which it may read and write as well. */
+  readonly addDirs: readonly string[];
   /** What it is told before `user` says anything. */
   readonly prompt: string;
   /** Start it with approvals and sandbox bypassed, rather than as its own settings say. */
@@ -33,6 +35,10 @@ interface Harness {
 
 // --- claude ------------------------------------------------------------------
 
+function addDirFlags(dirs: readonly string[]): string[] {
+  return dirs.flatMap((d) => ['--add-dir', d]);
+}
+
 function dashDashModel(model: string, effort: string): string[] {
   const args: string[] = [];
   if (model !== '') args.push('--model', model);
@@ -44,7 +50,7 @@ const claude: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
-    return [...dashDashModel(launch.model, launch.effort), ...skip, '--append-system-prompt', launch.prompt];
+    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), '--append-system-prompt', launch.prompt];
   },
 };
 
@@ -63,7 +69,7 @@ const codex: Harness = {
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-bypass-approvals-and-sandbox'] : [];
     // `-c` parses its value as TOML, and a JSON string is a TOML basic string.
-    return [...codexModel(launch.model, launch.effort), ...skip, '-c', `developer_instructions=${JSON.stringify(launch.prompt)}`];
+    return [...codexModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), '-c', `developer_instructions=${JSON.stringify(launch.prompt)}`];
   },
 };
 
@@ -78,7 +84,7 @@ const agy: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
-    return [...dashDashModel(launch.model, launch.effort), ...skip, '--add-dir', launch.workdir, '-i', `${launch.prompt}\n${WAIT_LINE}`];
+    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags([launch.workdir, ...launch.addDirs]), '-i', `${launch.prompt}\n${WAIT_LINE}`];
   },
 };
 

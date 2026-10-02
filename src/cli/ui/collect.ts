@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { TASK_STATES, Task, type Deliverable, type TaskData, type TaskState } from '../../records/task/index.js';
 import { readJsonOrNone } from '../../util/json.js';
+import { recordOrNone } from '../../util/narrow.js';
 import { isoSecond, localDay } from '../../util/time.js';
-import { repoKey } from '../shared/repo-key.js';
+import { repoKey } from '../../util/repo-key.js';
 import { briefProse } from './brief.js';
 
 /**
@@ -63,13 +64,15 @@ function looseRead(task: Task): Partial<TaskData> | undefined {
   if (raw === undefined) return undefined;
   const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
   const state = TASK_STATES.find((s) => s === raw.state);
-  const [title, createdAt, closedAt, repo] = [text(raw.title), text(raw.createdAt), text(raw.closedAt), text(raw.repo)];
+  const [title, createdAt, closedAt] = [text(raw.title), text(raw.createdAt), text(raw.closedAt)];
+  const urls = Array.isArray(raw.repos) ? raw.repos.map((r) => text(recordOrNone(r)?.url)) : [text(raw.repo)];
+  const repos = urls.filter((url): url is string => url !== undefined).map((url) => ({ url }));
   return {
     ...(title === undefined ? {} : { title }),
     ...(state === undefined ? {} : { state }),
     ...(createdAt === undefined ? {} : { createdAt }),
     ...(closedAt === undefined ? {} : { closedAt }),
-    ...(repo === undefined ? {} : { repo }),
+    repos,
   };
 }
 
@@ -87,11 +90,11 @@ function reportTask(id: string): ReportTask {
   } catch {
     brief = null;
   }
-  const repo = data?.repo;
+  const names = (data?.repos ?? []).map((r) => repoKey(r.url).split('/').pop() ?? '').filter((n) => n !== '');
   return {
     id,
     title: data?.title ?? '',
-    project: repo === undefined ? null : repoKey(repo).split('/').pop() || null,
+    project: names.length === 0 ? null : names.join(', '),
     state: data?.state ?? 'open',
     brief,
     started: dayOf(data?.createdAt),

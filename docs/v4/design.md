@@ -17,16 +17,26 @@ an agent sees yan only when it is started through `yan`.
 
 ## 2. Commands
 
-Bare `yan` is the only entry. At a terminal it offers the open tasks and "new
-task". A new task asks a title, and, inside a git clone, whether to lease a
-worktree. When that repository declares workspace packages (pnpm's workspace
-file, package.json's workspaces, `packages/*`, `apps/*`), it also asks which
-of them the task is about, as v3's `task new` did for its units. That is
-asked once and kept in task.json; no later start asks again. Then the agent starts in this terminal, in the task's tree when it
-has one. Without a terminal it prints the help. `--cli` swaps the agent for
-one run; after `--`, arguments go to the agent unchanged.
+Bare `yan` is the only entry, typed anywhere. At a terminal it offers the
+open tasks and "new task". A new task asks a title, then which repositories
+it works in, from the registry `yan repo` keeps; the clone `yan` was typed
+in, when there is one, is offered already picked, and registered if it was
+not. Picking none is a task with no tree. For each repository that declares
+workspace packages (pnpm's workspace file, package.json's workspaces,
+`packages/*`, `apps/*`) it also asks which of them the task is about, as
+v3's `task new` did for its units. That is asked once and kept in
+task.json; no later start asks again.
 
-Commands `user` reads and runs: `ls`, `peek`, `done`, `draft`, `ui`, `vault`.
+Each repository gets a tree on `yan/<id>`. The agent starts in this
+terminal, in the first tree, with the others passed as `--add-dir`; a task
+with no tree starts where `yan` was typed. An existing task with no tree of
+one of its repositories on this machine offers to open one from that
+repository's clone here. Without a terminal it prints the help. `--cli`
+swaps the agent for one run; after `--`, arguments go to the agent
+unchanged.
+
+Commands `user` reads and runs: `ls`, `peek`, `done`, `draft`, `ui`, `vault`,
+`repo`.
 Commands the agent runs: `log`, `deliverable`, `learn`.
 
 Every command that takes a task defaults to `$YAN_TASK`, which bare `yan`
@@ -38,7 +48,7 @@ Removed: `continue` and `task new` (bare `yan` does both); `show` (renamed
 `peek`, and it no longer prints the log, which is `yan log`'s); `abandon`
 (`done --abandon`); `open` (`peek` prints the directory); `session-start` and
 its hooks; `shift`, `report`, `send`, `state`; `unit`, `mr`, `land`; `tree`
-(leasing is part of `yan`, returning part of `done`); `repo`; `doctor`;
+(leasing is part of `yan`, returning part of `done`); `doctor`;
 `vault link` and `yan use`.
 
 ## 3. What the agent is told
@@ -48,10 +58,19 @@ Notes from earlier sessions on this work are kept by a CLI.
 `yan peek` shows what the work is about; `yan log` shows what was settled. `yan --help` for the rest.
 ```
 
-A task with a scope gets one more line:
+A task with one tree and a scope gets one more line:
 
 ```
 This task is about these parts of the repository: `packages/a`, `apps/b`.
+```
+
+A task with several trees gets a line for each, since the agent starts in
+only one of them:
+
+```
+This task works in 2 repositories, one worktree each:
+- api: /Users/me/.yan/trees/api-1a2b3c4d/1/api
+- web: /Users/me/.yan/trees/web-5e6f7a8b/2/web, about `apps/site`
 ```
 
 No task, no id: `$YAN_TASK` carries that, and the agent never needs to name
@@ -82,9 +101,10 @@ Two rules: every piece of information has one writer, and structured state
 belongs to a command while prose belongs to a file the agent edits directly.
 
 - `tasks/<id>/task.json`, version 2: id, title, `state` (open, done,
-  abandoned), `createdAt`, `closedAt`, `reason`, `repo` (a remote URL, so it
-  means the same on every machine), `scope` (the packages picked when the
-  task was created, paths in the repository; absent for all of it),
+  abandoned), `createdAt`, `closedAt`, `reason`, `repos` (`[{ url, scope }]`:
+  each a remote URL, so it means the same on every machine, and the
+  packages picked for it when the task was created, absent for all of it;
+  a task from before this has one `repo` and its `scope`, read as one entry),
   `nextDeliverable`, `deliverables`. Written
   by bare `yan` (create), `yan deliverable` and `yan done`.
 - `brief.md`: prose, no title line; the title is task.json's. Created empty,
@@ -97,6 +117,11 @@ belongs to a command while prose belongs to a file the agent edits directly.
 - `artifacts/`: no structure.
 - `learnings/<topic>.md` at the vault's top: created by `yan learn add`, the
   text filled in by the agent when `user` asks.
+- `repos.json` at the top: `{ version: 1, repos: { <name>: { url } } }`,
+  written only by `yan repo`. Where each is cloned is a fact about the
+  machine, not the context, so it is in `~/.yan/config.json` under
+  `clones`, keyed by the URL's `host/owner/repo`, where `yan vault push`
+  cannot commit it and every vault finds the same clone.
 - `vault.json` and `config.json` (`{ cli, model, effort, skipPermissions }`) at the top;
   `~/.yan/config.json` for which vaults this machine has.
 

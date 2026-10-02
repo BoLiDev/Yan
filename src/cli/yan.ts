@@ -55,7 +55,8 @@ async function buildProgram(home: string): Promise<Command> {
       'after',
       `
 Bare 'yan', at a terminal, picks a task or starts one and runs an agent on it
-here, in the task's worktree when it has one:
+here, in the task's first worktree when it has any ('yan repo' keeps the
+repositories a new task picks from):
 
   yan [--cli claude|codex|agy] [-- <args for the agent>]`,
     );

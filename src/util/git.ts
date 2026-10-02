@@ -180,6 +180,12 @@ export function cleanFd(dir: string): ProcessResult {
 
 // --- remotes ---------------------------------------------------------------
 
+/** `git clone <url> <name>` inside `dir`. */
+export function cloneRepo(dir: string, url: string, name: string): ProcessResult {
+  requireArg(url, 'a URL to clone is required');
+  return git(dir, ['clone', url, name]);
+}
+
 /** A remote's URL, or undefined when <dir> is not a repo or has no such remote. */
 export function remoteUrl(dir: string, remote = 'origin'): string | undefined {
   const r = git(dir, ['remote', 'get-url', remote]);

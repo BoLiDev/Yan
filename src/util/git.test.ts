@@ -31,6 +31,7 @@ const directoryFirst: Array<[string, (dir: string) => unknown]> = [
   ['headOnRemote', (d) => g.headOnRemote(d)],
   ['revParse', (d) => g.revParse(d, ['HEAD'])],
   ['remoteUrl', (d) => g.remoteUrl(d)],
+  ['cloneRepo', (d) => g.cloneRepo(d, 'u', 'n')],
 ];
 
 describe('the explicit-directory invariant', () => {

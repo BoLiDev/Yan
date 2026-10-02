@@ -1,9 +1,9 @@
 # Working on yan
 
 yan is a small CLI that keeps notes for agent sessions: tasks, their log and
-deliverables, `user`'s drafts, learnings, and a worktree per task. Read
-`README.md` for what it does and `docs/v4/design.md` for why it is shaped this
-way. `yan <command> --help` is the reference for each command.
+deliverables, `user`'s drafts, learnings, and a worktree per repository a
+task works in. Read `README.md` for what it does and `docs/v4/design.md` for
+why it is shaped this way. `yan <command> --help` is the reference for each command.
 
 ## Layout
 
@@ -13,7 +13,7 @@ way. `yan <command> --help` is the reference for each command.
 `src/cli/shared/launch.ts`.
 
 `src/records/` owns the vault's files: `task` (task.json and brief.md), `log`,
-`drafts`, `learnings`. `src/externals/` wraps outside things: `worktree` (the
+`drafts`, `learnings`, `repos` (repos.json, and where each is cloned). `src/externals/` wraps outside things: `worktree` (the
 pool) and `harness` (how claude, codex and agy are started). `src/util/` is
 below all of them. `src/ui/prompts.ts` is the only place that prompts, and
 only `src/cli/` imports it.

@@ -152,41 +152,44 @@ function poolDirs(): string[] {
 }
 
 /**
- * The lease `holder` has, in whichever pool it is. A lease whose tree is gone
- * does not count. `undefined` when there is none.
+ * The leases `holder` has, across every pool: one per repository it has a
+ * tree of. A lease whose tree is gone does not count.
  */
-export function leaseHeldBy(holder: string): LeaseRow | undefined {
+export function leasesHeldBy(holder: string): LeaseRow[] {
+  const held: LeaseRow[] = [];
   for (const dir of poolDirs()) {
     for (const lease of allLeases(dir)) {
       if (lease.holder !== holder || !existsSync(lease.path)) continue;
-      return { slot: lease.slot, path: lease.path, branch: lease.branch, base: lease.base, holder: lease.holder, lease_id: lease.lease_id, at: lease.at };
+      held.push({ slot: lease.slot, path: lease.path, branch: lease.branch, base: lease.base, holder: lease.holder, lease_id: lease.lease_id, at: lease.at });
     }
   }
-  return undefined;
+  return held;
 }
 
 /**
- * Give back the tree `holder` leased: refuse while it holds work that exists
- * nowhere else, unless `force`, then reset and clean it and release the
- * lease. The slot stays, warm, for the next lease. A tree already gone only
- * has its lease released.
+ * Give back every tree `holder` leased: refuse while any holds work that
+ * exists nowhere else, unless `force`, before touching one; then reset and
+ * clean each and release its lease. The slots stay, warm, for the next
+ * lease. A tree already gone only has its lease released.
  *
- * @returns the tree's path, or `undefined` when `holder` held none.
+ * @returns the trees' paths; none when `holder` held none.
  * @throws YanError `worktree_failed` when the guard refuses.
  */
-export function returnTree(holder: string, options: { force?: boolean } = {}): string | undefined {
+export function returnTrees(holder: string, options: { force?: boolean } = {}): string[] {
+  const held: Array<{ dir: string; slot: number; path: string }> = [];
   for (const dir of poolDirs()) {
     for (const lease of allLeases(dir)) {
-      if (lease.holder !== holder) continue;
-      if (existsSync(lease.path)) {
-        if (options.force !== true) assertReturnable(lease.path);
-        wipe(lease.path);
-      }
-      releaseLease(dir, lease.slot);
-      return lease.path;
+      if (lease.holder === holder) held.push({ dir, slot: lease.slot, path: lease.path });
     }
   }
-  return undefined;
+  if (options.force !== true) {
+    for (const { path } of held) if (existsSync(path)) assertReturnable(path);
+  }
+  for (const { dir, slot, path } of held) {
+    if (existsSync(path)) wipe(path);
+    releaseLease(dir, slot);
+  }
+  return held.map((h) => h.path);
 }
 
 function lockTimeoutSeconds(): number {

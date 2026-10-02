@@ -14,18 +14,19 @@ const raw = (task: Task): Record<string, unknown> => JSON.parse(readFileSync(tas
 describe('create', () => {
   it('takes the next t<NNN>, writes a version 2 task.json and an empty brief, and no log yet', () => {
     const first = Task.create('first');
-    const second = Task.create('second', 'git@github.com:me/repo.git');
+    const second = Task.create('second', [{ url: 'git@github.com:me/repo.git', scope: [] }, { url: 'git@github.com:me/web.git', scope: ['apps/site'] }]);
     expect([first.id, second.id]).toEqual(['t001', 't002']);
     expect(raw(second)).toMatchObject({
       version: 2,
       id: 't002',
       title: 'second',
       state: 'open',
-      repo: 'git@github.com:me/repo.git',
+      repos: [{ url: 'git@github.com:me/repo.git' }, { url: 'git@github.com:me/web.git', scope: ['apps/site'] }],
       nextDeliverable: 1,
       deliverables: [],
     });
-    expect('repo' in raw(first)).toBe(false);
+    expect('repos' in raw(first)).toBe(false);
+    expect(first.read().repos).toEqual([]);
     expect(readFileSync(first.brief, 'utf8')).toBe('');
     expect(Task.list()).toEqual(['t001', 't002']);
   });
@@ -47,6 +48,12 @@ describe('read', () => {
     const task = Task.create('x');
     writeFileSync(task.file, JSON.stringify({ ...raw(task), deliverables: [{ id: 'd1', text: 't', status: 'maybe' }] }));
     expect(() => task.read()).toThrow(/d1 has status "maybe"/);
+  });
+
+  it('reads the one repo and scope a task had before it could have several', () => {
+    const task = Task.create('x');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repo: 'git@github.com:me/repo.git', scope: ['packages/a', 7] }));
+    expect(task.read().repos).toEqual([{ url: 'git@github.com:me/repo.git', scope: ['packages/a'] }]);
   });
 
   it('keeps a field it does not know through a write', () => {

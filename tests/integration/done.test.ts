@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
-import { WorktreePool, leaseHeldBy } from '../../src/externals/worktree/index.js';
+import { WorktreePool, leasesHeldBy } from '../../src/externals/worktree/index.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
@@ -16,6 +16,7 @@ afterAll(cleanupTempDirs);
 let home = '';
 let pool = '';
 let tree = '';
+let bare = '';
 
 function yan(args: readonly string[], env: Record<string, string | undefined> = {}) {
   return runYan(home, args, { YAN_POOL_ROOT: pool, ...env });
@@ -25,11 +26,11 @@ beforeEach(async () => {
   home = mkYanHome(mkTempDir(), { withDist: true });
   pool = mkTempDir('yan-pool-');
   process.env.YAN_POOL_ROOT = pool;
-  const bare = await mkBareRemote(join(mkTempDir(), 'origin.git'));
+  bare = await mkBareRemote(join(mkTempDir(), 'origin.git'));
   const clone = await mkClone(bare, join(mkTempDir(), 'demo'));
   // What a real repository ignores, so the tree can be warm and clean at once.
   writeFileSync(join(clone, '.git', 'info', 'exclude'), 'node_modules/\n');
-  const task = Task.create('with a tree', bare);
+  const task = Task.create('with a tree', [{ url: bare }]);
   tree = new WorktreePool(clone).get('origin/main', `yan/${task.id}`, task.id).path;
   Task.create('without one');
 });
@@ -52,7 +53,7 @@ describe('yan done', () => {
     const r = await yan(['done'], { YAN_TASK: 't001' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain('tree returned');
-    expect(leaseHeldBy('t001')).toBeUndefined();
+    expect(leasesHeldBy('t001')).toEqual([]);
     expect(existsSync(join(tree, 'node_modules', 'dep.js'))).toBe(true);
     expect(new Task('t001').read().state).toBe('done');
   });
@@ -63,7 +64,7 @@ describe('yan done', () => {
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain('wip.txt');
     expect(new Task('t001').read().state).toBe('open');
-    expect(leaseHeldBy('t001')).toBeDefined();
+    expect(leasesHeldBy('t001')).toHaveLength(1);
 
     await fxGit(['add', '.'], tree);
     await fxGit(['commit', '-m', 'wip'], tree);
@@ -83,5 +84,25 @@ describe('yan done', () => {
 
   it('asks for the task when it has neither an argument nor a terminal', async () => {
     expectUsage(await yan(['done']), 'yan done <task-id>');
+  });
+});
+
+describe('yan peek', () => {
+  it('shows each of a task\'s trees with its scope, and a repository with no tree here', async () => {
+    const web = await mkBareRemote(join(mkTempDir(), 'web.git'));
+    const webClone = await mkClone(web, join(mkTempDir(), 'web'));
+    const webTree = new WorktreePool(webClone).get('origin/main', 'yan/t001', 't001').path;
+    const api = await mkBareRemote(join(mkTempDir(), 'api.git'));
+    const task = new Task('t001');
+    writeFileSync(task.file, JSON.stringify({
+      ...task.read(),
+      repos: [{ url: bare }, { url: web, scope: ['apps/site'] }, { url: api }],
+    }));
+
+    const r = await yan(['peek', 't001']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toMatch(new RegExp(`tree  .*${tree.split('/').slice(-3).join('/')}  yan/t001`));
+    expect(r.stdout).toMatch(new RegExp(`tree  .*${webTree.split('/').slice(-3).join('/')}  yan/t001\\n      scope apps/site`));
+    expect(r.stdout).toContain('tree  none on this machine');
   });
 });

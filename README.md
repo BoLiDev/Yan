@@ -24,25 +24,29 @@ yan vault init personal --remote git@github.com:you/yan-vault-personal.git
 `yan vault init` needs an empty repository on your forge first. On a second
 machine, `yan vault clone <url>` instead.
 
-Then `cd` into a clone you work in and type `yan`.
+Then register the repositories you work in, with `yan repo add` in a clone
+or in the directory that holds them, and type `yan` anywhere.
 
 ## What there is
 
 Bare `yan`, at a terminal, picks an open task or starts one, and runs the
-agent on it in this terminal, with its approvals skipped. A new task started
-inside a git clone can have a worktree, cut on `yan/<id>` from origin's
-default branch; in a monorepo it also asks which packages the task is about,
-once, and every start tells the agent. `--cli codex` runs another agent this
-once; anything after `--` goes to the agent as it is.
+agent on it in this terminal, with its approvals skipped. A new task picks
+the repositories it works in from the registry, and gets a worktree of each,
+cut on `yan/<id>` from origin's default branch; in a monorepo it also asks
+which packages the task is about, once. The agent starts in the first tree,
+with the others added beside it, and every start tells it which is which.
+`--cli codex` runs another agent this once; anything after `--` goes to the
+agent as it is.
 
 For you:
 
 - `yan ls` — every open task, one line each; `--status all` for the rest
-- `yan peek [id]` — one task: its tree, brief, deliverables and newest drafts
-- `yan done [id]` — close a task and give its worktree back; `--abandon "<why>"`
+- `yan peek [id]` — one task: its trees, brief, deliverables and newest drafts
+- `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan ui` — a work report of every task, in the browser
 - `yan vault …` — init, clone, use, pull, push, where, ls
+- `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 
 For the agent:
 
@@ -60,14 +64,15 @@ starts.
 <vault>/                       a git repository, one per context (personal, work)
   vault.json                   { version: 2, name, created }
   config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts
+  repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repo URL, scope, deliverables
+    task.json                  title, state, repos (URL and scope each), deliverables
     brief.md                   prose: why the task exists
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
     artifacts/                 whatever the work produced worth keeping
-~/.yan/config.json             which vaults this machine has, and the active one
+~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```
 

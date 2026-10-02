@@ -1,4 +1,4 @@
-import { autocomplete, autocompleteMultiselect, confirm, intro, isCancel, text } from '@clack/prompts';
+import { autocomplete, autocompleteMultiselect, confirm, intro, isCancel, note, text } from '@clack/prompts';
 import { YanError } from '../util/error.js';
 
 /**
@@ -77,9 +77,69 @@ export async function askTitle(): Promise<string> {
   return required('What is this task called?', 'no task was created');
 }
 
-/** Whether to lease a tree of the repository `yan` was typed in. Defaults to yes. */
+/** A repository a new task can work in, as `chooseRepos` offers it. */
+export interface RepoChoice {
+  readonly name: string;
+  readonly hint: string;
+  /** The clone `yan` was typed in, offered already picked. */
+  readonly here: boolean;
+}
+
+/** A new task's repositories, one tree each. None picked is a task with no tree. */
+export async function chooseRepos(repos: readonly RepoChoice[]): Promise<string[]> {
+  const chosen = await autocompleteMultiselect({
+    message: 'Which repositories does this task work in? (none for no worktree)',
+    placeholder: PLACEHOLDER,
+    options: repos.map((r) => ({ value: r.name, label: r.name, hint: r.hint })),
+    initialValues: repos.filter((r) => r.here).map((r) => r.name),
+    required: false,
+  });
+  if (isCancel(chosen)) throw cancelled('no task was created');
+  return [...chosen].map((v) => String(v));
+}
+
+/** One row of `yan repo add`'s scan or `yan repo rm`'s list. */
+export interface RepoRow {
+  readonly name: string;
+  /** The dimmed text beside it. */
+  readonly hint: string;
+  /** Why it cannot be picked, or the empty string when it can. */
+  readonly blocked: string;
+}
+
+/**
+ * `yan repo add` and `yan repo rm` with no argument: which of `rows` to act
+ * on. A blocked row is listed with its reason and dropped from the result even
+ * if it is picked; when every row is blocked, nothing is asked.
+ */
+export async function selectRepos(select: {
+  /** The heading, `yan repo add · <dir>`. */
+  readonly intro: string;
+  readonly message: string;
+  /** What escape leaves undone, `nothing was registered`. */
+  readonly cancelled: string;
+  readonly rows: readonly RepoRow[];
+}): Promise<string[]> {
+  intro(select.intro);
+  const { rows } = select;
+  if (rows.every((r) => r.blocked !== '')) {
+    note(rows.map((r) => `${r.name}  -  ${r.blocked}`).join('\n'), 'nothing here can be picked');
+    return [];
+  }
+  const chosen = await autocompleteMultiselect({
+    message: select.message,
+    placeholder: PLACEHOLDER,
+    options: rows.map((r) => ({ value: r.name, label: r.blocked === '' ? r.name : `${r.name}  (${r.blocked})`, hint: r.hint })),
+    required: false,
+  });
+  if (isCancel(chosen)) throw cancelled(select.cancelled);
+  const blocked = new Set(rows.filter((r) => r.blocked !== '').map((r) => r.name));
+  return [...chosen].map((v) => String(v)).filter((name) => !blocked.has(name));
+}
+
+/** Whether to lease trees of repositories the task has none of here. Defaults to yes. */
 export async function confirmTree(repo: string, why = ''): Promise<boolean> {
-  const message = [why, `Open a worktree of ${repo}?`].filter((s) => s !== '').join(' ');
+  const message = [why, `Open ${repo.includes(', ') ? 'worktrees' : 'a worktree'} of ${repo}?`].filter((s) => s !== '').join(' ');
   const yes = await confirm({ message, initialValue: true });
   if (isCancel(yes)) throw cancelled('nothing was started');
   return yes;

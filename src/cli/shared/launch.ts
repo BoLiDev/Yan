@@ -3,27 +3,29 @@ import { dirname } from 'node:path';
 import { out } from './action.js';
 import { workspacePackages } from './packages.js';
 import { openTasks } from './task-id.js';
-import { repoKey } from './repo-key.js';
-import { CREATE_NEW, type TaskChoice } from '../../ui/prompts.js';
+import { repoKey } from '../../util/repo-key.js';
+import { CREATE_NEW, type RepoChoice, type TaskChoice } from '../../ui/prompts.js';
 
 export { CREATE_NEW };
 import { tildePath } from './style.js';
 import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs } from '../../externals/harness/index.js';
-import { WorktreePool, leaseHeldBy } from '../../externals/worktree/index.js';
-import { Task } from '../../records/task/index.js';
+import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
+import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
+import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
 import { defaultBranch, fetch, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
-import { normalizePath } from '../../util/paths.js';
+import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
 import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../../util/vault.js';
 
 /**
  * Bare `yan`: pick a task or start one, then start the agent on it in this
- * terminal, in the task's tree when it has one.
+ * terminal: in the task's first tree when it has trees, with the others
+ * added beside it.
  *
  * The agent is told as little as will let it find the rest: that a CLI keeps
- * notes on this work, the two commands that read them, and the packages the
- * task is about when it was given some. Which task it is travels in
+ * notes on this work, the two commands that read them, and which trees are
+ * which and what in them the task is about. Which task it is travels in
  * `$YAN_TASK`, which every command reads, so the agent never needs the id.
  */
 
@@ -33,10 +35,33 @@ export const OPENING_PROMPT = [
   '`yan peek` shows what the work is about; `yan log` shows what was settled. `yan --help` for the rest.',
 ].join('\n');
 
-/** The opening prompt, and a line naming the task's scope when it has one. */
-export function openingPrompt(scope: readonly string[] = []): string {
+/** One of the task's trees on this machine, as the agent is told about it. */
+export interface Tree {
+  /** The repository's registered name, or the last part of its URL. */
+  readonly name: string;
+  readonly path: string;
+  readonly scope: readonly string[];
+}
+
+const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``).join(', ');
+
+/**
+ * The opening prompt. One tree with a scope adds a line naming it; several
+ * add a line per tree, since only the first is where the agent starts.
+ */
+export function openingPrompt(trees: readonly Tree[] = []): string {
+  if (trees.length > 1) {
+    const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
+    return [OPENING_PROMPT, `This task works in ${trees.length} repositories, one worktree each:`, ...lines].join('\n');
+  }
+  const scope = trees[0]?.scope ?? [];
   if (scope.length === 0) return OPENING_PROMPT;
-  return `${OPENING_PROMPT}\nThis task is about these parts of the repository: ${scope.map((p) => `\`${p}\``).join(', ')}.`;
+  return `${OPENING_PROMPT}\nThis task is about these parts of the repository: ${quoted(scope)}.`;
+}
+
+/** What a repository is called on screen: its registered name, or the last part of its URL. */
+function repoName(url: string): string {
+  return repoWithUrl(url)?.name ?? repoKey(url).split('/').pop() ?? url;
 }
 
 /**
@@ -105,6 +130,7 @@ function leaseTree(task: Task, clone: string): string {
 export interface EntryPrompts {
   chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string>;
   askTitle(): Promise<string>;
+  chooseRepos(repos: readonly RepoChoice[]): Promise<string[]>;
   confirmTree(repo: string, why?: string): Promise<boolean>;
   chooseScope(repo: string, packages: readonly string[]): Promise<string[]>;
 }
@@ -125,43 +151,106 @@ const startAgent: StartAgent = (cli, argv, options) => {
   return run.status ?? 1;
 };
 
-/**
- * Start a task: its title, and a tree when `user` wants one of the repository
- * they are in, with the packages it is about when that repository has several.
- * Asked once; every later start reads the scope from task.json.
- */
-async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task; workdir: string }> {
-  const title = await prompts.askTitle();
-  const clone = mainClone(cwd);
-  const url = clone === undefined ? undefined : remoteUrl(clone);
-
-  if (clone === undefined || url === undefined || !(await prompts.confirmTree(repoKey(url)))) {
-    return { task: Task.create(title), workdir: cwd };
-  }
-  const packages = workspacePackages(clone);
-  const scope = packages.length === 0 ? [] : await prompts.chooseScope(repoKey(url), packages);
-  const task = Task.create(title, url, scope);
-  return { task, workdir: leaseTree(task, clone) };
+/** A repository a new task can be given: registered and cloned here, or the clone `yan` was typed in. */
+interface Candidate {
+  readonly name: string;
+  readonly url: string;
+  readonly clone: string;
+  readonly registered: boolean;
 }
 
 /**
- * Where an existing task's agent starts: its tree on this machine, a new one
- * when the task has a repository and `user` is in a clone of it, and here
- * otherwise.
+ * Every registered repository cloned on this machine, and the clone `yan` was
+ * typed in when nothing registered it yet; picking that one registers it.
  */
-async function existingWorkdir(task: Task, cwd: string, prompts: EntryPrompts): Promise<string> {
-  const lease = leaseHeldBy(task.id);
-  if (lease !== undefined) return lease.path;
-
-  const repo = task.read().repo;
-  if (repo === undefined) return cwd;
-  const clone = mainClone(cwd);
-  const here = clone === undefined ? undefined : remoteUrl(clone);
-  if (clone === undefined || here === undefined || repoKey(here) !== repoKey(repo)) {
-    out(`${task.id} has no tree on this machine - run yan in a clone of ${repoKey(repo)} to open one`);
-    return cwd;
+function candidates(cwd: string): Candidate[] {
+  const found: Candidate[] = registry()
+    .filter((r) => r.clone !== undefined && isDirectory(r.clone))
+    .map((r) => ({ name: r.name, url: r.url, clone: r.clone as string, registered: true }));
+  const here = mainClone(cwd);
+  const url = here === undefined ? undefined : remoteUrl(here);
+  if (here !== undefined && url !== undefined && repoWithUrl(url) === undefined) {
+    found.push({ name: repoKey(url).split('/').pop() ?? 'repo', url, clone: here, registered: false });
   }
-  return (await prompts.confirmTree(repoKey(repo), `${task.id} has no tree on this machine.`)) ? leaseTree(task, clone) : cwd;
+  return found;
+}
+
+/**
+ * Start a task: its title, the repositories it works in, picked from the
+ * registry wherever `yan` was typed, and for each one that has several
+ * packages, the ones it is about. Asked once; every later start reads them
+ * from task.json. Each repository gets a tree.
+ */
+async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task; trees: Tree[] }> {
+  const title = await prompts.askTitle();
+  const offered = candidates(cwd);
+  if (offered.length === 0) {
+    out("no repository is registered and cloned here, so the task has no tree - 'yan repo add' registers one");
+    return { task: Task.create(title), trees: [] };
+  }
+
+  // The clone `yan` was typed in comes first, so it is where the agent starts when picked.
+  const here = mainClone(cwd);
+  const isHere = (c: Candidate): boolean => here !== undefined && samePath(here, c.clone);
+  offered.sort((a, b) => Number(isHere(b)) - Number(isHere(a)));
+  const names = await prompts.chooseRepos(offered.map((c) => ({
+    name: c.name,
+    hint: c.registered ? tildePath(c.clone) : `${tildePath(c.clone)} - not registered yet, picking it registers it`,
+    here: isHere(c),
+  })));
+  const picked = offered.filter((c) => names.includes(c.name));
+
+  const repos: Array<TaskRepo & { candidate: Candidate }> = [];
+  for (const c of picked) {
+    if (!c.registered) register(c.name, c.url, c.clone);
+    const packages = workspacePackages(c.clone);
+    const scope = packages.length === 0 ? [] : await prompts.chooseScope(c.name, packages);
+    repos.push({ url: c.url, scope, candidate: c });
+  }
+  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })));
+  const trees = repos.map((r) => ({ name: r.candidate.name, path: leaseTree(task, r.candidate.clone), scope: r.scope ?? [] }));
+  return { task, trees };
+}
+
+/**
+ * An existing task's trees on this machine, in the order task.json lists its
+ * repositories. A repository with no tree here gets one, when `user` agrees,
+ * from its linked clone or from the clone `yan` was typed in; one with no
+ * clone here is named and skipped.
+ */
+async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts): Promise<Tree[]> {
+  const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, key: repoKey(remoteUrl(l.path) ?? '') }));
+  const here = mainClone(cwd);
+  const hereUrl = here === undefined ? undefined : remoteUrl(here);
+
+  const slots: Array<{ repo: TaskRepo; path?: string; clone?: string }> = task.read().repos.map((repo) => {
+    const tree = held.find((h) => h.key === repoKey(repo.url));
+    if (tree !== undefined) return { repo, path: tree.path };
+    const clone = cloneFor(repo.url) ?? (hereUrl !== undefined && repoKey(hereUrl) === repoKey(repo.url) ? here : undefined);
+    return clone === undefined ? { repo } : { repo, clone };
+  });
+
+  for (const s of slots) {
+    if (s.path === undefined && s.clone === undefined) {
+      out(`${repoName(s.repo.url)} has no clone on this machine, so no tree - 'yan repo add' where it is cloned`);
+    }
+  }
+  const openable = slots.filter((s) => s.path === undefined && s.clone !== undefined);
+  if (openable.length > 0) {
+    const names = openable.map((s) => repoName(s.repo.url)).join(', ');
+    if (await prompts.confirmTree(names, `${task.id} has no tree of ${names} on this machine.`)) {
+      for (const s of openable) s.path = leaseTree(task, s.clone as string);
+    }
+  }
+
+  const trees: Tree[] = slots
+    .filter((s) => s.path !== undefined)
+    .map((s) => ({ name: repoName(s.repo.url), path: s.path as string, scope: s.repo.scope ?? [] }));
+  // A tree of a repository task.json no longer lists is still the task's.
+  for (const h of held) {
+    if (!trees.some((t) => t.path === h.path)) trees.push({ name: h.key.split('/').pop() ?? h.key, path: h.path, scope: [] });
+  }
+  return trees;
 }
 
 /**
@@ -176,17 +265,17 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
   const prompts = deps.prompts ?? (await import('../../ui/prompts.js'));
 
   const chosen = await prompts.chooseEntry(openTasks(), readVaultJson(vault).name);
-  const { task, workdir } = chosen === CREATE_NEW
+  const { task, trees } = chosen === CREATE_NEW
     ? await newTask(cwd, prompts)
-    : { task: new Task(chosen), workdir: await existingWorkdir(new Task(chosen), cwd, prompts) };
+    : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts) };
 
-  const data = task.read();
-  out(`${task.id}  ${data.title}`);
-  if (workdir !== cwd) out(`tree  ${tildePath(workdir)}`);
-  if (data.scope !== undefined) out(`scope ${data.scope.join(', ')}`);
+  out(`${task.id}  ${task.read().title}`);
+  for (const t of trees) out(`tree  ${tildePath(t.path)}${t.scope.length === 0 ? '' : `  ${t.scope.join(', ')}`}`);
   out(`${cliKind(harness.cli)} starting`);
 
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, prompt: openingPrompt(data.scope) }), ...options.extra];
+  const workdir = trees[0]?.path ?? cwd;
+  const addDirs = trees.slice(1).map((t) => t.path);
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(trees) }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

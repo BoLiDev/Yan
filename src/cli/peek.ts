@@ -2,18 +2,18 @@ import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
-import { repoKey } from './shared/repo-key.js';
+import { repoKey } from '../util/repo-key.js';
 import { bold, dim, green, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { chosenTask } from './shared/task-id.js';
-import { leaseHeldBy, treeState } from '../externals/worktree/index.js';
+import { leasesHeldBy, treeState, type LeaseRow } from '../externals/worktree/index.js';
 import { Drafts } from '../records/drafts/index.js';
 import type { Task, TaskData } from '../records/task/index.js';
-import { currentBranch } from '../util/git.js';
+import { currentBranch, remoteUrl } from '../util/git.js';
 import { localDay, localStamp } from '../util/time.js';
 
 /**
- * `yan peek [task-id]` — one task at a glance: what it is, where its tree is
- * and what that holds, its brief, its deliverables and `user`'s newest
+ * `yan peek [task-id]` — one task at a glance: what it is, where its trees are
+ * and what they hold, its brief, its deliverables and `user`'s newest
  * drafts. The log is `yan log`'s. Reads this machine only: no fetch.
  */
 
@@ -31,12 +31,23 @@ function stateLine(data: TaskData): string {
   return `${dim(closed)} · ${created}${data.reason === undefined ? '' : ` · ${data.reason}`}`;
 }
 
-/** The tree line: where it is, its branch, and what it holds that exists nowhere else. */
-function treeLine(task: Task, data: TaskData): string | undefined {
-  const lease = leaseHeldBy(task.id);
-  if (lease === undefined) {
-    return data.repo === undefined ? undefined : `none on this machine (${repoKey(data.repo)})`;
+/**
+ * One line per repository: where its tree is, its branch, and what it holds
+ * that exists nowhere else, then the packages the task is about in it.
+ */
+function treeLines(task: Task, data: TaskData): string[] {
+  const held = leasesHeldBy(task.id);
+  const lines: string[] = [];
+  for (const repo of data.repos) {
+    const lease = held.find((l) => repoKey(remoteUrl(l.path) ?? '') === repoKey(repo.url));
+    lines.push(`tree  ${lease === undefined ? `none on this machine (${repoKey(repo.url)})` : treeLine(lease)}`);
+    if (repo.scope !== undefined) lines.push(`      scope ${repo.scope.join(', ')}`);
   }
+  return lines;
+}
+
+/** Where a tree is, its branch, and what it holds that exists nowhere else. */
+function treeLine(lease: LeaseRow): string {
   let branch = lease.branch;
   try {
     branch = currentBranch(lease.path);
@@ -65,9 +76,7 @@ function briefLines(task: Task): string[] {
 function peekLines(task: Task): string[] {
   const data = task.read();
   const lines = [`${bold(task.id)}  ${bold(data.title)}`, stateLine(data)];
-  const tree = treeLine(task, data);
-  if (tree !== undefined) lines.push(`tree  ${tree}`);
-  if (data.scope !== undefined) lines.push(`scope ${data.scope.join(', ')}`);
+  lines.push(...treeLines(task, data));
   lines.push(`dir   ${tildePath(task.dir)}`, '', ...briefLines(task), '');
 
   const tally = deliverableTally(data.deliverables);

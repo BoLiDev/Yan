@@ -5,4 +5,4 @@
 
 export { Task } from './task.js';
 export { TASK_STATES } from './types.js';
-export type { Deliverable, TaskData, TaskState } from './types.js';
+export type { Deliverable, TaskData, TaskRepo, TaskState } from './types.js';

@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
 import { CREATE_NEW, enter, OPENING_PROMPT, openingPrompt, type EntryPrompts } from '../../src/cli/shared/launch.js';
-import { leaseHeldBy, returnTree } from '../../src/externals/worktree/index.js';
+import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
+import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
 import { normalizePath } from '../../src/util/paths.js';
 
@@ -25,7 +26,7 @@ let home = '';
 let started: Started[] = [];
 
 /** Answers given in advance; a question nobody answered fails the test. */
-function answers(given: { entry: string; title?: string; tree?: boolean; scope?: string[] }): EntryPrompts & { asked: string[] } {
+function answers(given: { entry: string; title?: string; repos?: string[]; tree?: boolean; scope?: string[] }): EntryPrompts & { asked: string[] } {
   const asked: string[] = [];
   return {
     asked,
@@ -33,6 +34,11 @@ function answers(given: { entry: string; title?: string; tree?: boolean; scope?:
     askTitle: async () => {
       if (given.title === undefined) throw new Error('asked for a title');
       return given.title;
+    },
+    chooseRepos: async (repos) => {
+      asked.push(`repos: ${repos.map((r) => `${r.name}${r.here ? '*' : ''}`).join(' ')}`);
+      if (given.repos === undefined) throw new Error('asked which repositories');
+      return given.repos;
     },
     confirmTree: async (repo, why = '') => {
       asked.push(`${why} ${repo}`.trim());
@@ -68,11 +74,17 @@ afterEach(() => {
   delete process.env.YAN_POOL_ROOT;
 });
 
-/** A clone of a fresh bare remote, as `user` keeps one. */
-async function aClone(): Promise<{ bare: string; clone: string }> {
-  const bare = await mkBareRemote(join(mkTempDir(), 'origin.git'));
-  const clone = normalizePath(realpathSync(await mkClone(bare, join(mkTempDir(), 'demo'))));
+/** A clone of a fresh bare remote, as `user` keeps one; `name` is the remote's, so the repository's. */
+async function aClone(name = 'demo'): Promise<{ bare: string; clone: string }> {
+  const bare = await mkBareRemote(join(mkTempDir(), `${name}.git`));
+  const clone = normalizePath(realpathSync(await mkClone(bare, join(mkTempDir(), name))));
   return { bare, clone };
+}
+
+/** The one tree t001 holds. */
+function treeOf(id = 't001'): string | undefined {
+  const held = leasesHeldBy(id);
+  return held.length === 1 ? held[0]?.path : undefined;
 }
 
 describe('a new task', () => {
@@ -82,36 +94,67 @@ describe('a new task', () => {
 
     expect(Task.list()).toEqual(['t001']);
     expect(new Task('t001').read()).toMatchObject({ title: 'write the docs', state: 'open' });
-    expect(new Task('t001').read().repo).toBeUndefined();
+    expect(new Task('t001').read().repos).toEqual([]);
     expect(started).toHaveLength(1);
     expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', '--append-system-prompt', OPENING_PROMPT] });
     expect(started[0]?.env.YAN_TASK).toBe('t001');
     expect(started[0]?.env.YAN_VAULT).toBe(home);
   });
 
-  it('in a clone, gets a tree on yan/<id> cut from origin, when user says yes', async () => {
+  it('in an unregistered clone, offers it picked, registers it, and cuts a tree on yan/<id> from origin', async () => {
     const { bare, clone } = await aClone();
-    const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', tree: true });
+    const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', repos: ['demo'] });
     await run(prompts, clone);
 
+    expect(prompts.asked[0]).toBe('repos: demo*');
+    expect(registry()).toEqual([{ name: 'demo', url: bare, clone }]);
+    expect(new Task('t001').read().repos).toEqual([{ url: bare }]);
+    const tree = treeOf();
+    expect(started[0]?.cwd).toBe(tree);
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim()).toBe('yan/t001');
+    expect(existsSync(join(tree ?? '', 'README.md'))).toBe(true);
+  });
+
+  it('anywhere, picks several registered repositories: starts in the first tree, adds the others, and says which is which', async () => {
+    const web = await aClone('web');
+    const api = await aClone('api');
+    register('web', web.bare, web.clone);
+    register('api', api.bare, api.clone);
+    const here = normalizePath(realpathSync(mkTempDir()));
+    const prompts = answers({ entry: CREATE_NEW, title: 'one feature, two repos', repos: ['web', 'api'] });
+    await run(prompts, here);
+
+    expect(prompts.asked[0]).toBe('repos: api web');
     const task = new Task('t001').read();
-    expect(task.repo).toBe(bare);
-    const lease = leaseHeldBy('t001');
-    expect(lease).toBeDefined();
-    expect(started[0]?.cwd).toBe(lease?.path);
-    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], lease?.path)).stdout.trim()).toBe('yan/t001');
-    expect(existsSync(join(lease?.path ?? '', 'README.md'))).toBe(true);
+    expect(task.repos.map((r) => r.url)).toEqual([api.bare, web.bare]);
+    const trees = leasesHeldBy('t001').map((l) => l.path);
+    expect(trees).toHaveLength(2);
+    const [apiTree, webTree] = [trees.find((t) => t.endsWith('/api')), trees.find((t) => t.endsWith('/web'))];
+    expect(started[0]?.cwd).toBe(apiTree);
+    expect(started[0]?.argv).toEqual(['--dangerously-skip-permissions', '--add-dir', webTree, '--append-system-prompt', started[0]?.argv.at(-1)]);
+    expect(started[0]?.argv.at(-1)).toContain(`This task works in 2 repositories, one worktree each:\n- api: ${apiTree}\n- web: ${webTree}`);
+
+    await run(answers({ entry: 't001' }), here);
+    expect(started[1]?.cwd, 'the same trees, the same order').toBe(apiTree);
+    expect(started[1]?.argv).toEqual(started[0]?.argv);
+  });
+
+  it('with nothing registered and outside a clone, has no tree and asks nothing', async () => {
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: CREATE_NEW, title: 'x' }), here);
+    expect(new Task('t001').read().repos).toEqual([]);
+    expect(started[0]?.cwd).toBe(here);
   });
 
   it('in a monorepo, asks once which packages it is about, keeps them, and tells the agent every start', async () => {
     const { clone } = await aClone();
     for (const p of ['packages/core', 'packages/web', 'apps/site']) mkdirSync(join(clone, p), { recursive: true });
-    const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', tree: true, scope: ['packages/core', 'apps/site'] });
+    const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', repos: ['demo'], scope: ['packages/core', 'apps/site'] });
     await run(prompts, clone);
 
     expect(prompts.asked.at(-1)).toContain('apps/site packages/core packages/web');
-    expect(new Task('t001').read().scope).toEqual(['packages/core', 'apps/site']);
-    const prompt = openingPrompt(['packages/core', 'apps/site']);
+    expect(new Task('t001').read().repos[0]?.scope).toEqual(['packages/core', 'apps/site']);
+    const prompt = openingPrompt([{ name: 'demo', path: treeOf() as string, scope: ['packages/core', 'apps/site'] }]);
     expect(prompt).toContain('`packages/core`, `apps/site`');
     expect(started[0]?.argv.at(-1)).toBe(prompt);
 
@@ -122,16 +165,17 @@ describe('a new task', () => {
   it('in a monorepo, keeps no scope when user picks the whole repository', async () => {
     const { clone } = await aClone();
     mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
-    await run(answers({ entry: CREATE_NEW, title: 'x', tree: true, scope: [] }), clone);
-    expect(new Task('t001').read().scope).toBeUndefined();
+    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone);
+    expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
     expect(started[0]?.argv.at(-1)).toBe(OPENING_PROMPT);
   });
 
-  it('in a clone, has no tree when user says no', async () => {
+  it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {
     const { clone } = await aClone();
-    await run(answers({ entry: CREATE_NEW, title: 'just notes', tree: false }), clone);
-    expect(new Task('t001').read().repo).toBeUndefined();
-    expect(leaseHeldBy('t001')).toBeUndefined();
+    await run(answers({ entry: CREATE_NEW, title: 'just notes', repos: [] }), clone);
+    expect(new Task('t001').read().repos).toEqual([]);
+    expect(leasesHeldBy('t001')).toEqual([]);
+    expect(registry()).toEqual([]);
     expect(started[0]?.cwd).toBe(clone);
   });
 });
@@ -139,40 +183,42 @@ describe('a new task', () => {
 describe('an existing task', () => {
   it('starts in the tree it holds, asking nothing', async () => {
     const { clone } = await aClone();
-    await run(answers({ entry: CREATE_NEW, title: 'x', tree: true }), clone);
-    const tree = leaseHeldBy('t001')?.path;
+    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
+    const tree = treeOf();
 
     await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
     expect(started[1]?.cwd).toBe(tree);
   });
 
-  it('with a repository but no tree here, opens one when yan is typed in a clone of it', async () => {
+  it('with a repository but no tree here, opens one from its linked clone, wherever yan is typed', async () => {
     const { bare, clone } = await aClone();
-    await run(answers({ entry: CREATE_NEW, title: 'x', tree: true }), clone);
-    const tree = leaseHeldBy('t001')?.path as string;
+    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
+    const tree = treeOf() as string;
     // Another machine pushed the branch, and this one has no tree.
     writeFileSync(join(tree, 'work.txt'), 'from the other machine\n');
     await fxGit(['add', '.'], tree);
     await fxGit(['commit', '-m', 'work'], tree);
     await fxGit(['push', '-u', 'origin', 'yan/t001'], tree);
-    returnTree('t001');
+    returnTrees('t001');
 
-    const elsewhere = normalizePath(realpathSync(await mkClone(bare, join(mkTempDir(), 'second'))));
+    // This machine keeps its clone somewhere else now.
+    const second = normalizePath(realpathSync(await mkClone(bare, join(mkTempDir(), 'second'))));
+    register('demo', bare, second);
     const prompts = answers({ entry: 't001', tree: true });
-    await run(prompts, elsewhere);
-    expect(prompts.asked[0]).toContain('t001 has no tree on this machine.');
-    const again = leaseHeldBy('t001')?.path as string;
+    await run(prompts, normalizePath(realpathSync(mkTempDir())));
+    expect(prompts.asked[0]).toContain('t001 has no tree of demo on this machine.');
+    const again = treeOf() as string;
+    expect(again.startsWith(clone), 'cut from the linked clone').toBe(false);
     expect(started[1]?.cwd).toBe(again);
     expect(existsSync(join(again, 'work.txt')), 'picked up from origin, not cut afresh').toBe(true);
   });
 
-  it('with a repository and yan typed elsewhere, starts here and says why', async () => {
-    const { clone } = await aClone();
-    await run(answers({ entry: CREATE_NEW, title: 'x', tree: true }), clone);
-    returnTree('t001');
+  it('with a repository not cloned on this machine, starts here and says why', async () => {
+    const { bare } = await aClone();
+    Task.create('x', [{ url: bare }]);
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: 't001' }), here);
-    expect(started[1]?.cwd).toBe(here);
+    expect(started[0]?.cwd).toBe(here);
   });
 });
 
