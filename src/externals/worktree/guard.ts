@@ -9,13 +9,18 @@ export interface TreeState {
   readonly unpushed: boolean;
 }
 
-/** Read what a tree holds. Never throws: a tree git cannot read reports as clean. */
-export function treeState(tree: string): TreeState {
+/**
+ * Read what a tree holds. Never throws: a tree git cannot read reports as clean.
+ *
+ * @param options.submoduleEdits false to skip what is uncommitted inside
+ *   submodules: faster, for showing a tree, never for deciding to wipe one.
+ */
+export function treeState(tree: string, options: { submoduleEdits?: boolean } = {}): TreeState {
   let dirty: string[] = [];
   let unpushed = false;
   try {
-    dirty = git.statusPorcelain(tree).split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '');
-    unpushed = git.branchesContainingHead(tree).filter((l) => l.trim() !== '').length === 0;
+    dirty = git.treeStatus(tree, options).split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '');
+    unpushed = !git.headOnRemote(tree);
   } catch {
     // Reported as clean: the guard below asks again, and refuses on its own terms.
   }

@@ -20,6 +20,7 @@ const directoryFirst: Array<[string, (dir: string) => unknown]> = [
   ['fetch', (d) => g.fetch(d)],
   ['checkout', (d) => g.checkout(d, ['main'])],
   ['statusPorcelain', (d) => g.statusPorcelain(d)],
+  ['treeStatus', (d) => g.treeStatus(d)],
   ['isClean', (d) => g.isClean(d)],
   ['rebase', (d) => g.rebase(d, ['main'])],
   ['worktreeAdd', (d) => g.worktreeAdd(d, ['p'])],
@@ -27,7 +28,7 @@ const directoryFirst: Array<[string, (dir: string) => unknown]> = [
   ['worktreePrune', (d) => g.worktreePrune(d)],
   ['resetHard', (d) => g.resetHard(d)],
   ['cleanFd', (d) => g.cleanFd(d)],
-  ['branchesContainingHead', (d) => g.branchesContainingHead(d)],
+  ['headOnRemote', (d) => g.headOnRemote(d)],
   ['revParse', (d) => g.revParse(d, ['HEAD'])],
   ['remoteUrl', (d) => g.remoteUrl(d)],
 ];

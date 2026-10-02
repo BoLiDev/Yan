@@ -77,6 +77,17 @@ export function statusPorcelain(dir: string, args: readonly string[] = []): stri
   return git(dir, ['status', '--porcelain', ...args]).stdout;
 }
 
+/**
+ * `git status --porcelain` for a work tree that may be large: the untracked
+ * cache spares rescanning untracked directories that have not changed since
+ * the last status. `submoduleEdits: false` also skips each submodule's own
+ * uncommitted files; a submodule moved to another commit still shows.
+ */
+export function treeStatus(dir: string, options: { submoduleEdits?: boolean } = {}): string {
+  const skip = options.submoduleEdits === false ? ['--ignore-submodules=dirty'] : [];
+  return git(dir, ['-c', 'core.untrackedCache=true', 'status', '--porcelain', ...skip]).stdout;
+}
+
 export function isClean(dir: string): boolean {
   return statusPorcelain(dir).trim() === '';
 }
@@ -109,9 +120,14 @@ export function defaultBranch(dir: string, remote = 'origin'): string | undefine
   return name === undefined || name === '' ? undefined : name;
 }
 
-/** Remote branches that contain HEAD, trimmed. */
-export function branchesContainingHead(dir: string): string[] {
-  return gitLines(dir, ['branch', '-r', '--contains', 'HEAD']).map((l) => l.trim());
+/**
+ * True when some remote branch contains HEAD: nothing reachable from HEAD is
+ * left once every remote branch is taken away. One walk, where
+ * `branch -r --contains HEAD` tests each remote branch on its own and can
+ * take tens of seconds on a repository with thousands of them.
+ */
+export function headOnRemote(dir: string): boolean {
+  return gitLines(dir, ['rev-list', '-n', '1', 'HEAD', '--not', '--remotes']).length === 0;
 }
 
 // --- branches --------------------------------------------------------------

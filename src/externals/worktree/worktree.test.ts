@@ -123,6 +123,9 @@ describe('returning a tree', () => {
 
     expect(treeState(grant.path).unpushed).toBe(true);
     expect(() => returnTree('t001')).toThrow(/no remote branch contains HEAD/);
+
+    await fxGit(['push', 'origin', 'yan/t001'], grant.path);
+    expect(treeState(grant.path).unpushed, 'pushed, it exists on origin too').toBe(false);
   });
 
   it('with force, destroys the uncommitted work and keeps commits on the branch', async () => {

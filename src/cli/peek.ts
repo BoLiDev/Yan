@@ -43,7 +43,8 @@ function treeLine(task: Task, data: TaskData): string | undefined {
   } catch {
     // The lease's own record of it, then.
   }
-  const { dirty, unpushed } = treeState(lease.path);
+  // A glance, not the guard: edits inside submodules are `yan done`'s to find.
+  const { dirty, unpushed } = treeState(lease.path, { submoduleEdits: false });
   const notes = [
     dirty.length > 0 ? yellow(`${dirty.length} changed`) : '',
     unpushed ? yellow('unpushed') : '',
