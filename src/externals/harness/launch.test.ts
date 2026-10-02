@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WAIT_LINE, cliKind, isKnownCli, launchArgs } from './launch.js';
 
-const plain = { model: '', effort: '', workdir: '/tree', prompt: 'the prompt' };
+const plain = { model: '', effort: '', workdir: '/tree', prompt: 'the prompt', skipPermissions: false };
 
 describe('launchArgs', () => {
   it('gives claude the prompt as its system prompt, so nothing starts a turn', () => {
@@ -22,6 +22,13 @@ describe('launchArgs', () => {
     expect(launchArgs('claude', spec).slice(0, 4)).toEqual(['--model', 'm', '--effort', 'e']);
     expect(launchArgs('C:/tools/agy.exe', spec).slice(0, 4)).toEqual(['--model', 'm', '--effort', 'e']);
     expect(launchArgs('codex', spec).slice(0, 4)).toEqual(['-m', 'm', '-c', 'model_reasoning_effort=e']);
+  });
+
+  it("skips each CLI's approvals with its own flag, ahead of the prompt", () => {
+    const skip = { ...plain, skipPermissions: true };
+    expect(launchArgs('claude', skip)).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', 'the prompt']);
+    expect(launchArgs('codex', skip)[0]).toBe('--dangerously-bypass-approvals-and-sandbox');
+    expect(launchArgs('agy', skip)[0]).toBe('--dangerously-skip-permissions');
   });
 
   it('knows three CLIs and nothing else', () => {

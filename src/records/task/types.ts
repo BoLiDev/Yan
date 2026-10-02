@@ -20,6 +20,11 @@ export interface TaskData {
    * on every machine the vault is cloned to.
    */
   readonly repo?: string;
+  /**
+   * The repository's packages the task is about, as paths in it, picked when
+   * the task was created. Absent for the whole repository.
+   */
+  readonly scope?: readonly string[];
   /** One more than the highest deliverable id ever handed out. */
   readonly nextDeliverable: number;
   /** File order is page order. */

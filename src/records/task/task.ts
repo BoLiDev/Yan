@@ -54,15 +54,6 @@ export class Task {
     return validate(readJson(this.require()), this);
   }
 
-  /** The title, or `''` when task.json cannot be read. Never throws. */
-  public titleOrEmpty(): string {
-    try {
-      return this.read().title;
-    } catch {
-      return '';
-    }
-  }
-
   /**
    * Close the task: `done`, or `abandoned` with the reason it was given up.
    * Stamps `closedAt`.
@@ -163,8 +154,9 @@ export class Task {
    *
    * @param repo the remote URL of the repository its tree is cut from, or
    *   `''` for a task with no tree.
+   * @param scope the repository's packages it is about; `[]` for all of it.
    */
-  public static create(title: string, repo = ''): Task {
+  public static create(title: string, repo = '', scope: readonly string[] = []): Task {
     const name = title.trim();
     if (name === '' || /[\r\n]/.test(name)) throw YanError.usage('task_usage', 'a task needs a title, on one line');
     const task = new Task(nextNumbered(Task.list(), 't', 3));
@@ -176,6 +168,7 @@ export class Task {
       state: 'open',
       createdAt: isoSecond(),
       ...(repo === '' ? {} : { repo }),
+      ...(scope.length === 0 ? {} : { scope: [...scope] }),
       nextDeliverable: 1,
       deliverables: [],
     });
@@ -240,6 +233,8 @@ function validate(raw: unknown, task: Task): TaskData {
   const closedAt = text(doc.closedAt);
   const reason = text(doc.reason);
   const repo = text(doc.repo);
+  // A path edited into something else is dropped, not refused: scope only steers.
+  const scope = Array.isArray(doc.scope) ? doc.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
   return {
     version: 2,
     id: text(doc.id) ?? task.id,
@@ -249,6 +244,7 @@ function validate(raw: unknown, task: Task): TaskData {
     ...(closedAt === undefined ? {} : { closedAt }),
     ...(reason === undefined ? {} : { reason }),
     ...(repo === undefined ? {} : { repo }),
+    ...(scope.length === 0 ? {} : { scope }),
     // Kept in the file so a deliverable removed by hand cannot make the next
     // `add` reuse an id somebody has already quoted.
     nextDeliverable: typeof stated === 'number' && Number.isInteger(stated) && stated > highest ? stated : highest + 1,

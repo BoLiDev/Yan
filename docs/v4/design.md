@@ -19,7 +19,10 @@ an agent sees yan only when it is started through `yan`.
 
 Bare `yan` is the only entry. At a terminal it offers the open tasks and "new
 task". A new task asks a title, and, inside a git clone, whether to lease a
-worktree. Then the agent starts in this terminal, in the task's tree when it
+worktree. When that repository declares workspace packages (pnpm's workspace
+file, package.json's workspaces, `packages/*`, `apps/*`), it also asks which
+of them the task is about, as v3's `task new` did for its units. That is
+asked once and kept in task.json; no later start asks again. Then the agent starts in this terminal, in the task's tree when it
 has one. Without a terminal it prints the help. `--cli` swaps the agent for
 one run; after `--`, arguments go to the agent unchanged.
 
@@ -45,6 +48,12 @@ Notes from earlier sessions on this work are kept by a CLI.
 `yan peek` shows what the work is about; `yan log` shows what was settled. `yan --help` for the rest.
 ```
 
+A task with a scope gets one more line:
+
+```
+This task is about these parts of the repository: `packages/a`, `apps/b`.
+```
+
 No task, no id: `$YAN_TASK` carries that, and the agent never needs to name
 it. When to do something goes in the prompt, because an agent does not read
 help unprompted. How to do it goes in `--help`. A rule that belongs to one
@@ -58,8 +67,11 @@ Each harness takes the prompt where it starts no turn of its own: claude as
 such place, so it gets the prompt as its first message (`-i`), followed by
 "Nothing to do yet; wait for the user."
 
-No harness is started with unattended permissions. `user` is at the keyboard,
-so the harness's own settings decide.
+Every harness is started with its approvals skipped: claude and agy with
+`--dangerously-skip-permissions`, codex with
+`--dangerously-bypass-approvals-and-sandbox`, which `user` chose over
+approving each step. `"skipPermissions": false` in the vault's
+`config.json` hands the decision back to the harness's own settings.
 
 When the agent should log, and what, is not settled yet. Today the prompt
 says nothing about it.
@@ -71,7 +83,9 @@ belongs to a command while prose belongs to a file the agent edits directly.
 
 - `tasks/<id>/task.json`, version 2: id, title, `state` (open, done,
   abandoned), `createdAt`, `closedAt`, `reason`, `repo` (a remote URL, so it
-  means the same on every machine), `nextDeliverable`, `deliverables`. Written
+  means the same on every machine), `scope` (the packages picked when the
+  task was created, paths in the repository; absent for all of it),
+  `nextDeliverable`, `deliverables`. Written
   by bare `yan` (create), `yan deliverable` and `yan done`.
 - `brief.md`: prose, no title line; the title is task.json's. Created empty,
   then the agent's to edit.
@@ -83,7 +97,7 @@ belongs to a command while prose belongs to a file the agent edits directly.
 - `artifacts/`: no structure.
 - `learnings/<topic>.md` at the vault's top: created by `yan learn add`, the
   text filled in by the agent when `user` asks.
-- `vault.json` and `config.json` (`{ cli, model, effort }`) at the top;
+- `vault.json` and `config.json` (`{ cli, model, effort, skipPermissions }`) at the top;
   `~/.yan/config.json` for which vaults this machine has.
 
 Deliverable changes no longer write log lines. task.json already holds their

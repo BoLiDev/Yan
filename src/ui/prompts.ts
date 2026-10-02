@@ -85,6 +85,28 @@ export async function confirmTree(repo: string, why = ''): Promise<boolean> {
   return yes;
 }
 
+/** The choice standing for the whole repository. */
+const WHOLE_REPO = '\u0000whole';
+
+/**
+ * A new task's scope: which of `repo`'s packages it is about. `[]` for the
+ * whole repository, which drops any package picked beside it.
+ */
+export async function chooseScope(repo: string, packages: readonly string[]): Promise<string[]> {
+  const chosen = await autocompleteMultiselect({
+    message: `${repo}: which packages are in scope?`,
+    placeholder: PLACEHOLDER,
+    options: [
+      ...packages.map((p) => ({ value: p, label: p })),
+      { value: WHOLE_REPO, label: 'the whole repository', hint: 'no scope restriction' },
+    ],
+    required: true,
+  });
+  if (isCancel(chosen)) throw cancelled('no task was created');
+  const picked = [...chosen].map((v) => String(v));
+  return picked.includes(WHOLE_REPO) ? [] : picked;
+}
+
 /** Select one open task. `command` heads the prompt; `message` is the question. */
 export async function chooseTask(tasks: readonly TaskChoice[], command: string, message: string): Promise<string> {
   intro(command);

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, OPENING_PROMPT, type EntryPrompts } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, OPENING_PROMPT, openingPrompt, type EntryPrompts } from '../../src/cli/shared/launch.js';
 import { leaseHeldBy, returnTree } from '../../src/externals/worktree/index.js';
 import { Task } from '../../src/records/task/index.js';
 import { normalizePath } from '../../src/util/paths.js';
@@ -25,7 +25,7 @@ let home = '';
 let started: Started[] = [];
 
 /** Answers given in advance; a question nobody answered fails the test. */
-function answers(given: { entry: string; title?: string; tree?: boolean }): EntryPrompts & { asked: string[] } {
+function answers(given: { entry: string; title?: string; tree?: boolean; scope?: string[] }): EntryPrompts & { asked: string[] } {
   const asked: string[] = [];
   return {
     asked,
@@ -38,6 +38,11 @@ function answers(given: { entry: string; title?: string; tree?: boolean }): Entr
       asked.push(`${why} ${repo}`.trim());
       if (given.tree === undefined) throw new Error('asked about a tree');
       return given.tree;
+    },
+    chooseScope: async (repo, packages) => {
+      asked.push(`scope of ${repo}: ${packages.join(' ')}`);
+      if (given.scope === undefined) throw new Error('asked about a scope');
+      return given.scope;
     },
   };
 }
@@ -79,7 +84,7 @@ describe('a new task', () => {
     expect(new Task('t001').read()).toMatchObject({ title: 'write the docs', state: 'open' });
     expect(new Task('t001').read().repo).toBeUndefined();
     expect(started).toHaveLength(1);
-    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--append-system-prompt', OPENING_PROMPT] });
+    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', '--append-system-prompt', OPENING_PROMPT] });
     expect(started[0]?.env.YAN_TASK).toBe('t001');
     expect(started[0]?.env.YAN_VAULT).toBe(home);
   });
@@ -96,6 +101,30 @@ describe('a new task', () => {
     expect(started[0]?.cwd).toBe(lease?.path);
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], lease?.path)).stdout.trim()).toBe('yan/t001');
     expect(existsSync(join(lease?.path ?? '', 'README.md'))).toBe(true);
+  });
+
+  it('in a monorepo, asks once which packages it is about, keeps them, and tells the agent every start', async () => {
+    const { clone } = await aClone();
+    for (const p of ['packages/core', 'packages/web', 'apps/site']) mkdirSync(join(clone, p), { recursive: true });
+    const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', tree: true, scope: ['packages/core', 'apps/site'] });
+    await run(prompts, clone);
+
+    expect(prompts.asked.at(-1)).toContain('apps/site packages/core packages/web');
+    expect(new Task('t001').read().scope).toEqual(['packages/core', 'apps/site']);
+    const prompt = openingPrompt(['packages/core', 'apps/site']);
+    expect(prompt).toContain('`packages/core`, `apps/site`');
+    expect(started[0]?.argv.at(-1)).toBe(prompt);
+
+    await run(answers({ entry: 't001' }), clone);
+    expect(started[1]?.argv.at(-1), 'not asked again, still told').toBe(prompt);
+  });
+
+  it('in a monorepo, keeps no scope when user picks the whole repository', async () => {
+    const { clone } = await aClone();
+    mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
+    await run(answers({ entry: CREATE_NEW, title: 'x', tree: true, scope: [] }), clone);
+    expect(new Task('t001').read().scope).toBeUndefined();
+    expect(started[0]?.argv.at(-1)).toBe(OPENING_PROMPT);
   });
 
   it('in a clone, has no tree when user says no', async () => {
@@ -155,12 +184,23 @@ describe('the harness', () => {
     expect(started[0]?.cli).toBe('codex');
     expect(started[0]?.argv).toEqual([
       '-m', 'gpt-x', '-c', 'model_reasoning_effort=high',
+      '--dangerously-bypass-approvals-and-sandbox',
       '-c', `developer_instructions=${JSON.stringify(OPENING_PROMPT)}`,
       '--search',
     ]);
 
     await run(answers({ entry: 't001' }), here, { cli: 'claude' });
-    expect(started[1]?.argv).toEqual(['--append-system-prompt', OPENING_PROMPT]);
+    expect(started[1]?.argv).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', OPENING_PROMPT]);
+  });
+
+  it('keeps its approvals when config.json says skipPermissions: false, whichever CLI runs', async () => {
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ cli: 'claude', skipPermissions: false }));
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
+    expect(started[0]?.argv).toEqual(['--append-system-prompt', OPENING_PROMPT]);
+
+    await run(answers({ entry: 't001' }), here, { cli: 'codex' });
+    expect(started[1]?.argv).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
   it('refuses a CLI yan cannot start, before anything is created', async () => {

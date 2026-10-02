@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { out } from './action.js';
+import { workspacePackages } from './packages.js';
 import { openTasks } from './task-id.js';
 import { repoKey } from './repo-key.js';
 import { CREATE_NEW, type TaskChoice } from '../../ui/prompts.js';
@@ -21,9 +22,9 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * terminal, in the task's tree when it has one.
  *
  * The agent is told as little as will let it find the rest: that a CLI keeps
- * notes on this work, and the two commands that read them. Which task it is
- * travels in `$YAN_TASK`, which every command reads, so the agent never needs
- * the id.
+ * notes on this work, the two commands that read them, and the packages the
+ * task is about when it was given some. Which task it is travels in
+ * `$YAN_TASK`, which every command reads, so the agent never needs the id.
  */
 
 /** What the agent is told before `user` says anything. */
@@ -32,11 +33,21 @@ export const OPENING_PROMPT = [
   '`yan peek` shows what the work is about; `yan log` shows what was settled. `yan --help` for the rest.',
 ].join('\n');
 
-/** The harness `config.json` names, or claude with its own defaults. */
+/** The opening prompt, and a line naming the task's scope when it has one. */
+export function openingPrompt(scope: readonly string[] = []): string {
+  if (scope.length === 0) return OPENING_PROMPT;
+  return `${OPENING_PROMPT}\nThis task is about these parts of the repository: ${scope.map((p) => `\`${p}\``).join(', ')}.`;
+}
+
+/**
+ * The harness `config.json` names, or claude with its own defaults.
+ * Approvals are skipped unless `skipPermissions` is `false`.
+ */
 interface HarnessConfig {
   readonly cli: string;
   readonly model: string;
   readonly effort: string;
+  readonly skipPermissions: boolean;
 }
 
 function harnessConfig(override: string | undefined): HarnessConfig {
@@ -45,11 +56,12 @@ function harnessConfig(override: string | undefined): HarnessConfig {
     cli: asString(raw.cli).trim() || 'claude',
     model: asString(raw.model).trim(),
     effort: asString(raw.effort).trim(),
+    skipPermissions: raw.skipPermissions !== false,
   };
   // A model chosen for the configured CLI means nothing to another one.
   const chosen = override === undefined || override === '' || override === configured.cli
     ? configured
-    : { cli: override, model: '', effort: '' };
+    : { cli: override, model: '', effort: '', skipPermissions: configured.skipPermissions };
   if (!isKnownCli(chosen.cli)) {
     throw YanError.usage('yan_usage', `'${chosen.cli}' is not a CLI yan can start - one of: ${HARNESS_KINDS.join(' ')} (set "cli" in ${vaultConfigPath()})`);
   }
@@ -94,6 +106,7 @@ export interface EntryPrompts {
   chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string>;
   askTitle(): Promise<string>;
   confirmTree(repo: string, why?: string): Promise<boolean>;
+  chooseScope(repo: string, packages: readonly string[]): Promise<string[]>;
 }
 
 /** Starting the agent; returns its exit status. */
@@ -112,7 +125,11 @@ const startAgent: StartAgent = (cli, argv, options) => {
   return run.status ?? 1;
 };
 
-/** Start a task: its title, and a tree when `user` wants one of the repository they are in. */
+/**
+ * Start a task: its title, and a tree when `user` wants one of the repository
+ * they are in, with the packages it is about when that repository has several.
+ * Asked once; every later start reads the scope from task.json.
+ */
 async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task; workdir: string }> {
   const title = await prompts.askTitle();
   const clone = mainClone(cwd);
@@ -121,7 +138,9 @@ async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task
   if (clone === undefined || url === undefined || !(await prompts.confirmTree(repoKey(url)))) {
     return { task: Task.create(title), workdir: cwd };
   }
-  const task = Task.create(title, url);
+  const packages = workspacePackages(clone);
+  const scope = packages.length === 0 ? [] : await prompts.chooseScope(repoKey(url), packages);
+  const task = Task.create(title, url, scope);
   return { task, workdir: leaseTree(task, clone) };
 }
 
@@ -161,11 +180,13 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
     ? await newTask(cwd, prompts)
     : { task: new Task(chosen), workdir: await existingWorkdir(new Task(chosen), cwd, prompts) };
 
-  out(`${task.id}  ${task.titleOrEmpty()}`);
+  const data = task.read();
+  out(`${task.id}  ${data.title}`);
   if (workdir !== cwd) out(`tree  ${tildePath(workdir)}`);
+  if (data.scope !== undefined) out(`scope ${data.scope.join(', ')}`);
   out(`${cliKind(harness.cli)} starting`);
 
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, prompt: OPENING_PROMPT }), ...options.extra];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, prompt: openingPrompt(data.scope) }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

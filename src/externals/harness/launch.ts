@@ -1,10 +1,8 @@
 /**
  * How each agent CLI `yan` starts is spelled: the flags that pick a model and
- * an effort, and how it takes the opening prompt. One section per CLI. This
- * only answers "what is the argv"; `cli/shared/launch.ts` runs it.
- *
- * Nothing here asks for unattended permissions: `user` is at the keyboard, so
- * whatever the harness's own settings say about approvals applies.
+ * an effort, the flag that skips its approvals, and how it takes the opening
+ * prompt. One section per CLI. This only answers "what is the argv";
+ * `cli/shared/launch.ts` runs it.
  *
  * The opening prompt goes where the CLI lets it go without a reply: claude's
  * system prompt, codex's developer instructions. agy has neither, so it gets
@@ -20,6 +18,8 @@ export interface Launch {
   readonly workdir: string;
   /** What it is told before `user` says anything. */
   readonly prompt: string;
+  /** Start it with approvals and sandbox bypassed, rather than as its own settings say. */
+  readonly skipPermissions: boolean;
 }
 
 /** The line a first message ends with, so a prompt that is not a request starts no work. */
@@ -43,7 +43,8 @@ function dashDashModel(model: string, effort: string): string[] {
 const claude: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
-    return [...dashDashModel(launch.model, launch.effort), '--append-system-prompt', launch.prompt];
+    const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
+    return [...dashDashModel(launch.model, launch.effort), ...skip, '--append-system-prompt', launch.prompt];
   },
 };
 
@@ -60,8 +61,9 @@ function codexModel(model: string, effort: string): string[] {
 const codex: Harness = {
   modelFlags: codexModel,
   launchArgs(launch) {
+    const skip = launch.skipPermissions ? ['--dangerously-bypass-approvals-and-sandbox'] : [];
     // `-c` parses its value as TOML, and a JSON string is a TOML basic string.
-    return [...codexModel(launch.model, launch.effort), '-c', `developer_instructions=${JSON.stringify(launch.prompt)}`];
+    return [...codexModel(launch.model, launch.effort), ...skip, '-c', `developer_instructions=${JSON.stringify(launch.prompt)}`];
   },
 };
 
@@ -75,7 +77,8 @@ const codex: Harness = {
 const agy: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
-    return [...dashDashModel(launch.model, launch.effort), '--add-dir', launch.workdir, '-i', `${launch.prompt}\n${WAIT_LINE}`];
+    const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
+    return [...dashDashModel(launch.model, launch.effort), ...skip, '--add-dir', launch.workdir, '-i', `${launch.prompt}\n${WAIT_LINE}`];
   },
 };
 

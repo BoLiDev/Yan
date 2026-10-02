@@ -67,6 +67,7 @@ function peekLines(task: Task): string[] {
   const lines = [`${bold(task.id)}  ${bold(data.title)}`, stateLine(data)];
   const tree = treeLine(task, data);
   if (tree !== undefined) lines.push(`tree  ${tree}`);
+  if (data.scope !== undefined) lines.push(`scope ${data.scope.join(', ')}`);
   lines.push(`dir   ${tildePath(task.dir)}`, '', ...briefLines(task), '');
 
   const tally = deliverableTally(data.deliverables);

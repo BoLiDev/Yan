@@ -29,9 +29,11 @@ Then `cd` into a clone you work in and type `yan`.
 ## What there is
 
 Bare `yan`, at a terminal, picks an open task or starts one, and runs the
-agent on it in this terminal. A new task started inside a git clone can have
-a worktree, cut on `yan/<id>` from origin's default branch. `--cli codex`
-runs another agent this once; anything after `--` goes to the agent as it is.
+agent on it in this terminal, with its approvals skipped. A new task started
+inside a git clone can have a worktree, cut on `yan/<id>` from origin's
+default branch; in a monorepo it also asks which packages the task is about,
+once, and every start tells the agent. `--cli codex` runs another agent this
+once; anything after `--` goes to the agent as it is.
 
 For you:
 
@@ -57,10 +59,10 @@ starts.
 ```
 <vault>/                       a git repository, one per context (personal, work)
   vault.json                   { version: 2, name, created }
-  config.json                  { cli, model, effort }: the agent bare yan starts
+  config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repo URL, deliverables
+    task.json                  title, state, repo URL, scope, deliverables
     brief.md                   prose: why the task exists
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
