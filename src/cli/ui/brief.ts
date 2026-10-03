@@ -1,11 +1,12 @@
 import { wide } from '../shared/style.js';
 
 /**
- * A `brief.md` as the work report shows it: each hard-wrapped paragraph as one
- * line, paragraphs a blank line apart, a bullet on a line of its own so a list
- * still reads as one, and a heading a paragraph of its own without its `#`s.
- * Markdown is not otherwise parsed. A leading `# ` title line, which briefs
- * carried before v4, is left out. `null` for an empty brief.
+ * A `problem.md`, or a `brief.md` from before it, as the work report shows
+ * it: each hard-wrapped paragraph as one line, paragraphs a blank line apart,
+ * a bullet on a line of its own so a list still reads as one, and a heading a
+ * paragraph of its own without its `#`s. Markdown is not otherwise parsed. A
+ * leading `# ` title line, which briefs carried before v4, is left out.
+ * `null` for an empty one.
  */
 export function briefProse(brief: string): string | null {
   let lines = brief.replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n');

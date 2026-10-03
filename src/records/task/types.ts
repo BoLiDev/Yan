@@ -23,6 +23,12 @@ export interface TaskData {
   readonly nextDeliverable: number;
   /** File order is page order. */
   readonly deliverables: readonly Deliverable[];
+  /**
+   * What the work refers to, by a name the agent chose: a ticket, a doc, a
+   * release, a path. The value is never read as anything in particular.
+   * Absent from the file until the first is added.
+   */
+  readonly resources: Readonly<Record<string, string>>;
 }
 
 /** One repository a task works in. */
@@ -37,8 +43,9 @@ export interface TaskRepo {
 }
 
 /**
- * A requirement: one statement of something that has to be true when the
- * task is done, the product as its subject and never the work.
+ * One part of the solution: a way the product must be once the task is
+ * done, stated so it can be checked, the product as its subject and never
+ * the work.
  */
 export type Deliverable = Todo | Done | Abandoned;
 

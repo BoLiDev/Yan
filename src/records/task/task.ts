@@ -11,8 +11,8 @@ import { TASK_STATES, type Deliverable, type TaskData, type TaskRepo, type TaskS
 
 /**
  * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
- * is finished, which repositories its trees are cut from, and the deliverables it
- * is measured against.
+ * is finished, which repositories its trees are cut from, the deliverables it
+ * is measured against, and the resources it refers to.
  *
  * It holds identity and nothing else: `read()` goes to disk every time, and
  * every write is one read-modify-write through `util/json.ts`, landing tmp →
@@ -37,9 +37,15 @@ export class Task {
     return existsSync(this.file);
   }
 
-  /** `brief.md`, whether or not it exists. */
-  public get brief(): string {
-    return normalizePath(join(this.dir, 'brief.md'));
+  /**
+   * `problem.md`, whether or not it exists; a task from before it was called
+   * that keeps its `brief.md`, read and edited where it is, until a
+   * problem.md appears beside it.
+   */
+  public get problem(): string {
+    const problem = normalizePath(join(this.dir, 'problem.md'));
+    const brief = normalizePath(join(this.dir, 'brief.md'));
+    return !existsSync(problem) && existsSync(brief) ? brief : problem;
   }
 
   /**
@@ -101,6 +107,34 @@ export class Task {
     return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'abandoned', reason: why }));
   }
 
+  /** Keep `where` under `name`, replacing what was there; true when it replaced. */
+  public addResource(name: string, where: string): boolean {
+    const key = oneLine('add', name, 'resource_usage', 'a name');
+    const value = oneLine('add', where, 'resource_usage', 'a resource');
+    let replaced = false;
+    this.edit((doc, data) => {
+      replaced = key in data.resources;
+      doc.resources = { ...data.resources, [key]: value };
+    });
+    return replaced;
+  }
+
+  /** Forget the resource kept under `name`. */
+  public removeResource(name: string): void {
+    const key = (name ?? '').trim();
+    this.edit((doc, data) => {
+      if (!(key in data.resources)) {
+        const names = Object.keys(data.resources);
+        throw YanError.usage('resource_usage',
+          `no such resource: ${key} - ${names.length === 0 ? 'this task has none' : `this task has ${names.join(', ')}`}`,
+        );
+      }
+      const rest = Object.fromEntries(Object.entries(data.resources).filter(([n]) => n !== key));
+      if (Object.keys(rest).length === 0) delete doc.resources;
+      else doc.resources = rest;
+    });
+  }
+
   private replaceDeliverable(id: string, edit: (d: Deliverable) => Deliverable): Deliverable {
     let written: Deliverable | undefined;
     this.edit((doc, data) => {
@@ -150,7 +184,7 @@ export class Task {
 
   /**
    * Create a task under the next free `t<NNN>`: task.json and an empty
-   * brief.md. log.md appears with its first line.
+   * problem.md. log.md appears with its first line.
    *
    * @param repos the repositories its trees are cut from, the agent's first;
    *   none for a task with no tree.
@@ -170,7 +204,7 @@ export class Task {
       nextDeliverable: 1,
       deliverables: [],
     });
-    if (!existsSync(task.brief)) writeFileSync(task.brief, '');
+    if (!existsSync(task.problem)) writeFileSync(task.problem, '');
     return task;
   }
 
@@ -192,12 +226,13 @@ export class Task {
 /**
  * One line of text, trimmed.
  *
- * @throws YanError `deliverable_usage` when it is empty or spans lines.
+ * @throws YanError `code`, `deliverable_usage` by default, when it is empty
+ *   or spans lines.
  */
-function oneLine(what: string, text: string): string {
+function oneLine(what: string, text: string, code = 'deliverable_usage', noun = 'a deliverable'): string {
   const cleaned = (text ?? '').trim();
-  if (cleaned === '') throw YanError.usage('deliverable_usage', `${what}: the text is required and cannot be blank`);
-  if (/[\r\n]/.test(cleaned)) throw YanError.usage('deliverable_usage', `${what}: a deliverable is one line`);
+  if (cleaned === '') throw YanError.usage(code, `${what}: the text is required and cannot be blank`);
+  if (/[\r\n]/.test(cleaned)) throw YanError.usage(code, `${what}: ${noun} is one line`);
   return cleaned;
 }
 
@@ -245,6 +280,7 @@ function validate(raw: unknown, task: Task): TaskData {
     // `add` reuse an id somebody has already quoted.
     nextDeliverable: typeof stated === 'number' && Number.isInteger(stated) && stated > highest ? stated : highest + 1,
     deliverables,
+    resources: readResources(doc.resources),
   };
 }
 
@@ -267,6 +303,19 @@ function readRepos(raw: readonly unknown[]): TaskRepo[] {
     repos.push(taskRepo({ url, scope }));
   }
   return repos;
+}
+
+/**
+ * The resources, leaving out an entry edited into something that is not a
+ * line of text: they are pointers, and a broken one is not worth refusing
+ * the task over.
+ */
+function readResources(raw: unknown): Record<string, string> {
+  const resources: Record<string, string> = {};
+  for (const [name, where] of Object.entries(recordOrNone(raw) ?? {})) {
+    if (name.trim() !== '' && typeof where === 'string' && where.trim() !== '') resources[name] = where;
+  }
+  return resources;
 }
 
 function validateDeliverables(raw: unknown, refuse: (why: string) => never): Deliverable[] {

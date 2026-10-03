@@ -37,12 +37,12 @@ unchanged.
 
 Commands `user` reads and runs: `ls`, `peek`, `done`, `draft`, `ui`, `vault`,
 `repo`.
-Commands the agent runs: `log`, `deliverable`, `learn`.
+Commands the agent runs: `log`, `deliverable`, `resource`, `learn`.
 
 Every command that takes a task defaults to `$YAN_TASK`, which bare `yan`
 sets for the agent. `peek`, `done` and `draft` take the id as an argument;
-`log` and `deliverable` take `--task`, because their positionals are the
-entry.
+`log`, `deliverable` and `resource` take `--task`, because their positionals
+are the entry.
 
 Removed: `continue` and `task new` (bare `yan` does both); `show` (renamed
 `peek`, and it no longer prints the log, which is `yan log`'s); `abandon`
@@ -55,8 +55,14 @@ its hooks; `shift`, `report`, `send`, `state`; `unit`, `mr`, `land`; `tree`
 
 ```
 Notes from earlier sessions on this work are kept by a CLI.
-`yan peek` shows what the work is about; `yan log` shows what was settled. `yan --help` for the rest.
+We work in three steps, each with its note: define the problem (problem.md: the background, and what the problem is), find the solution (the deliverables: how things must be once it is solved), carry it out (the log: the decisions that steered it). Problem and solution are worked out with the user, not assumed.
+Resources the work refers to, such as tickets, docs and releases, are kept under a name with `yan resource`, for later sessions to find.
+`yan peek` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.
 ```
+
+The three steps are how `user` works, and the prompt gives them so the
+agent shares the model, not so it fills the notes in at once: a problem and
+its solution come out of talking it through, and are written when they have.
 
 A task with one tree and a scope gets one more line:
 
@@ -78,8 +84,8 @@ it. When to do something goes in the prompt, because an agent does not read
 help unprompted. How to do it goes in `--help`. A rule that belongs to one
 command goes in that command's one-line description, which is the line the
 agent reads when it scans `yan --help`. That is where "only when the user asks
-for one" lives for `learn`, and "only when the user changes the task's goal"
-for `deliverable`.
+for one" lives for `learn`, and "only when the user agrees to a different
+one" for `deliverable`.
 
 Each harness takes the prompt where it starts no turn of its own: claude as
 `--append-system-prompt`, codex as `-c developer_instructions=…`. agy has no
@@ -105,10 +111,23 @@ belongs to a command while prose belongs to a file the agent edits directly.
   each a remote URL, so it means the same on every machine, and the
   packages picked for it when the task was created, absent for all of it;
   a task from before this has one `repo` and its `scope`, read as one entry),
-  `nextDeliverable`, `deliverables`. Written
-  by bare `yan` (create), `yan deliverable` and `yan done`.
-- `brief.md`: prose, no title line; the title is task.json's. Created empty,
-  then the agent's to edit.
+  `nextDeliverable`, `deliverables`, `resources`. Written
+  by bare `yan` (create), `yan deliverable`, `yan resource` and `yan done`.
+- A deliverable is one part of the solution: a way the product must be once
+  the task is done, stated so it can be checked ("the page's scripts load in
+  parallel"), never how the code is changed to get there.
+- `resources`: `{ <name>: <where> }`, absent until the first. The name is the
+  agent's to choose and the value is a line of text, never read as a URL or
+  a path, so a ticket, a doc, a release and a local file all fit without yan
+  knowing which is which.
+- `problem.md`: prose, no title line; the title is task.json's. The
+  background, and what the problem is. Created empty, then the agent's to
+  edit. It was `brief.md` until the three steps named it; a task that has a
+  brief.md and no problem.md keeps reading and editing the brief.md, and
+  `yan peek` always prints which file it is, so an agent told about
+  problem.md does not start a second one beside it. Nothing renames them:
+  a vault is shared, and a yan on another machine that is not updated yet
+  still reads brief.md.
 - `log.md`: `- MM-DD  type  line`, appended only by `yan log`. It accepts
   `agreed`, `changed` and `paused`. Lines from v3 keep their types, and
   `yan log` reads them like any other.

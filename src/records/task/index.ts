@@ -1,6 +1,7 @@
 /**
- * `tasks/<id>/task.json` and `brief.md`, behind one handle: a task's identity,
- * its state, the repository its tree comes from, and its deliverables.
+ * `tasks/<id>/task.json` and `problem.md`, behind one handle: a task's
+ * identity, its state, the repositories its trees come from, its
+ * deliverables and the resources it refers to.
  */
 
 export { Task } from './task.js';

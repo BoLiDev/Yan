@@ -7,7 +7,7 @@ import { lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from './wrap.js';
  *
  *   d1  done       yan ls lists every open task, one line each
  *                  2026-09-18 · PR #52
- *   d3  todo       yan peek shows a task's tree, brief and deliverables
+ *   d3  todo       yan peek shows a task's tree, problem and deliverables
  *   d8  abandoned  a card per task in yan ls
  *                  one line reads faster
  *

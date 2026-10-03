@@ -23,16 +23,20 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * terminal: in the task's first tree when it has trees, with the others
  * added beside it.
  *
- * The agent is told as little as will let it find the rest: that a CLI keeps
- * notes on this work, the two commands that read them, and which trees are
- * which and what in them the task is about. Which task it is travels in
+ * The agent is told as little as will let it find the rest: how the work is
+ * done and which note keeps each step of it, the two commands that read
+ * them, and which trees are which and what in them the task is about. Which task it is travels in
  * `$YAN_TASK`, which every command reads, so the agent never needs the id.
  */
 
 /** What the agent is told before `user` says anything. */
 export const OPENING_PROMPT = [
   'Notes from earlier sessions on this work are kept by a CLI.',
-  '`yan peek` shows what the work is about; `yan log` shows what was settled. `yan --help` for the rest.',
+  'We work in three steps, each with its note: define the problem (problem.md: the background, and what the problem is), ' +
+    'find the solution (the deliverables: how things must be once it is solved), ' +
+    'carry it out (the log: the decisions that steered it). Problem and solution are worked out with the user, not assumed.',
+  'Resources the work refers to, such as tickets, docs and releases, are kept under a name with `yan resource`, for later sessions to find.',
+  '`yan peek` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
 ].join('\n');
 
 /** One of the task's trees on this machine, as the agent is told about it. */

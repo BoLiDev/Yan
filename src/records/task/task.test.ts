@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from './index.js';
 
@@ -12,7 +13,7 @@ afterAll(cleanupTempDirs);
 const raw = (task: Task): Record<string, unknown> => JSON.parse(readFileSync(task.file, 'utf8')) as Record<string, unknown>;
 
 describe('create', () => {
-  it('takes the next t<NNN>, writes a version 2 task.json and an empty brief, and no log yet', () => {
+  it('takes the next t<NNN>, writes a version 2 task.json and an empty problem.md, and no log yet', () => {
     const first = Task.create('first');
     const second = Task.create('second', [{ url: 'git@github.com:me/repo.git', scope: [] }, { url: 'git@github.com:me/web.git', scope: ['apps/site'] }]);
     expect([first.id, second.id]).toEqual(['t001', 't002']);
@@ -27,7 +28,9 @@ describe('create', () => {
     });
     expect('repos' in raw(first)).toBe(false);
     expect(first.read().repos).toEqual([]);
-    expect(readFileSync(first.brief, 'utf8')).toBe('');
+    expect(first.problem).toBe(join(first.dir, 'problem.md'));
+    expect(readFileSync(first.problem, 'utf8')).toBe('');
+    expect('resources' in raw(first)).toBe(false);
     expect(Task.list()).toEqual(['t001', 't002']);
   });
 
@@ -86,6 +89,54 @@ describe('deliverables', () => {
     task.addDeliverables(['one']);
     expect(() => task.deliverableDone('d9')).toThrow(/this task has d1/);
     expect(() => task.addDeliverables(['a\nb'])).toThrow(/one line/);
+  });
+});
+
+describe('problem', () => {
+  it('is brief.md for a task from before problem.md, until a problem.md appears beside it', () => {
+    const task = Task.create('x');
+    renameSync(task.problem, join(task.dir, 'brief.md'));
+    expect(task.problem).toBe(join(task.dir, 'brief.md'));
+    writeFileSync(join(task.dir, 'problem.md'), 'now');
+    expect(task.problem).toBe(join(task.dir, 'problem.md'));
+  });
+
+  it('is problem.md when neither file is there', () => {
+    const task = Task.create('x');
+    renameSync(task.problem, join(task.dir, 'gone.md'));
+    expect(task.problem).toBe(join(task.dir, 'problem.md'));
+    expect(existsSync(task.problem)).toBe(false);
+  });
+});
+
+describe('resources', () => {
+  it('keeps any line under a name, replaces a name kept again, and forgets one', () => {
+    const task = Task.create('x');
+    expect(task.addResource(' PROJ-412 ', 'https://jira.example.com/browse/PROJ-412')).toBe(false);
+    expect(task.addResource('设计文档', '~/notes/design.md')).toBe(false);
+    expect(task.addResource('PROJ-412', 'jira:PROJ-412')).toBe(true);
+    expect(task.read().resources).toEqual({ 'PROJ-412': 'jira:PROJ-412', 设计文档: '~/notes/design.md' });
+
+    task.removeResource('PROJ-412');
+    task.removeResource('设计文档');
+    expect('resources' in raw(task)).toBe(false);
+    expect(() => task.removeResource('PROJ-412')).toThrow(/this task has none/);
+  });
+
+  it('refuses a blank or multi-line name or value, and names what there is', () => {
+    const task = Task.create('x');
+    expect(() => task.addResource('', 'x')).toThrow(/blank/);
+    expect(() => task.addResource('a', 'x\ny')).toThrow(/one line/);
+    task.addResource('a', 'x');
+    expect(() => task.removeResource('b')).toThrow(/this task has a/);
+  });
+
+  it('reads past an entry edited into something that is not a line of text', () => {
+    const task = Task.create('x');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), resources: { ok: 'x', blank: ' ', n: 3 } }));
+    expect(task.read().resources).toEqual({ ok: 'x' });
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), resources: ['x'] }));
+    expect(task.read().resources).toEqual({});
   });
 });
 

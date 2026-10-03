@@ -24,10 +24,10 @@ beforeEach(() => {
 });
 
 describe('a later session picks the task up', () => {
-  it('finds the brief, the goal as it stands, and every decision, however long the log grew', async () => {
+  it('finds the problem, the solution as it stands, and every decision, however long the log grew', async () => {
     // Session one, started by `yan`: the agent learns the task and records it.
     const first = { YAN_TASK: 't001' };
-    writeFileSync(new Task('t001').brief, 'Nobody can tell what a plan costs without writing to us.\n');
+    writeFileSync(new Task('t001').problem, 'Nobody can tell what a plan costs without writing to us.\n');
     await yan(['deliverable', 'add', 'the page compares the three plans', 'the yearly price says what it saves'], first);
     await yan(['log', 'agreed', 'prices in euros only - every customer pays in euros'], first);
     for (let i = 1; i <= 12; i += 1) await yan(['log', 'paused', `stopped at step ${i}`], first);

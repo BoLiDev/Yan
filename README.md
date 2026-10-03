@@ -1,14 +1,17 @@
 # `yan`
 
-Notes that outlive an agent session. A task has a brief, a log of what was
-decided, the deliverables it is measured against, your own drafts, and,
-when it touches a repository, a worktree of its own. `yan` keeps those and
-nothing else.
+Notes that outlive an agent session. Work goes in three steps, and a task
+keeps a note for each: the problem (`problem.md`: the background, and what
+the problem is), the solution (its deliverables: how things must be once it
+is solved), and the log of the decisions that steered it. Beside them it
+keeps the resources the work refers to, your own drafts, and, when it
+touches a repository, a worktree of its own. `yan` keeps those and nothing
+else.
 
 An agent knows about them only when you start it through `yan`. Type `yan`,
 pick a task or start one, and Claude, Codex or Agy starts in the task's
-worktree, told in two lines that a CLI keeps notes on this work. Start the
-same agent directly and it never hears of yan.
+worktree, told in a few lines how the work is done and that a CLI keeps notes
+on it. Start the same agent directly and it never hears of yan.
 
 Status: **v4**, the memory-only rewrite. v3 dispatched sub-agents into leased
 worktrees and orchestrated them over Herdr; all of that is gone. Moving a
@@ -41,7 +44,7 @@ agent as it is.
 For you:
 
 - `yan ls` — every open task, one line each; `--status all` for the rest
-- `yan peek [id]` — one task: its trees, brief, deliverables and newest drafts
+- `yan peek [id]` — one task: its trees, problem, deliverables, resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan ui` — a work report of every task, in the browser
@@ -51,7 +54,8 @@ For you:
 For the agent:
 
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
-- `yan deliverable add|edit|done|abandon` — the task's goal, changed only when you change it
+- `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
+- `yan resource add|rm|ls` — tickets, docs, releases, paths: anything the work refers to, under a name
 - `yan learn add|ls` — a learning, written only when you ask for one
 
 `yan <command> --help` says the rest. Every command that takes a task reads
@@ -67,8 +71,8 @@ starts.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repos (URL and scope each), deliverables
-    brief.md                   prose: why the task exists
+    task.json                  title, state, repos (URL and scope each), deliverables, resources
+    problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
     artifacts/                 whatever the work produced worth keeping

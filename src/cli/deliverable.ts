@@ -7,8 +7,8 @@ import type { Deliverable } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
- * `yan deliverable` — the requirements a task is measured against, inside its
- * task.json. One subcommand per move, so the record's shape never depends on
+ * `yan deliverable` — the solution, as what must be true once the task is
+ * done, inside its task.json. One subcommand per move, so the record's shape never depends on
  * how somebody typed a bullet. `yan peek` lists them.
  */
 
@@ -32,7 +32,7 @@ function show(items: readonly Deliverable[]): void {
 
 const add = new Command('add')
   .description('append one or several, in the order given')
-  .argument('[text...]', 'each a statement of what has to be true')
+  .argument('[text...]', 'each a statement of how things must be')
   .option(...TASK_FLAG)
   .action(
     action('yan deliverable add', (texts: string[] | undefined, options: TaskOption) => {
@@ -77,7 +77,7 @@ const abandon = new Command('abandon')
   );
 
 export const command = new Command('deliverable')
-  .description("what the task has to deliver - change it only when the user changes the task's goal")
+  .description('the solution: how things must be once the problem is solved - change it only when the user agrees to a different one')
   .addCommand(add)
   .addCommand(edit)
   .addCommand(done)
@@ -85,10 +85,11 @@ export const command = new Command('deliverable')
   .addHelpText(
     'after',
     `
-A deliverable is something that has to be true when the task is done, with
-the product as its subject, never the work: "the report shows totals by week",
-not "write a test for the totals". One is one thing a user can do or see.
+A deliverable is one part of the solution: a way the product must be once
+the task is done, stated so it can be checked: "the page's scripts load in
+parallel", not "rewrite the loader with Promise.all". It says what is
+different, never how the code is changed to make it so.
 
-The list is the goal as the user agreed it. It changes when they change what
-the task is for, and they see the list after it does.`,
+The list is the solution as the user agreed it. It changes when they settle
+on a different one, and they see the list after it does.`,
   );

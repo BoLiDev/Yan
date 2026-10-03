@@ -74,6 +74,19 @@ describe('yan deliverable', () => {
   });
 });
 
+describe('yan resource', () => {
+  it('keeps one under a name, replaces it, lists and forgets it', async () => {
+    const env = { YAN_TASK: 't001' };
+    expect((await yan(['resource', 'ls'], env)).stdout.trim()).toBe('no resources');
+    expect((await yan(['resource', 'add', 'release', 'https://deploy.example.com/1'], env)).stdout.trim()).toBe('kept release → t001');
+    expect((await yan(['resource', 'add', 'release', 'https://deploy.example.com/2'], env)).stdout.trim()).toBe('replaced release → t001');
+    expect((await yan(['resource', 'ls'], env)).stdout).toBe('  release  https://deploy.example.com/2\n');
+    expect((await yan(['resource', 'rm', 'release'], env)).code).toBe(0);
+    expect(new Task('t001').read().resources).toEqual({});
+    expectUsage(await yan(['resource', 'rm', 'release'], env), 'this task has none');
+  });
+});
+
 describe('yan learn', () => {
   it('creates the file with its front matter, prints the path, and lists it', async () => {
     const r = await yan(['learn', 'add', 'pnpm 在这台机器上', '--description', 'only for a pnpm repo']);
@@ -105,9 +118,10 @@ describe('yan ls and yan peek', () => {
     expect(json.map((r) => `${r.id} ${r.state}`)).toEqual(['t001 open', 't002 open', 't003 abandoned']);
   });
 
-  it('peek shows the brief and the deliverables', async () => {
+  it('peek shows the problem under its file, the deliverables and the resources', async () => {
     const task = new Task('t001');
-    writeFileSync(task.brief, 'Why this task exists.\n');
+    expect((await yan(['peek'], { YAN_TASK: 't001' })).stdout).toMatch(/problem {2}\S+\/t001\/problem\.md\nnothing written yet/);
+    writeFileSync(task.problem, 'Why this task exists.\n');
     task.addDeliverables(['it is done']);
     await yan(['log', 'agreed', 'a decision'], { YAN_TASK: 't001' });
 
@@ -118,6 +132,13 @@ describe('yan ls and yan peek', () => {
     expect(r.stdout).toContain('Why this task exists.');
     expect(r.stdout).toMatch(/d1 {2}todo {7}it is done/);
     expect(r.stdout).not.toContain('tree ');
+    expect(r.stdout).not.toContain('resources');
+
+    await yan(['resource', 'add', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], { YAN_TASK: 't001' });
+    await yan(['resource', 'add', 'design doc', '~/notes/design.md'], { YAN_TASK: 't001' });
+    expect((await yan(['peek'], { YAN_TASK: 't001' })).stdout).toContain(
+      'resources\n  PROJ-412    https://jira.example.com/browse/PROJ-412\n  design doc  ~/notes/design.md',
+    );
 
     expectUsage(await yan(['peek']), "yan peek <task-id>");
   });

@@ -47,7 +47,7 @@ async function buildProgram(home: string): Promise<Command> {
 
   program
     .name('yan')
-    .description('notes that outlive an agent session: tasks, their log and deliverables')
+    .description('notes that outlive an agent session: tasks, their problem, deliverables and log')
     .version(`yan ${yanVersion(home)}`, '-V, --version')
     .enablePositionalOptions()
     .showHelpAfterError()

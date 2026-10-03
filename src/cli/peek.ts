@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { deliverableLines, deliverableTally } from './shared/deliverables.js';
+import { resourceLines } from './shared/resources.js';
 import { repoKey } from '../util/repo-key.js';
 import { bold, dim, green, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { chosenTask } from './shared/task-id.js';
@@ -13,8 +14,9 @@ import { localDay, localStamp } from '../util/time.js';
 
 /**
  * `yan peek [task-id]` — one task at a glance: what it is, where its trees are
- * and what they hold, its brief, its deliverables and `user`'s newest
- * drafts. The log is `yan log`'s. Reads this machine only: no fetch.
+ * and what they hold, its problem, its deliverables, its resources and
+ * `user`'s newest drafts. The log is `yan log`'s. Reads this machine only:
+ * no fetch.
  */
 
 /** How many drafts are listed before the rest become a count. */
@@ -63,21 +65,27 @@ function treeLine(lease: LeaseRow): string {
   return `${tildePath(lease.path)}  ${branch}${notes.length === 0 ? '' : `  · ${notes.join(' · ')}`}`;
 }
 
-function briefLines(task: Task): string[] {
+/**
+ * The problem under the file it is in, which is always named: a task from
+ * before problem.md keeps its brief.md, and an agent told about problem.md
+ * would otherwise start a second file beside it.
+ */
+function problemLines(task: Task): string[] {
+  const file = task.problem;
   let text = '';
   try {
-    text = readFileSync(task.brief, 'utf8').trim();
+    text = readFileSync(file, 'utf8').trim();
   } catch {
     text = '';
   }
-  return text === '' ? [dim(`no brief yet - ${tildePath(task.brief)}`)] : text.split(/\r?\n/);
+  return [`problem  ${tildePath(file)}`, ...(text === '' ? [dim('nothing written yet')] : text.split(/\r?\n/))];
 }
 
 function peekLines(task: Task): string[] {
   const data = task.read();
   const lines = [`${bold(task.id)}  ${bold(data.title)}`, stateLine(data)];
   lines.push(...treeLines(task, data));
-  lines.push(`dir   ${tildePath(task.dir)}`, '', ...briefLines(task), '');
+  lines.push(`dir   ${tildePath(task.dir)}`, '', ...problemLines(task), '');
 
   const tally = deliverableTally(data.deliverables);
   if (data.deliverables.length === 0) {
@@ -86,6 +94,9 @@ function peekLines(task: Task): string[] {
     lines.push(`deliverables  ${tally}`);
     lines.push(...deliverableLines(data.deliverables, { aside: dim }, terminalWidth()));
   }
+
+  const resources = resourceLines(data.resources);
+  if (resources.length > 0) lines.push('', 'resources', ...resources);
 
   const drafts = new Drafts(task.id);
   const listed = drafts.list({ limit: DRAFTS_SHOWN });
@@ -98,7 +109,7 @@ function peekLines(task: Task): string[] {
 }
 
 export const command = new Command('peek')
-  .description('one task at a glance: its tree, brief, deliverables and drafts')
+  .description('one task at a glance: its trees, problem, deliverables, resources and drafts')
   .argument('[task-id]', 'defaults to $YAN_TASK, or asks at a terminal')
   .action(
     action('yan peek', async (given: string | undefined) => {

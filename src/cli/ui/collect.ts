@@ -31,7 +31,10 @@ export interface ReportTask {
   /** The repository's name, from its URL; null for a task with none. */
   readonly project: string | null;
   readonly state: TaskState;
-  /** `brief.md` as `briefProse` reads it; null when it says nothing. */
+  /**
+   * `problem.md`, or a brief.md from before it, as `briefProse` reads it;
+   * null when it says nothing. Still called `brief` in the report's shape.
+   */
   readonly brief: string | null;
   /** Local `YYYY-MM-DD`; null when nothing says. */
   readonly started: string | null;
@@ -86,7 +89,7 @@ function reportTask(id: string): ReportTask {
   }
   let brief: string | null = null;
   try {
-    brief = briefProse(readFileSync(task.brief, 'utf8'));
+    brief = briefProse(readFileSync(task.problem, 'utf8'));
   } catch {
     brief = null;
   }
