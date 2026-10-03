@@ -48,6 +48,10 @@ describe('the explicit-directory invariant', () => {
     expect((thrown as YanError).message).toContain('never uses the current working directory');
   });
 
+  it('fetchAsync refuses an empty directory too', async () => {
+    await expect(g.fetchAsync('')).rejects.toMatchObject({ code: 'git_usage' });
+  });
+
   it.each(directoryFirst)('%s refuses a directory that does not exist', (_name, call) => {
     const missing = join(mkTempDir(), 'definitely-not-a-directory');
     let thrown: unknown;

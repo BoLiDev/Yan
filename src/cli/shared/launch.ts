@@ -1,19 +1,21 @@
 import { spawnSync } from 'node:child_process';
 import { dirname } from 'node:path';
-import { out } from './action.js';
 import { workspacePackages } from './packages.js';
+import { repoName } from './repo-name.js';
 import { openTasks } from './task-id.js';
 import { repoKey } from '../../util/repo-key.js';
 import { CREATE_NEW, type RepoChoice, type TaskChoice } from '../../ui/prompts.js';
+import type { Said, Working } from '../../ui/chain.js';
 
 export { CREATE_NEW };
+export type { Said, Working };
 import { tildePath } from './style.js';
 import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs } from '../../externals/harness/index.js';
 import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
 import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
-import { defaultBranch, fetch, git, gitOk, remoteUrl } from '../../util/git.js';
+import { defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
 import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../../util/vault.js';
@@ -25,8 +27,11 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  *
  * The agent is told as little as will let it find the rest: the three parts
  * we think about a task in and which note keeps each, the two commands that read
- * them, and which trees are which and what in them the task is about. Which task it is travels in
- * `$YAN_TASK`, which every command reads, so the agent never needs the id.
+ * them, and which trees are which and what in them the task is about. The
+ * agent reads its notes with `yan context`, not `yan peek`, which is
+ * `user`'s glance at a task and leaves the deliverables out. Which task it
+ * is travels in `$YAN_TASK`, which every command reads, so the agent never
+ * needs the id.
  */
 
 /** What the agent is told before `user` says anything. */
@@ -37,7 +42,7 @@ export const OPENING_PROMPT = [
     'Problem and solution are worked out with the user, not assumed, and either may change as the work goes. ' +
     'When one does, rewrite its note to say how things stand now, as if writing it for the first time: what it used to say belongs in the log.',
   'Resources the work refers to (Jira tickets, docs, MR links and the like) are kept under a name with `yan resource`, for later sessions to find.',
-  '`yan peek` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
+  '`yan context` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
 ].join('\n');
 
 /** One of the task's trees on this machine, as the agent is told about it. */
@@ -62,11 +67,6 @@ export function openingPrompt(trees: readonly Tree[] = []): string {
   const scope = trees[0]?.scope ?? [];
   if (scope.length === 0) return OPENING_PROMPT;
   return `${OPENING_PROMPT}\nThis task is about these parts of the repository: ${quoted(scope)}.`;
-}
-
-/** What a repository is called on screen: its registered name, or the last part of its URL. */
-function repoName(url: string): string {
-  return repoWithUrl(url)?.name ?? repoKey(url).split('/').pop() ?? url;
 }
 
 /**
@@ -108,27 +108,63 @@ function mainClone(dir: string): string | undefined {
   return normalizePath(dirname(common.stdout.trim()));
 }
 
-/**
- * Lease `task` a tree of `clone` on `yan/<id>`. The branch is cut from
- * origin's default branch, or picked up from origin when another machine
- * already pushed it.
- */
-function leaseTree(task: Task, clone: string): string {
-  const branch = `yan/${task.id}`;
-  out(`fetching ${remoteUrl(clone) ?? 'origin'} …`);
-  const fetched = fetch(clone);
-  if (fetched.code !== 0) process.stderr.write(`yan: could not fetch, cutting from what the clone has - ${fetched.stderr.trim()}\n`);
+/** A tree as the line under its step says it: where it is, and what in it the task is about. */
+function treeDetail(path: string, scope: readonly string[]): string {
+  return `${tildePath(path)}${scope.length === 0 ? '' : ` · about ${scope.join(', ')}`}`;
+}
 
-  const has = (ref: string): boolean => gitOk(clone, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
-  let base: string;
-  if (has(`refs/remotes/origin/${branch}`)) {
-    base = `origin/${branch}`;
-  } else {
-    const trunk = defaultBranch(clone);
-    if (trunk === undefined) throw new YanError('yan_no_base', `cannot tell ${clone}'s default branch - set it with 'git -C ${clone} remote set-head origin --auto'`);
-    base = has(`refs/remotes/origin/${trunk}`) ? `origin/${trunk}` : trunk;
+/** The first thing git said that explains a failure, for the dimmed line under a step. */
+function firstLine(stderr: string): string {
+  return stderr.split(/\r?\n/).map((l) => l.trim()).find((l) => l !== '') ?? 'git said nothing';
+}
+
+/**
+ * Lease `task` a tree of `clone` on `yan/<id>`, as one step on the chain:
+ * a spinner while origin is fetched, then a line saying where the branch
+ * came from. The branch is the clone's own when this machine already has
+ * one, picked up from origin when another machine pushed it, and otherwise
+ * cut from origin's default branch. A fetch that fails is a warning, not a
+ * stop: the branch comes from what the clone already has.
+ */
+async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[] }, chain: EntryChain): Promise<string> {
+  const { name, clone } = repo;
+  const branch = `yan/${task.id}`;
+  const step = chain.working(`${name}: opening a worktree on ${branch} · fetching origin`);
+  try {
+    const fetched = await fetchAsync(clone);
+    step.update(`${name}: opening a worktree on ${branch}`);
+
+    const has = (ref: string): boolean => gitOk(clone, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
+    let base: string;
+    let from: string;
+    if (has(`refs/remotes/origin/${branch}`)) {
+      base = `origin/${branch}`;
+      from = `picked up from origin/${branch}`;
+    } else {
+      const trunk = defaultBranch(clone);
+      if (trunk === undefined) throw new YanError('yan_no_base', `cannot tell ${clone}'s default branch - set it with 'git -C ${clone} remote set-head origin --auto'`);
+      base = has(`refs/remotes/origin/${trunk}`) ? `origin/${trunk}` : trunk;
+      from = `cut from ${base}`;
+    }
+    // The pool checks out a branch the clone already has rather than cutting it again.
+    if (has(`refs/heads/${branch}`)) from = `picked up from this clone's ${branch}`;
+
+    const path = new WorktreePool(clone).get(base, branch, task.id).path;
+    const detail = [treeDetail(path, repo.scope)];
+    if (fetched.code === 0) {
+      step.finish({ kind: 'done', line: `${name}: worktree on ${branch}, ${from}`, detail });
+    } else {
+      step.finish({
+        kind: 'warn',
+        line: `${name}: worktree on ${branch}, ${from} · could not fetch origin, so it may be behind`,
+        detail: [...detail, firstLine(fetched.stderr)],
+      });
+    }
+    return path;
+  } catch (err) {
+    step.finish({ kind: 'warn', line: `${name}: no worktree on ${branch}` });
+    throw err;
   }
-  return new WorktreePool(clone).get(base, branch, task.id).path;
 }
 
 /** The questions bare `yan` asks. The real ones are Clack's; a test answers them itself. */
@@ -140,11 +176,22 @@ export interface EntryPrompts {
   chooseScope(repo: string, packages: readonly string[]): Promise<string[]>;
 }
 
+/**
+ * What bare `yan` says between the questions and the agent, on the
+ * questions' chain. The real one is Clack's; a test keeps what it was told.
+ */
+export interface EntryChain {
+  working(doing: string): Working;
+  say(said: Said): void;
+  end(line: string): void;
+}
+
 /** Starting the agent; returns its exit status. */
 type StartAgent = (cli: string, argv: readonly string[], options: { cwd: string; env: NodeJS.ProcessEnv }) => number;
 
 export interface EntryDeps {
   readonly prompts?: EntryPrompts;
+  readonly chain?: EntryChain;
   readonly start?: StartAgent;
   /** Where `yan` was typed; the process's own directory by default. */
   readonly cwd?: string;
@@ -186,11 +233,11 @@ function candidates(cwd: string): Candidate[] {
  * packages, the ones it is about. Asked once; every later start reads them
  * from task.json. Each repository gets a tree.
  */
-async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task; trees: Tree[] }> {
+async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): Promise<{ task: Task; trees: Tree[] }> {
   const title = await prompts.askTitle();
   const offered = candidates(cwd);
   if (offered.length === 0) {
-    out("no repository is registered and cloned here, so the task has no tree - 'yan repo add' registers one");
+    chain.say({ kind: 'info', line: "no repository is registered and cloned here, so the task has no tree - 'yan repo add' registers one" });
     return { task: Task.create(title), trees: [] };
   }
 
@@ -213,7 +260,11 @@ async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task
     repos.push({ url: c.url, scope, candidate: c });
   }
   const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })));
-  const trees = repos.map((r) => ({ name: r.candidate.name, path: leaseTree(task, r.candidate.clone), scope: r.scope ?? [] }));
+  const trees: Tree[] = [];
+  for (const r of repos) {
+    const scope = r.scope ?? [];
+    trees.push({ name: r.candidate.name, path: await leaseTree(task, { name: r.candidate.name, clone: r.candidate.clone, scope }, chain), scope });
+  }
   return { task, trees };
 }
 
@@ -223,28 +274,33 @@ async function newTask(cwd: string, prompts: EntryPrompts): Promise<{ task: Task
  * from its linked clone or from the clone `yan` was typed in; one with no
  * clone here is named and skipped.
  */
-async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts): Promise<Tree[]> {
-  const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, key: repoKey(remoteUrl(l.path) ?? '') }));
+async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts, chain: EntryChain): Promise<Tree[]> {
+  const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, branch: l.branch, key: repoKey(remoteUrl(l.path) ?? '') }));
   const here = mainClone(cwd);
   const hereUrl = here === undefined ? undefined : remoteUrl(here);
 
   const slots: Array<{ repo: TaskRepo; path?: string; clone?: string }> = task.read().repos.map((repo) => {
     const tree = held.find((h) => h.key === repoKey(repo.url));
-    if (tree !== undefined) return { repo, path: tree.path };
+    if (tree !== undefined) {
+      chain.say({ kind: 'done', line: `${repoName(repo.url)}: worktree on ${tree.branch}, already here`, detail: [treeDetail(tree.path, repo.scope ?? [])] });
+      return { repo, path: tree.path };
+    }
     const clone = cloneFor(repo.url) ?? (hereUrl !== undefined && repoKey(hereUrl) === repoKey(repo.url) ? here : undefined);
     return clone === undefined ? { repo } : { repo, clone };
   });
 
   for (const s of slots) {
     if (s.path === undefined && s.clone === undefined) {
-      out(`${repoName(s.repo.url)} has no clone on this machine, so no tree - 'yan repo add' where it is cloned`);
+      chain.say({ kind: 'warn', line: `${repoName(s.repo.url)} has no clone on this machine, so no tree - 'yan repo add' where it is cloned` });
     }
   }
   const openable = slots.filter((s) => s.path === undefined && s.clone !== undefined);
   if (openable.length > 0) {
     const names = openable.map((s) => repoName(s.repo.url)).join(', ');
     if (await prompts.confirmTree(names, `${task.id} has no tree of ${names} on this machine.`)) {
-      for (const s of openable) s.path = leaseTree(task, s.clone as string);
+      for (const s of openable) {
+        s.path = await leaseTree(task, { name: repoName(s.repo.url), clone: s.clone as string, scope: s.repo.scope ?? [] }, chain);
+      }
     }
   }
 
@@ -268,15 +324,14 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
   const harness = harnessConfig(options.cli);
   const cwd = normalizePath(deps.cwd ?? process.cwd());
   const prompts = deps.prompts ?? (await import('../../ui/prompts.js'));
+  const chain = deps.chain ?? (await import('../../ui/chain.js'));
 
   const chosen = await prompts.chooseEntry(openTasks(), readVaultJson(vault).name);
   const { task, trees } = chosen === CREATE_NEW
-    ? await newTask(cwd, prompts)
-    : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts) };
+    ? await newTask(cwd, prompts, chain)
+    : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };
 
-  out(`${task.id}  ${task.read().title}`);
-  for (const t of trees) out(`tree  ${tildePath(t.path)}${t.scope.length === 0 ? '' : `  ${t.scope.join(', ')}`}`);
-  out(`${cliKind(harness.cli)} starting`);
+  chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
 
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);

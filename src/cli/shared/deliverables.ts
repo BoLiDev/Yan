@@ -2,7 +2,7 @@ import type { Deliverable } from '../../records/task/index.js';
 import { lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from './wrap.js';
 
 /**
- * How a task's deliverables are printed, in the one place `yan peek` and
+ * How a task's deliverables are printed, in the one place `yan context` and
  * `yan deliverable` read from — the agent and `user` see the same block.
  *
  *   d1  done       yan ls lists every open task, one line each

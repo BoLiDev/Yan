@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 /**
  * What running another program leaves behind: three fields, and a non-zero
@@ -36,6 +36,28 @@ export function runProcess(cmd: string, args: readonly string[], options: RunOpt
     return { code: NOT_STARTED, stdout: '', stderr: r.error?.message ?? `${cmd} did not start` };
   }
   return { code: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+/**
+ * `runProcess` without holding the thread, so a spinner can turn while the
+ * program runs. Never rejects, for the same reasons `runProcess` never throws.
+ */
+export function runProcessAsync(cmd: string, args: readonly string[], options: RunOptions = {}): Promise<ProcessResult> {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    const child = spawn(cmd, [...args], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+      ...(options.env === undefined ? {} : { env: options.env }),
+      ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
+    });
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk));
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
+    child.on('error', (err) => resolve({ code: NOT_STARTED, stdout, stderr: err.message }));
+    child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
+  });
 }
 
 /** Block the whole thread for `ms`. */

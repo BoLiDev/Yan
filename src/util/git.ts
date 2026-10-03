@@ -1,5 +1,5 @@
 import { YanError } from './error.js';
-import { NOT_STARTED, runProcess, type ProcessResult } from './process.js';
+import { NOT_STARTED, runProcess, runProcessAsync, type ProcessResult } from './process.js';
 import { isDirectory } from './paths.js';
 
 /**
@@ -134,6 +134,14 @@ export function headOnRemote(dir: string): boolean {
 
 export function fetch(dir: string, remote = 'origin', args: readonly string[] = []): ProcessResult {
   return git(dir, ['fetch', '--prune', remote, ...args]);
+}
+
+/** `fetch`, leaving the thread free while the network is slow: bare `yan` turns a spinner meanwhile. */
+export async function fetchAsync(dir: string, remote = 'origin'): Promise<ProcessResult> {
+  const d = requireDir(dir);
+  const r = await runProcessAsync('git', ['-C', d, 'fetch', '--prune', remote]);
+  if (r.code === NOT_STARTED) throw new YanError('git_failed', `cannot run git: ${r.stderr}`);
+  return r;
 }
 
 export function checkout(dir: string, args: readonly string[]): ProcessResult {

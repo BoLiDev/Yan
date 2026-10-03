@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
-import { deliverableLines, deliverableTally } from './shared/deliverables.js';
-import { resourceLines } from './shared/resources.js';
+import { repoName } from './shared/repo-name.js';
 import { repoKey } from '../util/repo-key.js';
-import { bold, dim, green, terminalWidth, tildePath, yellow } from './shared/style.js';
+import { bold, cells, cyan, dim, gray, green, padEnd, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { chosenTask } from './shared/task-id.js';
+import { lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from './shared/wrap.js';
 import { leasesHeldBy, treeState, type LeaseRow } from '../externals/worktree/index.js';
 import { Drafts } from '../records/drafts/index.js';
 import type { Task, TaskData } from '../records/task/index.js';
@@ -13,43 +14,75 @@ import { currentBranch, remoteUrl } from '../util/git.js';
 import { localDay, localStamp } from '../util/time.js';
 
 /**
- * `yan peek [task-id]` — one task at a glance: what it is, where its trees are
- * and what they hold, its problem, its deliverables, its resources and
- * `user`'s newest drafts. The log is `yan log`'s. Reads this machine only:
- * no fetch.
+ * `yan peek [task-id]` — `user`'s glance at one task: what it is, where its
+ * trees are and what they hold, the start of its problem, the resources it
+ * keeps and `user`'s newest drafts. Drawn on the chain bare `yan` draws, so
+ * the two read as one tool.
+ *
+ * It is `user`'s alone. The deliverables and the log are the agent's to
+ * read, through `yan context` and `yan log`, and `user` sees the
+ * deliverables when the agent changes them. Reads this machine only: no
+ * fetch.
  */
 
 /** How many drafts are listed before the rest become a count. */
 const DRAFTS_SHOWN = 5;
 
+/** The chain's pieces, as Clack draws them. */
+const BAR = '│';
+const START = '┌';
+const END = '└';
+const STEP = '◇';
+
 function day(iso: string | undefined): string {
   return iso === undefined ? '?' : localDay(new Date(iso));
 }
 
-function stateLine(data: TaskData): string {
+/** A step on the chain: its title, an aside dimmed beside it, and its lines under the bar. */
+function section(title: string, aside: string, body: readonly string[]): string[] {
+  return [
+    gray(BAR),
+    `${green(STEP)}  ${title}${aside === '' ? '' : `  ${dim(aside)}`}`,
+    ...body.map((line) => (line === '' ? gray(BAR) : `${gray(BAR)}  ${line}`)),
+  ];
+}
+
+function headLines(task: Task, data: TaskData): string[] {
   const created = `created ${day(data.createdAt)}`;
-  if (data.state === 'open') return `${green('open')} · ${created}`;
-  const closed = `${data.state} ${day(data.closedAt)}`;
-  return `${dim(closed)} · ${created}${data.reason === undefined ? '' : ` · ${data.reason}`}`;
+  const notes = `notes in ${tildePath(task.dir)}`;
+  const state = data.state === 'open'
+    ? `${green('open')}${dim(` · ${created} · ${notes}`)}`
+    : dim([`${data.state} ${day(data.closedAt)}`, created, ...(data.reason === undefined ? [] : [data.reason]), notes].join(' · '));
+  return [`${gray(START)}  ${bold(`${task.id}  ${data.title}`)}`, `${gray(BAR)}  ${state}`];
 }
 
 /**
- * One line per repository: where its tree is, its branch, and what it holds
- * that exists nowhere else, then the packages the task is about in it.
+ * Two lines per repository, its name and where its tree is, then the branch
+ * and what the tree holds that exists nowhere else; a third for the packages
+ * the task is about in it.
  */
 function treeLines(task: Task, data: TaskData): string[] {
+  if (data.repos.length === 0) return [dim('no repository')];
   const held = leasesHeldBy(task.id);
+  const names = data.repos.map((r) => repoName(r.url));
+  const width = Math.max(...names.map(cells));
+  const under = ' '.repeat(width + 2);
   const lines: string[] = [];
-  for (const repo of data.repos) {
+  data.repos.forEach((repo, i) => {
+    const name = padEnd(names[i] as string, width);
     const lease = held.find((l) => repoKey(remoteUrl(l.path) ?? '') === repoKey(repo.url));
-    lines.push(`tree  ${lease === undefined ? `none on this machine (${repoKey(repo.url)})` : treeLine(lease)}`);
-    if (repo.scope !== undefined) lines.push(`      scope ${repo.scope.join(', ')}`);
-  }
+    if (lease === undefined) {
+      lines.push(`${name}  ${dim('none on this machine')}`);
+    } else {
+      lines.push(`${name}  ${tildePath(lease.path)}`, `${under}${treeNotes(lease)}`);
+    }
+    if (repo.scope !== undefined && repo.scope.length > 0) lines.push(`${under}${dim(`about ${repo.scope.join(', ')}`)}`);
+  });
   return lines;
 }
 
-/** Where a tree is, its branch, and what it holds that exists nowhere else. */
-function treeLine(lease: LeaseRow): string {
+/** A tree's branch, and what it holds that exists nowhere else. */
+function treeNotes(lease: LeaseRow): string {
   let branch = lease.branch;
   try {
     branch = currentBranch(lease.path);
@@ -58,58 +91,88 @@ function treeLine(lease: LeaseRow): string {
   }
   // A glance, not the guard: edits inside submodules are `yan done`'s to find.
   const { dirty, unpushed } = treeState(lease.path, { submoduleEdits: false });
-  const notes = [
-    dirty.length > 0 ? yellow(`${dirty.length} changed`) : '',
-    unpushed ? yellow('unpushed') : '',
-  ].filter((s) => s !== '');
-  return `${tildePath(lease.path)}  ${branch}${notes.length === 0 ? '' : `  · ${notes.join(' · ')}`}`;
+  const notes = [dirty.length > 0 ? yellow(`${dirty.length} changed`) : '', unpushed ? yellow('unpushed') : ''].filter((s) => s !== '');
+  return [dim(branch), ...notes].join(dim(' · '));
 }
 
+/** A line that starts a piece of its own rather than continuing the one above: a heading, an item, a quote. */
+const OWN_LINE = /^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|>)/;
+const HEADING = /^\s*#{1,6}\s/;
+
 /**
- * The problem under the file it is in, which is always named: a task from
- * before problem.md keeps its brief.md, and an agent told about problem.md
- * would otherwise start a second file beside it.
+ * A paragraph of markdown as the pieces it wraps in: prose hard-wrapped in
+ * the file is joined back into one, so it wraps to this terminal instead.
  */
-function problemLines(task: Task): string[] {
-  const file = task.problem;
+function pieces(paragraph: string): string[] {
+  const out: string[] = [];
+  for (const raw of paragraph.split(/\r?\n/)) {
+    const last = out[out.length - 1];
+    if (last === undefined || OWN_LINE.test(raw) || HEADING.test(last)) out.push(raw.trim());
+    else out[out.length - 1] = `${last} ${raw.trim()}`;
+  }
+  return out;
+}
+
+const isHeading = (paragraph: string): boolean => paragraph.split(/\r?\n/).every((l) => HEADING.test(l));
+
+/**
+ * The start of the problem, wrapped to the terminal: its first paragraph,
+ * with the heading above it when it opens with one, and how much more there
+ * is. The whole of it is in the file, which `yan context` prints.
+ */
+function problemLines(task: Task): { file: string; lines: string[] } {
   let text = '';
   try {
-    text = readFileSync(file, 'utf8').trim();
+    text = readFileSync(task.problem, 'utf8').trim();
   } catch {
     text = '';
   }
-  return [`problem  ${tildePath(file)}`, ...(text === '' ? [dim('nothing written yet')] : text.split(/\r?\n/))];
+  const file = basename(task.problem);
+  if (text === '') return { file, lines: [dim('nothing written yet')] };
+
+  const paragraphs = text.split(/\r?\n\s*\r?\n/).map((p) => p.trim()).filter((p) => p !== '');
+  let shown = 1;
+  while (shown < paragraphs.length && isHeading(paragraphs[shown - 1] as string)) shown += 1;
+  const width = Math.min(terminalWidth() ?? PIPE_WIDTH, MAX_WIDTH) - 1 - 3;
+  const lines = paragraphs.slice(0, shown).flatMap((p, i) => [
+    ...(i === 0 ? [] : ['']),
+    ...pieces(p).flatMap((piece) => wrap(piece, width).map(lineText)),
+  ]);
+  const more = paragraphs.length - shown;
+  if (more > 0) lines.push(dim(`… ${more} more paragraph${more === 1 ? '' : 's'}`));
+  return { file, lines };
+}
+
+/** One line per resource, the names padded to one column. */
+function resourceLines(resources: Readonly<Record<string, string>>): string[] {
+  const entries = Object.entries(resources);
+  if (entries.length === 0) return [dim('none yet')];
+  const width = Math.max(...entries.map(([name]) => cells(name)));
+  return entries.map(([name, where]) => `${padEnd(name, width)}  ${cyan(where)}`);
 }
 
 function peekLines(task: Task): string[] {
   const data = task.read();
-  const lines = [`${bold(task.id)}  ${bold(data.title)}`, stateLine(data)];
-  lines.push(...treeLines(task, data));
-  lines.push(`dir   ${tildePath(task.dir)}`, '', ...problemLines(task), '');
-
-  const tally = deliverableTally(data.deliverables);
-  if (data.deliverables.length === 0) {
-    lines.push(dim("no deliverables yet - 'yan deliverable add \"<text>\"'"));
-  } else {
-    lines.push(`deliverables  ${tally}`);
-    lines.push(...deliverableLines(data.deliverables, { aside: dim }, terminalWidth()));
-  }
-
-  const resources = resourceLines(data.resources);
-  if (resources.length > 0) lines.push('', 'resources', ...resources);
+  const problem = problemLines(task);
+  const lines = [
+    ...headLines(task, data),
+    ...section('Trees', '', treeLines(task, data)),
+    ...section('Problem', problem.file, problem.lines),
+    ...section('Resources', '', resourceLines(data.resources)),
+  ];
 
   const drafts = new Drafts(task.id);
   const listed = drafts.list({ limit: DRAFTS_SHOWN });
   if (listed.length > 0) {
     const more = drafts.count() - listed.length;
-    lines.push('', `drafts${more > 0 ? `  (${more} more: 'yan draft ls')` : ''}`);
-    for (const d of listed) lines.push(`  ${d.id}  ${dim(localStamp(new Date(d.updated)))}  ${d.title}`);
+    lines.push(...section('Drafts', more > 0 ? `${more} more: 'yan draft ls'` : '', listed.map((d) => `${dim(localStamp(new Date(d.updated)))}  ${d.title}`)));
   }
+  lines.push(gray(END));
   return lines;
 }
 
 export const command = new Command('peek')
-  .description('one task at a glance: its trees, problem, deliverables, resources and drafts')
+  .description("your glance at one task: its trees, the start of its problem, its resources and drafts - an agent reads 'yan context'")
   .argument('[task-id]', 'defaults to $YAN_TASK, or asks at a terminal')
   .action(
     action('yan peek', async (given: string | undefined) => {

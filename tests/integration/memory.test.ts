@@ -34,11 +34,11 @@ describe('a later session picks the task up', () => {
     await yan(['deliverable', 'done', 'd1'], first);
 
     // Session two, another day: the agent reads before it works.
-    const peek = await yan(['peek'], first);
-    expect(peek.code, peek.out).toBe(0);
-    expect(peek.stdout).toContain('Nobody can tell what a plan costs');
-    expect(peek.stdout).toMatch(/d1 {2}done {7}the page compares the three plans/);
-    expect(peek.stdout).toMatch(/d2 {2}todo {7}the yearly price says what it saves/);
+    const context = await yan(['context'], first);
+    expect(context.code, context.out).toBe(0);
+    expect(context.stdout).toContain('Nobody can tell what a plan costs');
+    expect(context.stdout).toMatch(/d1 {2}done {7}the page compares the three plans/);
+    expect(context.stdout).toMatch(/d2 {2}todo {7}the yearly price says what it saves/);
 
     const log = await yan(['log'], first);
     expect(log.stdout).toContain('prices in euros only');
@@ -54,6 +54,7 @@ describe('a later session picks the task up', () => {
     expect((await yan(['log', 'agreed', 'monthly billing only', '--task', 't001'])).code).toBe(0);
     expect((await yan(['log', '--task', 't001'])).stdout).toContain('monthly billing only');
     expect((await yan(['peek', 't001'])).stdout).toContain('t001  pricing page');
+    expect((await yan(['context', '--task', 't001'])).stdout).toContain('t001  pricing page');
   });
 });
 

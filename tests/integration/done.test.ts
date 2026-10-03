@@ -101,8 +101,8 @@ describe('yan peek', () => {
 
     const r = await yan(['peek', 't001']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toMatch(new RegExp(`tree  .*${tree.split('/').slice(-3).join('/')}  yan/t001`));
-    expect(r.stdout).toMatch(new RegExp(`tree  .*${webTree.split('/').slice(-3).join('/')}  yan/t001\\n      scope apps/site`));
-    expect(r.stdout).toContain('tree  none on this machine');
+    expect(r.stdout).toMatch(new RegExp(`│  \\S+ +\\S*${tree.split('/').slice(-3).join('/')}\\n│ +yan/t001$`, 'm'));
+    expect(r.stdout).toMatch(new RegExp(`│  web +\\S*${webTree.split('/').slice(-3).join('/')}\\n│ +yan/t001\\n│ +about apps/site$`, 'm'));
+    expect(r.stdout).toMatch(/│ {2}api +none on this machine$/m);
   });
 });

@@ -9,7 +9,7 @@ import { YanError } from '../util/error.js';
 /**
  * `yan deliverable` — the solution, as what must be true once the task is
  * done, inside its task.json. One subcommand per move, so the record's shape never depends on
- * how somebody typed a bullet. `yan peek` lists them.
+ * how somebody typed a bullet. `yan context` lists them.
  */
 
 interface TaskOption {
@@ -21,7 +21,7 @@ const TASK_FLAG = ['--task <id>', 'the task; defaults to $YAN_TASK'] as const;
 /** @throws YanError `deliverable_usage` when no id was given. */
 function requireId(id: string | undefined, spelled: string): string {
   if (id === undefined || id.trim() === '') {
-    throw YanError.usage('deliverable_usage', `which deliverable? ${spelled} - 'yan peek' lists them`);
+    throw YanError.usage('deliverable_usage', `which deliverable? ${spelled} - 'yan context' lists them`);
   }
   return id.trim();
 }

@@ -6,7 +6,8 @@ import { requiredTask } from './shared/task-id.js';
 /**
  * `yan resource` — what the work refers to, kept in task.json under a name
  * the agent chooses. Nothing is assumed about what a resource is: a ticket,
- * a doc, a release, a path are all a line of text. `yan peek` lists them.
+ * a doc, a release, a path are all a line of text. `yan context` and
+ * `yan peek` list them.
  */
 
 interface TaskOption {

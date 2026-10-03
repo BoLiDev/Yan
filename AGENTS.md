@@ -16,8 +16,9 @@ per repository a task works in. Read `README.md` for what it does.
 `log`, `drafts`, `learnings`, `repos` (repos.json, and where each is cloned).
 `src/externals/` wraps outside things: `worktree` (the pool) and `harness`
 (how claude, codex and agy are started). `src/util/` is below all of them.
-`src/ui/prompts.ts` is the only place that prompts, and only `src/cli/`
-imports it.
+`src/ui/prompts.ts` is the only place that prompts, and `src/ui/chain.ts`
+draws what bare `yan` says between its questions; only `src/cli/` imports
+either.
 
 Outside `src/records/<m>/` and `src/externals/<m>/`, import only the
 module's `index.ts`, and one external never imports another.

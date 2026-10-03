@@ -31,17 +31,20 @@ or in the directory that holds them, and type `yan` anywhere.
 Bare `yan`, at a terminal, picks an open task or starts one, and runs the
 agent on it in this terminal, with its approvals skipped (`"skipPermissions":
 false` in the vault's `config.json` hands them back). A new task picks
-the repositories it works in from the registry, and gets a worktree of each,
-cut on `yan/<id>` from origin's default branch; in a monorepo it also asks
-which packages the task is about, once. The agent starts in the first tree,
-with the others added beside it, and every start tells it which is which.
+the repositories it works in from the registry, and gets a worktree of each
+on `yan/<id>`, cut from origin's default branch or picked up from origin when
+another machine pushed it; in a monorepo it also asks which packages the task
+is about, once. Every step, the worktrees included, is a line on the one
+chain the questions are on, saying where each branch came from. The agent
+starts in the first tree, with the others added beside it, and every start
+tells it which is which.
 `--cli codex` runs another agent this once; anything after `--` goes to the
 agent as it is.
 
 For you:
 
 - `yan ls` — every open task, one line each; `--status all` for the rest
-- `yan peek [id]` — one task: its trees, problem, deliverables, resources and newest drafts
+- `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan ui` — a work report of every task, in the browser
@@ -50,6 +53,7 @@ For you:
 
 For the agent:
 
+- `yan context` — the task's problem in full, its deliverables and its resources, read before working
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
 - `yan resource add|rm|ls` — tickets, docs, releases, paths: anything the work refers to, under a name

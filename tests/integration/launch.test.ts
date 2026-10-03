@@ -1,12 +1,13 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, OPENING_PROMPT, openingPrompt, type EntryPrompts } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, OPENING_PROMPT, openingPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
 import { normalizePath } from '../../src/util/paths.js';
+import { tildePath } from '../../src/cli/shared/style.js';
 
 /**
  * Bare `yan`, in process: the prompts and the agent are stand-ins, and
@@ -24,6 +25,21 @@ interface Started {
 
 let home = '';
 let started: Started[] = [];
+/** What bare yan said on the chain, one string per line: `kind line`, then its detail. */
+let said: string[] = [];
+
+const chain: EntryChain = {
+  working: (doing) => {
+    said.push(`working ${doing}`);
+    return { update: (next) => said.push(`working ${next}`), finish: (s) => note(s) };
+  },
+  say: (s) => note(s),
+  end: (line) => said.push(`end ${line}`),
+};
+
+function note(s: Said): void {
+  said.push(`${s.kind} ${s.line}`, ...(s.detail ?? []).map((d) => `  ${d}`));
+}
 
 /** Answers given in advance; a question nobody answered fails the test. */
 function answers(given: { entry: string; title?: string; repos?: string[]; tree?: boolean; scope?: string[] }): EntryPrompts & { asked: string[] } {
@@ -56,6 +72,7 @@ function answers(given: { entry: string; title?: string; repos?: string[]; tree?
 function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[] } = {}): Promise<number> {
   return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [] }, {
     prompts,
+    chain,
     cwd,
     start: (cli, argv, opts) => {
       started.push({ cli, argv, cwd: opts.cwd, env: opts.env });
@@ -68,6 +85,7 @@ beforeEach(() => {
   home = mkYanHome(mkTempDir());
   process.env.YAN_POOL_ROOT = mkTempDir('yan-pool-');
   started = [];
+  said = [];
 });
 
 afterEach(() => {
@@ -113,6 +131,25 @@ describe('a new task', () => {
     expect(started[0]?.cwd).toBe(tree);
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim()).toBe('yan/t001');
     expect(existsSync(join(tree ?? '', 'README.md'))).toBe(true);
+    expect(said, 'one step on the chain, saying where the branch came from, then the end').toEqual([
+      'working demo: opening a worktree on yan/t001 · fetching origin',
+      'working demo: opening a worktree on yan/t001',
+      'done demo: worktree on yan/t001, cut from origin/main',
+      `  ${tildePath(tree ?? '')}`,
+      'end t001  fix the parser · claude starting',
+    ]);
+  });
+
+  it('cuts from what the clone has when origin cannot be reached, and says so', async () => {
+    const { bare, clone } = await aClone();
+    // Out of reach, as a remote behind a dropped network is.
+    renameSync(bare, `${bare}.away`);
+    await run(answers({ entry: CREATE_NEW, title: 'offline', repos: ['demo'] }), clone);
+
+    expect(treeOf()).toBeDefined();
+    const warning = said.find((l) => l.startsWith('warn '));
+    expect(warning).toBe('warn demo: worktree on yan/t001, cut from origin/main · could not fetch origin, so it may be behind');
+    expect(said.at(-1)).toBe('end t001  offline · claude starting');
   });
 
   it('anywhere, picks several registered repositories: starts in the first tree, adds the others, and says which is which', async () => {
@@ -144,6 +181,7 @@ describe('a new task', () => {
     await run(answers({ entry: CREATE_NEW, title: 'x' }), here);
     expect(new Task('t001').read().repos).toEqual([]);
     expect(started[0]?.cwd).toBe(here);
+    expect(said[0]).toMatch(/^info no repository is registered and cloned here/);
   });
 
   it('in a monorepo, asks once which packages it is about, keeps them, and tells the agent every start', async () => {
@@ -186,8 +224,10 @@ describe('an existing task', () => {
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
     const tree = treeOf();
 
+    said = [];
     await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
     expect(started[1]?.cwd).toBe(tree);
+    expect(said).toEqual(['done demo: worktree on yan/t001, already here', `  ${tildePath(tree ?? '')}`, 'end t001  x · claude starting']);
   });
 
   it('with a repository but no tree here, opens one from its linked clone, wherever yan is typed', async () => {
@@ -211,6 +251,7 @@ describe('an existing task', () => {
     expect(again.startsWith(clone), 'cut from the linked clone').toBe(false);
     expect(started[1]?.cwd).toBe(again);
     expect(existsSync(join(again, 'work.txt')), 'picked up from origin, not cut afresh').toBe(true);
+    expect(said).toContain('done demo: worktree on yan/t001, picked up from origin/yan/t001');
   });
 
   it('with a repository not cloned on this machine, starts here and says why', async () => {
@@ -219,6 +260,7 @@ describe('an existing task', () => {
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: 't001' }), here);
     expect(started[0]?.cwd).toBe(here);
+    expect(said[0]).toMatch(/^warn demo has no clone on this machine, so no tree/);
   });
 });
 
