@@ -1,17 +1,17 @@
 # `yan`
 
-Notes that outlive an agent session. Work goes in three steps, and a task
-keeps a note for each: the problem (`problem.md`: the background, and what
-the problem is), the solution (its deliverables: how things must be once it
-is solved), and the log of the decisions that steered it. Beside them it
-keeps the resources the work refers to, your own drafts, and, when it
-touches a repository, a worktree of its own. `yan` keeps those and nothing
-else.
+Notes that outlive an agent session. We think about a task in three parts,
+and it keeps a note for each: the problem (`problem.md`: the background, and
+what the problem is), the solution (its deliverables: how things must be
+once it is solved), and the log of the decisions that steered it. Beside
+them it keeps the resources the work refers to, your own drafts, and, when
+it touches a repository, a worktree of its own. `yan` keeps those and
+nothing else.
 
 An agent knows about them only when you start it through `yan`. Type `yan`,
 pick a task or start one, and Claude, Codex or Agy starts in the task's
-worktree, told in a few lines how the work is done and that a CLI keeps notes
-on it. Start the same agent directly and it never hears of yan.
+worktree, told in a few lines about those three parts and that a CLI keeps
+notes on them. Start the same agent directly and it never hears of yan.
 
 ## Getting started
 
