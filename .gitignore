@@ -7,18 +7,4 @@ node_modules/
 dist/
 
 # Scratch git worktrees used when several agents work on the checkout at once.
-# .claude itself stays tracked: settings.json is a deliverable (architecture.md §3).
 .claude/worktrees/
-
-# The note `yan vault drop-home` leaves behind, saying where this machine's
-# data went. Local, and true of one disk only.
-.migrated.json
-
-# WHAT IS NO LONGER HERE, and it was most of this file:
-#
-#   conf/config.json  conf/hooks/  mem/  tasks/  repos/
-#
-# Runtime data used to live in this tree and be ignored into invisibility, so a
-# task's brief, its log and every outcome.md existed on exactly one disk. They
-# live in a vault now — a repository of their own, versioned and pushed — and
-# this clone holds code and nothing else (docs/v3/td/INDEX.md §2).
