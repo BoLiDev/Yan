@@ -41,10 +41,10 @@ describe('create', () => {
 });
 
 describe('read', () => {
-  it('refuses a version 1 task.json and names the migration', () => {
+  it('refuses a version 1 task.json', () => {
     const task = Task.create('x');
     writeFileSync(task.file, JSON.stringify({ version: 1, id: task.id, title: 'x', complete: false, units: [] }));
-    expect(() => task.read()).toThrow(/migrate-v4/);
+    expect(() => task.read()).toThrow(/reads only version 2/);
   });
 
   it('refuses a deliverable it cannot read rather than guess', () => {

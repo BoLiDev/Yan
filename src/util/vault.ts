@@ -21,9 +21,8 @@ import { isDirectory, normalizePath } from './paths.js';
 /**
  * The `vault.json` version this build reads and writes. Version 2 is the
  * memory-only layout: deliverables inside `task.json`, `drafts/` beside it,
- * `learnings/` at the top. A version 1 vault is refused until
- * `scripts/migrate-v4.mjs` has rewritten it, so nothing half-reads the old
- * shape.
+ * `learnings/` at the top. A version 1 vault is refused, so nothing
+ * half-reads the old shape.
  */
 export const VAULT_VERSION = 2;
 
@@ -70,7 +69,7 @@ export function readVaultJson(dir: string): VaultIdentity {
 /**
  * @throws YanError `vault_ahead` when vault.json's version is newer than this
  *   build understands, so it is never written over with an older shape, and
- *   `vault_old` when it predates it and has not been migrated.
+ *   `vault_old` when it predates it.
  */
 function checkVersion(dir: string): void {
   const { version } = readVaultJson(dir);
@@ -81,7 +80,7 @@ function checkVersion(dir: string): void {
   }
   if (version < VAULT_VERSION) {
     throw new YanError('vault_old',
-      `${dir} is a version ${version} vault and this build reads version ${VAULT_VERSION} - migrate it first: node <yan>/scripts/migrate-v4.mjs`,
+      `${dir} is a version ${version} vault, and this build reads only version ${VAULT_VERSION}`,
     );
   }
 }

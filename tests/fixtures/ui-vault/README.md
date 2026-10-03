@@ -11,7 +11,7 @@ a task with none shows nothing at all where its squares would be, whatever its b
 says: the cell stays so the dates keep their column, and the page puts no word where
 the work would be.
 
-The tasks were written for v3 and converted by `scripts/migrate-v4.mjs`, which is
+The tasks were written for an older vault and converted to this one, which is
 why `repo` holds a bare name rather than a URL: this vault had no `repos.json` to
 look one up in. t007's broken list was put back by hand after the conversion,
 which sets a list it cannot read aside.

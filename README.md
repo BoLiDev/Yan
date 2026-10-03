@@ -13,10 +13,6 @@ pick a task or start one, and Claude, Codex or Agy starts in the task's
 worktree, told in a few lines how the work is done and that a CLI keeps notes
 on it. Start the same agent directly and it never hears of yan.
 
-Status: **v4**, the memory-only rewrite. v3 dispatched sub-agents into leased
-worktrees and orchestrated them over Herdr; all of that is gone. Moving a
-machine from v3 is one script, below.
-
 ## Getting started
 
 ```sh
@@ -33,7 +29,8 @@ or in the directory that holds them, and type `yan` anywhere.
 ## What there is
 
 Bare `yan`, at a terminal, picks an open task or starts one, and runs the
-agent on it in this terminal, with its approvals skipped. A new task picks
+agent on it in this terminal, with its approvals skipped (`"skipPermissions":
+false` in the vault's `config.json` hands them back). A new task picks
 the repositories it works in from the registry, and gets a worktree of each,
 cut on `yan/<id>` from origin's default branch; in a monorepo it also asks
 which packages the task is about, once. The agent starts in the first tree,
@@ -83,35 +80,8 @@ starts.
 The pool keeps its trees. Returning one resets and cleans it but keeps what
 git ignores, so the next task in that slot starts with `node_modules` in
 place, and takes it off the task's branch, so the branch can be checked out
-anywhere else. `yan done` refuses to return a tree holding uncommitted or unpushed
-work; `--force` throws that work away, and never the branch.
-
-## Moving from v3
-
-On each machine, after pulling this code and running `npm run build`:
-
-```sh
-node scripts/migrate-v4.mjs --dry-run    # what would change
-node scripts/migrate-v4.mjs              # do it
-```
-
-It rewrites every registered vault to version 2, moves `~/.yan-trees` to
-`~/.yan/trees` and repairs git's links to the trees, and drops `clone_root`
-from `~/.yan/config.json`. If v3 ran with `YAN_POOL_ROOT` set, unset it
-and pass the old pool with `--old-pool <dir>`. A progress bar shows each
-step. Nothing is committed: look at `git -C <vault> status`, then `yan vault push`. A vault is
-shared, so migrate it on one machine, push, and `git pull` it on the others
-before running the script there; they skip it and only move their pool.
-
-The top of [`scripts/migrate-v4.mjs`](scripts/migrate-v4.mjs) lists every
-change it makes.
-
-## Tests
-
-`npm test` builds and runs everything. `npm run check:ui` clicks through the
-page `yan ui` writes in headless Chrome, against the fixture vault in
-`tests/fixtures/ui-vault/`; it is not part of `npm test`, because it needs
-Google Chrome.
+anywhere else. `yan done` refuses to return a tree holding uncommitted or
+unpushed work; `--force` throws that work away, and never the branch.
 
 ## Third-party material
 

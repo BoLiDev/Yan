@@ -172,7 +172,7 @@ describe('resolution', () => {
     expect(r.out).toContain('newer yan');
   });
 
-  it('refuses a version 1 vault and names the migration', async () => {
+  it('refuses a version 1 vault', async () => {
     const bare = await mkEmptyRemote(join(tmp, 'old.git'));
     const env = { ...isolated('old'), ...identity };
     const dir = join(tmp, 'vaults', 'old');
@@ -181,7 +181,7 @@ describe('resolution', () => {
     writeFileSync(join(dir, 'vault.json'), `${JSON.stringify({ version: 1, name: 'old' }, null, 2)}\n`);
     const r = await runYan(home, ['ls'], env);
     expect(r.code).toBe(1);
-    expect(r.out).toContain('migrate-v4.mjs');
+    expect(r.out).toContain('is a version 1 vault, and this build reads only version 2');
   });
 });
 

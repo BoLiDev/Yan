@@ -250,7 +250,7 @@ function validate(raw: unknown, task: Task): TaskData {
   const doc = recordOrNone(raw);
   if (doc === undefined) return refuse('the top level is not an object');
   if (doc.version !== 2) {
-    return refuse(`version is ${JSON.stringify(doc.version)} and this build reads version 2 - migrate the vault with scripts/migrate-v4.mjs`);
+    return refuse(`version is ${JSON.stringify(doc.version)} and this build reads only version 2`);
   }
   const state = doc.state;
   if (typeof state !== 'string' || !(TASK_STATES as readonly string[]).includes(state)) {
