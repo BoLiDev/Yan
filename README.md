@@ -35,7 +35,11 @@ the repositories it works in from the registry, and gets a worktree of each
 on a detached HEAD at origin's default branch; in a monorepo it also asks
 which packages the task is about, once. yan never makes a branch, since each
 machine names its branches its own way: the agent is told to cut one before
-it commits. Every step, the worktrees included, is a line on the one chain
+it commits, and to keep it with `yan branch` once it has. A tree opened
+later for the task, on any machine, is put on the branch it keeps: the
+clone's own, brought up to origin's when it is only behind it, or a new one
+tracking origin's; one yan cannot put there starts detached, and says why.
+Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
 added beside it, and every start tells it which is which, and where the
 task's own files are: problem.md, and artifacts/ for what the work produces.
@@ -66,6 +70,7 @@ For the agent:
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
 - `yan resource add|rm|ls` — tickets, docs, releases, paths: anything the work refers to, under a name
+- `yan branch [name]` — the branch the work is on in a repository, kept once a worktree is on it
 - `yan learn add|ls` — a learning, written only when you ask for one
 
 `yan <command> --help` says the rest. Every command that takes a task reads
@@ -81,7 +86,7 @@ starts.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repos (URL and scope each), deliverables, resources
+    task.json                  title, state, repos (URL, scope and branch each), deliverables, resources
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

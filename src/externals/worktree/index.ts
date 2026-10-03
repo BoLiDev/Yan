@@ -1,7 +1,8 @@
 /**
  * The pool of worktrees serving each main clone: lease a task a tree on a
- * detached HEAD, hand them all back when the task is done. The pool never
- * makes a branch; the agent in the tree makes its own.
+ * detached HEAD, or on the branch the task already works on, and hand them
+ * all back when the task is done. The pool never names a branch; the agent
+ * in the tree cuts its own.
  *
  * Returning a tree resets and cleans it and takes it off any branch, and the
  * guard refuses the return while it holds work that exists nowhere else. Gitignored build state —

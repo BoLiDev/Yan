@@ -33,24 +33,27 @@ export class WorktreePool {
   }
 
   /**
-   * Lease a tree to `holder` on a detached HEAD at `base`. The pool names no
-   * branch: how a branch is named differs from one machine to the next, so
-   * the agent working in the tree cuts its own. Waits up to
+   * Lease a tree to `holder` on a detached HEAD at `base`, or on `branch`
+   * when one is given. The pool names no branch of its own: how a branch is
+   * named differs from one machine to the next, so the agent working in the
+   * tree cuts its own, and `branch` is one it cut before. Waits up to
    * `$YAN_POOL_LOCK_TIMEOUT` seconds (60 by default) for the pool lock.
    *
    * @throws YanError `worktree_usage` for a missing argument or a holder
-   *   carrying whitespace, `worktree_failed` when the tree cannot be placed.
+   *   carrying whitespace, `worktree_failed` when the tree cannot be placed,
+   *   `worktree_branch` when it cannot be put on `branch`; no lease is
+   *   written then, so the caller may ask again without one.
    */
-  public get(base: string, holder: string): LeaseGrant {
+  public get(base: string, holder: string, options: { branch?: string } = {}): LeaseGrant {
     if (!base) throw YanError.usage('worktree_usage', 'a base ref is required - a tree is always cut from an explicit base');
     if (!holder) throw YanError.usage('worktree_usage', 'a holder is required');
     if (/\s/.test(holder)) throw YanError.usage('worktree_usage', 'a holder may not contain whitespace');
 
     mkdirSync(leasesDir(this.dir), { recursive: true });
-    return withLock(lockFile(this.dir), lockTimeoutSeconds(), () => this.getLocked(base, holder));
+    return withLock(lockFile(this.dir), lockTimeoutSeconds(), () => this.getLocked(base, holder, options.branch));
   }
 
-  private getLocked(base: string, holder: string): LeaseGrant {
+  private getLocked(base: string, holder: string, branch: string | undefined): LeaseGrant {
     const name = repoName(absolute(this.clone));
 
     git.worktreePrune(this.clone);
@@ -61,6 +64,7 @@ export class WorktreePool {
     const tree = slotTree(this.dir, slot, name);
     mkdirSync(join(this.dir, String(slot)), { recursive: true });
     this.placeTree(tree, slot, base);
+    if (branch !== undefined && branch !== '') putOnBranch(this.clone, tree, branch);
 
     const leaseId = newLeaseId();
     writeLease(this.dir, slot, { path: tree, base, holder, leaseId });
@@ -123,6 +127,30 @@ export class WorktreePool {
     const added = git.worktreeAdd(this.clone, ['--detach', tree, ref]);
     if (added.code !== 0) throw new YanError('worktree_failed', `cannot add a worktree at ${tree} at '${ref}': ${added.stderr.trim()}`);
   }
+}
+
+/**
+ * Put a tree just placed on `branch`: the clone's own branch of that name,
+ * brought up to origin's when it is only behind it, so nothing here is lost;
+ * otherwise a new one tracking origin's. The name is the task's, never the
+ * pool's.
+ *
+ * @throws YanError `worktree_branch` when neither the clone nor origin has
+ *   it, or git refuses, as it does for a branch checked out in another tree.
+ */
+function putOnBranch(clone: string, tree: string, branch: string): void {
+  const remote = `origin/${branch}`;
+  const onOrigin = git.gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}^{commit}`]);
+  const local = git.branchExists(clone, branch);
+  if (!local && !onOrigin) throw new YanError('worktree_branch', `there is no branch ${branch} here or on origin`);
+
+  const checkout = git.checkout(tree, local ? [branch] : ['-b', branch, '--track', remote]);
+  if (checkout.code !== 0) {
+    throw new YanError('worktree_branch', `cannot put the tree on ${branch}: ${checkout.stderr.trim().split(/\r?\n/)[0] ?? ''}`);
+  }
+  // Another machine may have pushed to it since. A branch that has gone its
+  // own way here is left as it is: the agent sees it, and merging is its call.
+  if (local && onOrigin) git.git(tree, ['merge', '--ff-only', '--quiet', remote]);
 }
 
 /** Every pool under the root: one directory per clone. */

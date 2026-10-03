@@ -4,6 +4,7 @@ import { taskDir, tasksDir } from '../../util/vault.js';
 import { editJson, initJson, readJson } from '../../util/json.js';
 import { recordOrNone } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
+import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
@@ -117,6 +118,38 @@ export class Task {
       doc.resources = { ...data.resources, [key]: value };
     });
     return replaced;
+  }
+
+  /**
+   * Keep `branch` as the one the work is on in the repository `url` names,
+   * replacing what was kept; returns what was. The entry is changed where it
+   * stands in the file, so a field a later yan added to it survives.
+   *
+   * @throws YanError `branch_usage` for a name that is not one word, or a
+   *   repository this task does not work in.
+   */
+  public keepBranch(url: string, branch: string): string | undefined {
+    const name = oneLine('keep', branch, 'branch_usage', 'a branch');
+    if (/\s/.test(name)) throw YanError.usage('branch_usage', `'${name}' is not a branch name - it has a space in it`);
+    const key = repoKey(url);
+    let before: string | undefined;
+    this.edit((doc, data) => {
+      const entries: unknown[] = Array.isArray(doc.repos) ? [...doc.repos] : data.repos.map(taskRepo);
+      const at = entries.findIndex((e) => {
+        const u = recordOrNone(e)?.url;
+        return typeof u === 'string' && repoKey(u) === key;
+      });
+      if (at < 0) {
+        const urls = data.repos.map((r) => r.url);
+        throw YanError.usage('branch_usage',
+          `${url} is not a repository of this task - ${urls.length === 0 ? 'it has none' : `it works in ${urls.join(', ')}`}`,
+        );
+      }
+      before = data.repos.find((r) => repoKey(r.url) === key)?.branch;
+      entries[at] = { ...recordOrNone(entries[at]), branch: name };
+      doc.repos = entries;
+    });
+    return before;
   }
 
   /** Forget the resource kept under `name`. */
@@ -284,14 +317,18 @@ function validate(raw: unknown, task: Task): TaskData {
   };
 }
 
-/** `{ url, scope }` as task.json holds it, with no empty scope written. */
+/** `{ url, scope, branch }` as task.json holds it, with no empty scope written. */
 function taskRepo(repo: TaskRepo): TaskRepo {
-  return { url: repo.url, ...(repo.scope === undefined || repo.scope.length === 0 ? {} : { scope: [...repo.scope] }) };
+  return {
+    url: repo.url,
+    ...(repo.scope === undefined || repo.scope.length === 0 ? {} : { scope: [...repo.scope] }),
+    ...(repo.branch === undefined ? {} : { branch: repo.branch }),
+  };
 }
 
 /**
- * The repositories, leaving out an entry with no URL. A scope path edited
- * into something else is dropped, not refused: scope only steers.
+ * The repositories, leaving out an entry with no URL. A scope path or a
+ * branch edited into something else is dropped, not refused: both only steer.
  */
 function readRepos(raw: readonly unknown[]): TaskRepo[] {
   const repos: TaskRepo[] = [];
@@ -300,7 +337,8 @@ function readRepos(raw: readonly unknown[]): TaskRepo[] {
     const url = typeof r?.url === 'string' ? r.url.trim() : '';
     if (url === '') continue;
     const scope = Array.isArray(r?.scope) ? r.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
-    repos.push(taskRepo({ url, scope }));
+    const branch = typeof r?.branch === 'string' && r.branch.trim() !== '' ? r.branch.trim() : undefined;
+    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }) }));
   }
   return repos;
 }

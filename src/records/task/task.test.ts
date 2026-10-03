@@ -140,6 +140,35 @@ describe('resources', () => {
   });
 });
 
+describe('branches', () => {
+  it('keeps one per repository, matching its URL however it is spelled, and says what it replaced', () => {
+    const task = Task.create('x', [{ url: 'git@github.com:me/web.git', scope: ['apps/site'] }, { url: 'git@github.com:me/api.git' }]);
+    expect(task.keepBranch('https://github.com/me/api', 'feat/retry')).toBeUndefined();
+    expect(task.keepBranch('git@github.com:me/api.git', 'feat/retry-2')).toBe('feat/retry');
+    expect(task.read().repos).toEqual([
+      { url: 'git@github.com:me/web.git', scope: ['apps/site'] },
+      { url: 'git@github.com:me/api.git', branch: 'feat/retry-2' },
+    ]);
+  });
+
+  it('writes into the entry as it stands, keeping a field it does not know, and refuses a repository the task lacks', () => {
+    const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ url: '' }, { url: 'git@github.com:me/web.git', later: true }] }));
+    task.keepBranch('git@github.com:me/web.git', 'feat/a');
+    expect(raw(task).repos).toEqual([{ url: '' }, { url: 'git@github.com:me/web.git', later: true, branch: 'feat/a' }]);
+
+    expect(() => task.keepBranch('git@github.com:me/api.git', 'feat/a')).toThrow(/not a repository of this task - it works in git@github.com:me\/web.git/);
+    expect(() => task.keepBranch('git@github.com:me/web.git', 'two words')).toThrow(/has a space in it/);
+  });
+
+  it('keeps one for a task from before it could have several repositories', () => {
+    const task = Task.create('x');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repo: 'git@github.com:me/repo.git', scope: ['packages/a'] }));
+    task.keepBranch('git@github.com:me/repo.git', 'feat/a');
+    expect(task.read().repos).toEqual([{ url: 'git@github.com:me/repo.git', scope: ['packages/a'], branch: 'feat/a' }]);
+  });
+});
+
 describe('close', () => {
   it('stamps closedAt, and keeps a reason only for an abandoned task', () => {
     const task = Task.create('x');

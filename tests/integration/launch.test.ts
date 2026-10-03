@@ -272,6 +272,35 @@ describe('an existing task', () => {
     expect(said).toContain('done demo: worktree on a detached HEAD at origin/main');
   });
 
+  it('opens a tree on the branch the task keeps, and tells the agent it is on it', async () => {
+    const { bare, clone } = await aClone();
+    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
+    const tree = treeOf() as string;
+    await fxGit(['checkout', '-b', 'feat/x'], tree);
+    await fxGit(['push', '-u', 'origin', 'feat/x'], tree);
+    new Task('t001').keepBranch(bare, 'feat/x');
+    returnTrees('t001');
+    await fxGit(['branch', '-D', 'feat/x'], clone);
+
+    said = [];
+    await run(answers({ entry: 't001', tree: true }), clone);
+    const again = treeOf() as string;
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], again)).stdout.trim()).toBe('feat/x');
+    expect(said).toContain("done demo: worktree on feat/x, the task's branch");
+    expect(started[1]?.argv.at(-1)).toContain('The worktree is on the branch `feat/x`.');
+    expect(started[1]?.argv.at(-1)).toContain('`yan branch` in it keeps that branch for the task');
+  });
+
+  it('opens a tree on a detached HEAD when the kept branch is nowhere, and says why', async () => {
+    const { bare, clone } = await aClone();
+    Task.create('x', [{ url: bare }]).keepBranch(bare, 'feat/gone');
+    register('demo', bare, clone);
+    await run(answers({ entry: 't001', tree: true }), clone);
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], treeOf() as string)).stdout.trim()).toBe('HEAD');
+    expect(said).toContain("warn demo: worktree on a detached HEAD at origin/main · not on the task's branch feat/gone");
+    expect(said).toContain('  there is no branch feat/gone here or on origin');
+  });
+
   it('with a repository not cloned on this machine, starts here and says why', async () => {
     const { bare } = await aClone();
     Task.create('x', [{ url: bare }]);

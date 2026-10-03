@@ -58,8 +58,9 @@ function headLines(task: Task, data: TaskData): string[] {
 
 /**
  * Two lines per repository, its name and where its tree is, then its branch
- * and what the tree holds that exists nowhere else; a third for the packages
- * the task is about in it.
+ * and what the tree holds that exists nowhere else; one, with the branch the
+ * task keeps, when it has no tree here; another for the packages the task is
+ * about in it.
  */
 function treeLines(task: Task, data: TaskData): string[] {
   if (data.repos.length === 0) return [dim('no repository')];
@@ -72,7 +73,7 @@ function treeLines(task: Task, data: TaskData): string[] {
     const name = padEnd(names[i] as string, width);
     const lease = held.find((l) => repoKey(remoteUrl(l.path) ?? '') === repoKey(repo.url));
     if (lease === undefined) {
-      lines.push(`${name}  ${dim('none on this machine')}`);
+      lines.push(`${name}  ${dim(`none on this machine${repo.branch === undefined ? '' : ` · branch ${repo.branch}`}`)}`);
     } else {
       lines.push(`${name}  ${tildePath(lease.path)}`, `${under}${treeNotes(lease)}`);
     }

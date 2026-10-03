@@ -40,6 +40,12 @@ export interface TaskRepo {
   readonly url: string;
   /** The packages the task is about, as paths in it. Absent for all of it. */
   readonly scope?: readonly string[];
+  /**
+   * The branch the work is on, as origin names it, kept by `yan branch`
+   * once the agent has cut it. Absent until then. Every machine means the
+   * same branch by it, so a tree opened anywhere later is put on it.
+   */
+  readonly branch?: string;
 }
 
 /**

@@ -74,6 +74,19 @@ export function branchOf(dir: string): string | undefined {
   return name === 'HEAD' ? undefined : name;
 }
 
+/**
+ * What `remote` calls the branch `branch` tracks there, `feature/x` for
+ * `origin/feature/x`; `undefined` when it tracks nothing, or tracks another
+ * remote's.
+ */
+export function upstreamOf(dir: string, branch: string, remote = 'origin'): string | undefined {
+  requireArg(branch, 'a branch name is required');
+  const r = git(dir, ['for-each-ref', '--format=%(upstream:remotename) %(upstream:lstrip=3)', `refs/heads/${branch}`]);
+  const [name, ...rest] = r.code === 0 ? r.stdout.trim().split(' ') : [];
+  const upstream = rest.join(' ');
+  return name === remote && upstream !== '' ? upstream : undefined;
+}
+
 export function branchExists(dir: string, branch: string): boolean {
   requireArg(branch, 'a branch name is required');
   return gitOk(dir, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]);

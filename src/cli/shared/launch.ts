@@ -53,16 +53,21 @@ export interface Tree {
   readonly name: string;
   readonly path: string;
   readonly scope: readonly string[];
+  /** The branch it is on as the agent starts, absent on a detached HEAD. */
+  readonly branch?: string;
 }
 
 const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``).join(', ');
 
 /**
- * Said whenever the task has a tree. yan cuts no branch, since each machine
- * names its branches its own way, so the agent has to know to cut one.
+ * Said whenever the task has a tree. yan names no branch, since each machine
+ * names its branches its own way, so the agent has to know to cut one; and
+ * cutting one is the moment to keep it, which the agent does as it keeps a
+ * resource, so the next start, on any machine, puts the tree back on it.
  */
-const NO_BRANCH = 'A worktree is leased on a detached HEAD, and yan never makes a branch: ' +
-  'before committing in one, put it on a branch named the way this repository and this machine expect, unless it is on one already.';
+const NO_BRANCH = 'yan never makes a branch: a worktree on a detached HEAD has to be put on a branch, ' +
+  'named the way this repository and this machine expect, before committing in it. ' +
+  'Once it is, `yan branch` in it keeps that branch for the task, and later sessions start the worktree on it.';
 
 /**
  * Where this task's own files are, absolute, since the agent starts in a
@@ -75,20 +80,21 @@ function taskDirLine(dir: string): string {
 
 /**
  * The opening prompt: the lines every agent gets, then where the task's
- * files are. A task with a tree adds the line on branches; one tree with a
- * scope adds a line naming it; several add a line per tree, since only the
- * first is where the agent starts.
+ * files are. A task with a tree adds the line on branches; one tree on a
+ * branch or with a scope adds a line naming each; several add a line per
+ * tree, since only the first is where the agent starts.
  */
 export function openingPrompt(taskDir: string, trees: readonly Tree[] = []): string {
   const head = [OPENING_PROMPT, taskDirLine(taskDir)];
   if (trees.length === 0) return head.join('\n');
   if (trees.length > 1) {
-    const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
+    const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.branch === undefined ? '' : `, on \`${t.branch}\``}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
     return [...head, `This task works in ${trees.length} repositories, one worktree each:`, ...lines, NO_BRANCH].join('\n');
   }
-  const scope = trees[0]?.scope ?? [];
+  const { scope = [], branch } = trees[0] ?? {};
+  const on = branch === undefined ? [] : [`The worktree is on the branch \`${branch}\`.`];
   const about = scope.length === 0 ? [] : [`This task is about these parts of the repository: ${quoted(scope)}.`];
-  return [...head, ...about, NO_BRANCH].join('\n');
+  return [...head, ...on, ...about, NO_BRANCH].join('\n');
 }
 
 /**
@@ -144,6 +150,15 @@ function headOf(tree: string): string {
   }
 }
 
+/** The branch a tree is on, or `undefined` on a detached HEAD or one git cannot read. */
+function branchHere(tree: string): string | undefined {
+  try {
+    return branchOf(tree);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The first thing git said that explains a failure, for the dimmed line under a step. */
 function firstLine(stderr: string): string {
   return stderr.split(/\r?\n/).map((l) => l.trim()).find((l) => l !== '') ?? 'git said nothing';
@@ -152,13 +167,14 @@ function firstLine(stderr: string): string {
 /**
  * Lease `task` a tree of `clone`, as one step on the chain: a spinner while
  * origin is fetched, then a line saying where the tree stands. The tree is
- * on a detached HEAD at origin's default branch, never on a branch of yan's
- * making: each machine names its branches its own way, so the agent cuts
- * one before it commits. A fetch that fails is a warning, not a stop: the
- * tree stands where the clone last saw origin.
+ * on the branch the task keeps for this repository, or else on a detached
+ * HEAD at origin's default branch, never on a branch of yan's making: each
+ * machine names its branches its own way, so the agent cuts one before it
+ * commits. A fetch that fails, or a kept branch the tree cannot be put on,
+ * is a warning, not a stop.
  */
-async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[] }, chain: EntryChain): Promise<string> {
-  const { name, clone } = repo;
+async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[]; branch?: string }, chain: EntryChain): Promise<string> {
+  const { name, clone, branch } = repo;
   const step = chain.working(`${name}: opening a worktree · fetching origin`);
   try {
     const fetched = await fetchAsync(clone);
@@ -168,18 +184,33 @@ async function leaseTree(task: Task, repo: { name: string; clone: string; scope:
     if (trunk === undefined) throw new YanError('yan_no_base', `cannot tell ${clone}'s default branch - set it with 'git -C ${clone} remote set-head origin --auto'`);
     const base = gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${trunk}^{commit}`]) ? `origin/${trunk}` : trunk;
 
-    const path = new WorktreePool(clone).get(base, task.id).path;
-    const detail = [treeDetail(path, repo.scope)];
-    const line = `${name}: worktree on a detached HEAD at ${base}`;
-    if (fetched.code === 0) {
-      step.finish({ kind: 'done', line, detail });
-    } else {
-      step.finish({
-        kind: 'warn',
-        line: `${line} · could not fetch origin, so it may be behind`,
-        detail: [...detail, firstLine(fetched.stderr)],
-      });
+    const pool = new WorktreePool(clone);
+    let missed: string | undefined;
+    let path: string | undefined;
+    if (branch !== undefined) {
+      try {
+        path = pool.get(base, task.id, { branch }).path;
+      } catch (err) {
+        if (!(err instanceof YanError) || err.code !== 'worktree_branch') throw err;
+        missed = err.message;
+      }
     }
+    path ??= pool.get(base, task.id).path;
+
+    const detail = [treeDetail(path, repo.scope)];
+    const warnings: string[] = [];
+    let line = missed === undefined && branch !== undefined
+      ? `${name}: worktree on ${branch}, the task's branch`
+      : `${name}: worktree on a detached HEAD at ${base}`;
+    if (missed !== undefined) {
+      line = `${line} · not on the task's branch ${branch}`;
+      warnings.push(missed);
+    }
+    if (fetched.code !== 0) {
+      line = `${line} · could not fetch origin, so it may be behind`;
+      warnings.push(firstLine(fetched.stderr));
+    }
+    step.finish({ kind: warnings.length === 0 ? 'done' : 'warn', line, detail: [...detail, ...warnings] });
     return path;
   } catch (err) {
     step.finish({ kind: 'warn', line: `${name}: no worktree` });
@@ -319,7 +350,7 @@ async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts, cha
     const names = openable.map((s) => repoName(s.repo.url)).join(', ');
     if (await prompts.confirmTree(names, `${task.id} has no tree of ${names} on this machine.`)) {
       for (const s of openable) {
-        s.path = await leaseTree(task, { name: repoName(s.repo.url), clone: s.clone as string, scope: s.repo.scope ?? [] }, chain);
+        s.path = await leaseTree(task, { name: repoName(s.repo.url), clone: s.clone as string, scope: s.repo.scope ?? [], ...(s.repo.branch === undefined ? {} : { branch: s.repo.branch }) }, chain);
       }
     }
   }
@@ -368,9 +399,13 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
 
   chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
 
+  const told = trees.map((t) => {
+    const branch = branchHere(t.path);
+    return branch === undefined ? t : { ...t, branch };
+  });
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, trees), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, told), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

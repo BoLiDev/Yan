@@ -100,6 +100,53 @@ describe('get', () => {
   });
 });
 
+describe('get on a branch', () => {
+  const head = async (tree: string): Promise<string> => (await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim();
+  const sha = async (ref: string, dir = clone): Promise<string> => (await fxGit(['rev-parse', ref], dir)).stdout.trim();
+
+  it('puts a tree on a branch only origin has, tracking it', async () => {
+    const first = pool().get('origin/main', 't001');
+    await fxGit(['checkout', '-b', 'feat/a'], first.path);
+    await fxGit(['commit', '--allow-empty', '-m', 'work'], first.path);
+    await fxGit(['push', '-u', 'origin', 'feat/a'], first.path);
+    returnTrees('t001');
+    await fxGit(['branch', '-D', 'feat/a'], clone);
+
+    const again = pool().get('origin/main', 't001', { branch: 'feat/a' });
+    expect(await head(again.path)).toBe('feat/a');
+    expect(await sha('HEAD', again.path)).toBe(await sha('origin/feat/a'));
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'feat/a@{upstream}'], clone)).stdout.trim()).toBe('origin/feat/a');
+  });
+
+  it('puts a tree on the clone\'s own branch, brought up to origin\'s when it is only behind', async () => {
+    const first = pool().get('origin/main', 't001');
+    await fxGit(['checkout', '-b', 'feat/a'], first.path);
+    await fxGit(['push', '-u', 'origin', 'feat/a'], first.path);
+    await fxGit(['commit', '--allow-empty', '-m', 'from another machine'], first.path);
+    await fxGit(['push', 'origin', 'feat/a'], first.path);
+    await fxGit(['reset', '--hard', 'HEAD~1'], first.path);
+    returnTrees('t001', { force: true });
+
+    const again = pool().get('origin/main', 't001', { branch: 'feat/a' });
+    expect(await head(again.path)).toBe('feat/a');
+    expect(await sha('HEAD', again.path)).toBe(await sha('origin/feat/a'));
+  });
+
+  it('refuses a branch nobody has, or one held by another tree, and leases nothing', async () => {
+    expect(() => pool().get('origin/main', 't001', { branch: 'feat/none' })).toThrow(/no branch feat\/none here or on origin/);
+    await fxGit(['checkout', '-b', 'feat/held'], clone);
+    let code = '';
+    try {
+      pool().get('origin/main', 't001', { branch: 'feat/held' });
+    } catch (err) {
+      code = (err as { code: string }).code;
+    }
+    expect(code).toBe('worktree_branch');
+    expect(leasesHeldBy('t001')).toEqual([]);
+    expect(await head(pool().get('origin/main', 't001').path), 'asked again without it').toBe('HEAD');
+  });
+});
+
 describe('the pool grows instead of refusing', () => {
   it('cuts a new slot when every slot is leased, and reuses a warm one first', () => {
     const a = pool().get('origin/main', 'a');
