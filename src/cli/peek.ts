@@ -10,7 +10,7 @@ import { lineText, MAX_WIDTH, PIPE_WIDTH, wrap } from './shared/wrap.js';
 import { leasesHeldBy, treeState, type LeaseRow } from '../externals/worktree/index.js';
 import { Drafts } from '../records/drafts/index.js';
 import type { Task, TaskData } from '../records/task/index.js';
-import { currentBranch, remoteUrl } from '../util/git.js';
+import { branchOf, remoteUrl } from '../util/git.js';
 import { localDay, localStamp } from '../util/time.js';
 
 /**
@@ -57,7 +57,7 @@ function headLines(task: Task, data: TaskData): string[] {
 }
 
 /**
- * Two lines per repository, its name and where its tree is, then the branch
+ * Two lines per repository, its name and where its tree is, then its branch
  * and what the tree holds that exists nowhere else; a third for the packages
  * the task is about in it.
  */
@@ -81,13 +81,13 @@ function treeLines(task: Task, data: TaskData): string[] {
   return lines;
 }
 
-/** A tree's branch, and what it holds that exists nowhere else. */
+/** The branch the agent put a tree on, or that it has none yet, and what it holds that exists nowhere else. */
 function treeNotes(lease: LeaseRow): string {
-  let branch = lease.branch;
+  let branch = 'detached HEAD';
   try {
-    branch = currentBranch(lease.path);
+    branch = branchOf(lease.path) ?? branch;
   } catch {
-    // The lease's own record of it, then.
+    // Said as detached; the notes below say what git can tell.
   }
   // A glance, not the guard: edits inside submodules are `yan done`'s to find.
   const { dirty, unpushed } = treeState(lease.path, { submoduleEdits: false });

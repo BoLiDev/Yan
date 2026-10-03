@@ -68,6 +68,12 @@ export function currentBranch(dir: string): string {
   return gitOut(dir, ['rev-parse', '--abbrev-ref', 'HEAD']);
 }
 
+/** The branch `dir` is on, or `undefined` on a detached HEAD. */
+export function branchOf(dir: string): string | undefined {
+  const name = currentBranch(dir);
+  return name === 'HEAD' ? undefined : name;
+}
+
 export function branchExists(dir: string, branch: string): boolean {
   requireArg(branch, 'a branch name is required');
   return gitOk(dir, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]);

@@ -119,7 +119,7 @@ describe('a new task', () => {
     expect(started[0]?.env.YAN_VAULT).toBe(home);
   });
 
-  it('in an unregistered clone, offers it picked, registers it, and cuts a tree on yan/<id> from origin', async () => {
+  it('in an unregistered clone, offers it picked, registers it, and leases a tree on a detached HEAD at origin, making no branch', async () => {
     const { bare, clone } = await aClone();
     const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', repos: ['demo'] });
     await run(prompts, clone);
@@ -129,12 +129,14 @@ describe('a new task', () => {
     expect(new Task('t001').read().repos).toEqual([{ url: bare }]);
     const tree = treeOf();
     expect(started[0]?.cwd).toBe(tree);
-    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim()).toBe('yan/t001');
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim()).toBe('HEAD');
+    expect((await fxGit(['branch', '--format=%(refname:short)'], clone)).stdout.trim(), 'no branch of yan\'s making').toBe('main');
     expect(existsSync(join(tree ?? '', 'README.md'))).toBe(true);
-    expect(said, 'one step on the chain, saying where the branch came from, then the end').toEqual([
-      'working demo: opening a worktree on yan/t001 · fetching origin',
-      'working demo: opening a worktree on yan/t001',
-      'done demo: worktree on yan/t001, cut from origin/main',
+    expect(started[0]?.argv.at(-1)).toContain('yan never makes a branch');
+    expect(said, 'one step on the chain, saying where the tree stands, then the end').toEqual([
+      'working demo: opening a worktree · fetching origin',
+      'working demo: opening a worktree',
+      'done demo: worktree on a detached HEAD at origin/main',
       `  ${tildePath(tree ?? '')}`,
       'end t001  fix the parser · claude starting',
     ]);
@@ -148,7 +150,7 @@ describe('a new task', () => {
 
     expect(treeOf()).toBeDefined();
     const warning = said.find((l) => l.startsWith('warn '));
-    expect(warning).toBe('warn demo: worktree on yan/t001, cut from origin/main · could not fetch origin, so it may be behind');
+    expect(warning).toBe('warn demo: worktree on a detached HEAD at origin/main · could not fetch origin, so it may be behind');
     expect(said.at(-1)).toBe('end t001  offline · claude starting');
   });
 
@@ -205,7 +207,7 @@ describe('a new task', () => {
     mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone);
     expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
-    expect(started[0]?.argv.at(-1)).toBe(OPENING_PROMPT);
+    expect(started[0]?.argv.at(-1)).toBe(openingPrompt([{ name: 'demo', path: treeOf() as string, scope: [] }]));
   });
 
   it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {
@@ -219,7 +221,7 @@ describe('a new task', () => {
 });
 
 describe('an existing task', () => {
-  it('starts in the tree it holds, asking nothing', async () => {
+  it('starts in the tree it holds, asking nothing, and names the branch the agent cut in it', async () => {
     const { clone } = await aClone();
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
     const tree = treeOf();
@@ -227,18 +229,17 @@ describe('an existing task', () => {
     said = [];
     await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
     expect(started[1]?.cwd).toBe(tree);
-    expect(said).toEqual(['done demo: worktree on yan/t001, already here', `  ${tildePath(tree ?? '')}`, 'end t001  x · claude starting']);
+    expect(said).toEqual(['done demo: worktree on a detached HEAD, already here', `  ${tildePath(tree ?? '')}`, 'end t001  x · claude starting']);
+
+    await fxGit(['checkout', '-b', 'feature/x'], tree);
+    said = [];
+    await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
+    expect(said[0]).toBe('done demo: worktree on feature/x, already here');
   });
 
   it('with a repository but no tree here, opens one from its linked clone, wherever yan is typed', async () => {
     const { bare, clone } = await aClone();
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
-    const tree = treeOf() as string;
-    // Another machine pushed the branch, and this one has no tree.
-    writeFileSync(join(tree, 'work.txt'), 'from the other machine\n');
-    await fxGit(['add', '.'], tree);
-    await fxGit(['commit', '-m', 'work'], tree);
-    await fxGit(['push', '-u', 'origin', 'yan/t001'], tree);
     returnTrees('t001');
 
     // This machine keeps its clone somewhere else now.
@@ -250,8 +251,7 @@ describe('an existing task', () => {
     const again = treeOf() as string;
     expect(again.startsWith(clone), 'cut from the linked clone').toBe(false);
     expect(started[1]?.cwd).toBe(again);
-    expect(existsSync(join(again, 'work.txt')), 'picked up from origin, not cut afresh').toBe(true);
-    expect(said).toContain('done demo: worktree on yan/t001, picked up from origin/yan/t001');
+    expect(said).toContain('done demo: worktree on a detached HEAD at origin/main');
   });
 
   it('with a repository not cloned on this machine, starts here and says why', async () => {

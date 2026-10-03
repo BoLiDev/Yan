@@ -52,7 +52,7 @@ Returning a tree resets and cleans it but keeps what git ignores, so the next
 task in that slot starts with node_modules and build caches in place. It is
 refused while any of the task's trees has uncommitted changes, or commits no
 remote branch contains; then no tree is touched and the task stays open.
---force throws that work away; the branches themselves are never deleted.`,
+--force throws that work away; a branch the agent cut is never deleted.`,
   )
   .action(
     action('yan done', async (given: string | undefined, options: DoneOptions) => {

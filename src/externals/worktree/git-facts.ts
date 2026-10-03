@@ -59,14 +59,6 @@ export function isRegisteredWorktree(clone: string, path: string): boolean {
 }
 
 /**
- * Which working tree has `branch` checked out, if any. The main clone counts,
- * so the answer can be a directory the pool does not own.
- */
-export function worktreeHolding(clone: string, branch: string): string | undefined {
-  return worktrees(clone).find((w) => w.branch === branch)?.path;
-}
-
-/**
  * The ref `base` names: a local branch first, then `origin/<base>`, then
  * anything git can resolve. Never fetches, so the answer is only as fresh as
  * the clone.

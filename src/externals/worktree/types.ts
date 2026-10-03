@@ -5,7 +5,6 @@ export interface Lease {
   readonly version: number;
   readonly slot: number;
   readonly path: string;
-  readonly branch: string;
   readonly base: string;
   readonly holder: string;
   readonly lease_id: string;

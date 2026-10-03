@@ -39,7 +39,7 @@ function isClone(dir: string): boolean {
 function addClone(dir: string, name?: string): void {
   const full = normalizePath(resolve(dir));
   const url = remoteUrl(full);
-  if (url === undefined) throw YanError.usage('repo_usage', `${full} has no origin - a task's branch is cut from origin, so add one first`);
+  if (url === undefined) throw YanError.usage('repo_usage', `${full} has no origin - a task's tree is cut from origin, so add one first`);
   const as = register(name !== undefined && name !== '' ? name : nameOf(url), url, full);
   out(`repo add: ${as}  ${tildePath(full)}  ${url}`);
 }

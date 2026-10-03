@@ -15,7 +15,7 @@ import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
 import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
-import { defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
+import { branchOf, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
 import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../../util/vault.js';
@@ -56,17 +56,26 @@ export interface Tree {
 const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``).join(', ');
 
 /**
- * The opening prompt. One tree with a scope adds a line naming it; several
- * add a line per tree, since only the first is where the agent starts.
+ * Said whenever the task has a tree. yan cuts no branch, since each machine
+ * names its branches its own way, so the agent has to know to cut one.
+ */
+const NO_BRANCH = 'A worktree is leased on a detached HEAD, and yan never makes a branch: ' +
+  'before committing in one, put it on a branch named the way this repository and this machine expect, unless it is on one already.';
+
+/**
+ * The opening prompt. A task with a tree adds the line on branches; one tree
+ * with a scope adds a line naming it; several add a line per tree, since
+ * only the first is where the agent starts.
  */
 export function openingPrompt(trees: readonly Tree[] = []): string {
+  if (trees.length === 0) return OPENING_PROMPT;
   if (trees.length > 1) {
     const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
-    return [OPENING_PROMPT, `This task works in ${trees.length} repositories, one worktree each:`, ...lines].join('\n');
+    return [OPENING_PROMPT, `This task works in ${trees.length} repositories, one worktree each:`, ...lines, NO_BRANCH].join('\n');
   }
   const scope = trees[0]?.scope ?? [];
-  if (scope.length === 0) return OPENING_PROMPT;
-  return `${OPENING_PROMPT}\nThis task is about these parts of the repository: ${quoted(scope)}.`;
+  const about = scope.length === 0 ? [] : [`This task is about these parts of the repository: ${quoted(scope)}.`];
+  return [OPENING_PROMPT, ...about, NO_BRANCH].join('\n');
 }
 
 /**
@@ -113,56 +122,54 @@ function treeDetail(path: string, scope: readonly string[]): string {
   return `${tildePath(path)}${scope.length === 0 ? '' : ` · about ${scope.join(', ')}`}`;
 }
 
+/** The branch a tree is on, as a step's line says it; the agent may have cut one since the tree was leased. */
+function headOf(tree: string): string {
+  try {
+    return branchOf(tree) ?? 'a detached HEAD';
+  } catch {
+    return 'a HEAD git cannot read';
+  }
+}
+
 /** The first thing git said that explains a failure, for the dimmed line under a step. */
 function firstLine(stderr: string): string {
   return stderr.split(/\r?\n/).map((l) => l.trim()).find((l) => l !== '') ?? 'git said nothing';
 }
 
 /**
- * Lease `task` a tree of `clone` on `yan/<id>`, as one step on the chain:
- * a spinner while origin is fetched, then a line saying where the branch
- * came from. The branch is the clone's own when this machine already has
- * one, picked up from origin when another machine pushed it, and otherwise
- * cut from origin's default branch. A fetch that fails is a warning, not a
- * stop: the branch comes from what the clone already has.
+ * Lease `task` a tree of `clone`, as one step on the chain: a spinner while
+ * origin is fetched, then a line saying where the tree stands. The tree is
+ * on a detached HEAD at origin's default branch, never on a branch of yan's
+ * making: each machine names its branches its own way, so the agent cuts
+ * one before it commits. A fetch that fails is a warning, not a stop: the
+ * tree stands where the clone last saw origin.
  */
 async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[] }, chain: EntryChain): Promise<string> {
   const { name, clone } = repo;
-  const branch = `yan/${task.id}`;
-  const step = chain.working(`${name}: opening a worktree on ${branch} · fetching origin`);
+  const step = chain.working(`${name}: opening a worktree · fetching origin`);
   try {
     const fetched = await fetchAsync(clone);
-    step.update(`${name}: opening a worktree on ${branch}`);
+    step.update(`${name}: opening a worktree`);
 
-    const has = (ref: string): boolean => gitOk(clone, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
-    let base: string;
-    let from: string;
-    if (has(`refs/remotes/origin/${branch}`)) {
-      base = `origin/${branch}`;
-      from = `picked up from origin/${branch}`;
-    } else {
-      const trunk = defaultBranch(clone);
-      if (trunk === undefined) throw new YanError('yan_no_base', `cannot tell ${clone}'s default branch - set it with 'git -C ${clone} remote set-head origin --auto'`);
-      base = has(`refs/remotes/origin/${trunk}`) ? `origin/${trunk}` : trunk;
-      from = `cut from ${base}`;
-    }
-    // The pool checks out a branch the clone already has rather than cutting it again.
-    if (has(`refs/heads/${branch}`)) from = `picked up from this clone's ${branch}`;
+    const trunk = defaultBranch(clone);
+    if (trunk === undefined) throw new YanError('yan_no_base', `cannot tell ${clone}'s default branch - set it with 'git -C ${clone} remote set-head origin --auto'`);
+    const base = gitOk(clone, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${trunk}^{commit}`]) ? `origin/${trunk}` : trunk;
 
-    const path = new WorktreePool(clone).get(base, branch, task.id).path;
+    const path = new WorktreePool(clone).get(base, task.id).path;
     const detail = [treeDetail(path, repo.scope)];
+    const line = `${name}: worktree on a detached HEAD at ${base}`;
     if (fetched.code === 0) {
-      step.finish({ kind: 'done', line: `${name}: worktree on ${branch}, ${from}`, detail });
+      step.finish({ kind: 'done', line, detail });
     } else {
       step.finish({
         kind: 'warn',
-        line: `${name}: worktree on ${branch}, ${from} · could not fetch origin, so it may be behind`,
+        line: `${line} · could not fetch origin, so it may be behind`,
         detail: [...detail, firstLine(fetched.stderr)],
       });
     }
     return path;
   } catch (err) {
-    step.finish({ kind: 'warn', line: `${name}: no worktree on ${branch}` });
+    step.finish({ kind: 'warn', line: `${name}: no worktree` });
     throw err;
   }
 }
@@ -275,14 +282,14 @@ async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): P
  * clone here is named and skipped.
  */
 async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts, chain: EntryChain): Promise<Tree[]> {
-  const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, branch: l.branch, key: repoKey(remoteUrl(l.path) ?? '') }));
+  const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, key: repoKey(remoteUrl(l.path) ?? '') }));
   const here = mainClone(cwd);
   const hereUrl = here === undefined ? undefined : remoteUrl(here);
 
   const slots: Array<{ repo: TaskRepo; path?: string; clone?: string }> = task.read().repos.map((repo) => {
     const tree = held.find((h) => h.key === repoKey(repo.url));
     if (tree !== undefined) {
-      chain.say({ kind: 'done', line: `${repoName(repo.url)}: worktree on ${tree.branch}, already here`, detail: [treeDetail(tree.path, repo.scope ?? [])] });
+      chain.say({ kind: 'done', line: `${repoName(repo.url)}: worktree on ${headOf(tree.path)}, already here`, detail: [treeDetail(tree.path, repo.scope ?? [])] });
       return { repo, path: tree.path };
     }
     const clone = cloneFor(repo.url) ?? (hereUrl !== undefined && repoKey(hereUrl) === repoKey(repo.url) ? here : undefined);

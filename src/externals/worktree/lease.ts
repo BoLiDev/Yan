@@ -57,13 +57,12 @@ export function newLeaseId(): string {
 export function writeLease(
   dir: string,
   slot: number,
-  fields: { path: string; branch: string; base: string; holder: string; leaseId: string },
+  fields: { path: string; base: string; holder: string; leaseId: string },
 ): void {
   writeJson(leaseFile(dir, slot), {
     version: 1,
     slot,
     path: fields.path,
-    branch: fields.branch,
     base: fields.base,
     holder: fields.holder,
     lease_id: fields.leaseId,

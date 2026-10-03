@@ -31,7 +31,7 @@ beforeEach(async () => {
   // What a real repository ignores, so the tree can be warm and clean at once.
   writeFileSync(join(clone, '.git', 'info', 'exclude'), 'node_modules/\n');
   const task = Task.create('with a tree', [{ url: bare }]);
-  tree = new WorktreePool(clone).get('origin/main', `yan/${task.id}`, task.id).path;
+  tree = new WorktreePool(clone).get('origin/main', task.id).path;
   Task.create('without one');
 });
 
@@ -91,7 +91,7 @@ describe('yan peek', () => {
   it('shows each of a task\'s trees with its scope, and a repository with no tree here', async () => {
     const web = await mkBareRemote(join(mkTempDir(), 'web.git'));
     const webClone = await mkClone(web, join(mkTempDir(), 'web'));
-    const webTree = new WorktreePool(webClone).get('origin/main', 'yan/t001', 't001').path;
+    const webTree = new WorktreePool(webClone).get('origin/main', 't001').path;
     const api = await mkBareRemote(join(mkTempDir(), 'api.git'));
     const task = new Task('t001');
     writeFileSync(task.file, JSON.stringify({
@@ -101,8 +101,8 @@ describe('yan peek', () => {
 
     const r = await yan(['peek', 't001']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toMatch(new RegExp(`│  \\S+ +\\S*${tree.split('/').slice(-3).join('/')}\\n│ +yan/t001$`, 'm'));
-    expect(r.stdout).toMatch(new RegExp(`│  web +\\S*${webTree.split('/').slice(-3).join('/')}\\n│ +yan/t001\\n│ +about apps/site$`, 'm'));
+    expect(r.stdout).toMatch(new RegExp(`│  \\S+ +\\S*${tree.split('/').slice(-3).join('/')}\\n│ +detached HEAD$`, 'm'));
+    expect(r.stdout).toMatch(new RegExp(`│  web +\\S*${webTree.split('/').slice(-3).join('/')}\\n│ +detached HEAD\\n│ +about apps/site$`, 'm'));
     expect(r.stdout).toMatch(/│ {2}api +none on this machine$/m);
   });
 });

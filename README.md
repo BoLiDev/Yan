@@ -32,12 +32,12 @@ Bare `yan`, at a terminal, picks an open task or starts one, and runs the
 agent on it in this terminal, with its approvals skipped (`"skipPermissions":
 false` in the vault's `config.json` hands them back). A new task picks
 the repositories it works in from the registry, and gets a worktree of each
-on `yan/<id>`, cut from origin's default branch or picked up from origin when
-another machine pushed it; in a monorepo it also asks which packages the task
-is about, once. Every step, the worktrees included, is a line on the one
-chain the questions are on, saying where each branch came from. The agent
-starts in the first tree, with the others added beside it, and every start
-tells it which is which.
+on a detached HEAD at origin's default branch; in a monorepo it also asks
+which packages the task is about, once. yan never makes a branch, since each
+machine names its branches its own way: the agent is told to cut one before
+it commits. Every step, the worktrees included, is a line on the one chain
+the questions are on. The agent starts in the first tree, with the others
+added beside it, and every start tells it which is which.
 `--cli codex` runs another agent this once; anything after `--` goes to the
 agent as it is.
 
@@ -83,9 +83,10 @@ starts.
 
 The pool keeps its trees. Returning one resets and cleans it but keeps what
 git ignores, so the next task in that slot starts with `node_modules` in
-place, and takes it off the task's branch, so the branch can be checked out
-anywhere else. `yan done` refuses to return a tree holding uncommitted or
-unpushed work; `--force` throws that work away, and never the branch.
+place, and takes it off any branch the agent cut, so the branch can be
+checked out anywhere else. `yan done` refuses to return a tree holding
+uncommitted or unpushed work; `--force` throws that work away, and never a
+branch.
 
 ## Third-party material
 
