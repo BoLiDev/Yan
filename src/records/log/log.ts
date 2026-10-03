@@ -9,7 +9,7 @@ import { localMonthDay } from '../../util/time.js';
  * What a line records. Every line yan writes carries exactly one.
  *
  *   agreed   a conclusion, plan or decision reached with `user`
- *   changed  something departs from what an earlier line said
+ *   changed  the problem, the solution or an earlier line no longer holds: what changed, and why
  *   paused   work stopped: where it stands, what is left, what it waits on
  *
  * A log from before v4 also holds `started`, `delivered` and `incident`

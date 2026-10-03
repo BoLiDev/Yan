@@ -21,7 +21,7 @@ export const command = new Command('log')
     'after',
     `
   agreed   a decision reached with the user, and why
-  changed  something departs from what an earlier line said
+  changed  the problem, the solution or an earlier line no longer holds: what changed, and why
   paused   work stopping: where it stands, what is left, what it waits on
 
 Lines are dated today and never edited: a line that turns out wrong is

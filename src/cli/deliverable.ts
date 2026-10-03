@@ -90,6 +90,8 @@ the task is done, stated so it can be checked: "the page's scripts load in
 parallel", not "rewrite the loader with Promise.all". It says what is
 different, never how the code is changed to make it so.
 
-The list is the solution as the user agreed it. It changes when they settle
-on a different one, and they see the list after it does.`,
+The list is the solution as the user agreed it, as it stands now. When they
+settle on a different one, change the list so it reads as if first written
+that way: reword with 'edit', 'abandon' what is no longer part of it, and
+leave how it used to be to the log. They see the list after it changes.`,
   );

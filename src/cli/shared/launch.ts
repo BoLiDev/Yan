@@ -34,7 +34,8 @@ export const OPENING_PROMPT = [
   'Notes from earlier sessions on this work are kept by a CLI.',
   'We think about a task in three parts, each with its note: the problem (problem.md: the background, and what the problem is), ' +
     'the solution (the deliverables: how things must be once it is solved), and the decisions that steered it (the log). ' +
-    'Problem and solution are worked out with the user, not assumed, and either may change as the work goes.',
+    'Problem and solution are worked out with the user, not assumed, and either may change as the work goes. ' +
+    'When one does, rewrite its note to say how things stand now, as if writing it for the first time: what it used to say belongs in the log.',
   'Resources the work refers to (Jira tickets, docs, MR links and the like) are kept under a name with `yan resource`, for later sessions to find.',
   '`yan peek` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
 ].join('\n');
