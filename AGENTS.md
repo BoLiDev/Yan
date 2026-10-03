@@ -1,9 +1,9 @@
 # Working on yan
 
-yan is a small CLI that keeps notes for agent sessions: tasks, their log and
-deliverables, `user`'s drafts, learnings, and a worktree per repository a
-task works in. Read `README.md` for what it does and `docs/v4/design.md` for
-why it is shaped this way. `yan <command> --help` is the reference for each command.
+yan is a small CLI that keeps notes for agent sessions: tasks, their problem,
+deliverables, log and resources, `user`'s drafts, learnings, and a worktree
+per repository a task works in. Read `README.md` for what it does.
+`yan <command> --help` is the reference for each command.
 
 ## Layout
 

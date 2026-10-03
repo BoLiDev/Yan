@@ -86,8 +86,6 @@ place, and takes it off the task's branch, so the branch can be checked out
 anywhere else. `yan done` refuses to return a tree holding uncommitted or unpushed
 work; `--force` throws that work away, and never the branch.
 
-[`docs/v4/design.md`](docs/v4/design.md) is the design, with the reasons.
-
 ## Moving from v3
 
 On each machine, after pulling this code and running `npm run build`:
