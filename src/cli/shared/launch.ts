@@ -35,7 +35,7 @@ export const OPENING_PROMPT = [
   'We work in three steps, each with its note: define the problem (problem.md: the background, and what the problem is), ' +
     'find the solution (the deliverables: how things must be once it is solved), ' +
     'carry it out (the log: the decisions that steered it). Problem and solution are worked out with the user, not assumed.',
-  'Resources the work refers to, such as tickets, docs and releases, are kept under a name with `yan resource`, for later sessions to find.',
+  'Resources the work refers to (Jira tickets, docs, MR links and the like) are kept under a name with `yan resource`, for later sessions to find.',
   '`yan peek` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
 ].join('\n');
 
