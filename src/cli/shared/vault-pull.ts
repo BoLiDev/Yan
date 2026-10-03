@@ -3,14 +3,16 @@ import { isYanError } from '../../util/error.js';
 import { vaultDir } from '../../util/vault.js';
 
 /**
- * Catching the vault up with its origin: `yan vault pull`, and the first
- * thing `yan session-start` does. Here rather than in `vault.ts` because a
- * command does not import another command.
+ * Catching the vault up with its origin: all of `yan vault pull`, and what
+ * `yan vault push` does between committing and pushing, so a push from one
+ * machine never fails for want of what another pushed first.
  */
 
 export interface PullResult {
   readonly ok: boolean;
   readonly message: string;
+  /** Origin has no branch of this name yet: nothing to catch up with, and a push publishes it. */
+  readonly unpublished?: true;
 }
 
 /**
@@ -38,13 +40,21 @@ export function pullVault(): PullResult {
     };
   }
 
+  return catchUp(dir);
+}
+
+/**
+ * Fetch origin and rebase the vault's branch onto it. The vault must be
+ * clean. A rebase that conflicts is aborted, leaving the vault as it was.
+ */
+export function catchUp(dir: string): PullResult {
   const fetched = fetch(dir);
   if (fetched.code !== 0) {
     return { ok: false, message: `could not reach ${remoteUrl(dir) ?? 'origin'}: ${fetched.stderr.trim()}` };
   }
   const branch = currentBranch(dir);
   if (!gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) {
-    return { ok: false, message: `origin has no ${branch} yet - 'yan vault push' publishes it` };
+    return { ok: false, unpublished: true, message: `origin has no ${branch} yet - 'yan vault push' publishes it` };
   }
 
   const before = revParse(dir, ['HEAD']);

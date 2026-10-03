@@ -37,7 +37,16 @@ which packages the task is about, once. yan never makes a branch, since each
 machine names its branches its own way: the agent is told to cut one before
 it commits. Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
-added beside it, and every start tells it which is which.
+added beside it, and every start tells it which is which, and where the
+task's own files are: problem.md, and artifacts/ for what the work produces.
+While it runs, the vault is kept in step with your other machines without
+the agent being told: it is pulled each time you send a message and pushed
+each time the agent finishes a turn, by hooks given to that session alone
+(claude's `--settings`, codex's `-c`, with codex's hook trust bypassed for
+the session). agy takes hooks only from files, so under agy the vault is
+pulled and pushed by hand. A push commits everything in the vault and
+rebases it onto the remote first; a conflict stops it, the commit kept here,
+and the hook says so.
 `--cli codex` runs another agent this once; anything after `--` goes to the
 agent as it is.
 

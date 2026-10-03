@@ -38,6 +38,23 @@ describe('launchArgs', () => {
     expect(launchArgs('agy', more).slice(0, 6)).toEqual(['--add-dir', '/tree', '--add-dir', '/b', '--add-dir', '/c']);
   });
 
+  it('gives claude and codex hooks for the one session, and agy none', () => {
+    const hooked = { ...plain, hooks: { prompt: 'pull "x"', stop: 'push' } };
+    const claude = launchArgs('claude', hooked);
+    expect(claude.slice(0, 2)).toEqual(['--settings', JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'pull "x"' }] }],
+        Stop: [{ hooks: [{ type: 'command', command: 'push' }] }],
+      },
+    })]);
+    expect(launchArgs('codex', hooked).slice(0, 5)).toEqual([
+      '--dangerously-bypass-hook-trust',
+      '-c', 'hooks.UserPromptSubmit=[{hooks=[{type="command",command="pull \\"x\\""}]}]',
+      '-c', 'hooks.Stop=[{hooks=[{type="command",command="push"}]}]',
+    ]);
+    expect(launchArgs('agy', hooked)).toEqual(launchArgs('agy', plain));
+  });
+
   it('knows three CLIs and nothing else', () => {
     expect(['claude', '/usr/local/bin/codex', 'agy.exe'].map(isKnownCli)).toEqual([true, true, true]);
     expect(isKnownCli('node')).toBe(false);

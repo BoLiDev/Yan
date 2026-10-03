@@ -224,6 +224,60 @@ describe('pull and push', () => {
     expect(again.stdout).toContain('already up to date');
   });
 
+  it('push catches up with what another machine pushed first, and stops on a conflict with its commit kept', async () => {
+    const { a, b, env } = await twoMachines('both-ways');
+    const onA = { ...isolated('both-ways'), ...identity };
+    writeFileSync(join(a, 'tasks', 'from-a.md'), 'a\n');
+    expect((await runYan(home, ['vault', 'push'], { ...onA, YAN_VAULT: a })).code).toBe(0);
+
+    writeFileSync(join(b, 'tasks', 'from-b.md'), 'b\n');
+    const pushed = await runYan(home, ['vault', 'push'], { ...env, YAN_VAULT: b });
+    expect(pushed.code, pushed.out).toBe(0);
+    expect(pushed.stdout).toContain('caught up with origin/main');
+    expect(existsSync(join(b, 'tasks', 'from-a.md'))).toBe(true);
+    expect((await runYan(home, ['vault', 'pull'], { ...onA, YAN_VAULT: a })).code).toBe(0);
+    expect(existsSync(join(a, 'tasks', 'from-b.md'))).toBe(true);
+
+    writeFileSync(join(a, 'tasks', 'same.md'), 'a\n');
+    expect((await runYan(home, ['vault', 'push'], { ...onA, YAN_VAULT: a })).code).toBe(0);
+    writeFileSync(join(b, 'tasks', 'same.md'), 'b\n');
+    const refused = await runYan(home, ['vault', 'push'], { ...env, YAN_VAULT: b });
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain('conflicts');
+    expect(refused.stderr).toContain('The commit stays here, unpushed');
+    expect((await fxGit(['-C', b, 'status', '--porcelain'])).stdout.trim(), 'the rebase was aborted, not left half done').toBe('');
+    expect((await fxGit(['-C', b, 'log', '-1', '--pretty=%s'])).stdout.trim()).toContain('file(s)');
+  });
+
+  it('as hooks, say nothing when they work, do nothing outside bare yan, and fail with 1, never 2', async () => {
+    const { a, b, env } = await twoMachines('hooked');
+    const onA = { ...isolated('hooked'), ...identity, YAN_VAULT: a };
+    const onB = { ...env, YAN_VAULT: b };
+    writeFileSync(join(a, 'tasks', 'note.md'), 'a\n');
+
+    const outside = await runYan(home, ['vault', 'push', '--hook'], { ...onA, YAN_TASK: undefined });
+    expect(outside.code).toBe(0);
+    expect(outside.out, 'not started by bare yan, so not its hook to run').toBe('');
+    expect((await fxGit(['-C', a, 'status', '--porcelain'])).stdout.trim()).not.toBe('');
+
+    const pushed = await runYan(home, ['vault', 'push', '--hook'], { ...onA, YAN_TASK: 't001' });
+    expect(pushed.code, pushed.out).toBe(0);
+    expect(pushed.out, 'a prompt hook\'s stdout reaches the model, so a hook says nothing').toBe('');
+    const pulled = await runYan(home, ['vault', 'pull', '--hook'], { ...onB, YAN_TASK: 't001' });
+    expect(pulled.code, pulled.out).toBe(0);
+    expect(pulled.out).toBe('');
+    expect(existsSync(join(b, 'tasks', 'note.md'))).toBe(true);
+
+    // Nothing changed and origin has it all: no commit, and no reaching origin either.
+    expect((await runYan(home, ['vault', 'push'], onA)).stdout.trim()).toBe('vault push: nothing to push');
+
+    writeFileSync(join(b, 'tasks', 'scratch.md'), 'half-written\n');
+    const refused = await runYan(home, ['vault', 'pull', '--hook'], { ...onB, YAN_TASK: 't001' });
+    expect(refused.code, 'a 2 would drop the message user just sent').toBe(1);
+    expect(refused.stdout).toBe('');
+    expect(refused.stderr).toContain('scratch.md');
+  });
+
   it('refuses to rebase a dirty vault, and names what is dirty', async () => {
     const { b, env } = await twoMachines('dirty');
     writeFileSync(join(b, 'tasks', 'scratch.md'), 'half-written\n');

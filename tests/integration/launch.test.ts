@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, OPENING_PROMPT, openingPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, openingPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
@@ -18,7 +18,9 @@ afterAll(cleanupTempDirs);
 
 interface Started {
   readonly cli: string;
+  /** The argv without the vault hooks, which 'the harness' checks on their own. */
   readonly argv: readonly string[];
+  readonly hooks: readonly string[];
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
 }
@@ -69,13 +71,27 @@ function answers(given: { entry: string; title?: string; repos?: string[]; tree?
   };
 }
 
+/** Split the hook flags out of an argv: claude's --settings, codex's trust bypass and -c hooks.*. */
+function splitHooks(argv: readonly string[]): { argv: string[]; hooks: string[] } {
+  const rest: string[] = [];
+  const hooks: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const word = argv[i] as string;
+    const next = argv[i + 1] ?? '';
+    if (word === '--dangerously-bypass-hook-trust') hooks.push(word);
+    else if (word === '--settings' || (word === '-c' && next.startsWith('hooks.'))) hooks.push(word, argv[(i += 1)] as string);
+    else rest.push(word);
+  }
+  return { argv: rest, hooks };
+}
+
 function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[] } = {}): Promise<number> {
   return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [] }, {
     prompts,
     chain,
     cwd,
     start: (cli, argv, opts) => {
-      started.push({ cli, argv, cwd: opts.cwd, env: opts.env });
+      started.push({ cli, ...splitHooks(argv), cwd: opts.cwd, env: opts.env });
       return 0;
     },
   });
@@ -114,7 +130,9 @@ describe('a new task', () => {
     expect(new Task('t001').read()).toMatchObject({ title: 'write the docs', state: 'open' });
     expect(new Task('t001').read().repos).toEqual([]);
     expect(started).toHaveLength(1);
-    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', '--append-system-prompt', OPENING_PROMPT] });
+    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', '--append-system-prompt', openingPrompt(new Task('t001').dir)] });
+    expect(started[0]?.argv.at(-1), 'where its files are, absolute, since it starts outside the vault')
+      .toContain(`This task's files are in ${new Task('t001').dir}: problem.md, and artifacts/`);
     expect(started[0]?.env.YAN_TASK).toBe('t001');
     expect(started[0]?.env.YAN_VAULT).toBe(home);
   });
@@ -194,7 +212,7 @@ describe('a new task', () => {
 
     expect(prompts.asked.at(-1)).toContain('apps/site packages/core packages/web');
     expect(new Task('t001').read().repos[0]?.scope).toEqual(['packages/core', 'apps/site']);
-    const prompt = openingPrompt([{ name: 'demo', path: treeOf() as string, scope: ['packages/core', 'apps/site'] }]);
+    const prompt = openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf() as string, scope: ['packages/core', 'apps/site'] }]);
     expect(prompt).toContain('`packages/core`, `apps/site`');
     expect(started[0]?.argv.at(-1)).toBe(prompt);
 
@@ -207,7 +225,7 @@ describe('a new task', () => {
     mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone);
     expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
-    expect(started[0]?.argv.at(-1)).toBe(openingPrompt([{ name: 'demo', path: treeOf() as string, scope: [] }]));
+    expect(started[0]?.argv.at(-1)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf() as string, scope: [] }]));
   });
 
   it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {
@@ -273,19 +291,40 @@ describe('the harness', () => {
     expect(started[0]?.argv).toEqual([
       '-m', 'gpt-x', '-c', 'model_reasoning_effort=high',
       '--dangerously-bypass-approvals-and-sandbox',
-      '-c', `developer_instructions=${JSON.stringify(OPENING_PROMPT)}`,
+      '-c', `developer_instructions=${JSON.stringify(openingPrompt(new Task('t001').dir))}`,
       '--search',
     ]);
 
     await run(answers({ entry: 't001' }), here, { cli: 'claude' });
-    expect(started[1]?.argv).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', OPENING_PROMPT]);
+    expect(started[1]?.argv).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', openingPrompt(new Task('t001').dir)]);
+  });
+
+  it('pulls the vault each time user sends a message and pushes it after each turn, through hooks for this session alone', async () => {
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
+    const [flag, json] = started[0]?.hooks ?? [];
+    expect(flag).toBe('--settings');
+    const { hooks } = JSON.parse(json ?? '{}') as { hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string }> }>> };
+    expect(Object.keys(hooks).sort()).toEqual(['Stop', 'UserPromptSubmit']);
+    expect(hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toMatch(/bin\/yan\.mjs" "vault" "pull" "--hook"$/);
+    expect(hooks.Stop?.[0]?.hooks[0]?.command).toMatch(/bin\/yan\.mjs" "vault" "push" "--hook"$/);
+    expect(started[0]?.argv.join(' '), 'and the agent is told nothing of it').not.toContain('vault');
+
+    await run(answers({ entry: 't001' }), here, { cli: 'codex' });
+    const codex = started[1]?.hooks ?? [];
+    expect(codex[0]).toBe('--dangerously-bypass-hook-trust');
+    expect(codex.filter((w) => w.startsWith('hooks.')).map((w) => w.split('=')[0])).toEqual(['hooks.UserPromptSubmit', 'hooks.Stop']);
+    expect(codex.find((w) => w.startsWith('hooks.Stop='))).toContain('\\"vault\\" \\"push\\" \\"--hook\\"');
+
+    await run(answers({ entry: 't001' }), here, { cli: 'agy' });
+    expect(started[2]?.hooks, 'agy takes hooks only from files, so it has none').toEqual([]);
   });
 
   it('keeps its approvals when config.json says skipPermissions: false, whichever CLI runs', async () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ cli: 'claude', skipPermissions: false }));
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
-    expect(started[0]?.argv).toEqual(['--append-system-prompt', OPENING_PROMPT]);
+    expect(started[0]?.argv).toEqual(['--append-system-prompt', openingPrompt(new Task('t001').dir)]);
 
     await run(answers({ entry: 't001' }), here, { cli: 'codex' });
     expect(started[1]?.argv).not.toContain('--dangerously-bypass-approvals-and-sandbox');

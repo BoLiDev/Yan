@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { workspacePackages } from './packages.js';
 import { repoName } from './repo-name.js';
 import { openTasks } from './task-id.js';
@@ -15,6 +15,7 @@ import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
 import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
+import { yanHome } from '../../util/home.js';
 import { branchOf, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
@@ -27,7 +28,8 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  *
  * The agent is told as little as will let it find the rest: the three parts
  * we think about a task in and which note keeps each, the two commands that read
- * them, and which trees are which and what in them the task is about. The
+ * them, where the task's files are, and which trees are which and what in
+ * them the task is about. The
  * agent reads its notes with `yan context`, not `yan peek`, which is
  * `user`'s glance at a task and leaves the deliverables out. Which task it
  * is travels in `$YAN_TASK`, which every command reads, so the agent never
@@ -63,19 +65,30 @@ const NO_BRANCH = 'A worktree is leased on a detached HEAD, and yan never makes 
   'before committing in one, put it on a branch named the way this repository and this machine expect, unless it is on one already.';
 
 /**
- * The opening prompt. A task with a tree adds the line on branches; one tree
- * with a scope adds a line naming it; several add a line per tree, since
- * only the first is where the agent starts.
+ * Where this task's own files are, absolute, since the agent starts in a
+ * worktree and never in the vault: problem.md, and artifacts/ for what the
+ * work produces, which no command writes and so nothing else would name.
  */
-export function openingPrompt(trees: readonly Tree[] = []): string {
-  if (trees.length === 0) return OPENING_PROMPT;
+function taskDirLine(dir: string): string {
+  return `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping.`;
+}
+
+/**
+ * The opening prompt: the lines every agent gets, then where the task's
+ * files are. A task with a tree adds the line on branches; one tree with a
+ * scope adds a line naming it; several add a line per tree, since only the
+ * first is where the agent starts.
+ */
+export function openingPrompt(taskDir: string, trees: readonly Tree[] = []): string {
+  const head = [OPENING_PROMPT, taskDirLine(taskDir)];
+  if (trees.length === 0) return head.join('\n');
   if (trees.length > 1) {
     const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
-    return [OPENING_PROMPT, `This task works in ${trees.length} repositories, one worktree each:`, ...lines, NO_BRANCH].join('\n');
+    return [...head, `This task works in ${trees.length} repositories, one worktree each:`, ...lines, NO_BRANCH].join('\n');
   }
   const scope = trees[0]?.scope ?? [];
   const about = scope.length === 0 ? [] : [`This task is about these parts of the repository: ${quoted(scope)}.`];
-  return [OPENING_PROMPT, ...about, NO_BRANCH].join('\n');
+  return [...head, ...about, NO_BRANCH].join('\n');
 }
 
 /**
@@ -322,6 +335,21 @@ async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts, cha
 }
 
 /**
+ * This yan, as a hook's shell command: the node running now and the bin/yan.mjs
+ * beside dist/, so the hook does not depend on what PATH finds in the
+ * agent's shell. Double-quoted, which sh and cmd both read.
+ */
+function yanCommand(args: readonly string[]): string {
+  return [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), ...args].map((w) => JSON.stringify(w)).join(' ');
+}
+
+/**
+ * The vault kept in step around the agent without its knowing: pulled each
+ * time `user` sends a message, pushed each time the agent finishes a turn.
+ */
+const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push', '--hook'] } as const;
+
+/**
  * The whole of bare `yan`, at a terminal. Returns the agent's exit status.
  *
  * @param extra arguments after `--`, passed to the harness as they are.
@@ -342,7 +370,7 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
 
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(trees) }), ...options.extra];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, trees), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

@@ -1,8 +1,9 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { Command } from 'commander';
-import { currentBranch, git, remoteUrl, statusPorcelain } from '../util/git.js';
-import { YanError } from '../util/error.js';
+import { Command, Option } from 'commander';
+import { currentBranch, git, gitOk, remoteUrl, revParse, statusPorcelain } from '../util/git.js';
+import { YanError, isYanError } from '../util/error.js';
+import { withLock } from '../util/lock.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
 import { machineConfigPath, readMachine, registerVault, registeredVaults, setActiveVault } from '../util/machine.js';
@@ -10,7 +11,7 @@ import { isDirectory, normalizePath } from '../util/paths.js';
 import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
-import { pullVault } from './shared/vault-pull.js';
+import { catchUp, pullVault, type PullResult } from './shared/vault-pull.js';
 import { isTty } from './shared/tty.js';
 import { isRecordId } from '../util/names.js';
 
@@ -244,12 +245,55 @@ const useCommand = new Command('use')
   .argument('[name]')
   .action(action('yan vault use', (name: string | undefined) => { useVault(name); }));
 
-/** `yan vault pull` and `yan vault push`: by hand, when `user` says so. */
+/**
+ * `yan vault pull` and `yan vault push`, by hand or, with `--hook`, from the
+ * hooks bare `yan` gives the agent it starts: a pull each time `user` sends
+ * a message, a push each time the agent finishes a turn. The agent itself is
+ * told nothing about either.
+ *
+ * Either holds a lock on the vault, so the hooks of several agents on one
+ * machine take turns with git rather than colliding on its index.
+ */
+function withVaultLock<T>(dir: string, body: () => T): T {
+  return withLock(join(dir, '.git', 'yan-sync.lock'), 60, body);
+}
+
+/**
+ * Run as a hook: nothing at all outside a session bare `yan` started, so a
+ * hook that leaks into another session is inert; nothing on stdout, which a
+ * prompt hook's CLI would hand the model; and a failure is exit 1 with its
+ * reason on stderr, shown to `user`, never the 2 that a hook takes as
+ * "stop the agent" or "drop the message".
+ */
+function asHook(name: string, body: () => void): void {
+  if ((process.env.YAN_TASK ?? '') === '') return;
+  try {
+    body();
+  } catch (err) {
+    process.stderr.write(`${name}: ${isYanError(err) ? err.message : String(err)}\n`);
+    process.exitCode = 1;
+  }
+}
+
+function pull(): PullResult {
+  const dir = vaultDir();
+  return remoteUrl(dir) === undefined ? pullVault() : withVaultLock(dir, pullVault);
+}
+
 const pullCommand = new Command('pull')
   .description('fetch and rebase the vault onto its remote')
+  .addOption(new Option('--hook', 'run as a hook: silent unless it fails, and only under bare yan').hideHelp())
   .action(
-    action('yan vault pull', () => {
-      const result = pullVault();
+    action('yan vault pull', (options: { hook?: boolean }) => {
+      if (options.hook === true) {
+        asHook('yan vault pull', () => {
+          const result = pull();
+          // A vault with no origin, or none on it yet, has nothing to pull: no failure of the hook's.
+          if (!result.ok && result.unpublished !== true && remoteUrl(vaultDir()) !== undefined) throw new YanError('vault_pull_failed', result.message);
+        });
+        return;
+      }
+      const result = pull();
       out(`vault pull: ${result.message}`);
       if (!result.ok) process.exitCode = 1;
     }),
@@ -264,33 +308,64 @@ function pushMessage(changed: readonly string[]): string {
   return others > 0 ? `${head}, and ${others} other file(s)` : head;
 }
 
+/**
+ * Commit everything, catch up with origin, push. When there is nothing to
+ * commit and origin already has every commit, it stops before the network:
+ * the hook runs after every turn, and most turns change nothing here.
+ *
+ * @returns what it did, a line each.
+ */
+function pushVault(dir: string, message: string | undefined): string[] {
+  const said: string[] = [];
+  // --untracked-files=all, or a new directory counts as one entry.
+  const changed = statusPorcelain(dir, ['--untracked-files=all'])
+    .split(/\r?\n/)
+    .map((l) => l.slice(3).trim())
+    .filter((p) => p !== '');
+
+  const branch = currentBranch(dir);
+  if (changed.length > 0) {
+    gitOrThrow(dir, ['add', '-A'], 'staging the vault');
+    gitOrThrow(dir, ['commit', '-m', message ?? pushMessage(changed)], 'committing the vault');
+    said.push(`vault push: committed ${changed.length} change(s)`);
+  } else if (gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`]) && revParse(dir, ['HEAD']) === revParse(dir, [`origin/${branch}`])) {
+    return ['vault push: nothing to push'];
+  } else {
+    said.push('vault push: nothing to commit');
+  }
+
+  // Another machine may have pushed since this one last pulled.
+  const caught = catchUp(dir);
+  if (!caught.ok && caught.unpublished !== true) {
+    throw new YanError('vault_push_behind', `${caught.message}\nThe commit stays here, unpushed`);
+  }
+  if (caught.ok && !caught.message.startsWith('already')) said.push(`vault push: ${caught.message}`);
+
+  gitOrThrow(dir, ['push', '-u', 'origin', branch], 'pushing the vault');
+  said.push(`vault push: ${branch} → ${remoteUrl(dir) ?? 'origin'}`);
+  return said;
+}
+
 const pushCommand = new Command('push')
-  .description('commit everything in the vault and push it')
+  .description('commit everything in the vault, rebase it onto its remote and push it')
   .option('-m, --message <text>', 'the commit message, instead of one derived from what changed')
+  .addOption(new Option('--hook', 'run as a hook: silent unless it fails, and only under bare yan').hideHelp())
   .action(
-    action('yan vault push', (options: { message?: string }) => {
-      const dir = vaultDir();
-      if (remoteUrl(dir) === undefined) {
-        throw new YanError('vault_no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
+    action('yan vault push', (options: { message?: string; hook?: boolean }) => {
+      const run = (): string[] => {
+        const dir = vaultDir();
+        if (remoteUrl(dir) === undefined) {
+          // Nothing to keep in step with: a hook has no complaint to make about it.
+          if (options.hook === true) return [];
+          throw new YanError('vault_no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
+        }
+        return withVaultLock(dir, () => pushVault(dir, options.message));
+      };
+      if (options.hook === true) {
+        asHook('yan vault push', () => { run(); });
+        return;
       }
-
-      // --untracked-files=all, or a new directory counts as one entry.
-      const changed = statusPorcelain(dir, ['--untracked-files=all'])
-        .split(/\r?\n/)
-        .map((l) => l.slice(3).trim())
-        .filter((p) => p !== '');
-
-      if (changed.length > 0) {
-        gitOrThrow(dir, ['add', '-A'], 'staging the vault');
-        gitOrThrow(dir, ['commit', '-m', options.message ?? pushMessage(changed)], 'committing the vault');
-        out(`vault push: committed ${changed.length} change(s)`);
-      } else {
-        out('vault push: nothing to commit');
-      }
-
-      const branch = currentBranch(dir);
-      gitOrThrow(dir, ['push', '-u', 'origin', branch], 'pushing the vault');
-      out(`vault push: ${branch} → ${remoteUrl(dir) ?? 'origin'}`);
+      for (const line of run()) out(line);
     }),
   );
 
