@@ -2,13 +2,13 @@ import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as git from '../../util/git.js';
 import { withLock } from '../../util/lock.js';
-import { baseRef, isRegisteredWorktree, worktreeHolding } from './git-facts.js';
+import { baseRef, isRegisteredWorktree, worktreeHolding, worktreesOnBranch } from './git-facts.js';
 import { assertReturnable, wipe } from './guard.js';
 import { absolute, cloneDir, leaseFile, leasesDir, lockFile, poolRoot, repoName, slotTree } from './layout.js';
 import { allLeases, newLeaseId, reclaim, releaseLease, writeLease } from './lease.js';
 import type { LeaseGrant, LeaseRow } from './types.js';
 import { YanError } from '../../util/error.js';
-import { isDirectory } from '../../util/paths.js';
+import { isDirectory, samePath } from '../../util/paths.js';
 
 /**
  * The worktree pool for one main clone: slots reused warm, so a leased tree
@@ -56,6 +56,7 @@ export class WorktreePool {
 
     git.worktreePrune(this.clone);
     reclaim(this.dir);
+    this.detachFreeSlots(name);
 
     const slot = this.pickSlot(name);
     const tree = slotTree(this.dir, slot, name);
@@ -68,6 +69,26 @@ export class WorktreePool {
     return { path: tree, lease_id: leaseId, holder };
   }
 
+  /** The slot numbers this pool has a directory for, lowest first. */
+  private slots(): number[] {
+    return readdirSync(this.dir).filter((e) => /^[0-9]+$/.test(e)).map(Number).sort((a, b) => a - b);
+  }
+
+  /**
+   * Take every free slot still on a branch off it. Returning a tree detaches
+   * it, but one returned before that did stays on its task's branch, and
+   * holds it, until this runs. Best effort: a slot left on its branch is no
+   * worse than it was.
+   */
+  private detachFreeSlots(name: string): void {
+    const onBranch = worktreesOnBranch(this.clone);
+    for (const n of this.slots()) {
+      if (existsSync(leaseFile(this.dir, n))) continue;
+      const tree = slotTree(this.dir, n, name);
+      if (onBranch.some((w) => samePath(w.path, tree))) git.detach(tree);
+    }
+  }
+
   /**
    * The lowest free slot that already holds a tree, so the pool reuses a warm
    * one before it cuts a new one; otherwise the lowest slot with no tree in it.
@@ -75,8 +96,7 @@ export class WorktreePool {
    */
   private pickSlot(name: string): number {
     const free = (n: number): boolean => !existsSync(leaseFile(this.dir, n));
-    const slots = readdirSync(this.dir).filter((e) => /^[0-9]+$/.test(e)).map(Number).sort((a, b) => a - b);
-    const warm = slots.find((n) => free(n) && existsSync(join(this.dir, String(n), name, '.git')));
+    const warm = this.slots().find((n) => free(n) && existsSync(join(this.dir, String(n), name, '.git')));
     if (warm !== undefined) return warm;
     for (let n = 1; ; n += 1) {
       if (free(n) && !existsSync(join(this.dir, String(n), name))) return n;

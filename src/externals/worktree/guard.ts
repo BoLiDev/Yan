@@ -50,11 +50,13 @@ export function assertReturnable(tree: string): void {
 
 /**
  * Reset and clean a tree back to a reusable state, keeping gitignored files so
- * the next lease stays warm.
+ * the next lease stays warm, and take it off its branch: a free tree holding
+ * the branch would stop it being checked out anywhere else.
  *
- * @throws YanError when the reset or the clean fails.
+ * @throws YanError when the reset, the clean or the detach fails.
  */
 export function wipe(tree: string): void {
   if (git.resetHard(tree).code !== 0) throw new YanError('worktree_failed', `cannot reset ${tree}`);
   if (git.cleanFd(tree).code !== 0) throw new YanError('worktree_failed', `cannot clean ${tree}`);
+  if (git.detach(tree).code !== 0) throw new YanError('worktree_failed', `cannot take ${tree} off its branch`);
 }

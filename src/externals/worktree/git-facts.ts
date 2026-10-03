@@ -48,6 +48,11 @@ function worktrees(clone: string): Worktree[] {
   return found;
 }
 
+/** The worktrees of `clone` that are on a branch, the main clone included. */
+export function worktreesOnBranch(clone: string): Array<{ path: string; branch: string }> {
+  return worktrees(clone).flatMap((w) => (w.branch === undefined ? [] : [{ path: w.path, branch: w.branch }]));
+}
+
 /** True when git knows `path` as a worktree of `clone`. */
 export function isRegisteredWorktree(clone: string, path: string): boolean {
   return worktrees(clone).some((w) => samePath(w.path, path));

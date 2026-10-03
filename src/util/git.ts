@@ -141,6 +141,14 @@ export function checkout(dir: string, args: readonly string[]): ProcessResult {
   return git(dir, ['checkout', ...args]);
 }
 
+/**
+ * Take `dir` off its branch, HEAD staying on the same commit and the files as
+ * they are, so the branch can be checked out in another tree.
+ */
+export function detach(dir: string): ProcessResult {
+  return git(dir, ['checkout', '--detach']);
+}
+
 export function rebase(dir: string, args: readonly string[]): ProcessResult {
   requireArg(args[0], 'rebase needs an upstream');
   return git(dir, ['rebase', ...args]);

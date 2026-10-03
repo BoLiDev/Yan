@@ -153,7 +153,12 @@ state and dates, and copying them into the log would bury the decisions that
 One tree per task, leased from a pool per clone under `~/.yan/trees/`. The
 pool has no size limit: it grows by a slot when every slot is leased and never
 shrinks, and it reuses a free warm slot before cutting a new one. A returned
-tree is reset and cleaned with `-fd`, never `-x`, so `node_modules` stays.
+tree is reset and cleaned with `-fd`, never `-x`, so `node_modules` stays,
+and detached on the commit it was on: left on its task's branch, a free tree
+would hold that branch, and git checks a branch out in one tree at a time.
+It cannot go to the default branch instead, since the clone itself usually
+has that one. A free slot still on a branch, returned before this, is
+detached the next time its pool leases a tree.
 
 A lease names its holder, which is the task id. Neither the tree's path nor
 its branch is stored in the vault: the path is the lease's, and the branch is

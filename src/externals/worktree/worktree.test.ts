@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
@@ -13,7 +13,8 @@ import { WorktreePool, leasesHeldBy, returnTrees, treeState } from './index.js';
  *
  * What is under test:
  *   - a returned tree is reset and cleaned, never with -x, so gitignored
- *     directories survive into the next lease
+ *     directories survive into the next lease, and left on no branch
+ *   - a free tree still on a branch is taken off it before the next lease
  *   - the guard refuses to return a tree holding uncommitted or unpushed work,
  *     and --force is the one way past it
  *   - the pool grows when every slot is leased, and reuses a warm slot first
@@ -172,6 +173,28 @@ describe('returning a tree', () => {
 
     expect(returnTrees('t001', { force: true }).sort()).toEqual([a.path, b.path].sort());
     expect(leasesHeldBy('t001')).toEqual([]);
+  });
+
+  it('leaves the tree on no branch, so the branch can be checked out elsewhere', async () => {
+    const grant = pool().get('origin/main', 'yan/t001', 't001');
+    const head = (await fxGit(['rev-parse', 'HEAD'], grant.path)).stdout.trim();
+    returnTrees('t001');
+
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], grant.path)).stdout.trim()).toBe('HEAD');
+    expect((await fxGit(['rev-parse', 'HEAD'], grant.path)).stdout.trim(), 'on the commit it was on').toBe(head);
+    expect((await fxGit(['checkout', 'yan/t001'], clone)).code).toBe(0);
+  });
+
+  it('takes a free tree returned on its branch off it before the next lease', async () => {
+    pool().get('origin/main', 'yan/t001', 't001');
+    const held = pool().get('origin/main', 'yan/t002', 't002');
+    // Returned by a yan from before returning detached: the lease gone, the branch kept.
+    rmSync(join(cloneDir(clone), 'leases', '1.json'));
+    rmSync(join(cloneDir(clone), 'leases', '2.json'));
+    pool().get('origin/main', 'yan/t003', 't003');
+
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], held.path)).stdout.trim()).toBe('HEAD');
+    expect((await fxGit(['checkout', 'yan/t002'], clone)).code).toBe(0);
   });
 
   it('is nothing to do for a holder with no tree', () => {
