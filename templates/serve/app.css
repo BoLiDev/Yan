@@ -48,16 +48,34 @@ img { -webkit-user-drag: none; }
 
 /* ── panes ─────────────────────────────────────────────────────────────── */
 
+/* The left and middle panes stay put at the top and scroll only their list:
+   the tasks on the left, the tree (or the branch's files, or the feed) in the middle. */
 .left {
-  flex: none; width: 240px; height: 100vh; overflow: auto;
-  padding: 14px 10px 20px; background: var(--sunken);
-  display: flex; flex-direction: column; gap: 12px;
+  flex: none; width: 240px; height: 100vh; overflow: hidden; background: var(--sunken);
+  display: flex; flex-direction: column;
 }
 .app.left-hidden .left { display: none; }
 .middle {
-  flex: none; width: 312px; height: 100vh; overflow: auto;
-  padding: 18px 12px 28px; border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 16px;
+  flex: none; width: 312px; height: 100vh; overflow: hidden; border-right: 1px solid var(--line);
+  display: flex; flex-direction: column;
+}
+.pane-top { flex: none; display: flex; flex-direction: column; gap: 16px; padding: 18px 12px 12px; position: relative; z-index: 1; transition: box-shadow 0.15s; }
+.left .pane-top { gap: 12px; padding: 14px 10px 10px; }
+.pane-top.edge { box-shadow: 0 1px 0 var(--line), 0 6px 12px -10px rgba(27, 27, 25, 0.25); }
+.pane-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 12px 28px; display: flex; flex-direction: column; gap: 8px; }
+.left .pane-scroll { padding: 2px 10px 20px; }
+.pane-foot { flex: none; padding: 8px 12px 12px; border-top: 1px solid var(--line); }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+
+/* Thin scrollbars, faint until the pointer is over what scrolls. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: rgba(27, 27, 25, 0.12) padding-box; }
+:hover::-webkit-scrollbar-thumb { background-color: rgba(27, 27, 25, 0.24); }
+::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: rgba(27, 27, 25, 0.4); }
+::-webkit-scrollbar-button { display: none; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: rgba(27, 27, 25, 0.24) transparent; }
 }
 .right { flex: 1 1 auto; min-width: 0; height: 100vh; display: flex; flex-direction: column; background: var(--surface); }
 

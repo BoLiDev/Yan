@@ -505,13 +505,16 @@ function buildLeft() {
       }
     },
   });
+  left.latest = h('div');
   left.list = h('div', { class: 'group', style: { gap: '12px' } });
-  L.replaceChildren(
+  left.scroll = h('div', { class: 'pane-scroll' }, left.list);
+  const top = h('div', { class: 'pane-top' },
     h('div', { class: 'brand' }, h('b', null, 'yan'), left.vault, h('span', { class: 'grow' }), tool('panel', 'Hide the task list', () => setLeft(false), { small: true })),
     left.sync,
     h('label', { class: 'find' }, icon('search', 15), left.find),
-    left.list,
-  );
+    left.latest);
+  edgeOnScroll(top, left.scroll);
+  L.replaceChildren(top, left.scroll);
   const rail = document.getElementById('rail-open');
   rail.append(icon('panel', 17));
   rail.addEventListener('click', () => setLeft(true));
@@ -567,7 +570,7 @@ function renderLeft() {
   left.vault.textContent = S.index.vault.name;
   left.vault.title = S.index.vault.dir;
   renderSync();
-  const top = L.scrollTop;
+  const top = left.scroll.scrollTop;
   const tasks = S.index.tasks;
   const q = S.query.trim().toLowerCase();
   const parts = [];
@@ -577,11 +580,6 @@ function renderLeft() {
     hits.sort((a, b) => b.touched - a.touched);
     parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, hits.length ? plural(hits.length, 'task') : 'No task matches'), hits.map((t) => taskRow(t))));
   } else {
-    const unseen = latestUnseen();
-    const onLatest = S.route.view === 'latest';
-    parts.push(h('a', { class: 'row' + (onLatest ? ' on' : ''), href: '#/latest', style: { fontWeight: 700 } },
-      icon('latest', 17), h('span', { class: 'grow' }, 'Latest'), unseen > 0 && !onLatest ? h('span', { class: 'badge solid' }, unseen) : null));
-
     const open = tasks.filter((t) => t.state === 'open').sort((a, b) => b.touched - a.touched);
     parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, 'In progress'), open.length ? open.map((t) => taskRow(t)) : h('div', { class: 'sublabel' }, 'Nothing open')));
 
@@ -595,8 +593,27 @@ function renderLeft() {
     }
     if (rows.length) parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, 'Done'), rows));
   }
+  const unseen = latestUnseen();
+  const onLatest = S.route.view === 'latest';
+  left.latest.replaceChildren(h('a', { class: 'row' + (onLatest ? ' on' : ''), href: '#/latest', style: { fontWeight: 700 } },
+    icon('latest', 17), h('span', { class: 'grow' }, 'Latest'), unseen > 0 && !onLatest ? h('span', { class: 'badge solid' }, unseen) : null));
   left.list.replaceChildren(...parts);
-  L.scrollTop = top;
+  left.scroll.scrollTop = top;
+}
+
+/** A line under a pane's fixed top, once what is below it has scrolled under. */
+function edgeOnScroll(top, scroller) {
+  const mark = () => top.classList.toggle('edge', scroller.scrollTop > 0);
+  scroller.addEventListener('scroll', mark, { passive: true });
+  mark();
+}
+
+/** A pane: what stays at its top, what scrolls below that, and what stays at its foot. */
+function pane(topKids, bodyKids, footKids) {
+  const top = h('div', { class: 'pane-top' }, topKids);
+  const body = h('div', { class: 'pane-scroll' }, bodyKids);
+  edgeOnScroll(top, body);
+  return [top, body, footKids ? h('div', { class: 'pane-foot' }, footKids) : null].filter(Boolean);
 }
 
 // ── middle ──────────────────────────────────────────────────────────────────
@@ -607,16 +624,21 @@ let middleFor = '';
 function renderMiddle() {
   const r = S.route;
   const key = r.view === 'latest' ? 'latest' : r.id;
-  if (middleFor) middleScroll.set(middleFor, M.scrollTop);
+  const before = M.querySelector('.pane-scroll');
+  if (middleFor && before) middleScroll.set(middleFor, before.scrollTop);
   if (!S.index) return;
   if (r.view === 'latest') renderFeed();
   else renderTaskIndex(r);
-  M.scrollTop = middleScroll.get(key) || 0;
+  const scroller = M.querySelector('.pane-scroll');
+  if (scroller) {
+    scroller.scrollTop = middleScroll.get(key) || 0;
+    scroller.dispatchEvent(new Event('scroll'));
+  }
   middleFor = key;
-  const on = M.querySelector('.row.on, .commit-line.on');
+  const on = scroller?.querySelector('.row.on, .commit-line.on');
   if (on) {
     const a = on.getBoundingClientRect();
-    const b = M.getBoundingClientRect();
+    const b = scroller.getBoundingClientRect();
     if (a.top < b.top || a.bottom > b.bottom) on.scrollIntoView({ block: 'center' });
   }
 }
@@ -655,15 +677,18 @@ function renderTaskIndex(r) {
       t.repos.length > 1 ? h('span', { class: 'aside' }, repo.name) : null));
   });
 
-  const parts = [
+  const head = [
     h('div', { class: 'task-head' },
       h('div', { class: 't' }, stateIcon(t.state, 18), h('h1', null, t.title || t.id)),
       h('div', { class: 'sub' }, taskSub(t))),
     h('div', { class: 'nav' }, nav),
   ];
-  if (r.sub === 'branch') parts.push(branchPanel(t, r));
-  parts.push(artifactsPanel(t, d, r));
-  M.replaceChildren(...parts);
+  // An open branch takes the part that scrolls, and the artifacts wait at the foot.
+  const part = r.sub === 'branch' ? branchPanel(t, r) : artifactsPanel(t, d, r);
+  const foot = r.sub === 'branch' && d
+    ? h('a', { class: 'row', href: link.folder(t.id, '') }, h('span', { class: 'folder-icon dim' }, icon('folder', 15)), h('span', { class: 'grow' }, 'Artifacts'), h('span', { class: 'aside' }, d.files.length))
+    : null;
+  M.replaceChildren(...pane([...head, part.top], part.body, foot));
 }
 
 /** Folders open by default when there are few files; the ones holding what is shown always are. */
@@ -775,10 +800,7 @@ function shownFiles(id, d) {
 }
 
 function artifactsPanel(t, d, r) {
-  if (!d) return h('div', { class: 'section-head' }, h('b', null, 'Artifacts'), h('span', null, 'loading…'));
-  if (r.sub === 'branch') {
-    return h('a', { class: 'row', href: link.folder(t.id, '') }, h('span', { class: 'folder-icon dim' }, icon('folder', 15)), h('span', { class: 'grow' }, 'Artifacts'), h('span', { class: 'aside' }, d.files.length));
-  }
+  if (!d) return { top: h('div', { class: 'section-head' }, h('b', null, 'Artifacts'), h('span', null, 'loading…')), body: [] };
   const counts = kindCounts(d.files);
   const kindsHere = KIND_ORDER.filter((k) => counts[k]);
   const filter = filterOf(t.id);
@@ -803,13 +825,14 @@ function artifactsPanel(t, d, r) {
   const hidden = d.hidden.length
     ? h('div', { class: 'hidden-note' }, `Not shown: ${d.hidden.map((x) => `${x.name} (${x.count})`).join(', ')}`)
     : null;
-  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-    h('div', { class: 'section-head' },
-      h('b', null, 'Artifacts'), h('span', null, d.files.length), h('span', { class: 'grow' }),
-      d.files.length ? tool('grid', 'See them all as a grid', null, { small: true, href: link.folder(t.id, ''), newTab: false }) : null),
-    chips,
-    d.files.length ? h('div', { class: 'tree', role: 'tree', 'aria-label': 'Artifacts' }, out) : h('div', { class: 'sublabel' }, 'No artifacts yet.'),
-    hidden);
+  return {
+    top: h('div', { class: 'stack' },
+      h('div', { class: 'section-head' },
+        h('b', null, 'Artifacts'), h('span', null, d.files.length), h('span', { class: 'grow' }),
+        d.files.length ? tool('grid', 'See them all as a grid', null, { small: true, href: link.folder(t.id, ''), newTab: false }) : null),
+      chips),
+    body: [d.files.length ? h('div', { class: 'tree', role: 'tree', 'aria-label': 'Artifacts' }, out) : h('div', { class: 'sublabel' }, 'No artifacts yet.'), hidden],
+  };
 }
 function setFilter(id, k) {
   S.filter.set(id, k);
@@ -823,8 +846,8 @@ function setFilter(id, k) {
 function branchPanel(t, r) {
   const repo = t.repos[r.repo];
   const b = branchOf(t.id, r.repo);
-  if (!repo || !repo.branch) return h('div', { class: 'sublabel' }, 'This task keeps no branch here.');
-  if (!b) return h('div', { class: 'branch-card' }, h('div', { class: 'top' }, icon('branch', 16), h('b', null, repo.name), h('span', { class: 'grow mono dim' }, repo.branch)), h('div', { class: 'facts' }, 'reading the branch…'));
+  if (!repo || !repo.branch) return { top: h('div', { class: 'sublabel' }, 'This task keeps no branch here.'), body: [] };
+  if (!b) return { top: h('div', { class: 'branch-card' }, h('div', { class: 'top' }, icon('branch', 16), h('b', null, repo.name), h('span', { class: 'grow mono dim' }, repo.branch)), h('div', { class: 'facts' }, 'reading the branch…')), body: [] };
 
   const facts = [];
   if (b.merged) {
@@ -841,7 +864,7 @@ function branchPanel(t, r) {
       b.links.branch ? tool('external', 'Open the branch on GitHub', null, { small: true, href: b.links.branch }) : null),
     facts.length ? h('div', { class: 'facts' }, facts) : null,
     b.missing ? h('div', { class: 'facts error' }, b.missing) : h('div', { class: 'from', title: b.clone }, `kept by yan branch · read from ${b.clone}`));
-  if (b.missing) return card;
+  if (b.missing) return { top: card, body: [] };
 
   const tabs = seg([['changes', `Changes ${b.files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']], r.tab, (tab) => {
     location.hash = link.branch(t.id, r.repo, tab);
@@ -885,7 +908,7 @@ function branchPanel(t, r) {
     }
     if (!b.files.length) list.push(h('div', { class: 'sublabel' }, `No changes against ${b.target}.`));
   }
-  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, card, tabs, h('div', { class: 'tree' }, list));
+  return { top: h('div', { class: 'stack' }, card, tabs), body: h('div', { class: 'tree' }, list) };
 }
 function commonDir(paths) {
   if (paths.length < 2) return paths.length ? dirName(paths[0]) + (dirName(paths[0]) ? '/' : '') : '';
@@ -917,9 +940,10 @@ function feedFiles() {
 function renderFeed() {
   const r = S.route;
   const base = S.latestBase ?? S.seen.latest;
-  const parts = [h('div', { class: 'section-head', style: { padding: '0 10px' } },
+  const heading = h('div', { class: 'section-head', style: { padding: '0 10px' } },
     h('h1', { style: { margin: 0, fontSize: '19px', lineHeight: '26px' } }, 'Latest'), h('span', { class: 'grow' }),
-    h('button', { type: 'button', class: 'tool text', style: { height: '28px', color: 'var(--accent)', fontSize: '12.5px' }, onclick: markAllSeen }, 'Mark all seen'))];
+    h('button', { type: 'button', class: 'tool text', style: { height: '28px', color: 'var(--accent)', fontSize: '12.5px' }, onclick: markAllSeen }, 'Mark all seen'));
+  const parts = [];
   if (!S.index.latest.length) parts.push(h('div', { class: 'sublabel' }, 'Nothing has arrived in any task’s artifacts yet.'));
   let day = '';
   let group = null;
@@ -951,7 +975,7 @@ function renderFeed() {
         h('span', { class: 'aside' }, p.task)),
       rows));
   }
-  M.replaceChildren(...parts);
+  M.replaceChildren(...pane([heading], parts));
 }
 function markAllSeen() {
   for (const t of S.index.tasks) {
@@ -1283,7 +1307,14 @@ function sanitize(root) {
 function trimAutolinks(root) {
   for (const a of root.querySelectorAll('a[href]')) {
     const text = a.textContent;
-    if (text !== a.getAttribute('href')) continue;
+    let href = a.getAttribute('href');
+    try {
+      href = decodeURI(href);
+    } catch {
+      continue;
+    }
+    // marked writes the punctuation into the href percent-encoded.
+    if (text !== href || !/^https?:\/\//.test(text)) continue;
     const cut = text.search(/[）」』，。；：、！？》】]/);
     if (cut <= 0) continue;
     a.textContent = text.slice(0, cut);
