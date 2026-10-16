@@ -1,0 +1,442 @@
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createRequire } from 'node:module';
+import { dirname, extname, join } from 'node:path';
+import { cloneOf } from '../../util/machine.js';
+import { repoKey } from '../../util/repo-key.js';
+import { Branches, PATCH_LIMIT } from './branch-view.js';
+import { gitAsync } from './blobs.js';
+import { VaultView } from './vault-view.js';
+
+/**
+ * `yan serve`'s two HTTP servers, both on 127.0.0.1.
+ *
+ * The page is on one port and the vault's files on the next. A page an
+ * agent wrote runs as itself on the files port, loading its own scripts,
+ * modules and fonts beside it, and as another origin it cannot read the
+ * page's API or the page around it. The page shows text through
+ * `/blob/<sha>` on its own origin, and points images, frames and players at
+ * the files port.
+ *
+ * Every `everyS` seconds the server fetches the vault's branch into a ref of
+ * its own and moves to the newest commit among that, origin's and the work
+ * tree's HEAD, so a commit an agent made here and has not pushed yet shows
+ * too. Pages hear of it through `/api/events`, a server-sent event stream.
+ */
+
+export interface ServeOptions {
+  readonly port: number;
+  readonly everyS: number;
+  readonly vaultDir: string;
+  readonly vaultName: string;
+  /** yan's own clone: the page, its fonts, its one library. */
+  readonly home: string;
+}
+
+interface Status {
+  version: number;
+  commit: string | null;
+  checkedAt: number | null;
+  pulledAt: number | null;
+  ok: boolean;
+  error: string | null;
+  everyS: number;
+  /** The vault has no origin, so nothing is fetched. */
+  local: boolean;
+}
+
+const OWN_REF = 'refs/yan/serve/heads/';
+
+const TYPES: Record<string, string> = {
+  html: 'text/html; charset=utf-8',
+  htm: 'text/html; charset=utf-8',
+  css: 'text/css; charset=utf-8',
+  js: 'text/javascript; charset=utf-8',
+  mjs: 'text/javascript; charset=utf-8',
+  cjs: 'text/javascript; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+  map: 'application/json; charset=utf-8',
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  ico: 'image/x-icon',
+  bmp: 'image/bmp',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  flac: 'audio/flac',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  pdf: 'application/pdf',
+  woff2: 'font/woff2',
+  woff: 'font/woff',
+  ttf: 'font/ttf',
+  otf: 'font/otf',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/plain; charset=utf-8',
+  log: 'text/plain; charset=utf-8',
+};
+
+export function typeOf(name: string): string {
+  return TYPES[extname(name).slice(1).toLowerCase()] ?? 'application/octet-stream';
+}
+
+const SHA = /^[0-9a-f]{7,64}$/;
+
+function send(res: ServerResponse, status: number, body: string | Buffer, type = 'text/plain; charset=utf-8', headers: Record<string, string> = {}): void {
+  res.writeHead(status, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', ...headers });
+  res.end(body);
+}
+
+function json(res: ServerResponse, value: unknown): void {
+  send(res, 200, JSON.stringify(value), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+}
+
+/**
+ * Bytes, honouring one `Range`: a video or a long recording is played by
+ * asking for pieces of it, and seeking needs them.
+ */
+function sendBytes(req: IncomingMessage, res: ServerResponse, bytes: Buffer, type: string, headers: Record<string, string>): void {
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+  const base = { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'Accept-Ranges': 'bytes', ...headers };
+  if (range === null || (range[1] === '' && range[2] === '')) {
+    res.writeHead(200, { ...base, 'Content-Length': String(bytes.length) });
+    res.end(req.method === 'HEAD' ? undefined : bytes);
+    return;
+  }
+  const size = bytes.length;
+  let start = range[1] === '' ? size - Number(range[2]) : Number(range[1]);
+  let end = range[1] === '' || range[2] === '' ? size - 1 : Number(range[2]);
+  start = Math.max(0, start);
+  end = Math.min(size - 1, end);
+  if (start > end) {
+    res.writeHead(416, { ...base, 'Content-Range': `bytes */${size}` });
+    res.end();
+    return;
+  }
+  res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) });
+  res.end(req.method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
+}
+
+/** A request whose Host is not this machine by name is refused: a page elsewhere that rebinds its name to 127.0.0.1 gets nothing. */
+function hostOk(req: IncomingMessage, port: number): boolean {
+  const host = (req.headers.host ?? '').toLowerCase();
+  return host === `localhost:${port}` || host === `127.0.0.1:${port}`;
+}
+
+export class YanServer {
+  private readonly view: VaultView;
+  private readonly branches: Branches;
+  private readonly status: Status;
+  private readonly clients = new Set<ServerResponse>();
+  private readonly servers: Server[] = [];
+  private timer: NodeJS.Timeout | undefined;
+  private ticking: Promise<void> | undefined;
+  private branch = 'main';
+  private port = 0;
+
+  public constructor(private readonly options: ServeOptions) {
+    this.view = new VaultView(options.vaultDir);
+    this.branches = new Branches(options.everyS);
+    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false };
+  }
+
+  public get filesOrigin(): string {
+    return `http://localhost:${this.port + 1}`;
+  }
+
+  /**
+   * Read the vault once, then listen on `port` and `port + 1`.
+   *
+   * @throws the listen error, `EADDRINUSE` most likely, with nothing left open.
+   */
+  public async start(): Promise<number> {
+    this.branch = (await gitAsync(this.options.vaultDir, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim() || 'main';
+    if (this.branch === 'HEAD') this.branch = 'main';
+    this.status.local = (await gitAsync(this.options.vaultDir, ['remote', 'get-url', 'origin'])).code !== 0;
+    await this.tick();
+
+    this.port = this.options.port;
+    try {
+      await this.listen(this.port, (req, res) => this.app(req, res));
+      await this.listen(this.port + 1, (req, res) => this.files(req, res));
+    } catch (err) {
+      this.stop();
+      throw err;
+    }
+    this.schedule();
+    return this.port;
+  }
+
+  public stop(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    for (const c of this.clients) c.end();
+    for (const s of this.servers) s.close();
+    void this.view.close();
+    void this.branches.close();
+  }
+
+  private listen(port: number, handler: (req: IncomingMessage, res: ServerResponse) => Promise<void>): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const server = createServer((req, res) => {
+        handler(req, res).catch((err: unknown) => {
+          if (!res.headersSent) send(res, 500, `yan serve: ${(err as Error)?.message ?? String(err)}`);
+          else res.end();
+        });
+      });
+      server.once('error', reject);
+      server.listen(port, '127.0.0.1', () => {
+        server.off('error', reject);
+        this.servers.push(server);
+        resolve();
+      });
+    });
+  }
+
+  private schedule(): void {
+    this.timer = setTimeout(() => {
+      this.tick()
+        .catch(() => undefined)
+        .finally(() => this.schedule());
+    }, this.options.everyS * 1000);
+  }
+
+  /** Fetch, move to the newest commit, and tell every open page. One at a time. */
+  private tick(): Promise<void> {
+    if (this.ticking !== undefined) return this.ticking;
+    const first = this.view.commit === undefined;
+    this.ticking = (async (): Promise<void> => {
+      const dir = this.options.vaultDir;
+      const now = (): number => Math.floor(Date.now() / 1000);
+      if (this.status.local) {
+        // No origin: the vault is only here, and HEAD is all there is to read.
+        this.status.checkedAt = now();
+      } else {
+        const fetched = await gitAsync(
+          dir,
+          ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'fetch', '--no-write-fetch-head', '--no-tags', '--quiet', 'origin', `+refs/heads/${this.branch}:${OWN_REF}${this.branch}`],
+          30_000,
+        );
+        this.status.checkedAt = now();
+        this.status.ok = fetched.code === 0;
+        this.status.error = fetched.code === 0 ? null : fetched.stderr.trim().split(/\r?\n/).pop() || 'fetch failed';
+        if (fetched.code === 0) this.status.pulledAt = this.status.checkedAt;
+      }
+
+      try {
+        const commit = await this.newest([`${OWN_REF}${this.branch}`, `refs/remotes/origin/${this.branch}`, 'HEAD']);
+        if (commit !== undefined && commit !== this.view.commit) {
+          await this.view.load(commit);
+          this.status.commit = commit;
+          this.status.version += 1;
+        }
+      } catch (err) {
+        // The first read failing is the command failing; a later one leaves
+        // the page on the commit it has, and says why.
+        if (first) throw err;
+        this.status.ok = false;
+        this.status.error = (err as Error).message;
+      }
+      this.broadcast();
+    })().finally(() => {
+      this.ticking = undefined;
+    });
+    return this.ticking;
+  }
+
+  /** The newest of `refs`: one that descends from all the others before it. */
+  private async newest(refs: readonly string[]): Promise<string | undefined> {
+    let best: string | undefined;
+    for (const ref of refs) {
+      const r = await gitAsync(this.options.vaultDir, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
+      const sha = r.stdout.trim();
+      if (r.code !== 0 || sha === '' || sha === best) continue;
+      if (best === undefined || (await gitAsync(this.options.vaultDir, ['merge-base', '--is-ancestor', best, sha])).code === 0) best = sha;
+    }
+    return best;
+  }
+
+  private broadcast(): void {
+    const data = `event: status\ndata: ${JSON.stringify(this.status)}\n\n`;
+    for (const c of this.clients) c.write(data);
+  }
+
+  // --- the page's origin -----------------------------------------------------
+
+  private async app(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (!hostOk(req, this.port)) return send(res, 403, 'yan serve answers only to localhost');
+    const url = new URL(req.url ?? '/', `http://localhost:${this.port}`);
+    const p = url.pathname;
+    const q = url.searchParams;
+
+    if (req.method === 'POST' && p === '/api/pull') {
+      await this.tick();
+      return json(res, this.status);
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
+
+    if (p === '/' || p === '/index.html') return this.asset(res, join(this.options.home, 'templates', 'serve', 'index.html'), 'text/html; charset=utf-8');
+    if (p === '/app.js' || p === '/app.css') return this.asset(res, join(this.options.home, 'templates', 'serve', p.slice(1)), typeOf(p));
+    if (p.startsWith('/fonts/') && /^[\w.-]+\.woff2$/.test(p.slice(7))) {
+      return this.asset(res, join(this.options.home, 'templates', 'ui', 'fonts', p.slice(7)), 'font/woff2', 'max-age=86400');
+    }
+    if (p === '/vendor/marked.js') return this.asset(res, this.markedPath(), 'text/javascript; charset=utf-8', 'max-age=86400');
+
+    if (p === '/api/hello') return json(res, { yan: 'serve', vault: this.options.vaultName });
+    if (p === '/api/events') return this.events(req, res);
+    if (p === '/api/index') {
+      return json(res, {
+        ...this.view.index(),
+        status: this.status,
+        vault: { name: this.options.vaultName, dir: this.options.vaultDir },
+        filesOrigin: this.filesOrigin,
+      });
+    }
+    const task = /^\/api\/task\/([\w.-]+)$/.exec(p);
+    if (task !== null) {
+      const detail = await this.view.task(task[1] as string);
+      return detail === undefined ? send(res, 404, 'no such task') : json(res, detail);
+    }
+    const blob = /^\/blob\/([0-9a-f]{7,64})$/.exec(p);
+    if (blob !== null) {
+      const bytes = await this.view.blobs.read(blob[1] as string);
+      if (bytes === undefined) return send(res, 404, 'no such blob');
+      return sendBytes(req, res, bytes, 'text/plain; charset=utf-8', { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    if (p.startsWith('/api/branch')) return this.branchApi(req, res, p, q);
+    return send(res, 404, 'not found');
+  }
+
+  private events(req: IncomingMessage, res: ServerResponse): void {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    res.write(`retry: 3000\nevent: status\ndata: ${JSON.stringify(this.status)}\n\n`);
+    this.clients.add(res);
+    req.on('close', () => this.clients.delete(res));
+  }
+
+  private async branchApi(req: IncomingMessage, res: ServerResponse, p: string, q: URLSearchParams): Promise<void> {
+    const detail = await this.view.task(q.get('task') ?? '');
+    const repo = detail?.repos[Number(q.get('repo') ?? '0')];
+    if (detail === undefined || repo === undefined || repo.branch === null) return send(res, 404, 'that task keeps no branch there');
+    const clone = cloneOf(repoKey(repo.url));
+    const usable = clone !== undefined && existsSync(clone) ? clone : undefined;
+
+    if (p === '/api/branch') return json(res, await this.branches.view(repo.url, repo.branch, usable, q.get('fresh') === '1'));
+    if (usable === undefined) return send(res, 404, 'no clone of that repository on this machine');
+
+    const sha = (name: string): string | undefined => {
+      const v = q.get(name) ?? '';
+      return SHA.test(v) ? v : undefined;
+    };
+    if (p === '/api/branch/diff') {
+      const [base, head, path] = [sha('base'), sha('head'), q.get('path') ?? ''];
+      if (base === undefined || head === undefined || path === '') return send(res, 400, 'base, head and path are needed');
+      const from = q.get('from');
+      const context = q.get('context') === 'all' ? '-U100000' : '-U3';
+      const r = await gitAsync(usable, ['diff', '--no-color', '--no-ext-diff', '-M', context, base, head, '--', ...(from ? [from] : []), path]);
+      return send(res, r.code === 0 ? 200 : 500, r.code === 0 ? r.stdout.slice(0, PATCH_LIMIT) : r.stderr, 'text/plain; charset=utf-8', { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    if (p === '/api/branch/commit') {
+      const c = sha('sha');
+      if (c === undefined) return send(res, 400, 'sha is needed');
+      const [head, patch] = await Promise.all([
+        gitAsync(usable, ['show', '-s', '--format=%H%x1f%ct%x1f%an%x1f%s%x1f%b', c]),
+        gitAsync(usable, ['show', '--no-color', '--no-ext-diff', '-M', '--format=', c]),
+      ]);
+      if (head.code !== 0) return send(res, 404, 'no such commit');
+      const [full = c, at = '0', author = '', subject = '', body = ''] = head.stdout.split('\x1f');
+      return json(res, { sha: full, at: Number(at), author, subject, body: body.trim(), patch: patch.stdout.slice(0, PATCH_LIMIT), truncated: patch.stdout.length > PATCH_LIMIT });
+    }
+    if (p === '/api/branch/tree') {
+      const head = sha('head');
+      if (head === undefined) return send(res, 400, 'head is needed');
+      const r = await gitAsync(usable, ['ls-tree', '-r', '-l', '-z', head]);
+      const files = r.stdout
+        .split('\0')
+        .map((line) => {
+          const tab = line.indexOf('\t');
+          const [, type, s, size] = line.slice(0, tab).trim().split(/\s+/);
+          return tab < 0 || type !== 'blob' ? undefined : { path: line.slice(tab + 1), sha: s, size: Number(size) || 0 };
+        })
+        .filter((f) => f !== undefined);
+      return json(res, files);
+    }
+    if (p === '/api/branch/blob') {
+      const s = sha('sha');
+      if (s === undefined) return send(res, 400, 'sha is needed');
+      const bytes = await this.branches.reader(usable).read(s);
+      if (bytes === undefined) return send(res, 404, 'no such blob');
+      // On this origin only a picture is served as what it is: an SVG or a
+      // page from the repository would run here, beside the API.
+      const named = typeOf(q.get('name') ?? '');
+      const type = /^image\/(png|jpeg|gif|webp|avif|bmp|x-icon)$/.test(named) ? named : 'text/plain; charset=utf-8';
+      return sendBytes(req, res, bytes, type, { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    return send(res, 404, 'not found');
+  }
+
+  private asset(res: ServerResponse, file: string, type: string, cache = 'no-cache'): void {
+    let size: number;
+    try {
+      size = statSync(file).size;
+    } catch {
+      return send(res, 404, `yan serve: ${file} is missing - is this yan's own clone?`);
+    }
+    res.writeHead(200, { 'Content-Type': type, 'Content-Length': String(size), 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' });
+    createReadStream(file).pipe(res);
+  }
+
+  private markedPath(): string {
+    const pkg = createRequire(join(this.options.home, 'package.json')).resolve('marked/package.json');
+    return join(dirname(pkg), 'lib', 'marked.umd.js');
+  }
+
+  // --- the files' origin -----------------------------------------------------
+
+  /**
+   * `/<path in the vault>`, as the commit being shown has it. Revalidated by
+   * its blob's sha, so a file an agent rewrote is fetched again and one it
+   * did not is a 304.
+   */
+  private async files(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (!hostOk(req, this.port + 1)) return send(res, 403, 'yan serve answers only to localhost');
+    if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
+    let path: string;
+    try {
+      path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname).replace(/^\/+/, '');
+    } catch {
+      return send(res, 400, 'bad path');
+    }
+    // `_sha/<sha>/<name>`: one version of a file, which never changes, for
+    // thumbnails and the image being looked at - a redraw costs no request.
+    const pinned = /^_sha\/([0-9a-f]{40,64})\/([^/]+)$/.exec(path);
+    if (pinned !== null) {
+      const bytes = await this.view.blobs.read(pinned[1] as string);
+      if (bytes === undefined) return send(res, 404, 'no such blob');
+      return sendBytes(req, res, bytes, typeOf(pinned[2] as string), { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    let entry = this.view.entry(path);
+    // A folder's page, as a static server would give it.
+    if (entry === undefined && (path === '' || path.endsWith('/'))) entry = this.view.entry(`${path}index.html`);
+    if (entry === undefined) return send(res, 404, `${path} is not in the vault`);
+
+    const etag = `"${entry.sha}"`;
+    const headers = { ETag: etag, 'Cache-Control': 'no-cache' };
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, headers);
+      res.end();
+      return;
+    }
+    const bytes = await this.view.blobs.read(entry.sha);
+    if (bytes === undefined) return send(res, 404, `${path} cannot be read`);
+    const download = new URL(req.url ?? '/', 'http://localhost').searchParams.has('download');
+    const name = path.split('/').pop() ?? 'file';
+    sendBytes(req, res, bytes, typeOf(path), download ? { ...headers, 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}` } : headers);
+  }
+}

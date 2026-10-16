@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@clack/prompts": "1.7.0",
-    "commander": "14.0.2"
+    "commander": "14.0.2",
+    "marked": "18.0.14"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

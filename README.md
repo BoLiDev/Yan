@@ -61,6 +61,7 @@ For you:
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan ui` — a work report of every task, in the browser
+- `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, its notes and branch, and every artifact shown as what it is
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 
@@ -76,6 +77,18 @@ For the agent:
 `yan <command> --help` says the rest. Every command that takes a task reads
 `$YAN_TASK` when none is given, which is what `yan` sets for the agent it
 starts.
+
+`yan serve` runs until stopped, at `http://localhost:4747` (`--port`). Every
+10 seconds (`--every`) it fetches the vault into refs of its own,
+`refs/yan/serve/`, and reads git objects rather than the work tree, so
+nothing an agent or a hook works with moves; an open page follows without
+being reloaded. Images, pages, Markdown, code, logs, audio, video and fonts
+open in place, and prev and next walk a folder. A task that keeps a branch
+shows it against origin's default branch, from this machine's clone: its
+changed files and their diffs, its commits, and every file at its head. A
+branch already merged is compared from where it left, and its merge commit
+names the pull request. The artifacts are served on the next port up, so a
+page an agent wrote runs as its own site and cannot reach the one around it.
 
 ## Where things are
 
@@ -105,7 +118,7 @@ branch.
 ## Third-party material
 
 `templates/ui/fonts/` holds two woff2 subsets of **ChillRoundF** (寒蝉全圆体)
-by ChillType, the face `yan ui` draws its report in, under the SIL Open Font
+by ChillType, the face `yan ui` and `yan serve` draw in, under the SIL Open Font
 License 1.1. `templates/ui/fonts/OFL.txt` is the licence and the copyright
 notice, and the `README.md` beside it says what is in the subsets and how they
 were cut. Everything else here is yan's own.
