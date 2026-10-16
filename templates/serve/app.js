@@ -762,33 +762,51 @@ function fileThumb(f, name) {
   return h('span', { class: 'kind' }, badge(name));
 }
 
+/** A folder that holds only one folder is shown as one row with it, so a long path stays shallow. */
+function compactDir(dir) {
+  let name = dir.name;
+  while (!dir.files.length && dir.dirs.size === 1) {
+    dir = dir.dirs.values().next().value;
+    name += '/' + dir.name;
+  }
+  return { name, dir };
+}
+
+/** Rows of a tree. A folder row opens its folder's page when there is `folderHref`, and only opens and closes otherwise. */
 function treeRows(node, depth, ctx, out) {
-  for (const dir of sortedDirs(node)) {
+  for (const top of sortedDirs(node)) {
+    const { name, dir } = ctx.compact ? compactDir(top) : { name: top.name, dir: top };
     const open = ctx.open.has(dir.path);
     const current = ctx.folder === dir.path;
+    const toggle = () => {
+      if (open) ctx.open.delete(dir.path);
+      else ctx.open.add(dir.path);
+      renderMiddle();
+    };
     const chev = h('span', {
       class: 'chev', role: 'button', 'aria-label': open ? 'Close the folder' : 'Open the folder',
       onclick: (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (open) ctx.open.delete(dir.path);
-        else ctx.open.add(dir.path);
-        renderMiddle();
+        toggle();
       },
     }, icon('chev', 12, 2.25));
     out.push(h('a', {
       class: 'row folder' + (open ? ' open' : '') + (current ? ' on' : ''),
-      href: ctx.folderHref(dir.path),
-      style: { paddingLeft: `${10 + depth * 16}px` },
+      href: ctx.folderHref ? ctx.folderHref(dir.path) : null,
+      style: { paddingLeft: `${10 + depth * (ctx.step || 16)}px` },
       role: 'treeitem',
       'aria-expanded': String(open),
-      onclick: () => {
-        if (open && current) {
-          ctx.open.delete(dir.path);
-          renderMiddle();
-        } else ctx.open.add(dir.path);
-      },
-    }, chev, h('span', { class: 'folder-icon' }, icon('folder', 15)), h('span', { class: 'grow' }, dir.name), h('span', { class: 'aside' }, dir.count)));
+      title: dir.path,
+      onclick: ctx.folderHref
+        ? () => {
+          if (open && current) {
+            ctx.open.delete(dir.path);
+            renderMiddle();
+          } else ctx.open.add(dir.path);
+        }
+        : toggle,
+    }, chev, h('span', { class: 'folder-icon' }, icon('folder', 15)), h('span', { class: 'grow' }, name), h('span', { class: 'aside' }, dir.count)));
     if (open) treeRows(dir, depth + 1, ctx, out);
   }
   for (const f of sortedFiles(node)) {
@@ -797,12 +815,12 @@ function treeRows(node, depth, ctx, out) {
     out.push(h('a', {
       class: 'row' + (on ? ' on' : ''),
       href: ctx.fileHref(f.path),
-      style: { paddingLeft: `${32 + depth * 16}px` },
+      style: { paddingLeft: `${32 + depth * (ctx.step || 16)}px` },
       role: 'treeitem',
       'aria-selected': String(on),
-      title: f.path,
+      title: ctx.tip ? ctx.tip(f) : f.path,
     },
-    ctx.thumbs === false ? h('span', { class: 'kind' }, badge(name)) : fileThumb(f, name),
+    ctx.lead ? ctx.lead(f) : ctx.thumbs === false ? h('span', { class: 'kind' }, badge(name)) : fileThumb(f, name),
     h('span', { class: 'grow', style: { fontWeight: on ? 700 : 400 } }, name),
     ctx.isNew && ctx.isNew(f) ? h('span', { class: 'dot', title: 'new since your last look' }) : null,
     ctx.extra ? ctx.extra(f) : null));
@@ -905,41 +923,62 @@ function branchPanel(t, r) {
     const tree = S.branchTrees.get(b.head);
     if (!tree) {
       list.push(h('div', { class: 'sublabel' }, 'reading the files…'));
-      void loadBranchTree(t.id, r.repo, b.head).then(() => renderMiddle());
+      void loadBranchTree(t.id, r.repo, b.head).then(() => {
+        renderMiddle();
+        renderRight(true);
+      });
     } else {
+      // Every folder starts closed, and the one holding the file asked for opens once.
       const key = `${t.id}:${r.repo}:${r.name || ''}:files`;
       if (!S.expanded.has(key)) S.expanded.set(key, new Set());
-      if (r.item) for (let p = dirName(r.item); p; p = dirName(p)) S.expanded.get(key).add(p);
+      const open = S.expanded.get(key);
+      if (r.item && revealOnce(key, r.item)) for (let p = dirName(r.item); p; p = dirName(p)) open.add(p);
       treeRows(buildTree(tree), 0, {
-        open: S.expanded.get(key),
+        open,
         file: r.item || null,
         folder: null,
         thumbs: false,
+        compact: true,
+        step: 12,
         fileHref: (p) => inBranch(r, 'files', p),
-        folderHref: () => location.hash,
       }, list);
     }
   } else {
-    const prefix = commonDir(b.files.map((f) => f.path));
-    if (prefix) list.push(h('div', { class: 'prefix' }, prefix));
-    const cur = r.item || b.files[0]?.path;
-    for (const f of b.files) {
-      const rest = f.path.slice(prefix.length);
-      const on = f.path === cur;
-      list.push(h('a', { class: 'row' + (on ? ' on' : ''), href: inBranch(r, 'changes', f.path), title: f.from ? `${f.from} → ${f.path}` : f.path, style: { fontSize: '13.5px', padding: '5px 10px', gap: '8px' } },
-        h('span', { class: `status-letter ${f.status}`, title: { A: 'added', D: 'deleted', R: 'renamed', M: 'changed', C: 'copied', T: 'type changed' }[f.status] || '' }, f.status === 'M' ? '' : f.status),
-        h('span', { class: 'grow' }, h('span', { class: 'dim', style: { fontWeight: 400 } }, dirName(rest) ? dirName(rest) + '/' : ''), baseName(rest)),
-        f.add === null ? h('span', { class: 'aside' }, 'binary') : [h('span', { class: 'plus' }, f.add ? `+${f.add}` : ''), h('span', { class: 'minus' }, f.del ? `−${f.del}` : '')]));
-    }
+    // Every folder starts open; one closed by hand stays closed until a file in it is asked for.
+    const key = `${t.id}:${r.repo}:${r.name || ''}:changes`;
+    if (!S.closed.has(key)) S.closed.set(key, new Set());
+    const closed = S.closed.get(key);
+    const cur = r.item || changeOrder(b)[0]?.path;
+    if (cur && revealOnce(key, cur)) for (let p = dirName(cur); p; p = dirName(p)) closed.delete(p);
+    treeRows(buildTree(b.files), 0, {
+      open: { has: (p) => !closed.has(p), add: (p) => closed.delete(p), delete: (p) => closed.add(p) },
+      file: cur,
+      folder: null,
+      compact: true,
+      step: 12,
+      fileHref: (p) => inBranch(r, 'changes', p),
+      tip: (f) => (f.from ? `${f.from} → ${f.path}` : f.path),
+      lead: (f) => h('span', { class: `status-letter ${f.status}`, title: STATUS_WORD[f.status] || '' }, f.status === 'M' ? '' : f.status),
+      extra: (f) => (f.add === null ? h('span', { class: 'aside' }, 'binary') : [h('span', { class: 'plus' }, f.add ? `+${f.add}` : ''), h('span', { class: 'minus' }, f.del ? `−${f.del}` : '')]),
+    }, list);
     if (!b.files.length) list.push(h('div', { class: 'sublabel' }, `No changes against ${b.target}.`));
   }
-  return { top: h('div', { class: 'stack' }, card, tabs), body: h('div', { class: 'tree' }, list) };
+  return { top: h('div', { class: 'stack' }, card, tabs), body: h('div', { class: 'tree', role: 'tree' }, list) };
 }
-function commonDir(paths) {
-  if (paths.length < 2) return paths.length ? dirName(paths[0]) + (dirName(paths[0]) ? '/' : '') : '';
-  let prefix = paths[0];
-  for (const p of paths) while (prefix && !p.startsWith(prefix)) prefix = prefix.slice(0, -1);
-  return prefix.slice(0, prefix.lastIndexOf('/') + 1);
+const STATUS_WORD = { A: 'added', D: 'deleted', R: 'renamed', M: 'changed', C: 'copied', T: 'type changed' };
+S.closed = new Map();
+const revealed = new Map();
+/** True the first time `item` is asked for under `key`, so its folders open then and can be closed after. */
+function revealOnce(key, item) {
+  if (revealed.get(key) === item) return false;
+  revealed.set(key, item);
+  return true;
+}
+const changeOrders = new WeakMap();
+/** A branch's changed files in the order its tree shows them, which prev and next walk. */
+function changeOrder(b) {
+  if (!changeOrders.has(b)) changeOrders.set(b, treeOrder(buildTree(b.files)));
+  return changeOrders.get(b);
 }
 S.branchTrees = new Map();
 async function loadBranchTree(id, repo, head) {
@@ -1802,14 +1841,15 @@ function viewBranch(t, r, token) {
   }
 
   // changes
-  const path = r.item || b.files[0]?.path;
+  const order = changeOrder(b);
+  const path = r.item || order[0]?.path;
   if (!path) return emptyRight('No changes', `${b.branch} changes nothing against ${b.target}.`);
-  const at = b.files.findIndex((f) => f.path === path);
-  const f = b.files[at];
+  const at = order.findIndex((f) => f.path === path);
+  const f = order[at];
   if (!f) return emptyRight('Not in this branch', `${path} is not among the files ${b.branch} changes.`);
   keyNav = {
-    prev: at > 0 ? inBranch(r, 'changes', b.files[at - 1].path) : null,
-    next: at < b.files.length - 1 ? inBranch(r, 'changes', b.files[at + 1].path) : null,
+    prev: at > 0 ? inBranch(r, 'changes', order[at - 1].path) : null,
+    next: at < order.length - 1 ? inBranch(r, 'changes', order[at + 1].path) : null,
   };
   const against = b.merged ? `as merged${b.merged.pr ? ` in PR #${b.merged.pr}` : ''}, against ${b.target} at ${short(b.base)}` : `against ${b.target} at ${short(b.base)}`;
   const meta = h('span', null,
