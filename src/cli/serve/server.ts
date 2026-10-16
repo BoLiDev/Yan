@@ -327,7 +327,12 @@ export class YanServer {
     const clone = cloneOf(repoKey(repo.url));
     const usable = clone !== undefined && existsSync(clone) ? clone : undefined;
 
-    if (p === '/api/branch') return json(res, await this.branches.view(repo.url, repo.branch, usable, q.get('fresh') === '1'));
+    if (p === '/api/branch') {
+      // The branch the task is on, or one it was on before; never any other name.
+      const asked = q.get('branch') || repo.branch;
+      if (asked !== repo.branch && !repo.earlier.includes(asked)) return send(res, 404, `${asked} is not a branch this task kept`);
+      return json(res, await this.branches.view(repo.url, asked, usable, q.get('fresh') === '1'));
+    }
     if (usable === undefined) return send(res, 404, 'no clone of that repository on this machine');
 
     const sha = (name: string): string | undefined => {

@@ -122,8 +122,10 @@ export class Task {
 
   /**
    * Keep `branch` as the one the work is on in the repository `url` names,
-   * replacing what was kept; returns what was. The entry is changed where it
-   * stands in the file, so a field a later yan added to it survives.
+   * replacing what was kept; returns what was. What it replaces goes to the
+   * end of `earlierBranches`, and a branch the work moves back to leaves it.
+   * The entry is changed where it stands in the file, so a field a later
+   * yan added to it survives.
    *
    * @throws YanError `branch_usage` for a name that is not one word, or a
    *   repository this task does not work in.
@@ -145,8 +147,12 @@ export class Task {
           `${url} is not a repository of this task - ${urls.length === 0 ? 'it has none' : `it works in ${urls.join(', ')}`}`,
         );
       }
-      before = data.repos.find((r) => repoKey(r.url) === key)?.branch;
-      entries[at] = { ...recordOrNone(entries[at]), branch: name };
+      const had = data.repos.find((r) => repoKey(r.url) === key);
+      before = had?.branch;
+      const earlier = [...(had?.earlierBranches ?? []), ...(before === undefined || before === name ? [] : [before])];
+      const kept = [...new Set(earlier)].filter((b) => b !== name);
+      const { earlierBranches: _, ...entry } = recordOrNone(entries[at]) ?? {};
+      entries[at] = { ...entry, branch: name, ...(kept.length === 0 ? {} : { earlierBranches: kept }) };
       doc.repos = entries;
     });
     return before;
@@ -323,7 +329,15 @@ function taskRepo(repo: TaskRepo): TaskRepo {
     url: repo.url,
     ...(repo.scope === undefined || repo.scope.length === 0 ? {} : { scope: [...repo.scope] }),
     ...(repo.branch === undefined ? {} : { branch: repo.branch }),
+    ...(repo.earlierBranches === undefined || repo.earlierBranches.length === 0 ? {} : { earlierBranches: [...repo.earlierBranches] }),
   };
+}
+
+/** Branch names as a list, each once, leaving out what is not one word. */
+function branchNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const names = raw.filter((b): b is string => typeof b === 'string').map((b) => b.trim()).filter((b) => b !== '' && !/\s/.test(b));
+  return [...new Set(names)];
 }
 
 /**
@@ -338,7 +352,8 @@ function readRepos(raw: readonly unknown[]): TaskRepo[] {
     if (url === '') continue;
     const scope = Array.isArray(r?.scope) ? r.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
     const branch = typeof r?.branch === 'string' && r.branch.trim() !== '' ? r.branch.trim() : undefined;
-    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }) }));
+    const earlierBranches = branchNames(r?.earlierBranches);
+    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }), earlierBranches }));
   }
   return repos;
 }

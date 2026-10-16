@@ -54,7 +54,7 @@ export interface TaskSummary {
   readonly state: string;
   readonly createdAt: string | null;
   readonly closedAt: string | null;
-  readonly repos: readonly { readonly name: string; readonly branch: string | null }[];
+  readonly repos: readonly { readonly name: string; readonly branch: string | null; readonly earlier: readonly string[] }[];
   readonly deliverables: { readonly done: number; readonly todo: number; readonly abandoned: number };
   readonly artifacts: number;
   /** When each shown artifact was added, newest first: the page counts what is new against its own last visit. */
@@ -91,7 +91,7 @@ export interface TaskDetail {
   readonly createdAt: string | null;
   readonly closedAt: string | null;
   readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null }[];
+  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[] }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
@@ -176,6 +176,11 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
+/** `earlierBranches`, oldest first, as names. */
+function branchList(value: unknown): string[] {
+  return Array.isArray(value) ? [...new Set(value.filter((b): b is string => typeof b === 'string' && b.trim() !== '').map((b) => b.trim()))] : [];
+}
+
 function repoName(url: string): string {
   return repoKey(url).split('/').pop() ?? url;
 }
@@ -186,7 +191,7 @@ interface TaskJson {
   readonly createdAt: string | null;
   readonly closedAt: string | null;
   readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null }[];
+  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[] }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
 }
@@ -204,7 +209,7 @@ export function readTaskJson(raw: unknown): TaskJson {
     createdAt: text(r.createdAt),
     closedAt: text(r.closedAt),
     reason: text(r.reason),
-    repos: repos.map((x) => ({ url: x!.url as string, name: repoName(x!.url as string), branch: text(x!.branch) })),
+    repos: repos.map((x) => ({ url: x!.url as string, name: repoName(x!.url as string), branch: text(x!.branch), earlier: branchList(x!.earlierBranches) })),
     deliverables: deliverables.map((d) => ({
       id: asString(d.id),
       text: asString(d.text),
@@ -313,7 +318,7 @@ export class VaultView {
         state: json.state,
         createdAt: json.createdAt,
         closedAt: json.closedAt,
-        repos: json.repos.map((r) => ({ name: r.name, branch: r.branch })),
+        repos: json.repos.map((r) => ({ name: r.name, branch: r.branch, earlier: r.earlier })),
         deliverables: { done: count('done'), todo: count('todo'), abandoned: count('abandoned') },
         artifacts: shown.length,
         added: shown.map((e) => this.times.get(e.path)?.added ?? 0).sort((a, b) => b - a),

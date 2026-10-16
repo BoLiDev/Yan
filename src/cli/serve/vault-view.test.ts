@@ -35,13 +35,13 @@ describe('the log', () => {
 
 describe('task.json', () => {
   it('reads what it can of any shape and names each repository', () => {
-    expect(readTaskJson({ title: 'x', repos: [{ url: 'git@github.com:o/web.git', branch: 'yan/t1' }, { nope: 1 }], deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15' }], resources: { a: 'b', n: 3 } })).toEqual({
+    expect(readTaskJson({ title: 'x', repos: [{ url: 'git@github.com:o/web.git', branch: 'yan/t1-c', earlierBranches: ['yan/t1-a', 'yan/t1-b', 'yan/t1-a', 4] }, { nope: 1 }], deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15' }], resources: { a: 'b', n: 3 } })).toEqual({
       title: 'x',
       state: 'open',
       createdAt: null,
       closedAt: null,
       reason: null,
-      repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1' }],
+      repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1-c', earlier: ['yan/t1-a', 'yan/t1-b'] }],
       deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15', reason: null }],
       resources: [['a', 'b'], ['n', '3']],
     });

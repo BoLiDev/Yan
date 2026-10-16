@@ -285,9 +285,11 @@ const link = {
   log: (id) => `#/t/${id}/log`,
   file: (id, p) => `#/t/${id}/a/${enc(p)}`,
   folder: (id, p) => `#/t/${id}/a/${p ? enc(p) + '/' : ''}`,
-  branch: (id, repo, tab, item) => `#/t/${id}/b/${repo}/${tab || 'changes'}${item ? '/' + enc(item) : ''}`,
+  branch: (id, repo, tab, item, name) => `#/t/${id}/b/${repo}${name ? '/' + encodeURIComponent(name) : ''}/${tab || 'changes'}${item ? '/' + enc(item) : ''}`,
   latest: (id, p) => (id ? `#/latest/${id}/${enc(p)}` : '#/latest'),
 };
+
+const BRANCH_TABS = ['changes', 'commits', 'files'];
 
 function parseRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
@@ -306,7 +308,12 @@ function parseRoute() {
       if (p === '' || raw.endsWith('/')) return { view: 'task', id, sub: 'folder', path: p.replace(/\/$/, '') };
       return { view: 'task', id, sub: 'file', path: p };
     }
-    if (rest[0] === 'b') return { view: 'task', id, sub: 'branch', repo: Number(rest[1]) || 0, tab: rest[2] || 'changes', item: rest.slice(3).join('/') };
+    if (rest[0] === 'b') {
+      // `b/<repo>/<tab>/…` is the branch the task is on; `b/<repo>/<branch>/<tab>/…` an earlier one.
+      const named = rest[2] !== undefined && !BRANCH_TABS.includes(rest[2]);
+      const at = named ? 3 : 2;
+      return { view: 'task', id, sub: 'branch', repo: Number(rest[1]) || 0, name: named ? rest[2] : null, tab: rest[at] || 'changes', item: rest.slice(at + 1).join('/') };
+    }
     return { view: 'task', id, sub: 'overview' };
   }
   if (parts[0] === 'latest' && parts[1]) return { view: 'latest', id: parts[1], path: parts.slice(2).join('/') };
@@ -377,12 +384,21 @@ async function loadTask(id, force) {
   return detail;
 }
 const detailOf = (id) => S.tasks.get(id)?.detail;
-async function loadBranch(id, repo, fresh) {
-  const v = await getJSON(`/api/branch?task=${encodeURIComponent(id)}&repo=${repo}${fresh ? '&fresh=1' : ''}`);
-  S.branches.set(`${id}:${repo}`, v);
+async function loadBranch(id, repo, name, fresh) {
+  const v = await getJSON(`/api/branch?task=${encodeURIComponent(id)}&repo=${repo}${name ? `&branch=${encodeURIComponent(name)}` : ''}${fresh ? '&fresh=1' : ''}`);
+  S.branches.set(`${id}:${repo}:${name || ''}`, v);
   return v;
 }
-const branchOf = (id, repo) => S.branches.get(`${id}:${repo}`);
+/** Every other branch the task kept in a repository, read in the background for what the nav says of each. */
+function loadEarlier(id, repo) {
+  const t = S.byId.get(id);
+  for (const name of [null, ...(t?.repos[repo]?.earlier || [])]) {
+    if (!branchOf(id, repo, name)) void loadBranch(id, repo, name).then(() => renderMiddle(), () => undefined);
+  }
+}
+/** A link inside the branch being looked at. */
+const inBranch = (r, tab, item) => link.branch(r.id, r.repo, tab, item, r.name);
+const branchOf = (id, repo, name) => S.branches.get(`${id}:${repo}:${name || ''}`);
 /** A blob as text, once per sha: the same sha is the same bytes forever. */
 function textOf(url) {
   if (!S.texts.has(url)) {
@@ -406,7 +422,7 @@ async function pullNow() {
     // A pull asked for by hand fetches the branch being looked at too, and waits for it.
     const at = S.route;
     if (at.view === 'task' && at.sub === 'branch' && S.byId.has(at.id)) {
-      await loadBranch(at.id, at.repo, true);
+      await loadBranch(at.id, at.repo, at.name, true);
       render();
     }
   } catch {
@@ -455,9 +471,9 @@ async function onStatus(st) {
   }
   const r = S.route;
   if (r.view === 'task' && r.sub === 'branch' && S.byId.has(r.id)) {
-    const before = branchOf(r.id, r.repo);
+    const before = branchOf(r.id, r.repo, r.name);
     try {
-      const after = await loadBranch(r.id, r.repo);
+      const after = await loadBranch(r.id, r.repo, r.name);
       if (!before || before.head !== after.head || before.base !== after.base || before.fetchedAt !== after.fetchedAt) render();
     } catch {
       /* the next tick tries again */
@@ -670,11 +686,19 @@ function renderTaskIndex(r) {
     icon('log', 16), h('span', { class: 'grow' }, 'Log'), logFresh ? h('span', { class: 'dot', title: 'new entries' }) : null, h('span', { class: 'aside' }, d ? logCount : '')));
   t.repos.forEach((repo, i) => {
     if (!repo.branch) return;
-    const on = r.sub === 'branch' && r.repo === i;
-    nav.push(h('a', { class: 'row' + (on ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
+    const here = r.sub === 'branch' && r.repo === i;
+    const prOf = (name) => branchOf(t.id, i, name)?.merged?.pr;
+    const now = prOf(null);
+    nav.push(h('a', { class: 'row' + (here && !r.name ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
       icon('branch', 16),
       h('span', { class: 'grow' }, 'Branch ', h('span', { class: 'mono dim', style: { fontSize: '12px', fontWeight: 400 } }, repo.branch)),
-      t.repos.length > 1 ? h('span', { class: 'aside' }, repo.name) : null));
+      h('span', { class: 'aside' }, [t.repos.length > 1 ? repo.name : null, now ? `PR #${now}` : null].filter(Boolean).join(' · '))));
+    for (const name of [...(repo.earlier || [])].reverse()) {
+      const pr = prOf(name);
+      nav.push(h('a', { class: 'row earlier' + (here && r.name === name ? ' on' : ''), href: link.branch(t.id, i, 'changes', '', name), title: `${repo.name} · ${name}, before ${repo.branch}` },
+        h('span', { class: 'grow mono' }, name),
+        h('span', { class: 'aside' }, pr ? `PR #${pr}` : 'earlier')));
+    }
   });
 
   const head = [
@@ -845,7 +869,7 @@ function setFilter(id, k) {
 
 function branchPanel(t, r) {
   const repo = t.repos[r.repo];
-  const b = branchOf(t.id, r.repo);
+  const b = branchOf(t.id, r.repo, r.name);
   if (!repo || !repo.branch) return { top: h('div', { class: 'sublabel' }, 'This task keeps no branch here.'), body: [] };
   if (!b) return { top: h('div', { class: 'branch-card' }, h('div', { class: 'top' }, icon('branch', 16), h('b', null, repo.name), h('span', { class: 'grow mono dim' }, repo.branch)), h('div', { class: 'facts' }, 'reading the branch…')), body: [] };
 
@@ -857,6 +881,7 @@ function branchPanel(t, r) {
     facts.push(h('span', null, `${b.ahead} ahead${b.behind ? ` · ${b.behind} behind` : ''} ${b.target}`));
   }
   if (!b.missing) facts.push(h('span', null, plural(b.commits.length, 'commit')));
+  if (r.name && r.name !== repo.branch) facts.push(h('span', { title: `The task is on ${repo.branch} now` }, 'an earlier branch'));
   if (b.fetchedAt) facts.push(h('span', { title: b.fetchError || '' }, `${b.fetchError ? "couldn't fetch · " : 'fetched '}${clock(b.fetchedAt)}`));
   const card = h('div', { class: 'branch-card' },
     h('div', { class: 'top' }, h('span', { style: { color: 'var(--accent)', display: 'flex' } }, icon('branch', 16)), h('b', null, b.repo),
@@ -867,13 +892,13 @@ function branchPanel(t, r) {
   if (b.missing) return { top: card, body: [] };
 
   const tabs = seg([['changes', `Changes ${b.files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']], r.tab, (tab) => {
-    location.hash = link.branch(t.id, r.repo, tab);
+    location.hash = inBranch(r, tab);
   }, true);
   const list = [];
   if (r.tab === 'commits') {
     for (const c of b.commits) {
       const on = (r.item || b.commits[0]?.sha) === c.sha;
-      list.push(h('a', { class: 'commit-line' + (on ? ' on' : ''), href: link.branch(t.id, r.repo, 'commits', c.sha) },
+      list.push(h('a', { class: 'commit-line' + (on ? ' on' : ''), href: inBranch(r, 'commits', c.sha) },
         h('span', { class: 'mono' }, short(c.sha)), h('span', { class: 'grow' }, c.subject), h('span', { class: 'aside' }, dayOf(c.at))));
     }
   } else if (r.tab === 'files') {
@@ -882,7 +907,7 @@ function branchPanel(t, r) {
       list.push(h('div', { class: 'sublabel' }, 'reading the files…'));
       void loadBranchTree(t.id, r.repo, b.head).then(() => renderMiddle());
     } else {
-      const key = `${t.id}:${r.repo}:files`;
+      const key = `${t.id}:${r.repo}:${r.name || ''}:files`;
       if (!S.expanded.has(key)) S.expanded.set(key, new Set());
       if (r.item) for (let p = dirName(r.item); p; p = dirName(p)) S.expanded.get(key).add(p);
       treeRows(buildTree(tree), 0, {
@@ -890,7 +915,7 @@ function branchPanel(t, r) {
         file: r.item || null,
         folder: null,
         thumbs: false,
-        fileHref: (p) => link.branch(t.id, r.repo, 'files', p),
+        fileHref: (p) => inBranch(r, 'files', p),
         folderHref: () => location.hash,
       }, list);
     }
@@ -901,7 +926,7 @@ function branchPanel(t, r) {
     for (const f of b.files) {
       const rest = f.path.slice(prefix.length);
       const on = f.path === cur;
-      list.push(h('a', { class: 'row' + (on ? ' on' : ''), href: link.branch(t.id, r.repo, 'changes', f.path), title: f.from ? `${f.from} → ${f.path}` : f.path, style: { fontSize: '13.5px', padding: '5px 10px', gap: '8px' } },
+      list.push(h('a', { class: 'row' + (on ? ' on' : ''), href: inBranch(r, 'changes', f.path), title: f.from ? `${f.from} → ${f.path}` : f.path, style: { fontSize: '13.5px', padding: '5px 10px', gap: '8px' } },
         h('span', { class: `status-letter ${f.status}`, title: { A: 'added', D: 'deleted', R: 'renamed', M: 'changed', C: 'copied', T: 'type changed' }[f.status] || '' }, f.status === 'M' ? '' : f.status),
         h('span', { class: 'grow' }, h('span', { class: 'dim', style: { fontWeight: 400 } }, dirName(rest) ? dirName(rest) + '/' : ''), baseName(rest)),
         f.add === null ? h('span', { class: 'aside' }, 'binary') : [h('span', { class: 'plus' }, f.add ? `+${f.add}` : ''), h('span', { class: 'minus' }, f.del ? `−${f.del}` : '')]));
@@ -1014,7 +1039,7 @@ function rightKey() {
       return `${base}|${f?.sha}|${filterOf(r.id)}|${S.prefs.dark}|${S.prefs.width}|${S.page.source}|${S.page.mdSource}|${JSON.stringify(S.prefs.wrap)}`;
     }
     if (r.sub === 'branch') {
-      const b = branchOf(r.id, r.repo);
+      const b = branchOf(r.id, r.repo, r.name);
       return `${base}|${b?.head}|${b?.base}|${b?.missing}|${S.prefs.layout}|${S.prefs.whole}|${S.branchTrees.has(b?.head)}|${S.prefs.dark}`;
     }
     return `${base}|${S.version}|${d ? 'd' : '-'}|${filterOf(r.id)}`;
@@ -1708,7 +1733,7 @@ function half(l, side) {
 
 function viewBranch(t, r, token) {
   keyNav = { prev: null, next: null };
-  const b = branchOf(t.id, r.repo);
+  const b = branchOf(t.id, r.repo, r.name);
   if (!b) return emptyRight('Reading the branch…');
   if (b.missing) return emptyRight('Nothing to show', b.missing);
   const github = b.links.branch ? b.links.branch.replace(/\/tree\/.*$/, '') : null;
@@ -1718,8 +1743,8 @@ function viewBranch(t, r, token) {
     const at = b.commits.findIndex((c) => c.sha === sha);
     if (!sha) return emptyRight('No commits', `${b.branch} has nothing ${b.target} does not.`);
     keyNav = {
-      prev: at > 0 ? link.branch(t.id, r.repo, 'commits', b.commits[at - 1].sha) : null,
-      next: at >= 0 && at < b.commits.length - 1 ? link.branch(t.id, r.repo, 'commits', b.commits[at + 1].sha) : null,
+      prev: at > 0 ? inBranch(r, 'commits', b.commits[at - 1].sha) : null,
+      next: at >= 0 && at < b.commits.length - 1 ? inBranch(r, 'commits', b.commits[at + 1].sha) : null,
     };
     const scroll = h('div', { class: 'diff-scroll' }, h('div', { class: 'empty' }, 'Loading…'));
     const c = b.commits[at] || { sha, subject: short(sha), author: '', at: 0 };
@@ -1738,7 +1763,7 @@ function viewBranch(t, r, token) {
       append(scroll, [
         full.body ? h('div', { class: 'commit-body' }, full.body) : null,
         full.truncated ? h('div', { class: 'notice' }, 'This commit is too big to show whole; it is cut short.') : null,
-        files.map((f) => h('div', { class: 'diff' }, h('div', { class: 'diff-file-head' }, h('a', { href: link.branch(t.id, r.repo, 'changes', f.path) }, f.path), f.note.length ? h('span', { class: 'dim' }, f.note.join(', ')) : null), diffBody(f, S.prefs.layout)))]);
+        files.map((f) => h('div', { class: 'diff' }, h('div', { class: 'diff-file-head' }, h('a', { href: inBranch(r, 'changes', f.path) }, f.path), f.note.length ? h('span', { class: 'dim' }, f.note.join(', ')) : null), diffBody(f, S.prefs.layout)))]);
     }, (err) => scroll.replaceChildren(h('div', { class: 'empty error' }, String(err.message || err))));
     return undefined;
   }
@@ -1783,8 +1808,8 @@ function viewBranch(t, r, token) {
   const f = b.files[at];
   if (!f) return emptyRight('Not in this branch', `${path} is not among the files ${b.branch} changes.`);
   keyNav = {
-    prev: at > 0 ? link.branch(t.id, r.repo, 'changes', b.files[at - 1].path) : null,
-    next: at < b.files.length - 1 ? link.branch(t.id, r.repo, 'changes', b.files[at + 1].path) : null,
+    prev: at > 0 ? inBranch(r, 'changes', b.files[at - 1].path) : null,
+    next: at < b.files.length - 1 ? inBranch(r, 'changes', b.files[at + 1].path) : null,
   };
   const against = b.merged ? `as merged${b.merged.pr ? ` in PR #${b.merged.pr}` : ''}, against ${b.target} at ${short(b.base)}` : `against ${b.target} at ${short(b.base)}`;
   const meta = h('span', null,
@@ -1846,7 +1871,8 @@ async function onRoute() {
     markTaskSeen(r.id);
     const need = [];
     if (!detailOf(r.id) || S.tasks.get(r.id).version !== S.version) need.push(loadTask(r.id));
-    if (r.sub === 'branch' && !branchOf(r.id, r.repo)) need.push(loadBranch(r.id, r.repo).catch(() => undefined));
+    if (r.sub === 'branch' && !branchOf(r.id, r.repo, r.name)) need.push(loadBranch(r.id, r.repo, r.name).catch(() => undefined));
+    if (r.sub === 'branch') loadEarlier(r.id, r.repo);
     if (need.length) {
       render();
       await Promise.all(need).catch((err) => toast(String(err.message || err)));

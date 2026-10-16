@@ -42,7 +42,7 @@ function branchIn(dir: string): string {
 }
 
 export const command = new Command('branch')
-  .description('keep the branch the work is on, once you have put a worktree on one, so later sessions start the worktree on it')
+  .description('keep the branch the work is on, each time you put a worktree on one, so later sessions start the worktree on it')
   .argument('[name]', 'the branch; by default the one this worktree is on')
   .option('--repo <name>', 'the repository, by name or URL; by default the one this worktree is of')
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
@@ -79,9 +79,11 @@ export const command = new Command('branch')
   .addHelpText(
     'after',
     `
-Run it in the worktree once it is on the branch the work goes on, and again
-if the work moves to another: the branch kept is the one the worktree is on,
-as origin names it when it tracks one there. A name given is kept as it is.
+Run it in the worktree as soon as it is on the branch the work goes on, and
+again each time the work moves to another: the branch kept is the one the
+worktree is on, as origin names it when it tracks one there. A name given is
+kept as it is. The branch it replaces is kept too, among the task's earlier
+branches, so every change the task made can still be found.
 
 The next time 'yan' opens a worktree of that repository for the task, on any
 machine, it puts the tree on that branch: the clone's own, brought up to

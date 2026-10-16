@@ -35,7 +35,8 @@ the repositories it works in from the registry, and gets a worktree of each
 on a detached HEAD at origin's default branch; in a monorepo it also asks
 which packages the task is about, once. yan never makes a branch, since each
 machine names its branches its own way: the agent is told to cut one before
-it commits, and to keep it with `yan branch` once it has. A tree opened
+it commits, to keep it with `yan branch` right away, and to keep the next
+one the same way whenever the work moves to another branch. A tree opened
 later for the task, on any machine, is put on the branch it keeps: the
 clone's own, brought up to origin's when it is only behind it, or a new one
 tracking origin's; one yan cannot put there starts detached, and says why.
@@ -71,7 +72,7 @@ For the agent:
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
 - `yan resource add|rm|ls` — tickets, docs, releases, paths: anything the work refers to, under a name
-- `yan branch [name]` — the branch the work is on in a repository, kept once a worktree is on it
+- `yan branch [name]` — the branch the work is on in a repository, kept as soon as a worktree is on it and again each time the work moves to another; the ones it replaces stay as the task's earlier branches
 - `yan learn add|ls` — a learning, written only when you ask for one
 
 `yan <command> --help` says the rest. Every command that takes a task reads
@@ -85,9 +86,12 @@ nothing an agent or a hook works with moves; an open page follows without
 being reloaded. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
-changed files and their diffs, its commits, and every file at its head. A
+changed files and their diffs, its commits, and every file at its head; the
+branches it was on before are listed under it, each shown the same way. A
 branch already merged is compared from where it left, and its merge commit
-names the pull request. The artifacts are served on the next port up, so a
+names the pull request, so it shows the same change however far the default
+branch has moved since; one deleted from origin is found again from what its
+merge commit says. The artifacts are served on the next port up, so a
 page an agent wrote runs as its own site and cannot reach the one around it.
 
 ## Where things are
@@ -99,7 +103,7 @@ page an agent wrote runs as its own site and cannot reach the one around it.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repos (URL, scope and branch each), deliverables, resources
+    task.json                  title, state, repos (URL, scope, branch and earlier branches each), deliverables, resources
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

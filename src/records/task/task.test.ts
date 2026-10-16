@@ -147,7 +147,7 @@ describe('branches', () => {
     expect(task.keepBranch('git@github.com:me/api.git', 'feat/retry-2')).toBe('feat/retry');
     expect(task.read().repos).toEqual([
       { url: 'git@github.com:me/web.git', scope: ['apps/site'] },
-      { url: 'git@github.com:me/api.git', branch: 'feat/retry-2' },
+      { url: 'git@github.com:me/api.git', branch: 'feat/retry-2', earlierBranches: ['feat/retry'] },
     ]);
   });
 
@@ -159,6 +159,24 @@ describe('branches', () => {
 
     expect(() => task.keepBranch('git@github.com:me/api.git', 'feat/a')).toThrow(/not a repository of this task - it works in git@github.com:me\/web.git/);
     expect(() => task.keepBranch('git@github.com:me/web.git', 'two words')).toThrow(/has a space in it/);
+  });
+
+  it('keeps what it replaced as an earlier branch, oldest first, and lets the work move back to one', () => {
+    const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
+    task.keepBranch('git@github.com:me/web.git', 'feat/a');
+    task.keepBranch('git@github.com:me/web.git', 'feat/a');
+    expect(task.read().repos[0]).toEqual({ url: 'git@github.com:me/web.git', branch: 'feat/a' });
+    task.keepBranch('git@github.com:me/web.git', 'feat/b');
+    task.keepBranch('git@github.com:me/web.git', 'feat/c');
+    expect(task.read().repos[0]).toEqual({ url: 'git@github.com:me/web.git', branch: 'feat/c', earlierBranches: ['feat/a', 'feat/b'] });
+    expect(task.keepBranch('git@github.com:me/web.git', 'feat/a')).toBe('feat/c');
+    expect(raw(task).repos).toEqual([{ url: 'git@github.com:me/web.git', branch: 'feat/a', earlierBranches: ['feat/b', 'feat/c'] }]);
+  });
+
+  it('reads the earlier branches as names, once each, whatever was edited in', () => {
+    const task = Task.create('x');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ url: 'git@github.com:me/web.git', branch: 'c', earlierBranches: ['a', ' a ', 'two words', 3, '', 'b'] }] }));
+    expect(task.read().repos[0]?.earlierBranches).toEqual(['a', 'b']);
   });
 
   it('keeps one for a task from before it could have several repositories', () => {

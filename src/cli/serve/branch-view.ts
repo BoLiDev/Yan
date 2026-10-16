@@ -76,9 +76,30 @@ export function prOf(subject: string): number | null {
   return m === null ? null : Number(m[1]);
 }
 
+/** One fetch of these branches into this clone; another branch of it is fetched on its own. */
+function fetchKey(clone: string, branches: readonly string[]): string {
+  return [clone, ...branches].join('\n');
+}
+
 async function out(dir: string, args: readonly string[]): Promise<string | undefined> {
   const r = await gitAsync(dir, args);
   return r.code === 0 ? r.stdout.trim() : undefined;
+}
+
+/**
+ * The head `branch` had when a merge on `tip` took it in, found by what the
+ * merge says: GitHub's `Merge pull request #N from <owner>/<branch>`, or
+ * git's own `Merge branch '<branch>'`. The newest such merge wins.
+ */
+export async function mergedHead(clone: string, tip: string, branch: string): Promise<string | undefined> {
+  const log = await out(clone, ['log', tip, '--merges', '--fixed-strings', `--grep=${branch}`, '-n', '50', '--format=%P%x1f%s']);
+  for (const line of (log ?? '').split(/\r?\n/)) {
+    const [parents = '', subject = ''] = line.split('\x1f');
+    const names = subject.endsWith(`/${branch}`) || subject.endsWith(` ${branch}`) || subject.includes(`'${branch}'`);
+    const second = parents.split(' ')[1];
+    if (names && second !== undefined && second !== '') return second;
+  }
+  return undefined;
 }
 
 async function firstRef(dir: string, refs: readonly string[]): Promise<string | undefined> {
@@ -193,9 +214,12 @@ export class Branches {
       head = await firstRef(clone, headRefs);
       tip = await firstRef(clone, tipRefs);
     }
-    const state = this.fetched.get(clone);
+    const state = this.fetched.get(fetchKey(clone, [target, branch]));
     const fetchedAt = state?.at || null;
     const fetchError = state?.error ?? null;
+    // Deleted from origin before this clone ever had it: the merge that took
+    // it in still names it, and its second parent is the head it had.
+    if (head === undefined && tip !== undefined) head = await mergedHead(clone, tip, branch);
     if (head === undefined) {
       return { ...empty, fetchedAt, fetchError, target, missing: `${branch} is not on origin, and ${empty.repo}'s clone has no copy of it` };
     }
@@ -273,13 +297,15 @@ export class Branches {
   }
 
   /**
-   * Fetch each branch into the server's own refs, at most once per `everyS`
-   * a clone. A branch origin no longer has (deleted after its merge, most
-   * often) keeps the copy fetched before, and is not an error.
+   * Fetch the branches into the server's own refs, at most once per `everyS`
+   * for the same branches of a clone. A branch origin no longer has (deleted
+   * after its merge, most often) keeps the copy fetched before, and is not
+   * an error.
    */
   private async fetch(clone: string, branches: readonly string[], force = false): Promise<void> {
     const now = Date.now() / 1000;
-    const state = this.fetched.get(clone);
+    const key = fetchKey(clone, branches);
+    const state = this.fetched.get(key);
     if (state?.running !== undefined) return state.running;
     if (!force && state !== undefined && now - state.at < this.everyS) return undefined;
 
@@ -303,9 +329,9 @@ export class Branches {
       } else if (all.code !== 0) {
         error = lastLine(all);
       }
-      this.fetched.set(clone, { at: Math.floor(Date.now() / 1000), error });
+      this.fetched.set(key, { at: Math.floor(Date.now() / 1000), error });
     })();
-    this.fetched.set(clone, { at: state?.at ?? 0, error: state?.error ?? null, running });
+    this.fetched.set(key, { at: state?.at ?? 0, error: state?.error ?? null, running });
     return running;
   }
 }

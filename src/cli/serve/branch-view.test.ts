@@ -81,7 +81,7 @@ describe('a branch', () => {
   });
 
   it('once merged and deleted from origin, still shows what it changed, from its merge commit', async () => {
-    await fxGit(['merge', '-q', '--no-ff', '-m', 'Merge pull request #5 from me/feat-a', 'origin/feat/a'], work);
+    await fxGit(['merge', '-q', '--no-ff', '-m', 'Merge pull request #5 from me/feat/a', 'origin/feat/a'], work);
     await fxGit(['push', '-q', 'origin', 'main'], work);
     await fxGit(['push', '-q', 'origin', '--delete', 'feat/a'], work);
 
@@ -96,6 +96,33 @@ describe('a branch', () => {
       expect(b.files.map((f) => f.path)).toEqual(['README.md', 'new.txt']);
     } finally {
       await branches.close();
+    }
+  });
+
+  it('shows the same change a month on, however far main has moved, and from a clone that never saw the branch', async () => {
+    const before = new Branches(0);
+    let then: Awaited<ReturnType<Branches['view']>>;
+    try {
+      then = await before.view(bare, 'feat/a', mine, true);
+    } finally {
+      await before.close();
+    }
+    await mkCommit(work, 'README.md', 'main rewrites the readme', 'main moves on again');
+    await mkCommit(work, 'new.txt', 'main changes new.txt too', 'and again');
+    await fxGit(['push', '-q', 'origin', 'main'], work);
+
+    const fresh = await mkClone(bare, join(mkTempDir('yan-serve-fresh-'), 'clone'));
+    for (const clone of [mine, fresh]) {
+      const branches = new Branches(0);
+      try {
+        const b = await branches.view(bare, 'feat/a', clone, true);
+        expect(b.missing).toBeNull();
+        expect([b.base, b.head, b.merged?.pr]).toEqual([then.base, then.head, 5]);
+        expect(b.files).toEqual(then.files);
+        expect(b.commits.map((c) => c.sha)).toEqual(then.commits.map((c) => c.sha));
+      } finally {
+        await branches.close();
+      }
     }
   });
 

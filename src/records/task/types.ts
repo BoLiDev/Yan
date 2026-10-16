@@ -46,6 +46,12 @@ export interface TaskRepo {
    * same branch by it, so a tree opened anywhere later is put on it.
    */
   readonly branch?: string;
+  /**
+   * The branches the work was on before `branch`, oldest first: what
+   * `yan branch` replaced, so a task that moved branches still shows every
+   * change it made. Absent until the first is replaced.
+   */
+  readonly earlierBranches?: readonly string[];
 }
 
 /**
