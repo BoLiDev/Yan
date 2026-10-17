@@ -288,7 +288,7 @@ describe('an existing task', () => {
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], again)).stdout.trim()).toBe('feat/x');
     expect(said).toContain("done demo: worktree on feat/x, the task's branch");
     expect(started[1]?.argv.at(-1)).toContain('The worktree is on the branch `feat/x`.');
-    expect(started[1]?.argv.at(-1)).toContain('`yan branch` in it keeps that branch for the task');
+    expect(started[1]?.argv.at(-1)).toContain('yan keeps the branch it is on for the task');
   });
 
   it('opens a tree on a detached HEAD when the kept branch is nowhere, and says why', async () => {

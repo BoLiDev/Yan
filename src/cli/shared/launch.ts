@@ -63,15 +63,15 @@ const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``
 
 /**
  * Said whenever the task has a tree. yan names no branch, since each machine
- * names its branches its own way, so the agent has to know to cut one; and
- * cutting one is the moment to keep it, which the agent does as it keeps a
- * resource, so the next start, on any machine, puts the tree back on it.
- * Said as something to do, at the cut and at every move after it: a move
- * nobody keeps leaves the task pointing at a branch the work has left.
+ * names its branches its own way, so the agent has to know to cut one. It
+ * need not keep it: every vault push reads the branch off the tree, and
+ * keeps the one it replaces among the task's earlier branches, so the next
+ * start, on any machine, puts the tree back on it and every branch the work
+ * was on can be found.
  */
-const NO_BRANCH = 'yan never makes a branch: before committing in a worktree on a detached HEAD, put it on a branch ' +
-  'named the way this repository and this machine expect, and run `yan branch` in it right away. ' +
-  'Run it again whenever the work moves to another branch, so later sessions start the worktree on it ' +
+const NO_BRANCH = 'yan never makes a branch: a worktree on a detached HEAD has to be put on a branch, ' +
+  'named the way this repository and this machine expect, before committing in it. ' +
+  'yan keeps the branch it is on for the task, and each one it moves to, so later sessions start the worktree on it ' +
   'and every branch the task used can be found.';
 
 /**

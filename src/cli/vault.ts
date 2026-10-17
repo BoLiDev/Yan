@@ -11,6 +11,7 @@ import { isDirectory, normalizePath } from '../util/paths.js';
 import { localDay } from '../util/time.js';
 import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
+import { keepTreeBranches } from './shared/branches.js';
 import { catchUp, pullVault, type PullResult } from './shared/vault-pull.js';
 import { isTty } from './shared/tty.js';
 import { isRecordId } from '../util/names.js';
@@ -309,14 +310,15 @@ function pushMessage(changed: readonly string[]): string {
 }
 
 /**
- * Commit everything, catch up with origin, push. When there is nothing to
- * commit and origin already has every commit, it stops before the network:
- * the hook runs after every turn, and most turns change nothing here.
+ * Keep the branch each open task's trees are on, commit everything, catch up
+ * with origin, push. When there is nothing to commit and origin already has
+ * every commit, it stops before the network: the hook runs after every turn,
+ * and most turns change nothing here.
  *
  * @returns what it did, a line each.
  */
 function pushVault(dir: string, message: string | undefined): string[] {
-  const said: string[] = [];
+  const said = keepTreeBranches().map((line) => `vault push: ${line}`);
   // --untracked-files=all, or a new directory counts as one entry.
   const changed = statusPorcelain(dir, ['--untracked-files=all'])
     .split(/\r?\n/)

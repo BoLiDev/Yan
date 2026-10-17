@@ -35,8 +35,9 @@ the repositories it works in from the registry, and gets a worktree of each
 on a detached HEAD at origin's default branch; in a monorepo it also asks
 which packages the task is about, once. yan never makes a branch, since each
 machine names its branches its own way: the agent is told to cut one before
-it commits, to keep it with `yan branch` right away, and to keep the next
-one the same way whenever the work moves to another branch. A tree opened
+it commits, and every `yan vault push` keeps the branch each open task's
+tree is on, as origin names it, and the one it replaces among the task's
+earlier branches. A tree opened
 later for the task, on any machine, is put on the branch it keeps: the
 clone's own, brought up to origin's when it is only behind it, or a new one
 tracking origin's; one yan cannot put there starts detached, and says why.
@@ -49,9 +50,9 @@ the agent being told: it is pulled each time you send a message and pushed
 each time the agent finishes a turn, by hooks given to that session alone
 (claude's `--settings`, codex's `-c`, with codex's hook trust bypassed for
 the session). agy takes hooks only from files, so under agy the vault is
-pulled and pushed by hand. A push commits everything in the vault and
-rebases it onto the remote first; a conflict stops it, the commit kept here,
-and the hook says so.
+pulled and pushed by hand. A push keeps the branch each tree is on, commits
+everything in the vault and rebases it onto the remote first; a conflict
+stops it, the commit kept here, and the hook says so.
 `--cli codex` runs another agent this once; anything after `--` goes to the
 agent as it is.
 
@@ -72,7 +73,7 @@ For the agent:
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
-- `yan branch [name]` — the branch the work is on in a repository, kept as soon as a worktree is on it and again each time the work moves to another; the ones it replaces stay as the task's earlier branches
+- `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and the ones it replaces stay as the task's earlier branches
 - `yan learn add|ls` — a learning, written only when you ask for one
 
 `yan <command> --help` says the rest. Every command that takes a task reads

@@ -1,17 +1,20 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
+import { asOriginNames } from './shared/branches.js';
 import { repoName } from './shared/repo-name.js';
 import { requiredTask } from './shared/task-id.js';
 import type { TaskRepo } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
-import { branchOf, defaultBranch, remoteUrl, upstreamOf } from '../util/git.js';
+import { branchOf, defaultBranch, remoteUrl } from '../util/git.js';
 import { repoKey } from '../util/repo-key.js';
 
 /**
  * `yan branch` — the branch a task's work is on in one of its repositories,
  * kept in task.json so the next start, on any machine, puts the tree on it.
- * The agent keeps it, as it keeps a resource, rather than yan watching for
- * it: a branch is cut once, and the agent knows when it did.
+ * `yan vault push`, and so the hook after every turn, keeps the branch each
+ * tree is on by itself (`shared/branches.ts`). This is for keeping one by
+ * hand: a branch named for a repository with no tree here, or one kept
+ * before the push that would keep it.
  */
 
 interface BranchOptions {
@@ -38,11 +41,11 @@ function branchIn(dir: string): string {
   if (local === undefined) {
     throw YanError.usage('branch_usage', 'this worktree is on a detached HEAD - put it on the branch the work goes on first, or name one');
   }
-  return upstreamOf(dir, local) ?? local;
+  return asOriginNames(dir, local);
 }
 
 export const command = new Command('branch')
-  .description('keep the branch the work is on, each time you put a worktree on one, so later sessions start the worktree on it')
+  .description('keep a branch for the task by hand - the one each worktree is on is kept by itself whenever the vault is pushed')
   .argument('[name]', 'the branch; by default the one this worktree is on')
   .option('--repo <name>', 'the repository, by name or URL; by default the one this worktree is of')
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
@@ -79,11 +82,12 @@ export const command = new Command('branch')
   .addHelpText(
     'after',
     `
-Run it in the worktree as soon as it is on the branch the work goes on, and
-again each time the work moves to another: the branch kept is the one the
-worktree is on, as origin names it when it tracks one there. A name given is
-kept as it is. The branch it replaces is kept too, among the task's earlier
-branches, so every change the task made can still be found.
+Every 'yan vault push' keeps the branch each of the task's worktrees on
+this machine is on, as origin names it when it tracks one there; a detached
+HEAD or origin's default branch keeps nothing. Run this to keep one sooner,
+or for a repository with no worktree here; a name given is kept as it is.
+The branch it replaces is kept too, among the task's earlier branches, so
+every change the task made can still be found.
 
 The next time 'yan' opens a worktree of that repository for the task, on any
 machine, it puts the tree on that branch: the clone's own, brought up to
