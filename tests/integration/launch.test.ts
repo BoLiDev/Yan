@@ -335,8 +335,8 @@ describe('the harness', () => {
     expect(flag).toBe('--settings');
     const { hooks } = JSON.parse(json ?? '{}') as { hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string }> }>> };
     expect(Object.keys(hooks).sort()).toEqual(['Stop', 'UserPromptSubmit']);
-    expect(hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toMatch(/bin\/yan\.mjs" "vault" "pull" "--hook"$/);
-    expect(hooks.Stop?.[0]?.hooks[0]?.command).toMatch(/bin\/yan\.mjs" "vault" "push" "--hook"$/);
+    expect(hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toMatch(/bin[\\/]+yan\.mjs" "vault" "pull" "--hook"$/);
+    expect(hooks.Stop?.[0]?.hooks[0]?.command).toMatch(/bin[\\/]+yan\.mjs" "vault" "push" "--hook"$/);
     expect(started[0]?.argv.join(' '), 'and the agent is told nothing of it').not.toContain('vault');
 
     await run(answers({ entry: 't001' }), here, { cli: 'codex' });
