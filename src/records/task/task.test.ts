@@ -110,25 +110,39 @@ describe('problem', () => {
 });
 
 describe('resources', () => {
-  it('keeps any line under a name, replaces a name kept again, and forgets one', () => {
+  it('keeps any line under a name as its kind, replaces a name kept again, and forgets one', () => {
     const task = Task.create('x');
-    expect(task.addResource(' PROJ-412 ', 'https://jira.example.com/browse/PROJ-412')).toBe(false);
-    expect(task.addResource('设计文档', '~/notes/design.md')).toBe(false);
-    expect(task.addResource('PROJ-412', 'jira:PROJ-412')).toBe(true);
+    expect(task.addResource('spec', ' PROJ-412 ', 'https://jira.example.com/browse/PROJ-412')).toBe(false);
+    expect(task.addResource('general', '设计文档', '~/notes/design.md')).toBe(false);
+    expect(task.addResource('spec', 'PROJ-412', 'jira:PROJ-412')).toBe(true);
     expect(task.read().resources).toEqual({ 'PROJ-412': 'jira:PROJ-412', 设计文档: '~/notes/design.md' });
+    expect(task.read().resourceKinds).toEqual({ 'PROJ-412': 'spec', 设计文档: 'general' });
+    expect(raw(task).resources, 'resources stay a map of lines, which a yan from before kinds reads').toEqual({ 'PROJ-412': 'jira:PROJ-412', 设计文档: '~/notes/design.md' });
 
     task.removeResource('PROJ-412');
+    expect(raw(task).resourceKinds).toEqual({ 设计文档: 'general' });
     task.removeResource('设计文档');
     expect('resources' in raw(task)).toBe(false);
+    expect('resourceKinds' in raw(task)).toBe(false);
     expect(() => task.removeResource('PROJ-412')).toThrow(/this task has none/);
   });
 
-  it('refuses a blank or multi-line name or value, and names what there is', () => {
+  it('refuses a kind it does not know, a blank or multi-line name or value, and names what there is', () => {
     const task = Task.create('x');
-    expect(() => task.addResource('', 'x')).toThrow(/blank/);
-    expect(() => task.addResource('a', 'x\ny')).toThrow(/one line/);
-    task.addResource('a', 'x');
+    expect(() => task.addResource('ticket' as 'spec', 'a', 'x')).toThrow(/one of: spec mr preview run general/);
+    expect(() => task.addResource('general', '', 'x')).toThrow(/blank/);
+    expect(() => task.addResource('general', 'a', 'x\ny')).toThrow(/one line/);
+    task.addResource('general', 'a', 'x');
     expect(() => task.removeResource('b')).toThrow(/this task has a/);
+  });
+
+  it('reads a resource with no kind, or one it does not know, as general, and writes such a kind back as it was', () => {
+    const task = Task.create('x');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), resources: { old: 'x', newer: 'y', gone: 'z' }, resourceKinds: { newer: 'release', stale: 'mr' } }));
+    expect(task.read().resourceKinds).toEqual({ old: 'general', newer: 'general', gone: 'general' });
+
+    task.addResource('mr', 'web#7', 'https://github.com/me/web/pull/7');
+    expect(raw(task).resourceKinds, 'a kind left behind by an older yan goes; one from a newer yan stays').toEqual({ newer: 'release', 'web#7': 'mr' });
   });
 
   it('reads past an entry edited into something that is not a line of text', () => {

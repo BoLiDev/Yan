@@ -8,7 +8,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
-import { TASK_STATES, type Deliverable, type TaskData, type TaskRepo, type TaskState } from './types.js';
+import { RESOURCE_KINDS, TASK_STATES, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /**
  * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
@@ -108,14 +108,18 @@ export class Task {
     return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'abandoned', reason: why }));
   }
 
-  /** Keep `where` under `name`, replacing what was there; true when it replaced. */
-  public addResource(name: string, where: string): boolean {
+  /** Keep `where` under `name` as a resource of `kind`, replacing what was there; true when it replaced. */
+  public addResource(kind: ResourceKind, name: string, where: string): boolean {
+    if (!isResourceKind(kind)) {
+      throw YanError.usage('resource_usage', `'${String(kind)}' is not a kind of resource - one of: ${RESOURCE_KINDS.join(' ')}`);
+    }
     const key = oneLine('add', name, 'resource_usage', 'a name');
     const value = oneLine('add', where, 'resource_usage', 'a resource');
     let replaced = false;
     this.edit((doc, data) => {
       replaced = key in data.resources;
       doc.resources = { ...data.resources, [key]: value };
+      doc.resourceKinds = { ...keptKinds(doc.resourceKinds, data.resources), [key]: kind };
     });
     return replaced;
   }
@@ -171,6 +175,9 @@ export class Task {
       const rest = Object.fromEntries(Object.entries(data.resources).filter(([n]) => n !== key));
       if (Object.keys(rest).length === 0) delete doc.resources;
       else doc.resources = rest;
+      const kinds = keptKinds(doc.resourceKinds, rest);
+      if (Object.keys(kinds).length === 0) delete doc.resourceKinds;
+      else doc.resourceKinds = kinds;
     });
   }
 
@@ -306,6 +313,7 @@ function validate(raw: unknown, task: Task): TaskData {
   const reason = text(doc.reason);
   // Before a task could have several, it had one `repo` and its `scope`.
   const repos = Array.isArray(doc.repos) ? readRepos(doc.repos) : readRepos([{ url: doc.repo, scope: doc.scope }]);
+  const resources = readResources(doc.resources);
   return {
     version: 2,
     id: text(doc.id) ?? task.id,
@@ -319,7 +327,8 @@ function validate(raw: unknown, task: Task): TaskData {
     // `add` reuse an id somebody has already quoted.
     nextDeliverable: typeof stated === 'number' && Number.isInteger(stated) && stated > highest ? stated : highest + 1,
     deliverables,
-    resources: readResources(doc.resources),
+    resources,
+    resourceKinds: readResourceKinds(doc.resourceKinds, resources),
   };
 }
 
@@ -369,6 +378,28 @@ function readResources(raw: unknown): Record<string, string> {
     if (name.trim() !== '' && typeof where === 'string' && where.trim() !== '') resources[name] = where;
   }
   return resources;
+}
+
+export function isResourceKind(value: unknown): value is ResourceKind {
+  return typeof value === 'string' && (RESOURCE_KINDS as readonly string[]).includes(value);
+}
+
+/** A kind for every resource: the one kept for it when this build knows it, else `general`. */
+function readResourceKinds(raw: unknown, resources: Readonly<Record<string, string>>): Record<string, ResourceKind> {
+  const kept = recordOrNone(raw) ?? {};
+  return Object.fromEntries(Object.keys(resources).map((name) => {
+    const kind = kept[name];
+    return [name, isResourceKind(kind) ? kind : 'general'];
+  }));
+}
+
+/**
+ * `resourceKinds` as the file has it, less the names no resource has any
+ * more, which a yan from before kinds leaves behind when it removes one. A
+ * kind this build does not know is written back as it was.
+ */
+function keptKinds(raw: unknown, resources: Readonly<Record<string, string>>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(recordOrNone(raw) ?? {}).filter(([name]) => name in resources));
 }
 
 function validateDeliverables(raw: unknown, refuse: (why: string) => never): Deliverable[] {

@@ -3,6 +3,7 @@ import { basename } from 'node:path';
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { repoName } from './shared/repo-name.js';
+import { KIND_LABELS, byKind } from './shared/resources.js';
 import { repoKey } from '../util/repo-key.js';
 import { bold, cells, cyan, dim, gray, green, padEnd, terminalWidth, tildePath, yellow } from './shared/style.js';
 import { chosenTask } from './shared/task-id.js';
@@ -144,12 +145,19 @@ function problemLines(task: Task): { file: string; lines: string[] } {
   return { file, lines };
 }
 
-/** One line per resource, the names padded to one column. */
-function resourceLines(resources: Readonly<Record<string, string>>): string[] {
-  const entries = Object.entries(resources);
-  if (entries.length === 0) return [dim('none yet')];
-  const width = Math.max(...entries.map(([name]) => cells(name)));
-  return entries.map(([name, where]) => `${padEnd(name, width)}  ${cyan(where)}`);
+/**
+ * One line per resource, grouped by kind: the kind as `user` calls it on the
+ * first line of its group, then the name and where it is, each in a column.
+ */
+function resourceLines(data: TaskData): string[] {
+  const rows = byKind(data);
+  if (rows.length === 0) return [dim('none yet')];
+  const labelWidth = Math.max(...rows.map((r) => cells(KIND_LABELS[r.kind])));
+  const nameWidth = Math.max(...rows.map((r) => cells(r.name)));
+  return rows.map((r, i) => {
+    const label = i > 0 && rows[i - 1]?.kind === r.kind ? '' : KIND_LABELS[r.kind];
+    return `${dim(padEnd(label, labelWidth))}  ${padEnd(r.name, nameWidth)}  ${cyan(r.where)}`;
+  });
 }
 
 function peekLines(task: Task): string[] {
@@ -159,7 +167,7 @@ function peekLines(task: Task): string[] {
     ...headLines(task, data),
     ...section('Trees', '', treeLines(task, data)),
     ...section('Problem', problem.file, problem.lines),
-    ...section('Resources', '', resourceLines(data.resources)),
+    ...section('Resources', '', resourceLines(data)),
   ];
 
   const drafts = new Drafts(task.id);

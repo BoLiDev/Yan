@@ -4,6 +4,6 @@
  * deliverables and the resources it refers to.
  */
 
-export { Task } from './task.js';
-export { TASK_STATES } from './types.js';
-export type { Deliverable, TaskData, TaskRepo, TaskState } from './types.js';
+export { Task, isResourceKind } from './task.js';
+export { RESOURCE_KINDS, TASK_STATES } from './types.js';
+export type { Deliverable, ResourceKind, TaskData, TaskRepo, TaskState } from './types.js';

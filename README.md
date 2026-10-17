@@ -71,7 +71,7 @@ For the agent:
 - `yan context` — the task's problem in full, its deliverables and its resources, read before working
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
-- `yan resource add|rm|ls` — tickets, docs, releases, paths: anything the work refers to, under a name
+- `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
 - `yan branch [name]` — the branch the work is on in a repository, kept as soon as a worktree is on it and again each time the work moves to another; the ones it replaces stay as the task's earlier branches
 - `yan learn add|ls` — a learning, written only when you ask for one
 
@@ -103,7 +103,7 @@ page an agent wrote runs as its own site and cannot reach the one around it.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repos (URL, scope, branch and earlier branches each), deliverables, resources
+    task.json                  title, state, repos (URL, scope, branch and earlier branches each), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

@@ -43,7 +43,9 @@ export const OPENING_PROMPT = [
     'the solution (the deliverables: how things must be once it is solved), and the decisions that steered it (the log). ' +
     'Problem and solution are worked out with the user, not assumed, and either may change as the work goes. ' +
     'When one does, rewrite its note to say how things stand now, as if writing it for the first time: what it used to say belongs in the log.',
-  'Resources the work refers to (Jira tickets, docs, MR links and the like) are kept under a name with `yan resource`, for later sessions to find.',
+  'Resources the work refers to are kept under a name with `yan resource`, for later sessions to find, each as its kind: ' +
+    'spec (the ticket, PRD or design the task comes from), mr (as soon as one is opened), ' +
+    'preview (a test link to the deployed version, after each deploy the user is to look at), run (a sub-task started elsewhere), or general.',
   '`yan context` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
 ].join('\n');
 

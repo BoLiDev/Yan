@@ -3,6 +3,19 @@
 export const TASK_STATES = ['open', 'done', 'abandoned'] as const;
 export type TaskState = (typeof TASK_STATES)[number];
 
+/**
+ * What a resource is. Each kind but `general` has its own moment to be kept,
+ * which is why it is a kind at all:
+ *
+ *   spec     where the task comes from: a ticket, a PRD, a design
+ *   mr       a merge request, once it is opened
+ *   preview  a link that opens the deployed version where the change is seen
+ *   run      a sub-task started on another platform
+ *   general  anything else a later session may need to find
+ */
+export const RESOURCE_KINDS = ['spec', 'mr', 'preview', 'run', 'general'] as const;
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
 export interface TaskData {
   readonly version: 2;
   readonly id: string;
@@ -29,6 +42,13 @@ export interface TaskData {
    * Absent from the file until the first is added.
    */
   readonly resources: Readonly<Record<string, string>>;
+  /**
+   * The kind of every resource, by its name: `general` for one kept before
+   * kinds, or of a kind this build does not know. In the file it is a map
+   * beside `resources`, not a field inside each, so a yan from before kinds
+   * still reads every resource as a line of text.
+   */
+  readonly resourceKinds: Readonly<Record<string, ResourceKind>>;
 }
 
 /** One repository a task works in. */

@@ -40,8 +40,8 @@ function contextLines(task: Task): string[] {
     lines.push(...deliverableLines(data.deliverables, {}, terminalWidth()));
   }
 
-  const resources = resourceLines(data.resources);
-  lines.push('', ...(resources.length === 0 ? ["no resources yet - 'yan resource add <name> <where>'"] : ['resources', ...resources]));
+  const resources = resourceLines(data);
+  lines.push('', ...(resources.length === 0 ? ["no resources yet - 'yan resource add <kind> <name> <where>'"] : ['resources', ...resources]));
   return lines;
 }
 

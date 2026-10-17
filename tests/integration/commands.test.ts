@@ -76,15 +76,19 @@ describe('yan deliverable', () => {
 });
 
 describe('yan resource', () => {
-  it('keeps one under a name, replaces it, lists and forgets it', async () => {
+  it('keeps one under a name as its kind, replaces it, lists them by kind and forgets one', async () => {
     const env = { YAN_TASK: 't001' };
     expect((await yan(['resource', 'ls'], env)).stdout.trim()).toBe('no resources');
-    expect((await yan(['resource', 'add', 'release', 'https://deploy.example.com/1'], env)).stdout.trim()).toBe('kept release → t001');
-    expect((await yan(['resource', 'add', 'release', 'https://deploy.example.com/2'], env)).stdout.trim()).toBe('replaced release → t001');
-    expect((await yan(['resource', 'ls'], env)).stdout).toBe('  release  https://deploy.example.com/2\n');
-    expect((await yan(['resource', 'rm', 'release'], env)).code).toBe(0);
-    expect(new Task('t001').read().resources).toEqual({});
-    expectUsage(await yan(['resource', 'rm', 'release'], env), 'this task has none');
+    expect((await yan(['resource', 'add', 'preview', 'pricing page', 'https://test.example.com/pricing?v=1'], env)).stdout.trim()).toBe('kept preview pricing page → t001');
+    expect((await yan(['resource', 'add', 'preview', 'pricing page', 'https://test.example.com/pricing?v=2'], env)).stdout.trim()).toBe('replaced preview pricing page → t001');
+    await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
+    expect((await yan(['resource', 'ls'], env)).stdout).toBe(
+      '  spec     PROJ-412      https://jira.example.com/browse/PROJ-412\n  preview  pricing page  https://test.example.com/pricing?v=2\n',
+    );
+    expect((await yan(['resource', 'rm', 'pricing page'], env)).code).toBe(0);
+    expect(new Task('t001').read().resources).toEqual({ 'PROJ-412': 'https://jira.example.com/browse/PROJ-412' });
+    expectUsage(await yan(['resource', 'rm', 'pricing page'], env), 'this task has PROJ-412');
+    expectUsage(await yan(['resource', 'add', 'release', 'v1', 'https://deploy.example.com/1'], env), "'release' is not a kind of resource - one of: spec mr preview run general");
   });
 });
 
@@ -133,10 +137,10 @@ describe('yan ls and yan peek', () => {
     expect(r.stdout).toContain('Why this task exists.\n\nAnd the rest of it.');
     expect(r.stdout).toMatch(/d1 {2}todo {7}it is done/);
     expect(r.stdout).not.toContain('a decision');
-    expect(r.stdout).toContain("no resources yet - 'yan resource add <name> <where>'");
+    expect(r.stdout).toContain("no resources yet - 'yan resource add <kind> <name> <where>'");
 
-    await yan(['resource', 'add', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
-    expect((await yan(['context'], env)).stdout).toContain('resources\n  PROJ-412  https://jira.example.com/browse/PROJ-412');
+    await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
+    expect((await yan(['context'], env)).stdout).toContain('resources\n  spec  PROJ-412  https://jira.example.com/browse/PROJ-412');
     expectUsage(await yan(['context']), '--task <id>');
   });
 
@@ -154,8 +158,9 @@ describe('yan ls and yan peek', () => {
     writeFileSync(task.problem, '# Background\n\nWhy this task\nexists, hard-wrapped.\n\nA second paragraph.\n\nA third.\n');
     task.addDeliverables(['it is done']);
     await yan(['log', 'agreed', 'a decision'], env);
-    await yan(['resource', 'add', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
-    await yan(['resource', 'add', 'design doc', '~/notes/design.md'], env);
+    await yan(['resource', 'add', 'general', 'design doc', '~/notes/design.md'], env);
+    await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
+    await yan(['resource', 'add', 'spec', 'PRD', 'https://docs.example.com/prd'], env);
 
     r = await yan(['peek'], env);
     expect(r.stdout, 'the heading and the first paragraph, rewrapped').toContain(
@@ -164,7 +169,9 @@ describe('yan ls and yan peek', () => {
     expect(r.stdout).not.toContain('A second paragraph.');
     expect(r.stdout).not.toContain('it is done');
     expect(r.stdout).not.toContain('a decision');
-    expect(r.stdout).toContain('◇  Resources\n│  PROJ-412    https://jira.example.com/browse/PROJ-412\n│  design doc  ~/notes/design.md');
+    expect(r.stdout, 'by kind, each named once, as user calls it').toContain(
+      '◇  Resources\n│  需求  PROJ-412    https://jira.example.com/browse/PROJ-412\n│        PRD         https://docs.example.com/prd\n│  其他  design doc  ~/notes/design.md',
+    );
 
     expectUsage(await yan(['peek']), "yan peek <task-id>");
   });
