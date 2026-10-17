@@ -44,7 +44,11 @@ tracking origin's; one yan cannot put there starts detached, and says why.
 Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
 added beside it, and every start tells it which is which, and where the
-task's own files are: problem.md, and artifacts/ for what the work produces.
+task's own files are: problem.md, and artifacts/ for what the work produces,
+with designs in artifacts/design/ and what you check the result by in
+artifacts/uat/, screenshots and recordings named for their deliverable
+(d3-before.png, d3-after.png), the before shot before the change is made.
+An artifact redone replaces its file; the vault's history keeps the old one.
 While it runs, the vault is kept in step with your other machines without
 the agent being told: it is pulled each time you send a message and pushed
 each time the agent finishes a turn, by hooks given to that session alone
@@ -108,7 +112,9 @@ page an agent wrote runs as its own site and cannot reach the one around it.
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
-    artifacts/                 whatever the work produced worth keeping
+    artifacts/                 whatever the work produced worth keeping, as it stands now
+      design/                  HTML pages, canvases, diagrams of a system
+      uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
 ~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```
