@@ -1796,10 +1796,35 @@ function drawReport(t, d, rep) {
   const shell = h('div', { class: 'yan-report' }, bar, ...[...doc.body.childNodes].map((n) => document.importNode(n, true)));
   root.append(h('style', null, `${style}\n${REPORT_PANEL_CSS}`), shell);
 
-  // the deliverables: ticked, unticked and given up here, shown as task.json has them now
+  // the deliverables: ticked, unticked and given up here, shown as task.json has them now.
+  // A click shows its result at once, counts included: the page is drawn again only once
+  // the vault is committed and pushed, which can take seconds.
+  const state = new Map(d.deliverables.map((x) => [x.id, x.status]));
+  const progress = shell.querySelector('[data-yan-progress]');
+  const recount = () => {
+    const all = [...state.values()];
+    const count = (st) => all.filter((s) => s === st).length;
+    const pct = (n) => `${all.length ? (n / all.length) * 100 : 0}%`;
+    if (progress) progress.textContent = `${count('done')} 完成 · ${count('todo')} 待确认 · ${count('abandoned')} 放弃`;
+    shell.querySelector('[data-yan-bar="done"]')?.style.setProperty('width', pct(count('done')));
+    shell.querySelector('[data-yan-bar="abandoned"]')?.style.setProperty('width', pct(count('abandoned')));
+  };
+  const show = (el, id, status, reason) => {
+    el.dataset.yanStatus = status;
+    const why = el.querySelector('[data-yan-reason]');
+    if (why) why.textContent = status === 'abandoned' ? reason || '' : '';
+    const tick = el.querySelector('.yan-tick');
+    if (tick) {
+      tick.setAttribute('aria-label', status === 'done' ? `${id} 标回待确认` : `${id} 标为完成`);
+      tick.disabled = status === 'abandoned';
+    }
+    const side = el.querySelector('.yan-side');
+    if (side) side.textContent = status === 'abandoned' ? '恢复' : '放弃';
+  };
   const send = (id, to, reason) => {
-    const el = shell.querySelector(`[data-yan-d="${CSS.escape(id)}"]`);
-    if (el) el.dataset.yanStatus = to;
+    state.set(id, to);
+    for (const el of shell.querySelectorAll(`[data-yan-d="${CSS.escape(id)}"]`)) show(el, id, to, reason);
+    recount();
     postJSON('/api/deliverable', { task: t.id, id, to, reason }).then((out) => {
       sayOnReport(t.id, out.warning ? `已写回，推送没成功：${out.warning}` : `已写回 ${t.id} 的 deliverables`, !!out.warning);
       onStatus(out.status);
@@ -1812,27 +1837,18 @@ function drawReport(t, d, rep) {
     const id = el.dataset.yanD;
     const now = live.get(id);
     if (!now) continue;
-    el.dataset.yanStatus = now.status;
-    const why = el.querySelector('[data-yan-reason]');
-    if (why) why.textContent = now.status === 'abandoned' ? now.reason || '' : '';
     const box = el.querySelector('.box');
     const name = (el.querySelector('[data-yan-edit="summary"]') || el.querySelector('[data-yan-edit="text"]'))?.textContent || id;
     if (box) {
-      const tick = h('button', { type: 'button', class: 'yan-tick', 'aria-label': now.status === 'done' ? `${id} 标回待确认` : `${id} 标为完成`, disabled: now.status === 'abandoned' ? true : null,
-        onclick: () => send(id, el.dataset.yanStatus === 'done' ? 'todo' : 'done') });
+      const tick = h('button', { type: 'button', class: 'yan-tick', onclick: () => send(id, el.dataset.yanStatus === 'done' ? 'todo' : 'done') });
       box.replaceWith(tick);
       tick.append(box);
     }
-    el.append(h('button', { type: 'button', class: 'yan-side', onclick: () => (now.status === 'abandoned' ? send(id, 'todo') : askReason(root, id, name, (reason) => send(id, 'abandoned', reason))) },
-      now.status === 'abandoned' ? '恢复' : '放弃'));
+    el.append(h('button', { type: 'button', class: 'yan-side',
+      onclick: () => (el.dataset.yanStatus === 'abandoned' ? send(id, 'todo') : askReason(root, id, name, (reason) => send(id, 'abandoned', reason))) }));
+    show(el, id, now.status, now.reason);
   }
-  const all = d.deliverables;
-  const count = (st) => all.filter((x) => x.status === st).length;
-  const pct = (n) => `${all.length ? (n / all.length) * 100 : 0}%`;
-  const progress = shell.querySelector('[data-yan-progress]');
-  if (progress) progress.textContent = `${count('done')} 完成 · ${count('todo')} 待确认 · ${count('abandoned')} 放弃`;
-  shell.querySelector('[data-yan-bar="done"]')?.style.setProperty('width', pct(count('done')));
-  shell.querySelector('[data-yan-bar="abandoned"]')?.style.setProperty('width', pct(count('abandoned')));
+  recount();
 
   // the texts: edited in place, saved to report.html when left
   shell.querySelectorAll('[data-yan-edit]').forEach((el, index) => {
