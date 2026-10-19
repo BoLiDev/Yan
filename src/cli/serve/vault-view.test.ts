@@ -54,7 +54,8 @@ describe('a vault at a commit', () => {
   let dir = '';
   const commits: string[] = [];
 
-  async function commitAt(at: number, files: Record<string, string>, message: string): Promise<void> {
+  async function commitAt(at: number, files: Record<string, string>, message: string, removed: readonly string[] = []): Promise<void> {
+    for (const rel of removed) await fxGit(['rm', '-q', '--', rel], dir);
     for (const [rel, body] of Object.entries(files)) {
       mkdirSync(join(dir, rel, '..'), { recursive: true });
       writeFileSync(join(dir, rel), body);
@@ -86,6 +87,8 @@ describe('a vault at a commit', () => {
     await commitAt(T + 5 * 60, { 'tasks/t001/artifacts/b.md': '# b' }, 't001 b');
     await commitAt(T + 60 * 60, { 'tasks/t002/task.json': task('t002', 'two'), 'tasks/t002/artifacts/c.txt': 'c' }, 't002');
     await commitAt(T + 61 * 60, { 'tasks/t001/artifacts/c4/a.png': 'png two' }, 't001 again');
+    await commitAt(T + 180 * 60, { 'tasks/t001/artifacts/scratch.txt': 's' }, 't001 scratch', ['tasks/t001/artifacts/b.md']);
+    await commitAt(T + 181 * 60, {}, 't001 tidy', ['tasks/t001/artifacts/scratch.txt']);
   });
 
   it('lists every task with when its artifacts arrived, newest first', async () => {
@@ -112,6 +115,16 @@ describe('a vault at a commit', () => {
         ['t002', T + 60 * 60, ['A c.txt']],
         ['t001', T + 5 * 60, ['A b.md', 'A c4/a.png']],
       ]);
+    } finally {
+      await view.close();
+    }
+  });
+
+  it('lists a file deleted in a push as deleted, and one added and deleted in the same push not at all', async () => {
+    const view = new VaultView(dir);
+    try {
+      await view.load(commits[5] as string);
+      expect(view.index().latest[0]).toEqual({ task: 't001', at: T + 181 * 60, files: [{ path: 'b.md', sha: '', status: 'D' }] });
     } finally {
       await view.close();
     }

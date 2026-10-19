@@ -67,7 +67,8 @@ export interface Push {
   readonly task: string;
   /** The newest commit's time. */
   readonly at: number;
-  readonly files: readonly { readonly path: string; readonly sha: string; readonly status: 'A' | 'M' }[];
+  /** A deleted file has no sha: there is nothing left to show. */
+  readonly files: readonly { readonly path: string; readonly sha: string; readonly status: 'A' | 'M' | 'D' }[];
 }
 
 export interface Deliverable {
@@ -391,16 +392,17 @@ export class VaultView {
 
   /**
    * What arrived in artifacts, newest first: the commits in a row on one
-   * task, within PUSH_GAP_S of each other, as one push. A file since deleted
-   * or hidden is left out; a file written twice in one push is there once.
+   * task, within PUSH_GAP_S of each other, as one push. A file deleted in
+   * the push is there as deleted; one written in it and deleted since, or
+   * hidden, is left out; a file written twice in one push is there once.
    */
   private pushes(): Push[] {
-    const pushes: { task: string; at: number; from: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' }> }[] = [];
+    const pushes: { task: string; at: number; from: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' | 'D' }> }[] = [];
     for (const c of this.commits) {
       const byTask = new Map<string, FileChange[]>();
       for (const f of c.files) {
         const [, id, dir] = f.path.split('/');
-        if (dir !== 'artifacts' || id === undefined || (f.status !== 'A' && f.status !== 'M')) continue;
+        if (dir !== 'artifacts' || id === undefined || (f.status !== 'A' && f.status !== 'M' && f.status !== 'D')) continue;
         byTask.set(id, [...(byTask.get(id) ?? []), f]);
       }
       for (const [task, changes] of byTask) {
@@ -411,20 +413,27 @@ export class VaultView {
           pushes.push((push = { task, at: c.at, from: c.at, files: new Map() }));
         }
         push.from = c.at;
+        // Newest commit first: a file's first change seen is where it ended up.
         for (const f of changes) {
           const entry = this.byPath.get(f.path);
           const rel = this.rel(task, f.path);
-          if (entry === undefined || hiddenBy(rel) !== undefined) continue;
+          if (hiddenBy(rel) !== undefined) continue;
           const had = push.files.get(rel);
-          if (had === undefined) push.files.set(rel, { path: rel, sha: entry.sha, status: f.status as 'A' | 'M' });
-          else if (f.status === 'A') had.status = 'A';
+          if (had === undefined) {
+            if (f.status === 'D') push.files.set(rel, { path: rel, sha: '', status: 'D' });
+            else if (entry !== undefined) push.files.set(rel, { path: rel, sha: entry.sha, status: f.status as 'A' | 'M' });
+          } else if (f.status === 'A') {
+            // Added within the push: new if it is still there, nothing at all if it went again.
+            if (had.status === 'D') push.files.delete(rel);
+            else had.status = 'A';
+          }
         }
       }
     }
     return this.finish(pushes);
   }
 
-  private finish(pushes: { task: string; at: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' }> }[]): Push[] {
+  private finish(pushes: { task: string; at: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' | 'D' }> }[]): Push[] {
     return pushes.filter((p) => p.files.size > 0).map((p) => ({ task: p.task, at: p.at, files: [...p.files.values()] }));
   }
 }
