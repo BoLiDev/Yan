@@ -10,7 +10,7 @@
 // ends in `yan.js`, so importing it from here would do nothing at all.
 //
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,5 +39,11 @@ if (!existsSync(YAN_ROOT_JS)) {
   die(`${YAN_ROOT_JS} is missing - run 'npm run build' in ${YAN_HOME}`);
 }
 
-const run = spawnSync(process.execPath, [YAN_ROOT_JS, ...process.argv.slice(2)], { stdio: 'inherit' });
-process.exit(run.status ?? 1);
+// Not spawnSync: a `kill` of this process would leave dist/cli/yan.js
+// running without it, and a `yan serve` holding its ports. A terminal's
+// Ctrl+C reaches both, so this one only waits for the other to end.
+const run = spawn(process.execPath, [YAN_ROOT_JS, ...process.argv.slice(2)], { stdio: 'inherit' });
+process.on('SIGINT', () => {});
+for (const signal of ['SIGTERM', 'SIGHUP']) process.on(signal, () => run.kill(signal));
+run.on('error', (err) => die(`cannot start ${YAN_ROOT_JS}: ${err.message}`));
+run.on('exit', (code) => process.exit(code ?? 1));
