@@ -46,8 +46,10 @@ the questions are on. The agent starts in the first tree, with the others
 added beside it, and every start tells it which is which, and where the
 task's own files are: problem.md, and artifacts/ for what the work produces,
 with designs in artifacts/design/ and what you check the result by in
-artifacts/uat/, screenshots and recordings named for their deliverable
-(d3-before.png, d3-after.png), the before shot before the change is made.
+artifacts/uat/, gathered deliverable by deliverable: a screenshot or
+recording for each one, named for it (d3-before.png, d3-after.png) and
+recorded with `yan uat` as it is made, or a note of how it was checked
+where nothing on screen shows it; the before shot before the change is made.
 An artifact redone replaces its file; the vault's history keeps the old one.
 While it runs, the vault is kept in step with your other machines without
 the agent being told: it is pulled each time you send a message and pushed
@@ -77,6 +79,7 @@ For the agent:
 - `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
+- `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
 - `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and the ones it replaces stay as the task's earlier branches
 - `yan learn add|ls` — a learning, written only when you ask for one
@@ -116,6 +119,7 @@ page an agent wrote runs as its own site and cannot reach the one around it.
     artifacts/                 whatever the work produced worth keeping, as it stands now
       design/                  HTML pages, canvases, diagrams of a system
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
+        uat.json               { version: 1, files: { <path>: { for, shows, side? } }, notes: { <d>: how } }: what yan uat recorded
 ~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```

@@ -78,13 +78,15 @@ const NO_BRANCH = 'yan never makes a branch: a worktree on a detached HEAD has t
 /**
  * Where this task's own files are, absolute, since the agent starts in a
  * worktree and never in the vault: problem.md, and artifacts/ for what the
- * work produces, which no command writes and so nothing else would name.
+ * work produces, which no command writes but uat/uat.json, and so nothing
+ * else would name.
  *
  * Two folders in it have their own moment. design/ is written before the
- * work it shapes. uat/ is what `user` checks the result by, named for the
- * deliverable so a report can pair each one with its evidence; a change to
- * what `user` sees is shot before it is made, since the before is gone once
- * it is. artifacts/ holds the work as it stands, as problem.md does: an
+ * work it shapes. uat/ is what `user` checks the result by, gathered
+ * deliverable by deliverable and recorded with `yan uat` as it is made, so
+ * whether each one is done can be judged from it and a report can place
+ * each file under the deliverable it proves; a change to what `user` sees is
+ * shot before it is made, since the before is gone once it is. artifacts/ holds the work as it stands, as problem.md does: an
  * artifact redone replaces its file, and the vault's git history keeps the
  * old one.
  */
@@ -92,8 +94,9 @@ function taskDirLine(dir: string): string {
   return [
     `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping.`,
     'Designs (HTML pages, canvases, diagrams of a system) go in artifacts/design/. ' +
-      'What the user is to check the result by goes in artifacts/uat/: screenshots and recordings named for the deliverable they show (d3-before.png, d3-after.png, d3.webm); ' +
-      'a change to what the user sees is shot before it is made.',
+      'What the user is to check the result by goes in artifacts/uat/, deliverable by deliverable rather than as a sweep of the product: ' +
+      'for each one, a screenshot or recording that shows it, named for it (d3-before.png, d3-after.png, d3.webm) and recorded with `yan uat add` as soon as it is made, ' +
+      'or, where nothing on screen can show it, `yan uat note` saying how it was checked. A change to what the user sees is shot before it is made.',
     'artifacts/ holds the work as it stands: an artifact redone replaces its file rather than sitting beside it.',
   ].join('\n');
 }

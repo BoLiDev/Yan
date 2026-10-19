@@ -142,7 +142,7 @@ describe('yan ls and yan peek', () => {
 
     await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
     expect((await yan(['context'], env)).stdout).toContain('resources\n  spec  PROJ-412  https://jira.example.com/browse/PROJ-412');
-    expect((await yan(['context'], env)).stdout).toMatch(/\nno artifacts yet\n$/);
+    expect((await yan(['context'], env)).stdout).toMatch(/\nno artifacts yet\n\nuat  0 of 1 deliverables have something to check them by/);
 
     mkdirSync(join(task.dir, 'artifacts', 'uat'), { recursive: true });
     writeFileSync(join(task.dir, 'artifacts', 'uat', 'd1-after.png'), 'png');
@@ -184,5 +184,53 @@ describe('yan ls and yan peek', () => {
     );
 
     expectUsage(await yan(['peek']), "yan peek <task-id>");
+  });
+});
+
+describe('yan uat', () => {
+  it('records each file with the deliverables it shows, notes the rest, and lists what each deliverable has', async () => {
+    const task = new Task('t001');
+    const env = { YAN_TASK: 't001' };
+    task.addDeliverables(['the page is wider', 'the backup runs', 'marks line up', 'android app']);
+    task.abandonDeliverable('d4', 'no phone');
+    const uat = join(task.dir, 'artifacts', 'uat');
+    mkdirSync(uat, { recursive: true });
+    for (const f of ['d1-before.png', 'd1-after.png', 'd1-d3.webm', 'stray.png']) writeFileSync(join(uat, f), 'x');
+
+    expect((await yan(['uat'], env)).stdout).toContain('  d1  todo  nothing to check it by yet');
+    expect((await yan(['uat', 'add', 'd1-before.png', '--for', 'd1', '--before', '590', 'wide'], env)).stdout.trim()).toBe('recorded d1-before.png for d1 → t001');
+    await yan(['uat', 'add', join(uat, 'd1-after.png'), '--for', 'd1', '--after', 'about 1000 wide'], env);
+    await yan(['uat', 'add', 'd1-d3.webm', '--for', 'd1,d3', 'dragged in and marked'], env);
+    expect((await yan(['uat', 'note', '--for', 'd2', 'restored from the backup'], env)).stdout.trim()).toBe('noted how d2 was checked → t001');
+
+    const listed = (await yan(['uat'], env)).stdout;
+    expect(listed).toBe([
+      '  d1  todo',
+      '      before  d1-before.png  590 wide',
+      '      after   d1-after.png   about 1000 wide',
+      '      file    d1-d3.webm     dragged in and marked',
+      '  d2  todo',
+      '      note    restored from the backup',
+      '  d3  todo',
+      '      file    d1-d3.webm  dragged in and marked',
+      '',
+      "not recorded - 'yan uat add <file> --for <d> \"<what it shows>\"'",
+      '  stray.png',
+      '',
+    ].join('\n'));
+    expect((await yan(['uat', 'add', 'd1-before.png', '--for', 'd1', 'redone'], env)).stdout).toMatch(/^replaced d1-before\.png/);
+    expect(JSON.parse(readFileSync(join(uat, 'uat.json'), 'utf8')).files['d1-before.png']).toEqual({ for: ['d1'], shows: 'redone' });
+
+    expectUsage(await yan(['uat', 'add', 'nope.png', '--for', 'd1', 'x'], env), 'there is no file nope.png');
+    expectUsage(await yan(['uat', 'add', join(task.dir, 'problem.md'), '--for', 'd1', 'x'], env), 'is not in');
+    expectUsage(await yan(['uat', 'add', 'stray.png', '--for', 'd9', 'x'], env), 'has no deliverable d9');
+    expectUsage(await yan(['uat', 'add', 'stray.png', '--for', 'd4', 'x'], env), 'd4 was given up');
+    expectUsage(await yan(['uat', 'add', 'stray.png', 'x'], env), "--for <d>");
+
+    expect((await yan(['uat', 'rm', 'd2'], env)).stdout.trim()).toBe('forgot the note on d2 → t001');
+    expect((await yan(['uat', 'rm', 'd1-d3.webm'], env)).stdout.trim()).toBe('forgot d1-d3.webm → t001');
+    expect((await yan(['context'], env)).stdout).toContain("uat  1 of 3 deliverables have something to check them by - 'yan uat' lists it");
+    const json = JSON.parse((await yan(['context', '--json'], env)).stdout) as { uat: unknown };
+    expect(json.uat).toEqual({ files: [{ path: 'd1-before.png', for: ['d1'], shows: 'redone' }, { path: 'd1-after.png', for: ['d1'], shows: 'about 1000 wide', side: 'after' }], notes: {} });
   });
 });

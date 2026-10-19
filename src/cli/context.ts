@@ -6,14 +6,16 @@ import { deliverableLines, deliverableTally } from './shared/deliverables.js';
 import { artifactLines, artifactLinker, listArtifacts } from './shared/artifacts.js';
 import { progressLines, taskProgress } from './shared/progress.js';
 import { byKind, resourceLines } from './shared/resources.js';
+import { coverage } from './shared/uat.js';
 import { terminalWidth } from './shared/style.js';
 import { requiredTask } from './shared/task-id.js';
-import type { Task } from '../records/task/index.js';
+import { Uat, type Task } from '../records/task/index.js';
 
 /**
  * `yan context` — the agent's read of a task's notes: the problem whole,
  * under the file it is in, the deliverables and the resources, then what the
- * work has produced so far: the artifacts and where each branch stands. The
+ * work has produced so far: the artifacts, how many deliverables have
+ * something to check them by, and where each branch stands. The
  * opening prompt names it, as a summary to start from rather than the whole
  * of what there is. `yan peek` is `user`'s glance and leaves the deliverables
  * out, so the two can each be shaped for the one who reads them.
@@ -58,6 +60,9 @@ function contextLines(task: Task): string[] {
   const artifacts = artifactLines(listArtifacts(task.dir));
   lines.push('', ...(artifacts.length === 0 ? ['no artifacts yet'] : [`artifacts  ${join(task.dir, 'artifacts')}`, ...artifacts]));
 
+  const { covered, of } = coverage(data.deliverables, new Uat(task).read());
+  if (of > 0) lines.push('', `uat  ${covered} of ${of} deliverables have something to check them by - 'yan uat' lists it`);
+
   const progress = taskProgress(task);
   if (progress.length > 0) lines.push('', 'branches', ...progressLines(progress));
   return lines;
@@ -70,16 +75,19 @@ function contextJson(task: Task): unknown {
     id: task.id,
     title: data.title,
     state: data.state,
+    createdAt: data.createdAt ?? null,
+    closedAt: data.closedAt ?? null,
     problem: { file: task.problem, text: problemText(task) },
     deliverables: data.deliverables,
     resources: byKind(data),
     artifacts: listArtifacts(task.dir).map((a) => ({ ...a, file: join(task.dir, 'artifacts', a.path), url: link?.(a.path) ?? null })),
+    uat: new Uat(task).read(),
     branches: taskProgress(task),
   };
 }
 
 export const command = new Command('context')
-  .description('a summary of a task as it stands, for the agent working on it: the problem and its file, the deliverables, the resources, the artifacts, where each branch stands')
+  .description('a summary of a task as it stands, for the agent working on it: the problem and its file, the deliverables, the resources, the artifacts and what each deliverable is checked by, where each branch stands')
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
   .option('--json', 'the same as JSON, every artifact listed with its web address in the vault\'s repository')
   .addHelpText(
@@ -95,7 +103,9 @@ branch, how many of its commits no remote branch has, and how many changes
 are uncommitted in its worktree; a repository with no worktree on this
 machine is read from its clone as last fetched.
 
-With --json, an artifact's url is where it opens in the vault's repository
+With --json, uat is what 'yan uat' records: each file in artifacts/uat/
+with the deliverables it shows, and the notes on how the others were
+checked. An artifact's url is where it opens in the vault's repository
 once the vault is pushed: /blob/ on github.com, /-/blob/ on a host with
 gitlab in its name. For any other forge, set "artifactLinks" in the vault's
 config.json, as "https://git.example.com/me/vault/-/blob/{branch}/{path}".`,
