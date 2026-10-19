@@ -105,6 +105,18 @@ describe('yan serve', () => {
     expect(index.status.ok).toBe(true);
   });
 
+  it("serves highlight.js and its languages one by one from yan's own copy, and nothing else from there", async () => {
+    const core = await fetch(page('/vendor/highlight.js'));
+    expect(core.status).toBe(200);
+    expect(core.headers.get('content-type')).toContain('javascript');
+    expect(await core.text()).toContain('hljs');
+    const one = await fetch(page('/vendor/highlight/dockerfile.js'));
+    expect(one.status).toBe(200);
+    expect(await one.text()).toContain('dockerfile');
+    expect((await fetch(page('/vendor/highlight/no-such-language.js'))).status).toBe(404);
+    expect((await fetch(page('/vendor/highlight/package.json'))).status).toBe(404);
+  });
+
   it('gives a task its problem, deliverables and files', async () => {
     const t = (await (await fetch(page('/api/task/t001'))).json()) as { problem: { text: string }; deliverables: { id: string }[]; files: { path: string }[] };
     expect(t.problem.text).toContain('The problem.');

@@ -330,6 +330,11 @@ export class YanServer {
       return this.asset(res, join(this.options.home, 'templates', 'ui', 'fonts', p.slice(7)), 'font/woff2', 'max-age=86400');
     }
     if (p === '/vendor/marked.js') return this.asset(res, this.markedPath(), 'text/javascript; charset=utf-8', 'max-age=86400');
+    if (p === '/vendor/highlight.js') return this.asset(res, this.highlightPath(), 'text/javascript; charset=utf-8', 'max-age=86400');
+    // One language outside highlight.js's common set, which the page asks for the first time a file needs it.
+    if (p.startsWith('/vendor/highlight/') && /^[a-z0-9-]+\.js$/.test(p.slice(18))) {
+      return this.asset(res, this.highlightPath(`languages/${p.slice(18, -3)}.min.js`), 'text/javascript; charset=utf-8', 'max-age=86400');
+    }
 
     if (p === '/api/hello') return json(res, { yan: 'serve', vault: this.options.vaultName });
     if (p === '/api/events') return this.events(req, res);
@@ -554,6 +559,16 @@ export class YanServer {
   private markedPath(): string {
     const pkg = createRequire(join(this.options.home, 'package.json')).resolve('marked/package.json');
     return join(dirname(pkg), 'lib', 'marked.umd.js');
+  }
+
+  /**
+   * highlight.js's browser build, and its languages one file each, from the
+   * copy yan depends on (`@highlightjs/cdn-assets` is the project's own
+   * pre-built package); the page fetches nothing from anywhere else.
+   */
+  private highlightPath(rel = 'highlight.min.js'): string {
+    const pkg = createRequire(join(this.options.home, 'package.json')).resolve('@highlightjs/cdn-assets/package.json');
+    return join(dirname(pkg), rel);
   }
 
   // --- the files' origin -----------------------------------------------------

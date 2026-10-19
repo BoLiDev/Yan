@@ -74,6 +74,7 @@ function h(tag, props, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
     else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
     else if (k === 'text') el.textContent = v;
+    else if (k === 'html') el.innerHTML = v;
     else if (k === 'value') el.value = v;
     else el.setAttribute(k, v === true ? '' : String(v));
   }
@@ -207,6 +208,168 @@ function viewerOf(name) {
   if (k === 'media') return VIDEO.has(e) ? 'video' : 'audio';
   if (k === 'font') return 'font';
   return 'text';
+}
+
+// ── colour by language ──────────────────────────────────────────────────────
+//
+// highlight.js, served from yan's own node_modules as marked is. Its common
+// languages come with it; one outside them is fetched from the same place the
+// first time a file needs it, and a file whose language is not known here, or
+// too long to colour quickly, stays plain. The colours are the page's own,
+// `.hljs-*` in app.css, chosen to read on the add and del tints as well.
+
+const LANG_OF_EXT = {};
+const langs = {
+  javascript: 'js mjs cjs jsx',
+  typescript: 'ts tsx mts cts',
+  json: 'json jsonl jsonc json5',
+  css: 'css',
+  scss: 'scss',
+  less: 'less',
+  xml: 'xml html htm xhtml svg vue svelte xsl plist',
+  python: 'py pyi',
+  bash: 'sh bash zsh env',
+  powershell: 'ps1 psm1',
+  dos: 'bat cmd',
+  ruby: 'rb rake gemspec',
+  go: 'go',
+  rust: 'rs',
+  java: 'java',
+  kotlin: 'kt kts',
+  swift: 'swift',
+  c: 'c h',
+  cpp: 'cpp cc cxx hpp hh hxx',
+  csharp: 'cs',
+  objectivec: 'm mm',
+  php: 'php',
+  perl: 'pl pm',
+  lua: 'lua',
+  r: 'r',
+  dart: 'dart',
+  scala: 'scala sbt',
+  elixir: 'ex exs',
+  erlang: 'erl',
+  haskell: 'hs',
+  clojure: 'clj cljs edn',
+  ocaml: 'ml mli',
+  julia: 'jl',
+  yaml: 'yaml yml',
+  ini: 'ini toml cfg',
+  sql: 'sql',
+  graphql: 'graphql gql',
+  protobuf: 'proto',
+  diff: 'diff patch',
+  makefile: 'mk',
+  cmake: 'cmake',
+  dockerfile: 'dockerfile',
+  nginx: 'nginx',
+  markdown: 'md markdown',
+  latex: 'tex',
+  vim: 'vim',
+  groovy: 'groovy gradle',
+};
+for (const [lang, list] of Object.entries(langs)) for (const e of list.split(' ')) LANG_OF_EXT[e] = lang;
+/** Files known by their whole name rather than an extension. */
+const LANG_OF_NAME = {
+  makefile: 'makefile', gnumakefile: 'makefile', dockerfile: 'dockerfile', containerfile: 'dockerfile', 'cmakelists.txt': 'cmake',
+  '.bashrc': 'bash', '.bash_profile': 'bash', '.zshrc': 'bash', '.zprofile': 'bash', '.profile': 'bash',
+  '.npmrc': 'ini', '.gitconfig': 'ini', '.editorconfig': 'ini', '.gitignore': 'plaintext', '.gitattributes': 'plaintext',
+};
+/** highlight.js's name for the language of a file, or null when it is not known here. */
+function langOf(path) {
+  const n = baseName(path).toLowerCase();
+  return LANG_OF_NAME[n] || LANG_OF_EXT[ext(n)] || null;
+}
+/** The language a fenced block names: highlight.js's own names and aliases, or an extension. */
+function langOfFence(info) {
+  if (!info || !window.hljs) return null;
+  return hljs.getLanguage(info) ? info : LANG_OF_EXT[info] || LANG_OF_NAME[info] || null;
+}
+
+const langLoads = new Map();
+/** Resolves once highlight.js can colour `lang`, or once it is clear that it cannot. */
+function langReady(lang) {
+  if (!lang || !window.hljs || hljs.getLanguage(lang)) return Promise.resolve();
+  let p = langLoads.get(lang);
+  if (!p) {
+    p = new Promise((done) => document.head.append(h('script', { src: `/vendor/highlight/${lang}.js`, onload: done, onerror: done })));
+    langLoads.set(lang, p);
+  }
+  return p;
+}
+
+/** Long enough for any file a person reads in colour; past it, plain text comes faster. */
+const COLOUR_LIMIT = 400_000;
+/**
+ * `text` coloured as `lang`, one HTML string per line, or null when it
+ * cannot be. The whole text is coloured at once, so a comment or a string
+ * that runs over several lines is right on every one of them; the markup is
+ * then cut at each newline, closing every span still open and reopening it
+ * on the next line.
+ */
+function colourLines(lang, text) {
+  if (!lang || !window.hljs || !hljs.getLanguage(lang) || text.length > COLOUR_LIMIT) return null;
+  let html;
+  try {
+    html = hljs.highlight(text, { language: lang, ignoreIllegals: true }).value;
+  } catch {
+    return null;
+  }
+  const lines = [];
+  const open = [];
+  let line = '';
+  for (const piece of html.match(/<span class="[^"]*">|<\/span>|\n|[^<\n]+/g) || []) {
+    if (piece === '\n') {
+      lines.push(line + '</span>'.repeat(open.length));
+      line = open.join('');
+    } else {
+      if (piece === '</span>') open.pop();
+      else if (piece.startsWith('<span')) open.push(piece);
+      line += piece;
+    }
+  }
+  lines.push(line + '</span>'.repeat(open.length));
+  return lines.length === text.split('\n').length ? lines : null;
+}
+/**
+ * Each side of a hunk coloured as one piece: the old side (context and
+ * removed lines) by old line number, the new (context and added) by new.
+ * A side too long to colour gives an empty map, and its lines stay plain.
+ */
+function colourSides(hk, lang) {
+  const old = hk.lines.filter((l) => l.k !== 'add');
+  const now = hk.lines.filter((l) => l.k !== 'del');
+  const a = colourLines(lang, old.map((l) => l.t).join('\n'));
+  const b = colourLines(lang, now.map((l) => l.t).join('\n'));
+  return { byA: new Map(a ? old.map((l, i) => [l.a, a[i]]) : []), byB: new Map(b ? now.map((l, i) => [l.b, b[i]]) : []) };
+}
+/**
+ * Colour a parsed file's hunks in place. With `whole`, the same file's diff
+ * with every line as context, each side is coloured entire, so a construct
+ * is right however far it spans and wherever a hunk cuts it. Without, each
+ * hunk's two sides are coloured on their own, and one open at a hunk's
+ * edge, a block comment most often, is read as code until it closes.
+ */
+function colourPatch(f, lang, whole = null) {
+  if (!lang || !window.hljs || !hljs.getLanguage(lang)) return;
+  const entire = whole && whole.hunks.length === 1 ? colourSides(whole.hunks[0], lang) : null;
+  for (const hk of f.hunks) {
+    const { byA, byB } = entire || colourSides(hk, lang);
+    for (const l of hk.lines) l.h = l.k === 'del' ? byA.get(l.a) : byB.get(l.b);
+  }
+}
+/** A line's text as the page shows it: coloured when it was, plain otherwise. */
+const codeText = (l) => (l.h != null ? h('span', { class: 't', html: l.h || ' ' }) : h('span', { class: 't' }, l.t || ' '));
+/** Fenced blocks that name a language, `<pre><code class="language-ts">` as marked writes them. */
+function colourBlocks(root) {
+  for (const code of root.querySelectorAll('pre > code[class*="language-"]')) {
+    const lang = langOfFence((/language-(\S+)/.exec(code.className) || [])[1]?.toLowerCase());
+    if (!lang) continue;
+    langReady(lang).then(() => {
+      const lines = colourLines(lang, code.textContent.replace(/\n$/, ''));
+      if (lines) code.innerHTML = lines.join('\n');
+    });
+  }
 }
 
 /**
@@ -1330,25 +1493,28 @@ function pageFrame(src, width) {
 
 function fillCode(stage, url, name, token, meta, size, wrap) {
   stage.replaceChildren(h('div', { class: 'empty' }, 'Loading…'));
-  textOf(url).then((text) => {
+  const lang = langOf(name);
+  Promise.all([textOf(url), langReady(lang)]).then(([text]) => {
     if (token !== S.rightToken) return;
     if (looksBinary(text)) {
       stage.classList.remove('top');
       stage.replaceChildren(binaryCard(name, url, size));
       return;
     }
-    const lines = text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n');
+    const body = text.replace(/\r\n/g, '\n').replace(/\n$/, '');
+    const lines = body.split('\n');
     if (meta) meta.textContent = `${KIND_LABEL[kindOf(name)].replace(/s$/, '')} · ${plural(lines.length, 'line')}${size != null ? ` · ${bytes(size)}` : ''}`;
-    stage.replaceChildren(codeView(lines, wrap ?? WRAPPED.has(ext(name))));
+    stage.replaceChildren(codeView(lines, wrap ?? WRAPPED.has(ext(name)), colourLines(lang, body)));
   }, (err) => stage.replaceChildren(h('div', { class: 'empty error' }, String(err.message || err))));
 }
 
-function codeView(lines, wrap) {
+/** @param coloured the lines as HTML, from `colourLines`, or null for plain text. */
+function codeView(lines, wrap, coloured) {
   const box = h('div', { class: 'code' + (wrap ? ' wrap' : '') });
   const LIMIT = 4000;
   const add = (from, to) => {
     const frag = document.createDocumentFragment();
-    for (let i = from; i < to; i++) frag.append(h('div', { class: 'ln' }, h('span', { class: 'n' }, i + 1), h('span', { class: 't' }, lines[i] || ' ')));
+    for (let i = from; i < to; i++) frag.append(h('div', { class: 'ln' }, h('span', { class: 'n' }, i + 1), codeText({ t: lines[i], h: coloured ? coloured[i] : null })));
     return frag;
   };
   box.append(add(0, Math.min(LIMIT, lines.length)));
@@ -1513,6 +1679,7 @@ function markdownDoc(text, ctx = {}) {
     doc.innerHTML = marked.parser(tokens, { gfm: true });
   }
   sanitize(doc);
+  colourBlocks(doc);
   trimAutolinks(doc);
   fixLinks(doc, ctx);
   const used = new Set();
@@ -1997,7 +2164,7 @@ function diffBody(f, layout) {
     } else {
       rows.push(h('div', { class: 'dl hunk' }, h('span', { class: 'a' }), h('span', { class: 'b' }), h('span', { class: 's' }), h('span', { class: 't' }, hk.head)));
       for (const l of hk.lines) {
-        rows.push(h('div', { class: `dl ${l.k}` }, h('span', { class: 'a' }, l.a ?? ''), h('span', { class: 'b' }, l.b ?? ''), h('span', { class: 's' }, l.k === 'add' ? '+' : l.k === 'del' ? '−' : ''), h('span', { class: 't' }, l.t || ' ')));
+        rows.push(h('div', { class: `dl ${l.k}` }, h('span', { class: 'a' }, l.a ?? ''), h('span', { class: 'b' }, l.b ?? ''), h('span', { class: 's' }, l.k === 'add' ? '+' : l.k === 'del' ? '−' : ''), codeText(l)));
         count++;
       }
     }
@@ -2035,7 +2202,7 @@ function splitPairs(lines) {
 function half(l, side) {
   if (!l) return h('div', { class: 'half none' }, h('span', { class: 'a' }), h('span', { class: 't' }));
   const cls = l.k === 'ctx' ? '' : ` ${l.k}`;
-  return h('div', { class: 'half' + cls }, h('span', { class: 'a' }, side === 'a' ? l.a ?? '' : l.b ?? ''), h('span', { class: 't' }, l.t || ' '));
+  return h('div', { class: 'half' + cls }, h('span', { class: 'a' }, side === 'a' ? l.a ?? '' : l.b ?? ''), codeText(l));
 }
 
 function viewBranch(t, r, token) {
@@ -2063,9 +2230,11 @@ function viewBranch(t, r, token) {
         github ? tool('external', 'Open the commit on GitHub', null, { href: `${github}/commit/${c.sha}` }) : null,
       ]),
       scroll);
-    getJSON(`/api/branch/commit?task=${encodeURIComponent(t.id)}&repo=${r.repo}&sha=${sha}`).then((full) => {
-      if (token !== S.rightToken) return;
+    getJSON(`/api/branch/commit?task=${encodeURIComponent(t.id)}&repo=${r.repo}&sha=${sha}`).then(async (full) => {
       const files = parsePatch(full.patch);
+      await Promise.all(files.map((x) => langReady(langOf(x.path))));
+      if (token !== S.rightToken) return;
+      for (const x of files) colourPatch(x, langOf(x.path));
       scroll.replaceChildren();
       append(scroll, [
         full.body ? h('div', { class: 'commit-body' }, full.body) : null,
@@ -2135,10 +2304,15 @@ function viewBranch(t, r, token) {
     scroll);
   const q = new URLSearchParams({ task: t.id, repo: String(r.repo), base: b.base, head: b.head, path: f.path, context: S.prefs.whole ? 'all' : '3' });
   if (f.from) q.set('from', f.from);
-  textOf(`/api/branch/diff?${q}`).then((patch) => {
+  const lang = langOf(f.path);
+  // The diff with the whole file as context is fetched too, for the colours
+  // alone: coloured entire, a comment or string a hunk starts inside is right.
+  const whole = S.prefs.whole || !lang ? null : textOf(`/api/branch/diff?${new URLSearchParams({ ...Object.fromEntries(q), context: 'all' })}`).catch(() => null);
+  Promise.all([textOf(`/api/branch/diff?${q}`), whole, langReady(lang)]).then(([patch, wholePatch]) => {
     if (token !== S.rightToken) return;
     const files = parsePatch(patch);
     const one = files[0] || { hunks: [], binary: f.add === null, note: [] };
+    colourPatch(one, lang, wholePatch ? parsePatch(wholePatch)[0] : S.prefs.whole ? one : null);
     const hunks = one.hunks.length;
     if (hunks) meta.append(` · ${plural(hunks, 'hunk')}`);
     scroll.replaceChildren(h('div', { class: 'diff' }, diffBody(one, S.prefs.layout)));

@@ -22,6 +22,13 @@
   --amber: #a15c07;
   --amber-soft: #fbefd9;
   --hover: rgba(27, 27, 25, 0.06);
+  /* code: six inks for highlight.js's classes, each dark enough to read on the add and del tints */
+  --code-comment: #77766f;
+  --code-keyword: #8e3a9c;
+  --code-string: #2d6a4f;
+  --code-number: #a15c07;
+  --code-title: #1d5fb5;
+  --code-type: #0b7285;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --font: "Yan Round", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   color-scheme: light;
@@ -414,6 +421,23 @@ audio { width: min(560px, 100%); }
   display: block; width: 100%; max-height: 100%; border-radius: 10px; background: transparent;
   box-shadow: 0 0 0 1px rgba(27, 27, 25, 0.08), 0 12px 32px rgba(27, 27, 25, 0.14);
 }
+
+/* code colours: highlight.js's classes, in the page's own inks. Punctuation, operators and
+   plain names stay in ink, so a line is mostly ink with its keywords, strings and names picked out;
+   a key (JSON, an object literal, an HTML attribute, a CSS property) is a name, and blue like one. */
+.hljs-comment, .hljs-quote { color: var(--code-comment); }
+.hljs-keyword, .hljs-selector-tag, .hljs-template-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-name { color: var(--code-keyword); }
+.hljs-string, .hljs-regexp, .hljs-char.escape_, .hljs-selector-attr, .hljs-selector-pseudo { color: var(--code-string); }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-link, .hljs-bullet { color: var(--code-number); }
+.hljs-title, .hljs-title.function_, .hljs-section, .hljs-selector-id, .hljs-selector-class { color: var(--code-title); }
+.hljs-title.class_, .hljs-type, .hljs-built_in, .hljs-variable.language_, .hljs-template-variable { color: var(--code-type); }
+.hljs-attr, .hljs-attribute { color: var(--code-title); }
+.hljs-property, .hljs-variable, .hljs-params, .hljs-subst, .hljs-punctuation, .hljs-operator { color: inherit; }
+.hljs-meta { color: var(--code-comment); }
+.hljs-addition { color: var(--green); }
+.hljs-deletion { color: var(--red); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
 
 /* diffs */
 .diff-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px 20px 48px; background: #fbfaf7; }

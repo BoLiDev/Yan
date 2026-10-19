@@ -96,7 +96,12 @@ being reloaded. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, and every file at its head; the
-branches it was on before are listed under it, each shown the same way. A
+branches it was on before are listed under it, each shown the same way. Code
+is coloured by its language, in a diff, in a file and in a Markdown fenced
+block alike, by highlight.js served from yan's own copy, so the page still
+fetches nothing from the network; a language outside the common set is served
+from the same copy the first time a file needs it, and a file whose language
+yan does not know stays plain. A
 branch already merged is compared from where it left, and its merge commit
 names the pull request, so it shows the same change however far the default
 branch has moved since; one deleted from origin is found again from what its
