@@ -890,6 +890,7 @@ function renderLeft() {
   }
   const unseen = latestUnseen();
   const onLatest = S.route.view === 'latest';
+  left.latest.className = 'latest-line' + (onLatest ? ' on' : '');
   left.latest.replaceChildren(h('a', { class: 'row' + (onLatest ? ' on' : ''), href: '#/latest', style: { fontWeight: 700 } },
     icon('latest', 17), h('span', { class: 'grow' }, 'Latest'), unseen > 0 ? h('span', { class: 'badge solid', title: `${plural(unseen, 'task')} with something new` }, unseen) : null),
     bell());

@@ -131,8 +131,12 @@ img { -webkit-user-drag: none; }
 .tool.small { width: 28px; height: 28px; border-radius: 7px; color: var(--ink-3); }
 .tool.blocked { opacity: 0.4; cursor: default; }
 .tool.blocked:hover { background: transparent; color: var(--ink-3); }
-.latest-line { display: flex; align-items: center; gap: 2px; }
+/* The Latest line is the card, so the bell sits inside it: a button cannot sit inside the row's link. */
+.latest-line { display: flex; align-items: center; gap: 2px; padding-right: 4px; border-radius: 10px; }
+.latest-line:has(> .row:hover):not(.on) { background: var(--hover); }
+.latest-line.on { background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
 .latest-line .row { flex: 1 1 auto; min-width: 0; }
+.latest-line .row:hover, .latest-line .row.on { background: transparent; box-shadow: none; }
 .latest-line .tool[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 
 .seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--sunken); border-radius: 10px; }
