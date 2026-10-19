@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, openingPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, openingPrompt, openingPromptNow, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
@@ -255,6 +255,7 @@ describe('an existing task', () => {
     said = [];
     await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
     expect(said[0]).toBe('done demo: worktree on feature/x, already here');
+    expect(openingPromptNow(new Task('t001')), 'what yan debug prints is what the agent was told').toBe(started[2]?.argv.at(-1));
   });
 
   it('with a repository but no tree here, opens one from its linked clone, wherever yan is typed', async () => {

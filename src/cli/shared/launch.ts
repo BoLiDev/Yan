@@ -46,7 +46,8 @@ export const OPENING_PROMPT = [
   'Resources the work refers to are kept under a name with `yan resource`, for later sessions to find, each as its kind: ' +
     'spec (the ticket, PRD or design the task comes from), mr (as soon as one is opened), ' +
     'preview (a test link to the deployed version, after each deploy the user is to look at), run (a sub-task started elsewhere), or general.',
-  '`yan context` shows the problem, the deliverables and the resources; `yan log` the decisions. `yan --help` for the rest.',
+  '`yan context` sums up the task from its folder and its worktrees: the problem, the deliverables, the resources, the artifacts and where each branch stands. ' +
+    'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
 ].join('\n');
 
 /** One of the task's trees on this machine, as the agent is told about it. */
@@ -377,11 +378,38 @@ async function existingTrees(task: Task, cwd: string, prompts: EntryPrompts, cha
   const trees: Tree[] = slots
     .filter((s) => s.path !== undefined)
     .map((s) => ({ name: repoName(s.repo.url), path: s.path as string, scope: s.repo.scope ?? [] }));
-  // A tree of a repository task.json no longer lists is still the task's.
+  return withUnlisted(trees, held);
+}
+
+/** A tree of a repository task.json no longer lists is still the task's. */
+function withUnlisted(trees: Tree[], held: ReadonlyArray<{ path: string; key: string }>): Tree[] {
   for (const h of held) {
     if (!trees.some((t) => t.path === h.path)) trees.push({ name: h.key.split('/').pop() ?? h.key, path: h.path, scope: [] });
   }
   return trees;
+}
+
+/** The trees as the agent is told of them: each with the branch it is on as it starts. */
+function told(trees: readonly Tree[]): Tree[] {
+  return trees.map((t) => {
+    const branch = branchHere(t.path);
+    return branch === undefined ? t : { ...t, branch };
+  });
+}
+
+/**
+ * The opening prompt a start of `task` would give now, from the trees it
+ * holds on this machine: what `yan debug` prints. It asks nothing and opens
+ * no tree, so a repository with no tree here is left out, as a start leaves
+ * it when its tree is declined.
+ */
+export function openingPromptNow(task: Task): string {
+  const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, key: repoKey(remoteUrl(l.path) ?? '') }));
+  const trees = task.read().repos.flatMap((repo): Tree[] => {
+    const tree = held.find((h) => h.key === repoKey(repo.url));
+    return tree === undefined ? [] : [{ name: repoName(repo.url), path: tree.path, scope: repo.scope ?? [] }];
+  });
+  return openingPrompt(task.dir, told(withUnlisted(trees, held)));
 }
 
 /**
@@ -418,13 +446,9 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
 
   chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
 
-  const told = trees.map((t) => {
-    const branch = branchHere(t.path);
-    return branch === undefined ? t : { ...t, branch };
-  });
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, told), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, told(trees)), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

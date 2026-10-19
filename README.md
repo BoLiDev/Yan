@@ -70,10 +70,11 @@ For you:
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, its notes and branch, and every artifact shown as what it is
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
+- `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now
 
 For the agent:
 
-- `yan context` — the task's problem in full, its deliverables and its resources, read before working
+- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
@@ -104,7 +105,7 @@ page an agent wrote runs as its own site and cannot reach the one around it.
 ```
 <vault>/                       a git repository, one per context (personal, work)
   vault.json                   { version: 2, name, created }
-  config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts
+  config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts; artifactLinks: how a vault file opens on a forge yan cannot tell
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/

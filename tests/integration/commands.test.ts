@@ -1,8 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
+import { openingPrompt } from '../../src/cli/shared/launch.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
@@ -141,7 +142,16 @@ describe('yan ls and yan peek', () => {
 
     await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
     expect((await yan(['context'], env)).stdout).toContain('resources\n  spec  PROJ-412  https://jira.example.com/browse/PROJ-412');
+    expect((await yan(['context'], env)).stdout).toMatch(/\nno artifacts yet\n$/);
+
+    mkdirSync(join(task.dir, 'artifacts', 'uat'), { recursive: true });
+    writeFileSync(join(task.dir, 'artifacts', 'uat', 'd1-after.png'), 'png');
+    expect((await yan(['context'], env)).stdout).toContain(`artifacts  ${join(task.dir, 'artifacts')}\n  uat/     d1-after.png`);
+    const json = JSON.parse((await yan(['context', '--json'], env)).stdout) as Record<string, unknown>;
+    expect(json).toMatchObject({ id: 't001', problem: { file: task.problem }, resources: [{ kind: 'spec', name: 'PROJ-412' }], branches: [] });
+    expect(json.artifacts).toEqual([expect.objectContaining({ group: 'uat', path: 'uat/d1-after.png', bytes: 3, url: null })]);
     expectUsage(await yan(['context']), '--task <id>');
+    expect((await yan(['debug', 't001'])).stdout, 'no tree here, so no line on branches').toBe(`${openingPrompt(task.dir)}\n`);
   });
 
   it('peek shows the task on the chain: its trees, the start of its problem, its resources, and no deliverables', async () => {

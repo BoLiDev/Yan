@@ -149,6 +149,17 @@ export function headOnRemote(dir: string): boolean {
   return gitLines(dir, ['rev-list', '-n', '1', 'HEAD', '--not', '--remotes']).length === 0;
 }
 
+/**
+ * How many commits `git rev-list --count` finds for `args`, `HEAD --not
+ * --remotes` for the ones no remote branch has; `undefined` when git cannot
+ * say, as for a ref the clone does not have.
+ */
+export function commitCount(dir: string, args: readonly string[]): number | undefined {
+  const r = git(dir, ['rev-list', '--count', ...args]);
+  const n = Number(r.stdout.trim());
+  return r.code === 0 && r.stdout.trim() !== '' && Number.isInteger(n) ? n : undefined;
+}
+
 // --- branches --------------------------------------------------------------
 
 export function fetch(dir: string, remote = 'origin', args: readonly string[] = []): ProcessResult {
