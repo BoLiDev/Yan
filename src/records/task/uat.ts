@@ -56,7 +56,7 @@ function stringList(value: unknown): string[] {
 }
 
 /** The file read as far as it can be: an entry it cannot read is left out, never a refusal. */
-function parse(raw: unknown): UatData {
+export function parseUat(raw: unknown): UatData {
   const doc = recordOrNone(raw) ?? {};
   const files = Object.entries(recordOrNone(doc.files) ?? {}).flatMap(([path, value]): UatFile[] => {
     const entry = recordOrNone(value);
@@ -83,7 +83,7 @@ export class Uat {
   /** What is recorded; nothing yet when there is no file. */
   public read(): UatData {
     try {
-      return parse(readJsonIfPresent(this.file));
+      return parseUat(readJsonIfPresent(this.file));
     } catch {
       throw new YanError('uat_invalid', `${this.file} is not valid JSON - fix it by hand, or restore it from the vault's git history`);
     }

@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { readJson } from '../../src/util/json.js';
 
 /**
  * `yan serve` through `bin/yan.mjs`, against a vault with an origin: what the
@@ -174,5 +176,92 @@ describe('yan serve', () => {
     const r = await runYan(home, ['serve', '--no-open', '--port', String(port)]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain(`already serving at http://localhost:${port}`);
+  });
+});
+
+describe('a report on yan serve', () => {
+  const PAGE = `<!doctype html><html><head><style>body{background:#000}</style></head><body>
+<h1 data-yan-edit="title">报告</h1>
+<span data-yan-bar="done" style="width:0.00%"></span><span data-yan-bar="abandoned" style="width:0.00%"></span><span data-yan-progress="">0 完成 · 2 待确认 · 0 放弃</span>
+<div class="head" data-yan-d="d1" data-yan-status="todo"><h3><span data-yan-edit="summary">一</span></h3><p class="why">放弃：<span data-yan-reason=""></span></p></div>
+<div class="head" data-yan-d="d2" data-yan-status="todo"><h3><span data-yan-edit="summary">二</span></h3><p class="why">放弃：<span data-yan-reason=""></span></p></div>
+</body></html>`;
+  const at = (rel: string): string => join(home, 'tasks/t002', rel);
+  const post = (path: string, value: unknown, origin = page('')) =>
+    fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+  type Report = { sha: string; behind: string[]; uat: { path: string; for: string[]; url: string | null }[]; html: string };
+  const report = async (): Promise<Report | undefined> => {
+    const r = await fetch(page('/api/report?task=t002'));
+    return r.ok ? ((await r.json()) as Report) : undefined;
+  };
+
+  beforeAll(async () => {
+    // Another clone pushed in the tests above; a commit on top of an older one would never be the newest.
+    await fxGit(['pull', '-q', '--rebase', 'origin', 'main'], home);
+    const shot = Buffer.from('a picture');
+    write(home, 'tasks/t002/task.json', JSON.stringify({ version: 2, id: 't002', title: 'report', state: 'open', repos: [], nextDeliverable: 3, resources: {},
+      deliverables: [{ id: 'd1', text: 'one', status: 'todo' }, { id: 'd2', text: 'two', status: 'todo' }] }));
+    write(home, 'tasks/t002/artifacts/report.html', PAGE);
+    write(home, 'tasks/t002/artifacts/uat/d1.png', shot);
+    write(home, 'tasks/t002/artifacts/uat/uat.json', JSON.stringify({ version: 1, files: { 'd1.png': { for: ['d1'], shows: 'it' } }, notes: {} }));
+    write(home, 'tasks/t002/artifacts/report.json', JSON.stringify({ version: 1, generatedAt: '2026-10-18T12:00:00Z',
+      deliverables: [{ id: 'd1', text: 'one', status: 'todo' }, { id: 'd2', text: 'two', status: 'todo' }],
+      files: { 'd1.png': { sha256: createHash('sha256').update(shot).digest('hex'), for: ['d1'] } }, notes: {} }));
+    await fxGit(['add', 'tasks'], home);
+    await fxGit(['commit', '-q', '-m', 'a report'], home);
+    await until(report, 20_000);
+  });
+
+  it('hands out the page, nothing behind it, and every file in uat/ with what records it', async () => {
+    const r = (await report()) as Report;
+    expect(r.html).toContain('data-yan-edit="title"');
+    expect(r.behind).toEqual([]);
+    expect(r.uat).toEqual([expect.objectContaining({ path: 'd1.png', for: ['d1'] })]);
+  });
+
+  it('takes a change only from its own page', async () => {
+    expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'done' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'abandoned' })).status).toBe(400);
+    expect((readJson(at('../t002/task.json')) as { deliverables: { status: string }[] }).deliverables[0]?.status).toBe('todo');
+  });
+
+  it('ticks and gives up a deliverable in task.json, commits and pushes it, and hands out the page in that state', async () => {
+    expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'done' })).status).toBe(200);
+    expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'abandoned', reason: 'not now' })).status).toBe(200);
+    const ds = (readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { status: string; reason?: string }[] }).deliverables;
+    expect(ds.map((x) => x.status)).toEqual(['done', 'abandoned']);
+    expect((await fxGit(['log', '-1', '--format=%s', 'origin/main'], home)).stdout.trim()).toBe('t002: d2 given up in yan serve');
+    expect((await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim()).toBe('t002: d2 given up in yan serve');
+
+    const copy = await (await fetch(page('/api/report/download?task=t002'))).text();
+    expect(copy).toContain('data-yan-d="d1" data-yan-status="done"');
+    expect(copy).toContain('data-yan-d="d2" data-yan-status="abandoned"');
+    expect(copy).toContain('<span data-yan-reason="">not now</span>');
+    expect(copy).toContain('<span data-yan-progress="">1 完成 · 0 待确认 · 1 放弃</span>');
+    expect((await report())?.behind).toEqual([]);
+
+    expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'todo' })).status).toBe(200);
+    expect((readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { status: string }[] }).deliverables[1]).toEqual({ id: 'd2', text: 'two', status: 'todo' });
+  });
+
+  it('edits one text of the page in report.html, and refuses an edit made on an older page', async () => {
+    const { sha } = (await report()) as Report;
+    expect((await post('/api/report/edit', { task: 't002', sha: '0'.repeat(40), index: 0, text: 'x' })).status).toBe(409);
+    expect((await post('/api/report/edit', { task: 't002', sha, index: 1, text: '第一 <b>' })).status).toBe(200);
+    const html = readFileSync(at('artifacts/report.html'), 'utf8');
+    expect(html).toContain('<span data-yan-edit="summary">第一 &lt;b&gt;</span>');
+    expect(html.replace('第一 &lt;b&gt;', '一')).toBe(PAGE);
+    expect((await fxGit(['log', '-1', '--format=%s'], home)).stdout.trim()).toBe('t002: report edited in yan serve');
+    expect((await post('/api/report/edit', { task: 't002', sha: (await report())?.sha, index: 9, text: 'x' })).status).toBe(400);
+  });
+
+  it('says what changed since the page was written', async () => {
+    write(home, 'tasks/t002/artifacts/uat/d1.png', 'another picture');
+    await fxGit(['commit', '-q', '-am', 'redone'], home);
+    const r = await until(async () => {
+      const x = await report();
+      return x !== undefined && x.behind.length > 0 ? x : undefined;
+    }, 20_000);
+    expect(r.behind).toEqual(['uat/d1.png 换了新的']);
   });
 });

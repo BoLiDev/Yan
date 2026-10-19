@@ -69,7 +69,7 @@ For you:
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan ui` — a work report of every task, in the browser
-- `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, its notes and branch, and every artifact shown as what it is
+- `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 - `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now
@@ -102,6 +102,18 @@ names the pull request, so it shows the same change however far the default
 branch has moved since; one deleted from origin is found again from what its
 merge commit says. The artifacts are served on the next port up, so a
 page an agent wrote runs as its own site and cannot reach the one around it.
+
+A task with an artifacts/report.html, the page a report skill writes from
+what `yan uat` recorded, has a Report beside its overview. Each deliverable
+is shown there as task.json has it now: tick it done, untick it, or give it
+up with a reason, and task.json changes; click a text of the page and edit
+it, and report.html changes. Either is committed and pushed as `yan vault
+push` would, the only writes `yan serve` makes, and only from its own page.
+Recordings play in place with their link to copy, every file in uat/ can be
+downloaded, and the page itself downloads with the deliverables in the state
+they are in. When a deliverable was reworded or added, or evidence recorded,
+replaced or dropped since the page was written (report.json beside it says
+what it was written from), its bar says legacy and what changed.
 
 ## Where things are
 

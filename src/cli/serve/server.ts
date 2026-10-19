@@ -1,11 +1,16 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
+import { artifactLinker } from '../shared/artifacts.js';
+import { saveVault } from '../shared/vault-push.js';
+import { Task, parseUat } from '../../records/task/index.js';
+import { isYanError } from '../../util/error.js';
 import { cloneOf } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
+import { behind, editText, readRecord, restate, sha256 } from './report.js';
 import { VaultView } from './vault-view.js';
 
 /**
@@ -22,6 +27,11 @@ import { VaultView } from './vault-view.js';
  * its own and moves to the newest commit among that, origin's and the work
  * tree's HEAD, so a commit an agent made here and has not pushed yet shows
  * too. Pages hear of it through `/api/events`, a server-sent event stream.
+ *
+ * It reads git objects and never the work tree, with one exception: on a
+ * task's report `user` ticks a deliverable, gives one up or edits a text.
+ * That is written to task.json or report.html in the work tree, committed
+ * and pushed as `yan vault push` would, and then shown like any other commit.
  */
 
 export interface ServeOptions {
@@ -122,6 +132,33 @@ function sendBytes(req: IncomingMessage, res: ServerResponse, bytes: Buffer, typ
   }
   res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) });
   res.end(req.method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
+}
+
+/**
+ * A change comes only from yan serve's own page: a page on any other site
+ * can send this server a request, but its browser says where it came from.
+ */
+function originOk(req: IncomingMessage, port: number): boolean {
+  const origin = (req.headers.origin ?? '').toLowerCase();
+  return origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}`;
+}
+
+/** A JSON body, at most 64 KB; anything else is `undefined`. */
+async function body(req: IncomingMessage): Promise<Record<string, unknown> | undefined> {
+  if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return undefined;
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > 65_536) return undefined;
+    chunks.push(chunk as Buffer);
+  }
+  try {
+    const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+    return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A request whose Host is not this machine by name is refused: a page elsewhere that rebinds its name to 127.0.0.1 gets nothing. */
@@ -279,6 +316,12 @@ export class YanServer {
       await this.tick();
       return json(res, this.status);
     }
+    if (req.method === 'POST' && (p === '/api/deliverable' || p === '/api/report/edit')) {
+      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may change the vault');
+      const given = await body(req);
+      if (given === undefined) return send(res, 400, 'a JSON body is needed');
+      return p === '/api/deliverable' ? this.setDeliverable(res, given) : this.editReport(res, given);
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
     if (p === '/' || p === '/index.html') return this.asset(res, join(this.options.home, 'templates', 'serve', 'index.html'), 'text/html; charset=utf-8');
@@ -309,8 +352,119 @@ export class YanServer {
       if (bytes === undefined) return send(res, 404, 'no such blob');
       return sendBytes(req, res, bytes, 'text/plain; charset=utf-8', { 'Cache-Control': 'private, max-age=31536000, immutable' });
     }
+    if (p === '/api/report') {
+      const report = await this.report(q.get('task') ?? '');
+      return report === undefined ? send(res, 404, 'that task has no report') : json(res, report);
+    }
+    if (p === '/api/report/download') {
+      const id = q.get('task') ?? '';
+      const [detail, report] = [await this.view.task(id), await this.report(id)];
+      if (detail === undefined || report === undefined) return send(res, 404, 'that task has no report');
+      return send(res, 200, restate(report.html, detail.deliverables), 'text/html; charset=utf-8', {
+        'Content-Disposition': `attachment; filename="${id}-report.html"`,
+        'Cache-Control': 'no-store',
+      });
+    }
     if (p.startsWith('/api/branch')) return this.branchApi(req, res, p, q);
     return send(res, 404, 'not found');
+  }
+
+  // --- the report ---------------------------------------------------------------
+
+  /**
+   * A task's report as the commit being shown has it: the page, what changed
+   * since it was written, and every file in uat/ with what uat.json records
+   * of it and where it opens in the vault's repository.
+   */
+  private async report(id: string) {
+    const detail = await this.view.task(id);
+    const page = detail?.files.find((f) => f.path === 'report.html');
+    if (detail === undefined || page === undefined) return undefined;
+    const read = async (path: string): Promise<Buffer | undefined> => {
+      const f = detail.files.find((x) => x.path === path);
+      return f === undefined ? undefined : this.view.blobs.read(f.sha);
+    };
+    const parse = (bytes: Buffer | undefined): unknown => {
+      try {
+        return bytes === undefined ? undefined : (JSON.parse(bytes.toString('utf8')) as unknown);
+      } catch {
+        return undefined;
+      }
+    };
+    const html = (await read('report.html'))?.toString('utf8') ?? '';
+    const recordRaw = parse(await read('report.json'));
+    const uat = parseUat(parse(await read('uat/uat.json')));
+    const files = await Promise.all(uat.files.map(async (f) => {
+      const bytes = await read(`uat/${f.path}`);
+      return bytes === undefined ? undefined : { path: f.path, sha256: sha256(bytes), for: f.for };
+    }));
+    const record = recordRaw === undefined ? undefined : readRecord(recordRaw);
+    const link = artifactLinker(join(this.options.vaultDir, 'tasks', id));
+    return {
+      html,
+      sha: page.sha,
+      generatedAt: record?.generatedAt ?? null,
+      behind: record === undefined ? ['没有 report.json，看不出写完之后哪里变了'] : behind(record, detail.deliverables, { files: files.filter((f) => f !== undefined), notes: uat.notes }),
+      uat: detail.files
+        .filter((f) => f.path.startsWith('uat/') && f.path !== 'uat/uat.json')
+        .map((f) => {
+          const rel = f.path.slice('uat/'.length);
+          const recorded = uat.files.find((x) => x.path === rel);
+          return { path: rel, sha: f.sha, size: f.size, for: recorded?.for ?? [], shows: recorded?.shows ?? null, url: link?.(f.path) ?? null };
+        }),
+    };
+  }
+
+  /** Commit and push what `user` changed, then show the commit; a push that fails leaves the change committed here. */
+  private async save(res: ServerResponse, message: string): Promise<void> {
+    let warning: string | null = null;
+    try {
+      saveVault(this.options.vaultDir, message);
+    } catch (err) {
+      warning = isYanError(err) ? err.message : String(err);
+    }
+    await this.tick();
+    json(res, { ok: true, warning, status: this.status });
+  }
+
+  /** `{ task, id, to: done | todo | abandoned, reason? }`: `user` ticking, unticking or giving up a deliverable. */
+  private async setDeliverable(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, d, to, reason] = [given.task, given.id, given.to, given.reason];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof d !== 'string' || (to !== 'done' && to !== 'todo' && to !== 'abandoned')) {
+      return send(res, 400, 'task, id and to (done, todo or abandoned) are needed');
+    }
+    try {
+      const task = new Task(id);
+      if (to === 'done') task.deliverableDone(d);
+      else if (to === 'todo') task.reopenDeliverable(d);
+      else task.abandonDeliverable(d, typeof reason === 'string' ? reason : '');
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    const word = { done: 'done', todo: 'back to do', abandoned: 'given up' }[to];
+    return this.save(res, `${id}: ${d} ${word} in yan serve`);
+  }
+
+  /**
+   * `{ task, sha, index, text }`: one text of the report, edited on the page.
+   * `sha` is the page the edit was made on; when the file is no longer that
+   * page, the edit is refused rather than laid over whatever replaced it.
+   */
+  private async editReport(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, sha, index, text] = [given.task, given.sha, given.index, given.text];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof sha !== 'string' || !Number.isInteger(index) || typeof text !== 'string') {
+      return send(res, 400, 'task, sha, index and text are needed');
+    }
+    const file = join(this.options.vaultDir, 'tasks', id, 'artifacts', 'report.html');
+    if (!existsSync(file)) return send(res, 404, 'that task has no report');
+    const now = (await gitAsync(this.options.vaultDir, ['hash-object', '--', file])).stdout.trim();
+    if (now !== sha) return send(res, 409, 'the report changed since this page loaded it - reload it and edit again');
+    try {
+      writeFileSync(file, editText(readFileSync(file, 'utf8'), index as number, text));
+    } catch (err) {
+      return send(res, 400, (err as Error).message);
+    }
+    return this.save(res, `${id}: report edited in yan serve`);
   }
 
   private events(req: IncomingMessage, res: ServerResponse): void {

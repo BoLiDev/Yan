@@ -102,6 +102,11 @@ export class Task {
     return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'done', doneAt: localDay() }));
   }
 
+  /** Back to be done, from done or given up: `user` unticking it in `yan serve`. */
+  public reopenDeliverable(id: string): Deliverable {
+    return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'todo' }));
+  }
+
   /** Give one up, with the reason it is not being done. */
   public abandonDeliverable(id: string, reason: string): Deliverable {
     const why = oneLine('abandon', reason);

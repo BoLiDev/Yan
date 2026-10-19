@@ -15,7 +15,9 @@ import { YanServer } from './serve/server.js';
  * follows what arrives without being reloaded (`serve/server.ts`).
  *
  * It reads git objects, never the work tree, and fetches into refs of its
- * own, so it never moves anything an agent or a hook works with.
+ * own, so it never moves anything an agent or a hook works with. The one
+ * thing it writes is what `user` does on a task's report: a deliverable
+ * ticked or given up, a text edited, committed and pushed at once.
  */
 
 const DEFAULT_PORT = 4747;
@@ -37,7 +39,7 @@ async function servingAt(port: number): Promise<boolean> {
 }
 
 export const command = new Command('serve')
-  .description('the vault in a browser on this machine - tasks, their notes and branch, every artifact - kept up to date as agents push')
+  .description('the vault in a browser on this machine - tasks, their notes and branch, every artifact, the report to check deliverables on - kept up to date as agents push')
   .option('--port <n>', `the page's port; the vault's files are served on the next one up`, String(DEFAULT_PORT))
   .option('--every <seconds>', 'how often to fetch the vault', '10')
   .option('--no-open', 'print the address, but do not open a browser')

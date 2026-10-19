@@ -6,7 +6,7 @@
  */
 
 export { Task, isResourceKind } from './task.js';
-export { Uat, UAT_SIDES } from './uat.js';
+export { Uat, UAT_SIDES, parseUat } from './uat.js';
 export type { UatData, UatFile, UatSide } from './uat.js';
 export { RESOURCE_KINDS, TASK_STATES } from './types.js';
 export type { Deliverable, ResourceKind, TaskData, TaskRepo, TaskState } from './types.js';

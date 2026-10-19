@@ -37,6 +37,7 @@ const STROKE = {
   full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4m0 0 2-2m-2 2 2 2M4 18h5"/>',
+  check: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
 };
 const STATES = {
@@ -283,6 +284,7 @@ const shaUrl = (sha, name) => `${S.filesOrigin}/_sha/${sha}/${encodeURIComponent
 const link = {
   task: (id) => `#/t/${id}`,
   log: (id) => `#/t/${id}/log`,
+  report: (id) => `#/t/${id}/report`,
   file: (id, p) => `#/t/${id}/a/${enc(p)}`,
   folder: (id, p) => `#/t/${id}/a/${p ? enc(p) + '/' : ''}`,
   branch: (id, repo, tab, item, name) => `#/t/${id}/b/${repo}${name ? '/' + encodeURIComponent(name) : ''}/${tab || 'changes'}${item ? '/' + enc(item) : ''}`,
@@ -303,6 +305,7 @@ function parseRoute() {
     const id = parts[1];
     const rest = parts.slice(2);
     if (rest[0] === 'log') return { view: 'task', id, sub: 'log' };
+    if (rest[0] === 'report') return { view: 'task', id, sub: 'report' };
     if (rest[0] === 'a') {
       const p = rest.slice(1).join('/');
       if (p === '' || raw.endsWith('/')) return { view: 'task', id, sub: 'folder', path: p.replace(/\/$/, '') };
@@ -680,6 +683,10 @@ function renderTaskIndex(r) {
   const total = t.deliverables.done + t.deliverables.todo + t.deliverables.abandoned;
   nav.push(h('a', { class: 'row' + (r.sub === 'overview' ? ' on' : ''), href: link.task(t.id) },
     icon('overview', 16), h('span', { class: 'grow' }, 'Overview'), h('span', { class: 'aside' }, total ? plural(total, 'deliverable') : 'problem')));
+  if (d?.files.some((f) => f.path === 'report.html')) {
+    nav.push(h('a', { class: 'row' + (r.sub === 'report' ? ' on' : ''), href: link.report(t.id) },
+      icon('check', 16), h('span', { class: 'grow' }, 'Report'), h('span', { class: 'aside' }, 'report.html')));
+  }
   const logCount = d?.log?.entries.length ?? 0;
   const logFresh = d?.log && logCount > (S.logBase.get(t.id) ?? S.seen.logs[t.id] ?? logCount);
   nav.push(h('a', { class: 'row' + (r.sub === 'log' ? ' on' : ''), href: link.log(t.id) },
@@ -1122,6 +1129,7 @@ function renderRight(force) {
   if (!d) return emptyRight('Loading…');
   if (r.sub === 'overview') return viewOverview(t, d, token);
   if (r.sub === 'log') return viewLog(t, d);
+  if (r.sub === 'report') return viewReport(t, d, token);
   if (r.sub === 'folder') return viewFolder(t, d, r.path);
   if (r.sub === 'branch') return viewBranch(t, r, token);
   const file = d.files.find((f) => f.path === r.path);
@@ -1639,6 +1647,240 @@ function viewOverview(t, d, token) {
       h('div', { class: 'res' }, d.resources.map(([k, v]) => h('div', null, h('span', { class: 'k' }, k), h('span', { class: 'v' }, linkify(v)))))));
   }
   R.replaceChildren(h('div', { class: 'scroll' }, paper));
+}
+
+// ── the report ──────────────────────────────────────────────────────────────
+//
+// artifacts/report.html, which the report skill writes, shown inside a
+// shadow root so its style and the page's leave each other alone, with what
+// serve adds on top: a deliverable is ticked, unticked or given up there and
+// task.json changes; a text is edited there and report.html changes. Either
+// is committed and pushed by the server, and arrives back as a new commit.
+// Each deliverable is shown in the state task.json has now, not the one the
+// page was written with.
+
+const REPORT_PANEL_CSS = `
+.yan-bar{position:sticky;top:0;z-index:2;background:#000;border-bottom:1px solid #262626}
+.yan-bar-in{max-width:880px;margin:0 auto;padding:12px 24px;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+.yan-facts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:14px;color:#909090}
+.yan-facts .file{font-family:ui-monospace,'SF Mono','Cascadia Mono',Menlo,Consolas,monospace;color:#fff}
+.yan-said{color:#BCFF2F}.yan-said.bad{color:#FF8A8A}
+.yan-legacy{position:relative;padding:2px 8px;border:none;border-radius:6px;background:#1F1F1F;color:#BCFF2F;font:12px ui-monospace,'SF Mono',Menlo,Consolas,monospace;cursor:help}
+.yan-legacy .tip{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:3;min-width:260px;max-width:420px;padding:12px 14px;border-radius:10px;background:#121212;border:1px solid #3D3D3D;color:#DBDBDB;font:13px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;text-align:left;white-space:normal}
+.yan-legacy:hover .tip,.yan-legacy:focus .tip{display:block}
+.yan-tip-head{color:#909090;margin-bottom:4px}
+.yan-actions{display:flex;flex-wrap:wrap;gap:8px}
+.yan-btn{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;box-sizing:border-box;border:1px solid #383838;border-radius:999px;background:#000;color:#fff;font:inherit;font-size:14px;text-decoration:none;cursor:pointer}
+.yan-btn:hover{border-color:#6C6C6C;color:#fff}
+.yan-btn.main{border:none;background:#BCFF2F;color:#000;font-weight:500}
+.yan-btn.main:disabled{background:#3D3D3D;color:#909090;cursor:default}
+.yan-uat{max-width:880px;margin:0 auto;padding:4px 24px 12px;box-sizing:border-box}
+.yan-uat-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px 14px;padding:8px 0;border-bottom:1px solid #1F1F1F;font-size:14px}
+.yan-uat-row .p{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:#fff;overflow-wrap:anywhere}
+.yan-uat-row .w{grid-column:1/-1;color:#909090;font-size:13px}
+.yan-uat-row a,.yan-uat-row button{color:#BDBDBD;font:inherit;font-size:13px;background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.yan-tick{all:unset;flex:none;display:flex;padding:11px;margin:-7px -1px 0 -11px;cursor:pointer;border-radius:8px}
+.yan-tick:focus-visible{outline:2px solid #BCFF2F}
+.yan-tick .box{margin-top:0}
+[data-yan-status="abandoned"] .yan-tick{cursor:default}
+.yan-side{flex:none;align-self:flex-start;min-height:36px;padding:0 12px;border:1px solid #383838;border-radius:999px;background:#000;color:#BDBDBD;font:inherit;font-size:13px;cursor:pointer}
+.yan-side:hover{color:#fff;border-color:#6C6C6C}
+[data-yan-edit]{border-radius:4px;outline:1px dashed transparent;outline-offset:4px;transition:outline-color .12s}
+[data-yan-edit]:hover{outline-color:#3D3D3D}
+[data-yan-edit]:focus{outline:1px solid #BCFF2F}
+.yan-video{display:flex;flex-direction:column;gap:10px}
+.yan-video video{display:block;width:100%;border-radius:14px;border:1px solid #262626;background:#121212}
+.yan-video .row{display:flex;align-items:center;gap:12px;font:13px ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:#909090}
+.yan-modal{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.yan-dialog{width:100%;max-width:440px;box-sizing:border-box;padding:24px;border-radius:16px;background:#121212;border:1px solid #262626;display:flex;flex-direction:column;gap:18px}
+.yan-dialog .t{font-size:18px;font-weight:700;line-height:1.4;color:#fff}
+.yan-dialog .s{font-size:14px;line-height:1.6;color:#909090}
+.yan-dialog input{min-height:44px;padding:0 12px;border:1px solid #3D3D3D;border-radius:8px;background:#000;color:#fff;font:inherit;font-size:15px}
+.yan-dialog .b{display:flex;justify-content:flex-end;gap:8px}
+`;
+
+/** Last words said on a task's report, so a redraw for the commit they caused keeps them a moment. */
+const reportSaid = new Map();
+
+function sayOnReport(id, text, bad) {
+  reportSaid.set(id, { text, bad: !!bad, at: Date.now() });
+  const el = R.querySelector('.report-host')?.shadowRoot?.querySelector('.yan-said');
+  if (el) {
+    el.textContent = text;
+    el.classList.toggle('bad', !!bad);
+  }
+}
+
+async function postJSON(url, value) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+  const text = await r.text();
+  if (!r.ok) throw new Error(text || `${r.status}`);
+  return JSON.parse(text);
+}
+
+/** The page's own nodes with nothing that runs: no scripts, frames or handlers, links only to the web or to pictures inside. */
+function cleanReport(doc) {
+  doc.querySelectorAll('script,iframe,frame,object,embed,link,meta,base,form,style,noscript,template').forEach((el) => el.remove());
+  for (const el of doc.body.querySelectorAll('*')) {
+    for (const a of [...el.attributes]) {
+      const name = a.name.toLowerCase();
+      if (name.startsWith('on') || name === 'srcdoc' || name === 'formaction') el.removeAttribute(a.name);
+      else if (name === 'href' || name === 'src' || name === 'xlink:href') {
+        const v = a.value.trim();
+        const ok = name === 'href' ? /^(https?:|#)/i.test(v) : /^(https?:|data:image\/(png|jpe?g|gif|webp);)/i.test(v);
+        if (!ok) el.removeAttribute(a.name);
+      }
+    }
+  }
+  return doc;
+}
+
+function viewReport(t, d, token) {
+  keyNav = { prev: null, next: null };
+  const before = R.querySelector('.report-host');
+  const keep = before && before.dataset.task === t.id ? R.querySelector('.scroll')?.scrollTop || 0 : 0;
+  getJSON(`/api/report?task=${encodeURIComponent(t.id)}`).then((rep) => {
+    if (token !== S.rightToken) return;
+    drawReport(t, d, rep);
+    const scroller = R.querySelector('.scroll');
+    if (scroller) scroller.scrollTop = keep;
+  }, (err) => {
+    if (token === S.rightToken) emptyRight('No report', String(err.message || err));
+  });
+  if (!before || before.dataset.task !== t.id) emptyRight('Loading…');
+}
+
+function drawReport(t, d, rep) {
+  const doc = cleanReport(new DOMParser().parseFromString(rep.html, 'text/html'));
+  const style = [...new DOMParser().parseFromString(rep.html, 'text/html').querySelectorAll('style')]
+    .map((x) => x.textContent).join('\n')
+    .replace(/:root\s*\{/g, ':host{').replace(/(^|[}\s,])body\s*\{/g, '$1.yan-report{');
+  const host = h('div', { class: 'report-host', 'data-task': t.id });
+  const root = host.attachShadow({ mode: 'open' });
+  const live = new Map(d.deliverables.map((x) => [x.id, x]));
+  const said = reportSaid.get(t.id);
+  const saidNow = said && Date.now() - said.at < 5000 ? said : null;
+
+  // the bar: what the page is, how far behind, and what to take away
+  const generated = rep.generatedAt ? `生成于 ${dayOf(fromIso(rep.generatedAt))} ${clock(fromIso(rep.generatedAt))}` : null;
+  const legacy = rep.behind.length === 0 ? null : h('button', { type: 'button', class: 'yan-legacy', 'aria-label': `legacy: ${rep.behind.join('; ')}` }, 'legacy',
+    h('span', { class: 'tip' }, h('div', { class: 'yan-tip-head' }, '报告生成之后：'), rep.behind.map((line) => h('div', null, line)), h('div', { class: 'yan-tip-head', style: { marginTop: '6px' } }, '重跑 /report 更新它')));
+  const uatList = h('div', { class: 'yan-uat', hidden: true }, rep.uat.length === 0 ? h('div', { class: 'yan-uat-row' }, h('span', { class: 'w' }, 'uat/ 里还没有素材')) : rep.uat.map((f) => {
+    const isVideo = VIDEO.has(ext(f.path));
+    return h('div', { class: 'yan-uat-row' },
+      h('span', { class: 'p' }, f.path),
+      isVideo && f.url ? h('button', { type: 'button', onclick: () => navigator.clipboard.writeText(f.url).then(() => toast('链接已复制')) }, '复制链接') : h('span'),
+      h('a', { href: `${fileUrl(vaultPath(t.id, 'uat/' + f.path))}?download` }, '下载'),
+      h('span', { class: 'w' }, f.for.length ? `${f.for.join('、')} · ${f.shows}` : '没有用 yan uat 登记'));
+  }));
+  const bar = h('div', { class: 'yan-bar' }, h('div', { class: 'yan-bar-in' },
+    h('div', { class: 'yan-facts' }, h('span', { class: 'file' }, 'report.html'), generated ? h('span', null, generated) : null, legacy,
+      h('span', { class: 'yan-said' + (saidNow?.bad ? ' bad' : '') }, saidNow?.text || '')),
+    h('div', { class: 'yan-actions' },
+      h('button', { type: 'button', class: 'yan-btn', 'aria-expanded': 'false', onclick: (e) => {
+        uatList.hidden = !uatList.hidden;
+        e.currentTarget.setAttribute('aria-expanded', String(!uatList.hidden));
+      } }, `uat 素材 ${rep.uat.length}`),
+      h('a', { class: 'yan-btn main', href: `/api/report/download?task=${encodeURIComponent(t.id)}` }, '下载 HTML'))), uatList);
+
+  const shell = h('div', { class: 'yan-report' }, bar, ...[...doc.body.childNodes].map((n) => document.importNode(n, true)));
+  root.append(h('style', null, `${style}\n${REPORT_PANEL_CSS}`), shell);
+
+  // the deliverables: ticked, unticked and given up here, shown as task.json has them now
+  const send = (id, to, reason) => {
+    const el = shell.querySelector(`[data-yan-d="${CSS.escape(id)}"]`);
+    if (el) el.dataset.yanStatus = to;
+    postJSON('/api/deliverable', { task: t.id, id, to, reason }).then((out) => {
+      sayOnReport(t.id, out.warning ? `已写回，推送没成功：${out.warning}` : `已写回 ${t.id} 的 deliverables`, !!out.warning);
+      onStatus(out.status);
+    }, (err) => {
+      sayOnReport(t.id, `没写进去：${err.message}`, true);
+      loadTask(t.id, true).then(render);
+    });
+  };
+  for (const el of shell.querySelectorAll('[data-yan-d]')) {
+    const id = el.dataset.yanD;
+    const now = live.get(id);
+    if (!now) continue;
+    el.dataset.yanStatus = now.status;
+    const why = el.querySelector('[data-yan-reason]');
+    if (why) why.textContent = now.status === 'abandoned' ? now.reason || '' : '';
+    const box = el.querySelector('.box');
+    const name = (el.querySelector('[data-yan-edit="summary"]') || el.querySelector('[data-yan-edit="text"]'))?.textContent || id;
+    if (box) {
+      const tick = h('button', { type: 'button', class: 'yan-tick', 'aria-label': now.status === 'done' ? `${id} 标回待确认` : `${id} 标为完成`, disabled: now.status === 'abandoned' ? true : null,
+        onclick: () => send(id, el.dataset.yanStatus === 'done' ? 'todo' : 'done') });
+      box.replaceWith(tick);
+      tick.append(box);
+    }
+    el.append(h('button', { type: 'button', class: 'yan-side', onclick: () => (now.status === 'abandoned' ? send(id, 'todo') : askReason(root, id, name, (reason) => send(id, 'abandoned', reason))) },
+      now.status === 'abandoned' ? '恢复' : '放弃'));
+  }
+  const all = d.deliverables;
+  const count = (st) => all.filter((x) => x.status === st).length;
+  const pct = (n) => `${all.length ? (n / all.length) * 100 : 0}%`;
+  const progress = shell.querySelector('[data-yan-progress]');
+  if (progress) progress.textContent = `${count('done')} 完成 · ${count('todo')} 待确认 · ${count('abandoned')} 放弃`;
+  shell.querySelector('[data-yan-bar="done"]')?.style.setProperty('width', pct(count('done')));
+  shell.querySelector('[data-yan-bar="abandoned"]')?.style.setProperty('width', pct(count('abandoned')));
+
+  // the texts: edited in place, saved to report.html when left
+  shell.querySelectorAll('[data-yan-edit]').forEach((el, index) => {
+    el.setAttribute('contenteditable', 'plaintext-only');
+    el.setAttribute('spellcheck', 'false');
+    let was = el.textContent;
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+      if (e.key === 'Escape') { el.textContent = was; el.blur(); }
+    });
+    el.addEventListener('blur', () => {
+      const text = el.textContent.replace(/\s+/g, ' ').trim();
+      if (text === was.trim()) return;
+      if (text === '') { el.textContent = was; return; }
+      was = text;
+      postJSON('/api/report/edit', { task: t.id, sha: rep.sha, index, text }).then((out) => {
+        sayOnReport(t.id, out.warning ? `已保存，推送没成功：${out.warning}` : '已保存到 report.html', !!out.warning);
+        onStatus(out.status);
+      }, (err) => sayOnReport(t.id, `没保存：${err.message}`, true));
+    });
+  });
+
+  // the recordings: played here, their link to copy
+  for (const line of shell.querySelectorAll('[data-yan-video]')) {
+    const path = line.dataset.yanVideo;
+    const info = rep.uat.find((f) => f.path === path);
+    line.replaceWith(h('div', { class: 'yan-video' },
+      h('video', { controls: true, preload: 'metadata', src: fileUrl(vaultPath(t.id, 'uat/' + path)) }),
+      h('div', { class: 'row' }, h('span', null, path),
+        info?.url ? h('button', { type: 'button', class: 'yan-btn', style: { minHeight: '32px' }, onclick: () => navigator.clipboard.writeText(info.url).then(() => toast('链接已复制')) }, '复制链接') : null)));
+  }
+
+  R.replaceChildren(h('div', { class: 'scroll', style: { background: '#000' } }, host));
+}
+
+/** The pop-up for giving a deliverable up: a reason is needed, since `yan deliverable abandon` keeps it. */
+function askReason(root, id, name, then) {
+  const input = h('input', { 'aria-label': '放弃的原因', placeholder: '' });
+  const ok = h('button', { type: 'button', class: 'yan-btn main', disabled: true }, '放弃');
+  const close = () => modal.remove();
+  const modal = h('div', { class: 'yan-modal', onclick: (e) => { if (e.target === modal) close(); } },
+    h('div', { class: 'yan-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': `放弃 ${id}` },
+      h('div', null, h('div', { class: 't' }, `放弃 ${id.slice(1)}. ${name}？`), h('div', { class: 's' }, '写一句原因，以后不会再被提起')),
+      input,
+      h('div', { class: 'b' }, h('button', { type: 'button', class: 'yan-btn', onclick: close }, '取消'), ok)));
+  input.addEventListener('input', () => { ok.disabled = input.value.trim() === ''; });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+    if (e.key === 'Enter' && input.value.trim() !== '') ok.click();
+  });
+  ok.addEventListener('click', () => {
+    const reason = input.value.trim();
+    if (reason === '') return;
+    close();
+    then(reason);
+  });
+  root.querySelector('.yan-report').append(modal);
+  input.focus();
 }
 
 function viewLog(t, d) {
