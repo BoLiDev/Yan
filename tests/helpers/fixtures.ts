@@ -156,6 +156,9 @@ export function restoreVault(): void {
 /**
  * git with an identity, a default branch name and signing pinned on the
  * command line, so it works on a machine with no global git config.
+ * Without a cwd it runs in an empty directory, never where the tests were
+ * started: a path that came back undefined would otherwise branch and push
+ * yan's own repository.
  */
 export function fxGit(args: readonly string[], cwd?: string): Promise<RunResult> {
   return run(
@@ -170,7 +173,7 @@ export function fxGit(args: readonly string[], cwd?: string): Promise<RunResult>
       '-c', 'protocol.file.allow=always',
       ...args,
     ],
-    { cwd },
+    { cwd: cwd ?? mkTempDir('yan-git-') },
   );
 }
 

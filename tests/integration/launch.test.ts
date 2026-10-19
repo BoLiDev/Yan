@@ -115,10 +115,12 @@ async function aClone(name = 'demo'): Promise<{ bare: string; clone: string }> {
   return { bare, clone };
 }
 
-/** The one tree t001 holds. */
-function treeOf(id = 't001'): string | undefined {
+/** The one tree t001 holds; anything else fails the test here, before git is run in a path that is not there. */
+function treeOf(id = 't001'): string {
   const held = leasesHeldBy(id);
-  return held.length === 1 ? held[0]?.path : undefined;
+  const path = held.length === 1 ? held[0]?.path : undefined;
+  if (path === undefined) throw new Error(`${id} holds ${held.length} trees, not one`);
+  return path;
 }
 
 describe('a new task', () => {
@@ -149,13 +151,13 @@ describe('a new task', () => {
     expect(started[0]?.cwd).toBe(tree);
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim()).toBe('HEAD');
     expect((await fxGit(['branch', '--format=%(refname:short)'], clone)).stdout.trim(), 'no branch of yan\'s making').toBe('main');
-    expect(existsSync(join(tree ?? '', 'README.md'))).toBe(true);
+    expect(existsSync(join(tree, 'README.md'))).toBe(true);
     expect(started[0]?.argv.at(-1)).toContain('yan never makes a branch');
     expect(said, 'one step on the chain, saying where the tree stands, then the end').toEqual([
       'working demo: opening a worktree · fetching origin',
       'working demo: opening a worktree',
       'done demo: worktree on a detached HEAD at origin/main',
-      `  ${tildePath(tree ?? '')}`,
+      `  ${tildePath(tree)}`,
       'end t001  fix the parser · claude starting',
     ]);
   });
@@ -212,7 +214,7 @@ describe('a new task', () => {
 
     expect(prompts.asked.at(-1)).toContain('apps/site packages/core packages/web');
     expect(new Task('t001').read().repos[0]?.scope).toEqual(['packages/core', 'apps/site']);
-    const prompt = openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf() as string, scope: ['packages/core', 'apps/site'] }]);
+    const prompt = openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: ['packages/core', 'apps/site'] }]);
     expect(prompt).toContain('`packages/core`, `apps/site`');
     expect(started[0]?.argv.at(-1)).toBe(prompt);
 
@@ -225,7 +227,7 @@ describe('a new task', () => {
     mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone);
     expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
-    expect(started[0]?.argv.at(-1)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf() as string, scope: [] }]));
+    expect(started[0]?.argv.at(-1)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: [] }]));
   });
 
   it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {
@@ -247,7 +249,7 @@ describe('an existing task', () => {
     said = [];
     await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
     expect(started[1]?.cwd).toBe(tree);
-    expect(said).toEqual(['done demo: worktree on a detached HEAD, already here', `  ${tildePath(tree ?? '')}`, 'end t001  x · claude starting']);
+    expect(said).toEqual(['done demo: worktree on a detached HEAD, already here', `  ${tildePath(tree)}`, 'end t001  x · claude starting']);
 
     await fxGit(['checkout', '-b', 'feature/x'], tree);
     said = [];
@@ -266,7 +268,7 @@ describe('an existing task', () => {
     const prompts = answers({ entry: 't001', tree: true });
     await run(prompts, normalizePath(realpathSync(mkTempDir())));
     expect(prompts.asked[0]).toContain('t001 has no tree of demo on this machine.');
-    const again = treeOf() as string;
+    const again = treeOf();
     expect(again.startsWith(clone), 'cut from the linked clone').toBe(false);
     expect(started[1]?.cwd).toBe(again);
     expect(said).toContain('done demo: worktree on a detached HEAD at origin/main');
@@ -275,7 +277,7 @@ describe('an existing task', () => {
   it('opens a tree on the branch the task keeps, and tells the agent it is on it', async () => {
     const { bare, clone } = await aClone();
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);
-    const tree = treeOf() as string;
+    const tree = treeOf();
     await fxGit(['checkout', '-b', 'feat/x'], tree);
     await fxGit(['push', '-u', 'origin', 'feat/x'], tree);
     new Task('t001').keepBranch(bare, 'feat/x');
@@ -284,7 +286,7 @@ describe('an existing task', () => {
 
     said = [];
     await run(answers({ entry: 't001', tree: true }), clone);
-    const again = treeOf() as string;
+    const again = treeOf();
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], again)).stdout.trim()).toBe('feat/x');
     expect(said).toContain("done demo: worktree on feat/x, the task's branch");
     expect(started[1]?.argv.at(-1)).toContain('The worktree is on the branch `feat/x`.');
@@ -296,7 +298,7 @@ describe('an existing task', () => {
     Task.create('x', [{ url: bare }]).keepBranch(bare, 'feat/gone');
     register('demo', bare, clone);
     await run(answers({ entry: 't001', tree: true }), clone);
-    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], treeOf() as string)).stdout.trim()).toBe('HEAD');
+    expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], treeOf())).stdout.trim()).toBe('HEAD');
     expect(said).toContain("warn demo: worktree on a detached HEAD at origin/main · not on the task's branch feat/gone");
     expect(said).toContain('  there is no branch feat/gone here or on origin');
   });
