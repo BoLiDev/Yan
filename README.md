@@ -118,8 +118,9 @@ is shown there as task.json has it now: tick it done, untick it, or give it
 up with a reason, and task.json changes; click a text of the page and edit
 it, and report.html changes. Either is committed and pushed as `yan vault
 push` would, the only writes `yan serve` makes, and only from its own page.
-Recordings play in place with their link to copy, every file in uat/ can be
-downloaded, and the page itself downloads with the deliverables in the state
+A picture clicked fills the screen, and a click again shows it pixel for
+pixel; recordings play in place, full screen from their own controls, with
+their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state
 they are in. When a deliverable was reworded or added, or evidence recorded,
 replaced or dropped since the page was written (report.json beside it says
 what it was written from), its bar says legacy and what changed.

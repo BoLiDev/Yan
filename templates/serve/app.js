@@ -35,6 +35,7 @@ const STROKE = {
   external: '<path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4"/>',
   download: '<path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/>',
   full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4m0 0 2-2m-2 2 2 2M4 18h5"/>',
   check: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
@@ -1981,6 +1982,14 @@ const REPORT_PANEL_CSS = `
 .yan-video{display:flex;flex-direction:column;gap:10px}
 .yan-video video{display:block;width:100%;border-radius:14px;border:1px solid #262626;background:#121212}
 .yan-video .row{display:flex;align-items:center;gap:12px;font:13px ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:#909090}
+.yan-report figure img{cursor:zoom-in}
+.yan-zoom{position:fixed;inset:0;z-index:10;display:flex;overflow:auto;background:#000;outline:none}
+.yan-zoom img{display:block;width:100%;height:100%;object-fit:contain;cursor:zoom-in}
+.yan-zoom.real img{width:auto;height:auto;max-width:none;margin:auto;cursor:zoom-out}
+.yan-zoom .yan-zoom-close{position:fixed;top:16px;right:16px;display:flex;padding:10px;border:1px solid #383838;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
+.yan-zoom .yan-zoom-close:hover{border-color:#6C6C6C}
+.yan-zoom .yan-zoom-n{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:4px 12px;border-radius:999px;background:rgba(0,0,0,.6);color:#BDBDBD;font:13px ui-monospace,'SF Mono',Menlo,Consolas,monospace}
+.yan-zoom .yan-zoom-n:empty{display:none}
 .yan-modal{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 .yan-dialog{width:100%;max-width:440px;box-sizing:border-box;padding:24px;border-radius:16px;background:#121212;border:1px solid #262626;display:flex;flex-direction:column;gap:18px}
 .yan-dialog .t{font-size:18px;font-weight:700;line-height:1.4;color:#fff}
@@ -2151,6 +2160,10 @@ function drawReport(t, d, rep) {
     });
   });
 
+  // the pictures: one clicked fills the screen
+  const shots = [...shell.querySelectorAll('figure img')];
+  shots.forEach((img, i) => img.addEventListener('click', () => zoomShot(root, shots, i)));
+
   // the recordings: played here, their link to copy
   for (const line of shell.querySelectorAll('[data-yan-video]')) {
     const path = line.dataset.yanVideo;
@@ -2162,6 +2175,60 @@ function drawReport(t, d, rep) {
   }
 
   R.replaceChildren(h('div', { class: 'scroll', style: { background: '#000' } }, host));
+}
+
+/**
+ * A picture of the report on the whole screen, fitted to it; a click shows it
+ * pixel for pixel, to scroll about, and another fits it again. ← and → go
+ * through the report's other pictures. It asks the browser for full screen
+ * and, refused, still covers the page; Esc or ✕ leaves it.
+ */
+function zoomShot(root, shots, at) {
+  const img = h('img', { alt: '' });
+  const n = h('span', { class: 'yan-zoom-n' });
+  const view = h('div', { class: 'yan-zoom', tabindex: '-1', role: 'dialog', 'aria-modal': 'true' },
+    img, n, h('button', { type: 'button', class: 'yan-zoom-close', 'aria-label': '关闭', onclick: () => close() }, icon('close', 18)));
+  const show = (i) => {
+    at = (i + shots.length) % shots.length;
+    img.src = shots[at].src;
+    img.alt = shots[at].alt;
+    view.classList.remove('real');
+    n.textContent = shots.length > 1 ? `${at + 1} / ${shots.length}` : '';
+  };
+  let full = false;
+  const onFull = () => {
+    if (document.fullscreenElement) full = true;
+    else if (full) close();
+  };
+  const close = () => {
+    document.removeEventListener('fullscreenchange', onFull);
+    if (document.fullscreenElement) document.exitFullscreen();
+    view.remove();
+  };
+  img.addEventListener('click', (e) => {
+    // the point clicked on stays under the pointer, as near as scrolling allows
+    const box = img.getBoundingClientRect();
+    const scale = Math.min(box.width / img.naturalWidth, box.height / img.naturalHeight);
+    const fx = (e.clientX - box.left - (box.width - img.naturalWidth * scale) / 2) / (img.naturalWidth * scale);
+    const fy = (e.clientY - box.top - (box.height - img.naturalHeight * scale) / 2) / (img.naturalHeight * scale);
+    if (view.classList.toggle('real')) {
+      view.scrollLeft = Math.min(Math.max(fx, 0), 1) * img.naturalWidth - e.clientX;
+      view.scrollTop = Math.min(Math.max(fy, 0), 1) * img.naturalHeight - e.clientY;
+    }
+  });
+  view.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft' && shots.length > 1) show(at - 1);
+    else if (e.key === 'ArrowRight' && shots.length > 1) show(at + 1);
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  document.addEventListener('fullscreenchange', onFull);
+  root.querySelector('.yan-report').append(view);
+  show(at);
+  view.focus();
+  view.requestFullscreen?.().catch(() => {});
 }
 
 /** The pop-up for giving a deliverable up: a reason is needed, since `yan deliverable abandon` keeps it. */
