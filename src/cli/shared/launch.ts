@@ -38,7 +38,7 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
 
 /** What the agent is told before `user` says anything. */
 export const OPENING_PROMPT = [
-  'Notes from earlier sessions on this work are kept by a CLI.',
+  'Notes from earlier sessions on this work are kept by the yan CLI.',
   'We think about a task in three parts, each with its note: the problem (problem.md: the background, and what the problem is), ' +
     'the solution (the deliverables: how things must be once it is solved), and the decisions that steered it (the log). ' +
     'Problem and solution are worked out with the user, not assumed, and either may change as the work goes. ' +
