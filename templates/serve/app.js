@@ -39,6 +39,8 @@ const STROKE = {
   wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4m0 0 2-2m-2 2 2 2M4 18h5"/>',
   check: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  bellOff: '<path d="M8.5 6.3A6 6 0 0 1 18 11v5.5l1.5 2H9"/><path d="M6 11v5.5l-1.5 2h2"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="m4 4 16 16"/>',
 };
 const STATES = {
   open: '<circle cx="8" cy="8" r="6.25" fill="none" stroke="#0b7285" stroke-width="1.5"/><path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="#0b7285"/>',
@@ -91,7 +93,7 @@ function append(el, kids) {
 function tool(name, label, onclick, opts = {}) {
   const b = h(opts.href ? 'a' : 'button', {
     type: opts.href ? null : 'button',
-    class: 'tool' + (opts.small ? ' small' : ''),
+    class: 'tool' + (opts.small ? ' small' : '') + (opts.blocked ? ' blocked' : ''),
     'aria-label': label,
     title: label,
     'aria-pressed': opts.pressed === undefined ? null : String(!!opts.pressed),
@@ -434,8 +436,9 @@ const S = {
   rightKey: '',
   rightToken: 0,
   page: { source: false, mdSource: false },
-  prefs: Object.assign({ left: true, dark: false, layout: 'unified', width: 'fit', whole: false, wrap: {} }, load('yan.serve.prefs', {})),
+  prefs: Object.assign({ left: true, dark: false, layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false }, load('yan.serve.prefs', {})),
   seen: load('yan.serve.seen', null),
+  told: null,
 };
 const savePrefs = () => save('yan.serve.prefs', S.prefs);
 const saveSeen = () => save('yan.serve.seen', S.seen);
@@ -529,6 +532,113 @@ function latestUnseen() {
   return S.index ? new Set(S.index.latest.filter((p) => p.at > seenAt(p.task)).map((p) => p.task)).size : 0;
 }
 
+// ── a notification when a push arrives ──────────────────────────────────────
+//
+// Latest's count is only in the page, and `user` works in other windows most
+// of the time, so a push went unnoticed until they looked. Chrome hands a
+// Notification to macOS, which shows it over whatever is in front. The page
+// has to be open for that, in the background or minimised: there is no push
+// service behind it, and none is wanted for a tool on this machine.
+//
+// A notification says only which task moved, its name as the title: `user`
+// opens the task to see what came. One per task, a later push replacing the
+// earlier, silent. Chrome asks its permission only on a click, so the bell by
+// Latest asks; whether to notify is this browser's choice, kept in its prefs.
+
+const canNotify = () => typeof Notification !== 'undefined';
+const notifying = () => canNotify() && S.prefs.notify && Notification.permission === 'granted';
+
+/** The favicon as a bitmap: Chrome draws a notification's icon from one, not from SVG. */
+let logoPng = null;
+function logoIcon() {
+  if (!logoPng) {
+    logoPng = new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = c.height = 192;
+        c.getContext('2d').drawImage(img, 0, 0, 192, 192);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve('');
+      img.src = document.querySelector('link[rel="icon"]').href;
+    });
+  }
+  return logoPng;
+}
+
+/** Whether the page is in front, showing where the task's push would be seen: the task itself, or Latest. */
+function inFront(task) {
+  if (document.visibilityState !== 'visible' || !document.hasFocus()) return false;
+  const r = S.route;
+  return r.view === 'latest' || (r.view === 'task' && r.id === task);
+}
+
+/**
+ * Tells of each task whose newest push is newer than the last one told of.
+ * The first index fills the marks without telling: what was there when the
+ * page opened is Latest's to show, not a burst of notifications.
+ */
+function tellOfPushes() {
+  const newest = new Map();
+  for (const p of S.index.latest) if (p.at > (newest.get(p.task)?.at ?? 0)) newest.set(p.task, p);
+  if (!S.told) {
+    S.told = new Map([...newest].map(([task, p]) => [task, p.at]));
+    return;
+  }
+  for (const [task, p] of newest) {
+    if (p.at <= (S.told.get(task) ?? 0)) continue;
+    S.told.set(task, p.at);
+    if (notifying() && !inFront(task)) void notify(task, p);
+  }
+}
+
+async function notify(task, p) {
+  const t = S.byId.get(task);
+  const icon = await logoIcon();
+  let n;
+  try {
+    n = new Notification(t?.title ? `${t.title} · ${task}` : task, { tag: `yan:${task}`, silent: true, icon: icon || undefined });
+  } catch {
+    return; // Chrome on Android wants a service worker for these; this page is not for it
+  }
+  // Clicking opens Latest on the push, as the push's own line would.
+  n.onclick = () => {
+    n.close();
+    window.focus();
+    S.feedOpen.add(`${task}@${p.at}`);
+    if (location.hash === '#/latest') render();
+    else location.hash = '#/latest';
+  };
+}
+
+/** The bell: asks Chrome the first time, and after that turns notifying on and off for this browser. */
+async function toggleNotify() {
+  if (notifying()) {
+    S.prefs.notify = false;
+    savePrefs();
+    renderLeft();
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    toast('Chrome blocks notifications from this page: allow them from the icon left of the address bar');
+    return;
+  }
+  const got = await Notification.requestPermission();
+  S.prefs.notify = got === 'granted';
+  savePrefs();
+  if (got === 'granted') toast('Chrome will say when a push arrives');
+  renderLeft();
+}
+function bell() {
+  if (!canNotify()) return null;
+  if (Notification.permission === 'denied') {
+    return tool('bellOff', 'Chrome blocks notifications from this page. Allow them from the icon left of the address bar.', toggleNotify, { small: true, blocked: true });
+  }
+  const on = notifying();
+  return tool('bell', on ? 'Chrome says when a push arrives. Click to stop.' : 'Have Chrome say when a push arrives', toggleNotify, { small: true, pressed: on });
+}
+
 // ── talking to the server ───────────────────────────────────────────────────
 
 async function getJSON(url) {
@@ -544,6 +654,7 @@ async function loadIndex() {
   S.status = j.status;
   S.filesOrigin = j.filesOrigin;
   initSeen();
+  tellOfPushes();
 }
 async function loadTask(id, force) {
   const have = S.tasks.get(id);
@@ -690,7 +801,7 @@ function buildLeft() {
       }
     },
   });
-  left.latest = h('div');
+  left.latest = h('div', { class: 'latest-line' });
   left.list = h('div', { class: 'group', style: { gap: '12px' } });
   left.scroll = h('div', { class: 'pane-scroll' }, left.list);
   const top = h('div', { class: 'pane-top' },
@@ -780,7 +891,8 @@ function renderLeft() {
   const unseen = latestUnseen();
   const onLatest = S.route.view === 'latest';
   left.latest.replaceChildren(h('a', { class: 'row' + (onLatest ? ' on' : ''), href: '#/latest', style: { fontWeight: 700 } },
-    icon('latest', 17), h('span', { class: 'grow' }, 'Latest'), unseen > 0 ? h('span', { class: 'badge solid', title: `${plural(unseen, 'task')} with something new` }, unseen) : null));
+    icon('latest', 17), h('span', { class: 'grow' }, 'Latest'), unseen > 0 ? h('span', { class: 'badge solid', title: `${plural(unseen, 'task')} with something new` }, unseen) : null),
+    bell());
   left.list.replaceChildren(...parts);
   left.scroll.scrollTop = top;
 }

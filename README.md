@@ -92,7 +92,11 @@ starts.
 10 seconds (`--every`) it fetches the vault into refs of its own,
 `refs/yan/serve/`, and reads git objects rather than the work tree, so
 nothing an agent or a hook works with moves; an open page follows without
-being reloaded. Images, pages, Markdown, code, logs, audio, video and fonts
+being reloaded. With the bell beside Latest on, Chrome shows a silent macOS
+notification when a push arrives, the task's name as its title and nothing
+else, and clicking it opens Latest on that push; the page has to be open for
+it, in the background or minimised, and Chrome's permission is asked on the
+first click. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, and every file at its head; the

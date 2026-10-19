@@ -129,6 +129,11 @@ img { -webkit-user-drag: none; }
 .tool:disabled { opacity: 0.35; cursor: default; background: transparent; }
 .tool.text { width: auto; padding: 0 10px; font-size: 13px; gap: 6px; }
 .tool.small { width: 28px; height: 28px; border-radius: 7px; color: var(--ink-3); }
+.tool.blocked { opacity: 0.4; cursor: default; }
+.tool.blocked:hover { background: transparent; color: var(--ink-3); }
+.latest-line { display: flex; align-items: center; gap: 2px; }
+.latest-line .row { flex: 1 1 auto; min-width: 0; }
+.latest-line .tool[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 
 .seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--sunken); border-radius: 10px; }
 .seg button {
