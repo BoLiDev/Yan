@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
@@ -265,6 +265,23 @@ describe('a report on yan serve', () => {
     expect(html.replace('第一 &lt;b&gt;', '一')).toBe(PAGE);
     expect((await fxGit(['log', '-1', '--format=%s'], home)).stdout.trim()).toBe('t002: report edited in yan serve');
     expect((await post('/api/report/edit', { task: 't002', sha: (await report())?.sha, index: 9, text: 'x' })).status).toBe(400);
+  });
+
+  it('lists a task waiting to be accepted as 待验收, and puts it back to open when it is not, logging nothing', async () => {
+    expect((await runYan(home, ['uat', 'ready', '--task', 't002'])).stdout).toContain('t002  待验收');
+    await fxGit(['commit', '-q', '-am', 'ready'], home);
+    const state = async (): Promise<string | undefined> => {
+      const i = (await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; state: string }[] };
+      return i.tasks.find((t) => t.id === 't002')?.state;
+    };
+    expect(await until(async () => ((await state()) === 'uat' ? true : undefined), 20_000)).toBe(true);
+
+    expect((await post('/api/not-accepted', { task: 't002' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/not-accepted', { task: 't002' })).status).toBe(200);
+    expect((readJson(at('task.json')) as { state: string }).state).toBe('open');
+    expect(await state()).toBe('open');
+    expect((await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim()).toBe('t002: not accepted in yan serve, back to open');
+    expect(existsSync(at('log.md'))).toBe(false);
   });
 
   it('says what changed since the page was written', async () => {

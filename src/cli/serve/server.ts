@@ -29,7 +29,8 @@ import { VaultView } from './vault-view.js';
  * too. Pages hear of it through `/api/events`, a server-sent event stream.
  *
  * It reads git objects and never the work tree, with one exception: on a
- * task's report `user` ticks a deliverable, gives one up or edits a text.
+ * task's report `user` ticks a deliverable, gives one up or edits a text,
+ * and on a task waiting to be accepted, `user` can turn it back to open.
  * That is written to task.json or report.html in the work tree, committed
  * and pushed as `yan vault push` would, and then shown like any other commit.
  */
@@ -316,10 +317,11 @@ export class YanServer {
       await this.tick();
       return json(res, this.status);
     }
-    if (req.method === 'POST' && (p === '/api/deliverable' || p === '/api/report/edit')) {
+    if (req.method === 'POST' && (p === '/api/deliverable' || p === '/api/report/edit' || p === '/api/not-accepted')) {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may change the vault');
       const given = await body(req);
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
+      if (p === '/api/not-accepted') return this.notAccepted(res, given);
       return p === '/api/deliverable' ? this.setDeliverable(res, given) : this.editReport(res, given);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
@@ -448,6 +450,22 @@ export class YanServer {
     }
     const word = { done: 'done', todo: 'back to do', abandoned: 'given up' }[to];
     return this.save(res, `${id}: ${d} ${word} in yan serve`);
+  }
+
+  /**
+   * `{ task }`: `user` not accepting a task that waits to be, which puts it
+   * back to open. Nothing is logged: it is `user` keeping the state, and the
+   * agent is not told.
+   */
+  private async notAccepted(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const id = given.task;
+    if (typeof id !== 'string' || !Task.isId(id)) return send(res, 400, 'task is needed');
+    try {
+      new Task(id).notAccepted();
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: not accepted in yan serve, back to open`);
   }
 
   /**

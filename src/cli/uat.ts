@@ -10,7 +10,8 @@ import { YanError } from '../util/error.js';
  * artifacts/uat/uat.json as the agent makes it. The record is what ties a
  * screenshot to the deliverable it proves; a report and `yan serve` read it
  * rather than guess from file names, and `yan uat` alone shows which
- * deliverable has nothing yet.
+ * deliverable has nothing yet. `yan uat ready` hands the task to `user`
+ * to accept, once the evidence is all there.
  */
 
 interface TaskOption {
@@ -69,6 +70,17 @@ const rm = new Command('rm')
     }),
   );
 
+const ready = new Command('ready')
+  .description('the task waits for the user to accept it (待验收): say so once every deliverable is built and its evidence recorded')
+  .option(...TASK_FLAG)
+  .action(
+    action('yan uat ready', (options: TaskOption) => {
+      const task = requiredTask(options.task, '--task <id>');
+      task.awaitUat();
+      out(`${task.id}  待验收 - the user accepts it with yan done, or sends it back to open`);
+    }),
+  );
+
 const ls = new Command('ls')
   .description('every deliverable with what it is checked by, and the files nothing records')
   .option(...TASK_FLAG)
@@ -79,6 +91,7 @@ export const command = new Command('uat')
   .addCommand(add)
   .addCommand(note)
   .addCommand(rm)
+  .addCommand(ready)
   .addCommand(ls, { isDefault: true })
   .addHelpText(
     'after',
@@ -95,5 +108,11 @@ A change to what the user sees is shot before it is made, with --before,
 and again after, with --after. A deliverable nothing on screen can show
 gets a note of how it was checked instead. Recording a file again replaces
 its entry; a file redone keeps its name. Bare 'yan uat' lists every
-deliverable with its evidence, and which have none.`,
+deliverable with its evidence, and which have none.
+
+Once every deliverable is built and has its evidence, 'yan uat ready' sets
+the task to uat (待验收): it waits for the user to check it. The user
+closes it with 'yan done', or, not accepting it, turns it back to open in
+'yan serve'; then the work goes on, and 'yan uat ready' says so again when
+it is there.`,
   );

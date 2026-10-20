@@ -1,6 +1,6 @@
 import { repoName } from './repo-name.js';
 import { leasesHeldBy } from '../../externals/worktree/index.js';
-import { Task } from '../../records/task/index.js';
+import { Task, isClosed } from '../../records/task/index.js';
 import { branchOf, defaultBranch, remoteUrl, upstreamOf } from '../../util/git.js';
 import { repoKey } from '../../util/repo-key.js';
 
@@ -41,7 +41,7 @@ export function keepTreeBranches(): string[] {
     try {
       const task = new Task(id);
       const { state, repos } = task.read();
-      if (state !== 'open') continue;
+      if (isClosed(state)) continue;
       for (const lease of leasesHeldBy(id)) {
         const url = remoteUrl(lease.path);
         const repo = url === undefined ? undefined : repos.find((r) => repoKey(r.url) === repoKey(url));

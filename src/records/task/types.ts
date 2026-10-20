@@ -1,7 +1,19 @@
 /** The vocabulary of `tasks/<id>/task.json`, version 2. */
 
-export const TASK_STATES = ['open', 'done', 'abandoned'] as const;
+/**
+ * Where a task stands. `uat` is still open: its agent has built every
+ * deliverable and recorded what to check each by, and it waits for `user`
+ * to accept it. The agent sets it with `yan uat ready`; `user` turns it back
+ * to `open` in `yan serve` when it is not accepted, or closes it with
+ * `yan done`.
+ */
+export const TASK_STATES = ['open', 'uat', 'done', 'abandoned'] as const;
 export type TaskState = (typeof TASK_STATES)[number];
+
+/** Done or abandoned: what `yan done` leaves. */
+export function isClosed(state: TaskState): boolean {
+  return state === 'done' || state === 'abandoned';
+}
 
 /**
  * What a resource is. Each kind but `general` has its own moment to be kept,

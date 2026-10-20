@@ -49,7 +49,9 @@ with designs in artifacts/design/ and what you check the result by in
 artifacts/uat/, gathered deliverable by deliverable: a screenshot or
 recording for each one, named for it (d3-before.png, d3-after.png) and
 recorded with `yan uat` as it is made, or a note of how it was checked
-where nothing on screen shows it; the before shot before the change is made.
+where nothing on screen shows it; the before shot before the change is made;
+and once all of it is there, marking the task 待验收 with `yan uat ready`
+is the agent's to do.
 An artifact redone replaces its file; the vault's history keeps the old one.
 While it runs, the vault is kept in step with your other machines without
 the agent being told: it is pulled each time you send a message and pushed
@@ -64,12 +66,12 @@ agent as it is.
 
 For you:
 
-- `yan ls` — every open task, one line each; `--status all` for the rest
+- `yan ls` — every open task, one line each, those waiting for you to accept them as 待验收; `--status all` for the rest
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan ui` — a work report of every task, in the browser
-- `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
+- `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 - `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now
@@ -80,6 +82,7 @@ For the agent:
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
+- `yan uat ready` — the task waits for you to accept it: its state becomes `uat`, shown as 待验收
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
 - `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and the ones it replaces stay as the task's earlier branches
 - `yan learn add|ls` — a learning, written only when you ask for one
@@ -112,12 +115,18 @@ branch has moved since; one deleted from origin is found again from what its
 merge commit says. The artifacts are served on the next port up, so a
 page an agent wrote runs as its own site and cannot reach the one around it.
 
+A task its agent marked with `yan uat ready` is listed under 待验收, above
+the ones in progress, and its overview says so with a 验收失败 button: one
+click puts it back in progress, committed and pushed, and nothing is logged,
+so the agent is not told. Accepting it is `yan done`, as for any task.
+
 A task with an artifacts/report.html, the page a report skill writes from
 what `yan uat` recorded, has a Report beside its overview. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, or give it
 up with a reason, and task.json changes; click a text of the page and edit
 it, and report.html changes. Either is committed and pushed as `yan vault
-push` would, the only writes `yan serve` makes, and only from its own page.
+push` would; that and 验收失败 are the only writes `yan serve` makes, and
+only from its own page.
 A picture clicked fills the screen, and a click again shows it pixel for
 pixel; recordings play in place, full screen from their own controls, with
 their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state
@@ -134,7 +143,7 @@ what it was written from), its bar says legacy and what changed.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state, repos (URL, scope, branch and earlier branches each), deliverables, resources and their kinds
+    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, branch and earlier branches each), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

@@ -2,7 +2,7 @@ import { Command, Option } from 'commander';
 import { action, out } from './shared/action.js';
 import { bold, dim, fit, padEnd, terminalWidth } from './shared/style.js';
 import { Log } from '../records/log/index.js';
-import { Task, type TaskData, type TaskState } from '../records/task/index.js';
+import { Task, isClosed, type TaskData, type TaskState } from '../records/task/index.js';
 import { localDay } from '../util/time.js';
 
 /**
@@ -73,8 +73,13 @@ function rowOf(id: string): Row {
 
 function wanted(row: Row, status: StatusFilter): boolean {
   if (status === 'all') return true;
-  if (status === 'open') return row.state === 'open' || row.state === null;
-  return row.state === 'done' || row.state === 'abandoned';
+  if (status === 'open') return row.state === null || !isClosed(row.state);
+  return row.state !== null && isClosed(row.state);
+}
+
+/** The state as `user` reads it: a task waiting to be accepted says so in Chinese, as `yan serve` does. */
+function stateWord(state: TaskState | null): string {
+  return state === null ? 'unreadable' : state === 'uat' ? '待验收' : state;
 }
 
 /** `10-01` this year, `2025-12-30` before it. */
@@ -84,7 +89,7 @@ function shortDay(day: string): string {
 
 export const command = new Command('ls')
   .description('every task, one line each')
-  .addOption(new Option('--status <status>', 'which tasks: open, done (abandoned included) or all').choices(STATUS_FILTERS).default('open'))
+  .addOption(new Option('--status <status>', 'which tasks: open (待验收 included), done (abandoned included) or all').choices(STATUS_FILTERS).default('open'))
   .option('--json', 'the same rows as JSON')
   .action(
     action('yan ls', (options: { status: StatusFilter; json?: boolean }) => {
@@ -102,9 +107,9 @@ export const command = new Command('ls')
       const cols = terminalWidth();
       for (const r of rows) {
         const progress = r.total === 0 ? '-' : `${r.done}/${r.total}`;
-        const head = `${padEnd(r.id, idWidth)}  ${padEnd(r.state ?? 'unreadable', 10)} ${progress.padStart(5)}  ${padEnd(shortDay(r.updated), dayWidth)}  `;
+        const head = `${padEnd(r.id, idWidth)}  ${padEnd(stateWord(r.state), 10)} ${progress.padStart(5)}  ${padEnd(shortDay(r.updated), dayWidth)}  `;
         const title = cols === undefined ? r.title : fit(r.title, Math.max(10, cols - head.length - 1));
-        out(r.state === 'open' ? `${bold(padEnd(r.id, idWidth))}${head.slice(idWidth)}${title}` : dim(`${head}${title}`));
+        out(r.state === null || !isClosed(r.state) ? `${bold(padEnd(r.id, idWidth))}${head.slice(idWidth)}${title}` : dim(`${head}${title}`));
       }
     }),
   );

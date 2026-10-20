@@ -5,7 +5,7 @@ import { action, out } from './shared/action.js';
 import { tildePath } from './shared/style.js';
 import { isTty } from './shared/tty.js';
 import { link, register, registry, repoNamed, repoWithUrl, reposPath, unregister, type RepoEntry } from '../records/repos/index.js';
-import { Task } from '../records/task/index.js';
+import { Task, isClosed } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 import { cloneRepo, remoteUrl } from '../util/git.js';
 import { isDirectory, normalizePath, samePath } from '../util/paths.js';
@@ -180,7 +180,7 @@ function openTasksIn(entry: RepoEntry): string[] {
   return Task.list().filter((id) => {
     try {
       const data = new Task(id).read();
-      return data.state === 'open' && data.repos.some((r) => repoKey(r.url) === repoKey(entry.url));
+      return !isClosed(data.state) && data.repos.some((r) => repoKey(r.url) === repoKey(entry.url));
     } catch {
       return false;
     }

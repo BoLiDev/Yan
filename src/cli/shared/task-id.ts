@@ -1,5 +1,5 @@
 import { isTty } from './tty.js';
-import { Task } from '../../records/task/index.js';
+import { Task, isClosed } from '../../records/task/index.js';
 import type { TaskChoice } from '../../ui/prompts.js';
 import { YanError } from '../../util/error.js';
 
@@ -29,7 +29,7 @@ export function openTasks(): TaskChoice[] {
   for (const id of Task.list()) {
     try {
       const data = new Task(id).read();
-      if (data.state === 'open') open.push({ id, title: data.title });
+      if (!isClosed(data.state)) open.push({ id, title: data.title });
     } catch {
       // A task.json yan cannot read is not offered; 'yan peek <id>' says why.
     }

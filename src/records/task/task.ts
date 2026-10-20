@@ -8,7 +8,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
-import { RESOURCE_KINDS, TASK_STATES, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
+import { RESOURCE_KINDS, TASK_STATES, isClosed, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /**
  * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
@@ -65,12 +65,36 @@ export class Task {
    * Close the task: `done`, or `abandoned` with the reason it was given up.
    * Stamps `closedAt`.
    */
-  public close(state: Exclude<TaskState, 'open'>, reason = ''): void {
+  public close(state: Exclude<TaskState, 'open' | 'uat'>, reason = ''): void {
     this.edit((doc) => {
       doc.state = state;
       doc.closedAt = isoSecond();
       if (state === 'abandoned' && reason.trim() !== '') doc.reason = reason.trim();
       else delete doc.reason;
+    });
+  }
+
+  /**
+   * Say the task waits for `user` to accept it: `uat`, from open.
+   *
+   * @throws YanError `task_closed` when it is closed already.
+   */
+  public awaitUat(): void {
+    this.edit((doc, data) => {
+      if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} already - there is nothing to accept`);
+      doc.state = 'uat';
+    });
+  }
+
+  /**
+   * Back to open from `uat`: `user` not accepting it, in `yan serve`.
+   *
+   * @throws YanError `task_closed` when it is closed, which only `yan done` decides.
+   */
+  public notAccepted(): void {
+    this.edit((doc, data) => {
+      if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} - it was closed with yan done`);
+      doc.state = 'open';
     });
   }
 

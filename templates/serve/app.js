@@ -47,6 +47,7 @@ const STATES = {
   open: '<circle cx="8" cy="8" r="6.25" fill="none" stroke="#0b7285" stroke-width="1.5"/><path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="#0b7285"/>',
   done: '<circle cx="8" cy="8" r="7" fill="#1f7a3d"/><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   abandoned: '<circle cx="8" cy="8" r="6.25" fill="none" stroke="#66655f" stroke-width="1.5"/><path d="m4.2 11.8 7.6-7.6" stroke="#66655f" stroke-width="1.5"/>',
+  uat: '<circle cx="8" cy="8" r="6.25" fill="none" stroke="#a15c07" stroke-width="1.5"/><circle cx="8" cy="8" r="2.75" fill="#a15c07"/>',
 };
 
 function svg(markup, size, viewBox, extra) {
@@ -876,10 +877,14 @@ function renderLeft() {
     hits.sort((a, b) => b.touched - a.touched);
     parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, hits.length ? plural(hits.length, 'task') : 'No task matches'), hits.map((t) => taskRow(t))));
   } else {
+    // Waiting on `user`, so above the rest; the group is not there when none is.
+    const uat = tasks.filter((t) => t.state === 'uat').sort((a, b) => b.touched - a.touched);
+    if (uat.length) parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, '待验收'), uat.map((t) => taskRow(t))));
+
     const open = tasks.filter((t) => t.state === 'open').sort((a, b) => b.touched - a.touched);
     parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, 'In progress'), open.length ? open.map((t) => taskRow(t)) : h('div', { class: 'sublabel' }, 'Nothing open')));
 
-    const closed = tasks.filter((t) => t.state !== 'open').sort((a, b) => (fromIso(b.closedAt) || b.touched) - (fromIso(a.closedAt) || a.touched));
+    const closed = tasks.filter((t) => t.state === 'done' || t.state === 'abandoned').sort((a, b) => (fromIso(b.closedAt) || b.touched) - (fromIso(a.closedAt) || a.touched));
     const rows = [];
     let month = '';
     for (const t of closed) {
@@ -944,6 +949,7 @@ function renderMiddle() {
 function taskSub(t) {
   const bits = [t.id];
   if (t.state === 'open') bits.push(t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : 'in progress');
+  else if (t.state === 'uat') bits.push('待验收');
   else if (t.state === 'done') bits.push(t.closedAt ? `done ${dayOf(fromIso(t.closedAt))}` : 'done');
   else bits.push(t.closedAt ? `dropped ${dayOf(fromIso(t.closedAt))}` : 'dropped');
   const repos = t.repos.map((x) => x.name).join(', ');
@@ -1883,7 +1889,8 @@ function linkify(text) {
 function viewOverview(t, d, token) {
   keyNav = { prev: null, next: null };
   const pills = [];
-  pills.push(t.state === 'open' ? h('span', { class: 'pill teal' }, 'In progress') : t.state === 'done' ? h('span', { class: 'pill green' }, 'Done') : h('span', { class: 'pill' }, 'Dropped'));
+  const word = { open: ['teal', 'In progress'], uat: ['amber', '待验收'], done: ['green', 'Done'] }[t.state] || ['', 'Dropped'];
+  pills.push(h('span', { class: `pill ${word[0]}` }, word[1]));
   const dates = [t.id, t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : null, t.closedAt ? `${t.state === 'done' ? 'done' : 'closed'} ${dayOf(fromIso(t.closedAt))}` : null].filter(Boolean).join(' · ');
   pills.push(h('span', { class: 'pill' }, dates));
   d.repos.forEach((repo, i) => {
@@ -1894,6 +1901,7 @@ function viewOverview(t, d, token) {
   const paper = h('div', { class: 'paper' },
     h('header', { class: 'ov-head' }, h('div', { class: 'pills' }, pills), h('h2', null, t.title || t.id)));
   if (t.state === 'abandoned' && d.reason) paper.append(h('p', { class: 'notice' }, `Dropped: ${d.reason}`));
+  if (t.state === 'uat') paper.append(uatBar(t));
 
   // problem.md, with what changed since the last look tinted
   const problem = h('section', { class: 'ov-section' });
@@ -1938,6 +1946,25 @@ function viewOverview(t, d, token) {
       h('div', { class: 'res' }, d.resources.map(([k, v]) => h('div', null, h('span', { class: 'k' }, k), h('span', { class: 'v' }, linkify(v)))))));
   }
   R.replaceChildren(h('div', { class: 'scroll' }, paper));
+}
+
+/**
+ * A task its agent has handed over to be checked. Accepting it is `yan done`,
+ * at a terminal; not accepting it is this one click, which puts it back in
+ * progress, committed and pushed, and tells the agent nothing.
+ */
+function uatBar(t) {
+  const no = h('button', { type: 'button', class: 'button quiet', onclick: () => {
+    no.disabled = true;
+    postJSON('/api/not-accepted', { task: t.id }).then((out) => {
+      toast(out.warning ? `已改回进行中，推送没成功：${out.warning}` : '已改回进行中');
+      onStatus(out.status);
+    }, (err) => {
+      no.disabled = false;
+      toast(`没改成：${err.message}`);
+    });
+  } }, '验收失败');
+  return h('div', { class: 'uat-bar' }, h('span', { class: 'grow' }, '待验收：都做完了，等你来看。通过就在终端里 yan done。'), no);
 }
 
 // ── the report ──────────────────────────────────────────────────────────────
