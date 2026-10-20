@@ -300,3 +300,28 @@ describe('a report on yan serve', () => {
     expect(r.behind).toEqual(['uat/d1.png 换了新的']);
   });
 });
+
+describe('a yan serve left running while yan is updated', () => {
+  const build = async (): Promise<string | undefined> => {
+    try {
+      return ((await (await fetch(page('/api/index'))).json()) as { status: { build: string } }).status.build;
+    } catch {
+      return undefined;
+    }
+  };
+
+  it('restarts on the newer build by itself, in the same process and on the same port', async () => {
+    const was = await build();
+    expect(was).toMatch(/^[0-9a-f]{16}$/);
+    const pid = server?.pid;
+    write(home, 'dist/cli/newer.js', '// a newer build\n');
+    const now = await until(async () => {
+      const b = await build();
+      return b !== undefined && b !== was ? b : undefined;
+    }, 30_000);
+    expect(now).not.toBe(was);
+    expect(server?.exitCode).toBeNull();
+    expect(server?.pid).toBe(pid);
+    expect((await (await fetch(page('/api/hello'))).json()) as unknown).toMatchObject({ yan: 'serve' });
+  });
+});

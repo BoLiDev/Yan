@@ -731,6 +731,9 @@ function connect() {
 
 let refreshing = null;
 async function onStatus(st) {
+  // A yan serve that restarted on a newer yan: this page is the old one, so it loads the new.
+  if (st.build && S.build && st.build !== S.build) return location.reload();
+  if (st.build) S.build = st.build;
   S.status = st;
   renderSync();
   if (st.version !== S.version) {

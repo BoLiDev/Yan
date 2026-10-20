@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import { YanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
@@ -16,8 +18,12 @@ import { YanServer } from './serve/server.js';
  *
  * It reads git objects, never the work tree, and fetches into refs of its
  * own, so it never moves anything an agent or a hook works with. The one
- * thing it writes is what `user` does on a task's report: a deliverable
- * ticked or given up, a text edited, committed and pushed at once.
+ * thing it writes is what `user` does on its page: a deliverable ticked or
+ * given up, a report's text edited, a task not accepted, committed and
+ * pushed at once.
+ *
+ * Left running while yan is updated, it restarts on the newer build by
+ * itself, on the same port, and an open page reloads onto it.
  */
 
 const DEFAULT_PORT = 4747;
@@ -26,6 +32,21 @@ function whole(flag: string, value: string, min: number, max: number): number {
   const n = Number(value);
   if (!Number.isInteger(n) || n < min || n > max) throw YanError.usage('serve_usage', `${flag} takes a whole number from ${min} to ${max}, not '${value}'`);
   return n;
+}
+
+/**
+ * This command again, as the build now in yan's clone: in this same process
+ * where the platform can replace one, so the terminal, its Ctrl+C and the
+ * signals bin/yan.mjs passes on reach it as before; else, on Windows, as a
+ * child this one waits on and passes signals to, as bin/yan.mjs does.
+ */
+function relaunch(): void {
+  const args = [join(yanHome(), 'dist', 'cli', 'yan.js'), ...process.argv.slice(2), '--no-open'];
+  if (process.platform !== 'win32' && process.execve !== undefined) process.execve(process.execPath, [process.execPath, ...args], process.env);
+  const child = spawn(process.execPath, args, { stdio: 'inherit' });
+  process.on('SIGINT', () => {});
+  for (const signal of ['SIGTERM', 'SIGHUP'] as const) process.on(signal, () => child.kill(signal));
+  child.on('exit', (code) => process.exit(code ?? 1));
 }
 
 /** Whether a `yan serve` already answers on `port`. */
@@ -50,7 +71,8 @@ export const command = new Command('serve')
       const dir = vaultDir();
       const name = Object.entries(readMachine().vaults).find(([, path]) => path === dir)?.[0] || readVaultJson(dir).name || 'vault';
 
-      const server = new YanServer({ port, everyS, vaultDir: dir, vaultName: name, home: yanHome() });
+      let restart = (): void => {};
+      const server = new YanServer({ port, everyS, vaultDir: dir, vaultName: name, home: yanHome(), onNewBuild: () => restart() });
       try {
         await server.start();
       } catch (err) {
@@ -71,11 +93,18 @@ export const command = new Command('serve')
       if (options.open) openPath(address);
       await new Promise<void>((resolve) => {
         const stop = (): void => {
-          server.stop();
+          void server.stop();
           resolve();
         };
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
+        // Never resolved: this process becomes the new one, or waits for it.
+        restart = (): void => {
+          process.off('SIGINT', stop);
+          process.off('SIGTERM', stop);
+          out('yan was updated here - restarting on the new build');
+          void server.stop().then(relaunch);
+        };
       });
     }),
   );

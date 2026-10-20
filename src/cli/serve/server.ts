@@ -12,6 +12,7 @@ import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
 import { behind, editText, readRecord, restate, sha256 } from './report.js';
 import { VaultView } from './vault-view.js';
+import { buildLoads, buildPrint } from './build.js';
 
 /**
  * `yan serve`'s two HTTP servers, both on 127.0.0.1.
@@ -42,6 +43,12 @@ export interface ServeOptions {
   readonly vaultName: string;
   /** yan's own clone: the page, its fonts, its one library. */
   readonly home: string;
+  /**
+   * Called, instead of the next tick, once yan in `home` is a newer build
+   * than the one running and it starts: the caller stops this server and
+   * starts that one. Without it the server runs on as it is.
+   */
+  readonly onNewBuild?: () => void;
 }
 
 interface Status {
@@ -54,6 +61,8 @@ interface Status {
   everyS: number;
   /** The vault has no origin, so nothing is fetched. */
   local: boolean;
+  /** Which yan is serving, from `buildPrint`: a page loaded from another reloads itself. */
+  build: string;
 }
 
 const OWN_REF = 'refs/yan/serve/heads/';
@@ -178,11 +187,15 @@ export class YanServer {
   private ticking: Promise<void> | undefined;
   private branch = 'main';
   private port = 0;
+  /** A newer build seen on the last tick, waited on for one more to see it settled. */
+  private nextBuild: string | undefined;
+  /** A newer build that did not start, not tried again until it changes. */
+  private brokenBuild: string | undefined;
 
   public constructor(private readonly options: ServeOptions) {
     this.view = new VaultView(options.vaultDir);
     this.branches = new Branches(options.everyS);
-    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false };
+    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home) };
   }
 
   public get filesOrigin(): string {
@@ -212,12 +225,17 @@ export class YanServer {
     return this.port;
   }
 
-  public stop(): void {
+  /** Stop ticking and listening; resolves once both ports are free. */
+  public stop(): Promise<void> {
     if (this.timer !== undefined) clearTimeout(this.timer);
     for (const c of this.clients) c.end();
-    for (const s of this.servers) s.close();
+    const closed = Promise.all(this.servers.map((s) => new Promise<void>((resolve) => {
+      s.close(() => resolve());
+      s.closeAllConnections();
+    })));
     void this.view.close();
     void this.branches.close();
+    return closed.then(() => undefined);
   }
 
   private listen(port: number, handler: (req: IncomingMessage, res: ServerResponse) => Promise<void>): Promise<void> {
@@ -239,10 +257,35 @@ export class YanServer {
 
   private schedule(): void {
     this.timer = setTimeout(() => {
+      if (this.options.onNewBuild !== undefined && this.newBuild()) {
+        this.options.onNewBuild();
+        return;
+      }
       this.tick()
         .catch(() => undefined)
         .finally(() => this.schedule());
     }, this.options.everyS * 1000);
+  }
+
+  /**
+   * Whether to restart on the yan now in `home`: a build other than the
+   * running one, the same as on the last tick, since `npm run build` empties
+   * dist/ and writes it again over a second or two, and one that starts.
+   */
+  private newBuild(): boolean {
+    const now = buildPrint(this.options.home);
+    if (now === '' || now === this.status.build) {
+      this.nextBuild = undefined;
+      return false;
+    }
+    if (now !== this.nextBuild) {
+      this.nextBuild = now;
+      return false;
+    }
+    if (now === this.brokenBuild) return false;
+    if (buildLoads(this.options.home)) return true;
+    this.brokenBuild = now;
+    return false;
   }
 
   /** Fetch, move to the newest commit, and tell every open page. One at a time. */
