@@ -2010,9 +2010,9 @@ const REPORT_PANEL_CSS = `
 /* a report lays each deliverable out as a grid, its text under the box at full width: the button ends the first row */
 .yan-side{flex:none;align-self:flex-start;grid-row:1;grid-column:3;min-height:36px;padding:0 12px;border:1px solid #383838;border-radius:999px;background:#000;color:#BDBDBD;font:inherit;font-size:13px;cursor:pointer}
 .yan-side:hover{color:#fff;border-color:#6C6C6C}
-[data-yan-edit]{border-radius:4px;outline:1px dashed transparent;outline-offset:4px;transition:outline-color .12s}
-[data-yan-edit]:hover{outline-color:#3D3D3D}
-[data-yan-edit]:focus{outline:1px solid #BCFF2F}
+[data-yan-edit],[data-yan-reason]{border-radius:4px;outline:1px dashed transparent;outline-offset:4px;transition:outline-color .12s}
+[data-yan-edit]:hover,[data-yan-reason]:hover{outline-color:#3D3D3D}
+[data-yan-edit]:focus,[data-yan-reason]:focus{outline:1px solid #BCFF2F}
 .yan-video{display:flex;flex-direction:column;gap:10px}
 .yan-video video{display:block;width:100%;border-radius:14px;border:1px solid #262626;background:#121212}
 .yan-video .row{display:flex;align-items:center;gap:12px;font:13px ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:#909090}
@@ -2169,29 +2169,21 @@ function drawReport(t, d, rep) {
     el.append(h('button', { type: 'button', class: 'yan-side',
       onclick: () => (el.dataset.yanStatus === 'abandoned' ? send(id, 'todo') : askReason(root, id, name, (reason) => send(id, 'abandoned', reason))) }));
     show(el, id, now.status, now.reason);
+    // Its reason for being given up is edited like a text, but kept in task.json, which the page shows it from.
+    const why = el.querySelector('[data-yan-reason]');
+    if (why) editInPlace(why, (reason) => postJSON('/api/deliverable', { task: t.id, id, to: 'abandoned', reason }).then((out) => {
+      sayOnReport(t.id, out.warning ? `已保存，推送没成功：${out.warning}` : `已保存 ${id} 的放弃理由`, !!out.warning);
+      onStatus(out.status);
+    }, (err) => sayOnReport(t.id, `没保存：${err.message}`, true)));
   }
   recount();
 
   // the texts: edited in place, saved to report.html when left
-  shell.querySelectorAll('[data-yan-edit]').forEach((el, index) => {
-    el.setAttribute('contenteditable', 'plaintext-only');
-    el.setAttribute('spellcheck', 'false');
-    let was = el.textContent;
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
-      if (e.key === 'Escape') { el.textContent = was; el.blur(); }
-    });
-    el.addEventListener('blur', () => {
-      const text = el.textContent.replace(/\s+/g, ' ').trim();
-      if (text === was.trim()) return;
-      if (text === '') { el.textContent = was; return; }
-      was = text;
-      postJSON('/api/report/edit', { task: t.id, sha: rep.sha, index, text }).then((out) => {
-        sayOnReport(t.id, out.warning ? `已保存，推送没成功：${out.warning}` : '已保存到 report.html', !!out.warning);
-        onStatus(out.status);
-      }, (err) => sayOnReport(t.id, `没保存：${err.message}`, true));
-    });
-  });
+  shell.querySelectorAll('[data-yan-edit]').forEach((el, index) => editInPlace(el, (text) =>
+    postJSON('/api/report/edit', { task: t.id, sha: rep.sha, index, text }).then((out) => {
+      sayOnReport(t.id, out.warning ? `已保存，推送没成功：${out.warning}` : '已保存到 report.html', !!out.warning);
+      onStatus(out.status);
+    }, (err) => sayOnReport(t.id, `没保存：${err.message}`, true))));
 
   // the pictures: one clicked fills the screen
   const shots = [...shell.querySelectorAll('figure img')];
@@ -2208,6 +2200,30 @@ function drawReport(t, d, rep) {
   }
 
   R.replaceChildren(h('div', { class: 'scroll', style: { background: '#000' } }, host));
+}
+
+/**
+ * A text of the report edited where it stands: Enter or leaving it keeps
+ * what was typed, on one line, and Escape puts it back. A blank is never
+ * kept. What it said is taken when it is entered, since the page can change
+ * it in between, as a deliverable given up again does its reason.
+ */
+function editInPlace(el, save) {
+  el.setAttribute('contenteditable', 'plaintext-only');
+  el.setAttribute('spellcheck', 'false');
+  let was = el.textContent;
+  el.addEventListener('focus', () => { was = el.textContent; });
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    if (e.key === 'Escape') { el.textContent = was; el.blur(); }
+  });
+  el.addEventListener('blur', () => {
+    const text = el.textContent.replace(/\s+/g, ' ').trim();
+    if (text === was.trim()) return;
+    if (text === '') { el.textContent = was; return; }
+    was = text;
+    save(text);
+  });
 }
 
 /**

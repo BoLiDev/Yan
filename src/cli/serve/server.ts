@@ -483,14 +483,18 @@ export class YanServer {
     if (typeof id !== 'string' || !Task.isId(id) || typeof d !== 'string' || (to !== 'done' && to !== 'todo' && to !== 'abandoned')) {
       return send(res, 400, 'task, id and to (done, todo or abandoned) are needed');
     }
+    let reworded = false;
     try {
       const task = new Task(id);
+      // Given up again, it is only its reason that changes: the page edits that in place.
+      reworded = to === 'abandoned' && task.read().deliverables.some((x) => x.id === d && x.status === 'abandoned');
       if (to === 'done') task.deliverableDone(d);
       else if (to === 'todo') task.reopenDeliverable(d);
       else task.abandonDeliverable(d, typeof reason === 'string' ? reason : '');
     } catch (err) {
       return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
     }
+    if (reworded) return this.save(res, `${id}: ${d}'s reason for giving up reworded in yan serve`);
     const word = { done: 'done', todo: 'back to do', abandoned: 'given up' }[to];
     return this.save(res, `${id}: ${d} ${word} in yan serve`);
   }

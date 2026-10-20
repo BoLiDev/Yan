@@ -124,9 +124,9 @@ so the agent is not told. Accepting it is `yan done`, as for any task.
 
 A task with an artifacts/report.html, the page a report skill writes from
 what `yan uat` recorded, has a Report beside its overview. Each deliverable
-is shown there as task.json has it now: tick it done, untick it, or give it
-up with a reason, and task.json changes; click a text of the page and edit
-it, and report.html changes. Either is committed and pushed as `yan vault
+is shown there as task.json has it now: tick it done, untick it, give it
+up with a reason or edit the reason it was given up for, and task.json
+changes; click a text of the page and edit it, and report.html changes. Either is committed and pushed as `yan vault
 push` would; that and 验收失败 are the only writes `yan serve` makes, and
 only from its own page.
 A picture clicked opens large in a modal over the page, ← and → going

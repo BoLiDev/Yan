@@ -257,6 +257,10 @@ describe('a report on yan serve', () => {
     expect(copy).toContain('<span data-yan-progress="">1 完成 · 0 待确认</span>');
     expect((await report())?.behind).toEqual([]);
 
+    expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'abandoned', reason: 'not this month' })).status).toBe(200);
+    expect((readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { reason?: string }[] }).deliverables[1]?.reason).toBe('not this month');
+    expect((await fxGit(['log', '-1', '--format=%s', 'origin/main'], home)).stdout.trim()).toBe("t002: d2's reason for giving up reworded in yan serve");
+
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'todo' })).status).toBe(200);
     expect((readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { status: string }[] }).deliverables[1]).toEqual({ id: 'd2', text: 'two', status: 'todo' });
   });
