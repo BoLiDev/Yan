@@ -70,7 +70,6 @@ For you:
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
-- `yan ui` — a work report of every task, in the browser
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
@@ -164,8 +163,8 @@ branch.
 
 ## Third-party material
 
-`templates/ui/fonts/` holds two woff2 subsets of **ChillRoundF** (寒蝉全圆体)
-by ChillType, the face `yan ui` and `yan serve` draw in, under the SIL Open Font
-License 1.1. `templates/ui/fonts/OFL.txt` is the licence and the copyright
+`templates/fonts/` holds two woff2 subsets of **ChillRoundF** (寒蝉全圆体)
+by ChillType, the face `yan serve` draws in, under the SIL Open Font
+License 1.1. `templates/fonts/OFL.txt` is the licence and the copyright
 notice, and the `README.md` beside it says what is in the subsets and how they
 were cut. Everything else here is yan's own.

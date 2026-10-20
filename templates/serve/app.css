@@ -1,4 +1,4 @@
-/* yan serve — the look of `yan ui`: warm ground, white surfaces, teal for what is live, green for done. */
+/* yan serve — warm ground, white surfaces, teal for what is live, green for done. */
 
 @font-face { font-family: "Yan Round"; src: local("ChillRoundFRegular"), local("ChillRoundF Regular"), url("/fonts/yan-round-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Yan Round"; src: local("ChillRoundFBold"), local("ChillRoundF Bold"), url("/fonts/yan-round-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }

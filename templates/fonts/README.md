@@ -1,10 +1,11 @@
-# The face the work report is drawn in
+# The face yan serve is drawn in
 
-`yan ui` writes one offline page and puts these two files next to it, so anyone
-who has yan installed sees the report in the face it was designed for without
-installing a font. The page's `@font-face` names an installed copy first and
-these files second, so a reader who already has ChillRoundF keeps using theirs,
-and either way the page fetches nothing from the network.
+`yan serve` serves these two files at `/fonts/`, so anyone who has yan
+installed sees its page in the face it was designed for without installing a
+font. The page's `@font-face` names an installed copy first and these files
+second, so a reader who already has ChillRoundF keeps using theirs, and either
+way the page fetches nothing from the network. They were cut for `yan ui`'s
+work report, since removed, which is why the sections below speak of a report.
 
 | | |
 | --- | --- |
@@ -45,7 +46,7 @@ ChillType declares `'ChillRoundF'` and `'ChillRoundM'` as Reserved Font Names
 (the first line of `OFL.txt`; the font's own name table does not say so, the
 upstream `LICENSE` does). A subset is a Modified Version, and clause 3 of the
 OFL forbids one from using a Reserved Font Name. So these two files, and the
-`@font-face` family in `templates/ui/report.html`, are called **Yan Round**.
+`@font-face` family in `templates/serve/app.css`, are called **Yan Round**.
 That name means these files and nothing else; it is not a typeface anyone
 designed and not a claim about anything installed. Name ID 10 in each file
 records what it was cut from, which the licence allows — the restriction is on
@@ -61,8 +62,8 @@ woff2 — and prints the checksum of everything it reads and writes:
 
 ```sh
 python3 -m pip install 'fonttools>=4.60' brotli
-python3 templates/ui/fonts/make.py                    # from ~/Library/Fonts
-python3 templates/ui/fonts/make.py --from /path/to/ttf
+python3 templates/fonts/make.py                    # from ~/Library/Fonts
+python3 templates/fonts/make.py --from /path/to/ttf
 ```
 
 It runs by hand, when the face or the character list changes. **yan never runs
@@ -85,9 +86,6 @@ The table at the top is the record of which inputs produced the files in git.
 
 ## Where they end up
 
-`src/cli/ui/fonts.ts` copies `yan-round-regular.woff2`,
-`yan-round-bold.woff2` and `OFL.txt` into a `fonts/` directory beside the page
-`yan ui` writes — `~/.yan/ui/fonts/` by default, and next to `--out <file>` when
-that is given. It rewrites a file only when it is missing or its bytes differ,
-so repeated runs touch nothing. `OFL.txt` travels with them because clause 1 of
-the licence says the notice goes with every copy of the font.
+`yan serve` answers `/fonts/<name>.woff2` from this directory, and nothing
+copies them anywhere. `OFL.txt` stays beside them because clause 1 of the
+licence says the notice goes with every copy of the font.

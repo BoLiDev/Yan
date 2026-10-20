@@ -57,7 +57,7 @@ function refLink(ref: string): RefLink {
 /**
  * A ref as everything but the record itself prints it: a URL in its short
  * form, so a line of terminal stays readable, anything else as it was typed.
- * The stored ref never changes - `yan ui --json` hands back what is on disk.
+ * The stored ref never changes.
  */
 function shortRef(ref: string): string {
   return refLink(ref).label;

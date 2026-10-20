@@ -3,8 +3,8 @@ import { nativePath } from '../../util/paths.js';
 import { which } from '../../util/which.js';
 
 /**
- * Open a file or a directory the way a double click would, for `yan open` and
- * `yan ui`. Best effort: whether anything opened is never this command's exit
+ * Open a file, a directory or an address the way a double click would, for
+ * `yan serve`'s page. Best effort: whether anything opened is never this command's exit
  * code, and with no opener the printed path is the answer.
  *
  * `$YAN_OPENER` overrides the platform's opener and may carry arguments

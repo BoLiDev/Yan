@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Cut the two woff2 files `yan ui` ships from the installed ChillRoundF.
+"""Cut the two woff2 files `yan serve` draws in from the installed ChillRoundF.
 
-    python3 templates/ui/fonts/make.py [--from <dir>] [--out <dir>]
+    python3 templates/fonts/make.py [--from <dir>] [--out <dir>]
 
 `--from` is where ChillRoundFRegular.ttf and ChillRoundFBold.ttf are, and
 defaults to ~/Library/Fonts. It prints the checksum of every file it read and

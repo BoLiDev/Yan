@@ -9,7 +9,7 @@ per repository a task works in. Read `README.md` for what it does.
 
 `src/cli/` holds the commands. Each top-level `src/cli/<name>.ts` exports a
 `command` and is discovered from `dist/cli/` at run time; helpers live in
-`src/cli/shared/` and `src/cli/ui/`. Bare `yan`, the launcher, is
+`src/cli/shared/`. Bare `yan`, the launcher, is
 `src/cli/shared/launch.ts`.
 
 `src/records/` owns the vault's files: `task` (task.json and problem.md),
@@ -50,9 +50,7 @@ module's `index.ts`, and one external never imports another.
 
 `npm test` builds, then runs every test; the integration tests run
 `bin/yan.mjs` against `dist/`, so they need the build. `npm run typecheck`
-type-checks the tests, which the build does not. `npm run check:ui` clicks
-through the page `yan ui` writes, in headless Chrome; run it when
-`src/cli/ui/` or `templates/ui/` changes. A command's own test sits beside
+type-checks the tests, which the build does not. A command's own test sits beside
 it in `src/`; a test through `bin/yan` goes in `tests/integration/`.
 
 When a command, a file format or what the agent is told changes, update

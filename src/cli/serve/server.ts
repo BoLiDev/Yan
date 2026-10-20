@@ -329,7 +329,7 @@ export class YanServer {
     if (p === '/' || p === '/index.html') return this.asset(res, join(this.options.home, 'templates', 'serve', 'index.html'), 'text/html; charset=utf-8');
     if (p === '/app.js' || p === '/app.css') return this.asset(res, join(this.options.home, 'templates', 'serve', p.slice(1)), typeOf(p));
     if (p.startsWith('/fonts/') && /^[\w.-]+\.woff2$/.test(p.slice(7))) {
-      return this.asset(res, join(this.options.home, 'templates', 'ui', 'fonts', p.slice(7)), 'font/woff2', 'max-age=86400');
+      return this.asset(res, join(this.options.home, 'templates', 'fonts', p.slice(7)), 'font/woff2', 'max-age=86400');
     }
     if (p === '/vendor/marked.js') return this.asset(res, this.markedPath(), 'text/javascript; charset=utf-8', 'max-age=86400');
     if (p === '/vendor/highlight.js') return this.asset(res, this.highlightPath(), 'text/javascript; charset=utf-8', 'max-age=86400');

@@ -17,8 +17,7 @@
     "setup": "node scripts/setup.mjs",
     "lint:boundaries": "node scripts/check-module-boundaries.mjs",
     "typecheck": "tsc -p tsconfig.tests.json",
-    "test": "npm run build && vitest run",
-    "check:ui": "node scripts/check-ui-page.mjs"
+    "test": "npm run build && vitest run"
   },
   "dependencies": {
     "@clack/prompts": "1.7.0",

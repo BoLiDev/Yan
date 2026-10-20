@@ -107,7 +107,7 @@ export function mkYanHome(dest: string, options: YanHomeOptions = {}): string {
   );
 
   cpSync(join(repoRoot, 'bin'), join(dest, 'bin'), { recursive: true });
-  // `yan vault init` and `yan ui` read templates/, so a home without it is incomplete.
+  // `yan vault init` and `yan serve` read templates/, so a home without it is incomplete.
   cpSync(join(repoRoot, 'templates'), join(dest, 'templates'), { recursive: true });
   if (options.withDist === true) {
     cpSync(join(repoRoot, 'dist'), join(dest, 'dist'), { recursive: true });
