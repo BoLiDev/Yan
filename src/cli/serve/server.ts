@@ -10,7 +10,7 @@ import { cloneOf } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
-import { behind, editText, readRecord, restate, sha256 } from './report.js';
+import { behind, editText, handout, readRecord, sha256 } from './report.js';
 import { VaultView } from './vault-view.js';
 import { buildLoads, buildPrint } from './build.js';
 
@@ -410,7 +410,7 @@ export class YanServer {
       const id = q.get('task') ?? '';
       const [detail, report] = [await this.view.task(id), await this.report(id)];
       if (detail === undefined || report === undefined) return send(res, 404, 'that task has no report');
-      return send(res, 200, restate(report.html, detail.deliverables), 'text/html; charset=utf-8', {
+      return send(res, 200, handout(report.html, detail.deliverables), 'text/html; charset=utf-8', {
         'Content-Disposition': `attachment; filename="${id}-report.html"`,
         'Cache-Control': 'no-store',
       });

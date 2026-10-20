@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { behind, editText, editableCount, readRecord, restate } from './report.js';
+import { behind, editText, editableCount, handout, readRecord } from './report.js';
 import type { Deliverable } from './vault-view.js';
 
 /** The parts of a page the report skill writes that serve reads. */
@@ -17,16 +17,69 @@ const PAGE = `<h1 data-yan-edit="title">iPad 录像页</h1>
 
 const d = (id: string, status: string, text = id, reason: string | null = null): Deliverable => ({ id, text, status, doneAt: null, reason });
 
-describe('restate', () => {
-  it('puts each deliverable in the state it has now, its reason and the counts with it', () => {
-    const out = restate(PAGE, [d('d1', 'todo'), d('d2', 'abandoned', 'd2', '没有 <手机>')]);
+describe('handout', () => {
+  it('puts each deliverable in the state it has now, with the counts of them', () => {
+    const out = handout(PAGE, [d('d1', 'todo'), d('d2', 'done')]);
     expect(out).toContain('data-yan-d="d1" data-yan-status="todo"');
-    expect(out).toContain('data-yan-d="d2" data-yan-status="abandoned"');
-    expect(out).toContain('<span data-yan-reason="">没有 &lt;手机&gt;</span>');
-    expect(out.match(/<span data-yan-reason="">[^<]*<\/span>/g)).toEqual(['<span data-yan-reason=""></span>', '<span data-yan-reason="">没有 &lt;手机&gt;</span>']);
-    expect(out).toContain('<span data-yan-progress="">0 完成 · 1 待确认 · 1 放弃</span>');
-    expect(out).toContain('data-yan-bar="done" style="width:0.00%"');
-    expect(out).toContain('data-yan-bar="abandoned" style="width:50.00%"');
+    expect(out).toContain('data-yan-d="d2" data-yan-status="done"');
+    expect(out).toContain('<span data-yan-progress="">1 完成 · 1 待确认</span>');
+    expect(out).toContain('data-yan-bar="done" style="width:50.00%"');
+  });
+
+  /** Two blocks, one holding two deliverables, then the list of the others. */
+  const GROUPS = `<p>top</p>
+<span data-yan-bar="done" style="width:0.00%"></span><span data-yan-bar="abandoned" style="width:0.00%"></span><span data-yan-progress="">0 完成 · 5 待确认 · 0 放弃</span>
+<div data-yan-group="">
+<h2>DELIVERABLES</h2>
+<section data-yan-group="">
+<div class="heads">
+<div class="head" data-yan-d="d1" data-yan-status="todo">
+<div class="words"><h3>one</h3><p class="why">放弃：<span data-yan-reason=""></span></p></div>
+</div>
+<div class="head" data-yan-d="d2" data-yan-status="todo">
+<div class="words"><h3>two</h3><p class="why">放弃：<span data-yan-reason=""></span></p></div>
+</div>
+</div>
+<div class="grid"><figure><img src="one.png"></figure></div>
+</section>
+<section data-yan-group="">
+<div class="heads">
+<div class="head" data-yan-d="d3" data-yan-status="todo">
+<div class="words"><h3>three</h3></div>
+</div>
+</div>
+<div class="grid"><figure><img src="three.png"></figure></div>
+</section>
+</div>
+<div data-yan-group="">
+<h2 data-yan-alone="DELIVERABLES">其他 DELIVERABLES</h2>
+<ol>
+<li class="head" data-yan-d="d4" data-yan-status="todo"><div class="words">four</div></li>
+<li class="head" data-yan-d="d5" data-yan-status="todo"><div class="words">five</div></li>
+</ol>
+</div>
+<p>end</p>`;
+
+  it('leaves the deliverables given up out, and a block or list with nothing left in it', () => {
+    const out = handout(GROUPS, [d('d1', 'abandoned', 'd1', 'no'), d('d2', 'done'), d('d3', 'abandoned'), d('d4', 'abandoned'), d('d5', 'todo')]);
+    expect(out).not.toMatch(/data-yan-d="d[134]"|one<|three|four|>no</);
+    expect(out).toContain('<h3>two</h3>');
+    expect(out).toContain('one.png');
+    expect(out.match(/<section/g)).toHaveLength(1);
+    expect(out).toContain('<h2 data-yan-alone="DELIVERABLES">其他 DELIVERABLES</h2>');
+    expect(out).toContain('<span data-yan-progress="">1 完成 · 1 待确认</span>');
+    expect(out).toContain('data-yan-bar="done" style="width:50.00%"');
+    expect(out).toContain('data-yan-bar="abandoned" style="width:0.00%"');
+    expect(out.match(/<div/g)?.length).toBe(out.match(/<\/div>/g)?.length);
+  });
+
+  it('drops a heading with nothing under it, and names the others plainly once they are all there is', () => {
+    const out = handout(GROUPS, ['d1', 'd2', 'd3'].map((id) => d(id, 'abandoned')).concat([d('d4', 'done'), d('d5', 'done')]));
+    expect(out).not.toContain('<section');
+    expect(out).not.toContain('<h2>DELIVERABLES</h2>');
+    expect(out).toContain('<h2 data-yan-alone="DELIVERABLES">DELIVERABLES</h2>');
+    expect(out).toMatch(/<p>top<\/p>[\s\S]*data-yan-d="d4"[\s\S]*<p>end<\/p>$/);
+    expect(handout(GROUPS, ['d1', 'd2', 'd3', 'd4', 'd5'].map((id) => d(id, 'abandoned')))).not.toMatch(/<h2|<ol|data-yan-group/);
   });
 });
 

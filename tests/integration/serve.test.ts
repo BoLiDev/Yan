@@ -243,7 +243,7 @@ describe('a report on yan serve', () => {
     expect((readJson(at('../t002/task.json')) as { deliverables: { status: string }[] }).deliverables[0]?.status).toBe('todo');
   });
 
-  it('ticks and gives up a deliverable in task.json, commits and pushes it, and hands out the page in that state', async () => {
+  it('ticks and gives up a deliverable in task.json, commits and pushes it, and hands out the page without the one given up', async () => {
     expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'done' })).status).toBe(200);
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'abandoned', reason: 'not now' })).status).toBe(200);
     const ds = (readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { status: string; reason?: string }[] }).deliverables;
@@ -253,9 +253,8 @@ describe('a report on yan serve', () => {
 
     const copy = await (await fetch(page('/api/report/download?task=t002'))).text();
     expect(copy).toContain('data-yan-d="d1" data-yan-status="done"');
-    expect(copy).toContain('data-yan-d="d2" data-yan-status="abandoned"');
-    expect(copy).toContain('<span data-yan-reason="">not now</span>');
-    expect(copy).toContain('<span data-yan-progress="">1 完成 · 0 待确认 · 1 放弃</span>');
+    expect(copy).not.toContain('data-yan-d="d2"');
+    expect(copy).toContain('<span data-yan-progress="">1 完成 · 0 待确认</span>');
     expect((await report())?.behind).toEqual([]);
 
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'todo' })).status).toBe(200);

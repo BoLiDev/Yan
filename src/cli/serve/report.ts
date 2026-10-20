@@ -7,9 +7,9 @@ import type { Deliverable } from './vault-view.js';
  * what serve may touch with data-yan-* attributes, and nothing else in it is
  * read or changed here.
  *
- * - The state of each deliverable is shown as task.json has it now, not as
- *   it was when the page was written: `restate` sets it, for the copy that
- *   is downloaded.
+ * - The copy that is downloaded, `handout`, shows each deliverable as
+ *   task.json has it now, not as it was when the page was written, and
+ *   leaves the ones given up out.
  * - A text `user` edits on the page replaces that one text in the file, by
  *   its place among the editable ones; the page's markup is never taken from
  *   the browser.
@@ -24,21 +24,68 @@ const esc = (text: string): string => text.replace(/[&<>"']/g, (c) => ({ '&': '&
 /** An element holding only text: `<span data-yan-edit="summary">…</span>`. */
 const EDITABLE = /(<([a-z][a-z0-9]*)\b[^>]*\bdata-yan-edit="[a-z]+"[^>]*>)([^<]*)(<\/\2>)/g;
 
-/** The page with every deliverable in the state it has now, the counts with it. */
-export function restate(html: string, deliverables: readonly Deliverable[]): string {
+/**
+ * Where the element that `at`, a place inside its opening tag, belongs to
+ * starts and ends, by counting the tags of its name that open and close
+ * after it.
+ */
+function elementAround(html: string, at: number): { start: number; end: number } {
+  const start = html.lastIndexOf('<', at);
+  const name = /^<([a-z][a-z0-9]*)/.exec(html.slice(start))?.[1] ?? '';
+  const tags = new RegExp(`<(/?)${name}\\b[^>]*>`, 'g');
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m = tags.exec(html); m !== null; m = tags.exec(html)) {
+    depth += m[1] === '/' ? -1 : 1;
+    if (depth === 0) return { start, end: m.index + m[0].length };
+  }
+  return { start, end: html.length };
+}
+
+/** The page without that element, nor the line break after it. */
+const cut = (html: string, el: { start: number; end: number }): string =>
+  html.slice(0, el.start) + html.slice(html[el.end] === '\n' ? el.end + 1 : el.end);
+
+const DELIVERABLE = 'data-yan-d="';
+const GROUP = 'data-yan-group=""';
+
+/**
+ * The copy of the page that is downloaded, which is handed to others as a
+ * report of what was delivered: each deliverable in the state it has now,
+ * the ones given up left out, and the counts of the rest. A part marked
+ * data-yan-group with no deliverable left in it goes too, and a heading's
+ * data-yan-alone becomes its text once no deliverable comes before it.
+ */
+export function handout(html: string, deliverables: readonly Deliverable[]): string {
   let out = html;
   for (const d of deliverables) {
     const id = d.id.replace(/[^\w-]/g, '');
+    if (d.status === 'abandoned') {
+      const at = out.indexOf(`${DELIVERABLE}${id}"`);
+      if (at !== -1) out = cut(out, elementAround(out, at));
+      continue;
+    }
     out = out.replace(new RegExp(`(data-yan-d="${id}" data-yan-status=")[a-z]*(")`, 'g'), `$1${d.status}$2`);
-    const reason = d.status === 'abandoned' ? d.reason ?? '' : '';
-    out = out.replace(new RegExp(`(data-yan-d="${id}"[\\s\\S]*?<span data-yan-reason="">)[^<]*(</span>)`), (_, a: string, b: string) => `${a}${esc(reason)}${b}`);
+    out = out.replace(new RegExp(`(data-yan-d="${id}"[\\s\\S]*?<span data-yan-reason="">)[^<]*(</span>)`), '$1$2');
   }
-  const count = (s: string): number => deliverables.filter((d) => d.status === s).length;
-  const [done, todo, gone] = [count('done'), count('todo'), count('abandoned')];
-  const pct = (n: number): string => (deliverables.length === 0 ? 0 : (n / deliverables.length) * 100).toFixed(2);
-  out = out.replace(/(<span data-yan-progress="">)[^<]*(<\/span>)/, `$1${done} 完成 · ${todo} 待确认 · ${gone} 放弃$2`);
+  // From the top again after every cut: a block gone can leave the part holding it empty.
+  for (let at = out.indexOf(GROUP); at !== -1; ) {
+    const el = elementAround(out, at);
+    if (out.slice(el.start, el.end).includes(DELIVERABLE)) at = out.indexOf(GROUP, at + 1);
+    else {
+      out = cut(out, el);
+      at = out.indexOf(GROUP);
+    }
+  }
+  out = out.replace(/(<h2 data-yan-alone="([^"]*)">)[^<]*(<\/h2>)/g, (whole, open: string, alone: string, close: string, at: number) =>
+    out.slice(0, at).includes(DELIVERABLE) ? whole : `${open}${alone}${close}`);
+
+  const kept = deliverables.filter((d) => d.status !== 'abandoned');
+  const [done, todo] = [kept.filter((d) => d.status === 'done').length, kept.filter((d) => d.status === 'todo').length];
+  const pct = (n: number): string => (kept.length === 0 ? 0 : (n / kept.length) * 100).toFixed(2);
+  out = out.replace(/(<span data-yan-progress="">)[^<]*(<\/span>)/, `$1${done} 完成 · ${todo} 待确认$2`);
   out = out.replace(/(data-yan-bar="done" style="width:)[\d.]+(%")/, `$1${pct(done)}$2`);
-  return out.replace(/(data-yan-bar="abandoned" style="width:)[\d.]+(%")/, `$1${pct(gone)}$2`);
+  return out.replace(/(data-yan-bar="abandoned" style="width:)[\d.]+(%")/, (_, a: string, b: string) => `${a}0.00${b}`);
 }
 
 /** How many texts the page lets `user` edit. */
