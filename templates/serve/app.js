@@ -984,10 +984,13 @@ function renderTaskIndex(r) {
     const here = r.sub === 'branch' && r.repo === i;
     const prOf = (name) => branchOf(t.id, i, name)?.merged?.pr;
     const now = prOf(null);
-    nav.push(h('a', { class: 'row' + (here && !r.name ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
+    const many = t.repos.length > 1;
+    nav.push(h('a', { class: 'row branch-row' + (here && !r.name ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
       icon('branch', 16),
-      h('span', { class: 'grow' }, 'Branch ', h('span', { class: 'mono dim', style: { fontSize: '12px', fontWeight: 400 } }, repo.branch)),
-      h('span', { class: 'aside' }, [t.repos.length > 1 ? repo.name : null, now ? `PR #${now}` : null].filter(Boolean).join(' · '))));
+      h('span', { class: 'word' }, 'Branch'),
+      h('span', { class: 'name mono dim' }, repo.branch),
+      many ? h('span', { class: 'repo' }, repo.name) : null,
+      now ? h('span', { class: 'aside' }, `${many ? '· ' : ''}PR #${now}`) : null));
     for (const name of [...(repo.earlier || [])].reverse()) {
       const pr = prOf(name);
       nav.push(h('a', { class: 'row earlier' + (here && r.name === name ? ' on' : ''), href: link.branch(t.id, i, 'changes', '', name), title: `${repo.name} · ${name}, before ${repo.branch}` },
