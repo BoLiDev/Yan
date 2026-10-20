@@ -117,7 +117,6 @@ export interface ReportRecord {
   readonly generatedAt: string | null;
   readonly deliverables: readonly { readonly id: string; readonly text: string }[];
   readonly files: Readonly<Record<string, { readonly sha256: string; readonly for: readonly string[] }>>;
-  readonly notes: Readonly<Record<string, string>>;
 }
 
 export function readRecord(raw: unknown): ReportRecord {
@@ -130,14 +129,16 @@ export function readRecord(raw: unknown): ReportRecord {
     const e = v as Record<string, unknown>;
     if (typeof e?.sha256 === 'string') files[path] = { sha256: e.sha256, for: Array.isArray(e.for) ? e.for.filter((x): x is string => typeof x === 'string') : [] };
   }
-  const notes = Object.fromEntries(Object.entries(typeof doc.notes === 'object' && doc.notes !== null ? doc.notes : {}).filter((e): e is [string, string] => typeof e[1] === 'string'));
-  return { generatedAt: typeof doc.generatedAt === 'string' ? doc.generatedAt : null, deliverables, files, notes };
+  return { generatedAt: typeof doc.generatedAt === 'string' ? doc.generatedAt : null, deliverables, files };
 }
 
-/** The evidence as uat.json has it now, each file with the sha-256 of what is in it. */
+/**
+ * The evidence as uat.json has it now, each file with the sha-256 of what is
+ * in it. Its notes are not among it: the page shows only the files, so a note
+ * changed leaves it as true as it was.
+ */
 export interface Evidence {
   readonly files: readonly { readonly path: string; readonly sha256: string; readonly for: readonly string[] }[];
-  readonly notes: Readonly<Record<string, string>>;
 }
 
 export const sha256 = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
@@ -162,11 +163,5 @@ export function behind(record: ReportRecord, deliverables: readonly Deliverable[
     else if (!sameList(was.for, f.for)) said.push(`uat/${f.path} 改成了证明 ${f.for.join('、')}`);
   }
   for (const path of Object.keys(record.files)) if (!evidence.files.some((f) => f.path === path)) said.push(`uat/${path} 不再登记`);
-
-  for (const id of new Set([...Object.keys(record.notes), ...Object.keys(evidence.notes)])) {
-    const [was, now] = [record.notes[id], evidence.notes[id]];
-    if (was === now) continue;
-    said.push(was === undefined ? `${id} 加了验证说明` : now === undefined ? `${id} 的验证说明删了` : `${id} 的验证说明改了`);
-  }
   return said;
 }

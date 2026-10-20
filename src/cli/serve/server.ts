@@ -454,7 +454,7 @@ export class YanServer {
       html,
       sha: page.sha,
       generatedAt: record?.generatedAt ?? null,
-      behind: record === undefined ? ['没有 report.json，看不出写完之后哪里变了'] : behind(record, detail.deliverables, { files: files.filter((f) => f !== undefined), notes: uat.notes }),
+      behind: record === undefined ? ['没有 report.json，看不出写完之后哪里变了'] : behind(record, detail.deliverables, { files: files.filter((f) => f !== undefined) }),
       uat: detail.files
         .filter((f) => f.path.startsWith('uat/') && f.path !== 'uat/uat.json')
         .map((f) => {

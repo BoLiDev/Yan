@@ -101,17 +101,16 @@ describe('behind', () => {
     notes: { d3: 'checked by hand' },
   });
 
+  // A report.json from before the page left the notes off still has them; they are not compared.
   it('is nothing when only the states changed', () => {
     expect(behind(record, [d('d1', 'done', 'one'), d('d2', 'abandoned', 'two'), d('d3', 'todo', 'three')], {
       files: [{ path: 'a.png', sha256: 'aaa', for: ['d1'] }, { path: 'b.png', sha256: 'bbb', for: ['d2'] }, { path: 'gone.png', sha256: 'ggg', for: ['d1'] }],
-      notes: { d3: 'checked by hand' },
     })).toEqual([]);
   });
 
   it('names every deliverable and piece of evidence that changed since', () => {
     expect(behind(record, [d('d1', 'todo', 'one, reworded'), d('d3', 'todo', 'three'), d('d4', 'todo', 'four')], {
       files: [{ path: 'a.png', sha256: 'new', for: ['d1'] }, { path: 'b.png', sha256: 'bbb', for: ['d2', 'd3'] }, { path: 'c.png', sha256: 'ccc', for: ['d4'] }],
-      notes: { d3: 'checked again', d4: 'by hand' },
     })).toEqual([
       'd1 的描述改了',
       '新加了 d4',
@@ -120,12 +119,10 @@ describe('behind', () => {
       'uat/b.png 改成了证明 d2、d3',
       '新登记了 uat/c.png',
       'uat/gone.png 不再登记',
-      'd3 的验证说明改了',
-      'd4 加了验证说明',
     ]);
   });
 
   it('reads a record it half understands', () => {
-    expect(readRecord({ deliverables: [{ id: 'd1' }, 'x'], files: { 'a.png': { for: ['d1'] } }, notes: { d1: 3 } })).toEqual({ generatedAt: null, deliverables: [], files: {}, notes: {} });
+    expect(readRecord({ deliverables: [{ id: 'd1' }, 'x'], files: { 'a.png': { for: ['d1'] } }, notes: { d1: 3 } })).toEqual({ generatedAt: null, deliverables: [], files: {} });
   });
 });
