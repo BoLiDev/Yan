@@ -49,7 +49,8 @@ with designs in artifacts/design/ and what you check the result by in
 artifacts/uat/, gathered deliverable by deliverable: a screenshot or
 recording for each one, named for it (d3-before.png, d3-after.png) and
 recorded with `yan uat` as it is made, or a note of how it was checked
-where nothing on screen shows it; the before shot before the change is made;
+where nothing on screen shows it; the before shot before the change is made,
+and something that did not exist before recorded as new, with no before;
 and once all of it is there, marking the task 待验收 with `yan uat ready`
 is the agent's to do.
 An artifact redone replaces its file; the vault's history keeps the old one.
@@ -152,7 +153,7 @@ what it was written from), its bar says legacy and what changed.
     artifacts/                 whatever the work produced worth keeping, as it stands now
       design/                  HTML pages, canvases, diagrams of a system
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
-        uat.json               { version: 1, files: { <path>: { for, shows, side? } }, notes: { <d>: how } }: what yan uat recorded
+        uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
 ~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```

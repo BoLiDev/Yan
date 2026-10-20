@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { action, collect, out } from './shared/action.js';
 import { requiredTask } from './shared/task-id.js';
 import { uatLines } from './shared/uat.js';
-import { Uat } from '../records/task/index.js';
+import { Uat, UAT_SIDES } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -35,11 +35,13 @@ const add = new Command('add')
   .requiredOption('--for <d>', 'the deliverable it shows; repeat it, or d2,d3, for several', collect)
   .option('--before', 'the before half of a pair, shot before the change')
   .option('--after', 'the after half of a pair')
+  .option('--new', 'something that did not exist before, with no before to pair it with')
   .option(...TASK_FLAG)
   .action(
-    action('yan uat add', (file: string, shows: string[], options: TaskOption & { for: string[]; before?: boolean; after?: boolean }) => {
-      if (options.before === true && options.after === true) throw YanError.usage('uat_usage', 'a file is the before or the after of a pair, not both');
-      const side = options.before === true ? 'before' : options.after === true ? 'after' : undefined;
+    action('yan uat add', (file: string, shows: string[], options: TaskOption & { for: string[]; before?: boolean; after?: boolean; new?: boolean }) => {
+      const sides = UAT_SIDES.filter((s) => options[s] === true);
+      if (sides.length > 1) throw YanError.usage('uat_usage', 'a file is one of --before, --after and --new, not several');
+      const side = sides[0];
       const task = requiredTask(options.task, '--task <id>');
       const { path, replaced } = new Uat(task).add(file, options.for, shows.join(' '), side);
       out(`${replaced ? 'replaced' : 'recorded'} ${path} for ${options.for.join(',')} → ${task.id}`);
@@ -105,10 +107,11 @@ and record it at once:
   yan uat note --for d6 "stopped the server and restored from the backup: two minutes lost"
 
 A change to what the user sees is shot before it is made, with --before,
-and again after, with --after. A deliverable nothing on screen can show
-gets a note of how it was checked instead. Recording a file again replaces
-its entry; a file redone keeps its name. Bare 'yan uat' lists every
-deliverable with its evidence, and which have none.
+and again after, with --after. Something that did not exist before has no
+before: shoot it once it is there, with --new. A deliverable nothing on
+screen can show gets a note of how it was checked instead. Recording a
+file again replaces its entry; a file redone keeps its name. Bare 'yan uat'
+lists every deliverable with its evidence, and which have none.
 
 Once every deliverable is built and has its evidence, 'yan uat ready' sets
 the task to uat (待验收): it waits for the user to check it. The user

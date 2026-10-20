@@ -23,7 +23,12 @@ import type { Task } from './task.js';
  * Only `yan uat` writes it. A yan from before it never reads it.
  */
 
-export const UAT_SIDES = ['before', 'after'] as const;
+/**
+ * `before` and `after` are the halves of a pair the report shows side by
+ * side; `new` is something that did not exist before the task, which has no
+ * before to shoot and is shown on its own.
+ */
+export const UAT_SIDES = ['before', 'after', 'new'] as const;
 export type UatSide = (typeof UAT_SIDES)[number];
 
 export interface UatFile {
@@ -32,7 +37,7 @@ export interface UatFile {
   /** Deliverable ids, in the order given. */
   readonly for: readonly string[];
   readonly shows: string;
-  /** Half of a pair the report shows side by side. */
+  /** Half of a pair, or new: see UAT_SIDES. */
   readonly side?: UatSide;
 }
 
@@ -61,7 +66,7 @@ export function parseUat(raw: unknown): UatData {
   const files = Object.entries(recordOrNone(doc.files) ?? {}).flatMap(([path, value]): UatFile[] => {
     const entry = recordOrNone(value);
     if (entry === undefined) return [];
-    const side = entry.side === 'before' || entry.side === 'after' ? entry.side : undefined;
+    const side = UAT_SIDES.find((s) => s === entry.side);
     return [{ path, for: stringList(entry.for), shows: asString(entry.shows), ...(side === undefined ? {} : { side }) }];
   });
   const notes = Object.fromEntries(

@@ -226,6 +226,11 @@ describe('yan uat', () => {
     expectUsage(await yan(['uat', 'add', 'stray.png', '--for', 'd9', 'x'], env), 'has no deliverable d9');
     expectUsage(await yan(['uat', 'add', 'stray.png', '--for', 'd4', 'x'], env), 'd4 was given up');
     expectUsage(await yan(['uat', 'add', 'stray.png', 'x'], env), "--for <d>");
+    expectUsage(await yan(['uat', 'add', 'stray.png', '--for', 'd3', '--before', '--new', 'x'], env), 'not several');
+    await yan(['uat', 'add', 'stray.png', '--for', 'd3', '--new', 'the page that was not there'], env);
+    expect(JSON.parse(readFileSync(join(uat, 'uat.json'), 'utf8')).files['stray.png']).toEqual({ for: ['d3'], shows: 'the page that was not there', side: 'new' });
+    expect((await yan(['uat'], env)).stdout).toContain('      new     stray.png');
+    await yan(['uat', 'rm', 'stray.png'], env);
 
     expect((await yan(['uat', 'rm', 'd2'], env)).stdout.trim()).toBe('forgot the note on d2 → t001');
     expect((await yan(['uat', 'rm', 'd1-d3.webm'], env)).stdout.trim()).toBe('forgot d1-d3.webm → t001');
