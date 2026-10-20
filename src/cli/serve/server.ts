@@ -360,12 +360,12 @@ export class YanServer {
       await this.tick();
       return json(res, this.status);
     }
-    if (req.method === 'POST' && (p === '/api/deliverable' || p === '/api/report/edit' || p === '/api/not-accepted')) {
+    const write = req.method === 'POST' ? this.writes[p] : undefined;
+    if (write !== undefined) {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may change the vault');
       const given = await body(req);
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      if (p === '/api/not-accepted') return this.notAccepted(res, given);
-      return p === '/api/deliverable' ? this.setDeliverable(res, given) : this.editReport(res, given);
+      return write(res, given);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
@@ -475,6 +475,67 @@ export class YanServer {
     }
     await this.tick();
     json(res, { ok: true, warning, status: this.status });
+  }
+
+  /** Every change `user` makes from the page, by its path: each takes a JSON body, then commits and pushes. */
+  private readonly writes: Readonly<Record<string, (res: ServerResponse, given: Record<string, unknown>) => Promise<void>>> = {
+    '/api/deliverable': (res, given) => this.setDeliverable(res, given),
+    '/api/deliverable/text': (res, given) => this.rewordDeliverable(res, given),
+    '/api/problem': (res, given) => this.editProblem(res, given),
+    '/api/resource': (res, given) => this.setResource(res, given),
+    '/api/report/edit': (res, given) => this.editReport(res, given),
+    '/api/not-accepted': (res, given) => this.notAccepted(res, given),
+  };
+
+  /** `{ task, id, text }`: a deliverable reworded on the overview, keeping its id and state. */
+  private async rewordDeliverable(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, d, text] = [given.task, given.id, given.text];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof d !== 'string' || typeof text !== 'string') return send(res, 400, 'task, id and text are needed');
+    try {
+      new Task(id).editDeliverable(d, text);
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: ${d} reworded in yan serve`);
+  }
+
+  /**
+   * `{ task, sha, text }`: problem.md rewritten whole on the overview. `sha`
+   * is the file the edit began from, '' when there was none; when the file
+   * is no longer that, the edit is refused rather than laid over what an
+   * agent wrote meanwhile.
+   */
+  private async editProblem(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, sha, text] = [given.task, given.sha, given.text];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof sha !== 'string' || typeof text !== 'string') return send(res, 400, 'task, sha and text are needed');
+    if (text.trim() === '') return send(res, 400, 'a problem cannot be blank');
+    const task = new Task(id);
+    if (!existsSync(task.file)) return send(res, 404, 'no such task');
+    const file = task.problem;
+    const now = existsSync(file) ? (await gitAsync(this.options.vaultDir, ['hash-object', '--', file])).stdout.trim() : '';
+    if (now !== sha) return send(res, 409, 'problem.md changed since this page loaded it - reload it and edit again');
+    writeFileSync(file, text.endsWith('\n') ? text : `${text}\n`);
+    return this.save(res, `${id}: problem edited in yan serve`);
+  }
+
+  /** `{ task, name, where }`: where a resource points, changed and its kind kept; `{ task, name, remove: true }`: forgotten. */
+  private async setResource(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, name, where, remove] = [given.task, given.name, given.where, given.remove === true];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof name !== 'string' || (!remove && typeof where !== 'string')) {
+      return send(res, 400, 'task, name and where (or remove) are needed');
+    }
+    try {
+      const task = new Task(id);
+      if (remove) task.removeResource(name);
+      else {
+        const kinds = task.read().resourceKinds;
+        if (!(name in kinds)) return send(res, 400, `no such resource: ${name}`);
+        task.addResource(kinds[name] ?? 'general', name, where as string);
+      }
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: resource ${name} ${remove ? 'removed' : 'changed'} in yan serve`);
   }
 
   /** `{ task, id, to: done | todo | abandoned, reason? }`: `user` ticking, unticking or giving up a deliverable. */

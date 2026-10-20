@@ -36,6 +36,8 @@ const STROKE = {
   download: '<path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/>',
   full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  trash: '<path d="M4.5 7h15M10 4h4M6.5 7l.9 12a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12M10 11v6M14 11v6"/>',
+  edit: '<path d="M14.5 5.5l4 4M4 20l1-4.5L15.5 5a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2L8.5 19z"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4m0 0 2-2m-2 2 2 2M4 18h5"/>',
   check: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
@@ -730,6 +732,34 @@ function connect() {
 }
 
 let refreshing = null;
+/**
+ * A redraw rebuilds the page, so one that comes while you are typing into
+ * it, or while something is held open to edit, such as the problem, waits
+ * until you are done rather than throwing away what you typed.
+ */
+const holds = new Set();
+let redrawLater = false;
+function typingNow() {
+  let el = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return !!el && (/^(INPUT|TEXTAREA)$/.test(el.tagName) || el.isContentEditable);
+}
+function redraw() {
+  if (holds.size || typingNow()) redrawLater = true;
+  else render();
+}
+function letGo(name) {
+  if (name) holds.delete(name);
+  // After the focus has moved on: leaving one field for another is still typing.
+  setTimeout(() => {
+    if (redrawLater && !holds.size && !typingNow()) {
+      redrawLater = false;
+      render();
+    }
+  });
+}
+document.addEventListener('focusout', () => letGo());
+
 async function onStatus(st) {
   // A yan serve that restarted on a newer yan: this page is the old one, so it loads the new.
   if (st.build && S.build && st.build !== S.build) return location.reload();
@@ -747,7 +777,7 @@ async function onStatus(st) {
           if (r.view === 'task') markTaskSeen(r.id);
         }
         if (r.view === 'latest' && r.id) markTaskSeen(r.id);
-        render();
+        redraw();
       } finally {
         refreshing = null;
       }
@@ -1909,17 +1939,18 @@ function viewOverview(t, d, token) {
   if (t.state === 'abandoned' && d.reason) paper.append(h('p', { class: 'notice' }, `Dropped: ${d.reason}`));
   if (t.state === 'uat') paper.append(uatBar(t));
 
-  // problem.md, with what changed since the last look tinted
+  // problem.md, with what changed since the last look tinted, and the whole of it to edit
   const problem = h('section', { class: 'ov-section' });
   paper.append(problem);
+  const holder = h('div');
+  const editProblem = h('button', { type: 'button', class: 'ov-edit', onclick: () => problemEditor(t, d, holder, editProblem) }, icon('edit', 14), '编辑');
   if (d.problem && d.problem.text.trim()) {
     const name = baseName(d.problem.path);
     const was = S.problemBase.has(t.id) ? S.problemBase.get(t.id) : S.seen.problems[t.id];
     if (!S.problemBase.has(t.id)) S.problemBase.set(t.id, was ?? null);
     S.seen.problems[t.id] = d.problem.sha;
     saveSeen();
-    const head = h('div', { class: 'h' }, h('h3', null, 'Problem'), h('span', null, `${name}${d.problem.changed ? ` · written ${when(d.problem.changed)}` : ''}`));
-    const holder = h('div');
+    const head = h('div', { class: 'h' }, h('h3', null, 'Problem'), h('span', null, `${name}${d.problem.changed ? ` · written ${when(d.problem.changed)}` : ''}`), editProblem);
     problem.append(head, holder);
     const show = (before) => {
       if (token !== S.rightToken) return;
@@ -1930,28 +1961,139 @@ function viewOverview(t, d, token) {
       textOf(`/blob/${was}`).then((old) => show(new Set(marked.lexer(old, { gfm: true }).map((x) => x.raw.trim()))), () => show(null));
     } else show(null);
   } else {
-    problem.append(h('div', { class: 'h' }, h('h3', null, 'Problem')), h('span', { class: 'dim' }, 'No problem written yet.'));
+    holder.append(h('span', { class: 'dim' }, 'No problem written yet.'));
+    problem.append(h('div', { class: 'h' }, h('h3', null, 'Problem'), editProblem), holder);
   }
 
-  // deliverables
+  // deliverables: a text clicked is edited, and one dropped with the bin is given up with a reason, which stays on its line
   const ds = d.deliverables;
   if (ds.length) {
     const n = (s) => ds.filter((x) => x.status === s).length;
     const counts = [n('done') ? `${n('done')} done` : null, n('todo') ? `${n('todo')} to do` : null, n('abandoned') ? `${n('abandoned')} dropped` : null].filter(Boolean).join(' · ');
     paper.append(h('section', { class: 'ov-section' },
       h('div', { class: 'h' }, h('h3', null, 'Deliverables'), h('span', null, counts)),
-      h('div', { class: 'rail' }, ds.map((x) => h('div', { class: `deliv ${x.status}` },
-        h('span', { class: 'node', title: x.status }),
-        h('span', null, h('span', { class: 'text' }, h('span', { class: 'id' }, x.id), x.text), x.reason ? h('span', { class: 'why' }, x.reason) : null),
-        h('span', { class: 'at' }, x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''))))));
+      h('div', { class: 'rail' }, ds.map((x) => {
+        const words = h('span', { class: 'words' }, x.text);
+        editInPlace(words, (text) => writeTask('/api/deliverable/text', { task: t.id, id: x.id, text }, `已保存 ${x.id}`));
+        const why = x.reason ? h('span', { class: 'why' }, x.reason) : null;
+        if (why) editInPlace(why, (reason) => writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已保存 ${x.id} 的放弃理由`));
+        const drop = x.status === 'abandoned' ? null : h('button', { type: 'button', class: 'ov-icon', title: `放弃 ${x.id}`, 'aria-label': `放弃 ${x.id}`,
+          onclick: () => ask({ title: `放弃 ${x.id}？`, sub: x.text, action: '放弃', reason: '写一句原因，它会留在这条 deliverable 下面' },
+            (reason) => writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已放弃 ${x.id}`)) }, icon('trash', 15));
+        return h('div', { class: `deliv ${x.status}` },
+          h('span', { class: 'node', title: x.status }),
+          h('span', null, h('span', { class: 'text' }, h('span', { class: 'id' }, x.id), words), why),
+          h('span', { class: 'side' }, h('span', { class: 'at' }, x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''), drop));
+      }))));
   }
 
-  // resources
+  // resources: where one points is edited with the pencil, and the bin forgets it
   if (d.resources.length) {
     paper.append(h('section', { class: 'ov-section' }, h('h3', null, 'Resources'),
-      h('div', { class: 'res' }, d.resources.map(([k, v]) => h('div', null, h('span', { class: 'k' }, k), h('span', { class: 'v' }, linkify(v)))))));
+      h('div', { class: 'res' }, d.resources.map(([k, v]) => {
+        const value = h('span', { class: 'v' }, linkify(v));
+        const change = h('button', { type: 'button', class: 'ov-icon', title: `编辑 ${k}`, 'aria-label': `编辑 ${k}`, onclick: () => {
+          const field = h('span', { class: 'v editing' }, v);
+          editInPlace(field, (where) => writeTask('/api/resource', { task: t.id, name: k, where }, `已保存 ${k}`),
+            (changed) => { if (!changed) field.replaceWith(value); });
+          value.replaceWith(field);
+          field.focus();
+          getSelection().selectAllChildren(field);
+        } }, icon('edit', 15));
+        const forget = h('button', { type: 'button', class: 'ov-icon', title: `删除 ${k}`, 'aria-label': `删除 ${k}`,
+          onclick: () => ask({ title: `删除资源 ${k}？`, sub: v, action: '删除' }, () => writeTask('/api/resource', { task: t.id, name: k, remove: true }, `已删除 ${k}`)) }, icon('trash', 15));
+        return h('div', null, h('span', { class: 'k' }, k), value, h('span', { class: 'tools' }, change, forget));
+      }))));
   }
   R.replaceChildren(h('div', { class: 'scroll' }, paper));
+}
+
+/** One change to a task's files from the page, said in a toast; the page redraws once the vault has it. */
+function writeTask(url, value, said) {
+  return postJSON(url, value).then((out) => {
+    toast(out.warning ? `${said}，推送没成功：${out.warning}` : said);
+    onStatus(out.status);
+  }, (err) => {
+    toast(`没保存：${err.message}`);
+    loadTask(value.task, true).then(render);
+  });
+}
+
+/**
+ * problem.md opened to edit, whole, as the Markdown it is. The page holds
+ * off its redraws while it is open; saving is refused when an agent changed
+ * the file since this page read it, so neither overwrites the other.
+ */
+function problemEditor(t, d, holder, button) {
+  if (holds.has('problem')) return;
+  holds.add('problem');
+  const kept = [...holder.childNodes];
+  const text = d.problem?.text ?? '';
+  const area = h('textarea', { class: 'ov-problem', spellcheck: 'false', 'aria-label': 'problem.md', value: text });
+  const fit = () => { area.style.height = 'auto'; area.style.height = `${area.scrollHeight + 2}px`; };
+  const close = () => {
+    holder.replaceChildren(...kept);
+    button.hidden = false;
+    letGo('problem');
+  };
+  const save = h('button', { type: 'button', class: 'button' }, '保存');
+  const cancel = h('button', { type: 'button', class: 'button quiet', onclick: close }, '取消');
+  save.addEventListener('click', () => {
+    if (area.value.trim() === '') return toast('problem 不能是空的');
+    if (area.value === text) return close();
+    save.disabled = cancel.disabled = true;
+    postJSON('/api/problem', { task: t.id, sha: d.problem?.sha ?? '', text: area.value }).then((out) => {
+      toast(out.warning ? `已保存 problem.md，推送没成功：${out.warning}` : '已保存 problem.md');
+      holds.delete('problem');
+      onStatus(out.status);
+    }, (err) => {
+      save.disabled = cancel.disabled = false;
+      toast(`没保存：${err.message}`);
+    });
+  });
+  area.addEventListener('input', fit);
+  area.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save.click(); }
+    if (e.key === 'Escape') {
+      if (area.value === text) close();
+      else toast('有没保存的修改：放弃就点取消');
+    }
+  });
+  button.hidden = true;
+  holder.replaceChildren(area, h('div', { class: 'ov-edit-bar' }, h('span', { class: 'dim' }, 'Markdown · ⌘↩ 保存 · Esc 取消'), cancel, save));
+  fit();
+  area.focus();
+}
+
+/**
+ * A question over the page, answered by its button or let go. With
+ * `reason`, it also asks for a line, which the button waits for and which
+ * `then` is given.
+ */
+function ask({ title, sub, action, reason }, then) {
+  const input = reason ? h('input', { class: 'ask-input', 'aria-label': reason, placeholder: reason }) : null;
+  const ok = h('button', { type: 'button', class: 'button danger', disabled: !!input }, action);
+  const close = () => modal.remove();
+  const modal = h('div', { class: 'ask-modal', onclick: (e) => { if (e.target === modal) close(); } },
+    h('div', { class: 'ask', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+      h('div', { class: 't' }, title), sub ? h('div', { class: 's' }, sub) : null, input,
+      h('div', { class: 'b' }, h('button', { type: 'button', class: 'button quiet', onclick: close }, '取消'), ok)));
+  let answered = false;
+  const answer = () => {
+    const given = input ? input.value.trim() : '';
+    if (answered || (input && given === '')) return;
+    answered = true;
+    close();
+    then(given);
+  };
+  ok.addEventListener('click', answer);
+  input?.addEventListener('input', () => { ok.disabled = input.value.trim() === ''; });
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+    if (e.key === 'Enter' && (!input || input.value.trim() !== '')) { e.preventDefault(); answer(); }
+  });
+  document.body.append(modal);
+  (input || ok).focus();
 }
 
 /**
@@ -2208,7 +2350,7 @@ function drawReport(t, d, rep) {
  * kept. What it said is taken when it is entered, since the page can change
  * it in between, as a deliverable given up again does its reason.
  */
-function editInPlace(el, save) {
+function editInPlace(el, save, left) {
   el.setAttribute('contenteditable', 'plaintext-only');
   el.setAttribute('spellcheck', 'false');
   let was = el.textContent;
@@ -2219,10 +2361,13 @@ function editInPlace(el, save) {
   });
   el.addEventListener('blur', () => {
     const text = el.textContent.replace(/\s+/g, ' ').trim();
-    if (text === was.trim()) return;
-    if (text === '') { el.textContent = was; return; }
-    was = text;
-    save(text);
+    const changed = text !== was.trim() && text !== '';
+    if (text === '') el.textContent = was;
+    if (changed) {
+      was = text;
+      save(text);
+    }
+    left?.(changed);
   });
 }
 

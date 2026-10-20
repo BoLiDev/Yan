@@ -122,13 +122,22 @@ the ones in progress, and its overview says so with a 验收失败 button: one
 click puts it back in progress, committed and pushed, and nothing is logged,
 so the agent is not told. Accepting it is `yan done`, as for any task.
 
+A task's overview is where its problem and deliverables are put right while
+they are still being defined. 编辑 opens problem.md whole, as Markdown, and
+saving is refused when an agent changed it since the page read it. A
+deliverable's text is edited where it stands; the bin that shows under its
+date on hover gives it up, with a reason that stays on its line and is
+edited the same way. A resource's pencil edits where it points, keeping its
+kind, and its bin forgets it. While you type, or while the problem is open,
+the page holds off redrawing for new commits, so nothing typed is lost.
+
 A task with an artifacts/report.html, the page a report skill writes from
 what `yan uat` recorded, has a Report beside its overview. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, give it
 up with a reason or edit the reason it was given up for, and task.json
-changes; click a text of the page and edit it, and report.html changes. Either is committed and pushed as `yan vault
-push` would; that and 验收失败 are the only writes `yan serve` makes, and
-only from its own page.
+changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report is committed and pushed as
+`yan vault push` would; those and 验收失败 are the only writes `yan serve`
+makes, and only from its own page.
 A picture clicked opens large in a modal over the page, ← and → going
 through the others; recordings play in place, full screen from their own controls, with
 their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state

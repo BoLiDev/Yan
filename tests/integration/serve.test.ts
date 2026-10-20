@@ -304,6 +304,52 @@ describe('a report on yan serve', () => {
   });
 });
 
+describe('the overview on yan serve', () => {
+  const at = (rel: string): string => join(home, 'tasks/t002', rel);
+  const post = (path: string, value: unknown, origin = page('')) =>
+    fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+  const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
+  type Detail = { problem: { sha: string; text: string } | null };
+  const detail = async (): Promise<Detail> => (await (await fetch(page('/api/task/t002'))).json()) as Detail;
+
+  it('writes problem.md whole, and refuses an edit begun on a problem.md since changed', async () => {
+    expect((await post('/api/problem', { task: 't002', sha: '', text: 'x' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/problem', { task: 't002', sha: '', text: '   ' })).status).toBe(400);
+    expect((await post('/api/problem', { task: 't002', sha: '', text: '# report\n\nwhat was wrong' })).status).toBe(200);
+    expect(readFileSync(at('problem.md'), 'utf8')).toBe('# report\n\nwhat was wrong\n');
+    expect(await subject()).toBe('t002: problem edited in yan serve');
+
+    const read = await until(async () => {
+      const problem = (await detail()).problem;
+      return problem?.text.includes('what was wrong') ? problem : undefined;
+    }, 20_000);
+    expect((await post('/api/problem', { task: 't002', sha: read.sha, text: 'what was wrong, said better' })).status).toBe(200);
+    expect((await post('/api/problem', { task: 't002', sha: read.sha, text: 'laid over the other' })).status).toBe(409);
+    expect(readFileSync(at('problem.md'), 'utf8')).toBe('what was wrong, said better\n');
+  });
+
+  it('rewords a deliverable, keeping its id and state', async () => {
+    expect((await post('/api/deliverable/text', { task: 't002', id: 'd1', text: 'one, reworded' })).status).toBe(200);
+    expect((readJson(at('task.json')) as { deliverables: { id: string; text: string; status: string }[] }).deliverables[0]).toMatchObject({ id: 'd1', text: 'one, reworded', status: 'done' });
+    expect(await subject()).toBe('t002: d1 reworded in yan serve');
+    expect((await post('/api/deliverable/text', { task: 't002', id: 'd9', text: 'x' })).status).toBe(400);
+  });
+
+  it('changes where a resource points, keeping its kind, and forgets one', async () => {
+    await runYan(home, ['resource', 'add', 'spec', 'design', 'https://example.com/a', '--task', 't002']);
+    await runYan(home, ['resource', 'add', 'general', 'notes', '/tmp/notes', '--task', 't002']);
+    await fxGit(['commit', '-q', '-am', 'resources'], home);
+    expect((await post('/api/resource', { task: 't002', name: 'design', where: 'https://example.com/b' })).status).toBe(200);
+    expect(await subject()).toBe('t002: resource design changed in yan serve');
+    expect((await post('/api/resource', { task: 't002', name: 'notes', remove: true })).status).toBe(200);
+    expect(await subject()).toBe('t002: resource notes removed in yan serve');
+    const doc = readJson(at('task.json')) as { resources: Record<string, string>; resourceKinds: Record<string, string> };
+    expect(doc.resources).toEqual({ design: 'https://example.com/b' });
+    expect(doc.resourceKinds.design).toBe('spec');
+    expect((await post('/api/resource', { task: 't002', name: 'gone', where: 'x' })).status).toBe(400);
+  });
+});
+
 describe('a yan serve left running while yan is updated', () => {
   const build = async (): Promise<string | undefined> => {
     try {
