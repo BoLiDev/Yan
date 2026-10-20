@@ -77,7 +77,7 @@ const abandon = new Command('abandon')
   );
 
 export const command = new Command('deliverable')
-  .description('the solution: how things must be once the problem is solved - change it only when the user agrees to a different one')
+  .description('the solution: how things must be once the problem is solved, written in Chinese unless the user asks for another language - change it only when the user agrees to a different one')
   .addCommand(add)
   .addCommand(edit)
   .addCommand(done)
@@ -88,7 +88,9 @@ export const command = new Command('deliverable')
 A deliverable is one part of the solution: a way the product must be once
 the task is done, stated so it can be checked: "the page's scripts load in
 parallel", not "rewrite the loader with Promise.all". It says what is
-different, never how the code is changed to make it so.
+different, never how the code is changed to make it so. It is written in
+Chinese, the language the user reads it in on yan serve and in a report,
+unless they ask for another.
 
 The list is the solution as the user agreed it, as it stands now. When they
 settle on a different one, change the list so it reads as if first written

@@ -79,7 +79,7 @@ For the agent:
 
 - `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
-- `yan deliverable add|edit|done|abandon` — the solution, changed only when you agree to a different one
+- `yan deliverable add|edit|done|abandon` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
 - `yan uat ready` — the task waits for you to accept it: its state becomes `uat`, shown as 待验收
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
