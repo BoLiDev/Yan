@@ -126,8 +126,8 @@ up with a reason, and task.json changes; click a text of the page and edit
 it, and report.html changes. Either is committed and pushed as `yan vault
 push` would; that and 验收失败 are the only writes `yan serve` makes, and
 only from its own page.
-A picture clicked fills the screen, and a click again shows it pixel for
-pixel; recordings play in place, full screen from their own controls, with
+A picture clicked opens large in a modal over the page, ← and → going
+through the others; recordings play in place, full screen from their own controls, with
 their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state
 they are in. When a deliverable was reworded or added, or evidence recorded,
 replaced or dropped since the page was written (report.json beside it says
