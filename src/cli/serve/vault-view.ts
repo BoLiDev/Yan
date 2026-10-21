@@ -68,8 +68,12 @@ export interface Push {
   readonly task: string;
   /** The newest commit's time. */
   readonly at: number;
-  /** A deleted file has no sha: there is nothing left to show. */
-  readonly files: readonly { readonly path: string; readonly sha: string; readonly status: 'A' | 'M' | 'D' }[];
+  /**
+   * A deleted file has no sha: there is nothing left to show. `at` is the
+   * newest commit of the push that touched it, so a file looked at stays seen
+   * when later commits join its push.
+   */
+  readonly files: readonly { readonly path: string; readonly sha: string; readonly status: 'A' | 'M' | 'D'; readonly at: number }[];
 }
 
 export interface Deliverable {
@@ -415,7 +419,7 @@ export class VaultView {
    * hidden, is left out; a file written twice in one push is there once.
    */
   private pushes(): Push[] {
-    const pushes: { task: string; at: number; from: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' | 'D' }> }[] = [];
+    const pushes: { task: string; at: number; from: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' | 'D'; at: number }> }[] = [];
     for (const c of this.commits) {
       const byTask = new Map<string, FileChange[]>();
       for (const f of c.files) {
@@ -438,8 +442,8 @@ export class VaultView {
           if (hiddenBy(rel) !== undefined) continue;
           const had = push.files.get(rel);
           if (had === undefined) {
-            if (f.status === 'D') push.files.set(rel, { path: rel, sha: '', status: 'D' });
-            else if (entry !== undefined) push.files.set(rel, { path: rel, sha: entry.sha, status: f.status as 'A' | 'M' });
+            if (f.status === 'D') push.files.set(rel, { path: rel, sha: '', status: 'D', at: c.at });
+            else if (entry !== undefined) push.files.set(rel, { path: rel, sha: entry.sha, status: f.status as 'A' | 'M', at: c.at });
           } else if (f.status === 'A') {
             // Added within the push: new if it is still there, nothing at all if it went again.
             if (had.status === 'D') push.files.delete(rel);
@@ -451,7 +455,7 @@ export class VaultView {
     return this.finish(pushes);
   }
 
-  private finish(pushes: { task: string; at: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' | 'D' }> }[]): Push[] {
+  private finish(pushes: { task: string; at: number; files: Map<string, { path: string; sha: string; status: 'A' | 'M' | 'D'; at: number }> }[]): Push[] {
     return pushes.filter((p) => p.files.size > 0).map((p) => ({ task: p.task, at: p.at, files: [...p.files.values()] }));
   }
 }

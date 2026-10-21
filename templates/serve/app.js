@@ -436,7 +436,6 @@ const S = {
   route: { view: 'latest' },
   expanded: new Map(),
   filter: new Map(),
-  visit: new Map(),
   problemBase: new Map(),
   logBase: new Map(),
   feedOpen: new Set(),
@@ -502,12 +501,19 @@ function parseRoute() {
 //
 // Kept in this browser only: one person, one machine. A task's mark is the
 // newest commit time seen in it, so what another machine pushed while this
-// one was away counts as new when it arrives.
+// one was away counts as new when it arrives. Past the mark, each file is
+// looked at on its own, as GitHub's Viewed: its dot goes when it is opened,
+// or clicked in when a push changed it while it was open, and comes back when
+// it changes again. Nothing is seen by the page being open, in front or not.
+// Once none of a task's files has a dot, the mark moves up to its newest.
 
 function initSeen() {
-  if (S.seen && S.seen.tasks) return;
+  if (S.seen && S.seen.tasks) {
+    S.seen.files ||= {};
+    return;
+  }
   const newest = Math.max(0, ...S.index.tasks.map((t) => t.touched));
-  S.seen = { init: newest, tasks: {}, problems: {}, logs: {} };
+  S.seen = { init: newest, tasks: {}, problems: {}, logs: {}, files: {} };
   saveSeen();
 }
 const seenAt = (id) => S.seen.tasks[id] ?? S.seen.init;
@@ -516,29 +522,82 @@ function newestOf(id) {
   const t = S.byId.get(id);
   return Math.max(t?.touched || 0, t?.added[0] || 0, ...S.index.latest.filter((p) => p.task === id).map((p) => p.at));
 }
-/** What arrived in a task since it was last looked at, each file once, as where it ended up: added, changed or deleted. */
-function unseenFiles(id) {
+/**
+ * The files of a task with a dot: added or changed since its mark and not
+ * looked at since, path → the file as it was last changed, with that change's
+ * time: a push gathers the commits of a quarter of an hour, and a file looked
+ * at early in it stays seen as later ones join. A file deleted since has
+ * nothing to look at.
+ */
+function unseenOf(id) {
   const base = seenAt(id);
-  const files = new Map();
+  const looked = S.seen.files[id] || {};
+  const where = new Set();
+  const out = new Map();
   // Newest push first, so a file's first status is its last.
-  for (const p of S.index.latest) if (p.task === id && p.at > base) for (const f of p.files) if (!files.has(f.path)) files.set(f.path, f);
-  return [...files.values()];
+  for (const p of S.index.latest) {
+    if (p.task !== id || p.at <= base) continue;
+    for (const f of p.files) {
+      if (where.has(f.path)) continue;
+      where.add(f.path);
+      const at = f.at ?? p.at;
+      if (f.status !== 'D' && at > base && at > (looked[f.path] ?? 0)) out.set(f.path, { ...f, at });
+    }
+  }
+  return out;
+}
+/** A task with no dot left is seen up to its newest. */
+function settle(id) {
+  if (unseenOf(id).size) return;
+  S.seen.tasks[id] = Math.max(seenAt(id), newestOf(id));
+  delete S.seen.files[id];
+}
+/** Looked at: `path` of task `id` loses its dot. Returns whether it had one. */
+function markLooked(id, path) {
+  const was = path ? unseenOf(id).get(path) : undefined;
+  if (!was) return false;
+  S.seen.files[id] = { ...S.seen.files[id], [path]: was.at };
+  settle(id);
+  saveSeen();
+  return true;
+}
+/** 全部已读: every dot of a task gone at once, its log's too. */
+function markTaskRead(id) {
+  S.seen.tasks[id] = Math.max(seenAt(id), newestOf(id));
+  delete S.seen.files[id];
+  const entries = detailOf(id)?.log?.entries.length;
+  if (entries !== undefined) S.seen.logs[id] = entries;
+  saveSeen();
+  renderLeft();
+  renderMiddle();
+}
+/** Whether task `id` has a dot anywhere: a file, or its log. */
+function hasDots(id) {
+  const n = detailOf(id)?.log?.entries.length;
+  return unseenOf(id).size > 0 || (n !== undefined && n > (S.seen.logs[id] ?? n));
 }
 /**
- * A task counts as seen once it, or a file of it, is opened, wherever from:
- * its row in the list, Latest, or a link. The mark from before is kept for
- * the visit, so what was new stays marked until the page moves on.
+ * What the page shows at `r` that a look clears: a file, the report, or the
+ * log. Opening it is a look; so is a click in it, when a push changed it while
+ * it was open.
  */
-function markTaskSeen(id) {
-  if (!S.byId.has(id)) return;
-  if (!S.visit.has(id)) S.visit.set(id, seenAt(id));
-  S.seen.tasks[id] = Math.max(seenAt(id), newestOf(id));
-  saveSeen();
+function lookAt(r) {
+  if (r.view === 'latest') return r.id && r.path ? markLooked(r.id, r.path) : false;
+  if (r.view !== 'task') return false;
+  if (r.sub === 'file') return markLooked(r.id, r.path);
+  if (r.sub === 'report') return markLooked(r.id, 'report.html');
+  if (r.sub === 'log') {
+    const n = detailOf(r.id)?.log?.entries.length;
+    if (n === undefined || S.seen.logs[r.id] === n) return false;
+    S.seen.logs[r.id] = n;
+    saveSeen();
+    return true;
+  }
+  return false;
 }
-const isNew = (id, file) => file.added > (S.visit.get(id) ?? seenAt(id));
-/** How many tasks have something new: Latest's count, which falls as each is opened. */
+/** How many tasks have something new: Latest's count, which falls as the last dot of each is cleared. */
 function latestUnseen() {
-  return S.index ? new Set(S.index.latest.filter((p) => p.at > seenAt(p.task)).map((p) => p.task)).size : 0;
+  return S.index ? S.index.tasks.filter((t) => unseenOf(t.id).size > 0).length : 0;
 }
 
 // ── a notification when a push arrives ──────────────────────────────────────
@@ -777,11 +836,8 @@ async function onStatus(st) {
       try {
         await loadIndex();
         const r = S.route;
-        if (r.id && S.byId.has(r.id)) {
-          await loadTask(r.id, true);
-          if (r.view === 'task') markTaskSeen(r.id);
-        }
-        if (r.view === 'latest' && r.id) markTaskSeen(r.id);
+        // What arrived waits for a look, even in the file on screen: a click in it is one.
+        if (r.id && S.byId.has(r.id)) await loadTask(r.id, true);
         redraw();
       } finally {
         refreshing = null;
@@ -893,7 +949,7 @@ function renderSync() {
 function taskRow(t, opts = {}) {
   const r = S.route;
   const on = r.view === 'task' && r.id === t.id;
-  const fresh = on ? [] : unseenFiles(t.id);
+  const fresh = on ? [] : [...unseenOf(t.id).values()];
   return h('a', { class: 'row' + (on ? ' on' : ''), href: S.last.get(t.id) || link.task(t.id), title: `${t.title || t.id} · ${t.id}` },
     stateIcon(t.state),
     h('span', { class: 'grow' }, t.title || t.id),
@@ -1011,10 +1067,11 @@ function renderTaskIndex(r) {
     icon('overview', 16), h('span', { class: 'grow' }, 'Overview'), h('span', { class: 'aside' }, total ? plural(total, 'deliverable') : 'problem')));
   if (d?.files.some((f) => f.path === 'report.html')) {
     nav.push(h('a', { class: 'row' + (r.sub === 'report' ? ' on' : ''), href: link.report(t.id) },
-      icon('check', 16), h('span', { class: 'grow' }, 'Report'), h('span', { class: 'aside' }, 'report.html')));
+      icon('check', 16), h('span', { class: 'grow' }, 'Report'), unseenOf(t.id).has('report.html') ? h('span', { class: 'dot', title: 'changed since your last look' }) : null, h('span', { class: 'aside' }, 'report.html')));
   }
   const logCount = d?.log?.entries.length ?? 0;
-  const logFresh = d?.log && logCount > (S.logBase.get(t.id) ?? S.seen.logs[t.id] ?? logCount);
+  // Against what was last read, not what this visit started from: reading the log clears it.
+  const logFresh = d?.log && logCount > (S.seen.logs[t.id] ?? logCount);
   nav.push(h('a', { class: 'row' + (r.sub === 'log' ? ' on' : ''), href: link.log(t.id) },
     icon('log', 16), h('span', { class: 'grow' }, 'Log'), logFresh ? h('span', { class: 'dot', title: 'new entries' }) : null, h('span', { class: 'aside' }, d ? logCount : '')));
   t.repos.forEach((repo, i) => {
@@ -1169,7 +1226,8 @@ function treeRows(node, depth, ctx, out) {
           } else ctx.open.add(dir.path);
         }
         : toggle,
-    }, chev, h('span', { class: 'folder-icon' }, icon('folder', 15)), h('span', { class: 'grow' }, name), h('span', { class: 'aside' }, dir.count)));
+    }, chev, h('span', { class: 'folder-icon' }, icon('folder', 15)), h('span', { class: 'grow' }, name),
+    ctx.newIn && ctx.newIn(dir.path) ? h('span', { class: 'dot', title: 'something new inside' }) : null, h('span', { class: 'aside' }, dir.count)));
     if (open) treeRows(dir, depth + 1, ctx, out);
   }
   for (const f of sortedFiles(node)) {
@@ -1218,13 +1276,16 @@ function artifactsPanel(t, d, r) {
   const files = shownFiles(t.id, d);
   const open = expandedFor(t.id, d.files);
   const out = [];
+  const unseen = unseenOf(t.id);
   treeRows(buildTree(files), 0, {
     open,
     file: r.sub === 'file' ? r.path : null,
     folder: r.sub === 'folder' ? r.path : null,
     fileHref: (p) => link.file(t.id, p),
     folderHref: (p) => link.folder(t.id, p),
-    isNew: (f) => isNew(t.id, f),
+    isNew: (f) => unseen.has(f.path),
+    // A dot in a closed folder would be one nobody can find.
+    newIn: (dir) => [...unseen.keys()].some((p) => p.startsWith(`${dir}/`)),
   }, out);
 
   const hidden = d.hidden.length
@@ -1234,6 +1295,7 @@ function artifactsPanel(t, d, r) {
     top: h('div', { class: 'stack' },
       h('div', { class: 'section-head' },
         h('b', null, 'Artifacts'), h('span', null, d.files.length), h('span', { class: 'grow' }),
+        hasDots(t.id) ? h('button', { type: 'button', class: 'tool text read-all', title: 'Clear every dot of this task', onclick: () => markTaskRead(t.id) }, '全部已读') : null,
         d.files.length ? tool('grid', 'See them all as a grid', null, { small: true, href: link.folder(t.id, ''), newTab: false }) : null),
       chips),
     body: [d.files.length ? h('div', { class: 'tree', role: 'tree', 'aria-label': 'Artifacts' }, out) : h('div', { class: 'sublabel' }, 'No artifacts yet.'), hidden],
@@ -1353,12 +1415,16 @@ async function loadBranchTree(id, repo, head) {
 // ── middle: Latest ──────────────────────────────────────────────────────────
 
 /**
- * The pushes Latest lists: only what is new in its task since the last look.
- * A task opened during this visit keeps its pushes until the page moves away
- * from Latest, so the rest of what arrived with a file stays to be looked at.
+ * The pushes Latest lists: every push of a task since its mark, for as long
+ * as the task has a dot; its last dot cleared, all of them go.
  */
 function unseenPushes() {
-  return S.index.latest.filter((p) => p.at > (S.visit.get(p.task) ?? seenAt(p.task)));
+  const dotted = new Map();
+  const has = (id) => {
+    if (!dotted.has(id)) dotted.set(id, unseenOf(id).size > 0);
+    return dotted.get(id);
+  };
+  return S.index.latest.filter((p) => p.at > seenAt(p.task) && has(p.task));
 }
 
 function feedFiles() {
@@ -1397,6 +1463,7 @@ function renderFeed() {
   const pushes = unseenPushes();
   if (!pushes.length) parts.push(h('div', { class: 'sublabel' }, S.index.latest.length ? 'Nothing new since you last looked.' : 'Nothing has arrived in any task’s artifacts yet.'));
   const showing = r.id ? pushes.find((p) => p.task === r.id && p.files.some((f) => f.path === r.path)) : undefined;
+  const unseen = new Map([...new Set(pushes.map((p) => p.task))].map((id) => [id, unseenOf(id)]));
   let day = '';
   let group = null;
   for (const p of pushes) {
@@ -1426,7 +1493,8 @@ function renderFeed() {
       if (f.status === 'D') return h('div', { class: 'row gone', title: `${p.task}/${f.path}, deleted` }, h('span', { class: 'kind' }, badge(name)), where, h('span', { class: 'tag gone' }, 'deleted'));
       const on = r.id === p.task && r.path === f.path && p === showing;
       return h('a', { class: 'row' + (on ? ' on' : ''), href: link.latest(p.task, f.path), title: `${p.task}/${f.path}` },
-        fileThumb(f, name), where, f.status === 'A' ? h('span', { class: 'tag new' }, 'new') : null);
+        fileThumb(f, name), where, unseen.get(p.task)?.has(f.path) ? h('span', { class: 'dot', title: 'new since your last look' }) : null,
+        f.status === 'A' ? h('span', { class: 'tag new' }, 'new') : null);
     });
     // The arrow sits beside the line, not in it: a link cannot sit inside the button that opens the files.
     const line = h('div', { class: 'push-line' }, head, tool('go', 'Open the task', null, { small: true, href: link.task(p.task), newTab: false }));
@@ -1436,7 +1504,7 @@ function renderFeed() {
 }
 function markAllSeen() {
   for (const t of S.index.tasks) S.seen.tasks[t.id] = Math.max(seenAt(t.id), newestOf(t.id));
-  S.visit.clear();
+  S.seen.files = {};
   saveSeen();
   render();
 }
@@ -1928,6 +1996,7 @@ function viewFolder(t, d, path) {
   for (const part of path ? path.split('/') : []) node = node?.dirs.get(part);
   if (!node) return emptyRight('Nothing here', `${path}/ has no files${filterOf(t.id) === 'all' ? '' : ' of this kind'}.`);
   const cards = [];
+  const unseen = unseenOf(t.id);
   for (const dir of sortedDirs(node)) {
     const cover = treeOrder(dir).find((f) => kindOf(f.path) === 'image');
     cards.push(h('a', { class: 'card', href: link.folder(t.id, dir.path) },
@@ -1938,7 +2007,7 @@ function viewFolder(t, d, path) {
     const name = baseName(f.path);
     cards.push(h('a', { class: 'card', href: link.file(t.id, f.path), title: f.path },
       h('span', { class: 'well' }, wellOf(f, name)),
-      h('span', { class: 'cap' }, isNew(t.id, f) ? h('span', { class: 'dot' }) : null, h('span', null, name))));
+      h('span', { class: 'cap' }, unseen.has(f.path) ? h('span', { class: 'dot' }) : null, h('span', null, name))));
   }
   R.replaceChildren(
     bar(path ? crumb(path) : 'Artifacts', `${plural(node.count, 'file')}${filterOf(t.id) === 'all' ? '' : ` · ${KIND_LABEL[filterOf(t.id)].toLowerCase()} only`}`,
@@ -2448,10 +2517,9 @@ function askReason(root, id, name, then) {
 function viewLog(t, d) {
   keyNav = { prev: null, next: null };
   const entries = d.log?.entries || [];
-  const before = S.logBase.has(t.id) ? S.logBase.get(t.id) : S.seen.logs[t.id] ?? entries.length;
-  if (!S.logBase.has(t.id)) S.logBase.set(t.id, before);
-  S.seen.logs[t.id] = entries.length;
-  saveSeen();
+  // What was new as the visit began stays tinted until it ends; marking it read is the route's, or a click's.
+  if (!S.logBase.has(t.id)) S.logBase.set(t.id, S.seen.logs[t.id] ?? entries.length);
+  const before = S.logBase.get(t.id);
   const year = new Date((fromIso(t.createdAt) || nowS()) * 1000).getFullYear();
   const paper = h('div', { class: 'paper' });
   if (!entries.length) paper.append(h('div', { class: 'empty' }, 'No log yet.'));
@@ -2710,16 +2778,13 @@ async function onRoute() {
   const r = S.route;
   S.page.source = false;
   if (before.view === 'task' && (r.view !== 'task' || r.id !== before.id)) {
-    S.visit.delete(before.id);
     S.problemBase.delete(before.id);
     S.logBase.delete(before.id);
   }
-  if (before.view === 'latest' && r.view !== 'latest') S.visit.clear();
   if (!S.index) return;
 
   if (r.view === 'task' && S.byId.has(r.id)) {
     S.last.set(r.id, location.hash);
-    markTaskSeen(r.id);
     const need = [];
     if (!detailOf(r.id) || S.tasks.get(r.id).version !== S.version) need.push(loadTask(r.id));
     if (r.sub === 'branch' && !branchOf(r.id, r.repo, r.name)) need.push(loadBranch(r.id, r.repo, r.name).catch(() => undefined));
@@ -2740,14 +2805,24 @@ async function onRoute() {
       }
     }
   } else if (r.view === 'latest') {
-    if (r.id) markTaskSeen(r.id);
     if (r.id && S.byId.has(r.id) && !detailOf(r.id)) {
       render();
       await loadTask(r.id).catch((err) => toast(String(err.message || err)));
     }
   }
+  // Opening a file, the report or the log is looking at it. The log is read
+  // before it is drawn, so its tint starts from what came before the visit.
+  if (r.view === 'task' && r.sub === 'log' && !S.logBase.has(r.id)) S.logBase.set(r.id, S.seen.logs[r.id] ?? detailOf(r.id)?.log?.entries.length ?? 0);
+  lookAt(r);
   render();
 }
+
+// A click in what is open is a look at it: what a push changed under the reader waits for one.
+document.getElementById('right').addEventListener('pointerdown', () => {
+  if (!S.index || !lookAt(S.route)) return;
+  renderLeft();
+  renderMiddle();
+});
 
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {

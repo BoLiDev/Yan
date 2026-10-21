@@ -123,6 +123,8 @@ describe('a vault at a commit', () => {
         ['t002', T + 60 * 60, ['A c.txt']],
         ['t001', T + 5 * 60, ['A b.md', 'A c4/a.png']],
       ]);
+      // Each file keeps when it last changed, not when its push ended: a file looked at early in a push stays seen.
+      expect(view.index().latest[2]?.files.map((f) => [f.path, f.at])).toEqual([['b.md', T + 5 * 60], ['c4/a.png', T]]);
     } finally {
       await view.close();
     }
@@ -132,7 +134,7 @@ describe('a vault at a commit', () => {
     const view = new VaultView(dir);
     try {
       await view.load(commits[5] as string);
-      expect(view.index().latest[0]).toEqual({ task: 't001', at: T + 181 * 60, files: [{ path: 'b.md', sha: '', status: 'D' }] });
+      expect(view.index().latest[0]).toEqual({ task: 't001', at: T + 181 * 60, files: [{ path: 'b.md', sha: '', status: 'D', at: T + 180 * 60 }] });
     } finally {
       await view.close();
     }

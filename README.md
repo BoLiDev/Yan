@@ -108,7 +108,13 @@ notification when a push arrives, the task's name as its title and nothing
 else, and clicking it opens Latest on that push; the page has to be open for
 it, in the background or minimised, and Chrome's permission is asked on the
 first click. Each push's line in Latest opens to the files it brought, and
-the arrow at its end opens the task's overview. Images, pages, Markdown, code, logs, audio, video and fonts
+the arrow at its end opens the task's overview. A file a push added or
+changed carries a dot, in its task and in Latest, until it is opened, or,
+when the push changed it while it was open, until it is clicked in; it
+lights again when it changes again, and the page being open, in front or
+not, counts for nothing. A task stays in Latest and in its count until its
+last dot is gone, and 全部已读 beside its Artifacts clears them all at once,
+as Log's dot goes when the log is opened. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, and every file at its head. The
