@@ -30,8 +30,7 @@ import { buildLoads, buildPrint } from './build.js';
  * too. Pages hear of it through `/api/events`, a server-sent event stream.
  *
  * It reads git objects and never the work tree, with one exception: on a
- * task's report `user` ticks a deliverable, gives one up or edits a text,
- * and on a task waiting to be accepted, `user` can turn it back to open.
+ * task's report `user` ticks a deliverable, gives one up or edits a text.
  * That is written to task.json or report.html in the work tree, committed
  * and pushed as `yan vault push` would, and then shown like any other commit.
  */
@@ -484,7 +483,6 @@ export class YanServer {
     '/api/problem': (res, given) => this.editProblem(res, given),
     '/api/resource': (res, given) => this.setResource(res, given),
     '/api/report/edit': (res, given) => this.editReport(res, given),
-    '/api/not-accepted': (res, given) => this.notAccepted(res, given),
   };
 
   /** `{ task, id, text }`: a deliverable reworded on the overview, keeping its id and state. */
@@ -558,22 +556,6 @@ export class YanServer {
     if (reworded) return this.save(res, `${id}: ${d}'s reason for giving up reworded in yan serve`);
     const word = { done: 'done', todo: 'back to do', abandoned: 'given up' }[to];
     return this.save(res, `${id}: ${d} ${word} in yan serve`);
-  }
-
-  /**
-   * `{ task }`: `user` not accepting a task that waits to be, which puts it
-   * back to open. Nothing is logged: it is `user` keeping the state, and the
-   * agent is not told.
-   */
-  private async notAccepted(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
-    const id = given.task;
-    if (typeof id !== 'string' || !Task.isId(id)) return send(res, 400, 'task is needed');
-    try {
-      new Task(id).notAccepted();
-    } catch (err) {
-      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
-    }
-    return this.save(res, `${id}: not accepted in yan serve, back to open`);
   }
 
   /**

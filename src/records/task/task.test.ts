@@ -221,19 +221,18 @@ describe('close', () => {
 });
 
 describe('uat', () => {
-  it('waits to be accepted, and goes back to open when it is not', () => {
+  it('waits to be accepted, and says so again harmlessly', () => {
     const task = Task.create('x');
     task.awaitUat();
     expect(task.read().state).toBe('uat');
-    task.notAccepted();
-    expect(task.read().state).toBe('open');
+    task.awaitUat();
+    expect(task.read().state).toBe('uat');
   });
 
-  it('refuses either on a closed task', () => {
+  it('refuses on a closed task', () => {
     const task = Task.create('x');
     task.close('done');
     expect(() => task.awaitUat()).toThrow(/done already/);
-    expect(() => task.notAccepted()).toThrow(/closed with yan done/);
     expect(task.read().state).toBe('done');
   });
 });

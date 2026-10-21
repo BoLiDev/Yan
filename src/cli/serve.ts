@@ -19,8 +19,7 @@ import { YanServer } from './serve/server.js';
  * It reads git objects, never the work tree, and fetches into refs of its
  * own, so it never moves anything an agent or a hook works with. The one
  * thing it writes is what `user` does on its page: a deliverable ticked or
- * given up, a report's text edited, a task not accepted, committed and
- * pushed at once.
+ * given up, a report's text edited, committed and pushed at once.
  *
  * Left running while yan is updated, it restarts on the newer build by
  * itself, on the same port, and an open page reloads onto it.

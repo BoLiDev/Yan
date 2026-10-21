@@ -1,10 +1,10 @@
 /** The vocabulary of `tasks/<id>/task.json`, version 2. */
 
 /**
- * Where a task stands. `uat` is still open: its agent has built every
- * deliverable and recorded what to check each by, and it waits for `user`
- * to accept it. The agent sets it with `yan uat ready`; `user` turns it back
- * to `open` in `yan serve` when it is not accepted, or closes it with
+ * Where a task stands. `uat` (验收中) is still open: its agent has built
+ * every deliverable and recorded what to check each by, and `user` checks
+ * it. The agent sets it with `yan uat ready`, and it stays there through
+ * the changes `user`'s feedback asks for, until `user` closes it with
  * `yan done`.
  */
 export const TASK_STATES = ['open', 'uat', 'done', 'abandoned'] as const;

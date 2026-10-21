@@ -537,11 +537,6 @@ audio { width: min(560px, 100%); }
 .commit-line .aside { flex: none; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 .commit-body { margin: 0 0 18px; padding: 12px 16px; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); white-space: pre-wrap; font-size: 13.5px; line-height: 22px; }
 .notice { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: var(--amber-soft); color: var(--amber); font-size: 13px; }
-.uat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: -14px 0 34px; padding: 10px 10px 10px 16px; border-radius: 12px; background: var(--amber-soft); color: var(--amber); font-size: 13.5px; }
-.uat-bar .grow { flex: 1 1 220px; white-space: normal; }
-.uat-bar .button.quiet { background: var(--surface); color: var(--amber); font-weight: 700; }
-.uat-bar .button.quiet:hover { background: var(--surface); color: var(--ink); }
-.uat-bar .button:disabled { opacity: 0.5; cursor: default; }
 
 .toast {
   position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 20;

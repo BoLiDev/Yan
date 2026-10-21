@@ -913,7 +913,7 @@ function renderLeft() {
   } else {
     // Waiting on `user`, so above the rest; the group is not there when none is.
     const uat = tasks.filter((t) => t.state === 'uat').sort((a, b) => b.touched - a.touched);
-    if (uat.length) parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, '待验收'), uat.map((t) => taskRow(t))));
+    if (uat.length) parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, '验收中'), uat.map((t) => taskRow(t))));
 
     const open = tasks.filter((t) => t.state === 'open').sort((a, b) => b.touched - a.touched);
     parts.push(h('div', { class: 'group' }, h('div', { class: 'label' }, 'In progress'), open.length ? open.map((t) => taskRow(t)) : h('div', { class: 'sublabel' }, 'Nothing open')));
@@ -983,7 +983,7 @@ function renderMiddle() {
 function taskSub(t) {
   const bits = [t.id];
   if (t.state === 'open') bits.push(t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : 'in progress');
-  else if (t.state === 'uat') bits.push('待验收');
+  else if (t.state === 'uat') bits.push('验收中');
   else if (t.state === 'done') bits.push(t.closedAt ? `done ${dayOf(fromIso(t.closedAt))}` : 'done');
   else bits.push(t.closedAt ? `dropped ${dayOf(fromIso(t.closedAt))}` : 'dropped');
   const repos = t.repos.map((x) => x.name).join(', ');
@@ -1942,7 +1942,7 @@ function linkify(text) {
 function viewOverview(t, d, token) {
   keyNav = { prev: null, next: null };
   const pills = [];
-  const word = { open: ['teal', 'In progress'], uat: ['amber', '待验收'], done: ['green', 'Done'] }[t.state] || ['', 'Dropped'];
+  const word = { open: ['teal', 'In progress'], uat: ['amber', '验收中'], done: ['green', 'Done'] }[t.state] || ['', 'Dropped'];
   pills.push(h('span', { class: `pill ${word[0]}` }, word[1]));
   const dates = [t.id, t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : null, t.closedAt ? `${t.state === 'done' ? 'done' : 'closed'} ${dayOf(fromIso(t.closedAt))}` : null].filter(Boolean).join(' · ');
   pills.push(h('span', { class: 'pill' }, dates));
@@ -1954,7 +1954,6 @@ function viewOverview(t, d, token) {
   const paper = h('div', { class: 'paper' },
     h('header', { class: 'ov-head' }, h('div', { class: 'pills' }, pills), h('h2', null, t.title || t.id)));
   if (t.state === 'abandoned' && d.reason) paper.append(h('p', { class: 'notice' }, `Dropped: ${d.reason}`));
-  if (t.state === 'uat') paper.append(uatBar(t));
 
   // problem.md, with what changed since the last look tinted, and the whole of it to edit
   const problem = h('section', { class: 'ov-section' });
@@ -2111,25 +2110,6 @@ function ask({ title, sub, action, reason }, then) {
   });
   document.body.append(modal);
   (input || ok).focus();
-}
-
-/**
- * A task its agent has handed over to be checked. Accepting it is `yan done`,
- * at a terminal; not accepting it is this one click, which puts it back in
- * progress, committed and pushed, and tells the agent nothing.
- */
-function uatBar(t) {
-  const no = h('button', { type: 'button', class: 'button quiet', onclick: () => {
-    no.disabled = true;
-    postJSON('/api/not-accepted', { task: t.id }).then((out) => {
-      toast(out.warning ? `已改回进行中，推送没成功：${out.warning}` : '已改回进行中');
-      onStatus(out.status);
-    }, (err) => {
-      no.disabled = false;
-      toast(`没改成：${err.message}`);
-    });
-  } }, '验收失败');
-  return h('div', { class: 'uat-bar' }, h('span', { class: 'grow' }, '待验收：都做完了，等你来看。通过就在终端里 yan done。'), no);
 }
 
 // ── the report ──────────────────────────────────────────────────────────────

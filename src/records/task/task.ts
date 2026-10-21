@@ -75,7 +75,8 @@ export class Task {
   }
 
   /**
-   * Say the task waits for `user` to accept it: `uat`, from open.
+   * Say the task is with `user` to accept: `uat`, from open. It does not go
+   * back: rounds of feedback happen inside it, and `yan done` ends it.
    *
    * @throws YanError `task_closed` when it is closed already.
    */
@@ -83,18 +84,6 @@ export class Task {
     this.edit((doc, data) => {
       if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} already - there is nothing to accept`);
       doc.state = 'uat';
-    });
-  }
-
-  /**
-   * Back to open from `uat`: `user` not accepting it, in `yan serve`.
-   *
-   * @throws YanError `task_closed` when it is closed, which only `yan done` decides.
-   */
-  public notAccepted(): void {
-    this.edit((doc, data) => {
-      if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} - it was closed with yan done`);
-      doc.state = 'open';
     });
   }
 

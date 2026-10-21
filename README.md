@@ -51,7 +51,7 @@ recording for each one, named for it (d3-before.png, d3-after.png) and
 recorded with `yan uat` as it is made, or a note of how it was checked
 where nothing on screen shows it; the before shot before the change is made,
 and something that did not exist before recorded as new, with no before;
-and once all of it is there, marking the task 待验收 with `yan uat ready`
+and once all of it is there, marking the task 验收中 with `yan uat ready`
 is the agent's to do.
 An artifact redone replaces its file; the vault's history keeps the old one.
 While it runs, the vault is kept in step with your other machines without
@@ -67,7 +67,7 @@ agent as it is.
 
 For you:
 
-- `yan ls` — every open task, one line each, those waiting for you to accept them as 待验收; `--status all` for the rest
+- `yan ls` — every open task, one line each, those handed to you to accept as 验收中; `--status all` for the rest
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
@@ -82,7 +82,7 @@ For the agent:
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
-- `yan uat ready` — the task waits for you to accept it: its state becomes `uat`, shown as 待验收
+- `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as 验收中, and stays so through the changes your feedback asks for until `yan done`
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
 - `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and the ones it replaces stay as the task's earlier branches
 - `yan learn add|ls` — a learning, written only when you ask for one
@@ -120,10 +120,10 @@ branch has moved since; one deleted from origin is found again from what its
 merge commit says. The artifacts are served on the next port up, so a
 page an agent wrote runs as its own site and cannot reach the one around it.
 
-A task its agent marked with `yan uat ready` is listed under 待验收, above
-the ones in progress, and its overview says so with a 验收失败 button: one
-click puts it back in progress, committed and pushed, and nothing is logged,
-so the agent is not told. Accepting it is `yan done`, as for any task.
+A task its agent marked with `yan uat ready` is listed under 验收中, above
+the ones in progress, and its overview's tag says so. It stays there while
+changes are made on your feedback; nothing turns it back to in progress,
+and accepting it is `yan done`, as for any task.
 
 A task's overview is where its problem and deliverables are put right while
 they are still being defined. 编辑 opens problem.md whole, as Markdown, and
@@ -139,8 +139,8 @@ what `yan uat` recorded, has a Report beside its overview. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, give it
 up with a reason or edit the reason it was given up for, and task.json
 changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report is committed and pushed as
-`yan vault push` would; those and 验收失败 are the only writes `yan serve`
-makes, and only from its own page.
+`yan vault push` would; those are the only writes `yan serve` makes, and
+only from its own page.
 A picture clicked opens large in a modal over the page, ← and → going
 through the others; recordings play in place, full screen from their own controls, with
 their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state

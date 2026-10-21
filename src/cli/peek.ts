@@ -52,7 +52,7 @@ function headLines(task: Task, data: TaskData): string[] {
   const created = `created ${day(data.createdAt)}`;
   const notes = `notes in ${tildePath(task.dir)}`;
   const state = data.state === 'open' || data.state === 'uat'
-    ? `${green(data.state === 'uat' ? '待验收' : 'open')}${dim(` · ${created} · ${notes}`)}`
+    ? `${green(data.state === 'uat' ? '验收中' : 'open')}${dim(` · ${created} · ${notes}`)}`
     : dim([`${data.state} ${day(data.closedAt)}`, created, ...(data.reason === undefined ? [] : [data.reason]), notes].join(' · '));
   return [`${gray(START)}  ${bold(`${task.id}  ${data.title}`)}`, `${gray(BAR)}  ${state}`];
 }

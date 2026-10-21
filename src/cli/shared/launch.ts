@@ -98,7 +98,7 @@ function taskDirLine(dir: string): string {
       'What the user is to check the result by goes in artifacts/uat/, deliverable by deliverable rather than as a sweep of the product: ' +
       'for each one, a screenshot or recording that shows it, named for it (d3-before.png, d3-after.png, d3.webm) and recorded with `yan uat add` as soon as it is made, ' +
       'or, where nothing on screen can show it, `yan uat note` saying how it was checked. A change to what the user sees is shot before it is made. ' +
-      'Marking the task 待验收 is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
+      'Marking the task 验收中 is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
     'artifacts/ holds the work as it stands: an artifact redone replaces its file rather than sitting beside it.',
   ].join('\n');
 }
