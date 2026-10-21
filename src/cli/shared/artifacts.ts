@@ -82,10 +82,14 @@ export function artifactLines(artifacts: readonly Artifact[], limit = 20): strin
  * set, for a forge yan cannot tell from its URL. Otherwise github.com is
  * `/blob/`, and a host with gitlab in its name, which is how most
  * self-hosted ones are called, `/-/blob/`. `undefined` for any other.
+ *
+ * A template that is not an http(s) address is passed over: config.json
+ * travels with the vault, and a link a report or a page opens must not be
+ * able to run anything, as a `javascript:` one would.
  */
 function linkTemplate(vault: string): string | undefined {
   const configured = asString(readVaultConfig()?.artifactLinks).trim();
-  if (configured !== '') return configured;
+  if (/^https?:\/\//i.test(configured)) return configured;
   const url = remoteUrl(vault);
   if (url === undefined) return undefined;
   const key = repoKey(url);

@@ -64,5 +64,7 @@ describe('artifactLinker', () => {
     expect(artifactLinker(task.dir)).toBeUndefined();
     writeFileSync(join(vault, 'config.json'), JSON.stringify({ artifactLinks: 'https://git.corp.example/team/vault/src/{branch}/{path}' }));
     expect(artifactLinker(task.dir)?.('uat/d1.webm')).toBe('https://git.corp.example/team/vault/src/main/tasks/t001/artifacts/uat/d1.webm');
+    writeFileSync(join(vault, 'config.json'), JSON.stringify({ artifactLinks: 'javascript:alert(1)//{path}' }));
+    expect(artifactLinker(task.dir), 'only a web address is a link').toBeUndefined();
   });
 });

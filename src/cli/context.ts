@@ -109,7 +109,9 @@ with the deliverables it shows, and the notes on how the others were
 checked. An artifact's url is where it opens in the vault's repository
 once the vault is pushed: /blob/ on github.com, /-/blob/ on a host with
 gitlab in its name. For any other forge, set "artifactLinks" in the vault's
-config.json, as "https://git.example.com/me/vault/-/blob/{branch}/{path}".`,
+config.json, an http(s) address such as
+"https://git.example.com/me/vault/-/blob/{branch}/{path}"; any other is
+passed over.`,
   )
   .action(
     action('yan context', (options: { task?: string; json?: boolean }) => {

@@ -170,7 +170,7 @@ what it was written from), its bar says legacy and what changed.
 ```
 <vault>/                       a git repository, one per context (personal, work)
   vault.json                   { version: 2, name, created }
-  config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts; artifactLinks: how a vault file opens on a forge yan cannot tell
+  config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts; artifactLinks: how a vault file opens on a forge yan cannot tell, an http(s) address
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
