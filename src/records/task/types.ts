@@ -28,6 +28,14 @@ export function isClosed(state: TaskState): boolean {
 export const RESOURCE_KINDS = ['spec', 'mr', 'preview', 'run', 'general'] as const;
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];
 
+/**
+ * What a task says of one of its branches: open while the work goes on on
+ * it, abandoned once the agent gives it up for another. Merged is not among
+ * them: git says that, from origin's default branch, and it outranks both.
+ */
+export const BRANCH_MARKS = ['open', 'abandoned'] as const;
+export type BranchMark = (typeof BRANCH_MARKS)[number];
+
 export interface TaskData {
   readonly version: 2;
   readonly id: string;
@@ -73,17 +81,35 @@ export interface TaskRepo {
   /** The packages the task is about, as paths in it. Absent for all of it. */
   readonly scope?: readonly string[];
   /**
-   * The branch the work is on, as origin names it, kept by `yan branch`
-   * once the agent has cut it. Absent until then. Every machine means the
-   * same branch by it, so a tree opened anywhere later is put on it.
+   * The branch the worktree was last on, as origin names it, kept by `yan
+   * branch` once the agent has cut it. Absent until then. Every machine
+   * means the same branch by it, so a tree opened anywhere later is put on
+   * it.
    */
   readonly branch?: string;
   /**
-   * The branches the work was on before `branch`, oldest first: what
-   * `yan branch` replaced, so a task that moved branches still shows every
-   * change it made. Absent until the first is replaced.
+   * Every other branch the task worked on in it, oldest first, whatever
+   * became of each: a task in a monorepo has a branch per app it changes,
+   * one worktree moving between them. The name is from when a task kept one
+   * branch and this held the ones it replaced. Absent until there is one.
    */
   readonly earlierBranches?: readonly string[];
+  /**
+   * What the task says of each of its branches here. A branch with no mark
+   * was kept by a yan from before marks (`branchMark`). Absent until one is
+   * marked.
+   */
+  readonly branchMarks?: Readonly<Record<string, BranchMark>>;
+}
+
+/**
+ * What the task says of `name`, one of `repo`'s branches: its mark, or for
+ * one kept before marks, open for the branch the worktree was last on and
+ * abandoned for an earlier one, since then a branch became earlier only by
+ * being replaced.
+ */
+export function branchMark(repo: Pick<TaskRepo, 'branch' | 'branchMarks'>, name: string): BranchMark {
+  return repo.branchMarks?.[name] ?? (name === repo.branch ? 'open' : 'abandoned');
 }
 
 /**

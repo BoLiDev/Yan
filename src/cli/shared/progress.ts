@@ -1,3 +1,4 @@
+import { branchStates, type BranchState } from './branches.js';
 import { repoName } from './repo-name.js';
 import { tildePath } from './style.js';
 import { leasesHeldBy, treeState } from '../../externals/worktree/index.js';
@@ -9,7 +10,8 @@ import { repoKey } from '../../util/repo-key.js';
 /**
  * Where a task's work stands in each repository it works in, for `yan
  * context`: the branch, how far it is ahead of the default branch, what is
- * not pushed and what is not committed. The tree on this machine is read as
+ * not pushed and what is not committed, and every branch the task kept
+ * there with where it stands. The tree on this machine is read as
  * it is; a repository with no tree here is read from the clone as it was
  * last fetched, since context never waits on the network.
  */
@@ -21,7 +23,10 @@ export interface RepoProgress {
   readonly branch: string | null;
   /** The commit a tree on a detached HEAD is at. */
   readonly detachedAt: string | null;
+  /** Every branch the task kept but the last its tree was on, oldest first, whatever became of each. */
   readonly earlierBranches: readonly string[];
+  /** Every branch the task kept, the last its tree was on first, then newest first. */
+  readonly branches: readonly { readonly name: string; readonly state: BranchState }[];
   /** This machine's tree of it. */
   readonly tree: string | null;
   /** The default branch it is compared with. */
@@ -48,7 +53,8 @@ export function taskProgress(task: Task): RepoProgress[] {
   const trees = leasesHeldBy(task.id).map((l) => ({ path: l.path, url: remoteUrl(l.path) }));
   return repos.map((r) => {
     const tree = trees.find((t) => t.url !== undefined && repoKey(t.url) === repoKey(r.url))?.path;
-    const common = { repo: repoName(r.url), url: r.url, earlierBranches: r.earlierBranches ?? [] };
+    const clone = cloneFor(r.url);
+    const common = { repo: repoName(r.url), url: r.url, earlierBranches: r.earlierBranches ?? [], branches: branchStates(r, tree ?? clone) };
     if (tree !== undefined) {
       const base = defaultBranch(tree) ?? null;
       const branch = branchOf(tree) ?? null;
@@ -64,7 +70,6 @@ export function taskProgress(task: Task): RepoProgress[] {
         uncommitted: dirty.length,
       };
     }
-    const clone = cloneFor(r.url);
     const base = clone === undefined ? null : defaultBranch(clone) ?? null;
     const ahead = clone === undefined || base === null || r.branch === undefined
       ? null
@@ -73,19 +78,26 @@ export function taskProgress(task: Task): RepoProgress[] {
   });
 }
 
+/** How `yan context` says each state. */
+const SAID: Record<BranchState, string> = { open: 'in progress', merged: 'merged', abandoned: 'abandoned' };
+
 /**
  * Two lines per repository: the branch and where it stands, then the tree it
- * is in, or that there is none here.
+ * is in, or that there is none here; then a line for each state the task's
+ * other branches there are in.
  *
  *   yan  yan/t138-yan-r1  5 ahead of main · all pushed · 2 uncommitted
  *        ~/.yan/trees/Yan-553a9b26/1/Yan
- *        earlier: feat/old
+ *        in progress: yan/t138-web
+ *        merged: feat/old
  */
 export function progressLines(progress: readonly RepoProgress[]): string[] {
   const width = Math.max(0, ...progress.map((p) => p.repo.length));
   return progress.flatMap((p) => {
     const where = p.branch ?? (p.detachedAt === null ? 'no branch yet' : `detached HEAD at ${p.detachedAt}`);
     const facts: string[] = [];
+    const own = p.branches.find((b) => b.name === p.branch)?.state;
+    if (own !== undefined && own !== 'open') facts.push(SAID[own]);
     if (p.ahead !== null && p.base !== null && p.branch !== null) facts.push(`${p.ahead} ahead of ${p.base}${p.tree === null ? ' on origin, as last fetched' : ''}`);
     if (p.unpushed !== null) facts.push(p.unpushed === 0 ? 'all pushed' : `${p.unpushed} not pushed`);
     if (p.uncommitted !== null) facts.push(p.uncommitted === 0 ? 'nothing uncommitted' : `${p.uncommitted} uncommitted`);
@@ -93,7 +105,10 @@ export function progressLines(progress: readonly RepoProgress[]): string[] {
     return [
       `  ${p.repo.padEnd(width)}  ${[where, facts.join(' · ')].filter((s) => s !== '').join('  ')}`,
       `${pad}${p.tree === null ? 'no worktree on this machine' : tildePath(p.tree)}`,
-      ...(p.earlierBranches.length === 0 ? [] : [`${pad}earlier: ${p.earlierBranches.join(', ')}`]),
+      ...(['open', 'merged', 'abandoned'] as const).flatMap((state) => {
+        const names = p.branches.filter((b) => b.state === state && b.name !== p.branch).map((b) => b.name);
+        return names.length === 0 ? [] : [`${pad}${SAID[state]}: ${names.join(', ')}`];
+      }),
     ];
   });
 }

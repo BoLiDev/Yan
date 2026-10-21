@@ -1,6 +1,7 @@
 import { asRecord, asString, recordOrNone } from '../../util/narrow.js';
 import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
+import { BRANCH_MARKS, branchMark, type BranchMark } from '../../records/task/index.js';
 import { BlobReader, gitAsync } from './blobs.js';
 
 /**
@@ -54,7 +55,7 @@ export interface TaskSummary {
   readonly state: string;
   readonly createdAt: string | null;
   readonly closedAt: string | null;
-  readonly repos: readonly { readonly name: string; readonly branch: string | null; readonly earlier: readonly string[] }[];
+  readonly repos: readonly { readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
   readonly deliverables: { readonly done: number; readonly todo: number; readonly abandoned: number };
   readonly artifacts: number;
   /** When each shown artifact was added, newest first: the page counts what is new against its own last visit. */
@@ -92,7 +93,7 @@ export interface TaskDetail {
   readonly createdAt: string | null;
   readonly closedAt: string | null;
   readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[] }[];
+  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
@@ -177,9 +178,22 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
-/** `earlierBranches`, oldest first, as names. */
+/** `earlierBranches`, oldest first, as names: every branch the task kept but the last its tree was on. */
 function branchList(value: unknown): string[] {
   return Array.isArray(value) ? [...new Set(value.filter((b): b is string => typeof b === 'string' && b.trim() !== '').map((b) => b.trim()))] : [];
+}
+
+/**
+ * Which of a repository's branches the task marks given up, by the rule
+ * task.json is read by (`branchMark`); merged is told from git, by the branch's view.
+ */
+function abandonedOf(branch: string | null, earlier: readonly string[], raw: unknown): string[] {
+  const branchMarks: Record<string, BranchMark> = {};
+  for (const [name, mark] of Object.entries(recordOrNone(raw) ?? {})) {
+    if ((BRANCH_MARKS as readonly unknown[]).includes(mark)) branchMarks[name.trim()] = mark as BranchMark;
+  }
+  const repo = { ...(branch === null ? {} : { branch }), branchMarks };
+  return [...(branch === null ? [] : [branch]), ...earlier].filter((name) => branchMark(repo, name) === 'abandoned');
 }
 
 function repoName(url: string): string {
@@ -192,7 +206,7 @@ interface TaskJson {
   readonly createdAt: string | null;
   readonly closedAt: string | null;
   readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[] }[];
+  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
 }
@@ -210,7 +224,11 @@ export function readTaskJson(raw: unknown): TaskJson {
     createdAt: text(r.createdAt),
     closedAt: text(r.closedAt),
     reason: text(r.reason),
-    repos: repos.map((x) => ({ url: x!.url as string, name: repoName(x!.url as string), branch: text(x!.branch), earlier: branchList(x!.earlierBranches) })),
+    repos: repos.map((x) => {
+      const branch = text(x!.branch);
+      const earlier = branchList(x!.earlierBranches).filter((b) => b !== branch);
+      return { url: x!.url as string, name: repoName(x!.url as string), branch, earlier, abandoned: abandonedOf(branch, earlier, x!.branchMarks) };
+    }),
     deliverables: deliverables.map((d) => ({
       id: asString(d.id),
       text: asString(d.text),
@@ -319,7 +337,7 @@ export class VaultView {
         state: json.state,
         createdAt: json.createdAt,
         closedAt: json.closedAt,
-        repos: json.repos.map((r) => ({ name: r.name, branch: r.branch, earlier: r.earlier })),
+        repos: json.repos.map((r) => ({ name: r.name, branch: r.branch, earlier: r.earlier, abandoned: r.abandoned })),
         deliverables: { done: count('done'), todo: count('todo'), abandoned: count('abandoned') },
         artifacts: shown.length,
         added: shown.map((e) => this.times.get(e.path)?.added ?? 0).sort((a, b) => b - a),

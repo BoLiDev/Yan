@@ -41,11 +41,19 @@ describe('task.json', () => {
       createdAt: null,
       closedAt: null,
       reason: null,
-      repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1-c', earlier: ['yan/t1-a', 'yan/t1-b'] }],
+      repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1-c', earlier: ['yan/t1-a', 'yan/t1-b'], abandoned: ['yan/t1-a', 'yan/t1-b'] }],
       deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15', reason: null }],
       resources: [['a', 'b'], ['n', '3']],
     });
     expect(readTaskJson('not an object').title).toBe('');
+  });
+
+  it('names the branches the task marks given up, and reads the earlier ones of a yan from before marks as given up', () => {
+    const repos = readTaskJson({ repos: [
+      { url: 'git@github.com:o/web.git', branch: 'c', earlierBranches: ['a', 'b'], branchMarks: { a: 'open', b: 'abandoned', c: 'open' } },
+      { url: 'git@github.com:o/api.git', branch: 'y', earlierBranches: ['x'] },
+    ] }).repos;
+    expect(repos.map((r) => r.abandoned)).toEqual([['b'], ['x']]);
   });
 });
 

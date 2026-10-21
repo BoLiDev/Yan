@@ -126,6 +126,19 @@ describe('a branch', () => {
     }
   });
 
+  it('is not merged when it is only a commit main already had, just cut with nothing of its own', async () => {
+    await fxGit(['push', '-q', 'origin', `${forkPoint}:refs/heads/feat/fresh`], work);
+    const branches = new Branches(0);
+    try {
+      const b = await branches.view(bare, 'feat/fresh', mine, true);
+      expect(b.missing).toBeNull();
+      expect(b.merged).toBeNull();
+      expect([b.ahead, b.files.length]).toEqual([0, 0]);
+    } finally {
+      await branches.close();
+    }
+  });
+
   it('says why when there is nothing to show', async () => {
     const branches = new Branches(0);
     try {

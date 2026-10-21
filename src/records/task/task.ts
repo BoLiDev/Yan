@@ -8,7 +8,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
-import { RESOURCE_KINDS, TASK_STATES, isClosed, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
+import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /**
  * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
@@ -143,41 +143,80 @@ export class Task {
   }
 
   /**
-   * Keep `branch` as the one the work is on in the repository `url` names,
-   * replacing what was kept; returns what was. What it replaces goes to the
-   * end of `earlierBranches`, and a branch the work moves back to leaves it.
-   * The entry is changed where it stands in the file, so a field a later
-   * yan added to it survives.
+   * Keep `branch` as the one the worktree is on in the repository `url`
+   * names, open; returns the one kept before. That one moves to the end of
+   * `earlierBranches` and stays open, since the worktree moving off a branch
+   * says nothing of whether its work is over, and a branch the work moves
+   * back to leaves it, open again even if it was abandoned.
    *
    * @throws YanError `branch_usage` for a name that is not one word, or a
    *   repository this task does not work in.
    */
   public keepBranch(url: string, branch: string): string | undefined {
-    const name = oneLine('keep', branch, 'branch_usage', 'a branch');
-    if (/\s/.test(name)) throw YanError.usage('branch_usage', `'${name}' is not a branch name - it has a space in it`);
-    const key = repoKey(url);
+    const name = branchName('keep', branch);
     let before: string | undefined;
+    this.editRepo(url, (entry, had) => {
+      before = had.branch;
+      const earlier = [...(had.earlierBranches ?? []), ...(before === undefined || before === name ? [] : [before])];
+      const kept = [...new Set(earlier)].filter((b) => b !== name);
+      // The one left is marked for what it was, open as a rule: unmarked, it would read as given up once earlier.
+      const marks = Object.fromEntries([...kept, name].flatMap((b) => {
+        const mark = b === name ? 'open' : had.branchMarks?.[b] ?? (b === before ? branchMark(had, b) : undefined);
+        return mark === undefined ? [] : [[b, mark]];
+      }));
+      const { earlierBranches: _, branchMarks: __, ...rest } = entry;
+      return { ...rest, branch: name, ...(kept.length === 0 ? {} : { earlierBranches: kept }), branchMarks: marks };
+    });
+    return before;
+  }
+
+  /**
+   * Mark `branch`, one this task kept in the repository `url` names, as
+   * given up: its work goes on, if at all, on another. It stays where it is
+   * in the list, and the worktree moving back onto it opens it again.
+   * Returns false when it was given up already.
+   *
+   * @throws YanError `branch_usage` for a branch the task has not kept
+   *   there, or a repository it does not work in.
+   */
+  public abandonBranch(url: string, branch: string): boolean {
+    const name = branchName('abandon', branch);
+    let changed = false;
+    this.editRepo(url, (entry, had) => {
+      const names = [...(had.branch === undefined ? [] : [had.branch]), ...(had.earlierBranches ?? [])];
+      if (!names.includes(name)) {
+        throw YanError.usage('branch_usage', `${name} is not a branch of this task in ${had.url} - ${names.length === 0 ? 'it has kept none there' : `it has kept ${names.join(', ')}`}`);
+      }
+      changed = branchMark(had, name) !== 'abandoned';
+      return { ...entry, branchMarks: { ...had.branchMarks, [name]: 'abandoned' } };
+    });
+    return changed;
+  }
+
+  /**
+   * Rewrite the entry for the repository `url` names, given it as it stands
+   * in the file, so a field a later yan added to it survives, and as read.
+   *
+   * @throws YanError `branch_usage` for a repository this task does not work in.
+   */
+  private editRepo(url: string, change: (entry: Record<string, unknown>, had: TaskRepo) => Record<string, unknown>): void {
+    const key = repoKey(url);
     this.edit((doc, data) => {
       const entries: unknown[] = Array.isArray(doc.repos) ? [...doc.repos] : data.repos.map(taskRepo);
       const at = entries.findIndex((e) => {
         const u = recordOrNone(e)?.url;
         return typeof u === 'string' && repoKey(u) === key;
       });
-      if (at < 0) {
+      const had = data.repos.find((r) => repoKey(r.url) === key);
+      if (at < 0 || had === undefined) {
         const urls = data.repos.map((r) => r.url);
         throw YanError.usage('branch_usage',
           `${url} is not a repository of this task - ${urls.length === 0 ? 'it has none' : `it works in ${urls.join(', ')}`}`,
         );
       }
-      const had = data.repos.find((r) => repoKey(r.url) === key);
-      before = had?.branch;
-      const earlier = [...(had?.earlierBranches ?? []), ...(before === undefined || before === name ? [] : [before])];
-      const kept = [...new Set(earlier)].filter((b) => b !== name);
-      const { earlierBranches: _, ...entry } = recordOrNone(entries[at]) ?? {};
-      entries[at] = { ...entry, branch: name, ...(kept.length === 0 ? {} : { earlierBranches: kept }) };
+      entries[at] = change(recordOrNone(entries[at]) ?? {}, had);
       doc.repos = entries;
     });
-    return before;
   }
 
   /** Forget the resource kept under `name`. */
@@ -301,6 +340,17 @@ function oneLine(what: string, text: string, code = 'deliverable_usage', noun = 
 }
 
 /**
+ * A branch name, one word.
+ *
+ * @throws YanError `branch_usage` for a blank one or one with a space.
+ */
+function branchName(what: string, text: string): string {
+  const name = oneLine(what, text, 'branch_usage', 'a branch');
+  if (/\s/.test(name)) throw YanError.usage('branch_usage', `'${name}' is not a branch name - it has a space in it`);
+  return name;
+}
+
+/**
  * The parsed document, or a refusal naming the file and the first thing wrong
  * with it.
  *
@@ -357,7 +407,17 @@ function taskRepo(repo: TaskRepo): TaskRepo {
     ...(repo.scope === undefined || repo.scope.length === 0 ? {} : { scope: [...repo.scope] }),
     ...(repo.branch === undefined ? {} : { branch: repo.branch }),
     ...(repo.earlierBranches === undefined || repo.earlierBranches.length === 0 ? {} : { earlierBranches: [...repo.earlierBranches] }),
+    ...(repo.branchMarks === undefined || Object.keys(repo.branchMarks).length === 0 ? {} : { branchMarks: { ...repo.branchMarks } }),
   };
+}
+
+/** The marks of the branches named, leaving out a mark edited into something else. */
+function branchMarks(raw: unknown, names: readonly string[]): Record<string, BranchMark> {
+  const marks: Record<string, BranchMark> = {};
+  for (const [name, mark] of Object.entries(recordOrNone(raw) ?? {})) {
+    if (names.includes(name.trim()) && (BRANCH_MARKS as readonly unknown[]).includes(mark)) marks[name.trim()] = mark as BranchMark;
+  }
+  return marks;
 }
 
 /** Branch names as a list, each once, leaving out what is not one word. */
@@ -379,8 +439,9 @@ function readRepos(raw: readonly unknown[]): TaskRepo[] {
     if (url === '') continue;
     const scope = Array.isArray(r?.scope) ? r.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
     const branch = typeof r?.branch === 'string' && r.branch.trim() !== '' ? r.branch.trim() : undefined;
-    const earlierBranches = branchNames(r?.earlierBranches);
-    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }), earlierBranches }));
+    const earlierBranches = branchNames(r?.earlierBranches).filter((b) => b !== branch);
+    const marks = branchMarks(r?.branchMarks, [...(branch === undefined ? [] : [branch]), ...earlierBranches]);
+    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }), earlierBranches, branchMarks: marks }));
   }
   return repos;
 }

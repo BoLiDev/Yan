@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
+import { asOriginNames, branchStates } from './branches.js';
 import { workspacePackages } from './packages.js';
 import { repoName } from './repo-name.js';
 import { openTasks } from './task-id.js';
@@ -58,6 +59,8 @@ export interface Tree {
   readonly scope: readonly string[];
   /** The branch it is on as the agent starts, absent on a detached HEAD. */
   readonly branch?: string;
+  /** The task's other branches of the repository still in progress, newest first. */
+  readonly open?: readonly string[];
 }
 
 const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``).join(', ');
@@ -65,15 +68,17 @@ const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``
 /**
  * Said whenever the task has a tree. yan names no branch, since each machine
  * names its branches its own way, so the agent has to know to cut one. It
- * need not keep it: every vault push reads the branch off the tree, and
- * keeps the one it replaces among the task's earlier branches, so the next
- * start, on any machine, puts the tree back on it and every branch the work
- * was on can be found.
+ * need not keep it: every vault push reads the branch off the tree, so the
+ * next start, on any machine, puts the tree back on it. A branch the tree
+ * moves off stays in progress, since in a monorepo a task has a branch per
+ * app it changes; git tells when one is merged, but only the agent knows
+ * when the work has left one for good, so marking it is the agent's.
  */
 const NO_BRANCH = 'yan never makes a branch: a worktree on a detached HEAD has to be put on a branch, ' +
   'named the way this repository and this machine expect, before committing in it. ' +
-  'yan keeps the branch it is on for the task, and each one it moves to, so later sessions start the worktree on it ' +
-  'and every branch the task used can be found.';
+  'yan keeps every branch the worktree is on for the task, so later sessions start the worktree on the last one; ' +
+  'a task may have several in progress in one repository, the worktree switching between them. ' +
+  'Each stays in progress until it is merged: when the work leaves one for good, for another branch, mark it with `yan branch abandon <name>`.';
 
 /**
  * Where this task's own files are, absolute, since the agent starts in a
@@ -113,11 +118,12 @@ export function openingPrompt(taskDir: string, trees: readonly Tree[] = []): str
   const head = [OPENING_PROMPT, taskDirLine(taskDir)];
   if (trees.length === 0) return head.join('\n');
   if (trees.length > 1) {
-    const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.branch === undefined ? '' : `, on \`${t.branch}\``}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
+    const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.branch === undefined ? '' : `, on \`${t.branch}\``}${(t.open ?? []).length === 0 ? '' : `, also in progress ${quoted(t.open ?? [])}`}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);
     return [...head, `This task works in ${trees.length} repositories, one worktree each:`, ...lines, NO_BRANCH].join('\n');
   }
-  const { scope = [], branch } = trees[0] ?? {};
+  const { scope = [], branch, open = [] } = trees[0] ?? {};
   const on = branch === undefined ? [] : [`The worktree is on the branch \`${branch}\`.`];
+  if (open.length > 0) on.push(`The task's other branches in progress here: ${quoted(open)}.`);
   const about = scope.length === 0 ? [] : [`This task is about these parts of the repository: ${quoted(scope)}.`];
   return [...head, ...on, ...about, NO_BRANCH].join('\n');
 }
@@ -394,11 +400,19 @@ function withUnlisted(trees: Tree[], held: ReadonlyArray<{ path: string; key: st
   return trees;
 }
 
-/** The trees as the agent is told of them: each with the branch it is on as it starts. */
-function told(trees: readonly Tree[]): Tree[] {
+/**
+ * The trees as the agent is told of them: each with the branch it is on as
+ * it starts, and the task's other branches of its repository in progress.
+ */
+function told(task: Task, trees: readonly Tree[]): Tree[] {
+  const { repos } = task.read();
   return trees.map((t) => {
     const branch = branchHere(t.path);
-    return branch === undefined ? t : { ...t, branch };
+    const url = remoteUrl(t.path);
+    const repo = url === undefined ? undefined : repos.find((r) => repoKey(r.url) === repoKey(url));
+    const here = branch === undefined ? undefined : asOriginNames(t.path, branch);
+    const open = repo === undefined ? [] : branchStates(repo, t.path).filter((b) => b.state === 'open' && b.name !== here).map((b) => b.name);
+    return { ...t, ...(branch === undefined ? {} : { branch }), ...(open.length === 0 ? {} : { open }) };
   });
 }
 
@@ -414,7 +428,7 @@ export function openingPromptNow(task: Task): string {
     const tree = held.find((h) => h.key === repoKey(repo.url));
     return tree === undefined ? [] : [{ name: repoName(repo.url), path: tree.path, scope: repo.scope ?? [] }];
   });
-  return openingPrompt(task.dir, told(withUnlisted(trees, held)));
+  return openingPrompt(task.dir, told(task, withUnlisted(trees, held)));
 }
 
 /**
@@ -453,7 +467,7 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
 
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, told(trees)), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, told(task, trees)), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

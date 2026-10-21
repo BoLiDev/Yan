@@ -31,11 +31,12 @@ describe('keepTreeBranches', () => {
     await fxGit(['checkout', '-b', 'local-name'], tree);
     await fxGit(['push', '-u', 'origin', 'local-name:feat/remote-name'], tree);
     expect(keepTreeBranches()).toEqual([`kept branch feat/remote-name for ${repoName(bare)} → t001`]);
-    expect(new Task('t001').read().repos).toEqual([{ url: bare, branch: 'feat/remote-name' }]);
+    expect(new Task('t001').read().repos).toEqual([{ url: bare, branch: 'feat/remote-name', branchMarks: { 'feat/remote-name': 'open' } }]);
     expect(keepTreeBranches(), 'nothing changed since').toEqual([]);
 
     await fxGit(['checkout', '-b', 'feat/next'], tree);
     expect(keepTreeBranches()).toEqual([`kept branch feat/next for ${repoName(bare)} → t001`]);
+    expect(new Task('t001').read().repos[0]?.branchMarks, 'the one the tree left stays in progress').toEqual({ 'feat/remote-name': 'open', 'feat/next': 'open' });
   });
 
   it('keeps nothing for a closed task, or for a tree of a repository the task does not list', async () => {

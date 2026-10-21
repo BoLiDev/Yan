@@ -36,11 +36,16 @@ on a detached HEAD at origin's default branch; in a monorepo it also asks
 which packages the task is about, once. yan never makes a branch, since each
 machine names its branches its own way: the agent is told to cut one before
 it commits, and every `yan vault push` keeps the branch each open task's
-tree is on, as origin names it, and the one it replaces among the task's
-earlier branches. A tree opened
-later for the task, on any machine, is put on the branch it keeps: the
-clone's own, brought up to origin's when it is only behind it, or a new one
-tracking origin's; one yan cannot put there starts detached, and says why.
+tree is on, as origin names it. A task may have several branches in one
+repository, in a monorepo one for each app it changes, the one tree
+switching between them, so a branch the tree moves off stays in progress:
+until a merge commit takes it into origin's default branch, which yan reads
+from git, or until the agent marks it given up with `yan branch abandon`,
+which the agent is told to do once the work has left it for another. A tree
+opened later for the task, on any machine, is put on the branch it was last
+on: the clone's own, brought up to origin's when it is only behind it, or a
+new one tracking origin's; one yan cannot put there starts detached, and
+says why; the agent is told the task's other branches still in progress.
 Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
 added beside it, and every start tells it which is which, and where the
@@ -78,13 +83,14 @@ For you:
 
 For the agent:
 
-- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
+- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, and every branch the task kept, in progress, merged or abandoned); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
 - `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as 验收中, and stays so through the changes your feedback asks for until `yan done`
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
-- `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and the ones it replaces stay as the task's earlier branches
+- `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and each stays in progress until it is merged or marked given up
+- `yan branch abandon <name>` — mark a branch given up, once the work has left it for another; nothing is deleted, and the tree moving back onto it opens it again
 - `yan learn add|ls` — a learning, written only when you ask for one
 
 `yan <command> --help` says the rest. Every command that takes a task reads
@@ -160,7 +166,7 @@ what it was written from), its bar says legacy and what changed.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, branch and earlier branches each), deliverables, resources and their kinds
+    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, the branch the tree was last on, the task's other branches, and each one marked open or abandoned), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

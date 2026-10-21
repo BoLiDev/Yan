@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
-import { Task } from './index.js';
+import { Task, branchMark, type TaskRepo } from './index.js';
 
 beforeEach(() => {
   mkYanHome(mkTempDir());
@@ -155,13 +155,13 @@ describe('resources', () => {
 });
 
 describe('branches', () => {
-  it('keeps one per repository, matching its URL however it is spelled, and says what it replaced', () => {
+  it('keeps them per repository, matching its URL however it is spelled, and says which the worktree was on before', () => {
     const task = Task.create('x', [{ url: 'git@github.com:me/web.git', scope: ['apps/site'] }, { url: 'git@github.com:me/api.git' }]);
     expect(task.keepBranch('https://github.com/me/api', 'feat/retry')).toBeUndefined();
     expect(task.keepBranch('git@github.com:me/api.git', 'feat/retry-2')).toBe('feat/retry');
     expect(task.read().repos).toEqual([
       { url: 'git@github.com:me/web.git', scope: ['apps/site'] },
-      { url: 'git@github.com:me/api.git', branch: 'feat/retry-2', earlierBranches: ['feat/retry'] },
+      { url: 'git@github.com:me/api.git', branch: 'feat/retry-2', earlierBranches: ['feat/retry'], branchMarks: { 'feat/retry': 'open', 'feat/retry-2': 'open' } },
     ]);
   });
 
@@ -169,22 +169,62 @@ describe('branches', () => {
     const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
     writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ url: '' }, { url: 'git@github.com:me/web.git', later: true }] }));
     task.keepBranch('git@github.com:me/web.git', 'feat/a');
-    expect(raw(task).repos).toEqual([{ url: '' }, { url: 'git@github.com:me/web.git', later: true, branch: 'feat/a' }]);
+    expect(raw(task).repos).toEqual([{ url: '' }, { url: 'git@github.com:me/web.git', later: true, branch: 'feat/a', branchMarks: { 'feat/a': 'open' } }]);
 
     expect(() => task.keepBranch('git@github.com:me/api.git', 'feat/a')).toThrow(/not a repository of this task - it works in git@github.com:me\/web.git/);
     expect(() => task.keepBranch('git@github.com:me/web.git', 'two words')).toThrow(/has a space in it/);
   });
 
-  it('keeps what it replaced as an earlier branch, oldest first, and lets the work move back to one', () => {
+  it('keeps every branch the work was on, oldest first, each in progress, and lets the work move back to one', () => {
     const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
     task.keepBranch('git@github.com:me/web.git', 'feat/a');
     task.keepBranch('git@github.com:me/web.git', 'feat/a');
-    expect(task.read().repos[0]).toEqual({ url: 'git@github.com:me/web.git', branch: 'feat/a' });
+    expect(task.read().repos[0]).toEqual({ url: 'git@github.com:me/web.git', branch: 'feat/a', branchMarks: { 'feat/a': 'open' } });
     task.keepBranch('git@github.com:me/web.git', 'feat/b');
     task.keepBranch('git@github.com:me/web.git', 'feat/c');
-    expect(task.read().repos[0]).toEqual({ url: 'git@github.com:me/web.git', branch: 'feat/c', earlierBranches: ['feat/a', 'feat/b'] });
+    const repo = task.read().repos[0] as TaskRepo;
+    expect(repo).toMatchObject({ branch: 'feat/c', earlierBranches: ['feat/a', 'feat/b'] });
+    expect(['feat/a', 'feat/b', 'feat/c'].map((b) => branchMark(repo, b))).toEqual(['open', 'open', 'open']);
     expect(task.keepBranch('git@github.com:me/web.git', 'feat/a')).toBe('feat/c');
-    expect(raw(task).repos).toEqual([{ url: 'git@github.com:me/web.git', branch: 'feat/a', earlierBranches: ['feat/b', 'feat/c'] }]);
+    expect(raw(task).repos).toEqual([{
+      url: 'git@github.com:me/web.git', branch: 'feat/a', earlierBranches: ['feat/b', 'feat/c'],
+      branchMarks: { 'feat/b': 'open', 'feat/c': 'open', 'feat/a': 'open' },
+    }]);
+  });
+
+  it('marks one given up, where it stands, and opens it again when the work moves back to it', () => {
+    const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
+    task.keepBranch('git@github.com:me/web.git', 'feat/a');
+    task.keepBranch('git@github.com:me/web.git', 'feat/b');
+    expect(task.abandonBranch('git@github.com:me/web.git', 'feat/a')).toBe(true);
+    expect(task.abandonBranch('https://github.com/me/web', 'feat/a'), 'given up already').toBe(false);
+    const repo = task.read().repos[0] as TaskRepo;
+    expect(repo).toMatchObject({ branch: 'feat/b', earlierBranches: ['feat/a'] });
+    expect([branchMark(repo, 'feat/a'), branchMark(repo, 'feat/b')]).toEqual(['abandoned', 'open']);
+
+    task.keepBranch('git@github.com:me/web.git', 'feat/a');
+    expect(branchMark(task.read().repos[0] as TaskRepo, 'feat/a')).toBe('open');
+
+    expect(() => task.abandonBranch('git@github.com:me/web.git', 'feat/z')).toThrow(/feat\/z is not a branch of this task in git@github.com:me\/web.git - it has kept feat\/a, feat\/b/);
+    expect(() => task.abandonBranch('git@github.com:me/api.git', 'feat/a')).toThrow(/not a repository of this task/);
+  });
+
+  it('reads a branch a yan from before marks kept: open the last the worktree was on, given up the earlier ones', () => {
+    const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ url: 'git@github.com:me/web.git', branch: 'c', earlierBranches: ['a', 'b'] }] }));
+    const old = task.read().repos[0] as TaskRepo;
+    expect(['a', 'b', 'c'].map((b) => branchMark(old, b))).toEqual(['abandoned', 'abandoned', 'open']);
+
+    task.keepBranch('git@github.com:me/web.git', 'd');
+    const now = task.read().repos[0] as TaskRepo;
+    expect(['a', 'b', 'c', 'd'].map((b) => branchMark(now, b)), 'the one the worktree left stays open').toEqual(['abandoned', 'abandoned', 'open', 'open']);
+    expect((raw(task).repos as Record<string, unknown>[])[0]?.branchMarks).toEqual({ c: 'open', d: 'open' });
+  });
+
+  it('reads only the marks of branches it keeps, and only the marks it knows', () => {
+    const task = Task.create('x');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ url: 'git@github.com:me/web.git', branch: 'b', earlierBranches: ['a', 'b'], branchMarks: { a: 'abandoned', b: 'merged', z: 'open' } }] }));
+    expect(task.read().repos[0]).toEqual({ url: 'git@github.com:me/web.git', branch: 'b', earlierBranches: ['a'], branchMarks: { a: 'abandoned' } });
   });
 
   it('reads the earlier branches as names, once each, whatever was edited in', () => {
@@ -197,7 +237,7 @@ describe('branches', () => {
     const task = Task.create('x');
     writeFileSync(task.file, JSON.stringify({ ...raw(task), repo: 'git@github.com:me/repo.git', scope: ['packages/a'] }));
     task.keepBranch('git@github.com:me/repo.git', 'feat/a');
-    expect(task.read().repos).toEqual([{ url: 'git@github.com:me/repo.git', scope: ['packages/a'], branch: 'feat/a' }]);
+    expect(task.read().repos).toEqual([{ url: 'git@github.com:me/repo.git', scope: ['packages/a'], branch: 'feat/a', branchMarks: { 'feat/a': 'open' } }]);
   });
 });
 

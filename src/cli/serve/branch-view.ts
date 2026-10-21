@@ -2,6 +2,7 @@ import { defaultBranch } from '../../util/git.js';
 import { repoKey } from '../../util/repo-key.js';
 import type { ProcessResult } from '../../util/process.js';
 import { BlobReader, gitAsync } from './blobs.js';
+import { mergeTaking, namedMergeHead, namingArgs, takingArgs } from '../shared/merged.js';
 
 /**
  * A task's branch, as `yan serve` shows it: what it changes against the
@@ -13,7 +14,8 @@ import { BlobReader, gitAsync } from './blobs.js';
  * A branch already merged is compared from where it left the default
  * branch, not from the default branch's head: against that it changes
  * nothing. Where it left is the merge commit's first parent, and GitHub's
- * merge commit names the pull request.
+ * merge commit names the pull request. What counts as merged is the CLI's
+ * rule (`shared/merged.ts`), read through the server's own refs.
  */
 
 /** The server's own copies of origin's branches. */
@@ -86,20 +88,9 @@ async function out(dir: string, args: readonly string[]): Promise<string | undef
   return r.code === 0 ? r.stdout.trim() : undefined;
 }
 
-/**
- * The head `branch` had when a merge on `tip` took it in, found by what the
- * merge says: GitHub's `Merge pull request #N from <owner>/<branch>`, or
- * git's own `Merge branch '<branch>'`. The newest such merge wins.
- */
+/** The head `branch` had when a merge on `tip` that names it took it in. */
 export async function mergedHead(clone: string, tip: string, branch: string): Promise<string | undefined> {
-  const log = await out(clone, ['log', tip, '--merges', '--fixed-strings', `--grep=${branch}`, '-n', '50', '--format=%P%x1f%s']);
-  for (const line of (log ?? '').split(/\r?\n/)) {
-    const [parents = '', subject = ''] = line.split('\x1f');
-    const names = subject.endsWith(`/${branch}`) || subject.endsWith(` ${branch}`) || subject.includes(`'${branch}'`);
-    const second = parents.split(' ')[1];
-    if (names && second !== undefined && second !== '') return second;
-  }
-  return undefined;
+  return namedMergeHead((await out(clone, namingArgs(tip, branch))) ?? '', branch);
 }
 
 async function firstRef(dir: string, refs: readonly string[]): Promise<string | undefined> {
@@ -230,21 +221,14 @@ export class Branches {
     let base: string | undefined;
     let merged: BranchView['merged'] = null;
     const isMerged = (await gitAsync(clone, ['merge-base', '--is-ancestor', head, tip])).code === 0;
-    if (isMerged && head !== tip) {
-      const merges = (await out(clone, ['rev-list', '--ancestry-path', '--merges', '--reverse', '--parents', `${head}..${tip}`])) ?? '';
-      // `<merge> <first parent> <other parents…>`: the merge that took the head in.
-      const line = merges.split(/\r?\n/).find((l) => l.split(' ').slice(2).includes(head));
-      const [sha, firstParent] = line?.split(' ') ?? [];
-      if (sha !== undefined && firstParent !== undefined) {
-        const [at = '0', subject = ''] = ((await out(clone, ['show', '-s', '--format=%ct%x1f%s', sha])) ?? '').split('\x1f');
-        merged = { sha, at: Number(at), pr: prOf(subject) };
-        base = await out(clone, ['merge-base', firstParent, head]);
-      } else {
-        // Fast-forwarded in: where it left the default branch is not recorded anywhere.
-        merged = { sha: head, at: 0, pr: null };
-        base = head;
-      }
+    const taking = isMerged && head !== tip ? mergeTaking((await out(clone, takingArgs(head, tip))) ?? '', head) : undefined;
+    if (taking !== undefined) {
+      const [at = '0', subject = ''] = ((await out(clone, ['show', '-s', '--format=%ct%x1f%s', taking.sha])) ?? '').split('\x1f');
+      merged = { sha: taking.sha, at: Number(at), pr: prOf(subject) };
+      base = await out(clone, ['merge-base', taking.firstParent, head]);
     } else {
+      // A head the default branch has with no merge taking it in, just cut or
+      // fast-forwarded in, is compared like any other: it changes nothing.
       base = await out(clone, ['merge-base', tip, head]);
     }
     if (base === undefined) {

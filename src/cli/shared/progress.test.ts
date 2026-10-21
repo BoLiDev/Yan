@@ -48,10 +48,43 @@ describe('taskProgress', () => {
 
     const progress = taskProgress(new Task('t001'));
     expect(progress).toEqual([{
-      repo: repoName(bare), url: bare, branch: 'feat/x', detachedAt: null, earlierBranches: [],
+      repo: repoName(bare), url: bare, branch: 'feat/x', detachedAt: null, earlierBranches: [], branches: [],
       tree, base: 'main', ahead: 3, unpushed: 1, uncommitted: 1,
     }]);
     expect(progressLines(progress)[0]).toBe(`  ${repoName(bare)}  feat/x  3 ahead of main · 1 not pushed · 1 uncommitted`);
+  });
+
+  it('lists the task\'s other branches by where each stands: merged by a merge commit, given up, or in progress', async () => {
+    const task = new Task('t001');
+    const cut = async (name: string, file?: string): Promise<void> => {
+      await fxGit(['checkout', '-b', name, 'origin/main'], tree);
+      if (file !== undefined) await commit(file);
+      await fxGit(['push', '-u', 'origin', name], tree);
+      task.keepBranch(bare, name);
+    };
+    await cut('feat/merged', 'm.txt');
+    await cut('feat/fresh');
+    await cut('feat/old', 'o.txt');
+    await cut('feat/y', 'y.txt');
+    await cut('feat/x', 'x.txt');
+    task.abandonBranch(bare, 'feat/old');
+    await fxGit(['merge', '--no-ff', '-m', 'Merge pull request #7 from me/feat/merged', 'origin/feat/merged'], clone);
+    await fxGit(['push', 'origin', 'main'], clone);
+
+    const progress = taskProgress(task);
+    expect(progress[0]?.branches).toEqual([
+      { name: 'feat/x', state: 'open' },
+      { name: 'feat/y', state: 'open' },
+      { name: 'feat/old', state: 'abandoned' },
+      { name: 'feat/fresh', state: 'open' },
+      { name: 'feat/merged', state: 'merged' },
+    ]);
+    const pad = ' '.repeat(repoName(bare).length + 4);
+    expect(progressLines(progress).slice(2)).toEqual([
+      `${pad}in progress: feat/y, feat/fresh`,
+      `${pad}merged: feat/merged`,
+      `${pad}abandoned: feat/old`,
+    ]);
   });
 
   it('with no tree here, reads the branch the task keeps from the clone, as last fetched', async () => {

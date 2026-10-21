@@ -281,7 +281,10 @@ describe('an existing task', () => {
     const tree = treeOf();
     await fxGit(['checkout', '-b', 'feat/x'], tree);
     await fxGit(['push', '-u', 'origin', 'feat/x'], tree);
+    new Task('t001').keepBranch(bare, 'feat/old');
+    new Task('t001').keepBranch(bare, 'feat/y');
     new Task('t001').keepBranch(bare, 'feat/x');
+    new Task('t001').abandonBranch(bare, 'feat/old');
     returnTrees('t001');
     await fxGit(['branch', '-D', 'feat/x'], clone);
 
@@ -291,7 +294,9 @@ describe('an existing task', () => {
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], again)).stdout.trim()).toBe('feat/x');
     expect(said).toContain("done demo: worktree on feat/x, the task's branch");
     expect(started[1]?.argv.at(-1)).toContain('The worktree is on the branch `feat/x`.');
-    expect(started[1]?.argv.at(-1)).toContain('yan keeps the branch it is on for the task');
+    expect(started[1]?.argv.at(-1), 'the given up one left out').toContain("The task's other branches in progress here: `feat/y`.");
+    expect(started[1]?.argv.at(-1)).toContain('yan keeps every branch the worktree is on for the task');
+    expect(started[1]?.argv.at(-1)).toContain('mark it with `yan branch abandon <name>`');
   });
 
   it('opens a tree on a detached HEAD when the kept branch is nowhere, and says why', async () => {
