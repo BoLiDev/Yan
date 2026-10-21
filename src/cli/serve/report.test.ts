@@ -81,6 +81,32 @@ describe('handout', () => {
     expect(out).toMatch(/<p>top<\/p>[\s\S]*data-yan-d="d4"[\s\S]*<p>end<\/p>$/);
     expect(handout(GROUPS, ['d1', 'd2', 'd3', 'd4', 'd5'].map((id) => d(id, 'abandoned')))).not.toMatch(/<h2|<ol|data-yan-group/);
   });
+
+  /** A page numbered by place: three blocks, then the ones given up when it was written. */
+  const NUMBERED = `<div data-yan-group="">
+<h2>DELIVERABLES</h2>
+<section data-yan-group=""><div class="head" data-yan-d="d1" data-yan-status="todo"><h3><span data-yan-n="">1. </span>one</h3></div><div class="grid"></div></section>
+<section data-yan-group=""><div class="head" data-yan-d="d2" data-yan-status="todo"><h3><span data-yan-n="">2. </span>two</h3></div><div class="grid"></div></section>
+<section data-yan-group=""><div class="head" data-yan-d="d3" data-yan-status="todo"><h3><span data-yan-n="">3. </span>three</h3></div></section>
+</div>
+<div data-yan-group="">
+<h2>ABANDONED DELIVERABLES</h2>
+<ol>
+<li class="head" data-yan-d="d4" data-yan-status="abandoned"><span class="item"><span data-yan-n="">1. </span>four</span></li>
+<li class="head" data-yan-d="d5" data-yan-status="abandoned"><span class="item"><span data-yan-n="">2. </span>five</span></li>
+</ol>
+</div>`;
+
+  it('numbers what is left from 1 again under each heading', () => {
+    const out = handout(NUMBERED, [d('d1', 'abandoned'), d('d2', 'done'), d('d3', 'todo'), d('d4', 'abandoned'), d('d5', 'abandoned')]);
+    expect(out).toContain('<span data-yan-n="">1. </span>two');
+    expect(out).toContain('<span data-yan-n="">2. </span>three');
+    expect(out).not.toMatch(/>one<|ABANDONED|four|five/);
+    // One given up when the page was written, and taken back since, counts under its own heading.
+    const back = handout(NUMBERED, [d('d1', 'done'), d('d2', 'done'), d('d3', 'done'), d('d4', 'abandoned'), d('d5', 'todo')]);
+    expect(back).toContain('<span data-yan-n="">3. </span>three');
+    expect(back).toContain('<span data-yan-n="">1. </span>five');
+  });
 });
 
 describe('editText', () => {

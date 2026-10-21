@@ -55,6 +55,11 @@ const GROUP = 'data-yan-group=""';
  * the ones given up left out, and the counts of the rest. A part marked
  * data-yan-group with no deliverable left in it goes too, and a heading's
  * data-yan-alone becomes its text once no deliverable comes before it.
+ *
+ * The numbers in data-yan-n are counted again from 1 under each heading,
+ * so one given up on the page after it was written leaves no gap. A page
+ * written before deliverables were numbered by place has none, and keeps
+ * its numbers.
  */
 export function handout(html: string, deliverables: readonly Deliverable[]): string {
   let out = html;
@@ -79,6 +84,15 @@ export function handout(html: string, deliverables: readonly Deliverable[]): str
   }
   out = out.replace(/(<h2 data-yan-alone="([^"]*)">)[^<]*(<\/h2>)/g, (whole, open: string, alone: string, close: string, at: number) =>
     out.slice(0, at).includes(DELIVERABLE) ? whole : `${open}${alone}${close}`);
+  let n = 0;
+  out = out.replace(/<h2\b|(<span data-yan-n="">)\d+(\. <\/span>)/g, (whole, open: string | undefined, close: string | undefined) => {
+    if (open === undefined) {
+      n = 0;
+      return whole;
+    }
+    n += 1;
+    return `${open}${n}${close}`;
+  });
 
   const kept = deliverables.filter((d) => d.status !== 'abandoned');
   const [done, todo] = [kept.filter((d) => d.status === 'done').length, kept.filter((d) => d.status === 'todo').length];

@@ -145,7 +145,9 @@ A picture clicked opens large in a modal over the page, ← and → going
 through the others; recordings play in place, full screen from their own controls, with
 their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state
 they are in, less the ones given up: the copy is a report to hand to others, so
-what was given up is left out with its pictures, and the counts are of the rest. When a deliverable was reworded or added, or a file of evidence recorded,
+what was given up is left out with its pictures, the counts are of the rest,
+and on a page that numbers its deliverables by place they are numbered from
+1 again under each heading, so one given up leaves no gap. When a deliverable was reworded or added, or a file of evidence recorded,
 replaced or dropped since the page was written (report.json beside it says
 what it was written from), its bar says legacy and what changed.
 
