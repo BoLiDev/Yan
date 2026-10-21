@@ -106,7 +106,9 @@ the arrow at its end opens the task's overview. Images, pages, Markdown, code, l
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, and every file at its head; the
-branches it was on before are listed under it, each shown the same way. Code
+branches it was on before are listed under it, each shown the same way. A
+branch's row in the task's nav ends, on hover, in a button that copies the
+branch's whole name, which the row may cut short. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js served from yan's own copy, so the page still
 fetches nothing from the network; a language outside the common set is served

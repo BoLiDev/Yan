@@ -991,6 +991,16 @@ function taskSub(t) {
   return bits.join(' · ');
 }
 
+/**
+ * A branch's row in a task's nav, with a button at its end that copies the
+ * branch's whole name: the row itself may show only its start, and a click
+ * on the row opens the branch. The button shows while the row is hovered.
+ */
+function branchLine(row, name, on) {
+  return h('div', { class: 'row-line' + (on ? ' on' : '') }, row,
+    tool('copy', 'Copy the branch name', () => copyText(name, '分支名已复制', 'The branch'), { small: true }));
+}
+
 function renderTaskIndex(r) {
   const t = S.byId.get(r.id);
   if (!t) {
@@ -1016,17 +1026,19 @@ function renderTaskIndex(r) {
     const prOf = (name) => branchOf(t.id, i, name)?.merged?.pr;
     const now = prOf(null);
     const many = t.repos.length > 1;
-    nav.push(h('a', { class: 'row branch-row' + (here && !r.name ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
+    const onNow = here && !r.name;
+    nav.push(branchLine(h('a', { class: 'row branch-row' + (onNow ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
       icon('branch', 16),
       h('span', { class: 'word' }, 'Branch'),
       h('span', { class: 'name mono dim' }, repo.branch),
       many ? h('span', { class: 'repo' }, repo.name) : null,
-      now ? h('span', { class: 'aside' }, `${many ? '· ' : ''}PR #${now}`) : null));
+      now ? h('span', { class: 'aside' }, `${many ? '· ' : ''}PR #${now}`) : null), repo.branch, onNow));
     for (const name of [...(repo.earlier || [])].reverse()) {
       const pr = prOf(name);
-      nav.push(h('a', { class: 'row earlier' + (here && r.name === name ? ' on' : ''), href: link.branch(t.id, i, 'changes', '', name), title: `${repo.name} · ${name}, before ${repo.branch}` },
+      const on = here && r.name === name;
+      nav.push(branchLine(h('a', { class: 'row earlier' + (on ? ' on' : ''), href: link.branch(t.id, i, 'changes', '', name), title: `${repo.name} · ${name}, before ${repo.branch}` },
         h('span', { class: 'grow mono' }, name),
-        h('span', { class: 'aside' }, pr ? `PR #${pr}` : 'earlier')));
+        h('span', { class: 'aside' }, pr ? `PR #${pr}` : 'earlier')), name, on));
     }
   });
 
@@ -1625,11 +1637,12 @@ function viewFile(ctx) {
   R.replaceChildren(bar([ctx.taskTitle ? h('span', { class: 'dir' }, `${ctx.taskTitle} · `) : null, crumb(file.path)], meta, tools), ...body, foot);
 }
 
-function copyPath(p) {
-  const done = () => toast('Path copied');
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(p).then(done, () => prompt('The path', p));
-  else prompt('The path', p);
+/** Put `text` on the clipboard and say `said`; where the browser will not, show it to be copied by hand. */
+function copyText(text, said, what) {
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => toast(said), () => prompt(what, text));
+  else prompt(what, text);
 }
+const copyPath = (p) => copyText(p, 'Path copied', 'The path');
 
 /** A page at a width: Fit fills the pane; 1280 is drawn at 1280 and scaled down to fit; 390 is a phone, at its size. */
 function pageFrame(src, width) {
