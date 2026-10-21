@@ -25,6 +25,8 @@ const STROKE = {
   refresh: '<path d="M20 11a8 8 0 0 0-14.9-3.9M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.9 3.9M20 20v-4h-4"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   chev: '<path d="m9 6 6 6-6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  up: '<path d="m6 15 6-6 6 6"/>',
   go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   prev: '<path d="m15 6-6 6 6 6"/>',
   next: '<path d="m9 6 6 6-6 6"/>',
@@ -428,6 +430,8 @@ const S = {
   filesOrigin: '',
   tasks: new Map(),
   branches: new Map(),
+  /** `<task>:<repo>` → whether the nav lists its branches, as last asked; folded until then. */
+  unfolded: new Map(),
   texts: new Map(),
   route: { view: 'latest' },
   expanded: new Map(),
@@ -483,7 +487,7 @@ function parseRoute() {
       return { view: 'task', id, sub: 'file', path: p };
     }
     if (rest[0] === 'b') {
-      // `b/<repo>/<tab>/…` is the branch the task is on; `b/<repo>/<branch>/<tab>/…` an earlier one.
+      // `b/<repo>/<tab>/…` is the branch the tree was last on; `b/<repo>/<branch>/<tab>/…` another of the task's.
       const named = rest[2] !== undefined && !BRANCH_TABS.includes(rest[2]);
       const at = named ? 3 : 2;
       return { view: 'task', id, sub: 'branch', repo: Number(rest[1]) || 0, name: named ? rest[2] : null, tab: rest[at] || 'changes', item: rest.slice(at + 1).join('/') };
@@ -674,8 +678,8 @@ async function loadBranch(id, repo, name, fresh) {
   S.branches.set(`${id}:${repo}:${name || ''}`, v);
   return v;
 }
-/** Every other branch the task kept in a repository, read in the background for what the nav says of each. */
-function loadEarlier(id, repo) {
+/** Every branch the task kept in a repository, read in the background for what the nav says of each: merged or not. */
+function loadKept(id, repo) {
   const t = S.byId.get(id);
   for (const name of [null, ...(t?.repos[repo]?.earlier || [])]) {
     if (!branchOf(id, repo, name)) void loadBranch(id, repo, name).then(() => renderMiddle(), () => undefined);
@@ -991,15 +995,8 @@ function taskSub(t) {
   return bits.join(' · ');
 }
 
-/**
- * A branch's row in a task's nav, with a button at its end that copies the
- * branch's whole name: the row itself may show only its start, and a click
- * on the row opens the branch. The button shows while the row is hovered.
- */
-function branchLine(row, name, on) {
-  return h('div', { class: 'row-line' + (on ? ' on' : '') }, row,
-    tool('copy', 'Copy the branch name', () => copyText(name, '分支名已复制', 'The branch'), { small: true }));
-}
+/** How the nav says where a branch stands. */
+const BRANCH_SAID = { open: '进行中', merged: '已合并', abandoned: '已废弃' };
 
 function renderTaskIndex(r) {
   const t = S.byId.get(r.id);
@@ -1023,22 +1020,47 @@ function renderTaskIndex(r) {
   t.repos.forEach((repo, i) => {
     if (!repo.branch) return;
     const here = r.sub === 'branch' && r.repo === i;
-    const prOf = (name) => branchOf(t.id, i, name)?.merged?.pr;
-    const now = prOf(null);
-    const many = t.repos.length > 1;
-    const onNow = here && !r.name;
-    nav.push(branchLine(h('a', { class: 'row branch-row' + (onNow ? ' on' : ''), href: link.branch(t.id, i), title: `${repo.name} · ${repo.branch}` },
-      icon('branch', 16),
-      h('span', { class: 'word' }, 'Branch'),
-      h('span', { class: 'name mono dim' }, repo.branch),
-      many ? h('span', { class: 'repo' }, repo.name) : null,
-      now ? h('span', { class: 'aside' }, `${many ? '· ' : ''}PR #${now}`) : null), repo.branch, onNow));
-    for (const name of [...(repo.earlier || [])].reverse()) {
-      const pr = prOf(name);
-      const on = here && r.name === name;
-      nav.push(branchLine(h('a', { class: 'row earlier' + (on ? ' on' : ''), href: link.branch(t.id, i, 'changes', '', name), title: `${repo.name} · ${name}, before ${repo.branch}` },
-        h('span', { class: 'grow mono' }, name),
-        h('span', { class: 'aside' }, pr ? `PR #${pr}` : 'earlier')), name, on));
+    // The branch the tree was last on is read under no name, the others under theirs.
+    const viewOf = (name) => branchOf(t.id, i, name === repo.branch ? null : name);
+    const stateOf = (name) => (viewOf(name)?.merged ? 'merged' : (repo.abandoned || []).includes(name) ? 'abandoned' : 'open');
+    const said = (name) => {
+      const pr = viewOf(name)?.merged?.pr;
+      return pr ? `${BRANCH_SAID.merged} PR #${pr}` : BRANCH_SAID[stateOf(name)];
+    };
+    // In progress first, the one the tree was last on leading; then merged, then abandoned, newest first in each.
+    const all = [repo.branch, ...[...(repo.earlier || [])].reverse()];
+    const order = ['open', 'merged', 'abandoned'];
+    const listed = order.flatMap((state) => all.filter((name) => stateOf(name) === state));
+    const open = listed.filter((name) => stateOf(name) === 'open').length;
+    const fold = `${t.id}:${i}`;
+    // Folded until asked; a branch being looked at keeps its row in view.
+    const unfolded = S.unfolded.get(fold) ?? here;
+    nav.push(h('button', {
+      type: 'button',
+      class: 'row branch-row',
+      'aria-expanded': String(unfolded),
+      onclick: () => {
+        S.unfolded.set(fold, !unfolded);
+        renderMiddle();
+      },
+    },
+    icon('branch', 16),
+    h('span', { class: 'grow' }, 'Branch'),
+    t.repos.length > 1 ? h('span', { class: 'repo' }, repo.name) : null,
+    open ? h('span', { class: 'aside' }, `${open} ${BRANCH_SAID.open}`) : null,
+    h('span', { class: 'fold' }, icon(unfolded ? 'up' : 'down', 15))));
+    if (!unfolded) return;
+    for (const name of listed) {
+      const on = here && (r.name || repo.branch) === name;
+      // Its name is what a branch's row is wanted for most: a click copies it, and opens the branch too.
+      nav.push(h('a', {
+        class: 'row other' + (on ? ' on' : ''),
+        href: name === repo.branch ? link.branch(t.id, i) : link.branch(t.id, i, 'changes', '', name),
+        title: `${name}: click to copy`,
+        onclick: () => copyText(name, '分支名已复制', 'The branch'),
+      },
+      h('span', { class: 'grow mono' }, name),
+      h('span', { class: 'aside' }, said(name))));
     }
   });
 
@@ -1240,7 +1262,7 @@ function branchPanel(t, r) {
     facts.push(h('span', null, `${b.ahead} ahead${b.behind ? ` · ${b.behind} behind` : ''} ${b.target}`));
   }
   if (!b.missing) facts.push(h('span', null, plural(b.commits.length, 'commit')));
-  if (r.name && r.name !== repo.branch) facts.push(h('span', { title: `The task is on ${repo.branch} now` }, 'an earlier branch'));
+  if ((repo.abandoned || []).includes(r.name || repo.branch)) facts.push(h('span', null, BRANCH_SAID.abandoned));
   if (b.fetchedAt) facts.push(h('span', { title: b.fetchError || '' }, `${b.fetchError ? "couldn't fetch · " : 'fetched '}${clock(b.fetchedAt)}`));
   const card = h('div', { class: 'branch-card' },
     h('div', { class: 'top' }, h('span', { style: { color: 'var(--accent)', display: 'flex' } }, icon('branch', 16)), h('b', null, b.repo),
@@ -2701,7 +2723,10 @@ async function onRoute() {
     const need = [];
     if (!detailOf(r.id) || S.tasks.get(r.id).version !== S.version) need.push(loadTask(r.id));
     if (r.sub === 'branch' && !branchOf(r.id, r.repo, r.name)) need.push(loadBranch(r.id, r.repo, r.name).catch(() => undefined));
-    if (r.sub === 'branch') loadEarlier(r.id, r.repo);
+    // The nav folds the merged ones away, so it needs every branch read as soon as the task is open.
+    S.byId.get(r.id).repos.forEach((repo, i) => {
+      if (repo.branch) loadKept(r.id, i);
+    });
     if (need.length) {
       render();
       await Promise.all(need).catch((err) => toast(String(err.message || err)));

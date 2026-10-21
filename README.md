@@ -111,10 +111,12 @@ first click. Each push's line in Latest opens to the files it brought, and
 the arrow at its end opens the task's overview. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
-changed files and their diffs, its commits, and every file at its head; the
-branches it was on before are listed under it, each shown the same way. A
-branch's row in the task's nav ends, on hover, in a button that copies the
-branch's whole name, which the row may cut short. Code
+changed files and their diffs, its commits, and every file at its head. The
+task's nav has a Branch row for each repository, folded, that names no
+branch and counts those in progress; unfolded, it lists every branch the
+task kept there, those in progress first, the one its tree was last on
+leading them, then those merged with their pull request, then those
+abandoned. A click on a branch copies its whole name and opens it. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js served from yan's own copy, so the page still
 fetches nothing from the network; a language outside the common set is served
