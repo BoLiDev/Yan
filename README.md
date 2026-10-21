@@ -199,4 +199,6 @@ branch.
 by ChillType, the face `yan serve` draws in, under the SIL Open Font
 License 1.1. `templates/fonts/OFL.txt` is the licence and the copyright
 notice, and the `README.md` beside it says what is in the subsets and how they
-were cut. Everything else here is yan's own.
+were cut. `templates/fonts/` also holds **0xProto** by 0xType, the face code is
+shown in, as its own woff2 files, unchanged, under the SIL Open Font License
+1.1, with `OFL-0xProto.txt` as its licence. Everything else here is yan's own.

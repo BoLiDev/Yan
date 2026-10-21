@@ -1,6 +1,6 @@
 # The face yan serve is drawn in
 
-`yan serve` serves these two files at `/fonts/`, so anyone who has yan
+`yan serve` serves the files here at `/fonts/`, so anyone who has yan
 installed sees its page in the face it was designed for without installing a
 font. The page's `@font-face` names an installed copy first and these files
 second, so a reader who already has ChillRoundF keeps using theirs, and either
@@ -89,3 +89,18 @@ The table at the top is the record of which inputs produced the files in git.
 `yan serve` answers `/fonts/<name>.woff2` from this directory, and nothing
 copies them anywhere. `OFL.txt` stays beside them because clause 1 of the
 licence says the notice goes with every copy of the font.
+
+## The face code is in
+
+Code, wherever the page shows it, is in **0xProto**. The page's `@font-face`
+names an installed 0xProto Nerd Font first, the build a terminal usually has,
+then a plain 0xProto, and only then these two files, so it looks the same as
+the terminal beside it, and still fetches nothing from the network.
+
+| | |
+| --- | --- |
+| Face | 0xProto 2.502, by 0xType — [0xType/0xProto](https://github.com/0xType/0xProto) |
+| Licence | SIL Open Font License 1.1, `OFL-0xProto.txt` beside this file |
+| Shipped as | `0xproto-regular.woff2` 56,992 bytes, sha256 `8fcccc7334a3e4c11d974c162c33a4ca8a1ea7cbca35d1ae0507f30832388ada` |
+| | `0xproto-bold.woff2` 56,216 bytes, sha256 `00c156d463f505c724e5c355d591f45d9ed48ce0e8af944d7ad4539a92eee438` |
+| Taken from | `fonts/0xProto-Regular.woff2` and `fonts/0xProto-Bold.woff2` at the repository's tag 2.502, whole and unchanged |

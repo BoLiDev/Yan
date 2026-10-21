@@ -2,6 +2,9 @@
 
 @font-face { font-family: "Yan Round"; src: local("ChillRoundFRegular"), local("ChillRoundF Regular"), url("/fonts/yan-round-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Yan Round"; src: local("ChillRoundFBold"), local("ChillRoundF Bold"), url("/fonts/yan-round-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+/* Code is in 0xProto: the Nerd Font build a terminal has installed first, then the plain one, then yan's own copy. */
+@font-face { font-family: "Yan Code"; src: local("0xProto Nerd Font"), local("0xProto Nerd Font Regular"), local("0xProtoNerdFont-Regular"), local("0xProto Nerd Font Mono"), local("0xProtoNerdFontMono-Regular"), local("0xProto Regular"), local("0xProto-Regular"), url("/fonts/0xproto-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Yan Code"; src: local("0xProto Nerd Font Bold"), local("0xProtoNerdFont-Bold"), local("0xProto Nerd Font Mono Bold"), local("0xProtoNerdFontMono-Bold"), local("0xProto Bold"), local("0xProto-Bold"), url("/fonts/0xproto-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 
 :root {
   --ground: #f6f5f1;
@@ -29,7 +32,7 @@
   --code-number: #a15c07;
   --code-title: #1d5fb5;
   --code-type: #0b7285;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --mono: "Yan Code", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --font: "Yan Round", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   color-scheme: light;
 }

@@ -184,10 +184,12 @@ describe('yan serve', () => {
     await reader?.cancel();
   });
 
-  it('serves the face its page is drawn in', async () => {
-    const r = await fetch(page('/fonts/yan-round-regular.woff2'));
-    expect(r.status).toBe(200);
-    expect(r.headers.get('content-type')).toBe('font/woff2');
+  it('serves the faces its page and its code are drawn in', async () => {
+    for (const name of ['yan-round-regular.woff2', '0xproto-regular.woff2', '0xproto-bold.woff2']) {
+      const r = await fetch(page(`/fonts/${name}`));
+      expect(r.status, name).toBe(200);
+      expect(r.headers.get('content-type')).toBe('font/woff2');
+    }
   });
 
   it('opens the one already running rather than starting another', async () => {
