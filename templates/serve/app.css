@@ -212,13 +212,16 @@ img { -webkit-user-drag: none; }
 .nav { display: flex; flex-direction: column; gap: 1px; }
 .nav .row { border-radius: 8px; }
 /* A repository's Branch row folds its branches away: it names none, and its
-   chevron sits at the very end, where the row's other figures end. */
+   chevron sits at the very end, where the row's other figures end. The word
+   and the figures stay whole; only a name gives way. */
 .nav .row svg { flex: none; }
+.branch-row .word { flex: none; white-space: nowrap; }
 .branch-row .repo { flex: 0 1 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--ink-3); }
 .branch-row .fold { display: flex; flex: none; margin-right: -2px; color: var(--ink-3); }
 .nav .row.other { padding: 4px 10px 4px 36px; color: var(--ink-2); }
 .nav .row.other .mono { font-size: 12px; }
-.nav .row.other.on { color: var(--ink); }
+.nav .row.other.on { color: var(--ink); background: transparent; box-shadow: none; }
+.nav .row.other.on:hover { background: var(--hover); }
 .section-head { display: flex; align-items: center; gap: 8px; padding: 0 10px; min-height: 28px; }
 .section-head b { font-size: 12.5px; color: var(--ink-3); }
 .section-head span { font-size: 12px; color: var(--ink-3); }
@@ -232,11 +235,6 @@ img { -webkit-user-drag: none; }
 .tree .row.cur-folder { background: var(--hover); }
 .hidden-note { padding: 6px 10px 0; font-size: 12px; color: var(--ink-4); }
 
-.branch-card { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
-.branch-card .top { display: flex; align-items: center; gap: 8px; }
-.branch-card .top b { flex: none; white-space: nowrap; }
-.branch-card .facts { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--ink-3); }
-.branch-card .from { font-size: 12px; color: var(--ink-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .merged { color: var(--green); font-weight: 700; text-decoration: none; }
 .plus { color: var(--green); font: 11.5px var(--mono); }
 .minus { color: var(--red); font: 11.5px var(--mono); min-width: 26px; }

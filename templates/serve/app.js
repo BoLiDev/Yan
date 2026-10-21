@@ -1102,8 +1102,9 @@ function renderTaskIndex(r) {
       },
     },
     icon('branch', 16),
-    h('span', { class: 'grow' }, 'Branch'),
+    h('span', { class: 'word' }, 'Branch'),
     t.repos.length > 1 ? h('span', { class: 'repo' }, repo.name) : null,
+    h('span', { class: 'grow' }),
     open ? h('span', { class: 'aside' }, `${open} ${BRANCH_SAID.open}`) : null,
     h('span', { class: 'fold' }, icon(unfolded ? 'up' : 'down', 15))));
     if (!unfolded) return;
@@ -1314,25 +1315,9 @@ function branchPanel(t, r) {
   const repo = t.repos[r.repo];
   const b = branchOf(t.id, r.repo, r.name);
   if (!repo || !repo.branch) return { top: h('div', { class: 'sublabel' }, 'This task keeps no branch here.'), body: [] };
-  if (!b) return { top: h('div', { class: 'branch-card' }, h('div', { class: 'top' }, icon('branch', 16), h('b', null, repo.name), h('span', { class: 'grow mono dim' }, repo.branch)), h('div', { class: 'facts' }, 'reading the branch…')), body: [] };
-
-  const facts = [];
-  if (b.merged) {
-    const words = b.merged.pr ? `merged · PR #${b.merged.pr}` : 'merged';
-    facts.push(b.links.pr ? h('a', { class: 'merged', href: b.links.pr, target: '_blank', rel: 'noopener' }, words) : h('span', { class: 'merged' }, words));
-  } else if (!b.missing) {
-    facts.push(h('span', null, `${b.ahead} ahead${b.behind ? ` · ${b.behind} behind` : ''} ${b.target}`));
-  }
-  if (!b.missing) facts.push(h('span', null, plural(b.commits.length, 'commit')));
-  if ((repo.abandoned || []).includes(r.name || repo.branch)) facts.push(h('span', null, BRANCH_SAID.abandoned));
-  if (b.fetchedAt) facts.push(h('span', { title: b.fetchError || '' }, `${b.fetchError ? "couldn't fetch · " : 'fetched '}${clock(b.fetchedAt)}`));
-  const card = h('div', { class: 'branch-card' },
-    h('div', { class: 'top' }, h('span', { style: { color: 'var(--accent)', display: 'flex' } }, icon('branch', 16)), h('b', null, b.repo),
-      h('span', { class: 'grow mono', style: { fontSize: '12.5px', color: 'var(--ink-2)' }, title: b.branch }, b.branch),
-      b.links.branch ? tool('external', 'Open the branch on GitHub', null, { small: true, href: b.links.branch }) : null),
-    facts.length ? h('div', { class: 'facts' }, facts) : null,
-    b.missing ? h('div', { class: 'facts error' }, b.missing) : h('div', { class: 'from', title: b.clone }, `kept by yan branch · read from ${b.clone}`));
-  if (b.missing) return { top: card, body: [] };
+  // The nav's row says which branch this is and where it stands; what is below is what it changed.
+  if (!b) return { top: h('div', { class: 'sublabel' }, 'Reading the branch…'), body: [] };
+  if (b.missing) return { top: h('div', { class: 'sublabel error' }, b.missing), body: [] };
 
   const tabs = seg([['changes', `Changes ${b.files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']], r.tab, (tab) => {
     location.hash = inBranch(r, tab);
@@ -1388,7 +1373,7 @@ function branchPanel(t, r) {
     }, list);
     if (!b.files.length) list.push(h('div', { class: 'sublabel' }, `No changes against ${b.target}.`));
   }
-  return { top: h('div', { class: 'stack' }, card, tabs), body: h('div', { class: 'tree', role: 'tree' }, list) };
+  return { top: tabs, body: h('div', { class: 'tree', role: 'tree' }, list) };
 }
 const STATUS_WORD = { A: 'added', D: 'deleted', R: 'renamed', M: 'changed', C: 'copied', T: 'type changed' };
 S.closed = new Map();
