@@ -25,6 +25,7 @@ const STROKE = {
   refresh: '<path d="M20 11a8 8 0 0 0-14.9-3.9M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.9 3.9M20 20v-4h-4"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   chev: '<path d="m9 6 6 6-6 6"/>',
+  go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   prev: '<path d="m15 6-6 6 6 6"/>',
   next: '<path d="m9 6 6 6-6 6"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
@@ -1349,8 +1350,9 @@ function pushTags(files) {
 /**
  * Latest: what arrived and has not been looked at, newest first, a line a
  * push: when, which task, and how many files it added, changed and deleted.
- * Each opens to its files, and a file opens on the right. The push holding
- * the file being shown is open.
+ * Each opens to its files, and a file opens on the right; the arrow at its
+ * end opens the task itself, its overview. The push holding the file being
+ * shown is open.
  */
 function renderFeed() {
   const r = S.route;
@@ -1392,7 +1394,9 @@ function renderFeed() {
       return h('a', { class: 'row' + (on ? ' on' : ''), href: link.latest(p.task, f.path), title: `${p.task}/${f.path}` },
         fileThumb(f, name), where, f.status === 'A' ? h('span', { class: 'tag new' }, 'new') : null);
     });
-    group.append(h('div', { class: 'push' }, head, rows));
+    // The arrow sits beside the line, not in it: a link cannot sit inside the button that opens the files.
+    const line = h('div', { class: 'push-line' }, head, tool('go', 'Open the task', null, { small: true, href: link.task(p.task), newTab: false }));
+    group.append(h('div', { class: 'push' }, line, rows));
   }
   M.replaceChildren(...pane([heading], parts));
 }

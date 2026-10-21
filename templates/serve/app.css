@@ -254,6 +254,12 @@ img { -webkit-user-drag: none; }
 .push-head { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 10px 4px 6px; border-radius: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
 .push-head:hover { background: var(--hover); }
 .push-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* A push's line holds the button that opens its files and the arrow to its task, side by side; the line is the card. */
+.push-line { display: flex; align-items: center; gap: 2px; border-radius: 8px; }
+.push-line:has(> .push-head:hover) { background: var(--hover); }
+.push-line > .push-head { flex: 1 1 auto; min-width: 0; }
+.push-line > .push-head:hover { background: transparent; }
+.push-line > .tool { flex: none; }
 .push-head b { flex: none; font-variant-numeric: tabular-nums; color: var(--ink); }
 .push-head .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .push-head .chev { flex: none; display: flex; color: var(--ink-3); transition: transform .12s; }

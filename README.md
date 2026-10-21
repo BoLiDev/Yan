@@ -101,7 +101,8 @@ and on the same port, and an open page reloads onto it. With the bell beside Lat
 notification when a push arrives, the task's name as its title and nothing
 else, and clicking it opens Latest on that push; the page has to be open for
 it, in the background or minimised, and Chrome's permission is asked on the
-first click. Images, pages, Markdown, code, logs, audio, video and fonts
+first click. Each push's line in Latest opens to the files it brought, and
+the arrow at its end opens the task's overview. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, and every file at its head; the
