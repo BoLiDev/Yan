@@ -390,9 +390,10 @@ img { -webkit-user-drag: none; }
 .deliv .id { font: 12px var(--mono); color: var(--ink-3); margin-right: 8px; }
 .deliv .why { display: block; width: fit-content; max-width: 100%; font-size: 13px; line-height: 20px; color: var(--ink-3); }
 .deliv .at { min-height: 22px; font-size: 13px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-/* the date, and under it, a gap away, the bin that shows on hover: laid over the row, so a row of one line keeps its height */
+/* the date, and under it, a gap away, giving up and the bin that show on hover: laid over the row, so a row of one line keeps its height */
 .deliv .side { position: relative; display: flex; justify-content: flex-end; }
-.deliv .side .ov-icon { position: absolute; z-index: 1; top: 24px; right: -5px; width: 22px; height: 22px; }
+.deliv .side .acts { position: absolute; z-index: 1; top: 24px; right: -5px; display: flex; gap: 2px; }
+.deliv .side .ov-icon { width: 22px; height: 22px; }
 .res { display: flex; flex-direction: column; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
 .res > div { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--sunken); font-size: 13.5px; line-height: 21px; }
 .res .tools { display: flex; gap: 2px; margin: -3px -6px -3px 0; }
@@ -408,7 +409,7 @@ img { -webkit-user-drag: none; }
 .ov-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink-3); cursor: pointer; opacity: 0; transition: opacity .12s; }
 .ov-icon:hover { background: var(--hover); color: var(--ink); }
 .deliv:hover .ov-icon, .res > div:hover .ov-icon, .ov-icon:focus-visible { opacity: 1; }
-.deliv .side .ov-icon:hover { color: var(--red); }
+.deliv .side .ov-icon.remove:hover { color: var(--red); }
 .deliv .words, .deliv .why, .res .v.editing { border-radius: 4px; outline: 1px dashed transparent; outline-offset: 3px; transition: outline-color .12s; }
 .deliv .words:hover, .deliv .why:hover { outline-color: var(--line); cursor: text; }
 .deliv .words:focus, .deliv .why:focus, .res .v.editing:focus { outline: 1.5px solid var(--accent); }

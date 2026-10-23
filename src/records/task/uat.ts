@@ -1,5 +1,5 @@
-import { existsSync, statSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { existsSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { editJson, initJson, readJsonIfPresent } from '../../util/json.js';
 import { asString, recordOrNone } from '../../util/narrow.js';
 import { isInside, normalizePath } from '../../util/paths.js';
@@ -20,7 +20,9 @@ import type { Task } from './task.js';
  *     "files": { "d9-before.png": { "for": ["d9"], "shows": "…", "side": "before" } },
  *     "notes": { "d6": "…" } }
  *
- * Only `yan uat` writes it. A yan from before it never reads it.
+ * `yan uat` writes it, and so does a deliverable taken out or moved, whose
+ * new number every entry and file name follows. A yan from before it never
+ * reads it.
  */
 
 /**
@@ -155,6 +157,66 @@ export class Uat {
     return key;
   }
 
+  /**
+   * Follow the deliverables to their new numbers: `ids` maps every one kept
+   * to its new id, and `gone` holds the one taken out. Its note goes, and a
+   * file recorded only for it, or named only for it and recorded for
+   * nothing, is deleted with its entry, since it showed nothing else. Every
+   * other entry, note and file name takes the new numbers: file names too,
+   * because the agent names a file for what it shows.
+   *
+   * It writes after task.json has been, so the caller reads uat.json first:
+   * one it cannot read must stop the change before either file moves.
+   */
+  public renumber(ids: ReadonlyMap<string, string>, gone: ReadonlySet<string>): Renumbered {
+    if (!existsSync(this.dir)) return { renamed: [], deleted: [] };
+    const recorded = new Map(this.read().files.map((f) => [f.path, f]));
+    const kept = (list: readonly string[]): string[] => list.flatMap((id) => (gone.has(id) ? [] : [ids.get(id) ?? id]));
+    const dropped = (list: readonly string[]): boolean => list.length > 0 && kept(list).length === 0;
+    const files = this.listed();
+    const deleted: string[] = [];
+    const moves: [string, string][] = [];
+    for (const path of files) {
+      const entry = recorded.get(path);
+      const name = renamed(posix.basename(path), ids, gone, kept(entry?.for ?? []));
+      if ((entry !== undefined && dropped(entry.for)) || name === undefined) deleted.push(path);
+      else if (name !== posix.basename(path)) moves.push([path, posix.join(posix.dirname(path), name)]);
+    }
+    const targets = untangled(moves, files.filter((p) => !deleted.includes(p) && !moves.some(([from]) => from === p)));
+    for (const path of deleted) unlinkSync(join(this.dir, path));
+    // Through a name nothing has, so d4 → d3 never lands on a d3 still waiting to become d2.
+    const parked = targets.map(([from, to], i): [string, string] => {
+      const aside = posix.join(posix.dirname(from), `${PARKED}${i}-${posix.basename(from)}`);
+      renameSync(join(this.dir, from), join(this.dir, aside));
+      return [aside, to];
+    });
+    for (const [aside, to] of parked) renameSync(join(this.dir, aside), join(this.dir, to));
+
+    const pathOf = new Map(targets);
+    if (existsSync(this.file)) {
+      this.edit((doc) => {
+        const entries = Object.entries(recordOrNone(doc.files) ?? {}).flatMap(([path, value]): [string, unknown][] => {
+          const entry = recordOrNone(value);
+          if (entry === undefined || dropped(stringList(entry.for))) return [];
+          return [[pathOf.get(path) ?? path, { ...entry, for: kept(stringList(entry.for)) }]];
+        });
+        doc.files = Object.fromEntries(entries);
+        doc.notes = Object.fromEntries(Object.entries(recordOrNone(doc.notes) ?? {})
+          .flatMap(([id, how]) => (gone.has(id) ? [] : [[ids.get(id) ?? id, how]])));
+      });
+    }
+    return { renamed: targets, deleted };
+  }
+
+  /** Every file under uat/ but uat.json, by its path there with forward slashes. */
+  private listed(): string[] {
+    return readdirSync(this.dir, { recursive: true, withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => relative(this.dir, join(e.parentPath, e.name)).split(sep).join('/'))
+      .filter((p) => p !== 'uat.json' && !posix.basename(p).startsWith(PARKED))
+      .sort();
+  }
+
   /** The path under uat/, forward slashes: a relative one is read from uat/, an absolute one must be inside it. */
   private relativeKey(path: string): string {
     const full = isAbsolute(path) ? resolve(path) : resolve(this.dir, path);
@@ -197,4 +259,50 @@ export class Uat {
       return doc;
     });
   }
+}
+
+/** What following new numbers did in uat/: each file renamed, from and to, and each deleted. */
+export interface Renumbered {
+  readonly renamed: readonly (readonly [string, string])[];
+  readonly deleted: readonly string[];
+}
+
+/** Where a file waits during a renumbering, under a name nothing else has. */
+const PARKED = '.yan-renumber-';
+
+/** A deliverable's id in a file name, with the dash after it: d3 in d3-after.png or d2-d3.webm, never in add3.png or d30. */
+const NAMED = /(?<![A-Za-z0-9])(d\d+)(?![0-9])([-_]?)/g;
+
+/**
+ * `name` with the ids in it renumbered, and the one taken out dropped with
+ * its dash. A name with only that one in it takes the ids the file is still
+ * recorded for, `still`; with none, it is `undefined`: the file showed only
+ * what is gone.
+ */
+function renamed(name: string, ids: ReadonlyMap<string, string>, gone: ReadonlySet<string>, still: readonly string[]): string | undefined {
+  const named = [...name.matchAll(NAMED)].map((m) => m[1] ?? '');
+  if (named.length === 0) return name;
+  const onlyGone = named.every((id) => gone.has(id));
+  if (onlyGone && still.length === 0) return undefined;
+  let first = true;
+  const out = name.replace(NAMED, (_, id: string, dash: string) => {
+    if (!gone.has(id)) return (ids.get(id) ?? id) + dash;
+    if (!onlyGone || !first) return '';
+    first = false;
+    return still.join('-') + dash;
+  });
+  // An id taken from the end or the middle leaves a dash before the extension, or two together.
+  return out.replace(/[-_]{2,}/g, '-').replace(/^[-_]+/, '').replace(/[-_]+(\.[^.]*)?$/, '$1');
+}
+
+/** The renames, a target already taken, by another rename or a file staying where it is, given -2, -3… before its extension. */
+function untangled(moves: readonly [string, string][], staying: readonly string[]): [string, string][] {
+  const taken = new Set(staying);
+  return moves.map(([from, to]) => {
+    const ext = posix.extname(to);
+    let target = to;
+    for (let n = 2; taken.has(target); n += 1) target = `${to.slice(0, to.length - ext.length)}-${n}${ext}`;
+    taken.add(target);
+    return [from, target];
+  });
 }

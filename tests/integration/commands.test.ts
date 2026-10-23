@@ -74,6 +74,36 @@ describe('yan deliverable', () => {
     expect((await yan(['peek'], env)).stdout, 'peek is user\'s, and leaves them out').not.toContain('the page shows prices');
     expectUsage(await yan(['deliverable', 'done', 'd9'], env), 'this task has d1 d2');
   });
+
+  it('takes one out and moves one, saying which numbers changed and what uat/ did to follow', async () => {
+    const env = { YAN_TASK: 't001' };
+    const task = new Task('t001');
+    await yan(['deliverable', 'add', 'one', 'by mistake', 'three', 'four'], env);
+    const uat = join(task.dir, 'artifacts', 'uat');
+    mkdirSync(uat, { recursive: true });
+    for (const f of ['d2-after.png', 'd3-after.png']) writeFileSync(join(uat, f), f);
+    await yan(['uat', 'add', 'd2-after.png', '--for', 'd2', 'the mistake'], env);
+    await yan(['uat', 'add', 'd3-after.png', '--for', 'd3', 'three'], env);
+
+    const removed = await yan(['deliverable', 'rm', 'd2'], env);
+    expect(removed.stdout).toBe([
+      'removed     d2 by mistake',
+      'renumbered  d3 → d2, d4 → d3',
+      'uat         deleted d2-after.png',
+      'uat         d3-after.png → d2-after.png',
+      '',
+    ].join('\n'));
+    expect(readFileSync(join(uat, 'd2-after.png'), 'utf8')).toBe('d3-after.png');
+
+    const moved = await yan(['deliverable', 'move', 'd3', '1'], env);
+    expect(moved.stdout).toMatch(/d1 {2}todo {7}four\nrenumbered {2}d3 → d1, d1 → d2, d2 → d3\nuat {9}d2-after\.png → d3-after\.png\n$/);
+    expect(task.read().deliverables.map((d) => d.text)).toEqual(['four', 'one', 'three']);
+    expect(JSON.parse(readFileSync(join(uat, 'uat.json'), 'utf8')).files).toEqual({ 'd3-after.png': { for: ['d3'], shows: 'three' } });
+
+    expectUsage(await yan(['deliverable', 'rm'], env), 'which deliverable?');
+    expectUsage(await yan(['deliverable', 'move', 'd1'], env), 'to which place?');
+    expectUsage(await yan(['deliverable', 'move', 'd1', '7'], env), 'runs from 1 to 3');
+  });
 });
 
 describe('yan resource', () => {

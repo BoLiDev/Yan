@@ -85,7 +85,7 @@ For the agent:
 
 - `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, and every branch the task kept, in progress, merged or abandoned); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
-- `yan deliverable add|edit|done|abandon` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one
+- `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
 - `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as 验收中, and stays so through the changes your feedback asks for until `yan done`
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
@@ -142,9 +142,10 @@ and accepting it is `yan done`, as for any task.
 A task's overview is where its problem and deliverables are put right while
 they are still being defined. 编辑 opens problem.md whole, as Markdown, and
 saving is refused when an agent changed it since the page read it. A
-deliverable's text is edited where it stands; the bin that shows under its
-date on hover gives it up, with a reason that stays on its line and is
-edited the same way. A resource's pencil edits where it points, keeping its
+deliverable's text is edited where it stands. Under its date on hover, one
+button gives it up, with a reason that stays on its line and is edited the
+same way, and the bin deletes it, once you confirm, as if it had never been
+added: the ones after it take its number. A resource's pencil edits where it points, keeping its
 kind, and its bin forgets it. While you type, or while the problem is open,
 the page holds off redrawing for new commits, so nothing typed is lost.
 

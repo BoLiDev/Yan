@@ -3,7 +3,7 @@ import { action, out } from './shared/action.js';
 import { deliverableLines } from './shared/deliverables.js';
 import { terminalWidth } from './shared/style.js';
 import { requiredTask } from './shared/task-id.js';
-import type { Deliverable } from '../records/task/index.js';
+import type { Deliverable, Reordered } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 
 /**
@@ -28,6 +28,13 @@ function requireId(id: string | undefined, spelled: string): string {
 
 function show(items: readonly Deliverable[]): void {
   for (const line of deliverableLines(items, {}, terminalWidth())) out(line);
+}
+
+/** What a renumbering changed: the numbers, then what uat/ did to follow, so nobody goes on quoting an old one. */
+function showReordered(result: Reordered): void {
+  if (result.renumbered.length > 0) out(`renumbered  ${result.renumbered.map(([from, to]) => `${from} → ${to}`).join(', ')}`);
+  for (const path of result.uat.deleted) out(`uat         deleted ${path}`);
+  for (const [from, to] of result.uat.renamed) out(`uat         ${from} → ${to}`);
 }
 
 const add = new Command('add')
@@ -76,12 +83,46 @@ const abandon = new Command('abandon')
     }),
   );
 
+const rm = new Command('rm')
+  .description('take out one that should never have been on the list, added by mistake or twice, as if never added: the ones after it move up a number, and its evidence goes with it; one the user gave up is abandoned instead')
+  .argument('[id]', 'd1, d2…')
+  .option(...TASK_FLAG)
+  .action(
+    action('yan deliverable rm', (id: string | undefined, options: TaskOption) => {
+      const which = requireId(id, 'yan deliverable rm <id>');
+      const task = requiredTask(options.task, '--task <id>');
+      const text = task.read().deliverables.find((d) => d.id === which)?.text;
+      const result = task.removeDeliverable(which);
+      out(`removed     ${which} ${text ?? ''}`.trimEnd());
+      showReordered(result);
+    }),
+  );
+
+const move = new Command('move')
+  .description('move one to another place in the list: its number becomes the place, and the ones it passes shift by one')
+  .argument('[id]', 'd1, d2…')
+  .argument('[place]', 'counted from 1: 3 makes it d3')
+  .option(...TASK_FLAG)
+  .action(
+    action('yan deliverable move', (id: string | undefined, place: string | undefined, options: TaskOption) => {
+      const which = requireId(id, 'yan deliverable move <id> <place>');
+      if (place === undefined || !/^\d+$/.test(place.trim())) {
+        throw YanError.usage('deliverable_usage', 'to which place? yan deliverable move <id> <place> - 3 makes it d3');
+      }
+      const result = requiredTask(options.task, '--task <id>').moveDeliverable(which, Number(place));
+      show(result.deliverables.filter((d) => d.id === `d${Number(place)}`));
+      showReordered(result);
+    }),
+  );
+
 export const command = new Command('deliverable')
   .description('the solution: how things must be once the problem is solved, written in Chinese unless the user asks for another language - change it only when the user agrees to a different one')
   .addCommand(add)
   .addCommand(edit)
   .addCommand(done)
   .addCommand(abandon)
+  .addCommand(rm)
+  .addCommand(move)
   .addHelpText(
     'after',
     `
@@ -92,8 +133,15 @@ different, never how the code is changed to make it so. It is written in
 Chinese, the language the user reads it in on yan serve and in a report,
 unless they ask for another.
 
+A deliverable's number is its place in the list, from d1 with no gap: 'rm'
+and 'move' renumber the ones after, and uat.json and the names of the files
+in artifacts/uat/ follow. The log and commits keep the numbers they were
+written with.
+
 The list is the solution as the user agreed it, as it stands now. When they
 settle on a different one, change the list so it reads as if first written
 that way: reword with 'edit', 'abandon' what is no longer part of it, and
-leave how it used to be to the log. They see the list after it changes.`,
+leave how it used to be to the log. 'rm' is for one that should never have
+been on it: added by mistake or twice, or split off one the user counts as
+one. They see the list after it changes.`,
   );

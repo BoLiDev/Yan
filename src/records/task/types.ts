@@ -52,7 +52,10 @@ export interface TaskData {
    * agent starts. Empty for a task with no tree.
    */
   readonly repos: readonly TaskRepo[];
-  /** One more than the highest deliverable id ever handed out. */
+  /**
+   * The number the next one added takes: one more than the last, so an
+   * older yan, which adds at it, adds after the last one too.
+   */
   readonly nextDeliverable: number;
   /** File order is page order. */
   readonly deliverables: readonly Deliverable[];
@@ -120,7 +123,11 @@ export function branchMark(repo: Pick<TaskRepo, 'branch' | 'branchMarks'>, name:
 export type Deliverable = Todo | Done | Abandoned;
 
 interface Base {
-  /** `d1`, `d2`…: stable inside the task, survives a rewording, never reused. */
+  /**
+   * `d1`, `d2`…: its place in the list, counted from 1 with no gap. It
+   * survives a rewording and a change of status, and changes only when one
+   * before it is taken out or it is moved.
+   */
   readonly id: string;
   readonly text: string;
 }

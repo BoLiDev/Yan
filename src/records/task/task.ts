@@ -8,6 +8,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
+import { Uat, type Renumbered } from './uat.js';
 import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /**
@@ -126,6 +127,26 @@ export class Task {
     return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'abandoned', reason: why }));
   }
 
+  /**
+   * Take one out as if it had never been added, for one that should never
+   * have been on the list: the ones after it move up a place, each taking
+   * the number of its place, and uat/ follows.
+   */
+  public removeDeliverable(id: string): Reordered {
+    return this.reorder(id, (list, at) => list.filter((_, i) => i !== at));
+  }
+
+  /** Move one to `place`, counted from 1; the ones it passes shift by one, each taking the number of its place, and uat/ follows. */
+  public moveDeliverable(id: string, place: number): Reordered {
+    return this.reorder(id, (list, at) => {
+      if (!Number.isInteger(place) || place < 1 || place > list.length) {
+        throw YanError.usage('deliverable_usage', `place ${place} is not in the list - it runs from 1 to ${list.length}`);
+      }
+      const rest = list.filter((_, i) => i !== at);
+      return [...rest.slice(0, place - 1), list[at] as Deliverable, ...rest.slice(place - 1)];
+    });
+  }
+
   /** Keep `where` under `name` as a resource of `kind`, replacing what was there; true when it replaced. */
   public addResource(kind: ResourceKind, name: string, where: string): boolean {
     if (!isResourceKind(kind)) {
@@ -238,15 +259,35 @@ export class Task {
     });
   }
 
+  /**
+   * Put the list in a new order, from what `change` makes of it given where
+   * `id` is, and number every one by its place: a deliverable's number is
+   * its place, so the list counts from d1 with no gap. `nextDeliverable`
+   * follows, so a yan from before this, which adds at `nextDeliverable`,
+   * adds after the last one.
+   */
+  private reorder(id: string, change: (list: readonly Deliverable[], at: number) => readonly Deliverable[]): Reordered {
+    const uat = new Uat(this);
+    uat.read();
+    let ids = new Map<string, string>();
+    let gone = new Set<string>();
+    let deliverables: Deliverable[] = [];
+    this.edit((doc, data) => {
+      const placed = change(data.deliverables, indexOf(data.deliverables, id));
+      deliverables = placed.map((d, i) => ({ ...d, id: `d${i + 1}` }));
+      ids = new Map(placed.map((d, i) => [d.id, `d${i + 1}`]));
+      gone = new Set(data.deliverables.map((d) => d.id).filter((d) => !ids.has(d)));
+      doc.deliverables = deliverables;
+      doc.nextDeliverable = deliverables.length + 1;
+    });
+    const renumbered = [...ids].filter(([from, to]) => from !== to);
+    return { deliverables, renumbered, uat: uat.renumber(ids, gone) };
+  }
+
   private replaceDeliverable(id: string, edit: (d: Deliverable) => Deliverable): Deliverable {
     let written: Deliverable | undefined;
     this.edit((doc, data) => {
-      if (!data.deliverables.some((d) => d.id === id)) {
-        const ids = data.deliverables.map((d) => d.id);
-        throw YanError.usage('deliverable_usage',
-          `no such deliverable: ${id} - ${ids.length === 0 ? 'this task has none yet' : `this task has ${ids.join(' ')}`}`,
-        );
-      }
+      indexOf(data.deliverables, id);
       doc.deliverables = data.deliverables.map((d) => {
         if (d.id !== id) return d;
         written = edit(d);
@@ -327,6 +368,26 @@ export class Task {
 }
 
 /**
+ * What taking a deliverable out or moving it left: the list as it is now,
+ * every one whose number changed, from and to, and what uat/ did to follow.
+ */
+export interface Reordered {
+  readonly deliverables: readonly Deliverable[];
+  readonly renumbered: readonly (readonly [string, string])[];
+  readonly uat: Renumbered;
+}
+
+/** Where `id` is in the list. @throws YanError `deliverable_usage`, naming the ids there are, when it is not there. */
+function indexOf(list: readonly Deliverable[], id: string): number {
+  const at = list.findIndex((d) => d.id === id);
+  if (at >= 0) return at;
+  const ids = list.map((d) => d.id);
+  throw YanError.usage('deliverable_usage',
+    `no such deliverable: ${id} - ${ids.length === 0 ? 'this task has none yet' : `this task has ${ids.join(' ')}`}`,
+  );
+}
+
+/**
  * One line of text, trimmed.
  *
  * @throws YanError `code`, `deliverable_usage` by default, when it is empty
@@ -391,7 +452,8 @@ function validate(raw: unknown, task: Task): TaskData {
     ...(closedAt === undefined ? {} : { closedAt }),
     ...(reason === undefined ? {} : { reason }),
     repos,
-    // Kept in the file so a deliverable removed by hand cannot make the next
+    // Kept in the file so a deliverable removed by hand, rather than by
+    // `yan deliverable rm`, which renumbers the rest, cannot make the next
     // `add` reuse an id somebody has already quoted.
     nextDeliverable: typeof stated === 'number' && Number.isInteger(stated) && stated > highest ? stated : highest + 1,
     deliverables,

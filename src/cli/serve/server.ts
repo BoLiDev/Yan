@@ -480,10 +480,26 @@ export class YanServer {
   private readonly writes: Readonly<Record<string, (res: ServerResponse, given: Record<string, unknown>) => Promise<void>>> = {
     '/api/deliverable': (res, given) => this.setDeliverable(res, given),
     '/api/deliverable/text': (res, given) => this.rewordDeliverable(res, given),
+    '/api/deliverable/remove': (res, given) => this.removeDeliverable(res, given),
     '/api/problem': (res, given) => this.editProblem(res, given),
     '/api/resource': (res, given) => this.setResource(res, given),
     '/api/report/edit': (res, given) => this.editReport(res, given),
   };
+
+  /**
+   * `{ task, id }`: a deliverable deleted on the overview, as if never added;
+   * the ones after it take its number, and uat/ follows.
+   */
+  private async removeDeliverable(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, d] = [given.task, given.id];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof d !== 'string') return send(res, 400, 'task and id are needed');
+    try {
+      new Task(id).removeDeliverable(d);
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: ${d} removed in yan serve`);
+  }
 
   /** `{ task, id, text }`: a deliverable reworded on the overview, keeping its id and state. */
   private async rewordDeliverable(res: ServerResponse, given: Record<string, unknown>): Promise<void> {

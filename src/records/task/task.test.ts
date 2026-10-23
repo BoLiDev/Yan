@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
-import { Task, branchMark, type TaskRepo } from './index.js';
+import { Task, Uat, branchMark, type TaskRepo } from './index.js';
 
 beforeEach(() => {
   mkYanHome(mkTempDir());
@@ -68,7 +68,7 @@ describe('read', () => {
 });
 
 describe('deliverables', () => {
-  it('numbers them, and never reuses an id', () => {
+  it('numbers them after the last one, even when one was taken out by hand', () => {
     const task = Task.create('x');
     expect(task.addDeliverables(['one', 'two']).map((d) => d.id)).toEqual(['d1', 'd2']);
     writeFileSync(task.file, JSON.stringify({ ...raw(task), deliverables: [] }));
@@ -89,6 +89,88 @@ describe('deliverables', () => {
     task.addDeliverables(['one']);
     expect(() => task.deliverableDone('d9')).toThrow(/this task has d1/);
     expect(() => task.addDeliverables(['a\nb'])).toThrow(/one line/);
+  });
+});
+
+describe('taking a deliverable out and moving one', () => {
+  const ids = (task: Task): string => task.read().deliverables.map((d) => `${d.id} ${d.text}`).join(', ');
+
+  it('takes one out as if it had never been added: the ones after it move up, and the next added comes after the last', () => {
+    const task = Task.create('x');
+    task.addDeliverables(['one', 'two', 'three']);
+    task.deliverableDone('d3');
+    const out = task.removeDeliverable('d2');
+    expect(ids(task)).toBe('d1 one, d2 three');
+    expect(out.renumbered).toEqual([['d3', 'd2']]);
+    expect(task.read().deliverables[1]).toMatchObject({ status: 'done' });
+    expect(raw(task).nextDeliverable).toBe(3);
+    expect(task.addDeliverables(['four'])[0]?.id).toBe('d3');
+    expect(() => task.removeDeliverable('d9')).toThrow(/this task has d1 d2 d3/);
+  });
+
+  it('moves one to a place, every one between taking the number of its new place', () => {
+    const task = Task.create('x');
+    task.addDeliverables(['one', 'two', 'three', 'four']);
+    task.moveDeliverable('d4', 2);
+    expect(ids(task)).toBe('d1 one, d2 four, d3 two, d4 three');
+    task.moveDeliverable('d1', 4);
+    expect(ids(task)).toBe('d1 four, d2 two, d3 three, d4 one');
+    expect(() => task.moveDeliverable('d1', 5)).toThrow(/runs from 1 to 4/);
+    expect(() => task.moveDeliverable('d1', 0)).toThrow(/runs from 1 to 4/);
+  });
+
+  it('takes the evidence of the one taken out with it, and gives the rest their new numbers, in uat.json and in the names of the files', () => {
+    const task = Task.create('x');
+    task.addDeliverables(['one', 'two', 'three']);
+    const uat = new Uat(task);
+    mkdirSync(join(uat.dir, 'more'), { recursive: true });
+    const shot = (name: string): void => writeFileSync(join(uat.dir, name), name);
+    ['d1-before.png', 'd2-after.png', 'd2-d3-after.png', 'd3.webm', 'd2-old.png', 'more/after-d3.png', 'overview.png'].forEach(shot);
+    uat.add('d1-before.png', ['d1'], 'one before', 'before');
+    uat.add('d2-after.png', ['d2'], 'two after', 'after');
+    uat.add('d2-d3-after.png', ['d2', 'd3'], 'two and three');
+    uat.add('d3.webm', ['d3'], 'three recorded');
+    uat.add('more/after-d3.png', ['d3'], 'three, in a folder');
+    uat.add('overview.png', ['d2'], 'two, named for nothing');
+    uat.note(['d2'], 'two checked by hand');
+    uat.note(['d3'], 'three checked by hand');
+
+    const out = task.removeDeliverable('d2');
+    expect([...out.uat.deleted].sort()).toEqual(['d2-after.png', 'd2-old.png', 'overview.png']);
+    expect(readdirSync(uat.dir, { recursive: true }).map((p) => String(p).split(sep).join('/')).sort())
+      .toEqual(['d1-before.png', 'd2-after.png', 'd2.webm', 'more', 'more/after-d2.png', 'uat.json']);
+    // The file that showed two and three now shows only three, under three's new number.
+    expect(readFileSync(join(uat.dir, 'd2-after.png'), 'utf8')).toBe('d2-d3-after.png');
+    const data = uat.read();
+    expect(Object.fromEntries(data.files.map((f) => [f.path, f.for]))).toEqual({
+      'd1-before.png': ['d1'], 'd2-after.png': ['d2'], 'd2.webm': ['d2'], 'more/after-d2.png': ['d2'],
+    });
+    expect(data.files.find((f) => f.path === 'd1-before.png')).toMatchObject({ shows: 'one before', side: 'before' });
+    expect(data.notes).toEqual({ d2: 'three checked by hand' });
+  });
+
+  it('renames through names nothing has, so a file never lands on one still waiting to move', () => {
+    const task = Task.create('x');
+    task.addDeliverables(['one', 'two', 'three']);
+    const uat = new Uat(task);
+    mkdirSync(uat.dir, { recursive: true });
+    for (const id of ['d1', 'd2', 'd3']) {
+      writeFileSync(join(uat.dir, `${id}.png`), id);
+      uat.add(`${id}.png`, [id], id);
+    }
+    task.moveDeliverable('d3', 1);
+    expect(['d1', 'd2', 'd3'].map((id) => readFileSync(join(uat.dir, `${id}.png`), 'utf8'))).toEqual(['d3', 'd1', 'd2']);
+    expect(uat.read().files.map((f) => `${f.path} ${f.for.join()} ${f.shows}`).sort()).toEqual(['d1.png d1 d3', 'd2.png d2 d1', 'd3.png d3 d2']);
+  });
+
+  it('changes nothing when uat.json cannot be read', () => {
+    const task = Task.create('x');
+    task.addDeliverables(['one', 'two']);
+    const uat = new Uat(task);
+    mkdirSync(uat.dir, { recursive: true });
+    writeFileSync(uat.file, '{ not json');
+    expect(() => task.removeDeliverable('d1')).toThrow(/not valid JSON/);
+    expect(ids(task)).toBe('d1 one, d2 two');
   });
 });
 

@@ -40,6 +40,7 @@ const STROKE = {
   full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   trash: '<path d="M4.5 7h15M10 4h4M6.5 7l.9 12a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12M10 11v6M14 11v6"/>',
+  ban: '<circle cx="12" cy="12" r="8"/><path d="m6.5 17.5 11-11"/>',
   edit: '<path d="M14.5 5.5l4 4M4 20l1-4.5L15.5 5a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2L8.5 19z"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4m0 0 2-2m-2 2 2 2M4 18h5"/>',
@@ -2057,7 +2058,7 @@ function viewOverview(t, d, token) {
     problem.append(h('div', { class: 'h' }, h('h3', null, 'Problem'), editProblem), holder);
   }
 
-  // deliverables: a text clicked is edited, and one dropped with the bin is given up with a reason, which stays on its line
+  // deliverables: a text clicked is edited; one given up keeps its reason on its line, and one deleted with the bin goes as if never added, the ones after it taking its number
   const ds = d.deliverables;
   if (ds.length) {
     const n = (s) => ds.filter((x) => x.status === s).length;
@@ -2071,11 +2072,14 @@ function viewOverview(t, d, token) {
         if (why) editInPlace(why, (reason) => writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已保存 ${x.id} 的放弃理由`));
         const drop = x.status === 'abandoned' ? null : h('button', { type: 'button', class: 'ov-icon', title: `放弃 ${x.id}`, 'aria-label': `放弃 ${x.id}`,
           onclick: () => ask({ title: `放弃 ${x.id}？`, sub: x.text, action: '放弃', reason: '写一句原因，它会留在这条 deliverable 下面' },
-            (reason) => writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已放弃 ${x.id}`)) }, icon('trash', 15));
+            (reason) => writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已放弃 ${x.id}`)) }, icon('ban', 15));
+        const remove = h('button', { type: 'button', class: 'ov-icon remove', title: `删除 ${x.id}`, 'aria-label': `删除 ${x.id}`,
+          onclick: () => ask({ title: `删除 ${x.id}？`, sub: x.text, action: '删除' },
+            () => writeTask('/api/deliverable/remove', { task: t.id, id: x.id }, `已删除 ${x.id}`)) }, icon('trash', 15));
         return h('div', { class: `deliv ${x.status}` },
           h('span', { class: 'node', title: x.status }),
           h('span', null, h('span', { class: 'text' }, h('span', { class: 'id' }, x.id), words), why),
-          h('span', { class: 'side' }, h('span', { class: 'at' }, x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''), drop));
+          h('span', { class: 'side' }, h('span', { class: 'at' }, x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''), h('span', { class: 'acts' }, drop, remove)));
       }))));
   }
 

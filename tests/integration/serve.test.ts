@@ -334,6 +334,14 @@ describe('the overview on yan serve', () => {
     expect((await post('/api/deliverable/text', { task: 't002', id: 'd9', text: 'x' })).status).toBe(400);
   });
 
+  it('deletes a deliverable as if never added, the ones after it taking its number', async () => {
+    expect((await post('/api/deliverable/remove', { task: 't002', id: 'd1' })).status).toBe(200);
+    expect((readJson(at('task.json')) as { deliverables: { id: string; text: string }[] }).deliverables.map((d) => `${d.id} ${d.text}`)).toEqual(['d1 two']);
+    expect(await subject()).toBe('t002: d1 removed in yan serve');
+    expect((await post('/api/deliverable/remove', { task: 't002', id: 'd9' })).status).toBe(400);
+    expect((await post('/api/deliverable/remove', { task: 't002' })).status).toBe(400);
+  });
+
   it('changes where a resource points, keeping its kind, and forgets one', async () => {
     await runYan(home, ['resource', 'add', 'spec', 'design', 'https://example.com/a', '--task', 't002']);
     await runYan(home, ['resource', 'add', 'general', 'notes', '/tmp/notes', '--task', 't002']);
