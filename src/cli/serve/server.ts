@@ -2,7 +2,7 @@ import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } f
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
-import { artifactLinker } from '../shared/artifacts.js';
+import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
 import { saveVault } from '../shared/vault-push.js';
 import { Task, parseUat } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
@@ -180,6 +180,8 @@ export class YanServer {
   private readonly view: VaultView;
   private readonly branches: Branches;
   private readonly status: Status;
+  /** Where a file of the vault opens on its forge, read once: the vault's remote does not move while serve runs. */
+  private readonly fileLink: FileLink | undefined;
   private readonly clients = new Set<ServerResponse>();
   private readonly servers: Server[] = [];
   private timer: NodeJS.Timeout | undefined;
@@ -194,6 +196,7 @@ export class YanServer {
   public constructor(private readonly options: ServeOptions) {
     this.view = new VaultView(options.vaultDir);
     this.branches = new Branches(options.everyS);
+    this.fileLink = vaultFileLink(options.vaultDir);
     this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home) };
   }
 
@@ -386,7 +389,7 @@ export class YanServer {
       return json(res, {
         ...this.view.index(),
         status: this.status,
-        vault: { name: this.options.vaultName, dir: this.options.vaultDir },
+        vault: { name: this.options.vaultName, dir: this.options.vaultDir, fileLink: this.fileLink ?? null },
         filesOrigin: this.filesOrigin,
       });
     }

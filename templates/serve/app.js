@@ -1604,8 +1604,11 @@ function viewFile(ctx) {
   tools.push(h('span', { class: 'sep' }));
   const extra = h('div', { class: 'group-tools' });
   tools.push(extra);
+  // The file on the vault's forge, where its link can be passed on; this machine's copy only when yan cannot tell the forge.
+  const web = S.index.vault.fileLink;
   extra.append(
-    tool('external', 'Open in a new tab', null, { href: fileUrl(path) }),
+    web ? tool('external', web.forge ? `Open on ${web.forge}` : 'Open in the vault\'s repository', null, { href: web.template.replaceAll('{path}', enc(path)) })
+      : tool('external', 'Open in a new tab', null, { href: fileUrl(path) }),
     tool('download', 'Download', null, { href: fileUrl(path) + '?download', newTab: false }));
 
   const stage = h('div', { class: 'stage' });
@@ -2636,7 +2639,10 @@ function viewBranch(t, r, token) {
   const b = branchOf(t.id, r.repo, r.name);
   if (!b) return emptyRight('Reading the branch…');
   if (b.missing) return emptyRight('Nothing to show', b.missing);
-  const github = b.links.branch ? b.links.branch.replace(/\/tree\/.*$/, '') : null;
+  // GitHub or GitLab, each with its own way to a commit and a file; none for a forge yan cannot tell.
+  const forge = b.links.forge;
+  const onForge = (what, href) => tool('external', `Open the ${what} on ${forge.name}`, null, { href });
+  const blobOn = (path) => forge.blob.replaceAll('{ref}', encodeURIComponent(b.head)).replaceAll('{path}', enc(path));
 
   if (r.tab === 'commits') {
     const sha = r.item || b.commits[0]?.sha;
@@ -2653,7 +2659,7 @@ function viewBranch(t, r, token) {
         navTools(at + 1, b.commits.length),
         h('span', { class: 'sep' }),
         layoutTools(),
-        github ? tool('external', 'Open the commit on GitHub', null, { href: `${github}/commit/${c.sha}` }) : null,
+        forge ? onForge('commit', forge.commit.replaceAll('{sha}', c.sha)) : null,
       ]),
       scroll);
     getJSON(`/api/branch/commit?task=${encodeURIComponent(t.id)}&repo=${r.repo}&sha=${sha}`).then(async (full) => {
@@ -2697,7 +2703,7 @@ function viewBranch(t, r, token) {
     }
     R.replaceChildren(
       bar(crumb(entry.path), meta, [
-        github ? tool('external', 'Open the file on GitHub', null, { href: `${github}/blob/${b.head}/${enc(entry.path)}` }) : null,
+        forge ? onForge('file', blobOn(entry.path)) : null,
       ]),
       stage);
     return undefined;
@@ -2725,7 +2731,7 @@ function viewBranch(t, r, token) {
       h('span', { class: 'sep' }),
       layoutTools(),
       h('button', { type: 'button', class: 'tool text', 'aria-pressed': String(!!S.prefs.whole), onclick: () => { S.prefs.whole = !S.prefs.whole; savePrefs(); renderRight(); } }, 'Whole file'),
-      github && f.status !== 'D' ? tool('external', 'Open the file on GitHub', null, { href: `${github}/blob/${b.head}/${enc(f.path)}` }) : null,
+      forge && f.status !== 'D' ? onForge('file', blobOn(f.path)) : null,
     ]),
     scroll);
   const q = new URLSearchParams({ task: t.id, repo: String(r.repo), base: b.base, head: b.head, path: f.path, context: S.prefs.whole ? 'all' : '3' });

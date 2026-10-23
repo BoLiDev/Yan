@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
-import { artifactLines, artifactLinker, listArtifacts } from './artifacts.js';
+import { artifactLines, artifactLinker, listArtifacts, vaultFileLink } from './artifacts.js';
 import { Task } from '../../records/task/index.js';
 
 afterAll(cleanupTempDirs);
@@ -66,5 +66,19 @@ describe('artifactLinker', () => {
     expect(artifactLinker(task.dir)?.('uat/d1.webm')).toBe('https://git.corp.example/team/vault/src/main/tasks/t001/artifacts/uat/d1.webm');
     writeFileSync(join(vault, 'config.json'), JSON.stringify({ artifactLinks: 'javascript:alert(1)//{path}' }));
     expect(artifactLinker(task.dir), 'only a web address is a link').toBeUndefined();
+  });
+});
+
+describe('vaultFileLink', () => {
+  it('gives any file of the vault its page on the forge, naming the forge, with only the path to fill in', async () => {
+    expect(vaultFileLink(vault), 'not a git repository').toBeUndefined();
+    await fxGit(['init', '--initial-branch=main', vault]);
+    await fxGit(['-C', vault, 'commit', '--allow-empty', '-m', 'a vault']);
+    await fxGit(['-C', vault, 'remote', 'add', 'origin', 'git@gitlab.corp.example:team/vault.git']);
+    expect(vaultFileLink(vault)).toEqual({ forge: 'GitLab', template: 'https://gitlab.corp.example/team/vault/-/blob/main/{path}' });
+    await fxGit(['-C', vault, 'remote', 'set-url', 'origin', 'git@github.com:me/vault.git']);
+    expect(vaultFileLink(vault)).toEqual({ forge: 'GitHub', template: 'https://github.com/me/vault/blob/main/{path}' });
+    writeFileSync(join(vault, 'config.json'), JSON.stringify({ artifactLinks: 'https://git.corp.example/v/src/{branch}/{path}' }));
+    expect(vaultFileLink(vault), 'a forge config.json names is not one yan can name').toEqual({ forge: null, template: 'https://git.corp.example/v/src/main/{path}' });
   });
 });

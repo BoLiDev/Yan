@@ -1,5 +1,6 @@
 import { defaultBranch } from '../../util/git.js';
 import { repoKey } from '../../util/repo-key.js';
+import { forgeOf, forgePage } from '../shared/forge.js';
 import type { ProcessResult } from '../../util/process.js';
 import { BlobReader, gitAsync } from './blobs.js';
 import { mergeTaking, namedMergeHead, namingArgs, takingArgs } from '../shared/merged.js';
@@ -56,7 +57,13 @@ export interface BranchView {
   readonly merged: { readonly sha: string; readonly at: number; readonly pr: number | null } | null;
   readonly ahead: number;
   readonly behind: number;
-  readonly links: { readonly pr: string | null; readonly compare: string | null; readonly branch: string | null };
+  readonly links: {
+    readonly pr: string | null;
+    readonly compare: string | null;
+    readonly branch: string | null;
+    /** Where a commit and a file of the repository open on its forge, `{sha}`, `{ref}` and `{path}` to fill in; null for a forge yan cannot tell. */
+    readonly forge: { readonly name: string; readonly commit: string; readonly blob: string } | null;
+  };
   readonly commits: readonly BranchCommit[];
   readonly files: readonly BranchFile[];
 }
@@ -66,11 +73,6 @@ export function isBranchName(name: string): boolean {
   return /^[\w][\w./@+-]*$/.test(name) && !name.includes('..') && !name.endsWith('.lock') && !name.endsWith('/');
 }
 
-/** `https://github.com/owner/repo` for a GitHub URL, otherwise null. */
-export function githubBase(url: string): string | null {
-  const key = repoKey(url);
-  return key.startsWith('github.com/') ? `https://${key}` : null;
-}
 
 /** The pull request a merge commit's subject names: GitHub writes `Merge pull request #79 from …`. */
 export function prOf(subject: string): number | null {
@@ -167,7 +169,7 @@ export class Branches {
    * what the clone had before it.
    */
   public async view(url: string, branch: string, clone: string | undefined, wait = false): Promise<BranchView> {
-    const github = githubBase(url);
+    const forge = forgeOf(url);
     const empty = {
       repo: repoKey(url).split('/').pop() ?? url,
       url,
@@ -181,7 +183,12 @@ export class Branches {
       merged: null,
       ahead: 0,
       behind: 0,
-      links: { pr: null, compare: null, branch: github === null ? null : `${github}/tree/${branch}` },
+      links: {
+        pr: null,
+        compare: null,
+        branch: forge === undefined ? null : forgePage(forge, `tree/${branch}`),
+        forge: forge === undefined ? null : { name: forge.name, commit: forgePage(forge, 'commit/{sha}'), blob: forgePage(forge, 'blob/{ref}/{path}') },
+      },
       commits: [],
       files: [],
     };
@@ -263,8 +270,9 @@ export class Branches {
       behind: merged === null ? Number(behind ?? 0) : 0,
       links: {
         ...empty.links,
-        pr: github !== null && merged?.pr != null ? `${github}/pull/${merged.pr}` : null,
-        compare: github !== null && merged === null ? `${github}/compare/${target}...${branch}` : null,
+        // The number is read off GitHub's merge commit, so it is a pull request there.
+        pr: forge?.name === 'GitHub' && merged?.pr != null ? forgePage(forge, `pull/${merged.pr}`) : null,
+        compare: forge !== undefined && merged === null ? forgePage(forge, `compare/${target}...${branch}`) : null,
       },
       commits,
       files: changedFiles(nameStatus.stdout, numstat.stdout),

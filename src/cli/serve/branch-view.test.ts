@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkCommit, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { Branches, changedFiles, githubBase, isBranchName, prOf } from './branch-view.js';
+import { Branches, changedFiles, isBranchName, prOf } from './branch-view.js';
+import { forgeOf, forgePage } from '../shared/forge.js';
 
 /**
  * A task's branch against real git: a local bare remote, a clone where the
@@ -33,8 +34,11 @@ describe('reading git', () => {
     expect(isBranchName('-x')).toBe(false);
     expect(isBranchName('a..b')).toBe(false);
     expect(isBranchName('a b')).toBe(false);
-    expect(githubBase('git@github.com:BoLiDev/df-blade.git')).toBe('https://github.com/BoLiDev/df-blade');
-    expect(githubBase('https://gitlab.com/a/b.git')).toBeNull();
+    expect(forgeOf('git@github.com:BoLiDev/df-blade.git')).toEqual({ name: 'GitHub', base: 'https://github.com/BoLiDev/df-blade' });
+    const lab = forgeOf('git@gitlab.example.com:team/app.git');
+    expect(lab).toEqual({ name: 'GitLab', base: 'https://gitlab.example.com/team/app' });
+    expect(lab && forgePage(lab, 'commit/abc')).toBe('https://gitlab.example.com/team/app/-/commit/abc');
+    expect(forgeOf('https://git.example.com/a/b.git')).toBeUndefined();
   });
 });
 

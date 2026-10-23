@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { asString } from '../../util/narrow.js';
 import { branchOf, remoteUrl } from '../../util/git.js';
-import { repoKey } from '../../util/repo-key.js';
+import { forgeOf, forgePage } from './forge.js';
 import { readVaultConfig, vaultDir } from '../../util/vault.js';
 
 /**
@@ -78,25 +78,47 @@ export function artifactLines(artifacts: readonly Artifact[], limit = 20): strin
 
 /**
  * How a file of the vault is opened on its forge, `{branch}` and `{path}` to
- * be filled in. The vault's config.json `artifactLinks` says so when it is
- * set, for a forge yan cannot tell from its URL. Otherwise github.com is
- * `/blob/`, and a host with gitlab in its name, which is how most
- * self-hosted ones are called, `/-/blob/`. `undefined` for any other.
+ * be filled in, with the forge's name when yan can tell it. The vault's
+ * config.json `artifactLinks` says so when it is set, for a forge yan cannot
+ * tell from its URL; otherwise it is the file's page on GitHub or GitLab.
+ * `undefined` for any other.
  *
  * A template that is not an http(s) address is passed over: config.json
  * travels with the vault, and a link a report or a page opens must not be
  * able to run anything, as a `javascript:` one would.
  */
-function linkTemplate(vault: string): string | undefined {
+function linkTemplate(vault: string): FileLink | undefined {
   const configured = asString(readVaultConfig()?.artifactLinks).trim();
-  if (/^https?:\/\//i.test(configured)) return configured;
+  if (/^https?:\/\//i.test(configured)) return { forge: null, template: configured };
   const url = remoteUrl(vault);
-  if (url === undefined) return undefined;
-  const key = repoKey(url);
-  const host = key.split('/')[0] ?? '';
-  if (host === 'github.com') return `https://${key}/blob/{branch}/{path}`;
-  if (host.includes('gitlab')) return `https://${key}/-/blob/{branch}/{path}`;
-  return undefined;
+  const forge = url === undefined ? undefined : forgeOf(url);
+  return forge === undefined ? undefined : { forge: forge.name, template: forgePage(forge, 'blob/{branch}/{path}') };
+}
+
+/** A web address for a file, `{path}` to be filled in, and the forge's name when yan can tell it. */
+export interface FileLink {
+  readonly forge: string | null;
+  readonly template: string;
+}
+
+const encode = (p: string): string => p.split('/').map(encodeURIComponent).join('/');
+
+/**
+ * Where any file of `vault` is opened on its forge, on the branch the vault
+ * is on: `{path}`, from the vault's root and encoded a part at a time, is
+ * left to fill in. `yan serve` opens a file by it rather than by its own
+ * copy, so the link can be passed on. It works once the vault is pushed.
+ * `undefined` when there is no address to give.
+ */
+export function vaultFileLink(vault: string): FileLink | undefined {
+  try {
+    const link = linkTemplate(vault);
+    const branch = branchOf(vault);
+    if (link === undefined || branch === undefined) return undefined;
+    return { forge: link.forge, template: link.template.replaceAll('{branch}', encode(branch)) };
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -108,12 +130,10 @@ function linkTemplate(vault: string): string | undefined {
 export function artifactLinker(taskDir: string): ((path: string) => string) | undefined {
   try {
     const vault = vaultDir();
-    const template = linkTemplate(vault);
-    const branch = branchOf(vault);
-    if (template === undefined || branch === undefined) return undefined;
+    const link = vaultFileLink(vault);
+    if (link === undefined) return undefined;
     const under = relative(vault, join(taskDir, 'artifacts')).split(sep).join('/');
-    const encode = (p: string): string => p.split('/').map(encodeURIComponent).join('/');
-    return (path) => template.replaceAll('{branch}', encode(branch)).replaceAll('{path}', encode(`${under}/${path}`));
+    return (path) => link.template.replaceAll('{path}', encode(`${under}/${path}`));
   } catch {
     return undefined;
   }
