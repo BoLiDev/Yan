@@ -8,10 +8,13 @@ them it keeps the resources the work refers to, your own drafts, and, when
 it touches a repository, a worktree of its own. `yan` keeps those and
 nothing else.
 
-An agent knows about them only when you start it through `yan`. Type `yan`,
-pick a task or start one, and Claude, Codex or Agy starts in the task's
-worktree, told in a few lines about those three parts and that a CLI keeps
-notes on them. Start the same agent directly and it never hears of yan.
+An agent knows about them when you start it through `yan`. Type `yan`, pick
+a task or start one, and Claude, Codex or Agy starts in the task's worktree.
+Claude is given yan's skills, which say how to work in a task, and is told
+in three lines that the task is yan's and which skills there are; Codex and
+Agy take no skills that way, so they are told it all in their opening
+prompt. Start the same agent directly and it hears of yan only if it has the
+skills.
 
 ## Getting started
 
@@ -48,17 +51,33 @@ new one tracking origin's; one yan cannot put there starts detached, and
 says why; the agent is told the task's other branches still in progress.
 Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
-added beside it, and every start tells it which is which, and where the
-task's own files are: problem.md, and artifacts/ for what the work produces,
-with designs in artifacts/design/ and what you check the result by in
-artifacts/uat/, gathered deliverable by deliverable: a screenshot or
-recording for each one, named for it (d3-before.png, d3-after.png) and
-recorded with `yan uat` as it is made, or a note of how it was checked
-where nothing on screen shows it; the before shot before the change is made,
-and something that did not exist before recorded as new, with no before;
-and once all of it is there, marking the task 验收中 with `yan uat ready`
-is the agent's to do.
-An artifact redone replaces its file; the vault's history keeps the old one.
+added beside it.
+
+How to work in a task is in yan's skills, a plugin in `plugin/`:
+`yan:recap`, which the agent uses at the start of a session to read the task
+and which holds the rules for keeping its notes, its files, its resources and
+its branches; `yan:define`, to work out the problem and the solution with
+you; `yan:uat`, once an implementation is done and its result can be
+verified interactively; and `yan:done`, which only you start, to close a
+task. Claude is started with them (`--plugin-dir`), and its prompt says only
+that the task is yan's, which skills there are, and that an implementation
+ends with `yan:uat`. A skill can be carried where yan does not start the
+agent and so cannot give it a prompt. Codex and Agy take no plugin, so their
+prompt says it all: which tree is which and what in them the task is about,
+where the task's own files are, how the branches are kept, and how the
+evidence is gathered.
+
+`yan:uat` gathers what you check the result by in artifacts/uat/,
+deliverable by deliverable, in one pass after the implementation: the before
+of each change from the code where the task's branch left the default
+branch, run in a directory of its own, and the after from the worktree; a
+recording captioned, in the page itself, with what is happening as it
+happens, and the white screen a large Vite project opens on cut off. Each
+file is named for what it shows (d3-before.png, d3-after.png) and recorded
+with `yan uat`, or a note says how a deliverable was checked where nothing
+on screen shows it. It builds the report, then marks the task 验收中 with
+`yan uat ready`. Designs go in artifacts/design/. An artifact redone replaces
+its file; the vault's history keeps the old one.
 While it runs, the vault is kept in step with your other machines without
 the agent being told: it is pulled each time you send a message and pushed
 each time the agent finishes a turn, by hooks given to that session alone
@@ -79,11 +98,11 @@ For you:
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
-- `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now
+- `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now; `--cli` for another CLI's
 
 For the agent:
 
-- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, and every branch the task kept, in progress, merged or abandoned); `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
+- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about; `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
@@ -154,7 +173,7 @@ added: the ones after it take its number. A resource's pencil edits where it poi
 kind, and its bin forgets it. While you type, or while the problem is open,
 the page holds off redrawing for new commits, so nothing typed is lost.
 
-A task with an artifacts/report.html, the page a report skill writes from
+A task with an artifacts/report.html, the page `yan:uat` writes from
 what `yan uat` recorded, has a Report beside its overview. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, give it
 up with a reason or edit the reason it was given up for, and task.json

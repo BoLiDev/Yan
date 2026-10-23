@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, openingPrompt, openingPromptNow, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, SKILLS_PROMPT, enter, openingPrompt, openingPromptNow, pluginDir, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
+import { WAIT_LINE } from '../../src/externals/harness/index.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
@@ -116,6 +117,17 @@ async function aClone(name = 'demo'): Promise<{ bare: string; clone: string }> {
 }
 
 /** The one tree t001 holds; anything else fails the test here, before git is run in a path that is not there. */
+/** What the agent was told: claude's system prompt, or agy's first message without the line asking it to wait. */
+function told(i: number): string {
+  const argv = started[i]?.argv ?? [];
+  const at = argv.indexOf('--append-system-prompt');
+  if (at >= 0) return argv[at + 1] ?? '';
+  return (argv[argv.indexOf('-i') + 1] ?? '').replace(`\n${WAIT_LINE}`, '');
+}
+
+/** claude's argv, after its approvals flag: yan's plugin, and a prompt that names its skills. */
+const CLAUDE_TAIL = (): string[] => ['--plugin-dir', pluginDir(), '--append-system-prompt', SKILLS_PROMPT];
+
 function treeOf(id = 't001'): string {
   const held = leasesHeldBy(id);
   const path = held.length === 1 ? held[0]?.path : undefined;
@@ -132,11 +144,13 @@ describe('a new task', () => {
     expect(new Task('t001').read()).toMatchObject({ title: 'write the docs', state: 'open' });
     expect(new Task('t001').read().repos).toEqual([]);
     expect(started).toHaveLength(1);
-    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', '--append-system-prompt', openingPrompt(new Task('t001').dir)] });
-    expect(started[0]?.argv.at(-1), 'where its files are, absolute, since it starts outside the vault')
-      .toContain(`This task's files are in ${new Task('t001').dir}: problem.md, and artifacts/`);
+    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', ...CLAUDE_TAIL()] });
     expect(started[0]?.env.YAN_TASK).toBe('t001');
     expect(started[0]?.env.YAN_VAULT).toBe(home);
+
+    await run(answers({ entry: 't001' }), here, { cli: 'agy' });
+    expect(told(1), 'an agent with no plugin is told where its files are, absolute, since it starts outside the vault')
+      .toContain(`This task's files are in ${new Task('t001').dir}: problem.md, and artifacts/`);
   });
 
   it('in an unregistered clone, offers it picked, registers it, and leases a tree on a detached HEAD at origin, making no branch', async () => {
@@ -152,7 +166,6 @@ describe('a new task', () => {
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], tree)).stdout.trim()).toBe('HEAD');
     expect((await fxGit(['branch', '--format=%(refname:short)'], clone)).stdout.trim(), 'no branch of yan\'s making').toBe('main');
     expect(existsSync(join(tree, 'README.md'))).toBe(true);
-    expect(started[0]?.argv.at(-1)).toContain('yan never makes a branch');
     expect(said, 'one step on the chain, saying where the tree stands, then the end').toEqual([
       'working demo: opening a worktree · fetching origin',
       'working demo: opening a worktree',
@@ -190,12 +203,14 @@ describe('a new task', () => {
     expect(trees).toHaveLength(2);
     const [apiTree, webTree] = [trees.find((t) => t.endsWith('/api')), trees.find((t) => t.endsWith('/web'))];
     expect(started[0]?.cwd).toBe(apiTree);
-    expect(started[0]?.argv).toEqual(['--dangerously-skip-permissions', '--add-dir', webTree, '--append-system-prompt', started[0]?.argv.at(-1)]);
-    expect(started[0]?.argv.at(-1)).toContain(`This task works in 2 repositories, one worktree each:\n- api: ${apiTree}\n- web: ${webTree}`);
+    expect(started[0]?.argv).toEqual(['--dangerously-skip-permissions', '--add-dir', webTree ?? '', ...CLAUDE_TAIL()]);
 
     await run(answers({ entry: 't001' }), here);
     expect(started[1]?.cwd, 'the same trees, the same order').toBe(apiTree);
     expect(started[1]?.argv).toEqual(started[0]?.argv);
+
+    await run(answers({ entry: 't001' }), here, { cli: 'agy' });
+    expect(told(2), 'an agent with no plugin is told which tree is which').toContain(`This task works in 2 repositories, one worktree each:\n- api: ${apiTree}\n- web: ${webTree}`);
   });
 
   it('with nothing registered and outside a clone, has no tree and asks nothing', async () => {
@@ -206,28 +221,28 @@ describe('a new task', () => {
     expect(said[0]).toMatch(/^info no repository is registered and cloned here/);
   });
 
-  it('in a monorepo, asks once which packages it is about, keeps them, and tells the agent every start', async () => {
+  it('in a monorepo, asks once which packages it is about, keeps them, and tells an agent with no plugin every start', async () => {
     const { clone } = await aClone();
     for (const p of ['packages/core', 'packages/web', 'apps/site']) mkdirSync(join(clone, p), { recursive: true });
     const prompts = answers({ entry: CREATE_NEW, title: 'fix the parser', repos: ['demo'], scope: ['packages/core', 'apps/site'] });
-    await run(prompts, clone);
+    await run(prompts, clone, { cli: 'agy' });
 
     expect(prompts.asked.at(-1)).toContain('apps/site packages/core packages/web');
     expect(new Task('t001').read().repos[0]?.scope).toEqual(['packages/core', 'apps/site']);
     const prompt = openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: ['packages/core', 'apps/site'] }]);
     expect(prompt).toContain('`packages/core`, `apps/site`');
-    expect(started[0]?.argv.at(-1)).toBe(prompt);
+    expect(told(0)).toBe(prompt);
 
-    await run(answers({ entry: 't001' }), clone);
-    expect(started[1]?.argv.at(-1), 'not asked again, still told').toBe(prompt);
+    await run(answers({ entry: 't001' }), clone, { cli: 'agy' });
+    expect(told(1), 'not asked again, still told').toBe(prompt);
   });
 
   it('in a monorepo, keeps no scope when user picks the whole repository', async () => {
     const { clone } = await aClone();
     mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
-    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone);
+    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone, { cli: 'agy' });
     expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
-    expect(started[0]?.argv.at(-1)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: [] }]));
+    expect(told(0)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: [] }]));
   });
 
   it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {
@@ -255,7 +270,9 @@ describe('an existing task', () => {
     said = [];
     await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())));
     expect(said[0]).toBe('done demo: worktree on feature/x, already here');
-    expect(openingPromptNow(new Task('t001')), 'what yan debug prints is what the agent was told').toBe(started[2]?.argv.at(-1));
+    expect(openingPromptNow(new Task('t001')), 'what yan debug prints is what the agent was told').toBe(told(2));
+    await run(answers({ entry: 't001' }), normalizePath(realpathSync(mkTempDir())), { cli: 'agy' });
+    expect(openingPromptNow(new Task('t001'), 'agy'), 'and for another CLI, what it would be told').toBe(told(3));
   });
 
   it('with a repository but no tree here, opens one from its linked clone, wherever yan is typed', async () => {
@@ -289,14 +306,15 @@ describe('an existing task', () => {
     await fxGit(['branch', '-D', 'feat/x'], clone);
 
     said = [];
-    await run(answers({ entry: 't001', tree: true }), clone);
+    await run(answers({ entry: 't001', tree: true }), clone, { cli: 'agy' });
     const again = treeOf();
     expect((await fxGit(['rev-parse', '--abbrev-ref', 'HEAD'], again)).stdout.trim()).toBe('feat/x');
     expect(said).toContain("done demo: worktree on feat/x, the task's branch");
-    expect(started[1]?.argv.at(-1)).toContain('The worktree is on the branch `feat/x`.');
-    expect(started[1]?.argv.at(-1), 'the given up one left out').toContain("The task's other branches in progress here: `feat/y`.");
-    expect(started[1]?.argv.at(-1)).toContain('yan keeps every branch the worktree is on for the task');
-    expect(started[1]?.argv.at(-1)).toContain('mark it with `yan branch abandon <name>`');
+    expect(told(1)).toContain('The worktree is on the branch `feat/x`.');
+    expect(told(1), 'the given up one left out').toContain("The task's other branches in progress here: `feat/y`.");
+    expect(told(1)).toContain('yan never makes a branch');
+    expect(told(1)).toContain('yan keeps every branch the worktree is on for the task');
+    expect(told(1)).toContain('mark it with `yan branch abandon <name>`');
   });
 
   it('opens a tree on a detached HEAD when the kept branch is nowhere, and says why', async () => {
@@ -333,7 +351,7 @@ describe('the harness', () => {
     ]);
 
     await run(answers({ entry: 't001' }), here, { cli: 'claude' });
-    expect(started[1]?.argv).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', openingPrompt(new Task('t001').dir)]);
+    expect(started[1]?.argv, 'claude is given the plugin and told only its skills').toEqual(['--dangerously-skip-permissions', ...CLAUDE_TAIL()]);
   });
 
   it('pulls the vault each time user sends a message and pushes it after each turn, through hooks for this session alone', async () => {
@@ -361,7 +379,7 @@ describe('the harness', () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ cli: 'claude', skipPermissions: false }));
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
-    expect(started[0]?.argv).toEqual(['--append-system-prompt', openingPrompt(new Task('t001').dir)]);
+    expect(started[0]?.argv).toEqual(CLAUDE_TAIL());
 
     await run(answers({ entry: 't001' }), here, { cli: 'codex' });
     expect(started[1]?.argv).not.toContain('--dangerously-bypass-approvals-and-sandbox');

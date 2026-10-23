@@ -12,6 +12,8 @@ per repository a task works in. Read `README.md` for what it does.
 `src/cli/shared/`. Bare `yan`, the launcher, is
 `src/cli/shared/launch.ts`.
 
+`plugin/` is yan's skills, the plugin claude is started with.
+
 `src/records/` owns the vault's files: `task` (task.json and problem.md),
 `log`, `drafts`, `learnings`, `repos` (repos.json, and where each is cloned).
 `src/externals/` wraps outside things: `worktree` (the pool) and `harness`
@@ -30,11 +32,17 @@ module's `index.ts`, and one external never imports another.
   command (task.json through `yan deliverable`, `yan resource`, `yan done`);
   prose belongs to a file the agent edits directly (problem.md). log.md is
   prose but appended only, so it goes through `yan log`.
-- What an agent is told has three places. When to do something goes in the
-  opening prompt (`OPENING_PROMPT` in `src/cli/shared/launch.ts`), because an
-  agent does not read help unprompted. How to do it goes in `--help`. A rule
-  that belongs to one command goes in its one-line description, which is the
-  line the agent reads when it scans `yan --help`.
+- What an agent is told has four places. How to work in a task, and when to
+  do each thing, goes in yan's skills (`plugin/skills/`), each skill's
+  description saying when it is used, since that is the line an agent reads
+  to choose one; claude is started with them, and they can be carried where
+  yan cannot start the agent. Claude's opening prompt (`SKILLS_PROMPT` in
+  `src/cli/shared/launch.ts`) only says the task is yan's, which skills there
+  are, and the one moment an agent would not think to look for a skill.
+  codex and agy take no plugin, so `OPENING_PROMPT` tells them it all, and
+  is kept in step with the skills. How to use a command goes in `--help`. A
+  rule that belongs to one command goes in its one-line description, which
+  is the line the agent reads when it scans `yan --help`.
 - A vault is shared across machines through git, and machines update yan at
   different times. A change to its files keeps old ones readable and is
   readable by the yan before it: add optional fields rather than renaming,

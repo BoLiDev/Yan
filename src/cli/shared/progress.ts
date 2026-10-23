@@ -19,6 +19,8 @@ import { repoKey } from '../../util/repo-key.js';
 export interface RepoProgress {
   readonly repo: string;
   readonly url: string;
+  /** The packages the task is about, as paths in the repository; empty for all of it. */
+  readonly scope: readonly string[];
   /** The branch the work is on: the tree's, or the one the task keeps when there is no tree here. */
   readonly branch: string | null;
   /** The commit a tree on a detached HEAD is at. */
@@ -54,7 +56,7 @@ export function taskProgress(task: Task): RepoProgress[] {
   return repos.map((r) => {
     const tree = trees.find((t) => t.url !== undefined && repoKey(t.url) === repoKey(r.url))?.path;
     const clone = cloneFor(r.url);
-    const common = { repo: repoName(r.url), url: r.url, earlierBranches: r.earlierBranches ?? [], branches: branchStates(r, tree ?? clone) };
+    const common = { repo: repoName(r.url), url: r.url, scope: r.scope ?? [], earlierBranches: r.earlierBranches ?? [], branches: branchStates(r, tree ?? clone) };
     if (tree !== undefined) {
       const base = defaultBranch(tree) ?? null;
       const branch = branchOf(tree) ?? null;
@@ -105,6 +107,8 @@ export function progressLines(progress: readonly RepoProgress[]): string[] {
     return [
       `  ${p.repo.padEnd(width)}  ${[where, facts.join(' · ')].filter((s) => s !== '').join('  ')}`,
       `${pad}${p.tree === null ? 'no worktree on this machine' : tildePath(p.tree)}`,
+      // The packages a task in a monorepo is about, which no prompt tells the agent once yan's skills do.
+      ...(p.scope.length === 0 ? [] : [`${pad}about ${p.scope.join(', ')}`]),
       ...(['open', 'merged', 'abandoned'] as const).flatMap((state) => {
         const names = p.branches.filter((b) => b.state === state && b.name !== p.branch).map((b) => b.name);
         return names.length === 0 ? [] : [`${pad}${SAID[state]}: ${names.join(', ')}`];

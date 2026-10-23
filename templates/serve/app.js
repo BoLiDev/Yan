@@ -2197,7 +2197,7 @@ function ask({ title, sub, action, reason }, then) {
 
 // ── the report ──────────────────────────────────────────────────────────────
 //
-// artifacts/report.html, which the report skill writes, shown inside a
+// artifacts/report.html, which the yan:uat skill writes, shown inside a
 // shadow root so its style and the page's leave each other alone, with what
 // serve adds on top: a deliverable is ticked, unticked or given up there and
 // task.json changes; a text is edited there and report.html changes. Either

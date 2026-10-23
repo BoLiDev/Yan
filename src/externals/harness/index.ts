@@ -3,5 +3,5 @@
  * is spelled. Nothing here starts a process.
  */
 
-export { HARNESS_KINDS, WAIT_LINE, cliKind, isKnownCli, launchArgs } from './launch.js';
+export { HARNESS_KINDS, WAIT_LINE, cliKind, isKnownCli, launchArgs, takesPlugins } from './launch.js';
 export type { Launch } from './launch.js';

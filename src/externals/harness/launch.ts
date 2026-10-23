@@ -8,6 +8,10 @@
  * system prompt, codex's developer instructions. agy has neither, so it gets
  * the prompt as its first message, with a line asking it to wait.
  *
+ * yan's skills come as a plugin, which only claude loads for one session,
+ * with `--plugin-dir`; the others are told what the skills say in their
+ * prompt instead.
+ *
  * Hooks go in for the one session, never into a CLI's own config: claude's
  * `--settings`, codex's `-c`. agy reads hooks only from files, its global one
  * or one in the workspace, which would leave the tree dirty, so it has none.
@@ -32,6 +36,8 @@ export interface Launch {
    * each time it finishes a turn. A CLI with no such hooks goes without.
    */
   readonly hooks?: { readonly prompt: string; readonly stop: string };
+  /** Plugin folders to load for this session alone, for a CLI that takes them (`takesPlugins`). */
+  readonly plugins?: readonly string[];
 }
 
 /** The line a first message ends with, so a prompt that is not a request starts no work. */
@@ -70,7 +76,8 @@ const claude: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
-    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), '--append-system-prompt', launch.prompt];
+    const plugins = (launch.plugins ?? []).flatMap((p) => ['--plugin-dir', p]);
+    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt];
   },
 };
 
@@ -138,6 +145,11 @@ const HARNESSES: ReadonlyMap<string, Harness> = new Map<string, Harness>([
 export function cliKind(cli: string): string {
   const first = cli.trim().split(/\s+/)[0] ?? '';
   return (first.split(/[\\/]/).pop() ?? first).replace(/\.exe$/, '');
+}
+
+/** Whether `cli` loads a plugin for one session, as claude does with `--plugin-dir`. */
+export function takesPlugins(cli: string): boolean {
+  return cliKind(cli) === 'claude';
 }
 
 /** Whether yan knows how to start `cli`. */

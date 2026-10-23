@@ -48,10 +48,17 @@ describe('taskProgress', () => {
 
     const progress = taskProgress(new Task('t001'));
     expect(progress).toEqual([{
-      repo: repoName(bare), url: bare, branch: 'feat/x', detachedAt: null, earlierBranches: [], branches: [],
+      repo: repoName(bare), url: bare, scope: [], branch: 'feat/x', detachedAt: null, earlierBranches: [], branches: [],
       tree, base: 'main', ahead: 3, unpushed: 1, uncommitted: 1,
     }]);
     expect(progressLines(progress)[0]).toBe(`  ${repoName(bare)}  feat/x  3 ahead of main · 1 not pushed · 1 uncommitted`);
+  });
+
+  it('says which packages a task in a monorepo is about, under its tree', () => {
+    const task = Task.create('in a monorepo', [{ url: bare, scope: ['apps/site', 'packages/core'] }]);
+    const [repo] = taskProgress(task);
+    expect(repo?.scope).toEqual(['apps/site', 'packages/core']);
+    expect(progressLines(taskProgress(task)).at(-1)?.trim()).toBe('about apps/site, packages/core');
   });
 
   it('lists the task\'s other branches by where each stands: merged by a merge commit, given up, or in progress', async () => {

@@ -3,7 +3,7 @@ import type { Deliverable } from './vault-view.js';
 
 /**
  * A task's report, artifacts/report.html, as `yan serve` handles it. The
- * report skill writes the page and report.json beside it; the page marks
+ * yan:uat skill writes the page and report.json beside it; the page marks
  * what serve may touch with data-yan-* attributes, and nothing else in it is
  * read or changed here.
  *

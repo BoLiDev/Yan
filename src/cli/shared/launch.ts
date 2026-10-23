@@ -11,7 +11,7 @@ import type { Said, Working } from '../../ui/chain.js';
 export { CREATE_NEW };
 export type { Said, Working };
 import { tildePath } from './style.js';
-import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs } from '../../externals/harness/index.js';
+import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs, takesPlugins } from '../../externals/harness/index.js';
 import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
 import { Task, type TaskRepo } from '../../records/task/index.js';
@@ -27,17 +27,38 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * terminal: in the task's first tree when it has trees, with the others
  * added beside it.
  *
- * The agent is told as little as will let it find the rest: the three parts
- * we think about a task in and which note keeps each, the two commands that read
- * them, where the task's files are, and which trees are which and what in
- * them the task is about. The
- * agent reads its notes with `yan context`, not `yan peek`, which is
- * `user`'s glance at a task and leaves the deliverables out. Which task it
- * is travels in `$YAN_TASK`, which every command reads, so the agent never
- * needs the id.
+ * The agent is told as little as will let it find the rest. claude is
+ * started with yan's plugin, whose skills say how to work in a task: what to
+ * read, how to keep the notes, when to gather the evidence. Its prompt says
+ * only that the task is yan's, which skills there are, and when yan:uat is
+ * due, the one moment the agent would not think to look for a skill. The
+ * skills travel where yan cannot start the agent and so cannot give it a
+ * prompt, as a cloud platform that runs agents on its own.
+ *
+ * codex and agy take no plugin, so they are told it all in their prompt: the
+ * three parts we think about a task in and which note keeps each, the two
+ * commands that read them, where the task's files are, and which trees are
+ * which and what in them the task is about. The agent reads its notes with
+ * `yan context`, not `yan peek`, which is `user`'s glance at a task and
+ * leaves the deliverables out. Which task it is travels in `$YAN_TASK`,
+ * which every command reads, so the agent never needs the id.
  */
 
-/** What the agent is told before `user` says anything. */
+/** What claude, started with yan's plugin, is told before `user` says anything. */
+export const SKILLS_PROMPT = [
+  'This task is kept by the yan CLI, which holds its notes from one session to the next: the problem, the solution as deliverables, and the decisions that steered them. ' +
+    'Which task it is travels in $YAN_TASK.',
+  'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
+    'yan:define works out the problem and the solution with the user; yan:done is the user\'s, to close the task.',
+  'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
+].join('\n');
+
+/** yan's plugin: its skills, which claude loads for the one session. */
+export function pluginDir(): string {
+  return join(yanHome(), 'plugin');
+}
+
+/** What an agent with no plugin is told before `user` says anything. */
 export const OPENING_PROMPT = [
   'Notes from earlier sessions on this work are kept by the yan CLI.',
   'We think about a task in three parts, each with its note: the problem (problem.md: the background, and what the problem is), ' +
@@ -106,6 +127,14 @@ function taskDirLine(dir: string): string {
       'Marking the task 验收中 is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
     'artifacts/ holds the work as it stands: an artifact redone replaces its file rather than sitting beside it.',
   ].join('\n');
+}
+
+/**
+ * What `cli` is told: the skills' prompt for one that loads yan's plugin,
+ * the whole opening prompt for one that does not.
+ */
+export function promptFor(cli: string, taskDir: string, trees: readonly Tree[] = []): string {
+  return takesPlugins(cli) ? SKILLS_PROMPT : openingPrompt(taskDir, trees);
 }
 
 /**
@@ -417,18 +446,19 @@ function told(task: Task, trees: readonly Tree[]): Tree[] {
 }
 
 /**
- * The opening prompt a start of `task` would give now, from the trees it
- * holds on this machine: what `yan debug` prints. It asks nothing and opens
- * no tree, so a repository with no tree here is left out, as a start leaves
- * it when its tree is declined.
+ * The opening prompt a start of `task` would give now, with the CLI the
+ * vault starts or `cli`, from the trees it holds on this machine: what
+ * `yan debug` prints. It asks nothing and opens no tree, so a repository
+ * with no tree here is left out, as a start leaves it when its tree is
+ * declined.
  */
-export function openingPromptNow(task: Task): string {
+export function openingPromptNow(task: Task, cli?: string): string {
   const held = leasesHeldBy(task.id).map((l) => ({ path: l.path, key: repoKey(remoteUrl(l.path) ?? '') }));
   const trees = task.read().repos.flatMap((repo): Tree[] => {
     const tree = held.find((h) => h.key === repoKey(repo.url));
     return tree === undefined ? [] : [{ name: repoName(repo.url), path: tree.path, scope: repo.scope ?? [] }];
   });
-  return openingPrompt(task.dir, told(task, withUnlisted(trees, held)));
+  return promptFor(harnessConfig(cli).cli, task.dir, told(task, withUnlisted(trees, held)));
 }
 
 /**
@@ -467,7 +497,9 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
 
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt: openingPrompt(task.dir, told(task, trees)), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
+  const prompt = promptFor(harness.cli, task.dir, told(task, trees));
+  const plugins = takesPlugins(harness.cli) ? [pluginDir()] : [];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
 }

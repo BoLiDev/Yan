@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WAIT_LINE, cliKind, isKnownCli, launchArgs } from './launch.js';
+import { WAIT_LINE, cliKind, isKnownCli, launchArgs, takesPlugins } from './launch.js';
 
 const plain = { model: '', effort: '', workdir: '/tree', addDirs: [], prompt: 'the prompt', skipPermissions: false };
 
@@ -53,6 +53,12 @@ describe('launchArgs', () => {
       '-c', 'hooks.Stop=[{hooks=[{type="command",command="push"}]}]',
     ]);
     expect(launchArgs('agy', hooked)).toEqual(launchArgs('agy', plain));
+  });
+
+  it('loads a plugin folder into claude for the one session, and only claude takes one', () => {
+    const withPlugin = { ...plain, plugins: ['/yan/plugin'] };
+    expect(launchArgs('claude', withPlugin)).toEqual(['--plugin-dir', '/yan/plugin', '--append-system-prompt', 'the prompt']);
+    expect(['claude', 'C:/bin/claude.exe', 'codex', 'agy'].map(takesPlugins)).toEqual([true, true, false, false]);
   });
 
   it('knows three CLIs and nothing else', () => {
