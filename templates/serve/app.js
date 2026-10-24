@@ -1041,17 +1041,6 @@ function renderMiddle() {
   }
 }
 
-function taskSub(t) {
-  const bits = [t.id];
-  if (t.state === 'open') bits.push(t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : 'in progress');
-  else if (t.state === 'uat') bits.push('验收中');
-  else if (t.state === 'done') bits.push(t.closedAt ? `done ${dayOf(fromIso(t.closedAt))}` : 'done');
-  else bits.push(t.closedAt ? `dropped ${dayOf(fromIso(t.closedAt))}` : 'dropped');
-  const repos = t.repos.map((x) => x.name).join(', ');
-  if (repos) bits.push(repos);
-  return bits.join(' · ');
-}
-
 /** How the nav says where a branch stands. */
 const BRANCH_SAID = { open: '进行中', merged: '已合并', abandoned: '已废弃' };
 
@@ -1125,8 +1114,7 @@ function renderTaskIndex(r) {
 
   const head = [
     h('div', { class: 'task-head' },
-      h('div', { class: 't' }, stateIcon(t.state, 18), h('h1', null, t.title || t.id)),
-      h('div', { class: 'sub' }, taskSub(t))),
+      h('div', { class: 't' }, stateIcon(t.state, 18), h('h1', null, t.title || t.id))),
     h('div', { class: 'nav' }, nav),
   ];
   // An open branch takes the part that scrolls, and the artifacts wait at the foot.
