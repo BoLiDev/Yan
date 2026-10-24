@@ -1,6 +1,6 @@
 ---
 name: uat
-description: Use once an implementation is done and its result can be verified interactively, in a task kept by yan. Shoots the before and the after of each deliverable, records them with `yan uat`, builds the report the user checks the task on, and hands the task to the user. Use it again after each round of the user's feedback, and when the user wants to see or share what a task delivered.
+description: Use once an implementation is done and its result can be verified interactively, in a task kept by yan. Shoots the before and the after of each deliverable, records them with `yan uat`, gives a link to try it when it is checked on the web, builds the report the user checks the task on, and hands the task to the user. Use it again after each round of the user's feedback, and when the user wants to see or share what a task delivered.
 ---
 
 # uat
@@ -87,7 +87,15 @@ yan uat note --for d6 "<how it was checked and what was seen>"
 
 Say what it shows in the user's language, in a line: what is on screen and what to look at. `yan uat` lists every deliverable with what it has; one with nothing is what the user will notice first.
 
-## 6. Build the report
+## 6. A link to try it
+
+When the result is checked by opening it on the web, try to give the user a link that opens it: the version with this work, at the place the change is seen, with whatever the URL needs to reach that version. How to get one depends on where it is deployed; this skill leaves that to whatever knows the platform.
+
+Keep as few as will do: **one for the task**, not one per deliverable or per place on the same page. Another only for a wholly different app or page. Open each once before keeping it: a link that does not show this version is worse than none.
+
+Keep each with `yan resource add preview "<what it opens>" <url>`, named for what it opens, the app or the page. A newer link for the same thing goes under the same name and replaces the old one, so each stays the latest that works; `yan resource ls` shows the names kept, and `yan resource rm` takes off one nothing needs any more. The report shows them at its top. When there is none, say why when you hand over.
+
+## 7. Build the report
 
 The report is one page per task: what the task was about, then every deliverable with what shows it is true. The user checks the deliverables against it in `yan serve`, and drags it into a document for others. A script builds the page; you write only its words.
 
@@ -122,8 +130,8 @@ node <this skill's folder>/scripts/render.mjs content.json
 
 It writes `artifacts/report.html` and `artifacts/report.json` in the task's folder, replacing any earlier ones. The deliverables, their state, the resources and which file goes under which deliverable all come from yan; the images go inside the page, and recordings become links to the vault's repository. A refusal names what content.json is missing.
 
-## 7. Hand it over
+## 8. Hand it over
 
-Once every deliverable is built and has its evidence, run `yan uat ready`: the task is 验收中, with the user to check. Give the user the report's path, and say which deliverables have nothing to check them by, and why.
+Once every deliverable is built and has its evidence, run `yan uat ready`: the task is 验收中, with the user to check. Give the user the report's path and the links to try it, and say which deliverables have nothing to check them by, and why.
 
 Leave the deliverables' state alone: whether each is done is the user's call, made on the report.

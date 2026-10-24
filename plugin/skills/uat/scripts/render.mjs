@@ -233,11 +233,22 @@ function properties(ctx) {
   const count = (s) => all.filter((d) => d.status === s).length;
   const [done, todo, gone] = [count('done'), count('todo'), count('abandoned')];
   const pct = (n) => (all.length === 0 ? 0 : (n / all.length) * 100).toFixed(2);
-  const rows = [
+  const rows = [];
+  // The links to check the result on come first, each with where it goes: they are what a reader
+  // opens before anything else, and the address shows which version it reaches.
+  const previews = ctx.resources.filter((r) => r.kind === 'preview');
+  if (previews.length > 0) {
+    rows.push([KIND_LABELS.preview, `<div class="links">${previews.map((r) => {
+      const where = `<span class="mono where" title="${esc(r.where)}">${esc(r.where.replace(/^https?:\/\//, ''))}</span>`;
+      return `<span class="link">${isUrl(r.where) ? `<a href="${esc(r.where)}">${esc(r.name)}</a>` : esc(r.name)}${where}</span>`;
+    }).join('')}</div>`]);
+  }
+  rows.push(
     ['进度', `<span class="bar"><span data-yan-bar="done" style="width:${pct(done)}%"></span><span data-yan-bar="abandoned" style="width:${pct(gone)}%"></span></span><span data-yan-progress="">${done} 完成 · ${todo} 待确认 · ${gone} 放弃</span>`],
     ['日期', `<span class="mono">${esc(dates(ctx))}</span>`],
-  ];
+  );
   for (const [kind, label] of Object.entries(KIND_LABELS)) {
+    if (kind === 'preview') continue;
     const kept = ctx.resources.filter((r) => r.kind === kind);
     if (kept.length === 0) continue;
     rows.push([label, kept.map((r) => (isUrl(r.where) ? `<a href="${esc(r.where)}">${esc(r.name)}</a>` : esc(r.name))).join('')]);
@@ -277,6 +288,10 @@ h1{margin:22px 0 0;font-size:40px;line-height:1.2;font-weight:700;letter-spacing
 .props dt{padding:9px 0;color:#909090}
 .props dd{margin:0;padding:9px 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
 .bar{display:flex;width:180px;height:8px;border-radius:4px;overflow:hidden;background:#262626}
+.links{display:flex;flex-direction:column;gap:6px;min-width:0;max-width:100%}
+.link{display:flex;align-items:baseline;gap:12px;min-width:0}
+.link>a{flex:none}
+.where{font-size:13px;color:#909090;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 h2{margin:80px 0 0;font-size:14px;font-weight:500;letter-spacing:.08em;color:#909090}
 .problem{margin:20px 0 0;font-size:16px;line-height:1.85;color:#DBDBDB}
 ol.approach{margin:6px 0 0;padding-left:1.6em;list-style:decimal;font-size:16px;line-height:1.85;color:#DBDBDB}

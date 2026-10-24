@@ -72,7 +72,7 @@ export const OPENING_PROMPT = [
     'When one does, rewrite its note to say how things stand now, as if writing it for the first time: what it used to say belongs in the log.',
   'Resources the work refers to are kept under a name with `yan resource`, for later sessions to find, each as its kind: ' +
     'spec (the ticket, PRD or design the task comes from), mr (as soon as one is opened), ' +
-    'preview (a test link to the deployed version, after each deploy the user is to look at), run (a sub-task started elsewhere), or general.',
+    'preview (a link that opens the version with this work for the user to check the result on), run (a sub-task started elsewhere), or general.',
   '`yan context` sums up the task from its folder and its worktrees: the problem, the deliverables, the resources, the artifacts and where each branch stands. ' +
     'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
 ].join('\n');
@@ -135,8 +135,9 @@ function filesLine(dir: string): string {
  * with `yan uat` as it is made, so whether each one is done can be judged
  * from it and a report can place each file under the deliverable it proves;
  * a change to what `user` sees is shot before it is made, since the before
- * is gone once it is; once it is all there, `yan uat ready` hands the task
- * to `user` to accept. artifacts/ holds the work as it stands, as problem.md
+ * is gone once it is; a result checked on the web gets a link to try it,
+ * as few as will do, each the latest for what it opens; once it is all
+ * there, `yan uat ready` hands the task to `user` to accept. artifacts/ holds the work as it stands, as problem.md
  * does: an artifact redone replaces its file, and the vault's git history
  * keeps the old one.
  */
@@ -146,6 +147,8 @@ function taskDirLine(dir: string): string {
     'What goes in artifacts/uat/ is gathered deliverable by deliverable rather than as a sweep of the product: ' +
       'for each one, a screenshot or recording that shows it, named for it (d3-before.png, d3-after.png, d3.webm) and recorded with `yan uat add` as soon as it is made, ' +
       'or, where nothing on screen can show it, `yan uat note` saying how it was checked. A change to what the user sees is shot before it is made. ' +
+      'When the result is checked by opening it on the web, try to give the user a link that opens the version with this work at the place the change is seen, with whatever the URL needs to reach that version: ' +
+      'one for the task, another only for a wholly different app or page, each opened once before it is kept with `yan resource add preview`, named for what it opens, so a newer one replaces it. ' +
       'Marking the task 验收中 is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
     'artifacts/ holds the work as it stands: an artifact redone replaces its file rather than sitting beside it.',
   ].join('\n');

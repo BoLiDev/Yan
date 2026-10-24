@@ -72,10 +72,10 @@ export const command = new Command('resource')
            the work starts from it, or when the user gives one.
   mr       a merge request, as soon as it is opened, however it was opened,
            one each, named for its repository and number: web#77, api!12.
-  preview  a link that opens the deployed version, in the environment it is
-           deployed to, at the place the change is seen. Kept after each
-           deploy the user is to look at, named for what it shows, so the
-           next deploy replaces it.
+  preview  a link that opens the version with this work, at the place the
+           change is seen, for the user to check the result on: one for the
+           task, another only for a wholly different app or page. Named for
+           what it opens, so a newer link for it replaces the old.
   run      a sub-task started on another platform, such as an agent run.
   general  anything else a later session may need to find again.
 
