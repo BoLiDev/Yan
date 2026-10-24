@@ -11,7 +11,8 @@ nothing else.
 An agent knows about them when you start it through `yan`. Type `yan`, pick
 a task or start one, and Claude, Codex or Agy starts in the task's worktree.
 Claude is given yan's skills, which say how to work in a task, and is told
-in three lines that the task is yan's and which skills there are; Codex and
+in four lines that the task is yan's, where its files go and which skills
+there are; Codex and
 Agy take no skills that way, so they are told it all in their opening
 prompt. Start the same agent directly and it hears of yan only if it has the
 skills.
@@ -66,8 +67,8 @@ its branches; `yan:define`, to work out the problem and the solution with
 you; `yan:uat`, once an implementation is done and its result can be
 verified interactively; and `yan:done`, which only you start, to close a
 task. Claude is started with them (`--plugin-dir`), and its prompt says only
-that the task is yan's, which skills there are, and that an implementation
-ends with `yan:uat`. A skill can be carried where yan does not start the
+that the task is yan's, where its files are and which folder takes what,
+which skills there are, and that an implementation ends with `yan:uat`. A skill can be carried where yan does not start the
 agent and so cannot give it a prompt. Codex and Agy take no plugin, so their
 prompt says it all: which tree is which and what in them the task is about,
 where the task's own files are, how the branches are kept, and how the
@@ -82,8 +83,12 @@ happens, and the white screen a large Vite project opens on cut off. Each
 file is named for what it shows (d3-before.png, d3-after.png) and recorded
 with `yan uat`, or a note says how a deliverable was checked where nothing
 on screen shows it. It builds the report, then marks the task 验收中 with
-`yan uat ready`. Designs go in artifacts/design/. An artifact redone replaces
-its file; the vault's history keeps the old one.
+`yan uat ready`. Designs go in artifacts/design/, and anything else worth
+keeping, a script, notes or data pulled for a check, in artifacts/misc/, so
+nothing sits loose in artifacts/ but the report; what can be made again and
+only takes room, installed dependencies or a checkout of old code, stays out
+of the vault. An artifact redone replaces its file; the vault's history
+keeps the old one.
 While it runs, the vault is kept in step with your other machines without
 the agent being told: it is pulled each time you send a message and pushed
 each time the agent finishes a turn, by hooks given to that session alone
@@ -213,9 +218,11 @@ what it was written from), its bar says legacy and what changed.
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
     artifacts/                 whatever the work produced worth keeping, as it stands now
+      report.html              the report yan:uat writes, report.json beside it: the only files loose here
       design/                  HTML pages, canvases, diagrams of a system
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
         uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
+      misc/                    anything else worth keeping: a script, notes, data pulled for a check
 ~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```

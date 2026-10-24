@@ -30,10 +30,12 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * The agent is told as little as will let it find the rest. claude is
  * started with yan's plugin, whose skills say how to work in a task: what to
  * read, how to keep the notes, when to gather the evidence. Its prompt says
- * only that the task is yan's, which skills there are, and when yan:uat is
- * due, the one moment the agent would not think to look for a skill. The
- * skills travel where yan cannot start the agent and so cannot give it a
- * prompt, as a cloud platform that runs agents on its own.
+ * only that the task is yan's, where its files are and which folder takes
+ * what, which skills there are, and when yan:uat is due, the one moment the
+ * agent would not think to look for a skill. Where the files go is said
+ * there as well as in yan:recap, since an agent writes files whether or not
+ * it ran recap first. The skills travel where yan cannot start the agent and
+ * so cannot give it a prompt, as a cloud platform that runs agents on its own.
  *
  * codex and agy take no plugin, so they are told it all in their prompt: the
  * three parts we think about a task in and which note keeps each, the two
@@ -44,14 +46,17 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * which every command reads, so the agent never needs the id.
  */
 
-/** What claude, started with yan's plugin, is told before `user` says anything. */
-export const SKILLS_PROMPT = [
-  'This task is kept by the yan CLI, which holds its notes from one session to the next: the problem, the solution as deliverables, and the decisions that steered them. ' +
-    'Which task it is travels in $YAN_TASK.',
-  'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
-    'yan:define works out the problem and the solution with the user; yan:done is the user\'s, to close the task.',
-  'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
-].join('\n');
+/** What claude, started with yan's plugin, is told before `user` says anything, for the task in `taskDir`. */
+export function skillsPrompt(taskDir: string): string {
+  return [
+    'This task is kept by the yan CLI, which holds its notes from one session to the next: the problem, the solution as deliverables, and the decisions that steered them. ' +
+      'Which task it is travels in $YAN_TASK.',
+    filesLine(taskDir),
+    'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
+      'yan:define works out the problem and the solution with the user; yan:done is the user\'s, to close the task.',
+    'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
+  ].join('\n');
+}
 
 /** yan's plugin: its skills, which claude loads for the one session. */
 export function pluginDir(): string {
@@ -105,23 +110,37 @@ const NO_BRANCH = 'yan never makes a branch: a worktree on a detached HEAD has t
  * Where this task's own files are, absolute, since the agent starts in a
  * worktree and never in the vault: problem.md, and artifacts/ for what the
  * work produces, which no command writes but uat/uat.json, and so nothing
- * else would name.
+ * else would name. Told to every agent, claude included.
  *
- * Two folders in it have their own moment. design/ is written before the
- * work it shapes. uat/ is what `user` checks the result by, gathered
- * deliverable by deliverable and recorded with `yan uat` as it is made, so
- * whether each one is done can be judged from it and a report can place
- * each file under the deliverable it proves; a change to what `user` sees is
- * shot before it is made, since the before is gone once it is; once it is all
- * there, `yan uat ready` hands the task to `user` to accept. artifacts/ holds the work as it stands, as problem.md does: an
- * artifact redone replaces its file, and the vault's git history keeps the
- * old one.
+ * Each thing in artifacts/ has its folder, so the top of it does not fill
+ * with whatever a session left: design/ is written before the work it
+ * shapes, uat/ is what `user` checks the result by, misc/ is anything else
+ * worth keeping, and only the report sits beside them. What can be made
+ * again and only takes room stays out of the vault, which every machine
+ * pulls.
+ */
+function filesLine(dir: string): string {
+  return `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping. ` +
+    'Designs (HTML pages, canvases, diagrams of a system) go in artifacts/design/, what the user checks the result by in artifacts/uat/, ' +
+    'and anything else worth keeping, such as a script, notes or data pulled for a check, in artifacts/misc/; nothing sits loose in artifacts/ but report.html and report.json. ' +
+    'What can be made again and only takes room, such as installed dependencies, a checkout of old code or frames decoded from a video, stays out of this folder.';
+}
+
+/**
+ * Where the task's files are, and for an agent with no plugin, and so no
+ * yan:uat, how uat/ is gathered: deliverable by deliverable and recorded
+ * with `yan uat` as it is made, so whether each one is done can be judged
+ * from it and a report can place each file under the deliverable it proves;
+ * a change to what `user` sees is shot before it is made, since the before
+ * is gone once it is; once it is all there, `yan uat ready` hands the task
+ * to `user` to accept. artifacts/ holds the work as it stands, as problem.md
+ * does: an artifact redone replaces its file, and the vault's git history
+ * keeps the old one.
  */
 function taskDirLine(dir: string): string {
   return [
-    `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping.`,
-    'Designs (HTML pages, canvases, diagrams of a system) go in artifacts/design/. ' +
-      'What the user is to check the result by goes in artifacts/uat/, deliverable by deliverable rather than as a sweep of the product: ' +
+    filesLine(dir),
+    'What goes in artifacts/uat/ is gathered deliverable by deliverable rather than as a sweep of the product: ' +
       'for each one, a screenshot or recording that shows it, named for it (d3-before.png, d3-after.png, d3.webm) and recorded with `yan uat add` as soon as it is made, ' +
       'or, where nothing on screen can show it, `yan uat note` saying how it was checked. A change to what the user sees is shot before it is made. ' +
       'Marking the task 验收中 is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
@@ -134,7 +153,7 @@ function taskDirLine(dir: string): string {
  * the whole opening prompt for one that does not.
  */
 export function promptFor(cli: string, taskDir: string, trees: readonly Tree[] = []): string {
-  return takesPlugins(cli) ? SKILLS_PROMPT : openingPrompt(taskDir, trees);
+  return takesPlugins(cli) ? skillsPrompt(taskDir) : openingPrompt(taskDir, trees);
 }
 
 /**

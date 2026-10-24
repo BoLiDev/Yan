@@ -98,7 +98,7 @@ It is a summary of the task's folder and its worktrees, not all there is:
 for more, read the files in the folder, the worktree's code and its git
 history.
 
-Artifacts are grouped as design/, uat/ and the rest, a folder in them shown
+Artifacts are grouped as design/, uat/, misc/ and the rest, a folder in them shown
 as its count of files. Each branch shows how far it is ahead of the default
 branch, how many of its commits no remote branch has, and how many changes
 are uncommitted in its worktree; a repository with no worktree on this

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, SKILLS_PROMPT, enter, openingPrompt, openingPromptNow, pluginDir, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, openingPrompt, openingPromptNow, pluginDir, skillsPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
 import { WAIT_LINE } from '../../src/externals/harness/index.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
@@ -125,8 +125,8 @@ function told(i: number): string {
   return (argv[argv.indexOf('-i') + 1] ?? '').replace(`\n${WAIT_LINE}`, '');
 }
 
-/** claude's argv, after its approvals flag: yan's plugin, and a prompt that names its skills. */
-const CLAUDE_TAIL = (): string[] => ['--plugin-dir', pluginDir(), '--append-system-prompt', SKILLS_PROMPT];
+/** claude's argv, after its approvals flag: yan's plugin, and a prompt that says where the task's files go and names its skills. */
+const CLAUDE_TAIL = (): string[] => ['--plugin-dir', pluginDir(), '--append-system-prompt', skillsPrompt(new Task('t001').dir)];
 
 function treeOf(id = 't001'): string {
   const held = leasesHeldBy(id);

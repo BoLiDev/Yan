@@ -36,9 +36,11 @@ module's `index.ts`, and one external never imports another.
   do each thing, goes in yan's skills (`plugin/skills/`), each skill's
   description saying when it is used, since that is the line an agent reads
   to choose one; claude is started with them, and they can be carried where
-  yan cannot start the agent. Claude's opening prompt (`SKILLS_PROMPT` in
-  `src/cli/shared/launch.ts`) only says the task is yan's, which skills there
-  are, and the one moment an agent would not think to look for a skill.
+  yan cannot start the agent. Claude's opening prompt (`skillsPrompt` in
+  `src/cli/shared/launch.ts`) only says the task is yan's, where its files
+  go, which skills there are, and the one moment an agent would not think to
+  look for a skill; where the files go is there too because an agent writes
+  files whether or not it ran a skill first.
   codex and agy take no plugin, so `OPENING_PROMPT` tells them it all, and
   is kept in step with the skills. How to use a command goes in `--help`. A
   rule that belongs to one command goes in its one-line description, which

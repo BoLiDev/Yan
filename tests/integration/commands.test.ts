@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
-import { SKILLS_PROMPT, openingPrompt } from '../../src/cli/shared/launch.js';
+import { openingPrompt, skillsPrompt } from '../../src/cli/shared/launch.js';
 import { Task } from '../../src/records/task/index.js';
 
 /**
@@ -181,7 +181,11 @@ describe('yan ls and yan peek', () => {
     expect(json).toMatchObject({ id: 't001', problem: { file: task.problem }, resources: [{ kind: 'spec', name: 'PROJ-412' }], branches: [] });
     expect(json.artifacts).toEqual([expect.objectContaining({ group: 'uat', path: 'uat/d1-after.png', bytes: 3, url: null })]);
     expectUsage(await yan(['context']), '--task <id>');
-    expect((await yan(['debug', 't001'])).stdout, 'claude is told only the skills').toBe(`${SKILLS_PROMPT}\n`);
+    const told = (await yan(['debug', 't001'])).stdout;
+    expect(told, 'claude is told where the files go and which skills there are').toBe(`${skillsPrompt(task.dir)}\n`);
+    const files = told.split('\n')[1] ?? '';
+    expect(files.startsWith(`This task's files are in ${task.dir}: `), 'its second line, without waiting for yan:recap').toBe(true);
+    for (const folder of ['artifacts/design/', 'artifacts/uat/', 'artifacts/misc/']) expect(files).toContain(folder);
     expect((await yan(['debug', 't001', '--cli', 'codex'])).stdout, 'no tree here, so no line on branches').toBe(`${openingPrompt(task.dir)}\n`);
   });
 

@@ -7,12 +7,13 @@ import { readVaultConfig, vaultDir } from '../../util/vault.js';
 
 /**
  * What a task's artifacts/ holds, for `yan context`. The opening prompt
- * gives two folders their own moment, so the files are told apart by them:
- * design/ is written before the work, uat/ is what `user` checks it by, and
- * anything else is the work's own.
+ * gives each thing in it a folder, so the files are told apart by them:
+ * design/ is written before the work, uat/ is what `user` checks it by,
+ * misc/ is anything else worth keeping. The rest is what sits loose beside
+ * them: the report, and what a task from before misc/ left there.
  */
 
-export const ARTIFACT_GROUPS = ['design', 'uat', 'other'] as const;
+export const ARTIFACT_GROUPS = ['design', 'uat', 'misc', 'other'] as const;
 export type ArtifactGroup = (typeof ARTIFACT_GROUPS)[number];
 
 export interface Artifact {
@@ -38,13 +39,13 @@ function filesUnder(dir: string): string[] {
     .flatMap((e) => (e.isDirectory() ? filesUnder(join(dir, e.name)) : e.isFile() ? [join(dir, e.name)] : []));
 }
 
-/** The files of a task's artifacts/, design/ first, then uat/, then the rest, each in path order. */
+/** The files of a task's artifacts/, design/ first, then uat/, then misc/, then the rest, each in path order. */
 export function listArtifacts(taskDir: string): Artifact[] {
   const root = join(taskDir, 'artifacts');
   const all = filesUnder(root).map((file): Artifact => {
     const path = relative(root, file).split(sep).join('/');
     const top = path.split('/')[0];
-    const group: ArtifactGroup = path.includes('/') && (top === 'design' || top === 'uat') ? top : 'other';
+    const group: ArtifactGroup = path.includes('/') && (top === 'design' || top === 'uat' || top === 'misc') ? top : 'other';
     const stat = statSync(file);
     return { group, path, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
   });
