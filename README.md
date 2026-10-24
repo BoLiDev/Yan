@@ -137,7 +137,9 @@ starts.
 10 seconds (`--every`) it fetches the vault into refs of its own,
 `refs/yan/serve/`, and reads git objects rather than the work tree, so
 nothing an agent or a hook works with moves; an open page follows without
-being reloaded. Left running while yan is updated, it restarts on the newer
+being reloaded, and changes only what moved: a push fetches again only the
+tasks it touched, and a page left half read stays where it was, with what
+is selected, typed or playing in it. Left running while yan is updated, it restarts on the newer
 build by itself once that build is complete and starts, in the same process
 and on the same port, and an open page reloads onto it. With the bell beside Latest on, Chrome shows a silent macOS
 notification when a push arrives, the task's name as its title and nothing
@@ -160,10 +162,10 @@ task kept there, those in progress first, the one its tree was last on
 leading them, then those merged with their pull request, then those
 abandoned. A click on a branch copies its whole name and opens it. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
-block alike, by highlight.js served from yan's own copy, so the page still
-fetches nothing from the network; a language outside the common set is served
-from the same copy the first time a file needs it, and a file whose language
-yan does not know stays plain. A
+block alike, by highlight.js, built into the page, so the page still fetches
+nothing from the network; a language outside the common set is loaded the
+first time a file needs it, and a file whose language yan does not know
+stays plain. A
 branch already merged is compared from where it left, and its merge commit
 names the pull request, so it shows the same change however far the default
 branch has moved since; one deleted from origin is found again from what its
@@ -190,8 +192,8 @@ deliverable's text is edited where it stands. Under its date on hover, one
 button gives it up, with a reason that stays on its line and is edited the
 same way, and the bin deletes it, once you confirm, as if it had never been
 added: the ones after it take its number. A resource's pencil edits where it points, keeping its
-kind, and its bin forgets it. While you type, or while the problem is open,
-the page holds off redrawing for new commits, so nothing typed is lost.
+kind, and its bin forgets it. What you are typing, in a text or in the
+problem, stays as it is while new commits arrive, so nothing typed is lost.
 
 A task with an artifacts/report.html, the page `yan:uat` writes from
 what `yan uat` recorded, has a Report beside its overview. Each deliverable

@@ -1,7 +1,6 @@
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { createRequire } from 'node:module';
-import { dirname, extname, join } from 'node:path';
+import { extname, join } from 'node:path';
 import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
 import { saveVault } from '../shared/vault-push.js';
 import { Task, parseUat } from '../../records/task/index.js';
@@ -371,16 +370,13 @@ export class YanServer {
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
-    if (p === '/' || p === '/index.html') return this.asset(res, join(this.options.home, 'templates', 'serve', 'index.html'), 'text/html; charset=utf-8');
-    if (p === '/app.js' || p === '/app.css') return this.asset(res, join(this.options.home, 'templates', 'serve', p.slice(1)), typeOf(p));
+    // The page, as `vite build` wrote it from web/: its files are named for their content, so they keep forever.
+    if (p === '/' || p === '/index.html') return this.asset(res, join(this.options.home, 'dist', 'web', 'index.html'), 'text/html; charset=utf-8');
+    if (p.startsWith('/assets/') && /^[\w.-]+$/.test(p.slice(8))) {
+      return this.asset(res, join(this.options.home, 'dist', 'web', 'assets', p.slice(8)), typeOf(p), 'max-age=31536000, immutable');
+    }
     if (p.startsWith('/fonts/') && /^[\w.-]+\.woff2$/.test(p.slice(7))) {
       return this.asset(res, join(this.options.home, 'templates', 'fonts', p.slice(7)), 'font/woff2', 'max-age=86400');
-    }
-    if (p === '/vendor/marked.js') return this.asset(res, this.markedPath(), 'text/javascript; charset=utf-8', 'max-age=86400');
-    if (p === '/vendor/highlight.js') return this.asset(res, this.highlightPath(), 'text/javascript; charset=utf-8', 'max-age=86400');
-    // One language outside highlight.js's common set, which the page asks for the first time a file needs it.
-    if (p.startsWith('/vendor/highlight/') && /^[a-z0-9-]+\.js$/.test(p.slice(18))) {
-      return this.asset(res, this.highlightPath(`languages/${p.slice(18, -3)}.min.js`), 'text/javascript; charset=utf-8', 'max-age=86400');
     }
 
     if (p === '/api/hello') return json(res, { yan: 'serve', vault: this.options.vaultName });
@@ -681,21 +677,6 @@ export class YanServer {
     }
     res.writeHead(200, { 'Content-Type': type, 'Content-Length': String(size), 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' });
     createReadStream(file).pipe(res);
-  }
-
-  private markedPath(): string {
-    const pkg = createRequire(join(this.options.home, 'package.json')).resolve('marked/package.json');
-    return join(dirname(pkg), 'lib', 'marked.umd.js');
-  }
-
-  /**
-   * highlight.js's browser build, and its languages one file each, from the
-   * copy yan depends on (`@highlightjs/cdn-assets` is the project's own
-   * pre-built package); the page fetches nothing from anywhere else.
-   */
-  private highlightPath(rel = 'highlight.min.js'): string {
-    const pkg = createRequire(join(this.options.home, 'package.json')).resolve('@highlightjs/cdn-assets/package.json');
-    return join(dirname(pkg), rel);
   }
 
   // --- the files' origin -----------------------------------------------------

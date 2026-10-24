@@ -96,25 +96,27 @@ beforeAll(async () => {
 });
 
 describe('yan serve', () => {
-  it('serves the page and an index of every task', async () => {
-    expect(await (await fetch(page('/'))).text()).toContain('id="app"');
-    const index = (await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; artifacts: number }[]; latest: unknown[]; filesOrigin: string; status: { ok: boolean } };
+  it('serves the page and an index of every task, each with what its files are now', async () => {
+    expect(await (await fetch(page('/'))).text()).toContain('<div id="root"></div>');
+    const index = (await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; artifacts: number; rev: string }[]; latest: unknown[]; filesOrigin: string; status: { ok: boolean } };
     expect(index.tasks.map((t) => [t.id, t.artifacts])).toEqual([['t001', 4]]);
+    expect(index.tasks[0]?.rev).toMatch(/^[0-9a-f]{16}$/);
     expect(index.latest).toHaveLength(1);
     expect(index.filesOrigin).toBe(`http://localhost:${port + 1}`);
     expect(index.status.ok).toBe(true);
   });
 
-  it("serves highlight.js and its languages one by one from yan's own copy, and nothing else from there", async () => {
-    const core = await fetch(page('/vendor/highlight.js'));
-    expect(core.status).toBe(200);
-    expect(core.headers.get('content-type')).toContain('javascript');
-    expect(await core.text()).toContain('hljs');
-    const one = await fetch(page('/vendor/highlight/dockerfile.js'));
-    expect(one.status).toBe(200);
-    expect(await one.text()).toContain('dockerfile');
-    expect((await fetch(page('/vendor/highlight/no-such-language.js'))).status).toBe(404);
-    expect((await fetch(page('/vendor/highlight/package.json'))).status).toBe(404);
+  it('serves the page as vite built it, its files kept forever, and nothing else from there', async () => {
+    const html = await (await fetch(page('/'))).text();
+    const script = /src="(\/assets\/[^"]+\.js)"/.exec(html)?.[1];
+    expect(script).toBeDefined();
+    const js = await fetch(page(script as string));
+    expect(js.status).toBe(200);
+    expect(js.headers.get('content-type')).toContain('javascript');
+    expect(js.headers.get('cache-control')).toContain('immutable');
+    expect((await fetch(page('/assets/no-such-file.js'))).status).toBe(404);
+    expect((await fetch(page('/assets/../package.json'))).status).toBe(404);
+    expect((await fetch(page('/app.js'))).status).toBe(404);
   });
 
   it('gives a task its problem, deliverables and files', async () => {

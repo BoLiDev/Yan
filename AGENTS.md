@@ -14,6 +14,13 @@ per repository a task works in. Read `README.md` for what it does.
 
 `plugin/` is yan's skills, the plugin claude is started with.
 
+`web/` is `yan serve`'s page, a React 19 and TypeScript app that Vite builds
+into dist/web/, which the server serves. Server data is held by TanStack
+Query and fetched again only when the server says that part of the vault
+moved; the page's own state, its preferences and what it has seen, is a
+zustand store. `npm run dev:web` serves the page with hot reload against a
+`yan serve` already running ($YAN_SERVE, http://localhost:4747 by default).
+
 `src/records/` owns the vault's files: `task` (task.json and problem.md),
 `log`, `drafts`, `learnings`, `repos` (repos.json, and where each is cloned).
 `src/externals/` wraps outside things: `worktree` (the pool) and `harness`
@@ -58,9 +65,11 @@ module's `index.ts`, and one external never imports another.
 
 ## Checking a change
 
-`npm test` builds, then runs every test; the integration tests run
-`bin/yan.mjs` against `dist/`, so they need the build. `npm run typecheck`
-type-checks the tests, which the build does not. A command's own test sits beside
+`npm test` builds, the page included, then runs every test; the integration
+tests run `bin/yan.mjs` against `dist/`, so they need the build.
+`npm run typecheck` type-checks the tests, which the build does not, and the
+page. The page's logic that runs without a browser is tested beside it in
+`web/src/`; how it behaves in one is checked by driving it, as yan:uat does. A command's own test sits beside
 it in `src/`; a test through `bin/yan` goes in `tests/integration/`.
 
 When a command, a file format or what the agent is told changes, update

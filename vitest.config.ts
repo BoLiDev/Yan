@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 // Where a test lives says who it is for:
 //
+//   web/src/<part>/*.test.ts the page's own logic, beside it: what runs
+//                            without a browser, such as its routes, its
+//                            marks and its diffs
 //   src/<module>/*.test.ts   one module's own test, beside the file it tests,
 //                            whether or not it needs the internals. It may
 //                            import the module's internal files, which a test
@@ -18,7 +21,7 @@ import { defineConfig } from 'vitest/config';
 // the build, so colocated tests never reach dist/.
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts', 'tests/{unit,integration,e2e}/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'web/src/**/*.test.ts', 'tests/{unit,integration,e2e}/**/*.test.ts'],
     setupFiles: ['tests/helpers/setup-env.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,

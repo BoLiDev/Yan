@@ -5,12 +5,12 @@ import { join } from 'node:path';
 
 /**
  * Which yan a `yan serve` is running, as a fingerprint of the files it runs
- * from: the build in dist/ and the page in templates/serve/. When it is not
+ * from: the build in dist/, the page in dist/web/ among it. When it is not
  * the one the server started with, a newer yan was built or pulled into the
  * clone, and the server restarts on it rather than waiting for the user to.
  */
 
-const PARTS = [['dist'], ['templates', 'serve']] as const;
+const PARTS = [['dist']] as const;
 
 /** Every file's path, size and modification time, hashed; '' when there is nothing to read. */
 export function buildPrint(home: string): string {

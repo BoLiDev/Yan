@@ -119,6 +119,23 @@ describe('a vault at a commit', () => {
     }
   });
 
+  it('gives each task a rev that moves when its own files do, and only then', async () => {
+    const view = new VaultView(dir);
+    try {
+      const revs = async (at: number): Promise<Record<string, string>> => {
+        await view.load(commits[at] as string);
+        return Object.fromEntries(view.index().tasks.map((t) => [t.id, t.rev]));
+      };
+      const two = await revs(2);
+      const three = await revs(3);
+      expect(three.t001, 't001 changed a file').not.toBe(two.t001);
+      expect(three.t002, 't002 did not').toBe(two.t002);
+      expect(three.t001).not.toBe(three.t002);
+    } finally {
+      await view.close();
+    }
+  });
+
   it('runs commits in a row on one task, close together, into one push, and keeps a file there once', async () => {
     const view = new VaultView(dir);
     try {

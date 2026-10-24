@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { asRecord, asString, recordOrNone } from '../../util/narrow.js';
 import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
@@ -62,6 +63,11 @@ export interface TaskSummary {
   readonly added: readonly number[];
   /** The newest commit that touched anything of the task's. */
   readonly touched: number;
+  /**
+   * Its files as they are now, every path and sha hashed: what the page
+   * reloads a task by, so a push to one task leaves the others as they are.
+   */
+  readonly rev: string;
 }
 
 export interface Push {
@@ -340,8 +346,11 @@ export class VaultView {
       const json = this.parsed.get(files.json.sha) ?? readTaskJson({});
       const shown = files.artifacts.filter((e) => hiddenBy(this.rel(id, e.path)) === undefined);
       let touched = 0;
+      const rev = createHash('sha1');
       for (const e of [files.json, files.problem, files.brief, files.log, ...files.artifacts]) {
-        if (e !== undefined) touched = Math.max(touched, this.times.get(e.path)?.changed ?? 0);
+        if (e === undefined) continue;
+        touched = Math.max(touched, this.times.get(e.path)?.changed ?? 0);
+        rev.update(`${e.path}\0${e.sha}\n`);
       }
       const count = (status: string): number => json.deliverables.filter((d) => d.status === status).length;
       tasks.push({
@@ -355,6 +364,7 @@ export class VaultView {
         artifacts: shown.length,
         added: shown.map((e) => this.times.get(e.path)?.added ?? 0).sort((a, b) => b - a),
         touched,
+        rev: rev.digest('hex').slice(0, 16),
       });
     }
     return { tasks, latest: this.pushes() };

@@ -1,0 +1,209 @@
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { dirName, baseName } from '../lib/files';
+import type { PushFile } from '../lib/api';
+import { useUI } from '../state/ui';
+import { Icon, type IconName } from './Icon';
+
+interface ToolProps {
+  name: IconName;
+  label: string;
+  onClick?: () => void;
+  href?: string | null;
+  /** A link opens in a new tab unless this is false. */
+  newTab?: boolean;
+  small?: boolean;
+  pressed?: boolean;
+  disabled?: boolean;
+  blocked?: boolean;
+}
+
+/** An icon button, or an icon link when it has somewhere to go; a link with nowhere to go is a button, so it can be disabled. */
+export function Tool({ name, label, onClick, href, newTab = true, small, pressed, disabled, blocked }: ToolProps) {
+  const className = 'tool' + (small ? ' small' : '') + (blocked ? ' blocked' : '');
+  const icon = <Icon name={name} size={small ? 15 : 17} />;
+  if (href) {
+    return (
+      <a className={className} aria-label={label} title={label} href={href} target={newTab ? '_blank' : undefined}
+        rel="noopener" onClick={onClick}>{icon}</a>
+    );
+  }
+  return (
+    <button type="button" className={className} aria-label={label} title={label} aria-pressed={pressed === undefined ? undefined : pressed}
+      disabled={disabled} onClick={onClick}>{icon}</button>
+  );
+}
+
+export function Seg<V extends string>({ options, current, onPick, wide }: { options: readonly (readonly [V, string])[]; current: V; onPick: (v: V) => void; wide?: boolean }) {
+  return (
+    <div className={'seg' + (wide ? ' wide' : '')} role="group">
+      {options.map(([value, label]) => (
+        <button key={value} type="button" aria-pressed={value === current} onClick={() => onPick(value)}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** The right pane's toolbar: what is shown, a line about it, and the tools for it. */
+export function Bar({ title, meta, tools }: { title: ReactNode; meta?: ReactNode; tools?: ReactNode }) {
+  return (
+    <div className="bar">
+      <div className="title"><span className="name">{title}</span><span className="meta">{meta ?? ''}</span></div>
+      {tools}
+    </div>
+  );
+}
+
+export function Crumb({ path }: { path: string }) {
+  const dir = dirName(path);
+  return <>{dir ? <span className="dir">{dir} / </span> : null}{baseName(path)}</>;
+}
+
+export function Empty({ title, children }: { title?: string; children?: ReactNode }) {
+  return <div className="empty">{title ? <h2>{title}</h2> : null}{children}</div>;
+}
+
+/** `+2 ~1 −1`: what a push added, changed and deleted, as tags. */
+export function PushTags({ files }: { files: readonly PushFile[] }) {
+  const n = (st: string): number => files.filter((f) => f.status === st).length;
+  const tags = ([['A', 'new', '+', 'added'], ['M', 'changed', '~', 'changed'], ['D', 'gone', '−', 'deleted']] as const).filter(([st]) => n(st) > 0);
+  return <>{tags.map(([st, cls, sign, word]) => <span key={st} className={`tag ${cls}`} title={`${n(st)} ${word}`}>{`${sign}${n(st)}`}</span>)}</>;
+}
+
+/** Where each scrolling list was left, by what it lists, for when the page comes back to it. */
+const scrolls = new Map<string, number>();
+
+/**
+ * A pane: what stays at its top, what scrolls below that, and what stays at
+ * its foot. The top gets a line under it once anything has scrolled under.
+ * With `remember`, the list goes back to where it was left the last time it
+ * listed the same thing.
+ */
+export function Pane({ top, body, foot, remember }: { top: ReactNode; body: ReactNode; foot?: ReactNode; remember?: string }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState(false);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || remember === undefined) return;
+    el.scrollTop = scrolls.get(remember) ?? 0;
+    setEdge(el.scrollTop > 0);
+  }, [remember]);
+  return (
+    <>
+      <div className={'pane-top' + (edge ? ' edge' : '')}>{top}</div>
+      <div className="pane-scroll" ref={scroller} onScroll={(e) => {
+        const at = e.currentTarget.scrollTop;
+        setEdge(at > 0);
+        if (remember !== undefined) scrolls.set(remember, at);
+      }}>{body}</div>
+      {foot ? <div className="pane-foot">{foot}</div> : null}
+    </>
+  );
+}
+
+export function Toast() {
+  const toast = useUI((s) => s.toast);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!toast) return undefined;
+    setShown(true);
+    const t = setTimeout(() => setShown(false), 1600);
+    return () => clearTimeout(t);
+  }, [toast]);
+  return <div className={'toast' + (shown ? ' show' : '')} role="status" aria-live="polite">{toast?.text ?? ''}</div>;
+}
+
+/**
+ * A question over the page, answered by its button or let go. With a
+ * `reason`, it also asks for a line, which the button waits for and which
+ * the answer is given.
+ */
+export function AskModal() {
+  const ask = useUI((s) => s.ask);
+  const [given, setGiven] = useState('');
+  const first = useRef<HTMLInputElement & HTMLButtonElement>(null);
+  useEffect(() => {
+    setGiven('');
+    first.current?.focus();
+  }, [ask]);
+  if (!ask) return null;
+  const close = (): void => useUI.setState({ ask: null });
+  const ready = !ask.reason || given.trim() !== '';
+  const answer = (): void => {
+    if (!ready) return;
+    close();
+    ask.then(given.trim());
+  };
+  return (
+    <div className="ask-modal" onClick={(e) => { if (e.target === e.currentTarget) close(); }} onKeyDown={(e) => {
+      if (e.key === 'Escape') close();
+      if (e.key === 'Enter' && ready) {
+        e.preventDefault();
+        answer();
+      }
+    }}>
+      <div className="ask" role="dialog" aria-modal="true" aria-label={ask.title}>
+        <div className="t">{ask.title}</div>
+        {ask.sub ? <div className="s">{ask.sub}</div> : null}
+        {ask.reason ? <input ref={first} className="ask-input" aria-label={ask.reason} placeholder={ask.reason} value={given} onChange={(e) => setGiven(e.target.value)} /> : null}
+        <div className="b">
+          <button type="button" className="button quiet" onClick={close}>取消</button>
+          <button ref={ask.reason ? undefined : first} type="button" className="button danger" disabled={!ready} onClick={answer}>{ask.action}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A text edited where it stands: Enter or leaving it keeps what was typed,
+ * on one line, and Escape puts it back. A blank is never kept. While it is
+ * being edited, a new text from the server waits: what is typed is never
+ * overwritten under the typist.
+ */
+export function Editable({ text, onSave, onLeft, className, as = 'span', autoFocus }: {
+  text: string;
+  onSave: (text: string) => void;
+  onLeft?: (changed: boolean) => void;
+  className?: string;
+  as?: 'span' | 'div';
+  autoFocus?: boolean;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const was = useRef(text);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && document.activeElement !== el) el.textContent = text;
+  }, [text]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !autoFocus) return;
+    el.focus();
+    getSelection()?.selectAllChildren(el);
+  }, [autoFocus]);
+  const Tag = as;
+  return (
+    <Tag ref={ref as never} className={className} contentEditable="plaintext-only" spellCheck={false} suppressContentEditableWarning
+      onFocus={(e) => { was.current = e.currentTarget.textContent ?? ''; }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+        if (e.key === 'Escape') {
+          e.currentTarget.textContent = was.current;
+          e.currentTarget.blur();
+        }
+      }}
+      onBlur={(e) => {
+        const el = e.currentTarget;
+        const typed = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const changed = typed !== was.current.trim() && typed !== '';
+        if (typed === '') el.textContent = was.current;
+        if (changed) {
+          was.current = typed;
+          onSave(typed);
+        }
+        onLeft?.(changed);
+      }} />
+  );
+}
