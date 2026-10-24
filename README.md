@@ -83,9 +83,10 @@ happens, and the white screen a large Vite project opens on cut off. Each
 file is named for what it shows (d3-before.png, d3-after.png) and recorded
 with `yan uat`, or a note says how a deliverable was checked where nothing
 on screen shows it. It builds the report, then marks the task 验收中 with
-`yan uat ready`. Designs go in artifacts/design/, and anything else worth
-keeping, a script, notes or data pulled for a check, in artifacts/misc/, so
-nothing sits loose in artifacts/ but the report; what can be made again and
+`yan uat ready`. Designs of what you will see go in artifacts/design/,
+written documents in artifacts/docs/, and anything else worth keeping, a
+script, a query or data pulled for a check, in artifacts/misc/, so nothing
+sits loose in artifacts/ but the report; what can be made again and
 only takes room, installed dependencies or a checkout of old code, stays out
 of the vault. An artifact redone replaces its file; the vault's history
 keeps the old one.
@@ -219,10 +220,11 @@ what it was written from), its bar says legacy and what changed.
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
     artifacts/                 whatever the work produced worth keeping, as it stands now
       report.html              the report yan:uat writes, report.json beside it: the only files loose here
-      design/                  HTML pages, canvases, diagrams of a system
+      design/                  what you will see: pages, canvases, mockups, palettes, icons, and the scripts that build them
+      docs/                    written documents: a technical design, research notes, a review, a handoff, a diagram of a system
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
         uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
-      misc/                    anything else worth keeping: a script, notes, data pulled for a check
+      misc/                    anything else worth keeping: a script, a query, data pulled for a check
 ~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```

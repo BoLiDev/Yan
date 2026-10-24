@@ -185,7 +185,7 @@ describe('yan ls and yan peek', () => {
     expect(told, 'claude is told where the files go and which skills there are').toBe(`${skillsPrompt(task.dir)}\n`);
     const files = told.split('\n')[1] ?? '';
     expect(files.startsWith(`This task's files are in ${task.dir}: `), 'its second line, without waiting for yan:recap').toBe(true);
-    for (const folder of ['artifacts/design/', 'artifacts/uat/', 'artifacts/misc/']) expect(files).toContain(folder);
+    for (const folder of ['artifacts/design/', 'artifacts/docs/', 'artifacts/uat/', 'artifacts/misc/']) expect(files).toContain(folder);
     expect((await yan(['debug', 't001', '--cli', 'codex'])).stdout, 'no tree here, so no line on branches').toBe(`${openingPrompt(task.dir)}\n`);
   });
 
