@@ -2333,13 +2333,14 @@ function drawReport(t, d, rep) {
   // the vault is committed and pushed, which can take seconds.
   const state = new Map(d.deliverables.map((x) => [x.id, x.status]));
   const progress = shell.querySelector('[data-yan-progress]');
+  // Progress is done out of what is to be delivered, the ones given up left out of both.
   const recount = () => {
-    const all = [...state.values()];
-    const count = (st) => all.filter((s) => s === st).length;
-    const pct = (n) => `${all.length ? (n / all.length) * 100 : 0}%`;
-    if (progress) progress.textContent = `${count('done')} 完成 · ${count('todo')} 待确认 · ${count('abandoned')} 放弃`;
-    shell.querySelector('[data-yan-bar="done"]')?.style.setProperty('width', pct(count('done')));
-    shell.querySelector('[data-yan-bar="abandoned"]')?.style.setProperty('width', pct(count('abandoned')));
+    const wanted = [...state.values()].filter((s) => s !== 'abandoned');
+    const done = wanted.filter((s) => s === 'done').length;
+    if (progress) progress.textContent = `${done}/${wanted.length}`;
+    shell.querySelector('[data-yan-bar="done"]')?.style.setProperty('width', `${wanted.length ? (done / wanted.length) * 100 : 0}%`);
+    // A page rendered before has a part of the bar for the ones given up; it shows none now.
+    shell.querySelector('[data-yan-bar="abandoned"]')?.style.setProperty('width', '0%');
   };
   const show = (el, id, status, reason) => {
     el.dataset.yanStatus = status;

@@ -86,8 +86,8 @@ on screen shows it. When the result is checked on the web, it tries to give
 you a link that opens the version with this work, one for the task unless a
 wholly different app or page needs its own, leaving how to get it to
 whatever knows the platform; each is kept as a preview named for what it
-opens, so a newer one replaces it, and the report lists them first, with
-their addresses. It builds the report, then marks the task 验收中 with
+opens, so a newer one replaces it, and the report lists them as the last
+row of its header. It builds the report, then marks the task 验收中 with
 `yan uat ready`. Designs of what you will see go in artifacts/design/,
 written documents in artifacts/docs/, and anything else worth keeping, a
 script, a query or data pulled for a check, in artifacts/misc/, so nothing

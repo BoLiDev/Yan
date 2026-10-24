@@ -93,7 +93,7 @@ When the result is checked by opening it on the web, try to give the user a link
 
 Keep as few as will do: **one for the task**, not one per deliverable or per place on the same page. Another only for a wholly different app or page. Open each once before keeping it: a link that does not show this version is worse than none.
 
-Keep each with `yan resource add preview "<what it opens>" <url>`, named for what it opens, the app or the page. A newer link for the same thing goes under the same name and replaces the old one, so each stays the latest that works; `yan resource ls` shows the names kept, and `yan resource rm` takes off one nothing needs any more. The report shows them at its top. When there is none, say why when you hand over.
+Keep each with `yan resource add preview "<what it opens>" <url>`, named for what it opens, the app or the page. A newer link for the same thing goes under the same name and replaces the old one, so each stays the latest that works; `yan resource ls` shows the names kept, and `yan resource rm` takes off one nothing needs any more. The report lists them as the last row of its header. When there is none, say why when you hand over.
 
 ## 7. Build the report
 

@@ -256,7 +256,7 @@ describe('a report on yan serve', () => {
     const copy = await (await fetch(page('/api/report/download?task=t002'))).text();
     expect(copy).toContain('data-yan-d="d1" data-yan-status="done"');
     expect(copy).not.toContain('data-yan-d="d2"');
-    expect(copy).toContain('<span data-yan-progress="">1 完成 · 0 待确认</span>');
+    expect(copy).toContain('<span data-yan-progress="">1/1</span>');
     expect((await report())?.behind).toEqual([]);
 
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'abandoned', reason: 'not this month' })).status).toBe(200);

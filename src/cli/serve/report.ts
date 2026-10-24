@@ -94,11 +94,12 @@ export function handout(html: string, deliverables: readonly Deliverable[]): str
     return `${open}${n}${close}`;
   });
 
+  // Done out of what is to be delivered; a page rendered before keeps a part of its bar for the given up, emptied.
   const kept = deliverables.filter((d) => d.status !== 'abandoned');
-  const [done, todo] = [kept.filter((d) => d.status === 'done').length, kept.filter((d) => d.status === 'todo').length];
-  const pct = (n: number): string => (kept.length === 0 ? 0 : (n / kept.length) * 100).toFixed(2);
-  out = out.replace(/(<span data-yan-progress="">)[^<]*(<\/span>)/, `$1${done} 完成 · ${todo} 待确认$2`);
-  out = out.replace(/(data-yan-bar="done" style="width:)[\d.]+(%")/, `$1${pct(done)}$2`);
+  const done = kept.filter((d) => d.status === 'done').length;
+  const pct = (kept.length === 0 ? 0 : (done / kept.length) * 100).toFixed(2);
+  out = out.replace(/(<span data-yan-progress="">)[^<]*(<\/span>)/, `$1${done}/${kept.length}$2`);
+  out = out.replace(/(data-yan-bar="done" style="width:)[\d.]+(%")/, `$1${pct}$2`);
   return out.replace(/(data-yan-bar="abandoned" style="width:)[\d.]+(%")/, (_, a: string, b: string) => `${a}0.00${b}`);
 }
 

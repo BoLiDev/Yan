@@ -22,7 +22,7 @@ describe('handout', () => {
     const out = handout(PAGE, [d('d1', 'todo'), d('d2', 'done')]);
     expect(out).toContain('data-yan-d="d1" data-yan-status="todo"');
     expect(out).toContain('data-yan-d="d2" data-yan-status="done"');
-    expect(out).toContain('<span data-yan-progress="">1 完成 · 1 待确认</span>');
+    expect(out).toContain('<span data-yan-progress="">1/2</span>');
     expect(out).toContain('data-yan-bar="done" style="width:50.00%"');
   });
 
@@ -67,7 +67,7 @@ describe('handout', () => {
     expect(out).toContain('one.png');
     expect(out.match(/<section/g)).toHaveLength(1);
     expect(out).toContain('<h2 data-yan-alone="DELIVERABLES">其他 DELIVERABLES</h2>');
-    expect(out).toContain('<span data-yan-progress="">1 完成 · 1 待确认</span>');
+    expect(out).toContain('<span data-yan-progress="">1/2</span>');
     expect(out).toContain('data-yan-bar="done" style="width:50.00%"');
     expect(out).toContain('data-yan-bar="abandoned" style="width:0.00%"');
     expect(out.match(/<div/g)?.length).toBe(out.match(/<\/div>/g)?.length);
