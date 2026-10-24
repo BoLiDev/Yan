@@ -41,24 +41,27 @@ For a web page, Playwright is the tool: the project's own when it has it, otherw
 
 Record with Playwright's `recordVideo`, which writes webm at 25 frames a second. Pause about a second between steps so a viewer can follow, and keep it to what the deliverable needs.
 
-**Every recording says what is happening as it happens**: a black pill with white text, near the bottom centre, changed at each step, in the user's language. Put it in the page itself, so it is in the recording without editing the video afterwards. It goes when the page navigates, so set it again after each load.
+**Every recording says what is happening as it happens**: a black pill with white text, centred at the top or the bottom of the page, changed at each step, in the user's language. Put it where it covers nothing the step shows: at the bottom, unless what the step shows is down there (a toast, a footer, a bar of buttons), and then at the top, below the page's own top bar. It can move from one step to the next. Put it in the page itself, so it is in the recording without editing the video afterwards. It goes when the page navigates, so set it again after each load.
 
 ```js
-async function caption(page, text) {
-  await page.evaluate((text) => {
+// at: 'bottom' or 'top'; move `top` down when the page's own bar is taller than 72px.
+async function caption(page, text, at = 'bottom') {
+  await page.evaluate(([text, at]) => {
     let pill = document.getElementById('uat-caption');
     if (!pill) {
       pill = document.createElement('div');
       pill.id = 'uat-caption';
       Object.assign(pill.style, {
-        position: 'fixed', left: '50%', bottom: '32px', transform: 'translateX(-50%)', zIndex: '2147483647',
+        position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: '2147483647',
         padding: '8px 18px', borderRadius: '999px', background: 'rgba(0,0,0,.82)', color: '#fff',
         font: '600 15px/1.4 system-ui, sans-serif', pointerEvents: 'none', whiteSpace: 'nowrap',
       });
       document.body.append(pill);
     }
+    pill.style.top = at === 'top' ? '72px' : '';
+    pill.style.bottom = at === 'top' ? '' : '32px';
     pill.textContent = text;
-  }, text);
+  }, [text, at]);
 }
 ```
 
