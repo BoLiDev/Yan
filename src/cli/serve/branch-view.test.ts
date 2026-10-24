@@ -143,6 +143,32 @@ describe('a branch', () => {
     }
   });
 
+  it('once fast-forwarded in, with no merge commit, shows what it changed from where the task last saw it meet main', async () => {
+    await fxGit(['fetch', '-q', 'origin'], work);
+    await fxGit(['checkout', '-q', '-b', 'feat/ff', 'origin/main'], work);
+    const met = (await fxGit(['rev-parse', 'HEAD'], work)).stdout.trim();
+    await mkCommit(work, 'ff.txt', 'ff', 'add ff.txt');
+    await mkCommit(work, 'ff.txt', 'ff again', 'change ff.txt');
+    await fxGit(['push', '-q', 'origin', 'feat/ff', 'feat/ff:main'], work);
+
+    const branches = new Branches(0);
+    try {
+      const noted = await branches.view(bare, 'feat/ff', mine, true, met);
+      expect(noted.missing).toBeNull();
+      expect(noted.merged).toMatchObject({ sha: noted.head, pr: null });
+      expect([noted.base, noted.ahead, noted.behind]).toEqual([met, 2, 0]);
+      expect(noted.commits.map((c) => c.subject)).toEqual(['change ff.txt', 'add ff.txt']);
+      expect(noted.files.map((f) => `${f.status} ${f.path}`)).toEqual(['A ff.txt']);
+
+      const unnoted = await branches.view(bare, 'feat/ff', mine, true);
+      expect(unnoted.merged, 'with nothing noted, git alone cannot tell it from one just cut').toBeNull();
+      expect(unnoted.files).toEqual([]);
+      expect((await branches.view(bare, 'feat/ff', mine, true, unnoted.head)).merged, 'noted at its own head: nothing of its own').toBeNull();
+    } finally {
+      await branches.close();
+    }
+  });
+
   it('says why when there is nothing to show', async () => {
     const branches = new Branches(0);
     try {

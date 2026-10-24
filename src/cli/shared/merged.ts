@@ -1,11 +1,15 @@
 import { git } from '../../util/git.js';
 
 /**
- * Whether a branch was merged into origin's default branch, as git tells
- * it: a merge commit on the default branch took the branch's head in. One
- * fast-forwarded in is not told apart from one just cut and not committed
- * to yet, both a commit the default branch already has, so neither counts.
- * `yan serve` reads the same through its own refs (`serve/branch-view.ts`).
+ * Whether a branch was merged into origin's default branch: a merge commit
+ * on the default branch took the branch's head in, or, with none, the
+ * default branch has the head and the head has commits of its own after
+ * where the task last saw the branch meet the default branch (its
+ * `branchBases`). git alone cannot tell one fast-forwarded in from one just
+ * cut and not committed to, both a commit the default branch already has;
+ * the noted point can, as it is noted only once the branch has commits of
+ * its own. `yan serve` reads the same through its own refs
+ * (`serve/branch-view.ts`).
  */
 
 /** What lists the merges after `head` up to `tip`, each with its parents. */
@@ -56,9 +60,10 @@ function sha(dir: string, refs: readonly string[]): string | undefined {
 /**
  * Whether `branch` was merged into `target`, from the refs of the clone or
  * tree `dir`, as last fetched: origin's copy of the branch, else the local
- * one, else a merge that names it.
+ * one, else a merge that names it. `noted` is where the task last saw the
+ * branch meet `target`.
  */
-export function mergedInto(dir: string, branch: string, target: string): boolean {
+export function mergedInto(dir: string, branch: string, target: string, noted?: string): boolean {
   const tip = sha(dir, [`refs/remotes/origin/${target}`, `refs/heads/${target}`]);
   if (tip === undefined) return false;
   const head = sha(dir, [`refs/remotes/origin/${branch}`, `refs/heads/${branch}`]);
@@ -66,7 +71,9 @@ export function mergedInto(dir: string, branch: string, target: string): boolean
     const named = git(dir, namingArgs(tip, branch));
     return named.code === 0 && namedMergeHead(named.stdout, branch) !== undefined;
   }
-  if (head === tip || git(dir, ['merge-base', '--is-ancestor', head, tip]).code !== 0) return false;
+  if (git(dir, ['merge-base', '--is-ancestor', head, tip]).code !== 0) return false;
+  if (noted !== undefined && noted !== head && git(dir, ['merge-base', '--is-ancestor', noted, head]).code === 0) return true;
+  if (head === tip) return false;
   const listed = git(dir, takingArgs(head, tip));
   return listed.code === 0 && mergeTaking(listed.stdout, head) !== undefined;
 }

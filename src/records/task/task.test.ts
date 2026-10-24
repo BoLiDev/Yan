@@ -291,6 +291,23 @@ describe('branches', () => {
     expect(() => task.abandonBranch('git@github.com:me/api.git', 'feat/a')).toThrow(/not a repository of this task/);
   });
 
+  it('notes where a branch last met the default branch, keeps it when the worktree moves on, and reads only full shas of its branches', () => {
+    const [a, b] = ['a'.repeat(40), 'b'.repeat(40)];
+    const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
+    task.keepBranch('git@github.com:me/web.git', 'feat/a');
+    expect(task.noteBranchBase('git@github.com:me/web.git', 'feat/a', a)).toBe(true);
+    expect(task.noteBranchBase('https://github.com/me/web', 'feat/a', a), 'noted already').toBe(false);
+    task.keepBranch('git@github.com:me/web.git', 'feat/b');
+    task.noteBranchBase('git@github.com:me/web.git', 'feat/b', b);
+    expect(task.read().repos[0]?.branchBases).toEqual({ 'feat/a': a, 'feat/b': b });
+
+    expect(() => task.noteBranchBase('git@github.com:me/web.git', 'feat/z', a)).toThrow(/feat\/z is not a branch of this task/);
+    expect(() => task.noteBranchBase('git@github.com:me/web.git', 'feat/a', 'abc1234')).toThrow(/not a full commit sha/);
+
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ ...(raw(task).repos as Record<string, unknown>[])[0], branchBases: { 'feat/a': a, 'feat/b': 'HEAD~1', gone: b } }] }));
+    expect(task.read().repos[0]?.branchBases, 'a ref edited in, and a branch not kept, are left out').toEqual({ 'feat/a': a });
+  });
+
   it('reads a branch a yan from before marks kept: open the last the worktree was on, given up the earlier ones', () => {
     const task = Task.create('x', [{ url: 'git@github.com:me/web.git' }]);
     writeFileSync(task.file, JSON.stringify({ ...raw(task), repos: [{ url: 'git@github.com:me/web.git', branch: 'c', earlierBranches: ['a', 'b'] }] }));

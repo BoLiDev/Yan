@@ -41,7 +41,7 @@ describe('task.json', () => {
       createdAt: null,
       closedAt: null,
       reason: null,
-      repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1-c', earlier: ['yan/t1-a', 'yan/t1-b'], abandoned: ['yan/t1-a', 'yan/t1-b'] }],
+      repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1-c', earlier: ['yan/t1-a', 'yan/t1-b'], abandoned: ['yan/t1-a', 'yan/t1-b'], bases: {} }],
       deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15', reason: null }],
       resources: [['a', 'b'], ['n', '3']],
     });
@@ -54,6 +54,12 @@ describe('task.json', () => {
       { url: 'git@github.com:o/api.git', branch: 'y', earlierBranches: ['x'] },
     ] }).repos;
     expect(repos.map((r) => r.abandoned)).toEqual([['b'], ['x']]);
+  });
+
+  it('reads where each branch last met the default branch, only as a full commit sha', () => {
+    const sha = 'c'.repeat(40);
+    const [repo] = readTaskJson({ repos: [{ url: 'git@github.com:o/web.git', branch: 'c', branchBases: { c: sha, d: 'main; rm -rf', e: 4 } }] }).repos;
+    expect(repo?.bases).toEqual({ c: sha });
   });
 });
 

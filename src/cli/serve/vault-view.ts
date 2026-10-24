@@ -97,7 +97,7 @@ export interface TaskDetail {
   readonly createdAt: string | null;
   readonly closedAt: string | null;
   readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
+  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[]; readonly bases: Readonly<Record<string, string>> }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
@@ -200,6 +200,15 @@ function abandonedOf(branch: string | null, earlier: readonly string[], raw: unk
   return [...(branch === null ? [] : [branch]), ...earlier].filter((name) => branchMark(repo, name) === 'abandoned');
 }
 
+/** `branchBases`: where each branch last met the default branch, leaving out what is not a full commit sha. */
+function basesOf(raw: unknown): Record<string, string> {
+  const bases: Record<string, string> = {};
+  for (const [name, sha] of Object.entries(recordOrNone(raw) ?? {})) {
+    if (typeof sha === 'string' && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(sha.trim())) bases[name.trim()] = sha.trim();
+  }
+  return bases;
+}
+
 function repoName(url: string): string {
   return repoKey(url).split('/').pop() ?? url;
 }
@@ -210,7 +219,7 @@ interface TaskJson {
   readonly createdAt: string | null;
   readonly closedAt: string | null;
   readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
+  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[]; readonly bases: Readonly<Record<string, string>> }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
 }
@@ -231,7 +240,7 @@ export function readTaskJson(raw: unknown): TaskJson {
     repos: repos.map((x) => {
       const branch = text(x!.branch);
       const earlier = branchList(x!.earlierBranches).filter((b) => b !== branch);
-      return { url: x!.url as string, name: repoName(x!.url as string), branch, earlier, abandoned: abandonedOf(branch, earlier, x!.branchMarks) };
+      return { url: x!.url as string, name: repoName(x!.url as string), branch, earlier, abandoned: abandonedOf(branch, earlier, x!.branchMarks), bases: basesOf(x!.branchBases) };
     }),
     deliverables: deliverables.map((d) => ({
       id: asString(d.id),

@@ -103,6 +103,15 @@ export interface TaskRepo {
    * marked.
    */
   readonly branchMarks?: Readonly<Record<string, BranchMark>>;
+  /**
+   * Where each branch last met the default branch, a commit, noted at every
+   * push while the worktree is on it and it has commits of its own: it
+   * moves on each time the default branch is merged in. A branch the
+   * default branch already has, with commits after this point, was
+   * fast-forwarded in, which leaves no merge commit to tell it by. Absent
+   * until one is noted.
+   */
+  readonly branchBases?: Readonly<Record<string, string>>;
 }
 
 /**

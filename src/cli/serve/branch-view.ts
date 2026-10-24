@@ -15,8 +15,10 @@ import { mergeTaking, namedMergeHead, namingArgs, takingArgs } from '../shared/m
  * A branch already merged is compared from where it left the default
  * branch, not from the default branch's head: against that it changes
  * nothing. Where it left is the merge commit's first parent, and GitHub's
- * merge commit names the pull request. What counts as merged is the CLI's
- * rule (`shared/merged.ts`), read through the server's own refs.
+ * merge commit names the pull request; for one fast-forwarded in, with no
+ * merge commit, it is where the task last saw the branch meet the default
+ * branch. What counts as merged is the CLI's rule (`shared/merged.ts`),
+ * read through the server's own refs.
  */
 
 /** The server's own copies of origin's branches. */
@@ -166,9 +168,10 @@ export class Branches {
   /**
    * The branch and what it changes, fetching both it and the default branch
    * when they are stale. With `wait`, what the fetch brought, rather than
-   * what the clone had before it.
+   * what the clone had before it. `noted` is where the task last saw the
+   * branch meet the default branch.
    */
-  public async view(url: string, branch: string, clone: string | undefined, wait = false): Promise<BranchView> {
+  public async view(url: string, branch: string, clone: string | undefined, wait = false, noted?: string): Promise<BranchView> {
     const forge = forgeOf(url);
     const empty = {
       repo: repoKey(url).split('/').pop() ?? url,
@@ -229,13 +232,22 @@ export class Branches {
     let merged: BranchView['merged'] = null;
     const isMerged = (await gitAsync(clone, ['merge-base', '--is-ancestor', head, tip])).code === 0;
     const taking = isMerged && head !== tip ? mergeTaking((await out(clone, takingArgs(head, tip))) ?? '', head) : undefined;
+    const forwarded = isMerged && taking === undefined && noted !== undefined && noted !== head
+      && (await gitAsync(clone, ['merge-base', '--is-ancestor', noted, head])).code === 0;
     if (taking !== undefined) {
       const [at = '0', subject = ''] = ((await out(clone, ['show', '-s', '--format=%ct%x1f%s', taking.sha])) ?? '').split('\x1f');
       merged = { sha: taking.sha, at: Number(at), pr: prOf(subject) };
       base = await out(clone, ['merge-base', taking.firstParent, head]);
+    } else if (forwarded) {
+      // Fast-forwarded in: no merge took it, yet the default branch has its
+      // head and the commits after where the task last saw it meet the
+      // default branch, so it is compared from there, the head standing for
+      // the merge.
+      merged = { sha: head, at: Number((await out(clone, ['show', '-s', '--format=%ct', head])) ?? 0), pr: null };
+      base = noted;
     } else {
-      // A head the default branch has with no merge taking it in, just cut or
-      // fast-forwarded in, is compared like any other: it changes nothing.
+      // A head the default branch has with no merge taking it in and nothing
+      // noted, just cut, is compared like any other: it changes nothing.
       base = await out(clone, ['merge-base', tip, head]);
     }
     if (base === undefined) {

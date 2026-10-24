@@ -617,7 +617,7 @@ export class YanServer {
       // The branch the task is on, or one it was on before; never any other name.
       const asked = q.get('branch') || repo.branch;
       if (asked !== repo.branch && !repo.earlier.includes(asked)) return send(res, 404, `${asked} is not a branch this task kept`);
-      return json(res, await this.branches.view(repo.url, asked, usable, q.get('fresh') === '1'));
+      return json(res, await this.branches.view(repo.url, asked, usable, q.get('fresh') === '1', repo.bases[asked]));
     }
     if (usable === undefined) return send(res, 404, 'no clone of that repository on this machine');
 

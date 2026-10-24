@@ -215,6 +215,30 @@ export class Task {
   }
 
   /**
+   * Note `sha` as where `branch`, one this task kept in the repository `url`
+   * names, last met the default branch (`branchBases`). Returns false when
+   * that was noted already.
+   *
+   * @throws YanError `branch_usage` for a branch the task has not kept
+   *   there, something that is not a full commit sha, or a repository it
+   *   does not work in.
+   */
+  public noteBranchBase(url: string, branch: string, sha: string): boolean {
+    const name = branchName('note', branch);
+    if (!FULL_SHA.test(sha)) throw YanError.usage('branch_usage', `'${sha}' is not a full commit sha`);
+    let changed = false;
+    this.editRepo(url, (entry, had) => {
+      const names = [...(had.branch === undefined ? [] : [had.branch]), ...(had.earlierBranches ?? [])];
+      if (!names.includes(name)) {
+        throw YanError.usage('branch_usage', `${name} is not a branch of this task in ${had.url} - ${names.length === 0 ? 'it has kept none there' : `it has kept ${names.join(', ')}`}`);
+      }
+      changed = had.branchBases?.[name] !== sha;
+      return { ...entry, branchBases: { ...had.branchBases, [name]: sha } };
+    });
+    return changed;
+  }
+
+  /**
    * Rewrite the entry for the repository `url` names, given it as it stands
    * in the file, so a field a later yan added to it survives, and as read.
    *
@@ -470,6 +494,7 @@ function taskRepo(repo: TaskRepo): TaskRepo {
     ...(repo.branch === undefined ? {} : { branch: repo.branch }),
     ...(repo.earlierBranches === undefined || repo.earlierBranches.length === 0 ? {} : { earlierBranches: [...repo.earlierBranches] }),
     ...(repo.branchMarks === undefined || Object.keys(repo.branchMarks).length === 0 ? {} : { branchMarks: { ...repo.branchMarks } }),
+    ...(repo.branchBases === undefined || Object.keys(repo.branchBases).length === 0 ? {} : { branchBases: { ...repo.branchBases } }),
   };
 }
 
@@ -480,6 +505,18 @@ function branchMarks(raw: unknown, names: readonly string[]): Record<string, Bra
     if (names.includes(name.trim()) && (BRANCH_MARKS as readonly unknown[]).includes(mark)) marks[name.trim()] = mark as BranchMark;
   }
   return marks;
+}
+
+/** A commit as git names it in full: sha-1, or sha-256. */
+const FULL_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+/** Where the branches named last met the default branch, leaving out what is not a full commit sha. */
+function branchBases(raw: unknown, names: readonly string[]): Record<string, string> {
+  const bases: Record<string, string> = {};
+  for (const [name, sha] of Object.entries(recordOrNone(raw) ?? {})) {
+    if (names.includes(name.trim()) && typeof sha === 'string' && FULL_SHA.test(sha.trim())) bases[name.trim()] = sha.trim();
+  }
+  return bases;
 }
 
 /** Branch names as a list, each once, leaving out what is not one word. */
@@ -502,8 +539,9 @@ function readRepos(raw: readonly unknown[]): TaskRepo[] {
     const scope = Array.isArray(r?.scope) ? r.scope.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
     const branch = typeof r?.branch === 'string' && r.branch.trim() !== '' ? r.branch.trim() : undefined;
     const earlierBranches = branchNames(r?.earlierBranches).filter((b) => b !== branch);
-    const marks = branchMarks(r?.branchMarks, [...(branch === undefined ? [] : [branch]), ...earlierBranches]);
-    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }), earlierBranches, branchMarks: marks }));
+    const names = [...(branch === undefined ? [] : [branch]), ...earlierBranches];
+    const marks = branchMarks(r?.branchMarks, names);
+    repos.push(taskRepo({ url, scope, ...(branch === undefined ? {} : { branch }), earlierBranches, branchMarks: marks, branchBases: branchBases(r?.branchBases, names) }));
   }
   return repos;
 }

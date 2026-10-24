@@ -43,12 +43,18 @@ tree is on, as origin names it. A task may have several branches in one
 repository, in a monorepo one for each app it changes, the one tree
 switching between them, so a branch the tree moves off stays in progress:
 until a merge commit takes it into origin's default branch, which yan reads
-from git, or until the agent marks it given up with `yan branch abandon`,
+from git, or it is fast-forwarded in, or until the agent marks it given up
+with `yan branch abandon`,
 which the agent is told to do once the work has left it for another. A tree
 opened later for the task, on any machine, is put on the branch it was last
 on: the clone's own, brought up to origin's when it is only behind it, or a
 new one tracking origin's; one yan cannot put there starts detached, and
 says why; the agent is told the task's other branches still in progress.
+A fast-forward leaves no merge commit, and git alone cannot tell a branch
+fast-forwarded in from one just cut, so each push also notes, while the
+tree's branch has commits of its own, where it last met the default branch:
+the point moves on each time the default branch is merged in, and a branch
+the default branch has, with commits after its point, was merged.
 Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
 added beside it.
@@ -150,7 +156,10 @@ yan does not know stays plain. A
 branch already merged is compared from where it left, and its merge commit
 names the pull request, so it shows the same change however far the default
 branch has moved since; one deleted from origin is found again from what its
-merge commit says. The artifacts are served on the next port up, so a
+merge commit says. One fast-forwarded in is compared from the point the
+last push noted, so it shows only its own change; when the default branch
+was merged into it again after that push, the diff also carries what that
+merge brought. The artifacts are served on the next port up, so a
 page an agent wrote runs as its own site and cannot reach the one around it.
 A file's open button goes to its page on the vault's forge, GitHub, GitLab
 or what the vault's config.json `artifactLinks` says, so the link can be
