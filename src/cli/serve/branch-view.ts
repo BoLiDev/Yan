@@ -142,15 +142,25 @@ export function changedFiles(nameStatus: string, numstat: string): BranchFile[] 
   return files;
 }
 
+/** Enough for every branch of the tasks a person looks at while serve runs; the oldest worked out goes first. */
+const VIEWS_KEPT = 200;
+
 /**
  * Every clone the server reads, with its blob reader, the default branch it
  * found once, and when each branch was last fetched. A fetch already in
  * flight is joined rather than started again.
+ *
+ * What a branch changes is worked out once for each head it has and each
+ * tip of the default branch: a dozen git commands, half a second on
+ * Windows, that the nav asks for every branch of a task it opens and the
+ * branch on screen asks for on every tick. Only where the two refs point is
+ * read each time.
  */
 export class Branches {
   private readonly readers = new Map<string, BlobReader>();
   private readonly targets = new Map<string, string>();
   private readonly fetched = new Map<string, { at: number; error: string | null; running?: Promise<void> }>();
+  private readonly views = new Map<string, Omit<BranchView, 'fetchedAt' | 'fetchError'>>();
 
   /** @param everyS how stale a fetch may be before a look at the branch fetches again. */
   public constructor(private readonly everyS: number) {}
@@ -228,6 +238,10 @@ export class Branches {
       return { ...empty, fetchedAt, fetchError, target, head, missing: `${empty.repo}'s clone has no ${target} to compare with` };
     }
 
+    const key = [url, clone, branch, head, tip, noted ?? ''].join('\n');
+    const known = this.views.get(key);
+    if (known !== undefined) return { ...known, fetchedAt, fetchError };
+
     let base: string | undefined;
     let merged: BranchView['merged'] = null;
     const isMerged = (await gitAsync(clone, ['merge-base', '--is-ancestor', head, tip])).code === 0;
@@ -269,11 +283,9 @@ export class Branches {
         return { sha, at: Number(at), author, subject };
       });
 
-    return {
+    const view = {
       ...empty,
       missing: null,
-      fetchedAt,
-      fetchError,
       target,
       base,
       head,
@@ -289,6 +301,9 @@ export class Branches {
       commits,
       files: changedFiles(nameStatus.stdout, numstat.stdout),
     };
+    this.views.set(key, view);
+    if (this.views.size > VIEWS_KEPT) this.views.delete(this.views.keys().next().value as string);
+    return { ...view, fetchedAt, fetchError };
   }
 
   private targetOf(clone: string): string {

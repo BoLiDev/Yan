@@ -47,10 +47,14 @@ export function useBranch(id: string, repo: number, name: string | null, enabled
   return useQuery({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled });
 }
 
-/** Every branch a task kept in a repository, for what the nav says of each: merged or not. */
-export function useBranches(id: string, repo: number, names: readonly (string | null)[]): (BranchView | undefined)[] {
+/**
+ * Every branch a task kept in a repository, for what the nav says of each:
+ * merged or not. Asked for once `enabled`, after the task itself: each is
+ * git's work on the server, and the task's details would wait behind them.
+ */
+export function useBranches(id: string, repo: number, names: readonly (string | null)[], enabled = true): (BranchView | undefined)[] {
   return useQueries({
-    queries: names.map((name) => ({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)) })),
+    queries: names.map((name) => ({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled })),
   }).map((q) => q.data);
 }
 
@@ -95,6 +99,14 @@ export function filesOrigin(): string {
 export const vaultPath = (id: string, rel: string): string => `tasks/${id}/artifacts/${rel}`;
 export const fileUrl = (path: string): string => `${filesOrigin()}/${enc(path)}`;
 export const shaUrl = (sha: string, name: string): string => `${filesOrigin()}/_sha/${sha}/${encodeURIComponent(name)}`;
+/**
+ * A picture shown small, at a small copy the server makes of it: a row's,
+ * or a card's in a folder's grid. A whole screenshot behind each of them is
+ * more than Chrome keeps decoded, and every redraw then waits for it. An SVG
+ * is drawn at any size for nothing, so it is itself.
+ */
+export const thumbUrl = (sha: string, name: string, size: 'row' | 'card'): string =>
+  (/\.svg$/i.test(name) ? shaUrl(sha, name) : `${filesOrigin()}/_thumb/${size}/${sha}/${encodeURIComponent(name)}`);
 
 // ── keeping up with the vault ──────────────────────────────────────────────
 

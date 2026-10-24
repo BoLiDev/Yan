@@ -4,7 +4,7 @@ import { KIND_LABEL, WRAPPED, badge, baseName, dirName, enc, ext, kindOf, varian
 import { bytes, pad, plural, short, when } from '../lib/format';
 import { Icon } from '../components/Icon';
 import { Bar, Crumb, Empty, Seg, Tool } from '../components/ui';
-import { fileUrl, shaUrl, useIndex, useText, vaultPath } from '../state/server';
+import { fileUrl, shaUrl, thumbUrl, useIndex, useText, vaultPath } from '../state/server';
 import { copyText, setPref, useUI } from '../state/ui';
 import { BinaryCard, CodeStage } from './Code';
 import { MarkdownDoc } from './Markdown';
@@ -172,7 +172,7 @@ export function FileView(ctx: FileContext) {
       const other = ctx.folderFiles.find((f) => baseName(f.path) === v.name) as ArtifactFile;
       foot.push(
         <a key={v.name} className="pair" href={ctx.fileHref(other.path)}>
-          <img src={shaUrl(other.sha, v.name)} alt="" />
+          <img src={thumbUrl(other.sha, v.name, 'row')} alt="" decoding="async" />
           {/^\d+$/.test(v.word) ? `Same screen at ${v.word}` : `Same screen, ${v.word}`}
         </a>,
       );

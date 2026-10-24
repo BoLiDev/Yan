@@ -6,7 +6,7 @@ import { link } from '../lib/route';
 import { unseenOf } from '../lib/seen';
 import { Icon } from '../components/Icon';
 import { Bar, Crumb, Empty } from '../components/ui';
-import { shaUrl, useIndex, useText } from '../state/server';
+import { shaUrl, thumbUrl, useIndex, useText } from '../state/server';
 import { useUI } from '../state/ui';
 import { useKeyNav } from './nav';
 
@@ -32,7 +32,7 @@ function Preview({ sha }: { sha: string }) {
 }
 
 function Well({ f, name }: { f: ArtifactFile; name: string }): ReactNode {
-  if (kindOf(name) === 'image') return <img src={shaUrl(f.sha, name)} alt="" loading="lazy" />;
+  if (kindOf(name) === 'image') return <img src={thumbUrl(f.sha, name, 'card')} alt="" loading="lazy" decoding="async" />;
   const v = viewerOf(name);
   // The first frame, which the browser fetches by range without playing anything.
   if (v === 'video') return <><video src={`${shaUrl(f.sha, name)}#t=0.1`} muted preload="metadata" playsInline /><span className="corner-kind">{badge(name)}</span></>;
@@ -64,7 +64,7 @@ export function FolderView({ t, d, path }: { t: { id: string }; d: TaskDetail; p
             return (
               <a key={`d:${dir.path}`} className="card" href={link.folder(t.id, dir.path)}>
                 <span className="well">
-                  {cover ? <img src={shaUrl(cover.sha, baseName(cover.path))} alt="" loading="lazy" /> : <span className="big-kind"><Icon name="folder" size={22} /></span>}
+                  {cover ? <img src={thumbUrl(cover.sha, baseName(cover.path), 'card')} alt="" loading="lazy" decoding="async" /> : <span className="big-kind"><Icon name="folder" size={22} /></span>}
                   <span className="folder-n" style={cover ? { color: '#fff', textShadow: '0 1px 2px #000' } : {}}>{plural(dir.count, 'file')}</span>
                 </span>
                 <span className="cap"><span className="dim" style={{ display: 'flex' }}><Icon name="folder" size={14} /></span><span>{dir.name}</span></span>

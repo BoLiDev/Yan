@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BranchView as Branch, TaskSummary } from '../lib/api';
 import { baseName, changeOrder, enc, ext, kindOf, viewerOf } from '../lib/files';
 import { bytes, plural, short, when } from '../lib/format';
@@ -13,6 +13,33 @@ import { MarkdownDoc } from './Markdown';
 import { useKeyNav } from './nav';
 
 const DIFF_LIMIT = 5000;
+/** A line of a diff is this tall unless it wraps: what a part not drawn yet holds for it. */
+const LINE_PX = 21;
+/** The lines drawn together once they come near. */
+const CHUNK = 200;
+
+/**
+ * What is inside drawn only once it comes within a few screens of being
+ * seen, holding its guessed height till then, and kept once drawn. A commit
+ * can change tens of thousands of lines; drawn at once they are a hundred
+ * thousand elements and the page stops for a second over them, though a
+ * screenful is all that is seen.
+ */
+function Later({ height, className, eager = false, children }: { height: number; className?: string; eager?: boolean; children: () => ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  // What starts on screen is drawn with the rest, not a frame after it.
+  const [near, setNear] = useState(eager);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || near) return undefined;
+    const watch = new IntersectionObserver((seen) => {
+      if (seen.some((e) => e.isIntersecting)) setNear(true);
+    }, { root: el.closest('.diff-scroll'), rootMargin: '2000px 0px' });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [near]);
+  return <div ref={box} className={className} style={near ? undefined : { height: `${height}px` }}>{near ? children() : null}</div>;
+}
 
 function Half({ l, side }: { l: PatchLine | null; side: 'a' | 'b' }) {
   if (!l) return <div className="half none"><span className="a" /><span className="t" /></div>;
@@ -24,19 +51,25 @@ function Half({ l, side }: { l: PatchLine | null; side: 'a' | 'b' }) {
   );
 }
 
-/** A file's changes, unified or side by side, cut past 5,000 lines. */
+/** How many lines a file's diff shows, its hunks' heads among them, for the height it holds before it is drawn. */
+function linesOf(f: PatchFile): number {
+  return Math.max(1, Math.min(DIFF_LIMIT + 1, f.hunks.reduce((n, hk) => n + 1 + hk.lines.length, 0)));
+}
+
+/** A file's changes, unified or side by side, cut past 5,000 lines, drawn a part at a time as they come near. */
 function DiffBody({ f, layout }: { f: PatchFile; layout: 'unified' | 'split' }) {
   const plain = { padding: '10px 14px', fontFamily: 'var(--font)' };
   if (f.binary) return <div className="dl"><span className="t" style={plain}>A binary file: no lines to compare.</span></div>;
   if (!f.hunks.length) return <div className="dl"><span className="t" style={plain}>{f.note.length ? `${f.note.join(', ')}, empty` : 'Only the mode changed.'}</span></div>;
   let count = 0;
+  // One entry a line of the page: a pair side by side is one, in the grid as its two halves.
   const rows: ReactNode[] = [];
   f.hunks.forEach((hk, h) => {
     if (count > DIFF_LIMIT) return;
     if (layout === 'split') {
       rows.push(<div className="hunk" key={`h${h}`}>{hk.head}</div>);
       splitPairs(hk.lines).forEach(([l, r], i) => {
-        rows.push(<Half key={`${h}:${i}:a`} l={l} side="a" />, <Half key={`${h}:${i}:b`} l={r} side="b" />);
+        rows.push(<Fragment key={`${h}:${i}`}><Half l={l} side="a" /><Half l={r} side="b" /></Fragment>);
         count++;
       });
     } else {
@@ -56,7 +89,35 @@ function DiffBody({ f, layout }: { f: PatchFile; layout: 'unified' | 'split' }) 
       rows.push(<div className="dl" style={{ gridColumn: '1 / -1' }} key="cut"><span className="t" style={{ ...plain, color: 'var(--ink-3)' }}>{`Cut at ${DIFF_LIMIT.toLocaleString()} lines.`}</span></div>);
     }
   });
-  return <div className={layout === 'split' ? 'split' : undefined}>{rows}</div>;
+  const grid = layout === 'split' ? 'split' : undefined;
+  if (rows.length <= CHUNK) return <div className={grid}>{rows}</div>;
+  const parts: ReactNode[] = [];
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const part = rows.slice(i, i + CHUNK);
+    parts.push(<Later key={i} height={part.length * LINE_PX} className={grid} eager={i === 0}>{() => part}</Later>);
+  }
+  return <div>{parts}</div>;
+}
+
+/** One file of a commit: its head at once, its lines, coloured, once they come near. */
+function CommitFile({ f, r, layout, eager }: { f: PatchFile; r: BranchRoute; layout: 'unified' | 'split'; eager: boolean }) {
+  return (
+    <div className="diff">
+      <div className="diff-file-head"><a href={inBranch(r, 'changes', f.path ?? '')}>{f.path}</a>{f.note.length ? <span className="dim">{f.note.join(', ')}</span> : null}</div>
+      <Later height={linesOf(f) * LINE_PX} eager={eager}>{() => <ColouredDiff f={f} layout={layout} />}</Later>
+    </div>
+  );
+}
+
+function ColouredDiff({ f, layout }: { f: PatchFile; layout: 'unified' | 'split' }) {
+  const coloured = useMemo(() => {
+    const lang = langOf(f.path ?? '');
+    if (!lang) return f;
+    const copy = { ...f, hunks: f.hunks.map((hk) => ({ ...hk, lines: hk.lines.map((l) => ({ ...l })) })) };
+    colourPatch(copy, lang);
+    return copy;
+  }, [f]);
+  return <DiffBody f={coloured} layout={layout} />;
 }
 
 function NavTools({ prev, next, pos, total }: { prev: string | null; next: string | null; pos: number; total: number }) {
@@ -93,12 +154,6 @@ function CommitView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) 
   const full = useCommit(t.id, r.repo, sha);
   const files = useMemo(() => (full.data ? parsePatch(full.data.patch) : []), [full.data]);
   const ready = useLangs(files.map((x) => langOf(x.path ?? '')));
-  const coloured = useMemo(() => {
-    if (!ready) return files;
-    const copy = full.data ? parsePatch(full.data.patch) : [];
-    for (const x of copy) colourPatch(x, langOf(x.path ?? ''));
-    return copy;
-  }, [ready, files, full.data]);
   if (!sha) return <Empty title="No commits">{`${b.branch} has nothing ${b.target} does not.`}</Empty>;
   const c = b.commits[at] ?? { sha, subject: short(sha), author: '', at: 0 };
   let body: ReactNode = <Empty>Loading…</Empty>;
@@ -108,12 +163,7 @@ function CommitView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) 
       <>
         {full.data.body ? <div className="commit-body">{full.data.body}</div> : null}
         {full.data.truncated ? <div className="notice">This commit is too big to show whole; it is cut short.</div> : null}
-        {coloured.map((f, i) => (
-          <div className="diff" key={`${f.path}:${i}`}>
-            <div className="diff-file-head"><a href={inBranch(r, 'changes', f.path ?? '')}>{f.path}</a>{f.note.length ? <span className="dim">{f.note.join(', ')}</span> : null}</div>
-            <DiffBody f={f} layout={layout} />
-          </div>
-        ))}
+        {files.map((f, i) => <CommitFile key={`${f.path}:${i}`} f={f} r={r} layout={layout} eager={i < 2} />)}
       </>
     );
   }

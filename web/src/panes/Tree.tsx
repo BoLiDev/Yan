@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { badge, baseName, compactDir, kindOf, sortedDirs, sortedFiles, type TreeFile, type TreeNode } from '../lib/files';
 import { Icon } from '../components/Icon';
-import { shaUrl } from '../state/server';
+import { thumbUrl } from '../state/server';
 
 export interface TreeOptions<F extends TreeFile> {
   isOpen: (path: string) => boolean;
@@ -28,7 +28,7 @@ export interface TreeOptions<F extends TreeFile> {
 
 export function FileThumb({ path, sha }: { path: string; sha?: string }) {
   const name = baseName(path);
-  if (sha && kindOf(name) === 'image') return <img className="thumb" src={shaUrl(sha, name)} alt="" loading="lazy" decoding="async" />;
+  if (sha && kindOf(name) === 'image') return <img className="thumb" src={thumbUrl(sha, name, 'row')} alt="" loading="lazy" decoding="async" />;
   return <span className="kind">{badge(name)}</span>;
 }
 

@@ -201,6 +201,44 @@ describe('yan serve', () => {
   });
 });
 
+describe('pictures shown small on yan serve', () => {
+  let shot = '';
+  let fake = '';
+
+  beforeAll(async () => {
+    await fxGit(['pull', '-q', '--rebase', 'origin', 'main'], home);
+    const { default: sharp } = await import('sharp');
+    write(home, 'tasks/t003/task.json', task('t003', 'pictures'));
+    write(home, 'tasks/t003/artifacts/uat/big.png', await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#336699' } }).png().toBuffer());
+    await fxGit(['add', 'tasks'], home);
+    await fxGit(['commit', '-q', '-m', 'a picture'], home);
+    const shas = await until(async () => {
+      const r = await fetch(page('/api/task/t003'));
+      return r.ok ? ((await r.json()) as { files: { path: string; sha: string }[] }).files : undefined;
+    }, 20_000);
+    shot = shas.find((f) => f.path === 'uat/big.png')?.sha ?? '';
+    fake = ((await (await fetch(page('/api/task/t001'))).json()) as { files: { path: string; sha: string }[] }).files.find((f) => f.path === 'c4/shot-1280.png')?.sha ?? '';
+  });
+
+  it('makes a row its copy by the shorter side and a card its copy by the longer, kept for good', async () => {
+    const { default: sharp } = await import('sharp');
+    for (const [size, width, height] of [['row', 108, 72], ['card', 520, 347]] as const) {
+      const r = await fetch(files(`/_thumb/${size}/${shot}/big.png`));
+      expect(r.headers.get('content-type')).toBe('image/webp');
+      expect(r.headers.get('cache-control')).toContain('immutable');
+      const meta = await sharp(Buffer.from(await r.arrayBuffer())).metadata();
+      expect([meta.width, meta.height], size).toEqual([width, height]);
+    }
+  });
+
+  it('hands out as it is what is no picture it can read', async () => {
+    const r = await fetch(files(`/_thumb/row/${fake}/shot-1280.png`));
+    expect(r.headers.get('content-type')).toBe('image/png');
+    expect(await r.text()).toBe('not really a png');
+    expect((await fetch(files(`/_thumb/huge/${fake}/shot-1280.png`))).status).toBe(404);
+  });
+});
+
 describe('a report on yan serve', () => {
   const PAGE = `<!doctype html><html><head><style>body{background:#000}</style></head><body>
 <h1 data-yan-edit="title">报告</h1>
@@ -302,6 +340,24 @@ describe('a report on yan serve', () => {
       return x !== undefined && x.behind.length > 0 ? x : undefined;
     }, 20_000);
     expect(r.behind).toEqual(['uat/d1.png 换了新的']);
+  });
+
+  it('sends the page its pictures beside it, and keeps them inside the copy to download', async () => {
+    const shot = Buffer.from('the picture inside');
+    write(home, 'tasks/t002/artifacts/report.html', PAGE.replace('</body>', `<figure><img src="data:image/png;base64,${shot.toString('base64')}" alt="it"></figure></body>`));
+    await fxGit(['commit', '-q', '-am', 'a picture inside'], home);
+    const r = await until(async () => {
+      const x = await report();
+      return x?.html.includes('<figure>') === true ? x : undefined;
+    }, 20_000);
+    expect(r.html).not.toContain('base64');
+    const src = /<img loading="lazy" decoding="async" src="([^"]+)" alt="it">/.exec(r.html)?.[1] ?? '';
+    expect(src).toBe(files(`/_report/${r.sha}/0`));
+    const img = await fetch(src);
+    expect(img.headers.get('content-type')).toBe('image/png');
+    expect(Buffer.from(await img.arrayBuffer()).toString()).toBe('the picture inside');
+    expect((await fetch(files(`/_report/${r.sha}/1`))).status).toBe(404);
+    expect(await (await fetch(page('/api/report/download?task=t002'))).text()).toContain(`src="data:image/png;base64,${shot.toString('base64')}"`);
   });
 });
 

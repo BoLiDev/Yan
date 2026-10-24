@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@clack/prompts": "1.7.0",
-    "commander": "14.0.2"
+    "commander": "14.0.2",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@tanstack/react-query": "5.104.5",

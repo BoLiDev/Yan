@@ -9,7 +9,8 @@ import { cloneOf } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
-import { behind, editText, handout, readRecord, sha256 } from './report.js';
+import { behind, editText, handout, imagesOut, readRecord, sha256 } from './report.js';
+import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
 import { buildLoads, buildPrint } from './build.js';
 
@@ -21,7 +22,7 @@ import { buildLoads, buildPrint } from './build.js';
  * modules and fonts beside it, and as another origin it cannot read the
  * page's API or the page around it. The page shows text through
  * `/blob/<sha>` on its own origin, and points images, frames and players at
- * the files port.
+ * the files port, a picture shown small at a small copy of it.
  *
  * Every `everyS` seconds the server fetches the vault's branch into a ref of
  * its own and moves to the newest commit among that, origin's and the work
@@ -178,6 +179,11 @@ function hostOk(req: IncomingMessage, port: number): boolean {
 export class YanServer {
   private readonly view: VaultView;
   private readonly branches: Branches;
+  private readonly thumbs = new Thumbs();
+  /** The sha256 of each blob of uat/ a report was checked against, by its git sha. */
+  private readonly hashes = new Map<string, string>();
+  /** The last few reports as the page is sent them, and the pictures taken out of each, by report.html's blob. */
+  private readonly lightReports = new Map<string, { html: string; images: { type: string; bytes: Buffer }[] }>();
   private readonly status: Status;
   /** Where a file of the vault opens on its forge, read once: the vault's remote does not move while serve runs. */
   private readonly fileLink: FileLink | undefined;
@@ -402,13 +408,14 @@ export class YanServer {
     }
     if (p === '/api/report') {
       const report = await this.report(q.get('task') ?? '');
-      return report === undefined ? send(res, 404, 'that task has no report') : json(res, report);
+      return report === undefined ? send(res, 404, 'that task has no report') : json(res, { ...report, html: (await this.light(report.sha)).html });
     }
     if (p === '/api/report/download') {
       const id = q.get('task') ?? '';
       const [detail, report] = [await this.view.task(id), await this.report(id)];
       if (detail === undefined || report === undefined) return send(res, 404, 'that task has no report');
-      return send(res, 200, handout(report.html, detail.deliverables), 'text/html; charset=utf-8', {
+      const html = (await this.view.blobs.read(report.sha))?.toString('utf8') ?? '';
+      return send(res, 200, handout(html, detail.deliverables), 'text/html; charset=utf-8', {
         'Content-Disposition': `attachment; filename="${id}-report.html"`,
         'Cache-Control': 'no-store',
       });
@@ -420,9 +427,9 @@ export class YanServer {
   // --- the report ---------------------------------------------------------------
 
   /**
-   * A task's report as the commit being shown has it: the page, what changed
-   * since it was written, and every file in uat/ with what uat.json records
-   * of it and where it opens in the vault's repository.
+   * A task's report as the commit being shown has it: the page's blob, what
+   * changed since it was written, and every file in uat/ with what uat.json
+   * records of it and where it opens in the vault's repository.
    */
   private async report(id: string) {
     const detail = await this.view.task(id);
@@ -439,17 +446,23 @@ export class YanServer {
         return undefined;
       }
     };
-    const html = (await read('report.html'))?.toString('utf8') ?? '';
     const recordRaw = parse(await read('report.json'));
     const uat = parseUat(parse(await read('uat/uat.json')));
+    // A blob's hash is worked out once: a report is asked for again on every push to its task, and uat/ is megabytes.
     const files = await Promise.all(uat.files.map(async (f) => {
-      const bytes = await read(`uat/${f.path}`);
-      return bytes === undefined ? undefined : { path: f.path, sha256: sha256(bytes), for: f.for };
+      const blob = detail.files.find((x) => x.path === `uat/${f.path}`)?.sha;
+      if (blob === undefined) return undefined;
+      let hash = this.hashes.get(blob);
+      if (hash === undefined) {
+        const bytes = await this.view.blobs.read(blob);
+        if (bytes === undefined) return undefined;
+        this.hashes.set(blob, (hash = sha256(bytes)));
+      }
+      return { path: f.path, sha256: hash, for: f.for };
     }));
     const record = recordRaw === undefined ? undefined : readRecord(recordRaw);
     const link = artifactLinker(join(this.options.vaultDir, 'tasks', id));
     return {
-      html,
       sha: page.sha,
       generatedAt: record?.generatedAt ?? null,
       behind: record === undefined ? ['没有 report.json，看不出写完之后哪里变了'] : behind(record, detail.deliverables, { files: files.filter((f) => f !== undefined) }),
@@ -461,6 +474,21 @@ export class YanServer {
           return { path: rel, sha: f.sha, size: f.size, for: recorded?.for ?? [], shows: recorded?.shows ?? null, url: link?.(f.path) ?? null };
         }),
     };
+  }
+
+  /**
+   * The report.html of blob `sha` with its pictures taken out, as the page
+   * is sent it; they are at `_report/<sha>/<n>` on the files port. The copy
+   * handed out to download keeps them in.
+   */
+  private async light(sha: string): Promise<{ html: string; images: { type: string; bytes: Buffer }[] }> {
+    let out = this.lightReports.get(sha);
+    if (out === undefined) {
+      out = imagesOut((await this.view.blobs.read(sha))?.toString('utf8') ?? '', (n) => `${this.filesOrigin}/_report/${sha}/${n}`);
+      this.lightReports.set(sha, out);
+      if (this.lightReports.size > 4) this.lightReports.delete(this.lightReports.keys().next().value as string);
+    }
+    return out;
   }
 
   /** Commit and push what `user` changed, then show the commit; a push that fails leaves the change committed here. */
@@ -696,12 +724,28 @@ export class YanServer {
       return send(res, 400, 'bad path');
     }
     // `_sha/<sha>/<name>`: one version of a file, which never changes, for
-    // thumbnails and the image being looked at - a redraw costs no request.
+    // the image being looked at - a redraw costs no request.
     const pinned = /^_sha\/([0-9a-f]{40,64})\/([^/]+)$/.exec(path);
     if (pinned !== null) {
       const bytes = await this.view.blobs.read(pinned[1] as string);
       if (bytes === undefined) return send(res, 404, 'no such blob');
       return sendBytes(req, res, bytes, typeOf(pinned[2] as string), { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    // `_report/<sha>/<n>`: the nth picture taken out of that report.html, read again from it when no longer kept.
+    const shown = /^_report\/([0-9a-f]{40,64})\/(\d+)$/.exec(path);
+    if (shown !== null) {
+      const image = (await this.light(shown[1] as string)).images[Number(shown[2])];
+      if (image === undefined) return send(res, 404, 'no such picture in that report');
+      return sendBytes(req, res, image.bytes, image.type, { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    // `_thumb/<size>/<sha>/<name>`: that version small, or as it is when it is no picture sharp reads.
+    const small = /^_thumb\/(row|card)\/([0-9a-f]{40,64})\/([^/]+)$/.exec(path);
+    if (small !== null) {
+      const sha = small[2] as string;
+      const copy = await this.thumbs.of(sha, small[1] as ThumbSize, () => this.view.blobs.read(sha));
+      const bytes = copy ?? (await this.view.blobs.read(sha));
+      if (bytes === undefined) return send(res, 404, 'no such blob');
+      return sendBytes(req, res, bytes, copy === undefined ? typeOf(small[3] as string) : 'image/webp', { 'Cache-Control': 'private, max-age=31536000, immutable' });
     }
     let entry = this.view.entry(path);
     // A folder's page, as a static server would give it.

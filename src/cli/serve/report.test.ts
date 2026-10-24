@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { behind, editText, editableCount, handout, readRecord } from './report.js';
+import { behind, editText, editableCount, handout, imagesOut, readRecord } from './report.js';
 import type { Deliverable } from './vault-view.js';
 
 /** The parts of a page the report skill writes that serve reads. */
@@ -116,6 +116,21 @@ describe('editText', () => {
     expect(out).toContain('<span data-yan-edit="summary">横屏 &lt;b&gt;大了&lt;/b&gt; 一倍</span>');
     expect(out.replace('横屏 &lt;b&gt;大了&lt;/b&gt; 一倍', '横屏画面放大')).toBe(PAGE);
     expect(() => editText(PAGE, 4, 'x')).toThrow(RangeError);
+  });
+});
+
+describe('imagesOut', () => {
+  it('takes each picture out of the page, in order, pointing it where it will be served and loading it as it comes near', () => {
+    const png = Buffer.from('a png');
+    const jpg = Buffer.from('a jpg');
+    const page = `<figure><span class="tag">改前</span><img src="data:image/png;base64,${png.toString('base64')}" alt="before"></figure>
+<figure><img src="data:image/jpeg;base64,${jpg.toString('base64')}" alt="after"></figure>
+<img src="https://example.com/x.png" alt="away">`;
+    const { html, images } = imagesOut(page, (n) => `http://localhost:4748/_report/abc/${n}`);
+    expect(images.map((x) => [x.type, x.bytes.toString()])).toEqual([['image/png', 'a png'], ['image/jpeg', 'a jpg']]);
+    expect(html).toBe(`<figure><span class="tag">改前</span><img loading="lazy" decoding="async" src="http://localhost:4748/_report/abc/0" alt="before"></figure>
+<figure><img loading="lazy" decoding="async" src="http://localhost:4748/_report/abc/1" alt="after"></figure>
+<img src="https://example.com/x.png" alt="away">`);
   });
 });
 

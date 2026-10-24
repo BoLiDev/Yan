@@ -180,3 +180,32 @@ describe('a branch', () => {
     }
   });
 });
+
+describe('a branch looked at again', () => {
+  it('is worked out again only once it or the default branch moved', async () => {
+    const root = mkTempDir('yan-serve-again-');
+    const bare = await mkBareRemote(join(root, 'remote.git'));
+    const work = await mkClone(bare, join(root, 'work'));
+    const mine = await mkClone(bare, join(root, 'mine'));
+    await fxGit(['checkout', '-q', '-b', 'feat/b'], work);
+    await mkCommit(work, 'b.txt', 'b', 'add b.txt');
+    await fxGit(['push', '-q', '-u', 'origin', 'feat/b'], work);
+    const branches = new Branches(0);
+    try {
+      const first = await branches.view(bare, 'feat/b', mine, true);
+      expect({ ...(await branches.view(bare, 'feat/b', mine, true)), fetchedAt: first.fetchedAt }).toEqual(first);
+
+      await mkCommit(work, 'b.txt', 'b again', 'change b.txt');
+      await fxGit(['push', '-q', 'origin', 'feat/b'], work);
+      const moved = await branches.view(bare, 'feat/b', mine, true);
+      expect([moved.ahead, moved.commits.length]).toEqual([2, 2]);
+
+      await fxGit(['checkout', '-q', 'main'], work);
+      await mkCommit(work, 'm.txt', 'm', 'main moves on');
+      await fxGit(['push', '-q', 'origin', 'main'], work);
+      expect((await branches.view(bare, 'feat/b', mine, true)).behind).toBe(1);
+    } finally {
+      await branches.close();
+    }
+  });
+});

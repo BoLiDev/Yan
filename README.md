@@ -153,9 +153,15 @@ lights again when it changes again, and the page being open, in front or
 not, counts for nothing. A task stays in Latest and in its count until its
 last dot is gone, and 全部已读 beside its Artifacts clears them all at once,
 as Log's dot goes when the log is opened. Images, pages, Markdown, code, logs, audio, video and fonts
-open in place, and prev and next walk a folder. A task that keeps a branch
+open in place, and prev and next walk a folder. A picture shown small, in a
+list, a folder's grid or beside the picture open, is a small copy the
+server makes of it once, with sharp; the picture itself is loaded only when
+it is opened, so a folder of screenshots costs the page no more than a
+screenful of thumbnails. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
-changed files and their diffs, its commits, and every file at its head. The
+changed files and their diffs, its commits, and every file at its head. A
+commit's files are listed at once and their lines drawn as they are
+scrolled to, so one of tens of thousands of lines opens without a wait. The
 task's nav has a Branch row for each repository, folded, that names no
 branch and counts those in progress; unfolded, it lists every branch the
 task kept there, those in progress first, the one its tree was last on
@@ -202,6 +208,9 @@ up with a reason or edit the reason it was given up for, and task.json
 changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report is committed and pushed as
 `yan vault push` would; those are the only writes `yan serve` makes, and
 only from its own page.
+report.html carries its pictures inside it, so it can be dragged into a
+document whole; the page is sent it with them taken out, and loads each
+beside it as it comes into view.
 A picture clicked opens large in a modal over the page, ← and → going
 through the others; recordings play in place, full screen from their own controls, with
 their link to copy; every file in uat/ can be downloaded, and the page itself downloads with the deliverables in the state

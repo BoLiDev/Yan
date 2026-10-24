@@ -127,6 +127,25 @@ export function editText(html: string, index: number, text: string): string {
   return out;
 }
 
+const INLINE_IMAGE = /<img\b([^>]*?)\ssrc="data:(image\/(?:png|jpe?g|gif|webp));base64,([A-Za-z0-9+/=\s]*)"/g;
+
+/**
+ * The page with each picture inside it taken out and pointed at `url(n)`,
+ * the nth, loaded only as it comes near. The report skill puts its pictures
+ * in the page as base64 so the file can be dragged into a document whole;
+ * shown on yan serve that is megabytes for the page to take in at each
+ * opening before it draws a line, so serve hands the page out light and
+ * the pictures beside it.
+ */
+export function imagesOut(html: string, url: (n: number) => string): { html: string; images: { type: string; bytes: Buffer }[] } {
+  const images: { type: string; bytes: Buffer }[] = [];
+  const out = html.replace(INLINE_IMAGE, (_, attrs: string, type: string, data: string) => {
+    images.push({ type, bytes: Buffer.from(data, 'base64') });
+    return `<img${attrs} loading="lazy" decoding="async" src="${url(images.length - 1)}"`;
+  });
+  return { html: out, images };
+}
+
 /** What report.json says the page was written from; fields it cannot read are left empty. */
 export interface ReportRecord {
   readonly generatedAt: string | null;

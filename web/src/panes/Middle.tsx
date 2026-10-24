@@ -167,11 +167,11 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
 }
 
 /** A repository's Branch row, folded until asked, and under it every branch the task kept there. */
-function BranchRows({ t, i, r }: { t: TaskSummary; i: number; r: Route }) {
+function BranchRows({ t, i, r, ready }: { t: TaskSummary; i: number; r: Route; ready: boolean }) {
   const repo = t.repos[i] as TaskSummary['repos'][number];
   const names = useMemo(() => [repo.branch, ...[...repo.earlier].reverse()].filter((n): n is string => !!n), [repo]);
   // The branch the tree was last on is read under no name, the others under theirs.
-  const views = useBranches(t.id, i, names.map((n) => (n === repo.branch ? null : n)));
+  const views = useBranches(t.id, i, names.map((n) => (n === repo.branch ? null : n)), ready);
   const fold = `${t.id}:${i}`;
   const here = r.view === 'task' && r.sub === 'branch' && r.repo === i;
   const unfolded = useUI((s) => s.unfolded[fold]) ?? here;
@@ -237,7 +237,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
-        {t.repos.map((repo, i) => (repo.branch ? <BranchRows key={`${i}:${repo.name}`} t={t} i={i} r={r} /> : null))}
+        {t.repos.map((repo, i) => (repo.branch ? <BranchRows key={`${i}:${repo.name}`} t={t} i={i} r={r} ready={!!d} /> : null))}
       </div>
       {part.top}
     </>
