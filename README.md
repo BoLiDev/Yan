@@ -213,7 +213,7 @@ what it was written from), its bar says legacy and what changed.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, the branch the tree was last on, the task's other branches, and each one marked open or abandoned), deliverables, resources and their kinds
+    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, the branch the tree was last on, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI
