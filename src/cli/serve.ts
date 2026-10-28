@@ -85,8 +85,15 @@ function started(name: string, address: string, dir: string, everyS: number): st
  * line saying serve stopped goes there. It is left on every way out, an
  * error's included, before the error is printed, so the error can be read;
  * a restart onto a newer build keeps it, since the new build takes it over.
+ *
+ * While it has the screen it reads the keyboard itself, in raw mode, so
+ * nothing typed is echoed: on the alternate screen a terminal sends the
+ * mouse wheel as arrow keys, which would otherwise be echoed as ^[[A and
+ * ^[[B over serve's lines. Raw, Ctrl+C is a key and no longer a signal, so
+ * it is read here and stops serve as the signal does.
  */
 let ownScreen = false;
+let onKeys: ((keys: Buffer) => void) | undefined;
 
 function enterScreen(): void {
   if (process.stdout.isTTY !== true) return;
@@ -100,7 +107,27 @@ function enterScreen(): void {
 function leaveScreen(): void {
   if (!ownScreen) return;
   ownScreen = false;
+  releaseKeys();
   process.stdout.write('\x1b[?25h\x1b[?1049l');
+}
+
+/** Read the keyboard unechoed while serve has the screen, `stop` on Ctrl+C. */
+function takeKeys(stop: () => void): void {
+  if (!ownScreen || process.stdin.isTTY !== true) return;
+  onKeys = (keys) => {
+    if (keys.includes(0x03)) stop();
+  };
+  process.stdin.setRawMode(true);
+  process.stdin.on('data', onKeys);
+  process.stdin.resume();
+}
+
+function releaseKeys(): void {
+  if (onKeys === undefined) return;
+  process.stdin.off('data', onKeys);
+  onKeys = undefined;
+  process.stdin.setRawMode(false);
+  process.stdin.pause();
 }
 
 /** Whether a `yan serve` already answers on `port`. */
@@ -155,10 +182,13 @@ export const command = new Command('serve')
         };
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
+        takeKeys(stop);
         // Never resolved: this process becomes the new one, or waits for it.
         restart = (): void => {
           process.off('SIGINT', stop);
           process.off('SIGTERM', stop);
+          // The screen is the new build's to take over; the keyboard goes back until it does.
+          releaseKeys();
           ownScreen = false;
           out(`  ${dim('yan was updated here, restarting on the new build')}`);
           void server.stop().then(relaunch);
