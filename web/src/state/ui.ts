@@ -55,6 +55,8 @@ interface UI {
   open: Readonly<Record<string, readonly string[]>>;
   /** A branch's changes folders closed by hand; every other one is open. */
   closed: Readonly<Record<string, readonly string[]>>;
+  /** The months of done tasks unfolded in the task list; every other one is folded. */
+  months: readonly string[];
   /** Latest's pushes opened to their files, `<task>@<time>`. */
   feedOpen: readonly string[];
   /** Where each task was last left, so its row in the task list goes back there. */
@@ -108,6 +110,7 @@ export const useUI = create<UI>(() => ({
   unfolded: {},
   open: {},
   closed: {},
+  months: [],
   feedOpen: [],
   last: {},
   problemBase: {},

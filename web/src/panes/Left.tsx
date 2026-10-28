@@ -7,7 +7,7 @@ import { Icon, StateIcon } from '../components/Icon';
 import { Pane, PushTags, Tool } from '../components/ui';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex } from '../state/server';
-import { setPref, useUI } from '../state/ui';
+import { setPref, toggled, useUI } from '../state/ui';
 
 /** The find box, which ⌘K or Ctrl+K puts the cursor in from anywhere. */
 export const findBox = createRef<HTMLInputElement>();
@@ -69,6 +69,30 @@ function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: S
   );
 }
 
+/**
+ * A month of tasks done or given up, folded until it is clicked open, since
+ * they pile up month on month and are rarely read again. Folded, it keeps in
+ * view the task being read, and a dot says when one of its tasks has
+ * something new, where nobody would otherwise see it.
+ */
+function MonthRows({ month, tasks, index, seen, openId }: { month: string; tasks: readonly TaskSummary[]; index: Index; seen: Seen; openId: string | null }) {
+  const open = useUI((s) => s.months.includes(month));
+  const shown = open ? tasks : tasks.filter((t) => t.id === openId);
+  const fresh = !open && tasks.some((t) => t.id !== openId && unseenOf(index, seen, t.id).size > 0);
+  return (
+    <>
+      <button type="button" className={'month' + (open ? ' open' : '')} aria-expanded={open}
+        onClick={() => useUI.setState((s) => ({ months: toggled(s.months, month, !open) }))}>
+        <span className="chev"><Icon name="chev" size={12} width={2.25} /></span>
+        <span className="grow">{month}</span>
+        {fresh ? <span className="dot" title="something new inside" /> : null}
+        <span className="aside">{tasks.length}</span>
+      </button>
+      {shown.map((t) => <TaskRow key={t.id} t={t} index={index} seen={seen} on={t.id === openId} />)}
+    </>
+  );
+}
+
 export function Left() {
   const { data: index } = useIndex();
   const seen = useUI((s) => s.seen);
@@ -85,7 +109,7 @@ export function Left() {
       const hits = tasks.filter((t) => t.id.toLowerCase().includes(q) || (t.title || '').toLowerCase().includes(q)).sort(byTouched);
       return [{ label: hits.length ? plural(hits.length, 'task') : 'No task matches', rows: hits.map((t) => ({ t })) }];
     }
-    const out: { label: string; rows: ({ t: TaskSummary } | { month: string })[]; none?: string }[] = [];
+    const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string }[] = [];
     // Waiting on `user`, so above the rest; the group is not there when none is.
     const uat = tasks.filter((t) => t.state === 'uat').sort(byTouched);
     if (uat.length) out.push({ label: '验收中', rows: uat.map((t) => ({ t })) });
@@ -93,14 +117,13 @@ export function Left() {
     out.push({ label: 'In progress', rows: open.map((t) => ({ t })), none: 'Nothing open' });
     const closed = tasks.filter((t) => t.state === 'done' || t.state === 'abandoned')
       .sort((a, b) => (fromIso(b.closedAt) || b.touched) - (fromIso(a.closedAt) || a.touched));
-    const rows: ({ t: TaskSummary } | { month: string })[] = [];
-    let month = '';
+    const months: { month: string; tasks: TaskSummary[] }[] = [];
     for (const t of closed) {
       const m = monthLabel(fromIso(t.closedAt) || t.touched);
-      if (m !== month) rows.push({ month: (month = m) });
-      rows.push({ t });
+      if (months.at(-1)?.month !== m) months.push({ month: m, tasks: [] });
+      (months.at(-1) as { tasks: TaskSummary[] }).tasks.push(t);
     }
-    if (rows.length) out.push({ label: 'Done', rows });
+    if (months.length) out.push({ label: 'Done', rows: months });
     return out;
   }, [index, query]);
 
@@ -146,7 +169,7 @@ export function Left() {
           <div className="label">{g.label}</div>
           {g.rows.length === 0 && g.none ? <div className="sublabel">{g.none}</div> : null}
           {g.rows.map((x) => ('month' in x
-            ? <div className="sublabel" key={`m:${x.month}`}>{x.month}</div>
+            ? <MonthRows key={`m:${x.month}`} month={x.month} tasks={x.tasks} index={index} seen={seen} openId={openId} />
             : <TaskRow key={x.t.id} t={x.t} index={index} seen={seen} on={x.t.id === openId} />))}
         </div>
       ))}

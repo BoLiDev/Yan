@@ -196,8 +196,11 @@ open this machine's copy. A branch's commits and files open on GitHub or
 GitLab the same way.
 
 A task its agent marked with `yan uat ready` is listed under 验收中, above
-the ones in progress, and its overview's tag says so. A task's artifacts are
-its folders' tree, and nothing more. It stays there while
+the ones in progress, and its overview's tag says so. Those done or given up
+are listed under Done by the month they closed in, each month folded, with
+how many it holds, until it is clicked open; a folded month still shows the
+task being read, and a dot when one of its tasks has something new. A
+task's artifacts are its folders' tree, and nothing more. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 
