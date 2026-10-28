@@ -72,13 +72,11 @@ which skills there are, and that an implementation ends with `yan:uat`. A skill 
 agent and so cannot give it a prompt. A machine can give claude skills of
 its own besides, such as the ones a workplace keeps: `skillDir` in
 `~/.yan/config.json`, a folder or a list of them, `~` for the home
-directory. A plugin, or a folder of plugins, is passed to `--plugin-dir` as
-it is; a folder that holds skills itself, `<name>/SKILL.md` as
-`~/.claude/skills` does, which `--plugin-dir` would not load, becomes a
-plugin named after it under `~/.yan/skill-dirs/`, its `skills` a link to the
-folder, so a skill added there is in the next session and is called
-`<folder>:<name>`. A `skillDir` that is not a folder stops bare `yan` before
-it asks anything. Codex and Agy take no plugin, so their
+directory, each passed to `--plugin-dir` as it is. Each is a plugin, its
+skills in `skills/<name>/SKILL.md` and called `<plugin>:<name>`, the plugin
+named by its `.claude-plugin/plugin.json` or else by its folder, or a folder
+of plugins. A `skillDir` that is not a folder stops bare `yan` before it
+asks anything. Codex and Agy take no plugin, so their
 prompt says it all: which tree is which and what in them the task is about,
 where the task's own files are, how the branches are kept, and how the
 evidence is gathered.
@@ -254,8 +252,7 @@ what it was written from), its bar says legacy and what changed.
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
         uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
       misc/                    anything else worth keeping: a script, a query, data pulled for a check
-~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned; skillDir: folders of skills claude is started with here, besides yan's
-~/.yan/skill-dirs/<name>/      a folder of skills from skillDir as a plugin: plugin.json, and skills/ linked to the folder
+~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned; skillDir: plugin folders claude is started with here, besides yan's
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```
 

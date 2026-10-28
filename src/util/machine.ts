@@ -18,10 +18,10 @@ import { normalizePath } from './paths.js';
  * A clone is keyed by `repoKey` of its URL, so every vault that registers the
  * repository finds the same one.
  *
- * `skillDir` is written by hand, never by yan: a folder, or a list of them,
- * of skills claude is started with on this machine beside yan's own, such as
- * the ones a workplace keeps. It is this machine's and not the vault's, since
- * the folder is only here.
+ * `skillDir` is written by hand, never by yan: a plugin folder, or a list of
+ * them, that claude is started with on this machine beside yan's own, for
+ * skills such as the ones a workplace keeps. It is this machine's and not the
+ * vault's, since the folder is only here.
  *
  * Data access only: nothing here refuses a missing or broken registration, and
  * `util/vault.ts` decides what to do about one. `$YAN_MACHINE_DIR` overrides

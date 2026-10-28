@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import { asOriginNames, branchStates } from './branches.js';
 import { workspacePackages } from './packages.js';
 import { repoName } from './repo-name.js';
-import { skillPlugins } from './skill-dirs.js';
 import { openTasks } from './task-id.js';
 import { repoKey } from '../../util/repo-key.js';
 import { CREATE_NEW, type RepoChoice, type TaskChoice } from '../../ui/prompts.js';
@@ -18,6 +17,7 @@ import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/i
 import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
+import { machineConfigPath, skillDirs } from '../../util/machine.js';
 import { branchOf, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
@@ -64,6 +64,19 @@ export function skillsPrompt(taskDir: string): string {
 /** yan's plugin: its skills, which claude loads for the one session. */
 export function pluginDir(): string {
   return join(yanHome(), 'plugin');
+}
+
+/**
+ * The plugins this machine's `skillDir` names, which claude loads beside
+ * yan's: each a plugin, its skills in `skills/<name>/SKILL.md`, or a folder
+ * of plugins, as `--plugin-dir` takes them. One that is not a folder is
+ * refused, since claude would start without it and say nothing.
+ */
+function skillPlugins(): string[] {
+  return skillDirs().map((dir) => {
+    if (!isDirectory(dir)) throw YanError.usage('yan_skill_dir', `${dir} is not a folder - fix "skillDir" in ${machineConfigPath()}`);
+    return dir;
+  });
 }
 
 /** What an agent with no plugin is told before `user` says anything. */
