@@ -88,7 +88,7 @@ beforeAll(async () => {
     let out = '';
     server?.stdout?.on('data', (chunk: Buffer) => {
       out += chunk.toString();
-      if (out.includes('serving')) resolve();
+      if (out.includes('Ctrl+C to stop')) resolve();
     });
     server?.stderr?.on('data', (chunk: Buffer) => (out += chunk.toString()));
     server?.once('exit', (code) => reject(new Error(`yan serve exited ${code}: ${out}`)));
@@ -197,7 +197,7 @@ describe('yan serve', () => {
   it('opens the one already running rather than starting another', async () => {
     const r = await runYan(home, ['serve', '--no-open', '--port', String(port)]);
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain(`already serving at http://localhost:${port}`);
+    expect(r.stdout).toContain(`●  http://localhost:${port}  already running`);
   });
 });
 
