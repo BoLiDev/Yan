@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { editJson, initJson, readJsonIfPresent } from './json.js';
 import { asRecord, asString, recordOrNone } from './narrow.js';
 import { normalizePath } from './paths.js';
@@ -12,10 +12,16 @@ import { normalizePath } from './paths.js';
  *   { "version": 1,
  *     "active": "personal",
  *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" },
- *     "clones": { "github.com/org/web": "C:/workspace/project/web" } }
+ *     "clones": { "github.com/org/web": "C:/workspace/project/web" },
+ *     "skillDir": "~/work/skills" }
  *
  * A clone is keyed by `repoKey` of its URL, so every vault that registers the
  * repository finds the same one.
+ *
+ * `skillDir` is written by hand, never by yan: a folder, or a list of them,
+ * of skills claude is started with on this machine beside yan's own, such as
+ * the ones a workplace keeps. It is this machine's and not the vault's, since
+ * the folder is only here.
  *
  * Data access only: nothing here refuses a missing or broken registration, and
  * `util/vault.ts` decides what to do about one. `$YAN_MACHINE_DIR` overrides
@@ -27,6 +33,8 @@ interface MachineConfig {
   readonly active?: string;
   readonly vaults: Readonly<Record<string, string>>;
   readonly clones: Readonly<Record<string, string>>;
+  /** As written, a path or a list of them, so a rewrite of the file keeps it as it was. */
+  readonly skillDir?: string | readonly string[];
 }
 
 const EMPTY: MachineConfig = { version: 1, vaults: {}, clones: {} };
@@ -64,11 +72,14 @@ export function readMachine(): MachineConfig {
   const clones = paths(record.clones);
 
   const active = set(record.active);
+  const skillDir = typeof record.skillDir === 'string' ? record.skillDir
+    : Array.isArray(record.skillDir) ? record.skillDir.filter((d): d is string => typeof d === 'string') : undefined;
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
     vaults,
     clones,
+    ...(skillDir === undefined ? {} : { skillDir }),
   };
 }
 
@@ -123,4 +134,16 @@ export function cloneOf(key: string): string | undefined {
 /** Record where this machine keeps the clone of `key`, overwriting any path already there. */
 export function linkClone(key: string, path: string): void {
   editMachine((current) => ({ ...current, clones: { ...current.clones, [key]: normalizePath(path) } }));
+}
+
+/**
+ * The folders `skillDir` names, absolute and normalised, in the order given.
+ * A leading `~` is the home directory, as a shell would read it, and so is
+ * the start of any other path not absolute.
+ */
+export function skillDirs(): string[] {
+  const { skillDir } = readMachine();
+  const given = typeof skillDir === 'string' ? [skillDir] : skillDir ?? [];
+  return given.map((d) => d.trim()).filter((d) => d !== '')
+    .map((d) => normalizePath(resolve(homedir(), d.replace(/^~(?:[\\/]|$)/, ''))));
 }

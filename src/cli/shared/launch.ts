@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { asOriginNames, branchStates } from './branches.js';
 import { workspacePackages } from './packages.js';
 import { repoName } from './repo-name.js';
+import { skillPlugins } from './skill-dirs.js';
 import { openTasks } from './task-id.js';
 import { repoKey } from '../../util/repo-key.js';
 import { CREATE_NEW, type RepoChoice, type TaskChoice } from '../../ui/prompts.js';
@@ -36,6 +37,8 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * there as well as in yan:recap, since an agent writes files whether or not
  * it ran recap first. The skills travel where yan cannot start the agent and
  * so cannot give it a prompt, as a cloud platform that runs agents on its own.
+ * Beside them claude gets the skills this machine's `skillDir` names, which
+ * the prompt leaves to their own descriptions.
  *
  * codex and agy take no plugin, so they are told it all in their prompt: the
  * three parts we think about a task in and which note keeps each, the two
@@ -509,6 +512,8 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
 export async function enter(options: { cli?: string; extra: readonly string[] }, deps: EntryDeps = {}): Promise<number> {
   const vault = vaultDir();
   const harness = harnessConfig(options.cli);
+  // Read before anything is asked, so a skillDir to fix is said before a task is made.
+  const plugins = takesPlugins(harness.cli) ? [pluginDir(), ...skillPlugins()] : [];
   const cwd = normalizePath(deps.cwd ?? process.cwd());
   const prompts = deps.prompts ?? (await import('../../ui/prompts.js'));
   const chain = deps.chain ?? (await import('../../ui/chain.js'));
@@ -523,7 +528,6 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
   const prompt = promptFor(harness.cli, task.dir, told(task, trees));
-  const plugins = takesPlugins(harness.cli) ? [pluginDir()] : [];
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
   return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
 import { CREATE_NEW, enter, openingPrompt, openingPromptNow, pluginDir, skillsPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
@@ -383,6 +383,40 @@ describe('the harness', () => {
 
     await run(answers({ entry: 't001' }), here, { cli: 'codex' });
     expect(started[1]?.argv).not.toContain('--dangerously-bypass-approvals-and-sandbox');
+  });
+
+  it('is given the skills of every skillDir this machine names, a folder of skills as a plugin of its own', async () => {
+    const skills = join(mkTempDir(), 'Work Skills');
+    mkdirSync(join(skills, 'deploy'), { recursive: true });
+    writeFileSync(join(skills, 'deploy', 'SKILL.md'), '---\nname: deploy\ndescription: d\n---\n');
+    const plugin = mkTempDir();
+    mkdirSync(join(plugin, 'skills', 'review'), { recursive: true });
+    mkdirSync(join(home, '.machine'), { recursive: true });
+    writeFileSync(join(home, '.machine', 'config.json'), JSON.stringify({ version: 1, vaults: {}, clones: {}, skillDir: [skills, plugin] }));
+    const here = normalizePath(realpathSync(mkTempDir()));
+
+    await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
+    const wrapper = normalizePath(join(home, '.machine', 'skill-dirs', 'work-skills'));
+    const dirs = (started[0]?.argv ?? []).flatMap((w, i, all) => (w === '--plugin-dir' ? [all[i + 1]] : []));
+    expect(dirs).toEqual([pluginDir(), wrapper, normalizePath(plugin)]);
+    expect(readFileSync(join(wrapper, 'skills', 'deploy', 'SKILL.md'), 'utf8'), 'the skills are the folder itself').toContain('name: deploy');
+    expect(JSON.parse(readFileSync(join(wrapper, '.claude-plugin', 'plugin.json'), 'utf8'))).toMatchObject({ name: 'work-skills' });
+
+    await run(answers({ entry: 't001' }), here);
+    expect(started[1]?.argv, 'a second start finds the plugin already made').toEqual(started[0]?.argv);
+
+    await run(answers({ entry: 't001' }), here, { cli: 'codex' });
+    expect(started[2]?.argv.join(' '), 'codex takes no plugin').not.toContain(skills);
+  });
+
+  it('refuses a skillDir that is not a folder, before anything is created', async () => {
+    mkdirSync(join(home, '.machine'), { recursive: true });
+    writeFileSync(join(home, '.machine', 'config.json'), JSON.stringify({ version: 1, vaults: {}, clones: {}, skillDir: join(home, 'nowhere') }));
+    const result = await run(answers({ entry: CREATE_NEW, title: 'a' }), mkTempDir())
+      .then(() => ({ code: 0, message: '' }), (e: { exitCode: number; message: string }) => ({ code: e.exitCode, message: e.message }));
+    expect(result.code).toBe(2);
+    expect(result.message).toContain('skillDir');
+    expect(Task.list()).toEqual([]);
   });
 
   it('refuses a CLI yan cannot start, before anything is created', async () => {
