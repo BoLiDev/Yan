@@ -140,10 +140,11 @@ For the agent:
 `$YAN_TASK` when none is given, which is what `yan` sets for the agent it
 starts.
 
-`yan serve` runs until stopped, at `http://localhost:4747` (`--port`). Its
-terminal shows the page's address, the vault it serves and how often it
-fetches, a line each under an arrow, the address in colour, and says when
-it is stopped. Every
+`yan serve` runs until stopped, at `http://localhost:4747` (`--port`). At a
+terminal it takes a screen of its own, as `less` does, with no history to
+scroll back through: the page's address, the vault it serves and how often
+it fetches, a line each under an arrow, the address in colour. Stopping it
+puts the terminal back as it was, with a line saying it stopped. Every
 10 seconds (`--every`) it fetches the vault into refs of its own,
 `refs/yan/serve/`, and reads git objects rather than the work tree, so
 nothing an agent or a hook works with moves; an open page follows without

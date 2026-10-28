@@ -77,9 +77,30 @@ function started(name: string, address: string, dir: string, everyS: number): st
   ];
 }
 
-/** Its last word; on a terminal it takes the line the `^C` was echoed on. */
-function ended(line: string): string {
-  return `${process.stdout.isTTY === true ? '\r\x1b[2K' : ''}  ${line}`;
+/**
+ * At a terminal serve takes a screen of its own, as less and top do: the
+ * terminal's alternate screen, which keeps no history to scroll back
+ * through, so its few lines are all there is to see. Leaving it puts the
+ * terminal back as it was before serve started, nothing in it lost, and the
+ * line saying serve stopped goes there. It is left on every way out, an
+ * error's included, before the error is printed, so the error can be read;
+ * a restart onto a newer build keeps it, since the new build takes it over.
+ */
+let ownScreen = false;
+
+function enterScreen(): void {
+  if (process.stdout.isTTY !== true) return;
+  // Cleared as well, since a restart comes back to the screen the old build drew.
+  process.stdout.write('\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l');
+  ownScreen = true;
+  process.once('exit', leaveScreen);
+  process.once('uncaughtExceptionMonitor', leaveScreen);
+}
+
+function leaveScreen(): void {
+  if (!ownScreen) return;
+  ownScreen = false;
+  process.stdout.write('\x1b[?25h\x1b[?1049l');
 }
 
 /** Whether a `yan serve` already answers on `port`. */
@@ -122,11 +143,13 @@ export const command = new Command('serve')
       }
 
       const address = `http://localhost:${port}`;
+      enterScreen();
       for (const line of started(name, address, dir, everyS)) out(line);
       if (options.open) openPath(address);
       await new Promise<void>((resolve) => {
         const stop = (): void => {
-          out(ended(dim('stopped')));
+          leaveScreen();
+          out(dim('yan serve stopped'));
           void server.stop();
           resolve();
         };
@@ -136,7 +159,8 @@ export const command = new Command('serve')
         restart = (): void => {
           process.off('SIGINT', stop);
           process.off('SIGTERM', stop);
-          out(ended('yan was updated here, restarting on the new build'));
+          ownScreen = false;
+          out(`  ${dim('yan was updated here, restarting on the new build')}`);
           void server.stop().then(relaunch);
         };
       });
