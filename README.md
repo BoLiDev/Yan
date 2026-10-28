@@ -141,9 +141,9 @@ For the agent:
 starts.
 
 `yan serve` runs until stopped, at `http://localhost:4747` (`--port`). Its
-terminal shows, on the chain bare `yan` draws, the page's address, the
-vault it serves and how often it fetches, and the chain's end once it is
-stopped. Every
+terminal shows the page's address, the vault it serves and how often it
+fetches, a line each under an arrow, the address in colour, and says when
+it is stopped. Every
 10 seconds (`--every`) it fetches the vault into refs of its own,
 `refs/yan/serve/`, and reads git objects rather than the work tree, so
 nothing an agent or a hook works with moves; an open page follows without

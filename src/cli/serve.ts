@@ -8,7 +8,7 @@ import { readMachine } from '../util/machine.js';
 import { readVaultJson, vaultDir } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { openPath } from './shared/opener.js';
-import { bold, cyan, dim, gray, green, tildePath } from './shared/style.js';
+import { bold, cyan, dim, green, tildePath } from './shared/style.js';
 import { YanServer } from './serve/server.js';
 
 /**
@@ -51,35 +51,35 @@ function relaunch(): void {
 }
 
 /**
- * What serve says in its terminal, drawn as bare `yan` and `yan peek` draw
- * theirs: a chain under the command and the vault's name, its first mark
- * the page's address, which is what the terminal is looked at for. The
- * chain is left open while it runs, and its `└` is drawn when it stops.
+ * What serve says in its terminal, set off from the shell by blank lines and
+ * indented: its name and the vault's, then one line each, under an arrow,
+ * for the page's address, the line the terminal is looked at for and so the
+ * one in colour, the vault's folder and how it is fetched, and how to stop
+ * it. Piped, the same lines go out with no colour.
  */
-const BAR = '│';
-
-function running(address: string, said: string): string {
-  return `${green('●')}  ${cyan(address)}${said === '' ? '' : `  ${dim(said)}`}`;
-}
-
 function head(name: string): string[] {
-  return [`${gray('┌')}  ${bold('yan serve')}  ${name}`, gray(BAR)];
+  return ['', `  ${bold('yan serve')}  ${dim(name)}`, ''];
 }
 
-function started(name: string, address: string, dir: string, everyS: number, opened: boolean): string[] {
-  const fetches = remoteUrl(dir) === undefined ? 'a local vault, no origin to fetch' : `fetches origin every ${everyS} s`;
+function item(label: string, value: string, strong = false): string {
+  return `  ${green('➜')}  ${(strong ? bold : dim)(label)}${' '.repeat(8 - label.length)}${value}`;
+}
+
+function started(name: string, address: string, dir: string, everyS: number): string[] {
+  const fetches = remoteUrl(dir) === undefined ? 'none, a local vault with no origin' : `origin, every ${everyS} s`;
   return [
     ...head(name),
-    running(address, opened ? 'opened in your browser' : ''),
-    `${gray(BAR)}  ${dim(`${tildePath(dir)} · ${fetches}`)}`,
-    gray(BAR),
-    `${gray(BAR)}  ${dim('Ctrl+C to stop')}`,
+    item('Page', cyan(address), true),
+    item('Vault', dim(tildePath(dir))),
+    item('Fetch', dim(fetches)),
+    '',
+    `  ${dim('Ctrl+C to stop')}`,
   ];
 }
 
-/** The chain's end; on a terminal it takes the line the `^C` was echoed on. */
+/** Its last word; on a terminal it takes the line the `^C` was echoed on. */
 function ended(line: string): string {
-  return `${process.stdout.isTTY === true ? '\r\x1b[2K' : ''}${gray('└')}  ${line}`;
+  return `${process.stdout.isTTY === true ? '\r\x1b[2K' : ''}  ${line}`;
 }
 
 /** Whether a `yan serve` already answers on `port`. */
@@ -112,7 +112,7 @@ export const command = new Command('serve')
         const address = `http://localhost:${port}`;
         if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
           if (await servingAt(port)) {
-            for (const line of [...head(name), running(address, options.open ? 'already running, opened in your browser' : 'already running'), gray('└')]) out(line);
+            for (const line of [...head(name), item('Page', `${cyan(address)}  ${dim('already running')}`, true), '']) out(line);
             if (options.open) openPath(address);
             return;
           }
@@ -122,7 +122,7 @@ export const command = new Command('serve')
       }
 
       const address = `http://localhost:${port}`;
-      for (const line of started(name, address, dir, everyS, options.open)) out(line);
+      for (const line of started(name, address, dir, everyS)) out(line);
       if (options.open) openPath(address);
       await new Promise<void>((resolve) => {
         const stop = (): void => {

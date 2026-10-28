@@ -197,7 +197,7 @@ describe('yan serve', () => {
   it('opens the one already running rather than starting another', async () => {
     const r = await runYan(home, ['serve', '--no-open', '--port', String(port)]);
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain(`●  http://localhost:${port}  already running`);
+    expect(r.stdout).toContain(`➜  Page    http://localhost:${port}  already running`);
   });
 });
 
