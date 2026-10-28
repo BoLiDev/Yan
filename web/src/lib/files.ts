@@ -15,7 +15,6 @@ const KINDS: Record<Exclude<Kind, 'other'>, string> = {
 for (const [kind, list] of Object.entries(KINDS)) for (const e of list.split(' ')) EXT_KIND[e] = kind as Kind;
 
 export const KIND_LABEL: Record<Kind, string> = { image: 'Images', page: 'Pages', doc: 'Docs', code: 'Code', media: 'Media', font: 'Fonts', other: 'Other' };
-export const KIND_ORDER: readonly Kind[] = ['image', 'page', 'doc', 'code', 'media', 'font', 'other'];
 export const VIDEO = new Set(['mp4', 'webm', 'mov', 'm4v']);
 /** Files whose lines are wrapped unless the reader says otherwise. */
 export const WRAPPED = new Set(['log', 'txt', 'md', 'markdown', 'jsonl', 'csv', 'tsv', '']);
@@ -143,25 +142,11 @@ export function compactDir<F extends TreeFile>(dir: TreeNode<F>): { name: string
   return { name, dir: at };
 }
 
-export function kindCounts(files: readonly TreeFile[]): Partial<Record<Kind, number>> {
-  const counts: Partial<Record<Kind, number>> = {};
-  for (const f of files) {
-    const k = kindOf(f.path);
-    counts[k] = (counts[k] ?? 0) + 1;
-  }
-  return counts;
-}
-
 /** Every folder above `path`, nearest first. */
 export function foldersAbove(path: string): string[] {
   const out: string[] = [];
   for (let p = dirName(path); p; p = dirName(p)) out.push(p);
   return out;
-}
-
-/** A task's artifacts, all of them or those of one kind. */
-export function shownFiles<F extends TreeFile>(files: readonly F[], kind: Kind | 'all'): readonly F[] {
-  return kind === 'all' ? files : files.filter((f) => kindOf(f.path) === kind);
 }
 
 const orders = new WeakMap<object, readonly TreeFile[]>();

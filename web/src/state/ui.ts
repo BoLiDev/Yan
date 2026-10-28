@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Status } from '../lib/api';
-import type { Kind } from '../lib/files';
 import type { Seen } from '../lib/seen';
 
 /**
@@ -56,8 +55,6 @@ interface UI {
   open: Readonly<Record<string, readonly string[]>>;
   /** A branch's changes folders closed by hand; every other one is open. */
   closed: Readonly<Record<string, readonly string[]>>;
-  /** A task's artifacts, all or one kind. */
-  filter: Readonly<Record<string, Kind | 'all'>>;
   /** Latest's pushes opened to their files, `<task>@<time>`. */
   feedOpen: readonly string[];
   /** Where each task was last left, so its row in the task list goes back there. */
@@ -111,7 +108,6 @@ export const useUI = create<UI>(() => ({
   unfolded: {},
   open: {},
   closed: {},
-  filter: {},
   feedOpen: [],
   last: {},
   problemBase: {},

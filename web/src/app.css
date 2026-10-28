@@ -152,12 +152,6 @@ img { -webkit-user-drag: none; }
 .seg.wide { display: flex; margin: 0 2px; background: var(--hover); }
 .seg.wide button { flex: 1 1 0; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px; }
-.chip {
-  height: 26px; padding: 0 10px; border: 0; border-radius: 999px;
-  background: var(--hover); color: var(--ink-2); font-size: 12.5px; cursor: pointer;
-}
-.chip[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
 .pill {
   display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
   border-radius: 999px; background: var(--sunken); color: var(--ink-2);

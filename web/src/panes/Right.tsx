@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import type { Index, TaskDetail } from '../lib/api';
-import { buildTree, dirName, shownFiles, treeOrder } from '../lib/files';
+import { buildTree, dirName, treeOrder } from '../lib/files';
 import { link, useRoute, viewKey, type Route } from '../lib/route';
 import { feedFiles, markLooked, unseenPushes } from '../lib/seen';
 import { Empty } from '../components/ui';
@@ -39,7 +39,6 @@ function Nothing({ title, children }: { title: string; children?: ReactNode }) {
 
 function Shown({ r, index }: { r: Route; index: Index }) {
   const seen = useUI((s) => s.seen);
-  const filter = useUI((s) => s.filter);
   const known = r.id !== undefined && index.tasks.some((t) => t.id === r.id);
   const { data: d } = useTask(known ? r.id : undefined);
 
@@ -77,9 +76,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   if (r.sub !== 'file') return null;
   const file = d.files.find((f) => f.path === r.path);
   if (!file) return <Nothing title="Not there any more">{`${r.path} is not in ${t.id}'s artifacts at the commit being shown.`}</Nothing>;
-  const shown = shownFiles(d.files, filter[t.id] ?? 'all');
-  const pool = shown.some((f) => f.path === file.path) ? shown : d.files;
-  const siblings = treeOrder(buildTree(pool.filter((f) => dirName(f.path) === dirName(file.path))));
+  const siblings = treeOrder(buildTree(d.files.filter((f) => dirName(f.path) === dirName(file.path))));
   const at = siblings.findIndex((f) => f.path === file.path);
   const before = siblings[at - 1];
   const after = siblings[at + 1];

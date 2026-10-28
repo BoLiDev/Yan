@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import type { Index, TaskDetail, TaskSummary } from '../lib/api';
-import { KIND_LABEL, KIND_ORDER, badge, baseName, buildTree, changeOrder, dirName, foldersAbove, kindCounts, shownFiles, type Kind } from '../lib/files';
+import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
@@ -42,38 +42,29 @@ function revealOnce(key: string, item: string): boolean {
 
 // ── a task's artifacts ─────────────────────────────────────────────────────
 
-/** The artifacts part of a task's column: its kinds and its tree. A hook, since what it shows is kept in the store. */
+/**
+ * The artifacts part of a task's column: their folders' tree, and nothing
+ * above it to count or sort them by, since the folders already say what each
+ * is. A hook, since what it shows is kept in the store.
+ */
 function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRoute, index: Index, seen: Seen): { top: ReactNode; body: ReactNode } {
-  const filter = useUI((s) => s.filter[t.id] ?? 'all');
   const open = useOpenFolders(t.id, d?.files);
   if (!d) return { top: <div className="section-head"><b>Artifacts</b><span>loading…</span></div>, body: null };
-  const counts = kindCounts(d.files);
-  const kindsHere = KIND_ORDER.filter((k) => counts[k]);
-  const setFilter = (k: Kind | 'all'): void => useUI.setState((s) => ({ filter: { ...s.filter, [t.id]: k } }));
   const unseen = unseenOf(index, seen, t.id);
   const dotted = unseen.size > 0 || logFresh(seen, t.id, d.log?.entries.length);
-  const files = shownFiles(d.files, filter);
   return {
     top: (
-      <div className="stack">
-        <div className="section-head">
-          <b>Artifacts</b><span>{d.files.length}</span><span className="grow" />
-          {dotted ? <button type="button" className="tool text read-all" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>全部已读</button> : null}
-          {d.files.length ? <Tool name="grid" label="See them all as a grid" href={link.folder(t.id, '')} newTab={false} small /> : null}
-        </div>
-        {kindsHere.length > 1 ? (
-          <div className="chips" role="group" aria-label="Kind">
-            <button type="button" className="chip" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All</button>
-            {kindsHere.map((k) => <button key={k} type="button" className="chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>{`${KIND_LABEL[k]} ${counts[k]}`}</button>)}
-          </div>
-        ) : null}
+      <div className="section-head">
+        <b>Artifacts</b><span className="grow" />
+        {dotted ? <button type="button" className="tool text read-all" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>全部已读</button> : null}
+        {d.files.length ? <Tool name="grid" label="See them all as a grid" href={link.folder(t.id, '')} newTab={false} small /> : null}
       </div>
     ),
     body: (
       <>
         {d.files.length ? (
           <div className="tree" role="tree" aria-label="Artifacts">
-            <TreeRows node={buildTree(files)} options={{
+            <TreeRows node={buildTree(d.files)} options={{
               isOpen: (p) => open.includes(p),
               setOpen: (p, on) => setFolder(t.id, open, p, on),
               file: r.sub === 'file' ? r.path : null,
@@ -244,7 +235,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
   );
   const foot = r.sub === 'branch' && d ? (
     <a className="row" href={link.folder(t.id, '')}>
-      <span className="folder-icon dim"><Icon name="folder" size={15} /></span><span className="grow">Artifacts</span><span className="aside">{d.files.length}</span>
+      <span className="folder-icon dim"><Icon name="folder" size={15} /></span><span className="grow">Artifacts</span>
     </a>
   ) : null;
   return <Pane remember={t.id} top={top} body={part.body} foot={foot} />;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { TaskDetail } from './lib/api';
-import { foldersAbove, kindOf } from './lib/files';
+import { foldersAbove } from './lib/files';
 import { useHash, useRoute, type Route } from './lib/route';
 import { Icon } from './components/Icon';
 import { AskModal, Toast } from './components/ui';
@@ -38,16 +38,12 @@ function useRouteEffects(): void {
     // Only when the route moves, or once the index first arrives.
   }, [hash, !!index]);
 
-  // A file asked for opens the folders above it, and shows past a filter that hides its kind.
+  // A file asked for opens the folders above it.
   const id = r.view === 'task' && (r.sub === 'file' || r.sub === 'folder') ? r.id : undefined;
   const { data: d } = useTask(id);
   useEffect(() => {
     if (!d || r.view !== 'task' || (r.sub !== 'file' && r.sub !== 'folder')) return;
     openTo(d, r.sub === 'file' ? foldersAbove(r.path) : [r.path, ...foldersAbove(r.path)]);
-    if (r.sub === 'file') {
-      const f = useUI.getState().filter[r.id];
-      if (f && f !== 'all' && kindOf(r.path) !== f) useUI.setState((s) => ({ filter: { ...s.filter, [r.id]: 'all' } }));
-    }
   }, [hash, !!d]);
 }
 

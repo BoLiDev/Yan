@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { looksBinary, type ArtifactFile, type TaskDetail } from '../lib/api';
-import { KIND_LABEL, badge, baseName, buildTree, dirName, kindOf, shownFiles, sortedDirs, sortedFiles, treeOrder, viewerOf, type TreeNode } from '../lib/files';
+import { badge, baseName, buildTree, dirName, kindOf, sortedDirs, sortedFiles, treeOrder, viewerOf, type TreeNode } from '../lib/files';
 import { plural } from '../lib/format';
 import { link } from '../lib/route';
 import { unseenOf } from '../lib/seen';
@@ -42,20 +42,18 @@ function Well({ f, name }: { f: ArtifactFile; name: string }): ReactNode {
 
 /** A folder of a task's artifacts as a grid of cards: its folders first, each with a picture from inside when it has one. */
 export function FolderView({ t, d, path }: { t: { id: string }; d: TaskDetail; path: string }) {
-  const filter = useUI((s) => s.filter[t.id] ?? 'all');
   const seen = useUI((s) => s.seen);
   const { data: index } = useIndex();
   useKeyNav(null, null);
-  const files = shownFiles(d.files, filter);
-  let node: TreeNode<ArtifactFile> | undefined = buildTree(files);
+  let node: TreeNode<ArtifactFile> | undefined = buildTree(d.files);
   for (const part of path ? path.split('/') : []) node = node?.dirs.get(part);
-  if (!node) return <Empty title="Nothing here">{`${path}/ has no files${filter === 'all' ? '' : ' of this kind'}.`}</Empty>;
+  if (!node) return <Empty title="Nothing here">{`${path}/ has no files.`}</Empty>;
   const unseen = index && seen ? unseenOf(index, seen, t.id) : new Map();
   return (
     <>
       <Bar
         title={path ? <Crumb path={path} /> : 'Artifacts'}
-        meta={`${plural(node.count, 'file')}${filter === 'all' ? '' : ` · ${KIND_LABEL[filter].toLowerCase()} only`}`}
+        meta={plural(node.count, 'file')}
         tools={path ? <div className="group-tools"><a className="tool text" href={link.folder(t.id, dirName(path))}><Icon name="prev" size={16} />Up</a></div> : null} />
       <div className="scroll">
         <div className="gallery">
