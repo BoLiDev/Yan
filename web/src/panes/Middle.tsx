@@ -197,6 +197,47 @@ function BranchRows({ t, i, r, ready }: { t: TaskSummary; i: number; r: Route; r
   );
 }
 
+/**
+ * The tab every task's agents open in. A link given this target opens it once and loads into it after,
+ * from any task, so looking at another agent takes the tab rather than adding one; `noopener` would cut
+ * the tab off from this page and open a new one each time, so these links go without it.
+ */
+const AGENT_TAB = 'yan-agent';
+
+/** The task's agents running elsewhere, as on a cloud platform: its run resources that are web links. */
+function agentsOf(d: TaskDetail | undefined): (readonly [string, string])[] {
+  return d ? d.resources.filter(([name, where]) => d.resourceKinds[name] === 'run' && /^https?:\/\//i.test(where)) : [];
+}
+
+/** An Agent row under Log: one agent opens from it; several fold under it, as a repository's branches do. */
+function AgentRows({ t, agents }: { t: TaskSummary; agents: readonly (readonly [string, string])[] }) {
+  const fold = `${t.id}:agents`;
+  const unfolded = useUI((s) => s.unfolded[fold]) ?? false;
+  const go = <span className="go"><Icon name="external" size={14} /></span>;
+  if (agents.length === 1) {
+    const [name, where] = agents[0] as readonly [string, string];
+    return (
+      <a className="row" href={where} target={AGENT_TAB} title={`${name}: ${where}`}>
+        <Icon name="cloud" size={16} /><span className="word">Agent</span><span className="grow" /><span className="aside name">{name}</span>{go}
+      </a>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="row branch-row" aria-expanded={unfolded} onClick={() => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [fold]: !unfolded } }))}>
+        <Icon name="cloud" size={16} />
+        <span className="word">Agent</span>
+        <span className="grow" />
+        <span className="aside">{`${agents.length} 个`}</span>
+        <span className="fold"><Icon name={unfolded ? 'up' : 'down'} size={15} /></span>
+      </button>
+      {unfolded ? agents.map(([name, where]) => (
+        <a key={name} className="row other" href={where} target={AGENT_TAB} title={where}><span className="grow">{name}</span>{go}</a>
+      )) : null}
+    </>
+  );
+}
+
 function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index: Index; seen: Seen }) {
   const { data: d } = useTask(t.id);
   const unseen = unseenOf(index, seen, t.id);
@@ -228,6 +269,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
+        {agentsOf(d).length ? <AgentRows t={t} agents={agentsOf(d)} /> : null}
         {t.repos.map((repo, i) => (repo.branch ? <BranchRows key={`${i}:${repo.name}`} t={t} i={i} r={r} ready={!!d} /> : null))}
       </div>
       {part.top}

@@ -177,7 +177,12 @@ task's nav has a Branch row for each repository, folded, that names no
 branch and counts those in progress; unfolded, it lists every branch the
 task kept there, those in progress first, the one its tree was last on
 leading them, then those merged with their pull request, then those
-abandoned. A click on a branch copies its whole name and opens it. Code
+abandoned. A click on a branch copies its whole name and opens it. A task's
+agents running elsewhere, its `run` resources that are web links, such as
+a cloud platform's agent on the task, are an Agent row under Log, folded
+as Branch is when there are several; a click opens one in the one tab yan
+keeps for them all, so looking at another task's agent takes that tab
+rather than opening another. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches
 nothing from the network; a language outside the common set is loaded the

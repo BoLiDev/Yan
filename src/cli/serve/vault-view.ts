@@ -106,6 +106,8 @@ export interface TaskDetail {
   readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[]; readonly bases: Readonly<Record<string, string>> }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
+  /** Each resource's kind by its name, as task.json keeps them; one with none is general. */
+  readonly resourceKinds: Readonly<Record<string, string>>;
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
   readonly log: { readonly sha: string; readonly entries: readonly LogEntry[]; readonly changed: number } | null;
   readonly files: readonly ArtifactFile[];
@@ -228,6 +230,8 @@ interface TaskJson {
   readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[]; readonly bases: Readonly<Record<string, string>> }[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
+  /** Each resource's kind by its name, as task.json keeps them; one with none is general. */
+  readonly resourceKinds: Readonly<Record<string, string>>;
 }
 
 /** What can be read of a task.json, whatever shape it is in; nothing in it is required. */
@@ -256,6 +260,7 @@ export function readTaskJson(raw: unknown): TaskJson {
       reason: text(d.reason),
     })),
     resources: Object.entries(asRecord(r.resources)).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)] as const),
+    resourceKinds: Object.fromEntries(Object.entries(asRecord(r.resourceKinds)).filter((e): e is [string, string] => typeof e[1] === 'string')),
   };
 }
 
