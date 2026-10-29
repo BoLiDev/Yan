@@ -193,8 +193,9 @@ merge brought. The artifacts are served on the next port up, so a
 page an agent wrote runs as its own site and cannot reach the one around it.
 A file's open button goes to its page on the vault's forge, GitHub, GitLab
 or what the vault's config.json `artifactLinks` says, so the link can be
-passed on once the vault is pushed; only for a forge yan cannot tell does it
-open this machine's copy. A branch's commits and files open on GitHub or
+passed on once the vault is pushed; the button before it opens this
+machine's copy in a tab of its own, the whole window given to it, and is
+the only one of the two for a forge yan cannot tell. A branch's commits and files open on GitHub or
 GitLab the same way.
 
 A task its agent marked with `yan uat ready` is listed under 验收中, above

@@ -212,14 +212,12 @@ export function FileView(ctx: FileContext) {
     body = <FontStage file={file} name={name} />;
   }
 
-  // The file on the vault's forge, where its link can be passed on; this machine's copy only when yan cannot tell the forge.
+  // This machine's copy in a tab of its own, the whole window given to it; then the file on the vault's
+  // forge, where its link can be passed on, when yan can tell the forge.
   const web = index?.vault.fileLink;
-  tools.push(
-    web
-      ? <Tool key="web" name="external" label={web.forge ? `Open on ${web.forge}` : "Open in the vault's repository"} href={web.template.replaceAll('{path}', enc(path))} />
-      : <Tool key="web" name="external" label="Open in a new tab" href={fileUrl(path)} />,
-    <Tool key="download" name="download" label="Download" href={fileUrl(path) + '?download'} newTab={false} />,
-  );
+  tools.push(<Tool key="tab" name="expand" label="Open in a new tab, full size" href={fileUrl(path)} />);
+  if (web) tools.push(<Tool key="web" name="external" label={web.forge ? `Open on ${web.forge}` : "Open in the vault's repository"} href={web.template.replaceAll('{path}', enc(path))} />);
+  tools.push(<Tool key="download" name="download" label="Download" href={fileUrl(path) + '?download'} newTab={false} />);
 
   const local = `${index?.vault.dir ?? ''}/${path}`;
   return (
