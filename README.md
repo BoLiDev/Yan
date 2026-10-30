@@ -232,7 +232,9 @@ saving is refused when an agent changed it since the page read it. A
 deliverable's text is edited where it stands. Under its date on hover, one
 button gives it up, with a reason that stays on its line and is edited the
 same way, and the bin deletes it, once you confirm, as if it had never been
-added: the ones after it take its number. A resource's pencil edits where it points, keeping its
+added: the ones after it take its number. The resources are listed a line for each kind,
+spec, preview, MR and the rest, each a link named by its name that opens
+in a tab of its own. A resource's pencil edits where it points, keeping its
 kind, and its bin forgets it. What you are typing, in a text or in the
 problem, stays as it is while new commits arrive, so nothing typed is lost.
 

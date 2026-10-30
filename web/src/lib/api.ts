@@ -99,6 +99,8 @@ export interface TaskDetail {
   readonly repos: readonly (RepoSummary & { readonly url: string })[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
+  /** Each resource's kind by its name; one with none is general. */
+  readonly resourceKinds: Readonly<Record<string, string>>;
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
   readonly log: { readonly sha: string; readonly entries: readonly LogEntry[]; readonly changed: number } | null;
   readonly files: readonly ArtifactFile[];
