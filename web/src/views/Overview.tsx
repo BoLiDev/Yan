@@ -122,61 +122,7 @@ function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   );
 }
 
-/** How a kind of resource is named at the head of its line. */
-const KIND_WORD: Readonly<Record<string, string>> = { spec: 'Spec', preview: 'Preview', mr: 'MR', general: 'Other' };
-
-/**
- * A resource as its kind's line has it: a web link is its name, opening in
- * a tab of its own; anything else is its name and its words. On hover, the
- * pencil edits where it points and the bin forgets it.
- */
-function Resource({ task, k, v }: { task: string; k: string; v: string }) {
-  const [editing, setEditing] = useState(false);
-  const url = /^https?:\/\/\S+$/i.test(v.trim());
-  return (
-    <div className="res-item">
-      <span className="res-icon"><Icon name={url ? 'link' : 'note'} size={15} /></span>
-      {editing ? (
-        <><span className="res-name">{k}</span><Editable className="res-edit" text={v} autoFocus onSave={(where) => void writeTask('/api/resource', { task, name: k, where }, `已保存 ${k}`)} onLeft={(changed) => { if (!changed) setEditing(false); }} /></>
-      ) : url ? (
-        <a className="res-link" href={v.trim()} target="_blank" rel="noopener" title={v}>{k}</a>
-      ) : (
-        <><span className="res-name">{k}</span><span className="res-text"><Linkified text={v} /></span></>
-      )}
-      <span className="tools">
-        <button type="button" className="ov-icon" title={`编辑 ${k}`} aria-label={`编辑 ${k}`} onClick={() => setEditing(true)}><Icon name="edit" size={15} /></button>
-        <button type="button" className="ov-icon" title={`删除 ${k}`} aria-label={`删除 ${k}`}
-          onClick={() => ask({ title: `删除资源 ${k}？`, sub: v, action: '删除', then: () => void writeTask('/api/resource', { task, name: k, remove: true }, `已删除 ${k}`) })}>
-          <Icon name="trash" size={15} />
-        </button>
-      </span>
-    </div>
-  );
-}
-
-/**
- * The resources, a line for each kind, its name at the head and its
- * resources after it, wrapping when they do not fit: the shortest way to
- * show what the task refers to, each by the name it was kept under.
- */
-function Resources({ task, resources, kinds }: { task: string; resources: readonly (readonly [string, string])[]; kinds: Readonly<Record<string, string>> }) {
-  const kindOf = (k: string): string => (kinds[k] ?? 'general') in KIND_WORD ? (kinds[k] ?? 'general') : 'general';
-  return (
-    <div className="res-rows">
-      {Object.keys(KIND_WORD).map((kind) => {
-        const here = resources.filter(([k]) => kindOf(k) === kind);
-        return here.length ? (
-          <div key={kind} className="res-row">
-            <span className="res-kind">{KIND_WORD[kind]}</span>
-            <span className="res-links">{here.map(([k, v]) => <Resource key={k} task={task} k={k} v={v} />)}</span>
-          </div>
-        ) : null;
-      })}
-    </div>
-  );
-}
-
-/** A task as a whole: where it stands, its problem, its deliverables and what it refers to. */
+/** A task as a whole: where it stands, its problem and its deliverables. */
 export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
   const word = ({ open: ['teal', 'In progress'], uat: ['amber', '验收中'], done: ['green', 'Done'] } as Record<string, [string, string]>)[t.state] ?? ['', 'Dropped'];
@@ -184,9 +130,6 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const ds = d.deliverables;
   const n = (s: string): number => ds.filter((x) => x.status === s).length;
   const counts = [n('done') ? `${n('done')} done` : null, n('todo') ? `${n('todo')} to do` : null, n('abandoned') ? `${n('abandoned')} dropped` : null].filter(Boolean).join(' · ');
-  // An agent is opened from its row in the task's nav, so it is not listed again here.
-  const agents = new Set(t.agents.map(([name]) => name));
-  const resources = d.resources.filter(([k]) => !agents.has(k));
   return (
     <div className="scroll">
       <div className="paper">
@@ -236,12 +179,6 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                 </div>
               ))}
             </div>
-          </section>
-        ) : null}
-        {resources.length ? (
-          <section className="ov-section">
-            <h3>Resources</h3>
-            <Resources task={t.id} resources={resources} kinds={d.resourceKinds} />
           </section>
         ) : null}
       </div>

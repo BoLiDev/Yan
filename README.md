@@ -179,13 +179,19 @@ folded by hand, and under it every branch the task kept there, those in
 progress first, the one its tree was last on leading them, then those
 merged with their pull request, then those abandoned. A task in one
 repository has its branches straight under the row. A click on a branch
-copies its whole name and opens it. A task's
+copies its whole name and opens it. Under MR, a Resources row, folded
+until asked, counts what the task refers to, its agents aside; unfolded,
+it has a row for each kind, Spec, UAT (the links to check the result on),
+MR and Other, each folded until asked, and under each its resources, a link named by its name
+that opens in a tab of its own, or a name and its words; resources of one
+kind are straight under it. On hover, a resource's pencil edits where it
+points, keeping its kind, and its bin forgets it. A task's
 agents running elsewhere, its `run` resources that are web links, such as
 a cloud platform's agent on the task, are an Agent row under Log, folded
 as MR is when there are several; a click opens one in the one tab yan
 keeps for them all, so looking at another task's agent takes that tab
-rather than opening another. They are left out of the overview's
-resources, and are changed with `yan resource`. Code
+rather than opening another. They are left out of its Resources, and are
+changed with `yan resource`. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches
 nothing from the network; a language outside the common set is loaded the
@@ -232,10 +238,7 @@ saving is refused when an agent changed it since the page read it. A
 deliverable's text is edited where it stands. Under its date on hover, one
 button gives it up, with a reason that stays on its line and is edited the
 same way, and the bin deletes it, once you confirm, as if it had never been
-added: the ones after it take its number. The resources are listed a line for each kind,
-spec, preview, MR and the rest, each a link named by its name that opens
-in a tab of its own. A resource's pencil edits where it points, keeping its
-kind, and its bin forgets it. What you are typing, in a text or in the
+added: the ones after it take its number. What you are typing, in a text or in the
 problem, stays as it is while new commits arrive, so nothing typed is lost.
 
 A task with an artifacts/report.html, the page `yan:uat` writes from

@@ -1,13 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Index, TaskDetail, TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
-import { Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
-import { useBranch, useBranches, useBranchTree, useIndex, useTask } from '../state/server';
-import { copyText, setSeen, toggled, useUI } from '../state/ui';
+import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
+import { useBranch, useBranches, useBranchTree, useIndex, useTask, writeTask } from '../state/server';
+import { ask, copyText, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
 
 /** How the nav says where a branch stands. */
@@ -232,6 +232,90 @@ function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
   );
 }
 
+/** How each kind of resource is named over its own, in the order they are listed: a preview, the link to check the result on, is UAT's. */
+const KIND_WORD: Readonly<Record<string, string>> = { spec: 'Spec', preview: 'UAT', mr: 'MR', general: 'Other' };
+
+/**
+ * A resource under the Resources row: a web link is its name, opening in a
+ * tab of its own; anything else is its name and its words. On hover, the
+ * pencil edits where it points, keeping its kind, and the bin forgets it.
+ */
+function ResourceRow({ task, name, where, deep }: { task: string; name: string; where: string; deep: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const url = /^https?:\/\/\S+$/i.test(where.trim());
+  const className = 'row other res-row' + (deep ? ' deep' : '');
+  if (editing) {
+    return (
+      <div className={className}>
+        <span className="res-name">{name}</span>
+        <Editable className="grow res-edit" text={where} autoFocus onSave={(to) => void writeTask('/api/resource', { task, name, where: to }, `已保存 ${name}`)} onLeft={(changed) => { if (!changed) setEditing(false); }} />
+      </div>
+    );
+  }
+  return (
+    <div className={className} title={where}>
+      {url
+        ? <a className="grow res-link" href={where.trim()} target="_blank" rel="noopener">{name}</a>
+        : <><span className="res-name">{name}</span><span className="grow res-words">{where}</span></>}
+      <span className="res-tools">
+        <button type="button" className="ov-icon" title={`编辑 ${name}`} aria-label={`编辑 ${name}`} onClick={() => setEditing(true)}><Icon name="edit" size={14} /></button>
+        <button type="button" className="ov-icon" title={`删除 ${name}`} aria-label={`删除 ${name}`}
+          onClick={() => ask({ title: `删除资源 ${name}？`, sub: where, action: '删除', then: () => void writeTask('/api/resource', { task, name, remove: true }, `已删除 ${name}`) })}>
+          <Icon name="trash" size={14} />
+        </button>
+      </span>
+      {url ? <span className="go"><Icon name="external" size={14} /></span> : null}
+    </div>
+  );
+}
+
+/**
+ * The Resources row under MR: what the task refers to, its agents aside,
+ * folded until asked; under it a row for each kind, itself folded until
+ * asked, so the row opens on the kinds there are, and under each its
+ * resources, as MR has repositories and their branches. Resources of one
+ * kind are straight under the row.
+ */
+function ResourceRows({ t, d }: { t: TaskSummary; d: TaskDetail }) {
+  const unfolded = useUI((s) => s.unfolded);
+  const agents = new Set(t.agents.map(([name]) => name));
+  const resources = d.resources.filter(([name]) => !agents.has(name));
+  if (!resources.length) return null;
+  const kindOf = (name: string): string => {
+    const kind = d.resourceKinds[name] ?? 'general';
+    return kind in KIND_WORD ? kind : 'general';
+  };
+  const groups = Object.keys(KIND_WORD).map((kind) => [kind, resources.filter(([name]) => kindOf(name) === kind)] as const).filter(([, here]) => here.length);
+  const fold = `${t.id}:res`;
+  const open = unfolded[fold] ?? false;
+  const flip = (key: string, now: boolean): void => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [key]: !now } }));
+  const rows = (here: readonly (readonly [string, string])[], deep: boolean): ReactNode[] => here.map(([name, where]) => <ResourceRow key={name} task={t.id} name={name} where={where} deep={deep} />);
+  return (
+    <>
+      <button type="button" className="row branch-row" aria-expanded={open} onClick={() => flip(fold, open)}>
+        <Icon name="link" size={16} />
+        <span className="word">Resources</span>
+        <span className="grow" />
+        <span className="aside">{`${resources.length} 个`}</span>
+        <span className="fold"><Icon name={open ? 'up' : 'down'} size={15} /></span>
+      </button>
+      {open && groups.length === 1 ? rows((groups[0] as (typeof groups)[number])[1], false) : null}
+      {open && groups.length > 1 ? groups.flatMap(([kind, here]) => {
+        const key = `${t.id}:res:${kind}`;
+        const shown = unfolded[key] ?? false;
+        return [
+          <button key={key} type="button" className="row repo-row" aria-expanded={shown} onClick={() => flip(key, shown)}>
+            <span className="grow">{KIND_WORD[kind]}</span>
+            <span className="aside">{here.length}</span>
+            <span className="fold"><Icon name={shown ? 'up' : 'down'} size={14} /></span>
+          </button>,
+          ...(shown ? rows(here, true) : []),
+        ];
+      }) : null}
+    </>
+  );
+}
+
 /** An Agent row under Log: one agent opens from it; several fold under it, as a repository's branches do. */
 function AgentRows({ t, agents, on }: { t: TaskSummary; agents: readonly (readonly [string, string])[]; on: boolean }) {
   const fold = `${t.id}:agents`;
@@ -294,6 +378,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
         </a>
         {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}
         {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
+        {d ? <ResourceRows t={t} d={d} /> : null}
       </div>
       {part.top}
     </>
