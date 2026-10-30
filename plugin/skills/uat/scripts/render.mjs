@@ -142,11 +142,14 @@ const CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
 
 /**
  * A deliverable's state is one attribute, data-yan-status, and the style
- * draws everything from it: the box and its tick, the badge, the strike and
- * the reason it was given up. `yan serve` changes the attribute alone to
- * show the state as it is now, and to hand out a copy that says so.
+ * draws everything from it: the box and its tick, the strike and the reason
+ * it was given up. `yan serve` changes the attribute alone to show the state
+ * as it is now, and to hand out a copy that says so.
  *
- * The box and the heading share the first row; under a heading the text
+ * The box and the heading share the first row. The heading is one line: a
+ * long summary gives way, ending in an ellipsis, and never the number before
+ * it or the deliverable after it, (d3), since the text under it says it all
+ * again. Under a heading the text
  * and the reason run the page's full width, from the box's left edge, as
  * the pictures do. In the list of those given up, where a line has no
  * pictures to line up with, the reason starts where the line's text does.
@@ -164,7 +167,7 @@ function head(d, n, summary, text, reason) {
   return `<div class="head" data-yan-d="${esc(d.id)}" data-yan-status="${esc(d.status)}">
 <span class="box">${CHECK}</span>
 <div class="words">
-<div class="line"><h3>${number(n)}<span data-yan-edit="summary">${esc(summary)}</span>${idOf(d)}</h3><span class="badge"></span></div>
+<div class="line"><h3>${number(n)}<span data-yan-edit="summary">${esc(summary)}</span>${idOf(d)}</h3></div>
 <p class="text" data-yan-edit="text">${esc(text)}</p>
 ${why(d, reason)}
 </div>
@@ -291,7 +294,7 @@ section{padding:48px 0 8px;display:flex;flex-direction:column;gap:20px}
 .line,.item{grid-column:2}
 .text,.why{grid-column:1/-1}
 li.head .why{grid-column:2}
-.line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.line{display:flex;align-items:baseline;min-width:0}
 h3{margin:0;font-size:22px;line-height:1.4;font-weight:700;font-family:${BOLD_FACE}}
 .id{font-weight:400;font-family:${FACE};color:#909090}
 .text{margin:0;font-size:15px;line-height:1.75;color:#BDBDBD}
@@ -304,12 +307,10 @@ h3{margin:0;font-size:22px;line-height:1.4;font-weight:700;font-family:${BOLD_FA
 [data-yan-status="done"] .box{background:#BCFF2F;border-color:#BCFF2F}
 [data-yan-status="done"] .box svg{display:block}
 [data-yan-status="abandoned"] .box{border-color:#3D3D3D}
-.badge{padding:1px 8px;border-radius:6px;font-size:13px}
-.badge:empty{display:none}
-[data-yan-status="done"] .badge{display:inline;background:#BCFF2F;color:#000;font-weight:500}
-[data-yan-status="done"] .badge::after{content:"完成"}
-[data-yan-status="todo"] .badge{display:inline;border:1px solid #fff;color:#fff}
-[data-yan-status="todo"] .badge::after{content:"待确认"}
+.line h3{display:flex;min-width:0;white-space:nowrap}
+.line h3>*{flex:none}
+.line h3 [data-yan-n]{white-space:pre}
+.line h3 [data-yan-edit="summary"]{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 [data-yan-bar="done"]{background:#BCFF2F}
 .grid{display:grid;gap:14px;align-items:start}
 figure{position:relative;margin:0;min-width:0}

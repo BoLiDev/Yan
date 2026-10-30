@@ -39,6 +39,14 @@ const REPORT_PANEL_CSS = `
 .yan-tick:focus-visible{outline:2px solid #BCFF2F}
 .yan-tick .box{margin-top:0}
 [data-yan-status="abandoned"] .yan-tick{cursor:default}
+/* a heading is one line, its summary giving way and never its number or its deliverable, as reports written now have it, and whole while it is edited; the box alone tells a state, so the badge of a report written before is not shown */
+.line{flex-wrap:nowrap;min-width:0}
+.line h3{display:flex;min-width:0;white-space:nowrap}
+.line h3>*{flex:none}
+.line h3 [data-yan-n]{white-space:pre}
+.line h3 [data-yan-edit="summary"]{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.line h3:focus-within{display:block;white-space:normal}
+.badge{display:none!important}
 /* a report lays each deliverable out as a grid, its text under the box at full width: the button ends the first row */
 .yan-side{flex:none;align-self:flex-start;grid-row:1;grid-column:3;min-height:36px;padding:0 12px;border:1px solid #383838;border-radius:999px;background:#000;color:#BDBDBD;font:inherit;font-size:13px;cursor:pointer}
 .yan-side:hover{color:#fff;border-color:#6C6C6C}
