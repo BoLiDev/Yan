@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
-import type { Index, TaskDetail, TaskSummary } from '../lib/api';
+import { isAgent, type Index, type TaskDetail, type TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
@@ -204,9 +204,9 @@ function BranchRows({ t, i, r, ready }: { t: TaskSummary; i: number; r: Route; r
  */
 const AGENT_TAB = 'yan-agent';
 
-/** The task's agents running elsewhere, as on a cloud platform: its run resources that are web links. */
+/** The task's agents running elsewhere, as on a cloud platform. */
 function agentsOf(d: TaskDetail | undefined): (readonly [string, string])[] {
-  return d ? d.resources.filter(([name, where]) => d.resourceKinds[name] === 'run' && /^https?:\/\//i.test(where)) : [];
+  return d ? d.resources.filter(([name, where]) => isAgent(d, name, where)) : [];
 }
 
 /** An Agent row under Log: one agent opens from it; several fold under it, as a repository's branches do. */

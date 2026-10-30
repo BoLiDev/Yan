@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { postJSON, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
+import { isAgent, postJSON, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
 import { dayOf, fromIso, when } from '../lib/format';
 import { blocksOf } from '../lib/markdown';
 import { link } from '../lib/route';
@@ -150,6 +150,8 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const ds = d.deliverables;
   const n = (s: string): number => ds.filter((x) => x.status === s).length;
   const counts = [n('done') ? `${n('done')} done` : null, n('todo') ? `${n('todo')} to do` : null, n('abandoned') ? `${n('abandoned')} dropped` : null].filter(Boolean).join(' · ');
+  // An agent is opened from its row in the task's nav, so it is not listed again here.
+  const resources = d.resources.filter(([k, v]) => !isAgent(d, k, v));
   return (
     <div className="scroll">
       <div className="paper">
@@ -201,10 +203,10 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
             </div>
           </section>
         ) : null}
-        {d.resources.length ? (
+        {resources.length ? (
           <section className="ov-section">
             <h3>Resources</h3>
-            <div className="res">{d.resources.map(([k, v]) => <Resource key={k} task={t.id} k={k} v={v} />)}</div>
+            <div className="res">{resources.map(([k, v]) => <Resource key={k} task={t.id} k={k} v={v} />)}</div>
           </section>
         ) : null}
       </div>

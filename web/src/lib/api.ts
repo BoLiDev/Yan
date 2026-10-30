@@ -204,3 +204,11 @@ export async function postJSON<T>(url: string, value: unknown): Promise<T> {
 }
 
 export const looksBinary = (text: string): boolean => text.slice(0, 8000).includes('\u0000');
+
+/**
+ * A run resource that is a web link: an agent working on the task elsewhere,
+ * as on a cloud platform, which the task's Agent row opens and so the
+ * overview's resources leave out.
+ */
+export const isAgent = (d: Pick<TaskDetail, 'resourceKinds'>, name: string, where: string): boolean =>
+  d.resourceKinds[name] === 'run' && /^https?:\/\//i.test(where);

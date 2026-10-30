@@ -182,7 +182,8 @@ agents running elsewhere, its `run` resources that are web links, such as
 a cloud platform's agent on the task, are an Agent row under Log, folded
 as Branch is when there are several; a click opens one in the one tab yan
 keeps for them all, so looking at another task's agent takes that tab
-rather than opening another. Code
+rather than opening another. They are left out of the overview's
+resources, and are changed with `yan resource`. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches
 nothing from the network; a language outside the common set is loaded the
