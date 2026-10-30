@@ -6,6 +6,7 @@ import { feedFiles, markLooked, unseenPushes } from '../lib/seen';
 import { Empty } from '../components/ui';
 import { queryClient, useIndex, useTask } from '../state/server';
 import { setSeen, useUI } from '../state/ui';
+import { AgentView } from '../views/Agent';
 import { BranchView } from '../views/Branch';
 import { FileView } from '../views/File';
 import { FolderView } from '../views/Folder';
@@ -73,6 +74,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   if (r.sub === 'report') return <ReportView t={t} d={d} />;
   if (r.sub === 'folder') return <FolderView t={t} d={d} path={r.path} />;
   if (r.sub === 'branch') return <BranchView t={t} r={r} />;
+  if (r.sub === 'agent') return <AgentView t={t} />;
   if (r.sub !== 'file') return null;
   const file = d.files.find((f) => f.path === r.path);
   if (!file) return <Nothing title="Not there any more">{`${r.path} is not in ${t.id}'s artifacts at the commit being shown.`}</Nothing>;

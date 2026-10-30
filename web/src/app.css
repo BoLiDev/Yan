@@ -430,6 +430,13 @@ img { -webkit-user-drag: none; }
 .ov-edit-bar .button:disabled { opacity: .5; cursor: default; }
 
 /* ⌘K: a box near the top of the page, its best match picked from the start, as Notion's search is. */
+/* A task's agents, as Tab comes to them: a card each, the first opened by Enter. */
+.agent-page { display: flex; flex-direction: column; gap: 10px; max-width: 720px; padding: 28px 32px; }
+.agent-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-decoration: none; }
+.agent-card:hover { box-shadow: 0 0 0 1px var(--ink-3); }
+.agent-card .grow { display: flex; flex-direction: column; gap: 2px; }
+.agent-card .where { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-card .button kbd { margin: 0 0 0 4px; background: rgba(255, 255, 255, .18); box-shadow: none; color: inherit; }
 .palette-modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; background: rgba(20, 20, 18, .32); }
 .palette { width: min(620px, 100%); max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 24px 60px rgba(0, 0, 0, .2); }
 .palette-input { flex: none; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--ink-3); }

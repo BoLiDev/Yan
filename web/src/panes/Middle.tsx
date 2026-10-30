@@ -171,7 +171,7 @@ interface Listed {
  * in every repository, and each repository counts its own. A task in one
  * repository has its branches straight under the row.
  */
-function MrRows({ t, r, ready, picked }: { t: TaskSummary; r: Route; ready: boolean; picked: boolean }) {
+function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
   const repos = useMemo(() => t.repos.flatMap((repo, i) => (repo.branch ? [{ repo, i, names: [repo.branch, ...[...repo.earlier].reverse()] }] : [])), [t.repos]);
   // The branch a tree was last on is read under no name, the others under theirs.
   const wanted = useMemo(() => repos.flatMap(({ repo, i, names }) => names.map((n) => ({ repo: i, name: n === repo.branch ? null : n }))), [repos]);
@@ -192,7 +192,7 @@ function MrRows({ t, r, ready, picked }: { t: TaskSummary; r: Route; ready: bool
   const total = lists.reduce((n, l) => n + l.open, 0);
 
   const branchRow = (l: (typeof lists)[number], b: Listed, deep: boolean): ReactNode => {
-    const on = !!shown && !picked && shown.repo === l.i && (shown.name || l.repo.branch) === b.name;
+    const on = !!shown && shown.repo === l.i && (shown.name || l.repo.branch) === b.name;
     // Its name is what a branch's row is wanted for most: a click copies it, and opens the branch too.
     return (
       <a key={`${l.i}:${b.name}`} className={'row other' + (deep ? ' deep' : '') + (on ? ' on' : '')} href={b.name === l.repo.branch ? link.branch(t.id, l.i) : link.branch(t.id, l.i, 'changes', '', b.name)}
@@ -269,32 +269,29 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
   const artifacts = useArtifactsPart(t, d, r, index, seen);
   // Asked for on every route so the hooks run in the same order; off a branch, it reads none.
   const branch = useBranchPart(t, r.sub === 'branch' ? r : { view: 'task', id: t.id, sub: 'branch', repo: -1, name: null, tab: 'changes', item: '' });
-  // Tab marks the Agent row over the page shown, which gives up its own mark meanwhile; a click anywhere in the nav ends it.
-  const picked = useUI((s) => s.agentPicked === t.id);
-  const at = (sub: TaskRoute['sub']): boolean => r.sub === sub && !picked;
   // An open branch takes the part that scrolls, and the artifacts wait at the foot.
   const part = r.sub === 'branch' ? branch : artifacts;
   const top = (
     <>
       <div className="task-head"><div className="t"><StateIcon state={t.state} size={18} /><h1>{t.title || t.id}</h1></div></div>
-      <div className="nav" onClick={() => { if (picked) useUI.setState({ agentPicked: null }); }}>
-        <a className={'row' + (at('overview') ? ' on' : '')} href={link.task(t.id)}>
+      <div className="nav">
+        <a className={'row' + (r.sub === 'overview' ? ' on' : '')} href={link.task(t.id)}>
           <Icon name="overview" size={16} /><span className="grow">Overview</span><span className="aside">{total ? plural(total, 'deliverable') : 'problem'}</span>
         </a>
         {d?.files.some((f) => f.path === 'report.html') ? (
-          <a className={'row' + (at('report') ? ' on' : '')} href={link.report(t.id)}>
+          <a className={'row' + (r.sub === 'report' ? ' on' : '')} href={link.report(t.id)}>
             <Icon name="check" size={16} /><span className="grow">Report</span>
             {unseen.has('report.html') ? <span className="dot" title="changed since your last look" /> : null}
             <span className="aside">report.html</span>
           </a>
         ) : null}
-        <a className={'row' + (at('log') ? ' on' : '')} href={link.log(t.id)}>
+        <a className={'row' + (r.sub === 'log' ? ' on' : '')} href={link.log(t.id)}>
           <Icon name="log" size={16} /><span className="grow">Log</span>
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
-        {t.agents.length ? <AgentRows t={t} agents={t.agents} on={picked} /> : null}
-        {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} picked={picked} /> : null}
+        {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}
+        {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
       </div>
       {part.top}
     </>

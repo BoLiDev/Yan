@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { AGENT_TAB, parseRoute, useHash, useRoute, type Route } from './lib/route';
-import { AGENT_STOP, nextStop, taskStops } from './lib/stops';
+import { nextStop, taskStops } from './lib/stops';
 import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
 import { AskModal, Toast } from './components/ui';
@@ -26,7 +26,7 @@ function useRouteEffects(): void {
   useEffect(() => {
     const was = before.current;
     before.current = r;
-    useUI.setState({ pageSource: false, agentPicked: null });
+    useUI.setState({ pageSource: false });
     if (was?.view === 'task' && (r.view !== 'task' || r.id !== was.id)) {
       useUI.setState((s) => {
         const { [was.id]: _p, ...problemBase } = s.problemBase;
@@ -63,9 +63,9 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
 /**
  * ⌘K goes to a task; Tab and Shift+Tab move through the open task's nav,
  * showing each row as they reach it, round and round, and never anywhere
- * else on the page, so no focus ring is drawn; at Agent they mark the row
- * and leave the page as it was, and Enter opens the first agent; ← and →
- * walk what the right pane walks; F fills the screen with a picture.
+ * else on the page, so no focus ring is drawn; Enter on its Agent opens the
+ * first; ← and → walk what the right pane walks; F fills the screen with a
+ * picture.
  */
 function useKeys(): void {
   useEffect(() => {
@@ -79,9 +79,8 @@ function useKeys(): void {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(active?.tagName ?? '') || !!active?.isContentEditable;
       if (typing || e.altKey || e.ctrlKey || e.metaKey) return;
       const r = parseRoute(location.hash);
-      const { palette, ask, agentPicked } = useUI.getState();
-      const picked = r.view === 'task' && agentPicked === r.id;
-      if (r.view === 'task' && !palette && !ask && (e.key === 'Tab' || (e.key === 'Enter' && picked && (!active || active === document.body)))) {
+      const { palette, ask } = useUI.getState();
+      if (r.view === 'task' && !palette && !ask && (e.key === 'Tab' || (e.key === 'Enter' && r.sub === 'agent' && (!active || active === document.body)))) {
         const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === r.id);
         if (!t) return;
         e.preventDefault();
@@ -91,10 +90,9 @@ function useKeys(): void {
           return;
         }
         const report = !!queryClient.getQueryData<TaskDetail>(['task', r.id])?.files.some((f) => f.path === 'report.html');
-        const to = nextStop(taskStops(t, report), r, picked, e.shiftKey);
+        const to = nextStop(taskStops(t, report), r, e.shiftKey);
         active?.blur();
-        useUI.setState({ agentPicked: to === AGENT_STOP ? r.id : null });
-        if (to && to !== AGENT_STOP) location.hash = to;
+        if (to) location.hash = to;
         return;
       }
       const { prev, next } = useUI.getState().keyNav;
