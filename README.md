@@ -173,14 +173,16 @@ shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, and every file at its head. A
 commit's files are listed at once and their lines drawn as they are
 scrolled to, so one of tens of thousands of lines opens without a wait. The
-task's nav has a Branch row for each repository, folded, that names no
-branch and counts those in progress; unfolded, it lists every branch the
-task kept there, those in progress first, the one its tree was last on
-leading them, then those merged with their pull request, then those
-abandoned. A click on a branch copies its whole name and opens it. A task's
+task's nav has one MR row, folded, that counts the branches in progress
+in every repository; unfolded, it lists each repository, open until
+folded by hand, and under it every branch the task kept there, those in
+progress first, the one its tree was last on leading them, then those
+merged with their pull request, then those abandoned. A task in one
+repository has its branches straight under the row. A click on a branch
+copies its whole name and opens it. A task's
 agents running elsewhere, its `run` resources that are web links, such as
 a cloud platform's agent on the task, are an Agent row under Log, folded
-as Branch is when there are several; a click opens one in the one tab yan
+as MR is when there are several; a click opens one in the one tab yan
 keeps for them all, so looking at another task's agent takes that tab
 rather than opening another. They are left out of the overview's
 resources, and are changed with `yan resource`. Code

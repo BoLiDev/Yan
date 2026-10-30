@@ -224,6 +224,10 @@ img { -webkit-user-drag: none; }
 .branch-row .repo { flex: 0 1 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--ink-3); }
 .branch-row .fold { display: flex; flex: none; margin-right: -2px; color: var(--ink-3); }
 .nav .row.other { padding: 4px 10px 4px 36px; color: var(--ink-2); }
+/* Under MR, a repository, and under it its branches a step further in. */
+.nav .row.repo-row { padding: 5px 10px 5px 36px; font-size: 13.5px; color: var(--ink-2); }
+.nav .row.repo-row .fold { display: flex; flex: none; margin-right: -2px; color: var(--ink-3); }
+.nav .row.other.deep { padding-left: 52px; }
 /* An Agent row names the agent beside its word, giving way first, and ends in the arrow of a link that leaves the page. */
 .nav .row .word { flex: none; white-space: nowrap; }
 .nav .row .aside.name { flex: 0 1 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

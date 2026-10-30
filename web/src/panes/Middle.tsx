@@ -157,41 +157,74 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   return { top: tabs, body: <div className="tree" role="tree">{list}</div> };
 }
 
-/** A repository's Branch row, folded until asked, and under it every branch the task kept there. */
-function BranchRows({ t, i, r, ready }: { t: TaskSummary; i: number; r: Route; ready: boolean }) {
-  const repo = t.repos[i] as TaskSummary['repos'][number];
-  const names = useMemo(() => [repo.branch, ...[...repo.earlier].reverse()].filter((n): n is string => !!n), [repo]);
-  // The branch the tree was last on is read under no name, the others under theirs.
-  const views = useBranches(t.id, i, names.map((n) => (n === repo.branch ? null : n)), ready);
-  const fold = `${t.id}:${i}`;
-  const here = r.view === 'task' && r.sub === 'branch' && r.repo === i;
-  const unfolded = useUI((s) => s.unfolded[fold]) ?? here;
-  const stateOf = (k: number): keyof typeof BRANCH_SAID => (views[k]?.merged ? 'merged' : repo.abandoned.includes(names[k] as string) ? 'abandoned' : 'open');
-  // In progress first, the one the tree was last on leading; then merged, then abandoned, newest first in each.
-  const listed = (['open', 'merged', 'abandoned'] as const).flatMap((state) => names.map((_, k) => k).filter((k) => stateOf(k) === state));
-  const open = listed.filter((k) => stateOf(k) === 'open').length;
+/** A branch as the MR row lists it: where it stands, and the pull request a merged one came in by. */
+interface Listed {
+  readonly name: string;
+  readonly state: keyof typeof BRANCH_SAID;
+  readonly pr: number | null;
+}
+
+/**
+ * The MR row: every branch the task kept, under the repository it is in,
+ * folded until asked and open while one of them is shown; each repository
+ * under it is open until folded by hand. Its figure counts those in progress
+ * in every repository, and each repository counts its own. A task in one
+ * repository has its branches straight under the row.
+ */
+function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
+  const repos = useMemo(() => t.repos.flatMap((repo, i) => (repo.branch ? [{ repo, i, names: [repo.branch, ...[...repo.earlier].reverse()] }] : [])), [t.repos]);
+  // The branch a tree was last on is read under no name, the others under theirs.
+  const wanted = useMemo(() => repos.flatMap(({ repo, i, names }) => names.map((n) => ({ repo: i, name: n === repo.branch ? null : n }))), [repos]);
+  const views = useBranches(t.id, wanted, ready);
+  const unfolded = useUI((s) => s.unfolded);
+  let k = 0;
+  const lists = repos.map(({ repo, i, names }) => {
+    const mine = names.map((name) => ({ name, view: views[k++] }));
+    const stateOf = (b: (typeof mine)[number]): Listed['state'] => (b.view?.merged ? 'merged' : repo.abandoned.includes(b.name) ? 'abandoned' : 'open');
+    // In progress first, the one the tree was last on leading; then merged, then abandoned, newest first in each.
+    const branches = (['open', 'merged', 'abandoned'] as const).flatMap((state) => mine.filter((b) => stateOf(b) === state).map((b): Listed => ({ name: b.name, state, pr: b.view?.merged?.pr ?? null })));
+    return { repo, i, branches, open: branches.filter((b) => b.state === 'open').length };
+  });
+  const shown = r.view === 'task' && r.sub === 'branch' ? r : null;
+  const fold = `${t.id}:mr`;
+  const open = unfolded[fold] ?? !!shown;
+  const flip = (key: string, now: boolean): void => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [key]: !now } }));
+  const total = lists.reduce((n, l) => n + l.open, 0);
+
+  const branchRow = (l: (typeof lists)[number], b: Listed, deep: boolean): ReactNode => {
+    const on = !!shown && shown.repo === l.i && (shown.name || l.repo.branch) === b.name;
+    // Its name is what a branch's row is wanted for most: a click copies it, and opens the branch too.
+    return (
+      <a key={`${l.i}:${b.name}`} className={'row other' + (deep ? ' deep' : '') + (on ? ' on' : '')} href={b.name === l.repo.branch ? link.branch(t.id, l.i) : link.branch(t.id, l.i, 'changes', '', b.name)}
+        title={`${b.name}: click to copy`} onClick={() => copyText(b.name, '分支名已复制', 'The branch')}>
+        <span className="grow mono">{b.name}</span>
+        <span className="aside">{b.pr ? `${BRANCH_SAID.merged} PR #${b.pr}` : BRANCH_SAID[b.state]}</span>
+      </a>
+    );
+  };
+  const direct = lists.length === 1;
   return (
     <>
-      <button type="button" className="row branch-row" aria-expanded={unfolded} onClick={() => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [fold]: !unfolded } }))}>
+      <button type="button" className="row branch-row" aria-expanded={open} onClick={() => flip(fold, open)}>
         <Icon name="branch" size={16} />
-        <span className="word">Branch</span>
-        {t.repos.length > 1 ? <span className="repo">{repo.name}</span> : null}
+        <span className="word">MR</span>
         <span className="grow" />
-        {open ? <span className="aside">{`${open} ${BRANCH_SAID.open}`}</span> : null}
-        <span className="fold"><Icon name={unfolded ? 'up' : 'down'} size={15} /></span>
+        {total ? <span className="aside">{`${total} ${BRANCH_SAID.open}`}</span> : null}
+        <span className="fold"><Icon name={open ? 'up' : 'down'} size={15} /></span>
       </button>
-      {unfolded ? listed.map((k) => {
-        const name = names[k] as string;
-        const on = here && r.view === 'task' && r.sub === 'branch' && (r.name || repo.branch) === name;
-        const pr = views[k]?.merged?.pr;
-        // Its name is what a branch's row is wanted for most: a click copies it, and opens the branch too.
-        return (
-          <a key={name} className={'row other' + (on ? ' on' : '')} href={name === repo.branch ? link.branch(t.id, i) : link.branch(t.id, i, 'changes', '', name)}
-            title={`${name}: click to copy`} onClick={() => copyText(name, '分支名已复制', 'The branch')}>
-            <span className="grow mono">{name}</span>
-            <span className="aside">{pr ? `${BRANCH_SAID.merged} PR #${pr}` : BRANCH_SAID[stateOf(k)]}</span>
-          </a>
-        );
+      {open && direct ? (lists[0] as (typeof lists)[number]).branches.map((b) => branchRow(lists[0] as (typeof lists)[number], b, false)) : null}
+      {open && !direct ? lists.flatMap((l) => {
+        const key = `${t.id}:mr:${l.i}`;
+        // Open until folded by hand, so one click on MR shows every branch.
+        const here = unfolded[key] ?? true;
+        return [
+          <button key={key} type="button" className="row repo-row" aria-expanded={here} onClick={() => flip(key, here)}>
+            <span className="grow">{l.repo.name}</span>
+            {l.open ? <span className="aside">{`${l.open} ${BRANCH_SAID.open}`}</span> : null}
+            <span className="fold"><Icon name={here ? 'up' : 'down'} size={14} /></span>
+          </button>,
+          ...(here ? l.branches.map((b) => branchRow(l, b, true)) : []),
+        ];
       }) : null}
     </>
   );
@@ -274,7 +307,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
           <span className="aside">{d ? logCount : ''}</span>
         </a>
         {t.agents.length ? <AgentRows t={t} agents={t.agents} /> : null}
-        {t.repos.map((repo, i) => (repo.branch ? <BranchRows key={`${i}:${repo.name}`} t={t} i={i} r={r} ready={!!d} /> : null))}
+        {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
       </div>
       {part.top}
     </>

@@ -52,9 +52,9 @@ export function useBranch(id: string, repo: number, name: string | null, enabled
  * merged or not. Asked for once `enabled`, after the task itself: each is
  * git's work on the server, and the task's details would wait behind them.
  */
-export function useBranches(id: string, repo: number, names: readonly (string | null)[], enabled = true): (BranchView | undefined)[] {
+export function useBranches(id: string, wanted: readonly { readonly repo: number; readonly name: string | null }[], enabled = true): (BranchView | undefined)[] {
   return useQueries({
-    queries: names.map((name) => ({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled })),
+    queries: wanted.map(({ repo, name }) => ({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled })),
   }).map((q) => q.data);
 }
 
