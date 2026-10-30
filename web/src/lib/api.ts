@@ -62,7 +62,13 @@ export interface Index {
   readonly tasks: readonly TaskSummary[];
   readonly latest: readonly Push[];
   readonly status: Status;
-  readonly vault: { readonly name: string; readonly dir: string; readonly fileLink: FileLink | null };
+  readonly vault: {
+    readonly name: string;
+    readonly dir: string;
+    readonly fileLink: FileLink | null;
+    /** Which files of a branch are its source code: an include matches and no exclude does. */
+    readonly source: { readonly include: readonly string[]; readonly exclude: readonly string[] };
+  };
   readonly filesOrigin: string;
 }
 

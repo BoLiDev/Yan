@@ -4,11 +4,12 @@ import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { KIND_WORD, isLink, listResources, type Listed as Resource } from '../lib/resources';
+import { isSource, sourceView } from '../lib/source';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
 import { useBranch, useBranches, useBranchTree, useIndex, useTask, writeTask } from '../state/server';
-import { ask, copyText, setSeen, toggled, useUI } from '../state/ui';
+import { ask, copyText, setPref, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
 
 /** How the nav says where a branch stands. */
@@ -96,7 +97,11 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   const tree = useBranchTree(t.id, r.repo, b?.head, r.tab === 'files' && !!b && !b.missing);
   const filesOpen = useUI((s) => s.open[filesKey]);
   const closed = useUI((s) => s.closed[changesKey]);
-  const cur = b && !b.missing ? r.item || changeOrder(b)[0]?.path : undefined;
+  const sourceOnly = useUI((s) => s.prefs.sourceOnly);
+  const rules = useIndex().data?.vault.source;
+  // With source code alone, the branch is the one its tree and prev and next show.
+  const shown = b && !b.missing && sourceOnly && rules ? sourceView(b, rules) : b;
+  const cur = b && !b.missing && shown ? r.item || changeOrder(shown)[0]?.path : undefined;
 
   // The folders of what is asked for open once, and can be closed after.
   useEffect(() => {
@@ -114,7 +119,17 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   if (!b) return { top: <div className="sublabel">Reading the branch…</div>, body: null };
   if (b.missing) return { top: <div className="sublabel error">{b.missing}</div>, body: null };
 
-  const tabs = <Seg wide options={[['changes', `Changes ${b.files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']] as const} current={r.tab} onPick={(tab) => { location.hash = inBranch(r, tab); }} />;
+  const files = (shown ?? b).files;
+  const tabs = <Seg wide options={[['changes', `Changes ${files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']] as const} current={r.tab} onPick={(tab) => { location.hash = inBranch(r, tab); }} />;
+  const sourceCount = rules ? b.files.filter((f) => isSource(rules, f.path)).length : b.files.length;
+  // Over the changes and the files alike; the commits are what they are.
+  const switcher = r.tab === 'commits' ? null : (
+    <button type="button" className="src-toggle" aria-pressed={sourceOnly} onClick={() => setPref('sourceOnly', !sourceOnly)}>
+      <span className="grow">Source code only</span>
+      <span className="aside">{`${sourceCount} / ${b.files.length}`}</span>
+      <span className="switch" aria-hidden="true"><span /></span>
+    </button>
+  );
   let list: ReactNode;
   if (r.tab === 'commits') {
     list = b.commits.map((c) => (
@@ -125,7 +140,7 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   } else if (r.tab === 'files') {
     const open = filesOpen ?? [];
     list = !tree.data ? <div className="sublabel">reading the files…</div> : (
-      <TreeRows node={buildTree(tree.data)} options={{
+      <TreeRows node={buildTree(sourceOnly && rules ? tree.data.filter((f) => isSource(rules, f.path)) : tree.data)} options={{
         isOpen: (p) => open.includes(p),
         setOpen: (p, on) => setFolder(filesKey, open, p, on),
         file: r.item || null,
@@ -141,7 +156,7 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
     const shut = closed ?? [];
     list = (
       <>
-        <TreeRows node={buildTree(b.files)} options={{
+        <TreeRows node={buildTree(files)} options={{
           isOpen: (p) => !shut.includes(p),
           setOpen: (p, on) => useUI.setState((s) => ({ closed: { ...s.closed, [changesKey]: toggled(s.closed[changesKey], p, !on) } })),
           file: cur ?? null,
@@ -154,10 +169,11 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
           extra: (f) => (f.add === null ? <span className="aside">binary</span> : <><span className="plus">{f.add ? `+${f.add}` : ''}</span><span className="minus">{f.del ? `−${f.del}` : ''}</span></>),
         }} />
         {!b.files.length ? <div className="sublabel">{`No changes against ${b.target}.`}</div> : null}
+        {b.files.length && !files.length ? <div className="sublabel">No source code among the changes.</div> : null}
       </>
     );
   }
-  return { top: tabs, body: <div className="tree" role="tree">{list}</div> };
+  return { top: <div className="stack">{tabs}{switcher}</div>, body: <div className="tree" role="tree">{list}</div> };
 }
 
 /** A branch as the MR row lists it: where it stands, and the pull request a merged one came in by. */

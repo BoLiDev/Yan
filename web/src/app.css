@@ -228,6 +228,13 @@ img { -webkit-user-drag: none; }
 .nav .row.repo-row { padding: 5px 10px 5px 36px; font-size: 13.5px; color: var(--ink-2); }
 .nav .row.repo-row .fold { display: flex; flex: none; margin-right: -2px; color: var(--ink-3); }
 .nav .row.other.deep { padding-left: 52px; }
+/* A branch's files, all of them or its source code alone, by the vault's rules: a switch under its tabs. */
+.src-toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; margin: 0 2px; padding: 6px 10px; border-radius: 9px; background: var(--hover); font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.src-toggle .switch { flex: none; position: relative; width: 30px; height: 18px; border-radius: 999px; background: var(--line); transition: background .15s; }
+.src-toggle .switch span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+.src-toggle[aria-pressed="true"] { color: var(--ink); }
+.src-toggle[aria-pressed="true"] .switch { background: var(--accent); }
+.src-toggle[aria-pressed="true"] .switch span { transform: translateX(12px); }
 /* A resource under Resources: a link by its name, or its name and its words; its pencil and bin on hover. */
 .nav .row.res-row { gap: 6px; }
 .nav .row.res-row .res-link { color: inherit; text-decoration: none; }

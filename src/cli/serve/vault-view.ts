@@ -338,6 +338,13 @@ export class VaultView {
     this.loaded = commit;
   }
 
+  /** A file of the vault outside tasks/, as the commit loaded has it, such as its config.json; undefined when it is not there. */
+  public async rootFile(path: string): Promise<Buffer | undefined> {
+    if (this.loaded === undefined) return undefined;
+    const r = await gitAsync(this.dir, ['rev-parse', '--verify', '--quiet', `${this.loaded}:${path}`]);
+    return r.code === 0 ? this.blobs.read(r.stdout.trim()) : undefined;
+  }
+
   public entry(path: string): TreeEntry | undefined {
     return this.byPath.get(path);
   }

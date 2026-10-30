@@ -10,6 +10,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
 import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtasks } from './report.js';
+import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
 import { buildLoads, buildPrint } from './build.js';
@@ -391,7 +392,7 @@ export class YanServer {
       return json(res, {
         ...this.view.index(),
         status: this.status,
-        vault: { name: this.options.vaultName, dir: this.options.vaultDir, fileLink: this.fileLink ?? null },
+        vault: { name: this.options.vaultName, dir: this.options.vaultDir, fileLink: this.fileLink ?? null, source: sourceRules(await this.vaultConfig()) },
         filesOrigin: this.filesOrigin,
       });
     }
@@ -422,6 +423,15 @@ export class YanServer {
     }
     if (p.startsWith('/api/branch')) return this.branchApi(req, res, p, q);
     return send(res, 404, 'not found');
+  }
+
+  /** The vault's config.json as the commit being shown has it, so a change pushed from elsewhere is seen as it arrives; {} when it is not there or not JSON. */
+  private async vaultConfig(): Promise<unknown> {
+    try {
+      return JSON.parse((await this.view.rootFile('config.json'))?.toString('utf8') ?? '{}');
+    } catch {
+      return {};
+    }
   }
 
   // --- the report ---------------------------------------------------------------

@@ -124,6 +124,17 @@ describe('a vault at a commit', () => {
     }
   });
 
+  it('reads a file of the vault as the commit loaded has it, and nothing where there is none', async () => {
+    const view = new VaultView(dir);
+    try {
+      await view.load(commits[0] as string);
+      expect((await view.rootFile('tasks/t001/problem.md'))?.toString('utf8')).toBe('# one\n\nWhy.\n');
+      expect(await view.rootFile('config.json')).toBeUndefined();
+    } finally {
+      await view.close();
+    }
+  });
+
   it('gives each task a rev that moves when its own files do, and only then', async () => {
     const view = new VaultView(dir);
     try {

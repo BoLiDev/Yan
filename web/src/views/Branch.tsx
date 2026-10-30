@@ -5,8 +5,9 @@ import { bytes, plural, short, when } from '../lib/format';
 import { langOf } from '../lib/highlight';
 import { colourPatch, parsePatch, splitPairs, type PatchFile, type PatchLine } from '../lib/patch';
 import { inBranch, type BranchRoute } from '../lib/route';
+import { sourceView } from '../lib/source';
 import { Bar, Crumb, Empty, Seg, Tool } from '../components/ui';
-import { useBranch, useBranchTree, useCommit, useLang, useLangs, useText } from '../state/server';
+import { useBranch, useBranchTree, useCommit, useIndex, useLang, useLangs, useText } from '../state/server';
 import { setPref, useUI } from '../state/ui';
 import { CodeStage, CodeText } from './Code';
 import { MarkdownDoc } from './Markdown';
@@ -211,7 +212,10 @@ function BranchFile({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) 
 }
 
 function ChangesView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) {
-  const order = changeOrder(b);
+  // With source code alone, prev and next walk what the tree shows.
+  const sourceOnly = useUI((s) => s.prefs.sourceOnly);
+  const rules = useIndex().data?.vault.source;
+  const order = changeOrder(sourceOnly && rules ? sourceView(b, rules) : b);
   const path = r.item || order[0]?.path;
   const at = order.findIndex((f) => f.path === path);
   const f = order[at];

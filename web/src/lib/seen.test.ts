@@ -16,7 +16,7 @@ function vault(latest: Push[]): Index {
     tasks: [task('t1', 300), task('t2', 200)],
     latest,
     status: { version: 1, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: 10, local: false, build: '' },
-    vault: { name: 'v', dir: '/v', fileLink: null },
+    vault: { name: 'v', dir: '/v', fileLink: null, source: { include: [], exclude: [] } },
     filesOrigin: '',
   };
 }
