@@ -2,27 +2,31 @@ import type { TaskSummary } from '../lib/api';
 import { AGENT_TAB } from '../lib/route';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
-import { useKeyNav } from './nav';
+import { useKeyNav, usePick } from './nav';
 
 /**
  * A task's agents running elsewhere, as Tab comes to them: each with where
- * it is, opened in the tab every agent opens in by a click, or the first by
- * Enter. A stop of their own, so Tab can pass them by without leaving the
- * page for the agent's tab.
+ * it is, the first picked; ↑ and ↓ pick another and Enter opens it in the
+ * tab every agent opens in, as a click on any does. A stop of their own, so
+ * Tab can pass them by without leaving the page for the agent's tab.
  */
 export function AgentView({ t }: { t: TaskSummary }) {
   useKeyNav(null, null);
+  const { at, pick, list } = usePick(t.agents.length, (i) => {
+    const [, where] = t.agents[i] ?? [];
+    if (where) window.open(where, AGENT_TAB);
+  });
   if (!t.agents.length) return <Empty title="No agent">{`${t.id} keeps no agent.`}</Empty>;
   return (
     <>
-      <Bar title="Agent" meta={t.agents.length === 1 ? 'Enter opens it, in the tab every agent opens in' : `${t.agents.length} agents · Enter opens the first, in the tab every agent opens in`} />
+      <Bar title="Agent" meta={t.agents.length === 1 ? 'Enter opens it, in the tab every agent opens in' : `${t.agents.length} agents · ↑↓ to pick, Enter opens it in the tab every agent opens in`} />
       <div className="scroll">
-        <div className="agent-page">
+        <div className="agent-page" ref={list}>
           {t.agents.map(([name, where], i) => (
-            <a key={name} className="agent-card" href={where} target={AGENT_TAB} title={where}>
+            <a key={name} className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={where} target={AGENT_TAB} title={where} onMouseMove={() => pick(i)}>
               <Icon name="cloud" size={20} />
               <span className="grow"><b>{name}</b><span className="where">{where}</span></span>
-              <span className="button">打开{i === 0 ? <kbd>↵</kbd> : null}</span>
+              {i === at ? <span className="button">打开<kbd>↵</kbd></span> : null}
             </a>
           ))}
         </div>

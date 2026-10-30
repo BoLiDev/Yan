@@ -227,9 +227,10 @@ out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab
 move through its nav, Overview, Report, Log, Agent, MR and Resources,
 showing each as they reach it and round again, and nowhere else on the
-page: Agent shows the task's agents, Enter opening the first in their tab,
-MR the branch its first tree is on, and Resources the task's resources by
-kind, ↑ and ↓ picking one and Enter opening it in a tab of its own. It stays there while
+page: MR shows the branch its first tree is on, and Agent and Resources
+the task's agents and its resources by kind, the first picked, ↑ and ↓
+picking another and Enter opening it, an agent in the tab every agent
+opens in and a resource in a tab of its own. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 
