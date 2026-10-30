@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import type { Index, TaskDetail, TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
@@ -171,7 +171,7 @@ interface Listed {
  * in every repository, and each repository counts its own. A task in one
  * repository has its branches straight under the row.
  */
-function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
+function MrRows({ t, r, ready, picked }: { t: TaskSummary; r: Route; ready: boolean; picked: boolean }) {
   const repos = useMemo(() => t.repos.flatMap((repo, i) => (repo.branch ? [{ repo, i, names: [repo.branch, ...[...repo.earlier].reverse()] }] : [])), [t.repos]);
   // The branch a tree was last on is read under no name, the others under theirs.
   const wanted = useMemo(() => repos.flatMap(({ repo, i, names }) => names.map((n) => ({ repo: i, name: n === repo.branch ? null : n }))), [repos]);
@@ -192,7 +192,7 @@ function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
   const total = lists.reduce((n, l) => n + l.open, 0);
 
   const branchRow = (l: (typeof lists)[number], b: Listed, deep: boolean): ReactNode => {
-    const on = !!shown && shown.repo === l.i && (shown.name || l.repo.branch) === b.name;
+    const on = !!shown && !picked && shown.repo === l.i && (shown.name || l.repo.branch) === b.name;
     // Its name is what a branch's row is wanted for most: a click copies it, and opens the branch too.
     return (
       <a key={`${l.i}:${b.name}`} className={'row other' + (deep ? ' deep' : '') + (on ? ' on' : '')} href={b.name === l.repo.branch ? link.branch(t.id, l.i) : link.branch(t.id, l.i, 'changes', '', b.name)}
@@ -231,21 +231,21 @@ function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
 }
 
 /** An Agent row under Log: one agent opens from it; several fold under it, as a repository's branches do. */
-function AgentRows({ t, agents }: { t: TaskSummary; agents: readonly (readonly [string, string])[] }) {
+function AgentRows({ t, agents, on }: { t: TaskSummary; agents: readonly (readonly [string, string])[]; on: boolean }) {
   const fold = `${t.id}:agents`;
   const unfolded = useUI((s) => s.unfolded[fold]) ?? false;
   const go = <span className="go"><Icon name="external" size={14} /></span>;
   if (agents.length === 1) {
     const [name, where] = agents[0] as readonly [string, string];
     return (
-      <a className="row" href={where} target={AGENT_TAB} title={`${name}: ${where}`}>
+      <a className={'row' + (on ? ' on' : '')} href={where} target={AGENT_TAB} title={`${name}: ${where}`}>
         <Icon name="cloud" size={16} /><span className="word">Agent</span><span className="grow" /><span className="aside name">{name}</span>{go}
       </a>
     );
   }
   return (
     <>
-      <button type="button" className="row branch-row" aria-expanded={unfolded} onClick={() => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [fold]: !unfolded } }))}>
+      <button type="button" className={'row branch-row' + (on ? ' on' : '')} aria-expanded={unfolded} onClick={() => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [fold]: !unfolded } }))}>
         <Icon name="cloud" size={16} />
         <span className="word">Agent</span>
         <span className="grow" />
@@ -259,24 +259,8 @@ function AgentRows({ t, agents }: { t: TaskSummary; agents: readonly (readonly [
   );
 }
 
-/** ↑ and ↓ walk a task's nav rows as Tab does, without leaving them for the artifacts below. */
-function walkNav(e: KeyboardEvent<HTMLDivElement>): void {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-  const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(':scope > .row')];
-  const at = rows.indexOf(document.activeElement as HTMLElement);
-  if (at < 0) return;
-  e.preventDefault();
-  rows[Math.max(0, Math.min(rows.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))]?.focus();
-}
-
 function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index: Index; seen: Seen }) {
   const { data: d } = useTask(t.id);
-  // Opening a task, by a click or by ⌘K, puts the keyboard on its Overview row, so Tab and ↓ go on down its nav.
-  const overview = useRef<HTMLAnchorElement>(null);
-  const navFocus = useUI((s) => s.navFocus);
-  useEffect(() => {
-    overview.current?.focus({ preventScroll: true });
-  }, [t.id, navFocus]);
   const unseen = unseenOf(index, seen, t.id);
   const total = t.deliverables.done + t.deliverables.todo + t.deliverables.abandoned;
   const logCount = d?.log?.entries.length ?? 0;
@@ -285,29 +269,32 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
   const artifacts = useArtifactsPart(t, d, r, index, seen);
   // Asked for on every route so the hooks run in the same order; off a branch, it reads none.
   const branch = useBranchPart(t, r.sub === 'branch' ? r : { view: 'task', id: t.id, sub: 'branch', repo: -1, name: null, tab: 'changes', item: '' });
+  // Tab marks the Agent row over the page shown, which gives up its own mark meanwhile; a click anywhere in the nav ends it.
+  const picked = useUI((s) => s.agentPicked === t.id);
+  const at = (sub: TaskRoute['sub']): boolean => r.sub === sub && !picked;
   // An open branch takes the part that scrolls, and the artifacts wait at the foot.
   const part = r.sub === 'branch' ? branch : artifacts;
   const top = (
     <>
       <div className="task-head"><div className="t"><StateIcon state={t.state} size={18} /><h1>{t.title || t.id}</h1></div></div>
-      <div className="nav" onKeyDown={walkNav}>
-        <a ref={overview} className={'row' + (r.sub === 'overview' ? ' on' : '')} href={link.task(t.id)}>
+      <div className="nav" onClick={() => { if (picked) useUI.setState({ agentPicked: null }); }}>
+        <a className={'row' + (at('overview') ? ' on' : '')} href={link.task(t.id)}>
           <Icon name="overview" size={16} /><span className="grow">Overview</span><span className="aside">{total ? plural(total, 'deliverable') : 'problem'}</span>
         </a>
         {d?.files.some((f) => f.path === 'report.html') ? (
-          <a className={'row' + (r.sub === 'report' ? ' on' : '')} href={link.report(t.id)}>
+          <a className={'row' + (at('report') ? ' on' : '')} href={link.report(t.id)}>
             <Icon name="check" size={16} /><span className="grow">Report</span>
             {unseen.has('report.html') ? <span className="dot" title="changed since your last look" /> : null}
             <span className="aside">report.html</span>
           </a>
         ) : null}
-        <a className={'row' + (r.sub === 'log' ? ' on' : '')} href={link.log(t.id)}>
+        <a className={'row' + (at('log') ? ' on' : '')} href={link.log(t.id)}>
           <Icon name="log" size={16} /><span className="grow">Log</span>
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
-        {t.agents.length ? <AgentRows t={t} agents={t.agents} /> : null}
-        {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
+        {t.agents.length ? <AgentRows t={t} agents={t.agents} on={picked} /> : null}
+        {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} picked={picked} /> : null}
       </div>
       {part.top}
     </>

@@ -216,9 +216,11 @@ off a Mac, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there; with
 nothing typed it offers the tasks visited last, the one being read left
 out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
-picked task's agent instead of the task. Opening a task, by ⌘K or by a
-click, puts the keyboard on its Overview row, and Tab or ↓ go on down its
-nav, to its Agent among the rest. It stays there while
+picked task's agent instead of the task. In a task, Tab and Shift+Tab
+move through its nav, Overview, Report, Log, Agent and MR, showing each
+as they reach it and round again, and nowhere else on the page: at Agent
+they mark its row and leave the page as it was, Enter opening the first
+agent in their tab, and MR shows the branch its first tree is on. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 

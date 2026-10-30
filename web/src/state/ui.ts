@@ -51,8 +51,8 @@ interface UI {
   palette: boolean;
   /** The tasks visited, the last first, kept in this browser: what ⌘K offers before anything is typed. */
   recent: readonly string[];
-  /** Moved on to put the keyboard on the open task's Overview row, as ⌘K does when it opens one. */
-  navFocus: number;
+  /** The task whose Agent row Tab has marked, the page under it left as it was, so Enter opens its agent. */
+  agentPicked: string | null;
   /** `<task>:<repo>` → whether the nav lists its branches, as last asked; folded until then. */
   unfolded: Readonly<Record<string, boolean>>;
   /** A task's artifacts folders that are open, or a branch's files folders; unset until first shown. */
@@ -113,7 +113,7 @@ export const useUI = create<UI>(() => ({
   status: null,
   palette: false,
   recent: load<string[]>(RECENT_KEY, []),
-  navFocus: 0,
+  agentPicked: null,
   unfolded: {},
   open: {},
   closed: {},

@@ -25,8 +25,7 @@ function Marked({ text, marks }: { text: string; marks: Found['marks'] }) {
  * pick another, and Mod+Enter opens the picked task's Agent instead, in the
  * tab every agent opens in. With nothing typed it offers the tasks visited
  * last, the one being read left out, so ⌘K then Enter goes back to the one
- * before. Going to a task puts the keyboard on its Overview row; Escape
- * gives it back where it was.
+ * before. Escape gives the keyboard back where it was.
  */
 export function Palette() {
   const open = useUI((s) => s.palette);
@@ -66,7 +65,6 @@ function PaletteBox() {
     }
     close(false);
     location.hash = link.task(f.task.id);
-    useUI.setState((s) => ({ navFocus: s.navFocus + 1 }));
   };
   const move = (by: number): void => setAt((a) => Math.max(0, Math.min(found.length - 1, a + by)));
 
@@ -80,8 +78,9 @@ function PaletteBox() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               const ctrl = e.ctrlKey && !e.metaKey;
-              if (e.key === 'ArrowDown' || (ctrl && e.key === 'n')) move(1);
-              else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p')) move(-1);
+              // Tab picks as it does in a task's nav, and keeps the keyboard in the box, where Escape closes it.
+              if (e.key === 'ArrowDown' || (ctrl && e.key === 'n') || (e.key === 'Tab' && !e.shiftKey)) move(1);
+              else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p') || (e.key === 'Tab' && e.shiftKey)) move(-1);
               else if (e.key === 'Enter' && !e.nativeEvent.isComposing) go(found[at], e.metaKey || e.ctrlKey);
               else if (e.key === 'Escape') close(true);
               else return;
