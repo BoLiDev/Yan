@@ -11,6 +11,7 @@ describe('Tab in a task', () => {
   it('stops at the rows there are, MR at the branch of the first tree on one', () => {
     expect(taskStops(task(1, true), true)).toEqual(['#/t/t1', '#/t/t1/report', '#/t/t1/log', '#/t/t1/agent', '#/t/t1/b/1/changes']);
     expect(taskStops(task(0, false), false)).toEqual(['#/t/t1', '#/t/t1/log']);
+    expect(taskStops(task(0, true), false, true)).toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/b/1/changes', '#/t/t1/resources']);
   });
 
   it('goes down and round, and back up and round', () => {
@@ -19,6 +20,13 @@ describe('Tab in a task', () => {
     expect(nextStop(stops, at('#/t/t1/log'), false)).toBe('#/t/t1/agent');
     expect(nextStop(stops, at('#/t/t1/b/1/changes'), false)).toBe('#/t/t1');
     expect(nextStop(stops, at('#/t/t1'), true)).toBe('#/t/t1/b/1/changes');
+  });
+
+  it('goes on from MR to Resources, and round from there to Overview', () => {
+    const stops = taskStops(task(1, true), false, true);
+    expect(nextStop(stops, at('#/t/t1/b/1/changes'), false)).toBe('#/t/t1/resources');
+    expect(nextStop(stops, at('#/t/t1/resources'), false)).toBe('#/t/t1');
+    expect(nextStop(stops, at('#/t/t1'), true)).toBe('#/t/t1/resources');
   });
 
   it('takes any branch shown for MR, and an artifact for none', () => {

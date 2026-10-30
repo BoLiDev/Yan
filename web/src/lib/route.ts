@@ -8,7 +8,7 @@ import { enc } from './files';
  *   #/latest                         what arrived
  *   #/latest/<task>/<path>           one of its files
  *   #/t/<task>                       a task's overview
- *   #/t/<task>/log | /report | /agent
+ *   #/t/<task>/log | /report | /agent | /resources
  *   #/t/<task>/a/<path>              an artifact; a path ending in / is a folder
  *   #/t/<task>/b/<repo>/<tab>/<item> the branch the tree was last on
  *   #/t/<task>/b/<repo>/<branch>/<tab>/<item>  another of the task's branches
@@ -19,7 +19,7 @@ export type BranchTab = (typeof BRANCH_TABS)[number];
 
 export type Route =
   | { readonly view: 'latest'; readonly id?: string; readonly path?: string }
-  | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'agent' }
+  | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'agent' | 'resources' }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'file' | 'folder'; readonly path: string }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'branch'; readonly repo: number; readonly name: string | null; readonly tab: BranchTab; readonly item: string };
 
@@ -40,6 +40,7 @@ export function parseRoute(hash: string): Route {
     if (rest[0] === 'log') return { view: 'task', id, sub: 'log' };
     if (rest[0] === 'report') return { view: 'task', id, sub: 'report' };
     if (rest[0] === 'agent') return { view: 'task', id, sub: 'agent' };
+    if (rest[0] === 'resources') return { view: 'task', id, sub: 'resources' };
     if (rest[0] === 'a') {
       const p = rest.slice(1).join('/');
       if (p === '' || raw.endsWith('/')) return { view: 'task', id, sub: 'folder', path: p.replace(/\/$/, '') };
@@ -69,6 +70,7 @@ export const link = {
   log: (id: string): string => `#/t/${id}/log`,
   report: (id: string): string => `#/t/${id}/report`,
   agent: (id: string): string => `#/t/${id}/agent`,
+  resources: (id: string): string => `#/t/${id}/resources`,
   file: (id: string, p: string): string => `#/t/${id}/a/${enc(p)}`,
   folder: (id: string, p: string): string => `#/t/${id}/a/${p ? enc(p) + '/' : ''}`,
   branch: (id: string, repo: number, tab?: BranchTab, item?: string, name?: string | null): string =>

@@ -3,6 +3,7 @@ import type { Index, TaskDetail, TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
+import { KIND_WORD, isLink, listResources, type Listed as Resource } from '../lib/resources';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
@@ -232,9 +233,6 @@ function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
   );
 }
 
-/** How each kind of resource is named over its own, in the order they are listed: a preview, the link to check the result on, is UAT's. */
-const KIND_WORD: Readonly<Record<string, string>> = { spec: 'Spec', preview: 'UAT', mr: 'MR', general: 'Other' };
-
 /**
  * A resource under the Resources row: a web link is its name, opening in a
  * tab of its own; anything else is its name and its words. On hover, the
@@ -242,7 +240,7 @@ const KIND_WORD: Readonly<Record<string, string>> = { spec: 'Spec', preview: 'UA
  */
 function ResourceRow({ task, name, where, deep }: { task: string; name: string; where: string; deep: boolean }) {
   const [editing, setEditing] = useState(false);
-  const url = /^https?:\/\/\S+$/i.test(where.trim());
+  const url = isLink(where);
   const className = 'row other res-row' + (deep ? ' deep' : '');
   if (editing) {
     return (
@@ -276,23 +274,18 @@ function ResourceRow({ task, name, where, deep }: { task: string; name: string; 
  * resources, as MR has repositories and their branches. Resources of one
  * kind are straight under the row.
  */
-function ResourceRows({ t, d }: { t: TaskSummary; d: TaskDetail }) {
+function ResourceRows({ t, d, on }: { t: TaskSummary; d: TaskDetail; on: boolean }) {
   const unfolded = useUI((s) => s.unfolded);
-  const agents = new Set(t.agents.map(([name]) => name));
-  const resources = d.resources.filter(([name]) => !agents.has(name));
+  const resources = listResources(t, d);
   if (!resources.length) return null;
-  const kindOf = (name: string): string => {
-    const kind = d.resourceKinds[name] ?? 'general';
-    return kind in KIND_WORD ? kind : 'general';
-  };
-  const groups = Object.keys(KIND_WORD).map((kind) => [kind, resources.filter(([name]) => kindOf(name) === kind)] as const).filter(([, here]) => here.length);
+  const groups = Object.keys(KIND_WORD).map((kind) => [kind, resources.filter((r) => r.kind === kind)] as const).filter(([, here]) => here.length);
   const fold = `${t.id}:res`;
   const open = unfolded[fold] ?? false;
   const flip = (key: string, now: boolean): void => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [key]: !now } }));
-  const rows = (here: readonly (readonly [string, string])[], deep: boolean): ReactNode[] => here.map(([name, where]) => <ResourceRow key={name} task={t.id} name={name} where={where} deep={deep} />);
+  const rows = (here: readonly Resource[], deep: boolean): ReactNode[] => here.map((r) => <ResourceRow key={r.name} task={t.id} name={r.name} where={r.where} deep={deep} />);
   return (
     <>
-      <button type="button" className="row branch-row" aria-expanded={open} onClick={() => flip(fold, open)}>
+      <button type="button" className={'row branch-row' + (on ? ' on' : '')} aria-expanded={open} onClick={() => flip(fold, open)}>
         <Icon name="link" size={16} />
         <span className="word">Resources</span>
         <span className="grow" />
@@ -378,7 +371,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
         </a>
         {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}
         {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
-        {d ? <ResourceRows t={t} d={d} /> : null}
+        {d ? <ResourceRows t={t} d={d} on={r.sub === 'resources'} /> : null}
       </div>
       {part.top}
     </>

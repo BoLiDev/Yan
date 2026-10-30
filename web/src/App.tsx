@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { AGENT_TAB, parseRoute, useHash, useRoute, type Route } from './lib/route';
+import { listResources } from './lib/resources';
 import { nextStop, taskStops } from './lib/stops';
 import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
@@ -64,8 +65,8 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
  * ⌘K goes to a task; Tab and Shift+Tab move through the open task's nav,
  * showing each row as they reach it, round and round, and never anywhere
  * else on the page, so no focus ring is drawn; Enter on its Agent opens the
- * first; ← and → walk what the right pane walks; F fills the screen with a
- * picture.
+ * first, and its Resources take ↑, ↓ and Enter of their own; ← and → walk
+ * what the right pane walks; F fills the screen with a picture.
  */
 function useKeys(): void {
   useEffect(() => {
@@ -89,8 +90,9 @@ function useKeys(): void {
           if (where) window.open(where, AGENT_TAB);
           return;
         }
-        const report = !!queryClient.getQueryData<TaskDetail>(['task', r.id])?.files.some((f) => f.path === 'report.html');
-        const to = nextStop(taskStops(t, report), r, e.shiftKey);
+        const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
+        const report = !!d?.files.some((f) => f.path === 'report.html');
+        const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0), r, e.shiftKey);
         active?.blur();
         if (to) location.hash = to;
         return;

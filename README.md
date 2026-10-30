@@ -225,10 +225,11 @@ words in any order, the best match picked so Enter goes there; with
 nothing typed it offers the tasks visited last, the one being read left
 out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab
-move through its nav, Overview, Report, Log, Agent and MR, showing each
-as they reach it and round again, and nowhere else on the page: Agent
-shows the task's agents, Enter opening the first in their tab, and MR the
-branch its first tree is on. It stays there while
+move through its nav, Overview, Report, Log, Agent, MR and Resources,
+showing each as they reach it and round again, and nowhere else on the
+page: Agent shows the task's agents, Enter opening the first in their tab,
+MR the branch its first tree is on, and Resources the task's resources by
+kind, ↑ and ↓ picking one and Enter opening it in a tab of its own. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 

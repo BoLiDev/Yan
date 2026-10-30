@@ -5,10 +5,10 @@ import { link, type TaskRoute } from './route';
 
 /**
  * A task's stops, top to bottom as its nav has them: Overview, Report when
- * there is one, Log, Agent when there is one, and MR, which shows the branch
- * its first tree is on.
+ * there is one, Log, Agent when there is one, MR, which shows the branch its
+ * first tree is on, and Resources when there are any.
  */
-export function taskStops(t: TaskSummary, hasReport: boolean): string[] {
+export function taskStops(t: TaskSummary, hasReport: boolean, hasResources = false): string[] {
   const repo = t.repos.findIndex((r) => r.branch);
   return [
     link.task(t.id),
@@ -16,6 +16,7 @@ export function taskStops(t: TaskSummary, hasReport: boolean): string[] {
     link.log(t.id),
     ...(t.agents.length ? [link.agent(t.id)] : []),
     ...(repo >= 0 ? [link.branch(t.id, repo)] : []),
+    ...(hasResources ? [link.resources(t.id)] : []),
   ];
 }
 
