@@ -213,7 +213,7 @@ function BranchFile({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) 
 
 function ChangesView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) {
   // With source code alone, prev and next walk what the tree shows.
-  const sourceOnly = useUI((s) => s.prefs.sourceOnly);
+  const sourceOnly = useUI((s) => !s.prefs.allFiles);
   const rules = useIndex().data?.vault.source;
   const order = changeOrder(sourceOnly && rules ? sourceView(b, rules) : b);
   const path = r.item || order[0]?.path;

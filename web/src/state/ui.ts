@@ -22,8 +22,13 @@ export interface Prefs {
   readonly wrap: Readonly<Record<string, boolean>>;
   /** Chrome says when a push arrives. */
   readonly notify: boolean;
-  /** A branch's files are its source code alone, by the vault's rules. */
-  readonly sourceOnly: boolean;
+  /**
+   * A branch's files are all of them, rather than its source code alone by
+   * the vault's rules, which they are until switched. Kept under a name of
+   * its own, so a browser that kept the switch off while it started off
+   * starts with source code alone too.
+   */
+  readonly allFiles: boolean;
 }
 
 export interface Ask {
@@ -100,7 +105,7 @@ function save(key: string, value: unknown): void {
   }
 }
 
-const DEFAULT_PREFS: Prefs = { left: true, dark: false, layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, sourceOnly: false };
+const DEFAULT_PREFS: Prefs = { left: true, dark: false, layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false };
 
 /** What this browser kept of the marks, read once: the first index decides what a first visit starts from. */
 export const storedSeen: unknown = load(SEEN_KEY, null);

@@ -97,7 +97,7 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   const tree = useBranchTree(t.id, r.repo, b?.head, r.tab === 'files' && !!b && !b.missing);
   const filesOpen = useUI((s) => s.open[filesKey]);
   const closed = useUI((s) => s.closed[changesKey]);
-  const sourceOnly = useUI((s) => s.prefs.sourceOnly);
+  const sourceOnly = useUI((s) => !s.prefs.allFiles);
   const rules = useIndex().data?.vault.source;
   // With source code alone, the branch is the one its tree and prev and next show.
   const shown = b && !b.missing && sourceOnly && rules ? sourceView(b, rules) : b;
@@ -124,7 +124,7 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   const sourceCount = rules ? b.files.filter((f) => isSource(rules, f.path)).length : b.files.length;
   // Over the changes and the files alike; the commits are what they are.
   const switcher = r.tab === 'commits' ? null : (
-    <button type="button" className="src-toggle" aria-pressed={sourceOnly} onClick={() => setPref('sourceOnly', !sourceOnly)}>
+    <button type="button" className="src-toggle" aria-pressed={sourceOnly} onClick={() => setPref('allFiles', sourceOnly)}>
       <span className="grow">Source code only</span>
       <span className="aside">{`${sourceCount} / ${b.files.length}`}</span>
       <span className="switch" aria-hidden="true"><span /></span>
