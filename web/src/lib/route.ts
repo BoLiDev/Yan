@@ -56,6 +56,13 @@ export function parseRoute(hash: string): Route {
   return { view: 'latest' };
 }
 
+/**
+ * The tab every task's agents open in. A link given this target opens it once and loads into it after,
+ * from any task, so looking at another agent takes the tab rather than adding one; `noopener` would cut
+ * the tab off from this page and open a new one each time, so these links go without it.
+ */
+export const AGENT_TAB = 'yan-agent';
+
 export const link = {
   task: (id: string): string => `#/t/${id}`,
   log: (id: string): string => `#/t/${id}/log`,

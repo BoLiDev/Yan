@@ -3,7 +3,7 @@ import type { Index, Push, TaskSummary } from './api';
 import { feedFiles, initSeen, latestUnseen, markAllSeen, markLooked, markTaskRead, unseenOf, unseenPushes, type Seen } from './seen';
 
 const task = (id: string, touched: number): TaskSummary => ({
-  id, title: id, state: 'open', createdAt: null, closedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 },
+  id, title: id, state: 'open', createdAt: null, closedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [],
   artifacts: 0, added: [], touched, rev: id,
 });
 

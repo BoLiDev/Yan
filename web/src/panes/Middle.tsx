@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
-import { isAgent, type Index, type TaskDetail, type TaskSummary } from '../lib/api';
+import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import type { Index, TaskDetail, TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
 import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
-import { inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
+import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
@@ -197,18 +197,6 @@ function BranchRows({ t, i, r, ready }: { t: TaskSummary; i: number; r: Route; r
   );
 }
 
-/**
- * The tab every task's agents open in. A link given this target opens it once and loads into it after,
- * from any task, so looking at another agent takes the tab rather than adding one; `noopener` would cut
- * the tab off from this page and open a new one each time, so these links go without it.
- */
-const AGENT_TAB = 'yan-agent';
-
-/** The task's agents running elsewhere, as on a cloud platform. */
-function agentsOf(d: TaskDetail | undefined): (readonly [string, string])[] {
-  return d ? d.resources.filter(([name, where]) => isAgent(d, name, where)) : [];
-}
-
 /** An Agent row under Log: one agent opens from it; several fold under it, as a repository's branches do. */
 function AgentRows({ t, agents }: { t: TaskSummary; agents: readonly (readonly [string, string])[] }) {
   const fold = `${t.id}:agents`;
@@ -238,8 +226,24 @@ function AgentRows({ t, agents }: { t: TaskSummary; agents: readonly (readonly [
   );
 }
 
+/** ↑ and ↓ walk a task's nav rows as Tab does, without leaving them for the artifacts below. */
+function walkNav(e: KeyboardEvent<HTMLDivElement>): void {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(':scope > .row')];
+  const at = rows.indexOf(document.activeElement as HTMLElement);
+  if (at < 0) return;
+  e.preventDefault();
+  rows[Math.max(0, Math.min(rows.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))]?.focus();
+}
+
 function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index: Index; seen: Seen }) {
   const { data: d } = useTask(t.id);
+  // Opening a task, by a click or by ⌘K, puts the keyboard on its Overview row, so Tab and ↓ go on down its nav.
+  const overview = useRef<HTMLAnchorElement>(null);
+  const navFocus = useUI((s) => s.navFocus);
+  useEffect(() => {
+    overview.current?.focus({ preventScroll: true });
+  }, [t.id, navFocus]);
   const unseen = unseenOf(index, seen, t.id);
   const total = t.deliverables.done + t.deliverables.todo + t.deliverables.abandoned;
   const logCount = d?.log?.entries.length ?? 0;
@@ -253,8 +257,8 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
   const top = (
     <>
       <div className="task-head"><div className="t"><StateIcon state={t.state} size={18} /><h1>{t.title || t.id}</h1></div></div>
-      <div className="nav">
-        <a className={'row' + (r.sub === 'overview' ? ' on' : '')} href={link.task(t.id)}>
+      <div className="nav" onKeyDown={walkNav}>
+        <a ref={overview} className={'row' + (r.sub === 'overview' ? ' on' : '')} href={link.task(t.id)}>
           <Icon name="overview" size={16} /><span className="grow">Overview</span><span className="aside">{total ? plural(total, 'deliverable') : 'problem'}</span>
         </a>
         {d?.files.some((f) => f.path === 'report.html') ? (
@@ -269,7 +273,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
-        {agentsOf(d).length ? <AgentRows t={t} agents={agentsOf(d)} /> : null}
+        {t.agents.length ? <AgentRows t={t} agents={t.agents} /> : null}
         {t.repos.map((repo, i) => (repo.branch ? <BranchRows key={`${i}:${repo.name}`} t={t} i={i} r={r} ready={!!d} /> : null))}
       </div>
       {part.top}

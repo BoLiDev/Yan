@@ -3,8 +3,9 @@ import type { TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { useHash, useRoute, type Route } from './lib/route';
 import { Icon } from './components/Icon';
+import { Palette } from './components/Palette';
 import { AskModal, Toast } from './components/ui';
-import { Left, findBox } from './panes/Left';
+import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
 import { connect, useIndex, useTask } from './state/server';
@@ -33,6 +34,8 @@ function useRouteEffects(): void {
       });
     }
     if (r.view === 'task') useUI.setState((s) => ({ last: { ...s.last, [r.id]: hash } }));
+    // What ⌘K offers before anything is typed: the tasks visited, the last first.
+    if (r.view === 'task' && (was?.view !== 'task' || was.id !== r.id)) useUI.setState((s) => ({ recent: [r.id, ...s.recent.filter((id) => id !== r.id)].slice(0, 20) }));
     // The log marks itself read as it opens, after noting where the visit started.
     if (index && !(r.view === 'task' && r.sub === 'log')) lookAt(r, index);
     // Only when the route moves, or once the index first arrives.
@@ -56,17 +59,13 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
   });
 }
 
-/** ⌘K finds a task; ← and → walk what the right pane walks; F fills the screen with a picture. */
+/** ⌘K goes to a task; ← and → walk what the right pane walks; F fills the screen with a picture. */
 function useKeys(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        if (!useUI.getState().prefs.left) setPref('left', true);
-        requestAnimationFrame(() => {
-          findBox.current?.focus();
-          findBox.current?.select();
-        });
+        useUI.setState((s) => ({ palette: !s.palette }));
         return;
       }
       const active = document.activeElement as HTMLElement | null;
@@ -113,6 +112,7 @@ export function App() {
       </div>
       <Toast />
       <AskModal />
+      <Palette />
     </>
   );
 }

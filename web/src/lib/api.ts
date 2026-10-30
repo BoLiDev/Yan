@@ -31,6 +31,8 @@ export interface TaskSummary {
   readonly closedAt: string | null;
   readonly repos: readonly RepoSummary[];
   readonly deliverables: { readonly done: number; readonly todo: number; readonly abandoned: number };
+  /** Its agents running elsewhere, as on a cloud platform: its run resources that are web links, by name. */
+  readonly agents: readonly (readonly [string, string])[];
   readonly artifacts: number;
   readonly added: readonly number[];
   readonly touched: number;
@@ -97,8 +99,6 @@ export interface TaskDetail {
   readonly repos: readonly (RepoSummary & { readonly url: string })[];
   readonly deliverables: readonly Deliverable[];
   readonly resources: readonly (readonly [string, string])[];
-  /** Each resource's kind by its name; one with none is general. */
-  readonly resourceKinds: Readonly<Record<string, string>>;
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
   readonly log: { readonly sha: string; readonly entries: readonly LogEntry[]; readonly changed: number } | null;
   readonly files: readonly ArtifactFile[];
@@ -205,10 +205,3 @@ export async function postJSON<T>(url: string, value: unknown): Promise<T> {
 
 export const looksBinary = (text: string): boolean => text.slice(0, 8000).includes('\u0000');
 
-/**
- * A run resource that is a web link: an agent working on the task elsewhere,
- * as on a cloud platform, which the task's Agent row opens and so the
- * overview's resources leave out.
- */
-export const isAgent = (d: Pick<TaskDetail, 'resourceKinds'>, name: string, where: string): boolean =>
-  d.resourceKinds[name] === 'run' && /^https?:\/\//i.test(where);

@@ -47,8 +47,12 @@ interface UI {
   connected: boolean;
   pulling: boolean;
   status: Status | null;
-  /** The find box's text. */
-  query: string;
+  /** ⌘K's box is open. */
+  palette: boolean;
+  /** The tasks visited, the last first, kept in this browser: what ⌘K offers before anything is typed. */
+  recent: readonly string[];
+  /** Moved on to put the keyboard on the open task's Overview row, as ⌘K does when it opens one. */
+  navFocus: number;
   /** `<task>:<repo>` → whether the nav lists its branches, as last asked; folded until then. */
   unfolded: Readonly<Record<string, boolean>>;
   /** A task's artifacts folders that are open, or a branch's files folders; unset until first shown. */
@@ -77,6 +81,7 @@ interface UI {
 
 const PREFS_KEY = 'yan.serve.prefs';
 const SEEN_KEY = 'yan.serve.seen';
+const RECENT_KEY = 'yan.serve.recent';
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -106,7 +111,9 @@ export const useUI = create<UI>(() => ({
   connected: true,
   pulling: false,
   status: null,
-  query: '',
+  palette: false,
+  recent: load<string[]>(RECENT_KEY, []),
+  navFocus: 0,
   unfolded: {},
   open: {},
   closed: {},
@@ -126,6 +133,7 @@ export const useUI = create<UI>(() => ({
 useUI.subscribe((s, before) => {
   if (s.prefs !== before.prefs) save(PREFS_KEY, s.prefs);
   if (s.seen !== before.seen && s.seen) save(SEEN_KEY, s.seen);
+  if (s.recent !== before.recent) save(RECENT_KEY, s.recent);
 });
 
 export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]): void {

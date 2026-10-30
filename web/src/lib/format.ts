@@ -61,3 +61,6 @@ export function bytes(n: number): string {
 
 export const short = (sha: string | null | undefined): string => (sha || '').slice(0, 7);
 export const plural = (n: number, one: string, many?: string): string => `${n.toLocaleString()} ${n === 1 ? one : many || one + 's'}`;
+
+/** The key ⌘K and its kin are pressed with here, as a person reads it: ⌘ on a Mac, Ctrl+ elsewhere. */
+export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';

@@ -1,6 +1,6 @@
-import { createRef, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Index, TaskSummary } from '../lib/api';
-import { clock, fromIso, monthLabel, plural } from '../lib/format';
+import { MOD, clock, fromIso, monthLabel, plural } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
@@ -8,9 +8,6 @@ import { Pane, PushTags, Tool } from '../components/ui';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
-
-/** The find box, which ⌘K or Ctrl+K puts the cursor in from anywhere. */
-export const findBox = createRef<HTMLInputElement>();
 
 function Sync() {
   const st = useUI((s) => s.status);
@@ -96,19 +93,13 @@ function MonthRows({ month, tasks, index, seen, openId }: { month: string; tasks
 export function Left() {
   const { data: index } = useIndex();
   const seen = useUI((s) => s.seen);
-  const query = useUI((s) => s.query);
   const r = useRoute();
   const openId = r.view === 'task' ? r.id : null;
 
   const groups = useMemo(() => {
     if (!index) return [];
     const tasks = index.tasks;
-    const q = query.trim().toLowerCase();
     const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
-    if (q) {
-      const hits = tasks.filter((t) => t.id.toLowerCase().includes(q) || (t.title || '').toLowerCase().includes(q)).sort(byTouched);
-      return [{ label: hits.length ? plural(hits.length, 'task') : 'No task matches', rows: hits.map((t) => ({ t })) }];
-    }
     const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string }[] = [];
     // Waiting on `user`, so above the rest; the group is not there when none is.
     const uat = tasks.filter((t) => t.state === 'uat').sort(byTouched);
@@ -125,7 +116,7 @@ export function Left() {
     }
     if (months.length) out.push({ label: 'Done', rows: months });
     return out;
-  }, [index, query]);
+  }, [index]);
 
   const onLatest = r.view === 'latest';
   const unseen = index && seen ? latestUnseen(index, seen) : 0;
@@ -138,20 +129,11 @@ export function Left() {
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
       <Sync />
-      <label className="find">
+      <button type="button" className="find" onClick={() => useUI.setState({ palette: true })}>
         <Icon name="search" size={15} />
-        <input ref={findBox} type="search" placeholder="Find a task" aria-label="Find a task" value={query}
-          onChange={(e) => useUI.setState({ query: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              const first = document.querySelector('.left .pane-scroll a.row');
-              if (first) location.hash = first.getAttribute('href') ?? '';
-            } else if (e.key === 'Escape') {
-              useUI.setState({ query: '' });
-              e.currentTarget.blur();
-            }
-          }} />
-      </label>
+        <span className="grow">Find a task</span>
+        <kbd>{`${MOD}K`}</kbd>
+      </button>
       <div className={'latest-line' + (onLatest ? ' on' : '')}>
         <a className={'row' + (onLatest ? ' on' : '')} href="#/latest" style={{ fontWeight: 700 }}>
           <Icon name="latest" size={17} />

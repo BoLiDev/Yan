@@ -209,7 +209,14 @@ the ones in progress, and its overview's tag says so. Those done or given up
 are listed under Done by the month they closed in, each month folded, with
 how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
-task's artifacts are its folders' tree, and nothing more. It stays there while
+task's artifacts are its folders' tree, and nothing more. ⌘K, Ctrl+K
+off a Mac, opens a box to go to a task by typing its title or id, any
+words in any order, the best match picked so Enter goes there; with
+nothing typed it offers the tasks visited last, the one being read left
+out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
+picked task's agent instead of the task. Opening a task, by ⌘K or by a
+click, puts the keyboard on its Overview row, and Tab or ↓ go on down its
+nav, to its Agent among the rest. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 

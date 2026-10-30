@@ -90,7 +90,7 @@ describe('a vault at a commit', () => {
   beforeAll(async () => {
     dir = mkTempDir('yan-serve-vault-');
     await fxGit(['init', '-q', '--initial-branch=main', dir]);
-    const task = (id: string, title: string): string => JSON.stringify({ version: 2, id, title, state: 'open', repos: [], nextDeliverable: 1, deliverables: [], resources: {} });
+    const task = (id: string, title: string, resources = {}, resourceKinds = {}): string => JSON.stringify({ version: 2, id, title, state: 'open', repos: [], nextDeliverable: 1, deliverables: [], resources, resourceKinds });
     await commitAt(T, {
       'tasks/t001/task.json': task('t001', 'one'),
       'tasks/t001/problem.md': '# one\n\nWhy.\n',
@@ -100,7 +100,10 @@ describe('a vault at a commit', () => {
       'tasks/t001/artifacts/.cache': 'c',
     }, 't001');
     await commitAt(T + 5 * 60, { 'tasks/t001/artifacts/b.md': '# b' }, 't001 b');
-    await commitAt(T + 60 * 60, { 'tasks/t002/task.json': task('t002', 'two'), 'tasks/t002/artifacts/c.txt': 'c' }, 't002');
+    await commitAt(T + 60 * 60, {
+      'tasks/t002/task.json': task('t002', 'two', { cloud: 'https://agent.example/t/2', note: 'ran it by hand', spec: 'https://tracker.example/2' }, { cloud: 'run', note: 'run', spec: 'spec' }),
+      'tasks/t002/artifacts/c.txt': 'c',
+    }, 't002');
     await commitAt(T + 61 * 60, { 'tasks/t001/artifacts/c4/a.png': 'png two' }, 't001 again');
     await commitAt(T + 180 * 60, { 'tasks/t001/artifacts/scratch.txt': 's' }, 't001 scratch', ['tasks/t001/artifacts/b.md']);
     await commitAt(T + 181 * 60, {}, 't001 tidy', ['tasks/t001/artifacts/scratch.txt']);
@@ -115,6 +118,7 @@ describe('a vault at a commit', () => {
         ['t001', 'one', 2, [T + 5 * 60, T], T + 61 * 60],
         ['t002', 'two', 1, [T + 60 * 60], T + 60 * 60],
       ]);
+      expect(tasks.map((t) => t.agents), 'a run that is a web link, and nothing else').toEqual([[], [['cloud', 'https://agent.example/t/2']]]);
     } finally {
       await view.close();
     }
