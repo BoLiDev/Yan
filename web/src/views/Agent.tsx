@@ -1,4 +1,5 @@
 import type { TaskSummary } from '../lib/api';
+import { plural } from '../lib/format';
 import { AGENT_TAB } from '../lib/route';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
@@ -19,7 +20,7 @@ export function AgentView({ t }: { t: TaskSummary }) {
   if (!t.agents.length) return <Empty title="No agent">{`${t.id} keeps no agent.`}</Empty>;
   return (
     <>
-      <Bar title="Agent" meta={t.agents.length === 1 ? 'Enter opens it, in the tab every agent opens in' : `${t.agents.length} agents · ↑↓ to pick, Enter opens it in the tab every agent opens in`} />
+      <Bar title="Agent" meta={plural(t.agents.length, 'agent')} />
       <div className="scroll">
         <div className="agent-page" ref={list}>
           {t.agents.map(([name, where], i) => (

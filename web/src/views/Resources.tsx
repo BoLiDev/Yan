@@ -1,4 +1,5 @@
 import type { TaskDetail, TaskSummary } from '../lib/api';
+import { plural } from '../lib/format';
 import { KIND_WORD, isLink, listResources } from '../lib/resources';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
@@ -19,7 +20,7 @@ export function ResourcesView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   if (!listed.length) return <Empty title="No resources">{`${t.id} refers to nothing yet.`}</Empty>;
   return (
     <>
-      <Bar title="Resources" meta={`${listed.length} · ↑↓ to pick, Enter opens it in a tab of its own`} />
+      <Bar title="Resources" meta={plural(listed.length, 'resource')} />
       <div className="scroll">
         <div className="agent-page" ref={list}>
           {listed.map((r, i) => {
