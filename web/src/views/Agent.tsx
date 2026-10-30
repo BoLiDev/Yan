@@ -1,6 +1,7 @@
 import type { TaskSummary } from '../lib/api';
 import { plural } from '../lib/format';
 import { AGENT_TAB } from '../lib/route';
+import { onAgentClick, openAgent, useAgentTab } from '../state/agentTab';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
 import { useKeyNav, usePick } from './nav';
@@ -13,9 +14,10 @@ import { useKeyNav, usePick } from './nav';
  */
 export function AgentView({ t }: { t: TaskSummary }) {
   useKeyNav(null, null);
+  const showing = useAgentTab((s) => s.showing);
   const { at, pick, list } = usePick(t.agents.length, (i) => {
     const [, where] = t.agents[i] ?? [];
-    if (where) window.open(where, AGENT_TAB);
+    if (where) openAgent(where);
   });
   if (!t.agents.length) return <Empty title="No agent">{`${t.id} keeps no agent.`}</Empty>;
   return (
@@ -24,9 +26,9 @@ export function AgentView({ t }: { t: TaskSummary }) {
       <div className="scroll">
         <div className="agent-page" ref={list}>
           {t.agents.map(([name, where], i) => (
-            <a key={name} className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={where} target={AGENT_TAB} title={where} onMouseMove={() => pick(i)}>
+            <a key={name} className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={where} target={AGENT_TAB} title={where} onClick={onAgentClick(where)} onMouseMove={() => pick(i)}>
               <Icon name="cloud" size={20} />
-              <span className="grow"><b>{name}</b><span className="where">{where}</span></span>
+              <span className="grow"><b className={showing === where ? 'shimmer' : undefined}>{name}</b><span className="where">{where}</span></span>
               {i === at ? <span className="button">打开<kbd>↵</kbd></span> : null}
             </a>
           ))}

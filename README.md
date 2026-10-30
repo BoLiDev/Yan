@@ -196,10 +196,18 @@ kind are straight under it. On hover, a resource's pencil edits where it
 points, keeping its kind, and its bin forgets it. A task's
 agents running elsewhere, its `run` resources that are web links, such as
 a cloud platform's agent on the task, are an Agent row under Log, folded
-as MR is when there are several; a click opens one in the one tab yan
-keeps for them all, so looking at another task's agent takes that tab
-rather than opening another. They are left out of its Resources, and are
-changed with `yan resource`. Code
+as MR is when there are several, the last kept first; a click opens one in
+the one tab yan keeps for them all, so looking at another task's agent
+takes that tab rather than opening another. Once the page has opened an
+agent there, it holds that tab, as one put beside it in the browser's split
+view: going to another task sends the tab to that task's first agent, or
+to a page of yan's saying it has none, without taking the keys from the
+page, and the agent the tab shows has a light passing over its name (the
+word Agent while they are folded). A reload of the page lets the tab go
+until an agent is opened again, and no tab is opened that was not asked
+for. Unfolded, agents are dragged into another order, which is kept in
+task.json; the first is the one going to the task opens. They are left
+out of its Resources, and are added and forgotten with `yan resource`. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches
 nothing from the network; a language outside the common set is loaded the

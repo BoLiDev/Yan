@@ -264,6 +264,28 @@ export class Task {
     });
   }
 
+  /**
+   * Put the resources named in `names` in that order, in the places they
+   * take among the others, which keep theirs. resources is a map, and its
+   * order is the only order a resource has; a yan from before reads it as
+   * it always did.
+   */
+  public orderResources(names: readonly string[]): void {
+    const keys = names.map((n) => (n ?? '').trim());
+    this.edit((doc, data) => {
+      const unknown = keys.find((k) => !(k in data.resources));
+      if (unknown !== undefined) throw YanError.usage('resource_usage', `no such resource: ${unknown}`);
+      if (new Set(keys).size !== keys.length) throw YanError.usage('resource_usage', 'a resource is named twice');
+      const moved = new Set(keys);
+      let next = 0;
+      doc.resources = Object.fromEntries(Object.entries(data.resources).map(([n, where]) => {
+        if (!moved.has(n)) return [n, where];
+        const k = keys[next++] as string;
+        return [k, data.resources[k] as string];
+      }));
+    });
+  }
+
   /** Forget the resource kept under `name`. */
   public removeResource(name: string): void {
     const key = (name ?? '').trim();

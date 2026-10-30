@@ -209,6 +209,17 @@ describe('resources', () => {
     expect(() => task.removeResource('PROJ-412')).toThrow(/this task has none/);
   });
 
+  it('orders some resources in the places they take, the others staying where they are', () => {
+    const task = Task.create('x');
+    for (const n of ['a', 'b', 'c', 'd']) task.addResource(n === 'b' ? 'spec' : 'run', n, `https://x/${n}`);
+    task.orderResources(['d', 'a', 'c']);
+    expect(Object.keys(raw(task).resources as object)).toEqual(['d', 'b', 'a', 'c']);
+    expect(task.read().resources).toEqual({ d: 'https://x/d', b: 'https://x/b', a: 'https://x/a', c: 'https://x/c' });
+    expect(task.read().resourceKinds).toEqual({ a: 'run', b: 'spec', c: 'run', d: 'run' });
+    expect(() => task.orderResources(['a', 'e'])).toThrow(/no such resource: e/);
+    expect(() => task.orderResources(['a', 'a'])).toThrow(/named twice/);
+  });
+
   it('refuses a kind it does not know, a blank or multi-line name or value, and names what there is', () => {
     const task = Task.create('x');
     expect(() => task.addResource('ticket' as 'spec', 'a', 'x')).toThrow(/one of: spec mr preview run general/);

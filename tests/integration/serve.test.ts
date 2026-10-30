@@ -413,6 +413,22 @@ describe('the overview on yan serve', () => {
     expect(doc.resourceKinds.design).toBe('spec');
     expect((await post('/api/resource', { task: 't002', name: 'gone', where: 'x' })).status).toBe(400);
   });
+
+  it('keeps the agents in the order dragged to, the first shown kept last, and says so of a task with none', async () => {
+    const kept = (): string[] => Object.keys((readJson(at('task.json')) as { resources?: object }).resources ?? {});
+    const others = kept();
+    for (const n of ['one', 'two', 'three']) await runYan(home, ['resource', 'add', 'run', n, `https://agent.example/${n}`, '--task', 't002']);
+    await fxGit(['commit', '-q', '-am', 'agents'], home);
+    expect((await post('/api/agents', { task: 't002', order: ['one', 'three', 'two'] })).status).toBe(200);
+    expect(await subject()).toBe('t002: agents ordered in yan serve');
+    expect(kept()).toEqual([...others, 'two', 'three', 'one']);
+    expect((await post('/api/agents', { task: 't002', order: ['one', 'nine'] })).status).toBe(400);
+    expect((await post('/api/agents', { task: 't002', order: 'one' })).status).toBe(400);
+
+    const none = await fetch(page('/agent?task=t001'));
+    expect(none.status).toBe(200);
+    expect(await none.text()).toContain('t001 没有 Agent');
+  });
 });
 
 describe('a yan serve left running while yan is updated', () => {

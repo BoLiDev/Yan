@@ -10,6 +10,7 @@ import { AskModal, Toast } from './components/ui';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
+import { followAgent, noAgent, useAgentTab } from './state/agentTab';
 import { connect, queryClient, useIndex, useTask } from './state/server';
 import { setPref, useUI } from './state/ui';
 
@@ -50,6 +51,25 @@ function useRouteEffects(): void {
     if (!d || r.view !== 'task' || (r.sub !== 'file' && r.sub !== 'folder')) return;
     openTo(d, r.sub === 'file' ? foldersAbove(r.path) : [r.path, ...foldersAbove(r.path)]);
   }, [hash, !!d]);
+}
+
+/**
+ * Going to a task sends the agent tab, while this page holds it, to the
+ * task's first agent, or to yan serve's page saying it keeps none; and
+ * when a task that kept none gets one while it is read, to that one.
+ */
+function useAgentFollow(): void {
+  const r = useRoute();
+  const { data: index } = useIndex();
+  const id = r.view === 'task' ? r.id : null;
+  const first = id === null ? undefined : index?.tasks.find((t) => t.id === id)?.agents[0]?.[1];
+  const went = useRef<string | null>(null);
+  useEffect(() => {
+    if (id === null || !index) return;
+    const moved = went.current !== id;
+    went.current = id;
+    if (moved || (first !== undefined && useAgentTab.getState().showing === noAgent(id))) followAgent(first ?? noAgent(id));
+  }, [id, first, !!index]);
 }
 
 function openTo(d: TaskDetail, folders: readonly string[]): void {
@@ -120,6 +140,7 @@ export function App() {
     if (index.isError) useUI.setState({ connected: false });
   }, [index.isError]);
   useRouteEffects();
+  useAgentFollow();
   useKeys();
   return (
     <>

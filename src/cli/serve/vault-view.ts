@@ -58,7 +58,7 @@ export interface TaskSummary {
   readonly closedAt: string | null;
   readonly repos: readonly { readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
   readonly deliverables: { readonly done: number; readonly todo: number; readonly abandoned: number };
-  /** Its agents running elsewhere, as on a cloud platform: its run resources that are web links, by name. */
+  /** Its agents running elsewhere, as on a cloud platform: its run resources that are web links, by name, the last kept first. */
   readonly agents: readonly (readonly [string, string])[];
   readonly artifacts: number;
   /** When each shown artifact was added, newest first: the page counts what is new against its own last visit. */
@@ -375,7 +375,8 @@ export class VaultView {
         closedAt: json.closedAt,
         repos: json.repos.map((r) => ({ name: r.name, branch: r.branch, earlier: r.earlier, abandoned: r.abandoned })),
         deliverables: { done: count('done'), todo: count('todo'), abandoned: count('abandoned') },
-        agents: json.resources.filter(([name, where]) => json.resourceKinds[name] === 'run' && /^https?:\/\//i.test(where)),
+        // Newest first, as the one added last is the one at work; the first is the one going to the task opens.
+        agents: json.resources.filter(([name, where]) => json.resourceKinds[name] === 'run' && /^https?:\/\//i.test(where)).reverse(),
         artifacts: shown.length,
         added: shown.map((e) => this.times.get(e.path)?.added ?? 0).sort((a, b) => b - a),
         touched,

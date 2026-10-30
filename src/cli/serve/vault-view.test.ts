@@ -101,7 +101,7 @@ describe('a vault at a commit', () => {
     }, 't001');
     await commitAt(T + 5 * 60, { 'tasks/t001/artifacts/b.md': '# b' }, 't001 b');
     await commitAt(T + 60 * 60, {
-      'tasks/t002/task.json': task('t002', 'two', { cloud: 'https://agent.example/t/2', note: 'ran it by hand', spec: 'https://tracker.example/2' }, { cloud: 'run', note: 'run', spec: 'spec' }),
+      'tasks/t002/task.json': task('t002', 'two', { cloud: 'https://agent.example/t/2', note: 'ran it by hand', spec: 'https://tracker.example/2', later: 'https://agent.example/t/3' }, { cloud: 'run', note: 'run', spec: 'spec', later: 'run' }),
       'tasks/t002/artifacts/c.txt': 'c',
     }, 't002');
     await commitAt(T + 61 * 60, { 'tasks/t001/artifacts/c4/a.png': 'png two' }, 't001 again');
@@ -118,7 +118,7 @@ describe('a vault at a commit', () => {
         ['t001', 'one', 2, [T + 5 * 60, T], T + 61 * 60],
         ['t002', 'two', 1, [T + 60 * 60], T + 60 * 60],
       ]);
-      expect(tasks.map((t) => t.agents), 'a run that is a web link, and nothing else').toEqual([[], [['cloud', 'https://agent.example/t/2']]]);
+      expect(tasks.map((t) => t.agents), 'a run that is a web link, and nothing else, the last kept first').toEqual([[], [['later', 'https://agent.example/t/3'], ['cloud', 'https://agent.example/t/2']]]);
     } finally {
       await view.close();
     }

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { findTasks, type Found } from '../lib/find';
 import { MOD } from '../lib/format';
-import { AGENT_TAB, link, useRoute } from '../lib/route';
+import { link, useRoute } from '../lib/route';
+import { openAgent } from '../state/agentTab';
 import { useIndex } from '../state/server';
 import { useUI } from '../state/ui';
 import { Icon, StateIcon } from './Icon';
@@ -60,7 +61,7 @@ function PaletteBox() {
     const [, where] = f.task.agents[0] ?? [];
     if (agent && where) {
       close(true);
-      window.open(where, AGENT_TAB);
+      openAgent(where);
       return;
     }
     close(false);

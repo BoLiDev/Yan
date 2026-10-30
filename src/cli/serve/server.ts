@@ -10,6 +10,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
 import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtasks } from './report.js';
+import { noAgentPage } from './no-agent.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
@@ -387,6 +388,10 @@ export class YanServer {
     }
 
     if (p === '/api/hello') return json(res, { yan: 'serve', vault: this.options.vaultName });
+    if (p === '/agent') {
+      const id = q.get('task') ?? '';
+      return send(res, 200, noAgentPage(id, this.view.index().tasks.find((t) => t.id === id)?.title), 'text/html; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/index') {
       return json(res, {
@@ -520,6 +525,7 @@ export class YanServer {
     '/api/deliverable/remove': (res, given) => this.removeDeliverable(res, given),
     '/api/problem': (res, given) => this.editProblem(res, given),
     '/api/resource': (res, given) => this.setResource(res, given),
+    '/api/agents': (res, given) => this.orderAgents(res, given),
     '/api/report/edit': (res, given) => this.editReport(res, given),
   };
 
@@ -587,6 +593,25 @@ export class YanServer {
       return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
     }
     return this.save(res, `${id}: resource ${name} ${remove ? 'removed' : 'changed'} in yan serve`);
+  }
+
+  /**
+   * `{ task, order }`: the task's agents in the order dragged to, the first
+   * the one going to the task opens. They are shown the last kept first, so
+   * they are kept in the order turned round, and the next one kept comes
+   * before them all.
+   */
+  private async orderAgents(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, order] = [given.task, given.order];
+    if (typeof id !== 'string' || !Task.isId(id) || !Array.isArray(order) || !order.every((n): n is string => typeof n === 'string')) {
+      return send(res, 400, 'task and order are needed');
+    }
+    try {
+      new Task(id).orderResources([...order].reverse());
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: agents ordered in yan serve`);
   }
 
   /** `{ task, id, to: done | todo | abandoned, reason? }`: `user` ticking, unticking or giving up a deliverable. */

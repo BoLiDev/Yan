@@ -5,10 +5,12 @@ import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { KIND_WORD, isLink, listResources, type Listed as Resource } from '../lib/resources';
 import { isSource, sourceView } from '../lib/source';
+import { dropped as dropTo, gapAt, moves } from '../lib/drag';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
 import { useBranch, useBranches, useBranchTree, useIndex, useTask, writeTask } from '../state/server';
+import { onAgentClick, useAgentTab } from '../state/agentTab';
 import { ask, copyText, setPref, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
 
@@ -325,31 +327,68 @@ function ResourceRows({ t, d, on }: { t: TaskSummary; d: TaskDetail; on: boolean
   );
 }
 
-/** An Agent row under Log: one agent opens from it; several fold under it, as a repository's branches do. */
+/**
+ * An Agent row under Log: one agent opens from it; several fold under it,
+ * as a repository's branches do, newest first, and are dragged to another
+ * order, the first being the one going to the task opens. While this page
+ * holds the agent tab, what it shows there shimmers: the agent, or the word
+ * Agent while they are folded.
+ */
 function AgentRows({ t, agents, on }: { t: TaskSummary; agents: readonly (readonly [string, string])[]; on: boolean }) {
   const fold = `${t.id}:agents`;
   const unfolded = useUI((s) => s.unfolded[fold]) ?? false;
+  const showing = useAgentTab((s) => s.showing);
+  // The order dropped, shown until the index comes back with it.
+  const [dropped, setDropped] = useState<{ was: string; names: string[] } | null>(null);
+  const [drag, setDrag] = useState<{ from: number; gap: number } | null>(null);
+  const names = agents.map(([name]) => name);
+  const order = dropped?.was === names.join('\n') ? dropped.names.flatMap((n) => agents.filter(([name]) => name === n)) : agents;
   const go = <span className="go"><Icon name="external" size={14} /></span>;
-  if (agents.length === 1) {
-    const [name, where] = agents[0] as readonly [string, string];
+  const shim = (yes: boolean): string => (yes ? ' shimmer' : '');
+  if (order.length === 1) {
+    const [name, where] = order[0] as readonly [string, string];
     return (
-      <a className={'row' + (on ? ' on' : '')} href={where} target={AGENT_TAB} title={`${name}: ${where}`}>
-        <Icon name="cloud" size={16} /><span className="word">Agent</span><span className="grow" /><span className="aside name">{name}</span>{go}
+      <a className={'row' + (on ? ' on' : '')} href={where} target={AGENT_TAB} title={`${name}: ${where}`} onClick={onAgentClick(where)}>
+        <Icon name="cloud" size={16} /><span className="word">Agent</span><span className="grow" /><span className={'aside name' + shim(showing === where)}>{name}</span>{go}
       </a>
     );
   }
+  const drop = (): void => {
+    if (drag === null || !moves(drag.from, drag.gap)) return setDrag(null);
+    const to = dropTo(order.map(([name]) => name), drag.from, drag.gap);
+    setDropped({ was: names.join('\n'), names: to });
+    setDrag(null);
+    void writeTask('/api/agents', { task: t.id, order: to }, `${to[0] as string} 排到了第一`);
+  };
+  const line = (gap: number): ReactNode => (drag !== null && drag.gap === gap && moves(drag.from, gap) ? <div key={`gap${gap}`} className="drop-line" /> : null);
   return (
     <>
       <button type="button" className={'row branch-row' + (on ? ' on' : '')} aria-expanded={unfolded} onClick={() => useUI.setState((s) => ({ unfolded: { ...s.unfolded, [fold]: !unfolded } }))}>
         <Icon name="cloud" size={16} />
-        <span className="word">Agent</span>
+        <span className={'word' + shim(!unfolded && order.some(([, where]) => where === showing))}>Agent</span>
         <span className="grow" />
-        <span className="aside">{`${agents.length} 个`}</span>
+        <span className="aside">{`${order.length} 个`}</span>
         <span className="fold"><Icon name={unfolded ? 'up' : 'down'} size={15} /></span>
       </button>
-      {unfolded ? agents.map(([name, where]) => (
-        <a key={name} className="row other" href={where} target={AGENT_TAB} title={where}><span className="grow">{name}</span>{go}</a>
-      )) : null}
+      {unfolded ? order.flatMap(([name, where], i) => [
+        line(i),
+        <a key={name} className={'row other agent-row' + (drag?.from === i ? ' lifted' : '')} href={where} target={AGENT_TAB} title={where} draggable
+          onClick={onAgentClick(where)}
+          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', name); setDrag({ from: i, gap: i }); }}
+          onDragOver={(e) => {
+            if (drag === null) return;
+            e.preventDefault();
+            const box = e.currentTarget.getBoundingClientRect();
+            const gap = gapAt(i, e.clientY < box.top + box.height / 2);
+            if (gap !== drag.gap) setDrag({ ...drag, gap });
+          }}
+          onDrop={(e) => { e.preventDefault(); drop(); }}
+          onDragEnd={() => setDrag(null)}>
+          <span className="grip"><Icon name="grip" size={14} width={2.6} /></span>
+          <span className={'grow' + shim(showing === where)}>{name}</span>{go}
+        </a>,
+        i === order.length - 1 ? line(i + 1) : null,
+      ]) : null}
     </>
   );
 }
