@@ -32,13 +32,16 @@ describe('finding a task', () => {
     expect(ids(tasks, 't420')[0]).toBe('t420');
   });
 
-  it('puts an open task before a closed one that matches as well', () => {
-    expect(ids([task('t1', 'login', 'done', 9), task('t2', 'login', 'open', 1)], 'login')).toEqual(['t2', 't1']);
+  it('puts, of tasks that match as well, one in UAT first, then in progress, then done, then given up', () => {
+    const tasks = [task('t1', 'login', 'abandoned', 9), task('t2', 'login', 'done', 8), task('t3', 'login', 'open', 1), task('t4', 'login', 'uat', 2), task('t5', 'login', 'open', 3)];
+    expect(ids(tasks, 'login')).toEqual(['t4', 't5', 't3', 't2', 't1']);
+    expect(ids([task('t1', 'login page', 'abandoned'), task('t2', 'fix login', 'uat')], 'login'), 'a better match still comes first').toEqual(['t1', 't2']);
   });
 
   it('lists, with nothing typed, the tasks visited last but the one being read, then the open ones', () => {
     const tasks = [task('t1', 'a', 'open', 1), task('t2', 'b', 'open', 5), task('t3', 'c', 'done'), task('t4', 'd', 'uat', 3)];
     const found = findTasks(tasks, '  ', ['t1', 't3', 't2'], 't1');
     expect(found.map((f) => `${f.group} ${f.task.id}`)).toEqual(['Recent t3', 'Recent t2', 'Open t4']);
+    expect(findTasks([task('t1', 'a', 'open', 9), task('t2', 'b', 'uat', 1)], '', [], null).map((f) => f.task.id), 'one in UAT before one in progress').toEqual(['t2', 't1']);
   });
 });

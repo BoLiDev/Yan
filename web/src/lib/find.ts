@@ -48,10 +48,15 @@ function inId(id: string, term: string): number | undefined {
   return id.includes(term) ? 50 : undefined;
 }
 
-/** Waiting on `user` or in progress before closed, then the newest moved. */
+/**
+ * Between tasks that match as well, the one sought most likely first:
+ * waiting on `user`'s check, then in progress, then done, and given up
+ * last; then the newest moved.
+ */
+const RANK: Readonly<Record<TaskSummary['state'], number>> = { uat: 0, open: 1, done: 2, abandoned: 3 };
+
 function standing(a: TaskSummary, b: TaskSummary): number {
-  const rank = (t: TaskSummary): number => (t.state === 'done' ? 1 : t.state === 'abandoned' ? 2 : 0);
-  return rank(a) - rank(b) || b.touched - a.touched;
+  return RANK[a.state] - RANK[b.state] || b.touched - a.touched;
 }
 
 /**

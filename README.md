@@ -237,7 +237,9 @@ task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
 closing them all once any is open. ⌘K, Ctrl+K
 off a Mac, opens a box to go to a task by typing its title or id, any
-words in any order, the best match picked so Enter goes there; with
+words in any order, the best match picked so Enter goes there, and of
+tasks that match as well one in UAT first, then in progress, then done,
+then given up; with
 nothing typed it offers the tasks visited last, the one being read left
 out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab
