@@ -445,6 +445,10 @@ img { -webkit-user-drag: none; }
 .agent-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-decoration: none; }
 .agent-card:hover { box-shadow: 0 0 0 1px var(--ink-3); }
 .agent-card .grow { display: flex; flex-direction: column; gap: 2px; }
+/* The button keeps its width and its line; a long name or address gives way, ending in an ellipsis. */
+.agent-card .grow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-card .button { flex: none; white-space: nowrap; }
+.agent-card > svg { flex: none; }
 .agent-card .where { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-card.picked { box-shadow: 0 0 0 1.5px var(--ink-2); }
 .res-page-kind { margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
