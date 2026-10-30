@@ -235,7 +235,11 @@ kind, and its bin forgets it. What you are typing, in a text or in the
 problem, stays as it is while new commits arrive, so nothing typed is lost.
 
 A task with an artifacts/report.html, the page `yan:uat` writes from
-what `yan uat` recorded, has a Report beside its overview. Each deliverable
+what `yan uat` recorded, has a Report beside its overview. Its header
+names the spec and the links to check the result on, and not the
+sub-tasks run elsewhere, which a page written before still listed and has
+taken out; its links open in a tab of their own, so the report stays where
+it was. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, give it
 up with a reason or edit the reason it was given up for, and task.json
 changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report is committed and pushed as

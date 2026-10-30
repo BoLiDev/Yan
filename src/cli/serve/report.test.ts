@@ -18,6 +18,11 @@ const PAGE = `<h1 data-yan-edit="title">iPad 录像页</h1>
 const d = (id: string, status: string, text = id, reason: string | null = null): Deliverable => ({ id, text, status, doneAt: null, reason });
 
 describe('handout', () => {
+  it('leaves out the sub-tasks a page written before listed in its header, and keeps the rest of it', () => {
+    const head = '<dl class="props"><dt>需求</dt><dd><a href="https://t/1">WEB-1</a></dd><dt>子任务</dt><dd><a href="https://agent/1">cloud</a><a href="https://agent/2">api</a></dd><dt>测试链接</dt><dd><a href="https://p/1">preview</a></dd></dl>';
+    expect(handout(head, [])).toBe('<dl class="props"><dt>需求</dt><dd><a href="https://t/1">WEB-1</a></dd><dt>测试链接</dt><dd><a href="https://p/1">preview</a></dd></dl>');
+  });
+
   it('puts each deliverable in the state it has now, with the counts of them', () => {
     const out = handout(PAGE, [d('d1', 'todo'), d('d2', 'done')]);
     expect(out).toContain('data-yan-d="d1" data-yan-status="todo"');

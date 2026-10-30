@@ -50,6 +50,14 @@ const DELIVERABLE = 'data-yan-d="';
 const GROUP = 'data-yan-group=""';
 
 /**
+ * A page written while its header listed the sub-tasks run elsewhere,
+ * without that row, as one written now has none: shown and downloaded alike.
+ */
+export function withoutSubtasks(html: string): string {
+  return html.replace(/<dt>子任务<\/dt><dd>[\s\S]*?<\/dd>/g, '');
+}
+
+/**
  * The copy of the page that is downloaded, which is handed to others as a
  * report of what was delivered: each deliverable in the state it has now,
  * the ones given up left out, and the counts of the rest. A part marked
@@ -62,7 +70,7 @@ const GROUP = 'data-yan-group=""';
  * its numbers.
  */
 export function handout(html: string, deliverables: readonly Deliverable[]): string {
-  let out = html;
+  let out = withoutSubtasks(html);
   for (const d of deliverables) {
     const id = d.id.replace(/[^\w-]/g, '');
     if (d.status === 'abandoned') {

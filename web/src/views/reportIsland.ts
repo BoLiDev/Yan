@@ -89,7 +89,13 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string,
   return node;
 }
 
-/** The page's own nodes with nothing that runs: no scripts, frames or handlers, links only to the web or to pictures inside. */
+/**
+ * The page's own nodes with nothing that runs: no scripts, frames or
+ * handlers, links only to the web or to pictures inside. A link to the web
+ * opens in a tab of its own, since the report is drawn in yan's page, which
+ * it would otherwise take the place of; one written before reports said so
+ * is told here.
+ */
 function cleanReport(doc: Document): Document {
   doc.querySelectorAll('script,iframe,frame,object,embed,link,meta,base,form,style,noscript,template').forEach((x) => x.remove());
   for (const node of doc.body.querySelectorAll('*')) {
@@ -102,6 +108,11 @@ function cleanReport(doc: Document): Document {
         if (!ok) node.removeAttribute(a.name);
       }
     }
+  }
+  for (const a of doc.body.querySelectorAll('a[href]')) {
+    if (!/^https?:/i.test(a.getAttribute('href') ?? '')) continue;
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener');
   }
   return doc;
 }

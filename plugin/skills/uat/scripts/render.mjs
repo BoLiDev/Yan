@@ -62,9 +62,11 @@ import { dirname, extname, join } from 'node:path';
 
 const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
 // The resources a report names, by kind, in the order its header shows them: the links to check the
-// result on close it. A merge request is left out: the report goes to readers who look at what was
-// delivered, not at the code review it went through.
-const KIND_LABELS = { spec: '需求', run: '子任务', preview: '测试链接' };
+// result on close it. A merge request is left out, and so is a sub-task run elsewhere: the report goes
+// to readers who look at what was delivered, not at the code review or the agents it went through.
+const KIND_LABELS = { spec: '需求', preview: '测试链接' };
+// Every link opens in a tab of its own, so the report stays where its reader was in it.
+const OUT = 'target="_blank" rel="noopener"';
 
 function die(message) {
   process.stderr.write(`render: ${message}\n`);
@@ -224,7 +226,7 @@ ${placed.map((f) => {
     // Only a web address is linked: the address comes from the vault's config, and another scheme could run.
     return f.url === null || !isUrl(f.url)
       ? `<p class="video" data-yan-video="${esc(f.path)}">${play}${name}</p>`
-      : `<p class="video" data-yan-video="${esc(f.path)}"><a href="${esc(f.url)}">${play}${name}</a></p>`;
+      : `<p class="video" data-yan-video="${esc(f.path)}"><a href="${esc(f.url)}" ${OUT}>${play}${name}</a></p>`;
   }).join('\n');
   return [grid, links].filter((s) => s !== '').join('\n');
 }
@@ -241,7 +243,7 @@ function properties(ctx) {
   for (const [kind, label] of Object.entries(KIND_LABELS)) {
     const kept = ctx.resources.filter((r) => r.kind === kind);
     if (kept.length === 0) continue;
-    rows.push([label, kept.map((r) => (isUrl(r.where) ? `<a href="${esc(r.where)}">${esc(r.name)}</a>` : esc(r.name))).join('')]);
+    rows.push([label, kept.map((r) => (isUrl(r.where) ? `<a href="${esc(r.where)}" ${OUT}>${esc(r.name)}</a>` : esc(r.name))).join('')]);
   }
   return `<dl class="props">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }

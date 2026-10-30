@@ -9,7 +9,7 @@ import { cloneOf } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
-import { behind, editText, handout, imagesOut, readRecord, sha256 } from './report.js';
+import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtasks } from './report.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
 import { buildLoads, buildPrint } from './build.js';
@@ -408,7 +408,7 @@ export class YanServer {
     }
     if (p === '/api/report') {
       const report = await this.report(q.get('task') ?? '');
-      return report === undefined ? send(res, 404, 'that task has no report') : json(res, { ...report, html: (await this.light(report.sha)).html });
+      return report === undefined ? send(res, 404, 'that task has no report') : json(res, { ...report, html: withoutSubtasks((await this.light(report.sha)).html) });
     }
     if (p === '/api/report/download') {
       const id = q.get('task') ?? '';
