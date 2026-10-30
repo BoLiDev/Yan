@@ -55,7 +55,7 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
   const want = folders.filter(Boolean);
   if (!want.length) return;
   useUI.setState((s) => {
-    const kept = s.open[d.id] ?? (d.files.length > 40 ? [] : [...new Set(d.files.flatMap((f) => foldersAbove(f.path)))]);
+    const kept = s.open[d.id] ?? [];
     return { open: { ...s.open, [d.id]: [...new Set([...kept, ...want])] } };
   });
 }

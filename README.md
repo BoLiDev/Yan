@@ -211,7 +211,9 @@ the ones in progress, and its overview's tag says so. Those done or given up
 are listed under Done by the month they closed in, each month folded, with
 how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
-task's artifacts are its folders' tree, and nothing more. ⌘K, Ctrl+K
+task's artifacts are its folders' tree, and nothing more: every folder
+closed until it is opened, and a button beside them opening them all, or
+closing them all once any is open. ⌘K, Ctrl+K
 off a Mac, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there; with
 nothing typed it offers the tasks visited last, the one being read left

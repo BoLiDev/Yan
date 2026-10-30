@@ -14,17 +14,11 @@ import { FileThumb, TreeRows } from './Tree';
 const BRANCH_SAID = { open: '进行中', merged: '已合并', abandoned: '已废弃' } as const;
 const STATUS_WORD: Record<string, string> = { A: 'added', D: 'deleted', R: 'renamed', M: 'changed', C: 'copied', T: 'type changed' };
 
-/** Folders open by default when there are few files; past that, closed until opened. */
-function defaultOpen(files: readonly { path: string }[]): string[] {
-  if (files.length > 40) return [];
-  return [...new Set(files.flatMap((f) => foldersAbove(f.path)))];
+/** A task's artifacts folders that are open, as last left; every one starts closed. */
+function useOpenFolders(id: string): readonly string[] {
+  return useUI((s) => s.open[id]) ?? NONE;
 }
-
-/** A task's artifacts folders that are open, as last left or as they start. */
-function useOpenFolders(id: string, files: readonly { path: string }[] | undefined): readonly string[] {
-  const kept = useUI((s) => s.open[id]);
-  return useMemo(() => kept ?? (files ? defaultOpen(files) : []), [kept, files]);
-}
+const NONE: readonly string[] = [];
 
 function setFolder(key: string, start: readonly string[], path: string, open: boolean): void {
   useUI.setState((s) => ({ open: { ...s.open, [key]: toggled(s.open[key] ?? start, path, open) } }));
@@ -48,7 +42,7 @@ function revealOnce(key: string, item: string): boolean {
  * is. A hook, since what it shows is kept in the store.
  */
 function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRoute, index: Index, seen: Seen): { top: ReactNode; body: ReactNode } {
-  const open = useOpenFolders(t.id, d?.files);
+  const open = useOpenFolders(t.id);
   if (!d) return { top: <div className="section-head"><b>Artifacts</b><span>loading…</span></div>, body: null };
   const unseen = unseenOf(index, seen, t.id);
   const dotted = unseen.size > 0 || logFresh(seen, t.id, d.log?.entries.length);
@@ -57,6 +51,7 @@ function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRout
       <div className="section-head">
         <b>Artifacts</b><span className="grow" />
         {dotted ? <button type="button" className="tool text read-all" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>全部已读</button> : null}
+        {d.files.length ? <FoldAll id={t.id} files={d.files} open={open} /> : null}
         {d.files.length ? <Tool name="grid" label="See them all as a grid" href={link.folder(t.id, '')} newTab={false} small /> : null}
       </div>
     ),
@@ -80,6 +75,13 @@ function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRout
       </>
     ),
   };
+}
+
+/** Every folder of the artifacts opened at once, or, once any is open, every one closed. */
+function FoldAll({ id, files, open }: { id: string; files: readonly { path: string }[]; open: readonly string[] }) {
+  const closing = open.length > 0;
+  const flip = (): void => useUI.setState((s) => ({ open: { ...s.open, [id]: closing ? [] : [...new Set(files.flatMap((f) => foldersAbove(f.path)))] } }));
+  return <Tool name={closing ? 'fold' : 'unfold'} label={closing ? 'Collapse all' : 'Expand all'} onClick={flip} small />;
 }
 
 // ── a task's branch ────────────────────────────────────────────────────────
