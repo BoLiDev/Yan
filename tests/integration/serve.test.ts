@@ -427,7 +427,9 @@ describe('the overview on yan serve', () => {
 
     const none = await fetch(page('/agent?task=t001'));
     expect(none.status).toBe(200);
-    expect(await none.text()).toContain('t001 没有 Agent');
+    const said = await none.text();
+    expect(said, 'the task named, and nothing else said').toContain('<h1><span>first</span><b> 没有 Agent</b></h1>');
+    expect(said).not.toMatch(/<p[ >]/);
   });
 });
 
