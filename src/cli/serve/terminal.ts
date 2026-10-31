@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline';
 import type { ChildProcess } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { OBSERVE_SINCE, atLeast, observe, paneOf, paneSize, sendInput, sendKeys, sendText, versionOf, type AgentStatus } from '../../externals/herdr/index.js';
+import { OBSERVE_SINCE, atLeast, observe, paneOf, paneSize, scrollPane, sendInput, sendKeys, sendText, versionOf, type AgentStatus } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
 
@@ -28,6 +28,14 @@ export interface TerminalState {
   readonly streams: boolean;
 }
 
+/**
+ * A mouse wheel, as a terminal reports it to a program that asked for the
+ * mouse: SGR's encoding, at the 1-based cell under the pointer.
+ */
+export function wheelReport(up: boolean, col: number, row: number): string {
+  return `\x1b[<${up ? 64 : 65};${Math.max(1, Math.round(col))};${Math.max(1, Math.round(row))}M`;
+}
+
 /** A pane drawn this size when herdr does not say its own. */
 const FALLBACK_SIZE = { cols: 120, rows: 40 } as const;
 
@@ -43,11 +51,18 @@ export class Terminals {
     return terminalsOf(this.vault).find((t) => t.task === task);
   }
 
-  /** herdr's version on a socket, asked once a minute: a herdr updated in place answers on the same socket. */
+  /**
+   * herdr's version on a socket, asked once a minute: a herdr updated in
+   * place answers on the same socket. One that did not answer is asked
+   * again next time, so a herdr restarting is not taken for an old one.
+   */
   private version(socket: string): Promise<string> {
     const known = this.versions.get(socket);
     if (known !== undefined && Date.now() - known.at < 60_000) return known.version;
-    const version = versionOf(socket).catch(() => '');
+    const version = versionOf(socket).catch(() => {
+      this.versions.delete(socket);
+      return '';
+    });
     this.versions.set(socket, { at: Date.now(), version });
     return version;
   }
@@ -110,7 +125,9 @@ export class Terminals {
 
   /**
    * `{ task, keys }`: keys by herdr's names; `{ task, text }`: bytes as typed;
-   * `{ task, paste, enter }`: text as one paste, then Enter if asked.
+   * `{ task, paste, enter }`: text as one paste, then Enter if asked;
+   * `{ task, wheel, col, row }`: the mouse wheel turned `wheel` rows, back
+   * (less than 0) or on, over a cell.
    */
   public async input(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
     const t = typeof given.task === 'string' ? this.held(given.task) : undefined;
@@ -119,11 +136,32 @@ export class Terminals {
       if (Array.isArray(given.keys) && given.keys.every((k): k is string => typeof k === 'string') && given.keys.length > 0) await sendKeys(t.socket, t.pane, given.keys);
       else if (typeof given.text === 'string' && given.text !== '') await sendText(t.socket, t.pane, given.text);
       else if (typeof given.paste === 'string') await sendInput(t.socket, t.pane, given.paste, given.enter === true ? ['enter'] : []);
+      else if (typeof given.wheel === 'number' && Number.isFinite(given.wheel) && given.wheel !== 0) await this.wheel(t, given.wheel, Number(given.col) || 1, Number(given.row) || 1);
       else return void res.writeHead(400).end('keys, text or paste is needed');
     } catch (err) {
       return void res.writeHead(isYanError(err) && err.code !== 'herdr_unreachable' ? 400 : 502).end(err instanceof Error ? err.message : String(err));
     }
     res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+  }
+
+  /**
+   * The wheel as herdr turns it in its own window, as far as its socket
+   * lets it be told. A pane with rows to scroll back to is a program on the
+   * normal screen, as Claude Code is by default: herdr's view of it scrolls,
+   * which is what the stream shows. One with none is a full-screen program,
+   * as Claude Code in its no-flicker mode, which takes the mouse; it is sent
+   * the wheel as a terminal reports it. The socket says nothing of which
+   * mouse modes a program asked for, so a program on the normal screen with
+   * nothing yet to scroll back to would be sent it too.
+   */
+  private async wheel(t: HeldTerminal, rows: number, col: number, row: number): Promise<void> {
+    const scroll = (await paneOf(t.socket, t.pane)).scroll;
+    if (scroll !== undefined && scroll.max_offset_from_bottom > 0) {
+      const to = Math.min(scroll.max_offset_from_bottom, Math.max(0, scroll.offset_from_bottom - rows));
+      if (to !== scroll.offset_from_bottom) await scrollPane(t.socket, t.pane, to);
+      return;
+    }
+    await sendText(t.socket, t.pane, wheelReport(rows < 0, col, row).repeat(Math.min(Math.abs(rows), 10)));
   }
 
   /** End every stream, as serve stops. */

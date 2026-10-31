@@ -17,7 +17,7 @@ let sending: Promise<void> = Promise.resolve();
  * terminal sends them, or a paste. One after another, each once the one
  * before is in, so a Backspace never overtakes the letter it takes back.
  */
-function send(task: string, what: { keys: string[] } | { text: string } | { paste: string; enter: boolean }): void {
+function send(task: string, what: { keys: string[] } | { text: string } | { paste: string; enter: boolean } | { wheel: number; col: number; row: number }): void {
   sending = sending.then(() => fetch('/api/terminal/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task, ...what }) })
     .then(async (r) => {
       if (!r.ok) toast(`没发出去：${(await r.text()) || r.status}`);
@@ -50,13 +50,15 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       fontFamily: MONO, fontSize: 13, lineHeight: 1.15, cursorBlink: false, scrollback: 0,
       theme: { background: '#1b1b19', foreground: '#e3e1d9', cursor: '#e3e1d9', selectionBackground: '#4a4a44' },
     });
-    // The pane is drawn its own width in cells; the font is scaled until that width is the column's, as xterm.js measures it.
+    const stage = el.parentElement as HTMLElement;
+    // The pane is drawn its own size in cells; the font is scaled until it fits the column both ways, as xterm.js
+    // measures it, so nothing around it scrolls: a part that scrolled would move under the agent's own screen.
     const fit = (tries = 3): void => {
       const screen = el.querySelector<HTMLElement>('.xterm-screen');
-      const room = (el.parentElement?.clientWidth ?? 0) - 24;
-      if (!screen || screen.clientWidth === 0 || room <= 0) return;
+      const [w, h] = [stage.clientWidth - 24, stage.clientHeight - 24];
+      if (!screen || screen.clientWidth === 0 || screen.clientHeight === 0 || w <= 0 || h <= 0) return;
       const now = term.options.fontSize ?? 13;
-      const size = Math.max(8, Math.min(15, Math.floor(((now * room) / screen.clientWidth) * 10) / 10));
+      const size = Math.max(6, Math.min(15, Math.floor(now * Math.min(w / screen.clientWidth, h / screen.clientHeight) * 10) / 10));
       if (Math.abs(size - now) >= 0.1) {
         term.options.fontSize = size;
         if (tries > 1) requestAnimationFrame(() => fit(tries - 1));
@@ -97,6 +99,31 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       }
       return false;
     });
+    // The wheel, anywhere over the stage, goes to the pane, a row for each row's height turned, as the server routes it;
+    // never to xterm.js, which with nothing of its own to scroll would send ↑ and ↓ instead, the agent's history keys.
+    term.attachCustomWheelEventHandler(() => false);
+    let turned = 0;
+    let wheeling: number | undefined;
+    const onWheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      const screen = el.querySelector<HTMLElement>('.xterm-screen');
+      if (!screen || term.rows === 0) return;
+      const box = screen.getBoundingClientRect();
+      const cell = { w: box.width / term.cols, h: box.height / term.rows };
+      turned += e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? e.deltaY * term.rows : e.deltaY / cell.h;
+      const col = Math.min(term.cols, Math.max(1, Math.floor((e.clientX - box.left) / cell.w) + 1));
+      const row = Math.min(term.rows, Math.max(1, Math.floor((e.clientY - box.top) / cell.h) + 1));
+      wheeling ??= window.setTimeout(() => {
+        wheeling = undefined;
+        const rows = Math.trunc(turned);
+        turned -= rows;
+        if (rows !== 0) {
+          sendTyped();
+          send(t.id, { wheel: rows, col, row });
+        }
+      }, 40);
+    };
+    stage.addEventListener('wheel', onWheel, { passive: false });
     // A paste goes as one, so the agent takes it as pasted and does not act on each line of it.
     const onPaste = (e: ClipboardEvent): void => {
       const text = e.clipboardData?.getData('text/plain') ?? '';
@@ -123,14 +150,16 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       if (source.readyState === EventSource.CLOSED) setEnded('连不上 herdr 的画面');
     };
     const sized = new ResizeObserver(() => fit());
-    sized.observe(el.parentElement ?? el);
+    sized.observe(stage);
 
     return () => {
       disposed = true;
       source.close();
       sized.disconnect();
       el.removeEventListener('paste', onPaste, true);
+      stage.removeEventListener('wheel', onWheel);
       window.clearTimeout(flush);
+      window.clearTimeout(wheeling);
       term.dispose();
     };
   }, [t.id, streams, attempt]);

@@ -495,12 +495,15 @@ describe('an agent in a herdr pane on yan serve', () => {
     expect((await post({ task: 't001', keys: ['2'] })).status).toBe(200);
     expect((await post({ task: 't001', text: '\x1b[H' })).status).toBe(200);
     expect((await post({ task: 't001', paste: '换个做法', enter: true })).status).toBe(200);
+    expect((await post({ task: 't001', wheel: -2, col: 5, row: 7 })).status, 'a pane with no history to scroll back is a full-screen program, sent the wheel').toBe(200);
     expect((await post({ task: 't001', keys: ['2'] }, 'http://evil.example')).status).toBe(403);
     expect((await post({ task: 't003', keys: ['2'] })).status).toBe(404);
     expect(asked).toEqual([
       { method: 'pane.send_keys', params: { pane_id: 'w1:p2', keys: ['2'] } },
       { method: 'pane.send_text', params: { pane_id: 'w1:p2', text: '\x1b[H' } },
       { method: 'pane.send_input', params: { pane_id: 'w1:p2', text: '换个做法', keys: ['enter'] } },
+      { method: 'pane.get', params: { pane_id: 'w1:p2' } },
+      { method: 'pane.send_text', params: { pane_id: 'w1:p2', text: '\x1b[<64;5;7M\x1b[<64;5;7M' } },
     ]);
   });
 

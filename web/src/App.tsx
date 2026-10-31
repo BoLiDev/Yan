@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
+import { MOD } from './lib/format';
 import { parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { nextStop, taskStops } from './lib/stops';
@@ -88,10 +89,24 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
  * taking ↑, ↓ and Enter of their own; ← and → walk what the right pane
  * walks; F fills the screen with a picture.
  */
+/**
+ * ⌘K on a Mac and Ctrl+K elsewhere, as the page says it (`MOD`), Shift or
+ * not. An agent's terminal takes Ctrl chords as a terminal does (Ctrl+K
+ * cuts the rest of a line), so in it Ctrl+K off a Mac is the agent's and
+ * Ctrl+Shift+K the palette's; ⌘ chords never reach an agent, so ⌘K is the
+ * palette's there too.
+ */
+function paletteKey(e: KeyboardEvent): boolean {
+  if (e.key.toLowerCase() !== 'k' || e.altKey) return false;
+  if (MOD === '⌘') return e.metaKey && !e.ctrlKey;
+  const inTerminal = e.target instanceof Element && e.target.closest('.term') !== null;
+  return e.ctrlKey && !e.metaKey && (e.shiftKey || !inTerminal);
+}
+
 function useKeys(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if (paletteKey(e)) {
         e.preventDefault();
         useUI.setState((s) => ({ palette: !s.palette }));
         return;

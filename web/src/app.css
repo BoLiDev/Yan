@@ -262,10 +262,12 @@ img { -webkit-user-drag: none; }
 .nav .row .term-status.blocked { color: #8a4b08; font-weight: 700; }
 .nav .row .term-status.done { color: var(--green); }
 /* The pane as herdr streams it, its own size, scaled to the column; what is under it sends a message whole. */
-.term-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; background: #1b1b19; padding: 12px; }
-.term { display: inline-block; }
+.term-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; background: #1b1b19; padding: 12px; }
+.term { display: inline-block; vertical-align: top; }
 .term .xterm { padding: 0; }
 .term .xterm-viewport { overflow-y: hidden !important; background: transparent !important; }
+/* xterm.js's own scrollbar has nothing to scroll, the pane being drawn whole, and would stick out below it. */
+.term .xterm .scrollbar { display: none !important; }
 .term-ended { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, .92); color: var(--ink); font-size: 13px; }
 .term-ended span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .term-compose { flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--line); background: var(--surface); }

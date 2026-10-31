@@ -36,6 +36,8 @@ export interface Pane {
   /** The agent herdr found running in it, as `claude`; none once it has exited. */
   readonly agent?: string;
   readonly agent_status: AgentStatus;
+  /** How far back the pane is scrolled and could be, in rows; a full-screen program's screen has nothing to scroll back to. */
+  readonly scroll?: { readonly offset_from_bottom: number; readonly max_offset_from_bottom: number; readonly viewport_rows: number };
 }
 
 /**
@@ -125,6 +127,11 @@ export function observe(bin: string, socket: string, pane: string, cols: number,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
+}
+
+/** Scroll herdr's view of the pane back to `offset` rows from the bottom; 0 is the bottom. */
+export async function scrollPane(socket: string, pane: string, offset: number): Promise<void> {
+  await call(socket, 'pane.scroll', { pane_id: pane, offset_from_bottom: Math.max(0, Math.round(offset)) });
 }
 
 /** Bytes as they are, as a terminal sends what is typed. */

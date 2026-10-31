@@ -215,9 +215,15 @@ Its page is the pane itself, as herdr streams it (`herdr terminal session
 observe`, herdr 0.7.2 or later; the newest stable herdr is the one to
 use): the bytes the agent draws, drawn at the pane's size and scaled to
 the column, so a question, a menu or a slash command's completion is the
-agent's own, as in the terminal. What is typed in it goes to the pane as
-typed, keys herdr names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by
-their names, and a paste as one; ⌘ chords stay the page's. The box under
+agent's own, as in the terminal. Nothing around it scrolls: it is scaled
+to fit the column both ways, and the wheel anywhere over it goes to the
+pane, scrolling herdr's view of a pane with history to scroll back, and
+sent as a mouse wheel to a full-screen program, as Claude Code in its
+no-flicker mode. What is typed in it goes to the pane as typed, keys herdr
+names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
+as one, and what an IME is composing stays the IME's, so the Enter that
+commits English letters typed in a Chinese IME commits them; ⌘ chords stay
+the page's, and in the terminal Ctrl+K is the agent's. The box under
 it sends a message whole, Enter sending and Shift+Enter starting a line,
 for one longer than a line or typed with an IME; Enter on the page goes to
 it and Esc gives the keys back. The pane is only on this machine, so
@@ -249,7 +255,7 @@ how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
-closing them all once any is open. ⌘K, Ctrl+K
+closing them all once any is open. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
 off a Mac, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there, and of
 tasks that match as well one in UAT first, then in progress, then done,

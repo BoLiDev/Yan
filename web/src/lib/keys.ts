@@ -7,6 +7,9 @@ export interface Pressed {
   readonly ctrlKey: boolean;
   readonly altKey: boolean;
   readonly metaKey: boolean;
+  /** While an IME composes, its keys are its own: Enter commits what is typed, as letters if need be. */
+  readonly isComposing?: boolean;
+  readonly keyCode?: number;
 }
 
 const NAMED: Readonly<Record<string, string>> = {
@@ -19,9 +22,13 @@ const NAMED: Readonly<Record<string, string>> = {
  * herdr encodes it as the program in the pane asked (Shift+Tab, Shift+Enter
  * and Ctrl+C among them); `browser`, a ⌘ chord, left to the page (⌘K, ⌘C,
  * ⌘V); or `typed`, for xterm.js to turn into the bytes a terminal sends,
- * letters, IME text, Home, Delete and the like.
+ * letters, IME text, Home, Delete and the like. Every key an IME is
+ * composing with is `typed`, so the Enter that commits English letters
+ * typed in a Chinese IME commits them rather than sending the message.
  */
 export function keyFor(e: Pressed): string | 'browser' | 'typed' {
+  // 229 is a key an IME took, as Safari says it.
+  if (e.isComposing === true || e.keyCode === 229) return 'typed';
   if (e.metaKey) return 'browser';
   const mods = `${e.ctrlKey ? 'ctrl+' : ''}${e.altKey ? 'alt+' : ''}${e.shiftKey ? 'shift+' : ''}`;
   const named = NAMED[e.key];
