@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import type { TaskSummary, TerminalState } from '../lib/api';
@@ -32,16 +32,16 @@ function send(task: string, what: { keys: string[] } | { text: string } | { past
  * as the column changes; the page holds the pane so only while it is seen,
  * and herdr's own window has it back the moment it is not.
  * What is typed in it goes to the pane as typed; a key herdr has a name for
- * goes by the name, so herdr encodes it as the agent asked. Below it a box
- * sends a message whole, for one longer than a line or typed with an IME.
+ * goes by the name, so herdr encodes it as the agent asked. It is the only
+ * place to type: the agent's own input takes a message of many lines, a
+ * paste and an IME's text as a terminal's does.
  */
 export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalState | undefined }) {
   useKeyNav(null, null);
   const host = useRef<HTMLDivElement>(null);
-  const box = useRef<HTMLTextAreaElement>(null);
+  const typing = useRef<Terminal | null>(null);
   const [ended, setEnded] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [draft, setDraft] = useState('');
   const streams = state?.streams ?? false;
 
   useEffect(() => {
@@ -163,6 +163,7 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
     void document.fonts.load(`13px ${MONO}`).finally(() => {
       if (disposed) return;
       term.open(el);
+      typing.current = term;
       const screen = el.querySelector<HTMLElement>('.xterm-screen');
       if (screen && screen.clientWidth > 0) cell = { w: screen.clientWidth / term.cols, h: screen.clientHeight / term.rows };
       connect();
@@ -183,6 +184,7 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
 
     return () => {
       disposed = true;
+      typing.current = null;
       source?.close();
       sized.disconnect();
       document.removeEventListener('visibilitychange', onShown);
@@ -195,32 +197,17 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
     };
   }, [t.id, streams, attempt]);
 
-  // Enter on the page, nothing else taking it, goes to the box below; Esc in the box gives the keys back to the page.
+  // Enter on the page, nothing else taking it, puts the keys in the terminal, as a click on it does.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const active = document.activeElement as HTMLElement | null;
       if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(active?.tagName ?? '')) return;
       e.preventDefault();
-      box.current?.focus();
+      typing.current?.focus();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
-
-  const submit = (): void => {
-    if (draft.trim() === '') return;
-    send(t.id, { paste: draft, enter: true });
-    setDraft('');
-  };
-  const onBoxKey = (e: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      submit();
-    } else if (e.key === 'Escape') {
-      e.currentTarget.blur();
-    }
-  };
 
   if (!state) return <Empty title="No terminal">{`${t.id}'s agent is not running in a herdr pane on this machine.`}</Empty>;
   const meta = [state.agent ?? `${state.cli}（已退出）`, `herdr ${state.pane}`, AGENT_WORD[state.status]].filter(Boolean).join(' · ');
@@ -240,11 +227,6 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       ) : (
         <Empty title="herdr 版本太旧">{`这台机器上的 herdr 是 ${state.herdr || '未知版本'}，在网页里显示 pane 需要 0.7.2 或更新的版本（推荐最新的稳定版）。运行 herdr update 升级。`}</Empty>
       )}
-      <div className="term-compose">
-        <textarea ref={box} rows={1} value={draft} placeholder={`给 ${state.agent ?? state.cli} 发消息，回车发送，Shift+回车换行`}
-          onChange={(e) => setDraft(e.target.value)} onKeyDown={onBoxKey} />
-        <button type="button" className="button" disabled={draft.trim() === ''} onClick={submit}>发送<kbd>↵</kbd></button>
-      </div>
     </>
   );
 }

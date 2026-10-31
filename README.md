@@ -224,10 +224,8 @@ its own window. What is typed in it goes to the pane as typed, keys herdr
 names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
 as one, and what an IME is composing stays the IME's, so the Enter that
 commits English letters typed in a Chinese IME commits them; ⌘ chords stay
-the page's, and in the terminal Ctrl+K is the agent's. The box under
-it sends a message whole, Enter sending and Shift+Enter starting a line,
-for one longer than a line or typed with an IME; Enter on the page goes to
-it and Esc gives the keys back. The pane is only on this machine, so
+the page's, and in the terminal Ctrl+K is the agent's. Enter on the page
+puts the keys in the terminal, as a click on it does. The pane is only on this machine, so
 serve shows the terminal only where the agent runs. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches
