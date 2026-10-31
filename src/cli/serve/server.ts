@@ -405,7 +405,7 @@ export class YanServer {
     }
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
-    if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', req, res);
+    if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', q, req, res);
     if (p === '/api/index') {
       return json(res, {
         ...this.view.index(),

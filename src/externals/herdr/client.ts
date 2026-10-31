@@ -10,14 +10,17 @@ import { YanError } from '../../util/error.js';
  * which over a local socket costs next to nothing.
  *
  * What a pane shows comes as herdr's own live stream of it, `herdr terminal
- * session observe`, rather than reads of its screen over and over: the
- * frames are the bytes a terminal draws, as they come, and an observer takes
- * nothing from `user`'s own herdr, neither input nor size. It came in herdr
- * 0.7.2 (`OBSERVE_SINCE`); input goes through the socket, as any herdr has.
+ * session control`, rather than reads of its screen over and over: the
+ * frames are the bytes a terminal draws, as they come. A controller sizes
+ * the pane, so the page draws it filling its column, and scrolls it as herdr
+ * scrolls a pane in its own window; while one holds the pane, herdr's own
+ * window shows it at the controller's size. It came in herdr 0.7.2
+ * (`CONTROL_SINCE`); keys go through the socket, which encodes them as the
+ * program in the pane asked.
  */
 
-/** The first herdr with `terminal session observe`. */
-export const OBSERVE_SINCE = '0.7.2';
+/** The first herdr with `terminal session control`. */
+export const CONTROL_SINCE = '0.7.2';
 
 /** Whether `version` is `least` or later, numbers compared part by part; a version not read is not. */
 export function atLeast(version: string, least: string): boolean {
@@ -96,17 +99,6 @@ export async function paneOf(socket: string, pane: string): Promise<Pane> {
   return (await call<{ pane: Pane }>(socket, 'pane.get', { pane_id: pane })).pane;
 }
 
-/** The pane's size in cells, as its tab lays it out; none from a herdr without `pane.layout`. */
-export async function paneSize(socket: string, pane: string): Promise<{ readonly cols: number; readonly rows: number } | undefined> {
-  try {
-    const { layout } = await call<{ layout: { panes: { pane_id: string; rect: { width: number; height: number } }[] } }>(socket, 'pane.layout', { pane_id: pane });
-    const rect = layout.panes.find((p) => p.pane_id === pane)?.rect;
-    return rect === undefined || rect.width < 2 || rect.height < 2 ? undefined : { cols: rect.width, rows: rect.height };
-  } catch {
-    return undefined;
-  }
-}
-
 /** One frame of a pane's stream: ANSI bytes, base64, for a terminal `width` by `height`; a `full` one draws it all. */
 export interface Frame {
   readonly type: 'terminal.frame';
@@ -117,16 +109,24 @@ export interface Frame {
 }
 
 /**
- * herdr's live stream of `pane` for a viewer `cols` by `rows`, each line a
- * frame's JSON as herdr wrote it, then `terminal.closed`; killing the
- * process ends it. The herdr at `bin` finds its server from `socket`.
+ * herdr's live stream of `pane`, sized `cols` by `rows`, taking it over from
+ * any other controller: each line out a frame's JSON as herdr wrote it, then
+ * `terminal.closed`; each line in a command (`controlCommand`). Its stdin
+ * ending lets the pane go back to its own size. The herdr at `bin` finds its
+ * server from `socket`.
  */
-export function observe(bin: string, socket: string, pane: string, cols: number, rows: number): ChildProcess {
-  return spawn(bin, ['terminal', 'session', 'observe', pane, '--cols', String(cols), '--rows', String(rows)], {
+export function control(bin: string, socket: string, pane: string, cols: number, rows: number): ChildProcess {
+  return spawn(bin, ['terminal', 'session', 'control', pane, '--takeover', '--cols', String(cols), '--rows', String(rows)], {
     env: { ...process.env, HERDR_SOCKET_PATH: socket },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
+}
+
+/** A controller's command: the pane sized anew, or the wheel turned `lines` rows over a 0-based cell, which herdr routes as in its own window. */
+export function controlCommand(c: { readonly resize: { readonly cols: number; readonly rows: number } } | { readonly scroll: number; readonly col: number; readonly row: number }): string {
+  if ('resize' in c) return JSON.stringify({ type: 'terminal.resize', cols: c.resize.cols, rows: c.resize.rows });
+  return JSON.stringify({ type: 'terminal.scroll', direction: c.scroll < 0 ? 'up' : 'down', lines: Math.min(Math.abs(c.scroll), 50), column: c.col, row: c.row });
 }
 
 /** Scroll herdr's view of the pane back to `offset` rows from the bottom; 0 is the bottom. */

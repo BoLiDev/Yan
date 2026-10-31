@@ -2,7 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:net';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { atLeast, herdrPane, paneOf, paneSize, sendInput, sendKeys, versionOf } from './client.js';
+import { atLeast, controlCommand, herdrPane, paneOf, sendInput, sendKeys, versionOf } from './client.js';
 
 afterAll(cleanupTempDirs);
 
@@ -47,20 +47,24 @@ describe('herdr', () => {
     expect(atLeast('', '0.7.2')).toBe(false);
   });
 
-  it('asks its version, a pane and its size, and types into it', async () => {
+  it('spells a controller\'s commands as herdr reads them', () => {
+    expect(JSON.parse(controlCommand({ resize: { cols: 140, rows: 48 } }))).toEqual({ type: 'terminal.resize', cols: 140, rows: 48 });
+    expect(JSON.parse(controlCommand({ scroll: -3, col: 10, row: 4 }))).toEqual({ type: 'terminal.scroll', direction: 'up', lines: 3, column: 10, row: 4 });
+    expect(JSON.parse(controlCommand({ scroll: 2, col: 0, row: 0 }))).toMatchObject({ direction: 'down', lines: 2 });
+  });
+
+  it('asks its version and a pane, and types into it', async () => {
     const h = await fakeHerdr((method) =>
       method === 'ping' ? { result: { type: 'pong', version: '0.9.5', protocol: 22 } }
         : method === 'pane.get' ? { result: { type: 'pane_info', pane: { pane_id: 'w1:p2', agent: 'claude', agent_status: 'blocked' } } }
-          : method === 'pane.layout' ? { result: { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p1', rect: { width: 40, height: 30 } }, { pane_id: 'w1:p2', rect: { width: 110, height: 42 } }] } } }
-            : { result: { type: 'ok' } });
+          : { result: { type: 'ok' } });
     servers.push(h.server);
     expect(await versionOf(h.socket)).toBe('0.9.5');
     expect(await paneOf(h.socket, 'w1:p2')).toMatchObject({ agent: 'claude', agent_status: 'blocked' });
-    expect(await paneSize(h.socket, 'w1:p2')).toEqual({ cols: 110, rows: 42 });
     await sendKeys(h.socket, 'w1:p2', ['shift+tab']);
     await sendInput(h.socket, 'w1:p2', 'go on', ['enter']);
-    expect(h.asked.map((a) => a.method)).toEqual(['ping', 'pane.get', 'pane.layout', 'pane.send_keys', 'pane.send_input']);
-    expect(h.asked.slice(3)).toEqual([
+    expect(h.asked.map((a) => a.method)).toEqual(['ping', 'pane.get', 'pane.send_keys', 'pane.send_input']);
+    expect(h.asked.slice(2)).toEqual([
       { method: 'pane.send_keys', params: { pane_id: 'w1:p2', keys: ['shift+tab'] } },
       { method: 'pane.send_input', params: { pane_id: 'w1:p2', text: 'go on', keys: ['enter'] } },
     ]);
@@ -70,7 +74,6 @@ describe('herdr', () => {
     const h = await fakeHerdr(() => ({ error: { code: 'not_found', message: 'pane not found' } }));
     servers.push(h.server);
     await expect(paneOf(h.socket, 'w9:p9')).rejects.toMatchObject({ code: 'not_found' });
-    expect(await paneSize(h.socket, 'w9:p9'), 'a herdr without pane.layout gives no size').toBeUndefined();
     await expect(paneOf(join(mkTempDir(), 'none.sock'), 'w1:p1')).rejects.toMatchObject({ code: 'herdr_unreachable' });
   });
 });

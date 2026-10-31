@@ -212,14 +212,15 @@ An agent bare `yan` started in a [herdr](https://herdr.dev) pane on this
 machine is a Terminal row under Log while it runs, with what herdr says of
 it: at work, waiting on you (a question or a permission), done or idle.
 Its page is the pane itself, as herdr streams it (`herdr terminal session
-observe`, herdr 0.7.2 or later; the newest stable herdr is the one to
-use): the bytes the agent draws, drawn at the pane's size and scaled to
-the column, so a question, a menu or a slash command's completion is the
-agent's own, as in the terminal. Nothing around it scrolls: it is scaled
-to fit the column both ways, and the wheel anywhere over it goes to the
-pane, scrolling herdr's view of a pane with history to scroll back, and
-sent as a mouse wheel to a full-screen program, as Claude Code in its
-no-flicker mode. What is typed in it goes to the pane as typed, keys herdr
+control`, herdr 0.7.2 or later; the newest stable herdr is the one to
+use): the bytes the agent draws, so a question, a menu or a slash
+command's completion is the agent's own, as in the terminal. The page
+sizes the pane to its column, as a terminal window does, so the agent
+fills it, and sizes it anew as the column changes, DevTools opening beside
+it among the rest; while the page is seen, herdr's own window shows that
+pane at the page's size, and has it back as soon as the page is left or
+hidden. The wheel anywhere over it goes to the pane, as herdr turns it in
+its own window. What is typed in it goes to the pane as typed, keys herdr
 names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
 as one, and what an IME is composing stays the IME's, so the Enter that
 commits English letters typed in a Chinese IME commits them; ⌘ chords stay

@@ -17,7 +17,7 @@ let sending: Promise<void> = Promise.resolve();
  * terminal sends them, or a paste. One after another, each once the one
  * before is in, so a Backspace never overtakes the letter it takes back.
  */
-function send(task: string, what: { keys: string[] } | { text: string } | { paste: string; enter: boolean } | { wheel: number; col: number; row: number }): void {
+function send(task: string, what: { keys: string[] } | { text: string } | { paste: string; enter: boolean } | { wheel: number; col: number; row: number } | { cols: number; rows: number }): void {
   sending = sending.then(() => fetch('/api/terminal/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task, ...what }) })
     .then(async (r) => {
       if (!r.ok) toast(`没发出去：${(await r.text()) || r.status}`);
@@ -26,8 +26,11 @@ function send(task: string, what: { keys: string[] } | { text: string } | { past
 
 /**
  * The agent's terminal, as herdr streams its pane: the bytes the agent draws,
- * drawn by xterm.js at the pane's own size and scaled to fit, so what is here
- * is what is in the terminal, its questions, menus and completions with it.
+ * drawn by xterm.js, so what is here is what is in the terminal, its
+ * questions, menus and completions with it. The pane is sized to the column,
+ * as a terminal window sizes it, so the agent fills it and draws itself anew
+ * as the column changes; the page holds the pane so only while it is seen,
+ * and herdr's own window has it back the moment it is not.
  * What is typed in it goes to the pane as typed; a key herdr has a name for
  * goes by the name, so herdr encodes it as the agent asked. Below it a box
  * sends a message whole, for one longer than a line or typed with an IME.
@@ -51,24 +54,16 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       theme: { background: '#1b1b19', foreground: '#e3e1d9', cursor: '#e3e1d9', selectionBackground: '#4a4a44' },
     });
     const stage = el.parentElement as HTMLElement;
-    // The pane is drawn its own size in cells; the font is scaled until it fits the column both ways, as xterm.js
-    // measures it, so nothing around it scrolls: a part that scrolled would move under the agent's own screen.
-    const fit = (tries = 3): void => {
-      const screen = el.querySelector<HTMLElement>('.xterm-screen');
-      const [w, h] = [stage.clientWidth - 24, stage.clientHeight - 24];
-      if (!screen || screen.clientWidth === 0 || screen.clientHeight === 0 || w <= 0 || h <= 0) return;
-      const now = term.options.fontSize ?? 13;
-      const size = Math.max(6, Math.min(15, Math.floor(now * Math.min(w / screen.clientWidth, h / screen.clientHeight) * 10) / 10));
-      if (Math.abs(size - now) >= 0.1) {
-        term.options.fontSize = size;
-        if (tries > 1) requestAnimationFrame(() => fit(tries - 1));
-      }
+    // As many cells as the column holds, a cell as xterm.js draws one; nothing around the terminal scrolls, so nothing
+    // moves under the agent's own screen.
+    let cell: { w: number; h: number } | undefined;
+    const fits = (): { cols: number; rows: number } | undefined => {
+      if (cell === undefined) return undefined;
+      const style = getComputedStyle(stage);
+      const w = stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const h = stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      return { cols: Math.max(20, Math.floor(w / cell.w)), rows: Math.max(5, Math.floor(h / cell.h)) };
     };
-    void document.fonts.load(`13px ${MONO}`).finally(() => {
-      if (disposed) return;
-      term.open(el);
-      fit();
-    });
 
     // Bytes typed in a burst go together, so a word is one request and not one a letter; a key sent by name sends them first.
     let typed = '';
@@ -133,29 +128,65 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
     };
     el.addEventListener('paste', onPaste, true);
 
-    const source = new EventSource(`/api/terminal/stream?task=${encodeURIComponent(t.id)}`);
-    source.onmessage = (m) => {
-      const frame = JSON.parse(m.data as string) as { width: number; height: number; bytes: string };
-      if (frame.width > 0 && frame.height > 0 && (frame.width !== term.cols || frame.height !== term.rows)) {
-        term.resize(frame.width, frame.height);
-        fit();
-      }
-      term.write(Uint8Array.from(atob(frame.bytes), (c) => c.charCodeAt(0)));
+    let source: EventSource | undefined;
+    const connect = (): void => {
+      const size = fits();
+      if (disposed || source !== undefined || size === undefined || document.visibilityState === 'hidden') return;
+      term.resize(size.cols, size.rows);
+      const s = new EventSource(`/api/terminal/stream?task=${encodeURIComponent(t.id)}&cols=${size.cols}&rows=${size.rows}`);
+      source = s;
+      s.onmessage = (m) => {
+        const frame = JSON.parse(m.data as string) as { width: number; height: number; bytes: string };
+        if (frame.width > 0 && frame.height > 0 && (frame.width !== term.cols || frame.height !== term.rows)) term.resize(frame.width, frame.height);
+        term.write(Uint8Array.from(atob(frame.bytes), (c) => c.charCodeAt(0)));
+      };
+      s.addEventListener('closed', (m) => {
+        s.close();
+        if (source === s) source = undefined;
+        setEnded((JSON.parse((m as MessageEvent).data as string) as { why: string }).why);
+      });
+      s.onerror = () => {
+        if (s.readyState !== EventSource.CLOSED) return;
+        if (source === s) source = undefined;
+        setEnded('连不上 herdr 的画面');
+      };
     };
-    source.addEventListener('closed', (m) => {
-      source.close();
-      setEnded((JSON.parse((m as MessageEvent).data as string) as { why: string }).why);
+    // Unseen, the page lets the pane go back to herdr's own size; seen again, it takes it at the column's.
+    const onShown = (): void => {
+      if (document.visibilityState === 'hidden') {
+        source?.close();
+        source = undefined;
+      } else connect();
+    };
+    document.addEventListener('visibilitychange', onShown);
+
+    void document.fonts.load(`13px ${MONO}`).finally(() => {
+      if (disposed) return;
+      term.open(el);
+      const screen = el.querySelector<HTMLElement>('.xterm-screen');
+      if (screen && screen.clientWidth > 0) cell = { w: screen.clientWidth / term.cols, h: screen.clientHeight / term.rows };
+      connect();
     });
-    source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED) setEnded('连不上 herdr 的画面');
-    };
-    const sized = new ResizeObserver(() => fit());
+
+    // The column changing, as DevTools opening beside it, sizes the pane anew, once it has settled.
+    let settling: number | undefined;
+    const sized = new ResizeObserver(() => {
+      window.clearTimeout(settling);
+      settling = window.setTimeout(() => {
+        const size = fits();
+        if (size === undefined || (size.cols === term.cols && size.rows === term.rows)) return;
+        term.resize(size.cols, size.rows);
+        if (source !== undefined) send(t.id, size);
+      }, 120);
+    });
     sized.observe(stage);
 
     return () => {
       disposed = true;
-      source.close();
+      source?.close();
       sized.disconnect();
+      document.removeEventListener('visibilitychange', onShown);
+      window.clearTimeout(settling);
       el.removeEventListener('paste', onPaste, true);
       stage.removeEventListener('wheel', onWheel);
       window.clearTimeout(flush);
