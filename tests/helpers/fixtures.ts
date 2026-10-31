@@ -28,7 +28,9 @@ export function cleanupTempDirs(): void {
   while (created.length > 0) {
     const dir = created.pop();
     if (dir === undefined) continue;
-    rmSync(dir, { recursive: true, force: true });
+    // On Windows a file is not removed while a process still has it open, as a `git cat-file` a server
+    // started does until its stdin ends; rmSync tries again until it goes.
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 

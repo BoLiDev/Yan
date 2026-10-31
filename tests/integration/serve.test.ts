@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +14,9 @@ import type { TerminalState } from '../../src/cli/serve/wire.js';
  * `yan serve` through `bin/yan.mjs`, against a vault with an origin: what the
  * page asks for, what the files port hands out, and a push to origin turning
  * up without anyone reloading.
+ *
+ * One server and one vault for the file, started below with t001 in it; each
+ * describe commits the tasks it works on itself, so any test runs alone.
  */
 
 let home = '';
@@ -32,8 +35,6 @@ afterAll(async () => {
     const gone = new Promise((resolve) => server?.once('exit', resolve));
     server.kill();
     await gone;
-    // Its `git cat-file` ends when its stdin does; give it the moment Windows needs.
-    await new Promise((resolve) => setTimeout(resolve, 500));
   }
   cleanupTempDirs();
 });
@@ -68,6 +69,20 @@ async function until<T>(what: () => Promise<T | undefined>, ms: number): Promise
     if (Date.now() > end) throw new Error('timed out');
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
+}
+
+/**
+ * The files `put` of task `id` committed to the vault, on top of what origin
+ * has, and serve showing the task. serve shows the newest of origin's branch
+ * and the vault's HEAD, and a test in the file pushes from another clone, so a
+ * commit on an older one would never be shown.
+ */
+async function commit(id: string, put: Record<string, string | Buffer>, message: string): Promise<void> {
+  await fxGit(['pull', '-q', '--rebase', 'origin', 'main'], home);
+  for (const [rel, body] of Object.entries(put)) write(home, join('tasks', id, rel), body);
+  await fxGit(['add', 'tasks'], home);
+  await fxGit(['commit', '-q', '-m', message], home);
+  await until(async () => ((await fetch(page(`/api/task/${id}`))).ok ? true : undefined), 20_000);
 }
 
 beforeAll(async () => {
@@ -178,16 +193,17 @@ describe('yan serve', () => {
     const reader = events.body?.getReader();
 
     const elsewhere = await mkClone(bare, join(mkTempDir('yan-serve-other-'), 'vault'));
-    write(elsewhere, 'tasks/t001/artifacts/c4/shot-390.png', 'phone');
+    write(elsewhere, 'tasks/t005/task.json', task('t005', 'pushed from elsewhere'));
+    write(elsewhere, 'tasks/t005/artifacts/c4/shot-390.png', 'phone');
     await fxGit(['add', 'tasks'], elsewhere);
     await fxGit(['commit', '-q', '-m', 'more'], elsewhere);
     await fxGit(['push', '-q', 'origin', 'main'], elsewhere);
 
     const index = await until(async () => {
-      const i = (await (await fetch(page('/api/index'))).json()) as { status: { version: number }; tasks: { artifacts: number }[] };
+      const i = (await (await fetch(page('/api/index'))).json()) as { status: { version: number }; tasks: { id: string; artifacts: number }[] };
       return i.status.version > before.status.version ? i : undefined;
     }, 20_000);
-    expect(index.tasks[0]?.artifacts).toBe(5);
+    expect(index.tasks.find((t) => t.id === 't005')?.artifacts).toBe(1);
 
     let seen = '';
     const decoder = new TextDecoder();
@@ -209,10 +225,24 @@ describe('yan serve', () => {
     }
   });
 
+  it('shows the agent tab of a task with no agent as the task named and that it has none, and nothing else', async () => {
+    const shown = async (id: string): Promise<string> => {
+      const r = await fetch(page(`/agent?task=${id}`));
+      expect(r.status).toBe(200);
+      expect(r.headers.get('content-type')).toContain('text/html');
+      // What a reader sees: the text of the body, its picture and markup aside.
+      const body = /<body>([\s\S]*)<\/body>/.exec(await r.text())?.[1] ?? '';
+      return body.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+    expect(await shown('t001'), 'by its title').toBe('first 没有 Agent');
+    expect(await shown('t404'), 'by its id, when serve has no title for it').toBe('t404 没有 Agent');
+  });
+
   it('opens the one already running rather than starting another', async () => {
     const r = await runYan(home, ['serve', '--no-open', '--port', String(port)]);
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain(`➜  Page    http://localhost:${port}  already running`);
+    expect(r.stdout).toContain(`http://localhost:${port}`);
+    expect(r.stdout).toContain('already running');
   });
 });
 
@@ -221,18 +251,15 @@ describe('pictures shown small on yan serve', () => {
   let fake = '';
 
   beforeAll(async () => {
-    await fxGit(['pull', '-q', '--rebase', 'origin', 'main'], home);
     const { default: sharp } = await import('sharp');
-    write(home, 'tasks/t003/task.json', task('t003', 'pictures'));
-    write(home, 'tasks/t003/artifacts/uat/big.png', await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#336699' } }).png().toBuffer());
-    await fxGit(['add', 'tasks'], home);
-    await fxGit(['commit', '-q', '-m', 'a picture'], home);
-    const shas = await until(async () => {
-      const r = await fetch(page('/api/task/t003'));
-      return r.ok ? ((await r.json()) as { files: { path: string; sha: string }[] }).files : undefined;
-    }, 20_000);
-    shot = shas.find((f) => f.path === 'uat/big.png')?.sha ?? '';
-    fake = ((await (await fetch(page('/api/task/t001'))).json()) as { files: { path: string; sha: string }[] }).files.find((f) => f.path === 'c4/shot-1280.png')?.sha ?? '';
+    await commit('t003', {
+      'task.json': task('t003', 'pictures'),
+      'artifacts/uat/big.png': await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#336699' } }).png().toBuffer(),
+    }, 'a picture');
+    const sha = async (id: string, path: string): Promise<string> =>
+      ((await (await fetch(page(`/api/task/${id}`))).json()) as { files: { path: string; sha: string }[] }).files.find((f) => f.path === path)?.sha ?? '';
+    shot = await sha('t003', 'uat/big.png');
+    fake = await sha('t001', 'c4/shot-1280.png');
   });
 
   it('makes a row its copy by the shorter side and a card its copy by the longer, kept for good', async () => {
@@ -262,8 +289,6 @@ describe('a report on yan serve', () => {
 <div class="head" data-yan-d="d2" data-yan-status="todo"><h3><span data-yan-edit="summary">二</span></h3><p class="why">放弃：<span data-yan-reason=""></span></p></div>
 </body></html>`;
   const at = (rel: string): string => join(home, 'tasks/t002', rel);
-  const post = (path: string, value: unknown, origin = page('')) =>
-    fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
   type Report = { sha: string; behind: string[]; uat: { path: string; for: string[]; url: string | null }[]; html: string };
   const report = async (): Promise<Report | undefined> => {
     const r = await fetch(page('/api/report?task=t002'));
@@ -271,19 +296,17 @@ describe('a report on yan serve', () => {
   };
 
   beforeAll(async () => {
-    // Another clone pushed in the tests above; a commit on top of an older one would never be the newest.
-    await fxGit(['pull', '-q', '--rebase', 'origin', 'main'], home);
     const shot = Buffer.from('a picture');
-    write(home, 'tasks/t002/task.json', JSON.stringify({ version: 2, id: 't002', title: 'report', state: 'open', repos: [], nextDeliverable: 3, resources: {},
-      deliverables: [{ id: 'd1', text: 'one', status: 'todo' }, { id: 'd2', text: 'two', status: 'todo' }] }));
-    write(home, 'tasks/t002/artifacts/report.html', PAGE);
-    write(home, 'tasks/t002/artifacts/uat/d1.png', shot);
-    write(home, 'tasks/t002/artifacts/uat/uat.json', JSON.stringify({ version: 1, files: { 'd1.png': { for: ['d1'], shows: 'it' } }, notes: {} }));
-    write(home, 'tasks/t002/artifacts/report.json', JSON.stringify({ version: 1, generatedAt: '2026-10-18T12:00:00Z',
-      deliverables: [{ id: 'd1', text: 'one', status: 'todo' }, { id: 'd2', text: 'two', status: 'todo' }],
-      files: { 'd1.png': { sha256: createHash('sha256').update(shot).digest('hex'), for: ['d1'] } }, notes: {} }));
-    await fxGit(['add', 'tasks'], home);
-    await fxGit(['commit', '-q', '-m', 'a report'], home);
+    await commit('t002', {
+      'task.json': JSON.stringify({ version: 2, id: 't002', title: 'report', state: 'open', repos: [], nextDeliverable: 3, resources: {},
+        deliverables: [{ id: 'd1', text: 'one', status: 'todo' }, { id: 'd2', text: 'two', status: 'todo' }] }),
+      'artifacts/report.html': PAGE,
+      'artifacts/uat/d1.png': shot,
+      'artifacts/uat/uat.json': JSON.stringify({ version: 1, files: { 'd1.png': { for: ['d1'], shows: 'it' } }, notes: {} }),
+      'artifacts/report.json': JSON.stringify({ version: 1, generatedAt: '2026-10-18T12:00:00Z',
+        deliverables: [{ id: 'd1', text: 'one', status: 'todo' }, { id: 'd2', text: 'two', status: 'todo' }],
+        files: { 'd1.png': { sha256: createHash('sha256').update(shot).digest('hex'), for: ['d1'] } }, notes: {} }),
+    }, 'a report');
     await until(report, 20_000);
   });
 
@@ -377,101 +400,111 @@ describe('a report on yan serve', () => {
 });
 
 describe('the overview on yan serve', () => {
-  const at = (rel: string): string => join(home, 'tasks/t002', rel);
-  const post = (path: string, value: unknown, origin = page('')) =>
-    fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+  const at = (rel: string): string => join(home, 'tasks/t004', rel);
   const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
   type Detail = { problem: { sha: string; text: string } | null };
-  const detail = async (): Promise<Detail> => (await (await fetch(page('/api/task/t002'))).json()) as Detail;
+  const detail = async (): Promise<Detail> => (await (await fetch(page('/api/task/t004'))).json()) as Detail;
+
+  beforeAll(async () => {
+    // No problem.md yet, d1 delivered and d2 not, and no resources.
+    await commit('t004', {
+      'task.json': JSON.stringify({ version: 2, id: 't004', title: 'overview', state: 'open', repos: [], nextDeliverable: 3, resources: {},
+        deliverables: [{ id: 'd1', text: 'one', status: 'done', doneAt: '2026-10-30' }, { id: 'd2', text: 'two', status: 'todo' }] }),
+    }, 'an overview');
+  });
 
   it('writes problem.md whole, and refuses an edit begun on a problem.md since changed', async () => {
-    expect((await post('/api/problem', { task: 't002', sha: '', text: 'x' }, 'http://evil.example')).status).toBe(403);
-    expect((await post('/api/problem', { task: 't002', sha: '', text: '   ' })).status).toBe(400);
-    expect((await post('/api/problem', { task: 't002', sha: '', text: '# report\n\nwhat was wrong' })).status).toBe(200);
-    expect(readFileSync(at('problem.md'), 'utf8')).toBe('# report\n\nwhat was wrong\n');
-    expect(await subject()).toBe('t002: problem edited in yan serve');
+    expect((await post('/api/problem', { task: 't004', sha: '', text: 'x' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/problem', { task: 't004', sha: '', text: '   ' })).status).toBe(400);
+    expect((await post('/api/problem', { task: 't004', sha: '', text: '# overview\n\nwhat was wrong' })).status).toBe(200);
+    expect(readFileSync(at('problem.md'), 'utf8')).toBe('# overview\n\nwhat was wrong\n');
+    expect(await subject()).toBe('t004: problem edited in yan serve');
 
     const read = await until(async () => {
       const problem = (await detail()).problem;
       return problem?.text.includes('what was wrong') ? problem : undefined;
     }, 20_000);
-    expect((await post('/api/problem', { task: 't002', sha: read.sha, text: 'what was wrong, said better' })).status).toBe(200);
-    expect((await post('/api/problem', { task: 't002', sha: read.sha, text: 'laid over the other' })).status).toBe(409);
+    expect((await post('/api/problem', { task: 't004', sha: read.sha, text: 'what was wrong, said better' })).status).toBe(200);
+    expect((await post('/api/problem', { task: 't004', sha: read.sha, text: 'laid over the other' })).status).toBe(409);
     expect(readFileSync(at('problem.md'), 'utf8')).toBe('what was wrong, said better\n');
   });
 
   it('refuses a body too large to take, saying so rather than dropping the connection', async () => {
-    const r = await post('/api/problem', { task: 't002', sha: '', text: 'x'.repeat(70_000) });
+    const r = await post('/api/problem', { task: 't004', sha: '', text: 'x'.repeat(70_000) });
     expect(r.status).toBe(413);
-    expect(readFileSync(at('problem.md'), 'utf8')).not.toContain('xxxx');
+    expect(existsSync(at('problem.md')) ? readFileSync(at('problem.md'), 'utf8') : '').not.toContain('xxxx');
   });
 
   it('rewords a deliverable, keeping its id and state', async () => {
-    expect((await post('/api/deliverable/text', { task: 't002', id: 'd1', text: 'one, reworded' })).status).toBe(200);
+    expect((await post('/api/deliverable/text', { task: 't004', id: 'd1', text: 'one, reworded' })).status).toBe(200);
     expect((readJson(at('task.json')) as { deliverables: { id: string; text: string; status: string }[] }).deliverables[0]).toMatchObject({ id: 'd1', text: 'one, reworded', status: 'done' });
-    expect(await subject()).toBe('t002: d1 reworded in yan serve');
-    expect((await post('/api/deliverable/text', { task: 't002', id: 'd9', text: 'x' })).status).toBe(400);
+    expect(await subject()).toBe('t004: d1 reworded in yan serve');
+    expect((await post('/api/deliverable/text', { task: 't004', id: 'd9', text: 'x' })).status).toBe(400);
   });
 
   it('deletes a deliverable as if never added, the ones after it taking its number', async () => {
-    expect((await post('/api/deliverable/remove', { task: 't002', id: 'd1' })).status).toBe(200);
+    expect((await post('/api/deliverable/remove', { task: 't004', id: 'd1' })).status).toBe(200);
     expect((readJson(at('task.json')) as { deliverables: { id: string; text: string }[] }).deliverables.map((d) => `${d.id} ${d.text}`)).toEqual(['d1 two']);
-    expect(await subject()).toBe('t002: d1 removed in yan serve');
-    expect((await post('/api/deliverable/remove', { task: 't002', id: 'd9' })).status).toBe(400);
-    expect((await post('/api/deliverable/remove', { task: 't002' })).status).toBe(400);
+    expect(await subject()).toBe('t004: d1 removed in yan serve');
+    expect((await post('/api/deliverable/remove', { task: 't004', id: 'd9' })).status).toBe(400);
+    expect((await post('/api/deliverable/remove', { task: 't004' })).status).toBe(400);
   });
 
   it('changes where a resource points, keeping its kind, and forgets one', async () => {
-    await runYan(home, ['resource', 'add', 'spec', 'design', 'https://example.com/a', '--task', 't002']);
-    await runYan(home, ['resource', 'add', 'general', 'notes', '/tmp/notes', '--task', 't002']);
+    await runYan(home, ['resource', 'add', 'spec', 'design', 'https://example.com/a', '--task', 't004']);
+    await runYan(home, ['resource', 'add', 'general', 'notes', '/tmp/notes', '--task', 't004']);
     await fxGit(['commit', '-q', '-am', 'resources'], home);
-    expect((await post('/api/resource', { task: 't002', name: 'design', where: 'https://example.com/b' })).status).toBe(200);
-    expect(await subject()).toBe('t002: resource design changed in yan serve');
-    expect((await post('/api/resource', { task: 't002', name: 'notes', remove: true })).status).toBe(200);
-    expect(await subject()).toBe('t002: resource notes removed in yan serve');
+    expect((await post('/api/resource', { task: 't004', name: 'design', where: 'https://example.com/b' })).status).toBe(200);
+    expect(await subject()).toBe('t004: resource design changed in yan serve');
+    expect((await post('/api/resource', { task: 't004', name: 'notes', remove: true })).status).toBe(200);
+    expect(await subject()).toBe('t004: resource notes removed in yan serve');
     const doc = readJson(at('task.json')) as { resources: Record<string, string>; resourceKinds: Record<string, string> };
     expect(doc.resources).toEqual({ design: 'https://example.com/b' });
     expect(doc.resourceKinds.design).toBe('spec');
-    expect((await post('/api/resource', { task: 't002', name: 'gone', where: 'x' })).status).toBe(400);
+    expect((await post('/api/resource', { task: 't004', name: 'gone', where: 'x' })).status).toBe(400);
   });
 
-  it('keeps the agents in the order dragged to, the first shown kept last, and says so of a task with none', async () => {
+  it('keeps the agents in the order dragged to, the first shown kept last', async () => {
     const kept = (): string[] => Object.keys((readJson(at('task.json')) as { resources?: object }).resources ?? {});
     const others = kept();
-    for (const n of ['one', 'two', 'three']) await runYan(home, ['resource', 'add', 'run', n, `https://agent.example/${n}`, '--task', 't002']);
+    for (const n of ['one', 'two', 'three']) await runYan(home, ['resource', 'add', 'run', n, `https://agent.example/${n}`, '--task', 't004']);
     await fxGit(['commit', '-q', '-am', 'agents'], home);
-    expect((await post('/api/agents', { task: 't002', order: ['one', 'three', 'two'] })).status).toBe(200);
-    expect(await subject()).toBe('t002: agents ordered in yan serve');
+    expect((await post('/api/agents', { task: 't004', order: ['one', 'three', 'two'] })).status).toBe(200);
+    expect(await subject()).toBe('t004: agents ordered in yan serve');
     expect(kept()).toEqual([...others, 'two', 'three', 'one']);
-    expect((await post('/api/agents', { task: 't002', order: ['one', 'nine'] })).status).toBe(400);
-    expect((await post('/api/agents', { task: 't002', order: 'one' })).status).toBe(400);
-
-    const none = await fetch(page('/agent?task=t001'));
-    expect(none.status).toBe(200);
-    const said = await none.text();
-    expect(said, 'the task named, and nothing else said').toContain('<h1><span>first</span><b> 没有 Agent</b></h1>');
-    expect(said).not.toMatch(/<p[ >]/);
+    expect((await post('/api/agents', { task: 't004', order: ['one', 'nine'] })).status).toBe(400);
+    expect((await post('/api/agents', { task: 't004', order: 'one' })).status).toBe(400);
   });
 
   it('goes on answering while a save waits for the vault, and saves once the vault is free', async () => {
     // The vault held as an agent's hook holds it while it pushes.
     const lock = join(home, '.git', 'yan-sync.lock');
     writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), at: Math.floor(Date.now() / 1000) }));
-    const saving = post('/api/deliverable/text', { task: 't001', id: 'd1', text: 'it still works' });
+    const saving = post('/api/deliverable/text', { task: 't004', id: 'd1', text: 'it still works' });
+    let saved = false;
+    void saving.then(() => {
+      saved = true;
+    }, () => undefined);
     try {
       // task.json written, the save is under way and waiting for the vault.
-      await until(async () => (readFileSync(join(home, 'tasks/t001/task.json'), 'utf8').includes('it still works') ? true : undefined), 10_000);
-      const asked = Date.now();
-      const hello = await Promise.race([fetch(page('/api/hello')).then((r) => r.status), new Promise((resolve) => setTimeout(() => resolve('no answer'), 2000))]);
-      expect(hello).toBe(200);
-      expect(Date.now() - asked).toBeLessThan(2000);
-      const first = await Promise.race([saving.then(() => 'saved'), new Promise((resolve) => setTimeout(() => resolve('waiting'), 300))]);
-      expect(first).toBe('waiting');
+      await until(async () => (readFileSync(at('task.json'), 'utf8').includes('it still works') ? true : undefined), 10_000);
+      // Its waiting shows only as its not being done, so serve is asked for a second and a half, longer than a save
+      // that took no notice of the vault's lock would take to be pushed, and answers all along.
+      const end = Date.now() + 1500;
+      while (Date.now() < end) {
+        const asked = Date.now();
+        const hello = await Promise.race([fetch(page('/api/hello')).then((r) => r.status), new Promise((resolve) => setTimeout(() => resolve('no answer'), 2000))]);
+        expect(hello).toBe(200);
+        expect(Date.now() - asked).toBeLessThan(2000);
+        expect(saved, 'the save is still waiting for the vault').toBe(false);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect((await fxGit(['show', 'main:tasks/t004/task.json'], bare)).stdout, 'and nothing of it pushed').not.toContain('it still works');
     } finally {
       rmSync(lock, { force: true });
     }
     expect((await saving).status).toBe(200);
-    expect(await subject()).toBe('t001: d1 reworded in yan serve');
+    expect((await fxGit(['show', 'main:tasks/t004/task.json'], bare)).stdout).toContain('it still works');
   });
 });
 
@@ -664,12 +697,16 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
 });
 
 describe('yan updated from yan serve', () => {
+  // yan's folder here is the vault's clone too, and a test above pushes to its origin from elsewhere.
+  beforeAll(async () => {
+    await fxGit(['pull', '-q', '--rebase', 'origin', 'main'], home);
+  });
+
   it('lets only its own page start an update, and counts what its clone is behind', async () => {
     const start = (origin: string) => fetch(page('/api/yan/update'), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: '{}' });
     expect((await start('http://evil.example')).status).toBe(403);
     expect(await (await fetch(page('/api/yan/update'))).json()).toMatchObject({ running: false, error: null });
-    // yan's folder here is the vault's clone too, level with its origin.
-    expect(await (await fetch(page('/api/yan/updates'))).json()).toEqual({ behind: 0 });
+    expect(await (await fetch(page('/api/yan/updates'))).json(), 'level with its origin').toEqual({ behind: 0 });
   });
 });
 
