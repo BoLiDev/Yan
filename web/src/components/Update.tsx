@@ -95,8 +95,8 @@ export function UpdateCard() {
   let title = '更新';
   let action: ReactNode = <button type="button" className="update-link" onClick={check}>检查</button>;
   let below: ReactNode = null;
-  if (card.is === 'checking') [title, action] = ['正在检查更新', tile('on', <Ring />)];
-  else if (card.is === 'none') [title, action] = ['已是最新版本', tile('ok', <AntIcon name="check" />, ['再检查', check])];
+  if (card.is === 'checking') [title, action] = ['检查中', tile('on', <Ring />)];
+  else if (card.is === 'none') [title, action] = ['无更新', tile('ok', <AntIcon name="check" />, ['再检查', check])];
   else if (card.is === 'unchecked') [title, action] = ['检查失败', tile('bad', again, ['重新检查', check])];
   else if (card.is === 'behind') [title, action] = ['发现新版本', tile('on', <AntIcon name="arrowUp" />, ['更新', update])];
   else if (card.is === 'updating') {
