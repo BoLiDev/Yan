@@ -8,6 +8,8 @@ export interface ProcessResult {
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
+  /** Stopped at `maxStdout`: `stdout` is what came before, and `code` what the program was killed with. */
+  readonly truncated?: boolean;
 }
 
 /** The code a program that never started comes back with, as a shell has it. */
@@ -18,6 +20,12 @@ export interface RunOptions {
   readonly env?: NodeJS.ProcessEnv;
   /** Kill it after this long; what is left comes back as a non-zero code. */
   readonly timeoutMs?: number;
+  /**
+   * `runProcessAsync` only: stop the program once it has written this many
+   * characters, keeping those. Without it, all of it is kept, and a diff of
+   * a large enough file is longer than a string can be.
+   */
+  readonly maxStdout?: number;
 }
 
 /**
@@ -46,6 +54,7 @@ export function runProcessAsync(cmd: string, args: readonly string[], options: R
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
+    let truncated = false;
     const child = spawn(cmd, [...args], {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -53,10 +62,19 @@ export function runProcessAsync(cmd: string, args: readonly string[], options: R
       ...(options.env === undefined ? {} : { env: options.env }),
       ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
     });
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk));
+    const max = options.maxStdout;
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      if (truncated) return;
+      stdout += chunk;
+      if (max !== undefined && stdout.length > max) {
+        stdout = stdout.slice(0, max);
+        truncated = true;
+        child.kill();
+      }
+    });
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
     child.on('error', (err) => resolve({ code: NOT_STARTED, stdout, stderr: err.message }));
-    child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
+    child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr, ...(truncated ? { truncated } : {}) }));
   });
 }
 

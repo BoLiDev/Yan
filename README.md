@@ -177,7 +177,8 @@ server makes of it once, with sharp; the picture itself is loaded only when
 it is opened, so a folder of screenshots costs the page no more than a
 screenful of thumbnails. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
-changed files and their diffs, its commits, and every file at its head.
+changed files and their diffs, its commits, a merge among them shown as
+what it brought onto the branch, and every file at its head.
 A switch over the files, Source code only, on until it is switched off and
 kept so in this browser, shows its source code alone, and prev and next
 walk only that: by default a web

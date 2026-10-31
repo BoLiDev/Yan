@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
+import { pipeline } from 'node:stream';
 import { Worker } from 'node:worker_threads';
 import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
 import { Task, parseUat } from '../../records/task/index.js';
@@ -772,19 +773,23 @@ export class YanServer {
       if (base === undefined || head === undefined || path === '') return send(res, 400, 'base, head and path are needed');
       const from = q.get('from');
       const context = q.get('context') === 'all' ? '-U100000' : '-U3';
-      const r = await gitAsync(usable, ['diff', '--no-color', '--no-ext-diff', '-M', context, base, head, '--', ...(from ? [from] : []), path]);
-      return send(res, r.code === 0 ? 200 : 500, r.code === 0 ? r.stdout.slice(0, PATCH_LIMIT) : r.stderr, 'text/plain; charset=utf-8', { 'Cache-Control': 'private, max-age=31536000, immutable' });
+      const r = await gitAsync(usable, ['diff', '--no-color', '--no-ext-diff', '-M', context, base, head, '--', ...(from ? [from] : []), path], 60_000, PATCH_LIMIT);
+      // Named by its shas, a diff is the same forever; a failure is not.
+      if (r.code !== 0 && r.truncated !== true) return send(res, 500, r.stderr, 'text/plain; charset=utf-8', { 'Cache-Control': 'no-store' });
+      return send(res, 200, r.stdout, 'text/plain; charset=utf-8', { 'Cache-Control': 'private, max-age=31536000, immutable' });
     }
     if (p === '/api/branch/commit') {
       const c = sha('sha');
       if (c === undefined) return send(res, 400, 'sha is needed');
       const [head, patch] = await Promise.all([
         gitAsync(usable, ['show', '-s', '--format=%H%x1f%ct%x1f%an%x1f%s%x1f%b', c]),
-        gitAsync(usable, ['show', '--no-color', '--no-ext-diff', '-M', '--format=', c]),
+        // A merge is shown as what it brought onto the branch: against its first parent, as git diff --git, which the
+        // page reads; on its own git shows a merge as a combined diff, which the page would show as nothing.
+        gitAsync(usable, ['show', '--no-color', '--no-ext-diff', '-M', '--diff-merges=first-parent', '--format=', c], 60_000, PATCH_LIMIT),
       ]);
       if (head.code !== 0) return send(res, 404, 'no such commit');
       const [full = c, at = '0', author = '', subject = '', body = ''] = head.stdout.split('\x1f');
-      return json(res, { sha: full, at: Number(at), author, subject, body: body.trim(), patch: patch.stdout.slice(0, PATCH_LIMIT), truncated: patch.stdout.length > PATCH_LIMIT });
+      return json(res, { sha: full, at: Number(at), author, subject, body: body.trim(), patch: patch.stdout, truncated: patch.truncated === true });
     }
     if (p === '/api/branch/tree') {
       const head = sha('head');
@@ -822,7 +827,8 @@ export class YanServer {
       return send(res, 404, `yan serve: ${file} is missing - is this yan's own clone?`);
     }
     res.writeHead(200, { 'Content-Type': type, 'Content-Length': String(size), 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' });
-    createReadStream(file).pipe(res);
+    // A build empties dist/ while serve runs, an update's among them: a file gone mid-read ends this answer, not serve.
+    pipeline(createReadStream(file), res, () => undefined);
   }
 
   // --- the files' origin -----------------------------------------------------
