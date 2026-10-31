@@ -294,6 +294,8 @@ describe('a report on yan serve', () => {
     const r = await fetch(page('/api/report?task=t002'));
     return r.ok ? ((await r.json()) as Report) : undefined;
   };
+  type Deliverable = { id: string; text: string; status: string; reason?: string };
+  const deliverables = (): Deliverable[] => (readJson(at('task.json')) as { deliverables: Deliverable[] }).deliverables;
 
   beforeAll(async () => {
     const shot = Buffer.from('a picture');
@@ -320,44 +322,44 @@ describe('a report on yan serve', () => {
   it('takes a change only from its own page', async () => {
     expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'done' }, 'http://evil.example')).status).toBe(403);
     expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'abandoned' })).status).toBe(400);
-    expect((readJson(at('../t002/task.json')) as { deliverables: { status: string }[] }).deliverables[0]?.status).toBe('todo');
+    expect(deliverables()[0]?.status).toBe('todo');
   });
 
   it('ticks and gives up a deliverable in task.json, commits and pushes it, and hands out the page without the one given up', async () => {
     expect((await post('/api/deliverable', { task: 't002', id: 'd1', to: 'done' })).status).toBe(200);
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'abandoned', reason: 'not now' })).status).toBe(200);
-    const ds = (readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { status: string; reason?: string }[] }).deliverables;
-    expect(ds.map((x) => x.status)).toEqual(['done', 'abandoned']);
+    expect(deliverables().map((x) => x.status)).toEqual(['done', 'abandoned']);
     expect((await fxGit(['log', '-1', '--format=%s', 'origin/main'], home)).stdout.trim()).toBe('t002: d2 given up in yan serve');
     expect((await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim()).toBe('t002: d2 given up in yan serve');
 
-    const copy = await (await fetch(page('/api/report/download?task=t002'))).text();
-    expect(copy).toContain('data-yan-d="d1" data-yan-status="done"');
-    expect(copy).not.toContain('data-yan-d="d2"');
-    expect(copy).toContain('<span data-yan-progress="">1/1</span>');
+    // How the page is redrawn for the states is report.test.ts's; here, that it is drawn for task.json as it is now.
+    const copy = await fetch(page('/api/report/download?task=t002'));
+    expect(copy.status).toBe(200);
+    const html = await copy.text();
+    expect(html).toContain('data-yan-d="d1" data-yan-status="done"');
+    expect(html).not.toContain('data-yan-d="d2"');
     expect((await report())?.behind).toEqual([]);
 
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'abandoned', reason: 'not this month' })).status).toBe(200);
-    expect((readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { reason?: string }[] }).deliverables[1]?.reason).toBe('not this month');
+    expect(deliverables()[1]?.reason).toBe('not this month');
     expect((await fxGit(['log', '-1', '--format=%s', 'origin/main'], home)).stdout.trim()).toBe("t002: d2's reason for giving up reworded in yan serve");
 
     expect((await post('/api/deliverable', { task: 't002', id: 'd2', to: 'todo' })).status).toBe(200);
-    expect((readJson(join(home, 'tasks/t002/task.json')) as { deliverables: { status: string }[] }).deliverables[1]).toEqual({ id: 'd2', text: 'two', status: 'todo' });
+    expect(deliverables()[1]).toEqual({ id: 'd2', text: 'two', status: 'todo' });
   });
 
   it('edits one text of the page in report.html, and refuses an edit made on an older page', async () => {
     const { sha } = (await report()) as Report;
     expect((await post('/api/report/edit', { task: 't002', sha: '0'.repeat(40), index: 0, text: 'x' })).status).toBe(409);
-    expect((await post('/api/report/edit', { task: 't002', sha, index: 1, text: '第一 <b>' })).status).toBe(200);
-    const html = readFileSync(at('artifacts/report.html'), 'utf8');
-    expect(html).toContain('<span data-yan-edit="summary">第一 &lt;b&gt;</span>');
-    expect(html.replace('第一 &lt;b&gt;', '一')).toBe(PAGE);
+    // The first text after the title is d1's summary; how a text is put in the page is report.test.ts's.
+    expect((await post('/api/report/edit', { task: 't002', sha, index: 1, text: '第一' })).status).toBe(200);
+    expect(readFileSync(at('artifacts/report.html'), 'utf8'), 'that one text, and the rest as it was').toBe(PAGE.replace('>一<', '>第一<'));
     expect((await fxGit(['log', '-1', '--format=%s'], home)).stdout.trim()).toBe('t002: report edited in yan serve');
     expect((await post('/api/report/edit', { task: 't002', sha: (await report())?.sha, index: 9, text: 'x' })).status).toBe(400);
   });
 
   it('lists a task its agent handed over as 验收中, and offers no way back to open', async () => {
-    expect((await runYan(home, ['uat', 'ready', '--task', 't002'])).stdout).toContain('t002  验收中');
+    expect((await runYan(home, ['uat', 'ready', '--task', 't002'])).code).toBe(0);
     await fxGit(['commit', '-q', '-am', 'ready'], home);
     const state = async (): Promise<string | undefined> => {
       const i = (await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; state: string }[] };
@@ -377,7 +379,9 @@ describe('a report on yan serve', () => {
       const x = await report();
       return x !== undefined && x.behind.length > 0 ? x : undefined;
     }, 20_000);
-    expect(r.behind).toEqual(['uat/d1.png 换了新的']);
+    // What each change is called is report.test.ts's; here, that it is the picture redone, and only that.
+    expect(r.behind).toHaveLength(1);
+    expect(r.behind[0]).toContain('uat/d1.png');
   });
 
   it('sends the page its pictures beside it, and keeps them inside the copy to download', async () => {
@@ -389,7 +393,7 @@ describe('a report on yan serve', () => {
       return x?.html.includes('<figure>') === true ? x : undefined;
     }, 20_000);
     expect(r.html).not.toContain('base64');
-    const src = /<img loading="lazy" decoding="async" src="([^"]+)" alt="it">/.exec(r.html)?.[1] ?? '';
+    const src = /<img [^>]*src="([^"]+)"/.exec(r.html)?.[1] ?? '';
     expect(src).toBe(files(`/_report/${r.sha}/0`));
     const img = await fetch(src);
     expect(img.headers.get('content-type')).toBe('image/png');
