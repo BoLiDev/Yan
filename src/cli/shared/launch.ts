@@ -11,6 +11,7 @@ import type { Said, Working } from '../../ui/chain.js';
 export { CREATE_NEW };
 export type { Said, Working };
 import { tildePath } from './style.js';
+import { saveVault } from './vault-push.js';
 import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs, takesPlugins } from '../../externals/harness/index.js';
 import { herdrPane } from '../../externals/herdr/index.js';
 import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
@@ -593,6 +594,7 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   const { task, trees } = chosen === CREATE_NEW
     ? await newTask(cwd, prompts, chain)
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };
+  if (chosen === CREATE_NEW) saveNewTask(vault, task, chain);
 
   chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
 
@@ -609,6 +611,24 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
     return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
   } finally {
     if (kept) quietly(() => letTerminalGo(vault, task.id, pane.pane));
+  }
+}
+
+/**
+ * A new task in the vault's history as soon as it is made, not only after
+ * the agent's first turn: `yan serve` shows what is committed, and the other
+ * machines what is pushed. Pushed as the hooks push, under the vault's lock;
+ * a vault that is not a clone, or a push that fails, never keeps the agent
+ * from starting, and its first turn pushes it again.
+ */
+function saveNewTask(vault: string, task: Task, chain: EntryChain): void {
+  if (!gitOk(vault, ['rev-parse', '--is-inside-work-tree'])) return;
+  const step = chain.working(`vault: saving ${task.id}`);
+  try {
+    const pushed = saveVault(vault, `${task.id}: new task`).some((line) => line.includes(' → '));
+    step.finish({ kind: 'done', line: `vault: ${task.id} ${pushed ? 'pushed' : 'committed'}` });
+  } catch (err) {
+    step.finish({ kind: 'warn', line: `vault: ${task.id} not pushed yet - the agent's first turn pushes it`, detail: [firstLine(err instanceof Error ? err.message : String(err))] });
   }
 }
 

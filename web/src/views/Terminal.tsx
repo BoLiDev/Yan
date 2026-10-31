@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import type { TaskSummary, TerminalState } from '../lib/api';
+import type { TerminalState } from '../lib/api';
 import { AGENT_WORD, MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
 import { tilesOf, type Tile } from '../lib/tiles';
@@ -64,7 +64,7 @@ interface Panes {
  * as herdr has it, the agent and any shell split off beside it, in herdr or
  * here: a right click on a pane splits it, copies, pastes, or closes a shell.
  */
-export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalState | undefined }) {
+export function TerminalView({ id, state, waiting = false }: { id: string; state: TerminalState | undefined; waiting?: boolean }) {
   useKeyNav(null, null);
   const [menu, setMenu] = useState<{ x: number; y: number; pane: string } | null>(null);
   const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined, menu: () => undefined }).current;
@@ -82,22 +82,26 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
     return () => document.removeEventListener('keydown', onKey);
   }, [panes, state?.pane]);
 
-  if (!state) return <Empty title="No terminal">{`${t.id}'s agent is not running in a herdr pane on this machine.`}</Empty>;
-  const meta = [state.agent ?? `${state.cli}（已退出）`, `herdr ${state.pane}`, AGENT_WORD[state.status]].filter(Boolean).join(' · ');
+  // A new task's tab, opened a moment ago, is a dark terminal until herdr lists its pane.
+  if (!state && waiting) return <><Bar title="Terminal" meta="" /><div className="term-tiles" /></>;
+  if (!state) return <Empty title="No terminal">{`${id}'s agent is not running in a herdr pane on this machine.`}</Empty>;
+  // A launch's pane is bare yan's until the agent starts in it.
+  const program = state.agent ?? (state.title !== undefined ? state.title : `${state.cli}（已退出）`);
+  const meta = [program, `herdr ${state.pane}`, AGENT_WORD[state.status]].filter(Boolean).join(' · ');
   const tiles = tilesOf(state.layout ?? { pane: state.pane });
   return (
     <>
       <Bar title="Terminal" meta={meta} />
       {state.streams ? (
         <div className="term-tiles">
-          {tiles.map((tile) => <PaneTerm key={tile.pane} task={t.id} tile={tile} agent={tile.pane === state.pane} panes={panes} />)}
+          {tiles.map((tile) => <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes} />)}
           {menu !== null ? (
             <PaneMenu at={menu} agent={menu.pane === state.pane} term={panes.terms.get(menu.pane)} onClose={() => setMenu(null)}
-              split={(direction) => void reshape('split', { task: t.id, pane: menu.pane, direction }).then((made) => {
+              split={(direction) => void reshape('split', { task: id, pane: menu.pane, direction }).then((made) => {
                 panes.next = made?.pane;
               })}
-              paste={(text) => send(t.id, menu.pane, { paste: text, enter: false })}
-              close={() => void reshape('close', { task: t.id, pane: menu.pane })} />
+              paste={(text) => send(id, menu.pane, { paste: text, enter: false })}
+              close={() => void reshape('close', { task: id, pane: menu.pane })} />
           ) : null}
         </div>
       ) : (

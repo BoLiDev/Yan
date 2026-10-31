@@ -30,8 +30,8 @@ interface Launch {
   readonly since: string;
 }
 
-/** A word for the shell, quoted as sh, bash, zsh and fish all read it back as it was. */
-const quoted = (word: string): string => `'${word.replace(/'/g, `'\\''`)}'`;
+/** A word for the shell as sh, bash, zsh and fish all read it back as it was: as it is when nothing in it is the shell's, else in single quotes. */
+const quoted = (word: string): string => (/^[\w./:@%+=,-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`);
 
 export class Launches {
   private readonly launched = new Map<string, Launch>();

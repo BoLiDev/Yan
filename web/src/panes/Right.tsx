@@ -8,6 +8,7 @@ import { queryClient, useIndex, useTask, useTerminals } from '../state/server';
 import { setSeen, useUI } from '../state/ui';
 import { AgentView } from '../views/Agent';
 import { TerminalView } from '../views/Terminal';
+import { LaunchView } from '../views/NewTask';
 import { ResourcesView } from '../views/Resources';
 import { BranchView } from '../views/Branch';
 import { FileView } from '../views/File';
@@ -23,6 +24,7 @@ import { useKeyNav } from '../views/nav';
  * while it was open.
  */
 export function lookAt(r: Route, index: Index): void {
+  if (r.view === 'new') return;
   if (r.view === 'latest') {
     if (r.id && r.path) setSeen((s) => markLooked(index, s, r.id as string, r.path));
     return;
@@ -46,6 +48,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   const { data: d } = useTask(known ? r.id : undefined);
   const { data: terminals } = useTerminals();
 
+  if (r.view === 'new') return <LaunchView launch={r.launch} state={r.launch === undefined ? undefined : terminals?.[r.launch]} index={index} />;
   if (r.view === 'latest') {
     if (!r.id) {
       const any = seen ? unseenPushes(index, seen).length > 0 : false;
@@ -71,13 +74,14 @@ function Shown({ r, index }: { r: Route; index: Index }) {
 
   const t = index.tasks.find((x) => x.id === r.id);
   if (!t) return <Nothing title="No such task">{`There is no ${r.id} in this vault.`}</Nothing>;
+  // The terminal is herdr's, not the vault's: it is shown without waiting for the task's files.
+  if (r.sub === 'terminal') return <TerminalView id={t.id} state={terminals?.[t.id]} />;
   if (!d) return <Nothing title="Loading…" />;
   if (r.sub === 'overview') return <Overview t={t} d={d} />;
   if (r.sub === 'log') return <LogView t={t} d={d} />;
   if (r.sub === 'report') return <ReportView t={t} d={d} />;
   if (r.sub === 'folder') return <FolderView t={t} d={d} path={r.path} />;
   if (r.sub === 'branch') return <BranchView t={t} r={r} />;
-  if (r.sub === 'terminal') return <TerminalView t={t} state={terminals?.[t.id]} />;
   if (r.sub === 'agent') return <AgentView t={t} />;
   if (r.sub === 'resources') return <ResourcesView t={t} d={d} />;
   if (r.sub !== 'file') return null;

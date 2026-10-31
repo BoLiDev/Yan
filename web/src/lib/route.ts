@@ -12,6 +12,8 @@ import { enc } from './files';
  *   #/t/<task>/a/<path>              an artifact; a path ending in / is a folder
  *   #/t/<task>/b/<repo>/<tab>/<item> the branch the tree was last on
  *   #/t/<task>/b/<repo>/<branch>/<tab>/<item>  another of the task's branches
+ *   #/new                            a new task's form
+ *   #/new/<launch>                   it started, in its herdr tab, until it is a task
  */
 
 export const BRANCH_TABS = ['changes', 'commits', 'files'] as const;
@@ -19,6 +21,7 @@ export type BranchTab = (typeof BRANCH_TABS)[number];
 
 export type Route =
   | { readonly view: 'latest'; readonly id?: string; readonly path?: string }
+  | { readonly view: 'new'; readonly id?: undefined; readonly launch?: string }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'terminal' | 'agent' | 'resources' }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'file' | 'folder'; readonly path: string }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'branch'; readonly repo: number; readonly name: string | null; readonly tab: BranchTab; readonly item: string };
@@ -55,6 +58,7 @@ export function parseRoute(hash: string): Route {
     }
     return { view: 'task', id, sub: 'overview' };
   }
+  if (parts[0] === 'new') return parts[1] ? { view: 'new', launch: parts[1] } : { view: 'new' };
   if (parts[0] === 'latest' && parts[1]) return { view: 'latest', id: parts[1], path: parts.slice(2).join('/') };
   return { view: 'latest' };
 }
@@ -78,6 +82,7 @@ export const link = {
   branch: (id: string, repo: number, tab?: BranchTab, item?: string, name?: string | null): string =>
     `#/t/${id}/b/${repo}${name ? '/' + encodeURIComponent(name) : ''}/${tab || 'changes'}${item ? '/' + enc(item) : ''}`,
   latest: (id?: string, p?: string): string => (id ? `#/latest/${id}/${enc(p ?? '')}` : '#/latest'),
+  new: (launch?: string): string => (launch ? `#/new/${launch}` : '#/new'),
 };
 
 /** A link inside the branch being looked at. */
@@ -89,6 +94,7 @@ export const inBranch = (r: BranchRoute, tab: BranchTab, item?: string): string 
  */
 export function viewKey(r: Route): string {
   if (r.view === 'latest') return `latest|${r.id ?? ''}|${r.path ?? ''}`;
+  if (r.view === 'new') return `new|${r.launch ?? ''}`;
   if (r.sub === 'file' || r.sub === 'folder') return `${r.id}|${r.sub}|${r.path}`;
   if (r.sub === 'branch') return `${r.id}|branch|${r.repo}|${r.name ?? ''}|${r.tab}|${r.item}`;
   return `${r.id}|${r.sub}`;

@@ -595,7 +595,7 @@ describe('an agent in a herdr pane on yan serve', () => {
     expect(asked[0]).toEqual({ method: 'tab.create', params: { cwd: homedir(), label: "pay's retries", env: { YAN_VAULT: home }, focus: false } });
     expect(asked[1]?.method).toBe('pane.send_text');
     expect(asked[1]?.params.pane_id).toBe('w1:p9');
-    expect(asked[1]?.params.text, 'bare yan with the answers, quoted for the shell').toMatch(/bin\/yan\.mjs' '--new' 'pay'\\''s retries' '--no-repo'\r$/);
+    expect(asked[1]?.params.text, 'bare yan with the answers, quoted for the shell where it must be').toMatch(/bin\/yan\.mjs --new 'pay'\\''s retries' --no-repo\r$/);
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
     let states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { title?: string; task?: string; pane: string; cli: string }>;

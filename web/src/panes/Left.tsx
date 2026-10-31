@@ -3,7 +3,7 @@ import type { Index, TaskSummary } from '../lib/api';
 import { MOD, clock, fromIso, monthLabel, plural } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
-import { Icon, StateIcon } from '../components/Icon';
+import { AntIcon, Icon, StateIcon } from '../components/Icon';
 import { Pane, PushTags, Tool } from '../components/ui';
 import { UpdateCard } from '../components/Update';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
@@ -129,11 +129,15 @@ export function Left() {
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
       <Sync />
-      <button type="button" className="find" onClick={() => useUI.setState({ palette: true })}>
-        <Icon name="search" size={15} />
-        <span className="grow">Find a task</span>
-        <kbd>{`${MOD}K`}</kbd>
-      </button>
+      {/* Beside finding a task, starting one: a form for what bare yan would ask, run in a new herdr tab. */}
+      <div className="find-line">
+        <button type="button" className="find" onClick={() => useUI.setState({ palette: true })}>
+          <Icon name="search" size={15} />
+          <span className="grow">Find a task</span>
+          <kbd>{`${MOD}K`}</kbd>
+        </button>
+        <a className={'find-new' + (r.view === 'new' ? ' on' : '')} href={link.new()} aria-label="新建 task"><AntIcon name="plus" size={14} /></a>
+      </div>
       <div className={'latest-line' + (onLatest ? ' on' : '')}>
         <a className={'row' + (onLatest ? ' on' : '')} href="#/latest" style={{ fontWeight: 700 }}>
           <Icon name="latest" size={17} />

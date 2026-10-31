@@ -74,6 +74,9 @@ export interface TerminalState {
   readonly streams: boolean;
   /** The agent's tab, as herdr has it split: its pane alone, or it and the panes split off beside it. */
   readonly layout?: Layout;
+  /** A new task's launch: its title, and the task once bare yan keeps the pane as its terminal. */
+  readonly title?: string;
+  readonly task?: string;
 }
 
 /** How herdr has split a tab: a pane, or two side by side (`right`) or one over the other (`down`), the first taking `ratio` of the room. */

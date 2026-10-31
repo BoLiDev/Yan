@@ -10,6 +10,7 @@ import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen 
 import { Icon, StateIcon } from '../components/Icon';
 import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
 import { useBranch, useBranches, useBranchTree, useIndex, useTask, useTerminals, writeTask } from '../state/server';
+import { NewTaskForm } from '../views/NewTask';
 import { onAgentClick, useAgentTab } from '../state/agentTab';
 import { ask, copyText, setPref, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
@@ -533,9 +534,11 @@ export function Middle() {
     if (a.top < b.top || a.bottom > b.bottom) on.scrollIntoView({ block: 'center' });
   }, [hash]);
 
+  const { data: terminals } = useTerminals();
   let inner: ReactNode = null;
   if (index && seen) {
-    if (r.view === 'latest') inner = <Feed index={index} seen={seen} r={r} />;
+    if (r.view === 'new') inner = <NewTaskForm launch={r.launch} state={r.launch === undefined ? undefined : terminals?.[r.launch]} />;
+    else if (r.view === 'latest') inner = <Feed index={index} seen={seen} r={r} />;
     else {
       const t = index.tasks.find((x) => x.id === r.id);
       inner = t ? <TaskIndex key={t.id} t={t} r={r} index={index} seen={seen} /> : <Empty title={`No ${r.id} here`}>{`The vault ${index.vault.name} has no task called ${r.id}.`}</Empty>;

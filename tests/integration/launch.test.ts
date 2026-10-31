@@ -271,6 +271,17 @@ describe('a new task', () => {
     expect(asking.asked, 'the repositories, not given, are asked').toEqual(['repos: web']);
   });
 
+  it('pushes the new task as soon as it is made, before the agent starts', async () => {
+    const origin = await mkBareRemote(join(mkTempDir(), 'vault.git'));
+    for (const args of [['init', '-q', '-b', 'main'], ['remote', 'add', 'origin', origin], ['add', '-A'], ['commit', '-qm', 'vault'], ['push', '-q', '-u', 'origin', 'main']]) await fxGit(args, home);
+    await run(answers({ entry: 'never chosen', repos: [] }), normalizePath(realpathSync(mkTempDir())), { new: { title: 'seen at once' } });
+    const pushedAt = said.indexOf('done vault: t001 pushed');
+    expect(pushedAt, 'said before the agent starts').toBeGreaterThan(0);
+    expect(pushedAt).toBeLessThan(said.findIndex((l) => l.startsWith('end t001')));
+    expect((await fxGit(['log', '-1', '--format=%s', 'main'], origin)).stdout.trim()).toBe('t001: new task');
+    expect((await fxGit(['show', 'main:tasks/t001/task.json'], origin)).stdout).toContain('seen at once');
+  });
+
   it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {
     const { clone } = await aClone();
     await run(answers({ entry: CREATE_NEW, title: 'just notes', repos: [] }), clone);

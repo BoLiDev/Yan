@@ -61,8 +61,8 @@ function cells(value: string | null, least: number, most: number): number | unde
 }
 
 export class Terminals {
-  /** The states as last asked, for a second: every page asks every two seconds. */
-  private asked: { at: number; states: Promise<Record<string, TerminalState>> } | undefined;
+  /** The states as last asked, for a second: every page asks every two seconds; a launch since is asked about at once. */
+  private asked: { at: number; launches: number; states: Promise<Record<string, TerminalState>> } | undefined;
   private readonly versions = new Map<string, { at: number; version: Promise<string> }>();
   /** The controller a page holds of each pane, by herdr socket and pane. */
   private readonly controllers = new Map<string, ChildProcess>();
@@ -103,8 +103,9 @@ export class Terminals {
 
   /** Each task's terminal whose pane is there, by task; a pane closed, or a herdr stopped, is left out. */
   public states(): Promise<Record<string, TerminalState>> {
-    if (this.asked !== undefined && Date.now() - this.asked.at < 1000) return this.asked.states;
-    const launched = (this.launches?.all() ?? []).map((l) => ({ held: l.held, launch: { title: l.title, ...(l.task === undefined ? {} : { task: l.task }) } }));
+    const all = this.launches?.all() ?? [];
+    if (this.asked !== undefined && Date.now() - this.asked.at < 1000 && this.asked.launches === all.length) return this.asked.states;
+    const launched = all.map((l) => ({ held: l.held, launch: { title: l.title, ...(l.task === undefined ? {} : { task: l.task }) } }));
     const states = Promise.all([...terminalsOf(this.vault).map((held) => ({ held, launch: {} })), ...launched].map(async ({ held: t, launch }) => {
       try {
         const [pane, herdr, layout] = await Promise.all([paneOf(t.socket, t.pane), this.version(t.socket), this.layout(t)]);
@@ -114,7 +115,7 @@ export class Terminals {
         return [];
       }
     })).then((found) => Object.fromEntries(found.flat()));
-    this.asked = { at: Date.now(), states };
+    this.asked = { at: Date.now(), launches: all.length, states };
     return states;
   }
 
