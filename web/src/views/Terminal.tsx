@@ -8,7 +8,7 @@ import { usePageKeys } from '../lib/modal';
 import { tilesOf, type Tile } from '../lib/tiles';
 import { cn } from '../lib/utils';
 import { Icon } from '../components/Icon';
-import { Bar, Empty } from '../components/ui';
+import { Bar, Empty } from '../components/page';
 import { Button } from '../components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu';
 import { queryClient } from '../state/server';

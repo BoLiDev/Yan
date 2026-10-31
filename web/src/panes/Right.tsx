@@ -4,7 +4,7 @@ import { buildTree, dirName, treeOrder } from '../lib/files';
 import { goesOn } from '../lib/stops';
 import { link, useRoute, viewKey, type Route } from '../lib/route';
 import { feedFiles, markLooked, unseenPushes } from '../lib/seen';
-import { Empty } from '../components/ui';
+import { Empty } from '../components/page';
 import { queryClient, useIndex, useTask, useTerminals } from '../state/server';
 import { setSeen, useUI } from '../state/ui';
 import { AgentView } from '../views/Agent';
@@ -116,7 +116,7 @@ export function Right() {
   else if (error) shown = <Empty title="Can't reach yan serve">{String(error.message)}</Empty>;
   return (
     // A click in what is open is a look at it: what a push changed under the reader waits for one.
-    <main className="right" id="right" onPointerDown={() => { if (index) lookAt(r, index); }}>
+    <main className="flex h-screen min-w-0 flex-1 flex-col bg-card" id="right" onPointerDown={() => { if (index) lookAt(r, index); }}>
       <Fragment key={viewKey(r)}>{shown}</Fragment>
     </main>
   );

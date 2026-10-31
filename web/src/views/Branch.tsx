@@ -6,7 +6,7 @@ import { langOf } from '../lib/highlight';
 import { colourPatch, parsePatch, splitPairs, type PatchFile, type PatchLine } from '../lib/patch';
 import { inBranch, type BranchRoute } from '../lib/route';
 import { sourceView } from '../lib/source';
-import { Bar, Crumb, Empty, Seg, Tool } from '../components/ui';
+import { Bar, BarSep, Crumb, Empty, Seg, Stepper, Tool } from '../components/page';
 import { Toggle } from '../components/ui/toggle';
 import { useBranch, useBranchTree, useCommit, useIndex, useLang, useLangs, useText } from '../state/server';
 import { setPref, useUI } from '../state/ui';
@@ -122,16 +122,6 @@ function ColouredDiff({ f, layout }: { f: PatchFile; layout: 'unified' | 'split'
   return <DiffBody f={coloured} layout={layout} />;
 }
 
-function NavTools({ prev, next, pos, total }: { prev: string | null; next: string | null; pos: number; total: number }) {
-  return (
-    <div className="group-tools">
-      <Tool name="prev" label="Previous (←)" href={prev} newTab={false} disabled={!prev} />
-      <span className="counter">{`${pos} / ${total}`}</span>
-      <Tool name="next" label="Next (→)" href={next} newTab={false} disabled={!next} />
-    </div>
-  );
-}
-
 function LayoutTools() {
   const layout = useUI((s) => s.prefs.layout);
   return <Seg options={[['unified', 'Unified'], ['split', 'Split']] as const} current={layout} onPick={(v) => setPref('layout', v)} />;
@@ -172,7 +162,7 @@ function CommitView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) 
   return (
     <>
       <Bar title={c.subject} meta={`${short(c.sha)} · ${c.author}${c.at ? ` · ${when(c.at)}` : ''}`}
-        tools={<><NavTools prev={prev} next={next} pos={at + 1} total={b.commits.length} /><span className="sep" /><LayoutTools />{forgeTools(b).commit(c.sha)}</>} />
+        tools={<><Stepper prev={prev} next={next} pos={at + 1} total={b.commits.length} /><BarSep /><LayoutTools />{forgeTools(b).commit(c.sha)}</>} />
       <div className="diff-scroll">{body}</div>
     </>
   );
@@ -254,8 +244,8 @@ function ChangesView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch })
     <>
       <Bar title={<Crumb path={f.path} />} meta={meta} tools={
         <>
-          <NavTools prev={prev} next={next} pos={at + 1} total={b.files.length} />
-          <span className="sep" />
+          <Stepper prev={prev} next={next} pos={at + 1} total={b.files.length} />
+          <BarSep />
           <LayoutTools />
           <Toggle size="sm" className="px-2.5 text-[13px] font-normal text-ink-2 data-[pressed]:text-foreground" pressed={prefs.whole} onPressedChange={(on) => setPref('whole', on)}>Whole file</Toggle>
           {f.status !== 'D' ? forgeTools(b).file(f.path) : null}

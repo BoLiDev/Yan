@@ -4,7 +4,7 @@ import { KIND_LABEL, WRAPPED, badge, baseName, dirName, enc, ext, kindOf, varian
 import { bytes, pad, plural, short, when } from '../lib/format';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/ui/button';
-import { Bar, Crumb, Empty, Seg, Tool } from '../components/ui';
+import { Bar, BarSep, BarTools, Crumb, Empty, Seg, Stepper, Tool } from '../components/page';
 import { fileUrl, shaUrl, thumbUrl, useIndex, useText, vaultPath } from '../state/server';
 import { copyText, setPref, useUI } from '../state/ui';
 import { BinaryCard, CodeStage } from './Code';
@@ -224,17 +224,13 @@ export function FileView(ctx: FileContext) {
   return (
     <>
       <Bar
-        title={<>{ctx.taskTitle ? <span className="dir">{`${ctx.taskTitle} · `}</span> : null}<Crumb path={file.path} /></>}
+        title={<>{ctx.taskTitle ? <span className="font-normal text-ink-3">{`${ctx.taskTitle} · `}</span> : null}<Crumb path={file.path} /></>}
         meta={viewer === 'page' && !pageSource ? `Page · ${bytes(file.size)} · runs on its own origin, away from yan` : meta}
         tools={
           <>
-            <div className="group-tools">
-              <Tool name="prev" label="Previous file (←)" href={ctx.prev} newTab={false} disabled={!ctx.prev} />
-              <span className="counter">{ctx.total ? `${ctx.pos} / ${ctx.total}` : ''}</span>
-              <Tool name="next" label="Next file (→)" href={ctx.next} newTab={false} disabled={!ctx.next} />
-            </div>
-            <span className="sep" />
-            <div className="group-tools">{tools}</div>
+            <Stepper prev={ctx.prev} next={ctx.next} pos={ctx.pos} total={ctx.total} what="file" />
+            <BarSep />
+            <BarTools>{tools}</BarTools>
           </>
         } />
       {body}

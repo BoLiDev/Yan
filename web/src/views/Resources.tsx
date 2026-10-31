@@ -2,7 +2,7 @@ import type { TaskDetail, TaskSummary } from '../lib/api';
 import { plural } from '../lib/format';
 import { KIND_WORD, isLink, listResources } from '../lib/resources';
 import { Icon } from '../components/Icon';
-import { Bar, Empty } from '../components/ui';
+import { Bar, Empty } from '../components/page';
 import { Kbd } from '../components/ui/kbd';
 import { useKeyNav, usePick } from './nav';
 

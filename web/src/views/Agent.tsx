@@ -3,7 +3,7 @@ import { plural } from '../lib/format';
 import { AGENT_TAB } from '../lib/route';
 import { onAgentClick, openAgent, useAgentTab } from '../state/agentTab';
 import { Icon } from '../components/Icon';
-import { Bar, Empty } from '../components/ui';
+import { Bar, Empty } from '../components/page';
 import { Kbd } from '../components/ui/kbd';
 import { useKeyNav, usePick } from './nav';
 

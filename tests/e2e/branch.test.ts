@@ -47,17 +47,17 @@ afterAll(async () => {
 describe("a task's branch", () => {
   it('lists what the branch changes against main, and not what it took from main', async () => {
     const { page, errors } = await open(served.url('/#/t/t001/b/0/changes'));
-    const middle = page.locator('aside.middle');
+    const middle = page.getByRole('complementary', { name: 'Task' });
     await middle.getByText('retry.ts').waitFor({ timeout: 20_000 });
     expect(await middle.getByText('from-main.txt').count()).toBe(0);
-    await page.locator('main.right').getByText('export const tries = 3;').waitFor();
+    await page.getByRole('main').getByText('export const tries = 3;').waitFor();
     expect(errors).toEqual([]);
   });
 
   it('shows a merge commit on the branch as what it brought onto it', async () => {
     const { page } = await open(served.url('/#/t/t001/b/0/commits'));
     await page.getByRole('link', { name: /take main in/ }).click();
-    const right = page.locator('main.right');
+    const right = page.getByRole('main');
     await right.getByRole('link', { name: 'from-main.txt' }).waitFor({ timeout: 20_000 });
     await right.getByText('came from main').waitFor();
   });
@@ -70,6 +70,6 @@ describe("a task's branch", () => {
 
     const { page } = await open(served.url('/#/t/t001/b/0/changes'));
     await page.getByRole('button', { name: 'Pull now' }).click();
-    await page.locator('aside.middle').getByText(/PR #7/).waitFor({ timeout: 20_000 });
+    await page.getByRole('complementary', { name: 'Task' }).getByText(/PR #7/).waitFor({ timeout: 20_000 });
   });
 });

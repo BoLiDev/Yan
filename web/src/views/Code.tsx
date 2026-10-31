@@ -3,7 +3,7 @@ import { looksBinary } from '../lib/api';
 import { KIND_LABEL, WRAPPED, badge, ext, kindOf } from '../lib/files';
 import { bytes, plural } from '../lib/format';
 import { colourLines, langOf } from '../lib/highlight';
-import { Empty } from '../components/ui';
+import { Empty } from '../components/page';
 import { Button } from '../components/ui/button';
 import { useLang, useText } from '../state/server';
 

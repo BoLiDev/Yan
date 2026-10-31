@@ -1,6 +1,6 @@
 import { useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { postJSON, type DeliverableStatus, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
-import { Empty } from '../components/ui';
+import { Empty } from '../components/page';
 import { fileUrl, onStatus, queryClient, useReport, vaultPath } from '../state/server';
 import { toast, useUI } from '../state/ui';
 import { useKeyNav } from './nav';

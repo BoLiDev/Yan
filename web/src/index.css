@@ -273,6 +273,9 @@
   --color-warning-soft: var(--amber-soft);
   --color-danger-soft: var(--red-soft);
   --color-shade: var(--shade);
+  /* A light passing over a name: what the agent tab is showing while this page holds it. */
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  @keyframes shimmer { to { background-position: -150% 0; } }
 }
 
 @layer base {
@@ -292,6 +295,17 @@
   a:hover { color: var(--brand-ink); }
   :focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   img { -webkit-user-drag: none; }
+
+  /* Thin scrollbars, faint until the pointer is over what scrolls. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--scroll-thumb) padding-box; }
+  :hover::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb-on); }
+  ::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: var(--scroll-thumb-hover); }
+  ::-webkit-scrollbar-button { display: none; }
+  @supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb-on) transparent; }
+  }
 }
 
 /* Asked for less motion, nothing on the page moves to get where it goes. */

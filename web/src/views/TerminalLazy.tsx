@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentProps } from 'react';
-import { Bar } from '../components/ui';
+import { Bar } from '../components/page';
 
 /**
  * The terminal, loaded the first time one is shown: xterm.js is a third of

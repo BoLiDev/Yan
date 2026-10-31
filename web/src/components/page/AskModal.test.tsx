@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { draw, reset } from '../testing/serve';
-import { ask, useUI } from '../state/ui';
-import { AskModal } from './ui';
+import { draw, reset } from '../../testing/serve';
+import { ask, useUI } from '../../state/ui';
+import { AskModal } from './AskModal';
 
 describe('a question over the page', () => {
   afterEach(reset);

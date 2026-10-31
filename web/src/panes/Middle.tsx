@@ -9,7 +9,7 @@ import { goesOn } from '../lib/stops';
 import { dropped as dropTo, gapAt, moves } from '../lib/drag';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
-import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
+import { Editable, Empty, KIND, Pane, PushTags, SUBLABEL, Seg, Tool } from '../components/page';
 import { useBranch, useBranches, useBranchTree, useIndex, useTask, useTerminals, writeTask } from '../state/server';
 import { LaunchHead } from '../views/NewTask';
 import { onAgentClick, useAgentTab } from '../state/agentTab';
@@ -67,7 +67,7 @@ function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRout
     body: (
       <>
         {d.files.length ? (
-          <div className="tree" role="tree" aria-label="Artifacts">
+          <div className="flex flex-col gap-px" role="tree" aria-label="Artifacts">
             <TreeRows node={buildTree(d.files)} options={{
               isOpen: (p) => open.includes(p),
               setOpen: (p, on) => setFolder(t.id, open, p, on),
@@ -79,7 +79,7 @@ function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRout
               newIn: (dir) => [...unseen.keys()].some((p) => p.startsWith(`${dir}/`)),
             }} />
           </div>
-        ) : <div className="sublabel">No artifacts yet.</div>}
+        ) : <div className={SUBLABEL}>No artifacts yet.</div>}
         {d.hidden.length ? <div className="hidden-note">{`Not shown: ${d.hidden.map((x) => `${x.name} (${x.count})`).join(', ')}`}</div> : null}
       </>
     ),
@@ -121,10 +121,10 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
     }
   }, [r.tab, r.item, cur, filesKey, changesKey]);
 
-  if (!repo?.branch) return { top: <div className="sublabel">This task keeps no branch here.</div>, body: null };
+  if (!repo?.branch) return { top: <div className={SUBLABEL}>This task keeps no branch here.</div>, body: null };
   // The nav's row says which branch this is and where it stands; what is below is what it changed.
-  if (!b) return { top: <div className="sublabel">Reading the branch…</div>, body: null };
-  if (b.missing) return { top: <div className="sublabel error">{b.missing}</div>, body: null };
+  if (!b) return { top: <div className={SUBLABEL}>Reading the branch…</div>, body: null };
+  if (b.missing) return { top: <div className={`${SUBLABEL} text-destructive`}>{b.missing}</div>, body: null };
 
   const files = (shown ?? b).files;
   const tabs = <Seg wide options={[['changes', `Changes ${files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']] as const} current={r.tab} onPick={(tab) => { location.hash = inBranch(r, tab); }} />;
@@ -146,7 +146,7 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
     ));
   } else if (r.tab === 'files') {
     const open = filesOpen ?? [];
-    list = !tree.data ? <div className="sublabel">reading the files…</div> : (
+    list = !tree.data ? <div className={SUBLABEL}>reading the files…</div> : (
       <TreeRows node={buildTree(sourceOnly && rules ? tree.data.filter((f) => isSource(rules, f.path)) : tree.data)} options={{
         isOpen: (p) => open.includes(p),
         setOpen: (p, on) => setFolder(filesKey, open, p, on),
@@ -175,12 +175,12 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
           lead: (f) => <span className={`status-letter ${f.status}`} title={STATUS_WORD[f.status] ?? ''}>{f.status === 'M' ? '' : f.status}</span>,
           extra: (f) => (f.add === null ? <span className="aside">binary</span> : <><span className="plus">{f.add ? `+${f.add}` : ''}</span><span className="minus">{f.del ? `−${f.del}` : ''}</span></>),
         }} />
-        {!b.files.length ? <div className="sublabel">{`No changes against ${b.target}.`}</div> : null}
-        {b.files.length && !files.length ? <div className="sublabel">No source code among the changes.</div> : null}
+        {!b.files.length ? <div className={SUBLABEL}>{`No changes against ${b.target}.`}</div> : null}
+        {b.files.length && !files.length ? <div className={SUBLABEL}>No source code among the changes.</div> : null}
       </>
     );
   }
-  return { top: <div className="stack">{tabs}{switcher}</div>, body: <div className="tree" role="tree">{list}</div> };
+  return { top: <div className="flex flex-col gap-2">{tabs}{switcher}</div>, body: <div className="flex flex-col gap-px" role="tree">{list}</div> };
 }
 
 /** A branch as the MR row lists it: where it stands, and the pull request a merged one came in by. */
@@ -445,7 +445,7 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
   );
   const foot = r.sub === 'branch' && d ? (
     <a className="row" href={link.folder(t.id, '')}>
-      <span className="folder-icon dim"><Icon name="folder" size={15} /></span><span className="grow">Artifacts</span>
+      <Icon name="folder" size={15} className="flex-none text-ink-3" /><span className="grow">Artifacts</span>
     </a>
   ) : null;
   return <Pane remember={t.id} top={top} body={part.body} foot={foot} />;
@@ -492,7 +492,7 @@ function Feed({ index, seen, r }: { index: Index; seen: Seen; r: Extract<Route, 
           const name = baseName(f.path);
           const where = <span className="grow"><span className="dim">{dirName(f.path) ? dirName(f.path) + '/' : ''}</span>{name}</span>;
           if (f.status === 'D') {
-            return <div key={f.path} className="row gone" title={`${p.task}/${f.path}, deleted`}><span className="kind">{badge(name)}</span>{where}<span className="tag gone">deleted</span></div>;
+            return <div key={f.path} className="row gone" title={`${p.task}/${f.path}, deleted`}><span className={KIND}>{badge(name)}</span>{where}<span className="tag gone">deleted</span></div>;
           }
           const on = r.id === p.task && r.path === f.path && p === showing;
           return (
@@ -515,8 +515,8 @@ function Feed({ index, seen, r }: { index: Index; seen: Seen; r: Extract<Route, 
   );
   const body = (
     <>
-      {!pushes.length ? <div className="sublabel">{index.latest.length ? 'Nothing new since you last looked.' : 'Nothing has arrived in any task’s artifacts yet.'}</div> : null}
-      {days.map((d) => <div className="group" style={{ gap: '2px' }} key={d.label}><div className="feed-day">{d.label}</div>{d.items}</div>)}
+      {!pushes.length ? <div className={SUBLABEL}>{index.latest.length ? 'Nothing new since you last looked.' : 'Nothing has arrived in any task’s artifacts yet.'}</div> : null}
+      {days.map((d) => <div className="flex flex-col gap-0.5" key={d.label}><div className="feed-day">{d.label}</div>{d.items}</div>)}
     </>
   );
   return <Pane remember="latest" top={heading} body={body} />;
@@ -530,8 +530,8 @@ export function Middle() {
 
   // The row of what is being shown, kept in view when the route moves to it.
   useLayoutEffect(() => {
-    const scroller = document.querySelector<HTMLElement>('.middle .pane-scroll');
-    const on = scroller?.querySelector('.row.on, .commit-line.on');
+    const scroller = document.querySelector<HTMLElement>('#middle [data-scroll]');
+    const on = scroller?.querySelector('[aria-current]');
     if (!scroller || !on) return;
     const a = on.getBoundingClientRect();
     const b = scroller.getBoundingClientRect();
@@ -548,6 +548,6 @@ export function Middle() {
       inner = t ? <TaskIndex key={t.id} t={t} r={r} index={index} seen={seen} /> : <Empty title={`No ${r.id} here`}>{`The vault ${index.vault.name} has no task called ${r.id}.`}</Empty>;
     }
   }
-  return <aside className="middle">{inner}</aside>;
+  return <aside id="middle" aria-label={r.view === 'latest' ? 'Latest' : 'Task'} className="flex h-screen w-[312px] flex-none flex-col overflow-hidden border-r max-[1100px]:w-[280px]">{inner}</aside>;
 }
 

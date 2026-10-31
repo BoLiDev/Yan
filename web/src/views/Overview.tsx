@@ -4,7 +4,7 @@ import { dayOf, fromIso, when } from '../lib/format';
 import { blocksOf } from '../lib/markdown';
 import { link } from '../lib/route';
 import { Icon } from '../components/Icon';
-import { Editable } from '../components/ui';
+import { Editable } from '../components/page';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';

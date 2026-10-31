@@ -9,9 +9,10 @@ import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
 import { NewTaskModal } from './components/NewTask';
-import { AskModal } from './components/ui';
+import { AskModal } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
+import { Button } from './components/ui/button';
 import { useTheme } from './state/theme';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
@@ -149,7 +150,7 @@ function useKeys(): void {
     if (e.key === 'ArrowLeft' && prev) location.hash = prev;
     else if (e.key === 'ArrowRight' && next) location.hash = next;
     else if (e.key === 'f' || e.key === 'F') {
-      const stage = document.querySelector<HTMLElement>('.right .stage');
+      const stage = document.querySelector<HTMLElement>('#right [data-stage]');
       if (!stage?.querySelector('img.shot')) return false;
       if (document.fullscreenElement) void document.exitFullscreen();
       else void stage.requestFullscreen?.();
@@ -171,13 +172,16 @@ export function App() {
   useKeys();
   return (
     <TooltipProvider delay={400}>
-      <div className={'app' + (left ? '' : ' left-hidden')} id="app">
+      <div className="flex h-screen" id="app">
         <Left />
         <Middle />
         <Right />
-        <button type="button" className="rail-open" id="rail-open" aria-label="Show the task list" title="Show the task list" onClick={() => setPref('left', true)}>
-          <Icon name="panel" size={17} />
-        </button>
+        {/* With the task list hidden, the way back to it, at the foot of the page's left edge. */}
+        {left ? null : (
+          <Button variant="secondary" size="icon" className="fixed bottom-2.5 left-2 z-[5] rounded-[9px] text-ink-3 ring-1 ring-border" aria-label="Show the task list" title="Show the task list" onClick={() => setPref('left', true)}>
+            <Icon name="panel" size={17} />
+          </Button>
+        )}
       </div>
       <Toaster position="bottom-center" theme={theme} />
       <AskModal />

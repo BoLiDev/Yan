@@ -1,52 +1,9 @@
 /* yan serve — warm ground, white surfaces, teal for what is live, green for done. */
-
 /* The palette and the faces are the theme's, in index.css. */
-
-.app { display: flex; height: 100vh; }
-
 /* ── panes ─────────────────────────────────────────────────────────────── */
-
 /* The left and middle panes stay put at the top and scroll only their list:
    the tasks on the left, the tree (or the branch's files, or the feed) in the middle. */
-.left {
-  flex: none; width: 240px; height: 100vh; overflow: hidden; background: var(--sunken);
-  display: flex; flex-direction: column;
-}
-.app.left-hidden .left { display: none; }
-.middle {
-  flex: none; width: 312px; height: 100vh; overflow: hidden; border-right: 1px solid var(--line);
-  display: flex; flex-direction: column;
-}
-.pane-top { flex: none; display: flex; flex-direction: column; gap: 16px; padding: 18px 12px 12px; position: relative; z-index: 1; transition: box-shadow 0.15s; }
-.left .pane-top { gap: 12px; padding: 14px 10px 10px; }
-.pane-top.edge { box-shadow: 0 1px 0 var(--line), 0 6px 12px -10px var(--shadow-strong); }
-.pane-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 12px 28px; display: flex; flex-direction: column; gap: 8px; }
-.left .pane-scroll { padding: 2px 10px 20px; }
-.pane-foot { flex: none; padding: 8px 12px 12px; border-top: 1px solid var(--line); }
 /* The update card is a card of its own at the task list's foot: no line over it. */
-.left .pane-foot { border-top: 0; }
-.stack { display: flex; flex-direction: column; gap: 8px; }
-
-/* Thin scrollbars, faint until the pointer is over what scrolls. */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--scroll-thumb) padding-box; }
-:hover::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb-on); }
-::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: var(--scroll-thumb-hover); }
-::-webkit-scrollbar-button { display: none; }
-@supports not selector(::-webkit-scrollbar) {
-  * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb-on) transparent; }
-}
-.right { flex: 1 1 auto; min-width: 0; height: 100vh; display: flex; flex-direction: column; background: var(--surface); }
-
-.rail-open {
-  position: fixed; left: 8px; bottom: 10px; z-index: 5;
-  width: 32px; height: 32px; border: 0; border-radius: 9px;
-  background: var(--sunken); color: var(--ink-3); cursor: pointer;
-  display: none; align-items: center; justify-content: center;
-  box-shadow: 0 0 0 1px var(--line);
-}
-.app.left-hidden .rail-open { display: flex; }
 
 /* ── shared bits ───────────────────────────────────────────────────────── */
 
@@ -61,67 +18,23 @@
 .row .aside { flex: none; font-size: 12px; font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--mono); }
 .dim { color: var(--ink-3); }
-.label { padding: 4px 10px 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
-.sublabel { padding: 8px 10px 4px; font-size: 12px; color: var(--ink-3); }
 /* A month of done tasks, a sublabel that folds the tasks under it; its
    chevron sits where a task's icon does. */
-.month { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 4px 10px 2px 12px; border-radius: 8px; font-size: 12px; color: var(--ink-3); cursor: pointer; }
-.month:hover { background: var(--hover); color: var(--ink-2); }
-.month:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
-.month .chev { flex: none; display: flex; transition: transform .12s; }
-.month.open .chev { transform: rotate(90deg); }
-.month .aside { flex: none; font-variant-numeric: tabular-nums; }
 .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
 
 /* The Latest line is the card, so the bell sits inside it: a button cannot sit inside the row's link. */
-.latest-line { display: flex; align-items: center; gap: 2px; padding-right: 4px; border-radius: 10px; }
-.latest-line:has(> .row:hover):not(.on) { background: var(--hover); }
-.latest-line.on { background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
-.latest-line .row { flex: 1 1 auto; min-width: 0; }
-.latest-line .row:hover, .latest-line .row.on { background: transparent; box-shadow: none; }
-
-.thumb {
-  flex: none; width: 30px; height: 22px; border-radius: 4px; object-fit: cover; background: var(--thumb-well);
-}
-.kind {
-  flex: none; width: 30px; height: 22px; border-radius: 4px; background: var(--hover);
-  font: 700 8.5px/22px var(--mono); text-align: center; color: var(--ink-2); overflow: hidden;
-}
 
 .empty { margin: auto; padding: 40px; max-width: 420px; text-align: center; color: var(--ink-3); }
 .empty h2 { margin: 0 0 6px; font-size: 17px; color: var(--ink); }
 .error { color: var(--red); }
 
 /* ── left: vault and tasks ─────────────────────────────────────────────── */
-
-.brand { position: relative; display: flex; align-items: center; gap: 8px; padding: 2px 2px 2px 10px; }
-.brand b { font-size: 22px; letter-spacing: -0.03em; }
 /* yan updating itself: a card at the foot of the task list, its height following what it holds, with a spring. */
 /* A row is as high as its tile and a little more, whatever the state, so the card keeps its height until a bar comes under it. */
 /* What the card is doing, on its right; the tile is a button when it has a next move. */
 /* The card is the button: all of it takes the colour. */
 
-.sync {
-  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px;
-  border: 0; border-radius: 12px; background: var(--surface); text-align: left; cursor: pointer;
-}
-.sync .light { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
-.sync.busy .light { background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); animation: pulse 1s ease-in-out infinite; }
-.sync.warn .light { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
-.sync.down .light { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
-.sync .words { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 17px; }
-.sync .words b { font-size: 13px; }
-.sync .words span { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sync svg { flex: none; color: var(--ink-3); }
-.sync.busy svg { animation: spin 0.9s linear infinite; }
-@keyframes pulse { 50% { opacity: 0.4; } }
-@keyframes spin { to { transform: rotate(360deg); } }
-
 /* The task list's way into ⌘K, drawn as the box it opens. */
-.find { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 8px 0 10px; border: 0; border-radius: 10px; background: var(--hover); color: var(--ink-3); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
-.find:hover { color: var(--ink-2); }
-.find-line { display: flex; gap: 6px; }
-.find-line .find { flex: 1 1 auto; width: auto; min-width: 0; }
 
 /* A new task asked for over the page as bare yan asks it: a step at a time, ① its title, ② its repositories. Nothing
    framed in it but itself: the steps are numbers joined by a line, the title a caret, the repositories a list. */
@@ -131,9 +44,6 @@
    under it over whatever is around. */
 /* The search takes what is left of the row the tags end on, so what the field says with nothing picked is whole. */
 /* A new task as it is made: a turning ring where its state will be. */
-.launch-repos .row { cursor: default; }
-.launch-repos .row:hover { background: transparent; }
-.group { display: flex; flex-direction: column; gap: 1px; }
 
 /* ── middle: one task ──────────────────────────────────────────────────── */
 
@@ -193,7 +103,6 @@
 .term-tiles { position: relative; flex: 1 1 auto; min-height: 0; margin-left: -1px; background: var(--term-bg); }
 .bar:has(+ .term-tiles) { border-bottom-color: transparent; }
 .term-stage { position: absolute; overflow: hidden; background: var(--term-bg); padding: 8px 10px; }
-.term-stage.left { border-left: 1px solid var(--term-line); }
 .term-stage.top { border-top: 1px solid var(--term-line); }
 .term { display: inline-block; vertical-align: top; }
 .term .xterm { padding: 0; }
@@ -218,12 +127,6 @@
 .section-head b { font-size: 12.5px; color: var(--ink-3); }
 .section-head span { font-size: 12px; color: var(--ink-3); }
 
-.tree { display: flex; flex-direction: column; gap: 1px; }
-.tree .row { gap: 8px; padding-top: 4px; padding-bottom: 4px; border-radius: 8px; font-size: 13.5px; }
-.tree .folder { padding-top: 5px; padding-bottom: 5px; }
-.tree .chev { flex: none; transition: transform 0.12s; color: var(--ink-3); }
-.tree .open > .chev { transform: rotate(90deg); }
-.tree .folder-icon { flex: none; color: var(--ink-3); }
 .hidden-note { padding: 6px 10px 0; font-size: 12px; color: var(--ink-4); }
 
 .merged { color: var(--green); font-weight: 700; text-decoration: none; }
@@ -265,7 +168,6 @@
 }
 .bar .title { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; line-height: 19px; }
 .bar .title .name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar .title .name .dir { font-weight: 400; color: var(--ink-3); }
 .bar .title .meta { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar .group-tools { display: flex; align-items: center; gap: 2px; }
 .bar .counter { min-width: 58px; text-align: center; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -400,7 +302,6 @@
 .agent-card.picked { box-shadow: 0 0 0 1.5px var(--ink-2); }
 .res-page-kind { margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
 .agent-card .button kbd { margin: 0 0 0 4px; background: rgba(255, 255, 255, .18); box-shadow: none; color: inherit; }
-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; margin-right: 2px; border-radius: 5px; background: var(--hover); box-shadow: inset 0 -1px 0 var(--line); font: inherit; font-size: 11px; color: var(--ink-2); }
 
 /* log */
 .log-day { margin: 22px 0 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }

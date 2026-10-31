@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import type { LogEntry, TaskDetail, TaskSummary } from '../lib/api';
 import { fromIso, monthName, nowS, plural, sameDay, when } from '../lib/format';
-import { Bar, Empty } from '../components/ui';
+import { Bar, Empty } from '../components/page';
 import { setSeen, useUI } from '../state/ui';
 import { useKeyNav } from './nav';
 import { Linkified } from './Overview';

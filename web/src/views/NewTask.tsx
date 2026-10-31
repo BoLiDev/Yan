@@ -3,7 +3,7 @@ import type { Index, TerminalState } from '../lib/api';
 import { link } from '../lib/route';
 import { Icon } from '../components/Icon';
 import { Spinner } from '../components/ui/spinner';
-import { Pane } from '../components/ui';
+import { Pane } from '../components/page';
 import { pullNow } from '../state/server';
 import { useUI } from '../state/ui';
 import { TerminalView } from './TerminalLazy';

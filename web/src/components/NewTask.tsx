@@ -161,7 +161,7 @@ function NewTaskBox() {
         {at > 0 ? <Button variant="link" className="h-auto px-0 text-muted-foreground hover:text-foreground hover:no-underline" onClick={() => go(steps[at - 1] as Step)}>Back</Button> : null}
         <span className="min-w-0 flex-1 text-[13px] wrap-anywhere text-destructive" role="alert">{error ?? ''}</span>
         <Button data-go="true" size="lg" className="px-3.5" disabled={!ready || busy} onClick={forward}>
-          {busy ? <><Spinner />Creating</> : <>{last ? 'Create' : 'Next'}<Kbd className="bg-transparent text-current opacity-60">↵</Kbd></>}
+          {busy ? <><Spinner />Creating</> : <>{last ? 'Create' : 'Next'}<Kbd className="bg-transparent text-current opacity-60 shadow-none">↵</Kbd></>}
         </Button>
       </div>
     </div>
