@@ -1,13 +1,14 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, openingPrompt, openingPromptNow, pluginDir, skillsPrompt, type EntryChain, type EntryPrompts, type NewTask, type Said } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, openingPromptNow, type EntryChain, type EntryPrompts, type NewTask, type Said } from '../../src/cli/shared/launch.js';
 import { WAIT_LINE } from '../../src/externals/harness/index.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
 import { terminalsOf } from '../../src/util/machine.js';
+import { readJson } from '../../src/util/json.js';
 import { normalizePath } from '../../src/util/paths.js';
 import { vaultDir } from '../../src/util/vault.js';
 import { tildePath } from '../../src/cli/shared/style.js';
@@ -119,7 +120,6 @@ async function aClone(name = 'demo'): Promise<{ bare: string; clone: string }> {
   return { bare, clone };
 }
 
-/** The one tree t001 holds; anything else fails the test here, before git is run in a path that is not there. */
 /** What the agent was told: claude's system prompt, or agy's first message without the line asking it to wait. */
 function told(i: number): string {
   const argv = started[i]?.argv ?? [];
@@ -128,9 +128,32 @@ function told(i: number): string {
   return (argv[argv.indexOf('-i') + 1] ?? '').replace(`\n${WAIT_LINE}`, '');
 }
 
-/** claude's argv, after its approvals flag: yan's plugin, and a prompt that says where the task's files go and names its skills. */
-const CLAUDE_TAIL = (): string[] => ['--plugin-dir', pluginDir(), '--append-system-prompt', skillsPrompt(new Task('t001').dir)];
+/**
+ * What claude was started with, read by flag rather than by place: the order of its argv is launchArgs's, which
+ * src/externals/harness/launch.test.ts checks.
+ */
+function claudeOf(i: number): { skips: boolean; plugins: string[]; dirs: string[]; prompt: string; rest: string[] } {
+  const argv = started[i]?.argv ?? [];
+  const c = { skips: false, plugins: [] as string[], dirs: [] as string[], prompt: '', rest: [] as string[] };
+  for (let at = 0; at < argv.length; at += 1) {
+    const word = argv[at] as string;
+    if (word === '--dangerously-skip-permissions') c.skips = true;
+    else if (word === '--plugin-dir') c.plugins.push(argv[(at += 1)] as string);
+    else if (word === '--add-dir') c.dirs.push(argv[(at += 1)] as string);
+    else if (word === '--append-system-prompt') c.prompt = argv[(at += 1)] as string;
+    else c.rest.push(word);
+  }
+  return c;
+}
 
+/** That `plugin` is yan's own, and `prompt` names the folder of t001's files and every skill the plugin has. */
+function expectYanSkills(plugin: string | undefined, prompt: string): void {
+  expect((readJson(join(plugin ?? '', '.claude-plugin', 'plugin.json')) as { name?: string }).name, "yan's plugin").toBe('yan');
+  expect(prompt, "where the task's files are").toContain(new Task('t001').dir);
+  for (const skill of readdirSync(join(plugin ?? '', 'skills'))) expect(prompt, 'each skill it has').toContain(`yan:${skill}`);
+}
+
+/** The one tree t001 holds; anything else fails the test here, before git is run in a path that is not there. */
 function treeOf(id = 't001'): string {
   const held = leasesHeldBy(id);
   const path = held.length === 1 ? held[0]?.path : undefined;
@@ -147,7 +170,11 @@ describe('a new task', () => {
     expect(new Task('t001').read()).toMatchObject({ title: 'write the docs', state: 'open' });
     expect(new Task('t001').read().repos).toEqual([]);
     expect(started).toHaveLength(1);
-    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here, argv: ['--dangerously-skip-permissions', ...CLAUDE_TAIL()] });
+    expect(started[0]).toMatchObject({ cli: 'claude', cwd: here });
+    const claude = claudeOf(0);
+    expect(claude, 'approvals skipped, no other tree, nothing else').toMatchObject({ skips: true, dirs: [], rest: [] });
+    expect(claude.plugins).toHaveLength(1);
+    expectYanSkills(claude.plugins[0], claude.prompt);
     expect(started[0]?.env.YAN_TASK).toBe('t001');
     expect(started[0]?.env.YAN_VAULT).toBe(home);
 
@@ -206,7 +233,7 @@ describe('a new task', () => {
     expect(trees).toHaveLength(2);
     const [apiTree, webTree] = [trees.find((t) => t.endsWith('/api')), trees.find((t) => t.endsWith('/web'))];
     expect(started[0]?.cwd).toBe(apiTree);
-    expect(started[0]?.argv).toEqual(['--dangerously-skip-permissions', '--add-dir', webTree ?? '', ...CLAUDE_TAIL()]);
+    expect(claudeOf(0).dirs, 'the other tree beside the one it starts in').toEqual([webTree]);
 
     await run(answers({ entry: 't001' }), here);
     expect(started[1]?.cwd, 'the same trees, the same order').toBe(apiTree);
@@ -232,12 +259,10 @@ describe('a new task', () => {
 
     expect(prompts.asked.at(-1)).toContain('apps/site packages/core packages/web');
     expect(new Task('t001').read().repos[0]?.scope).toEqual(['packages/core', 'apps/site']);
-    const prompt = openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: ['packages/core', 'apps/site'] }]);
-    expect(prompt).toContain('`packages/core`, `apps/site`');
-    expect(told(0)).toBe(prompt);
+    expect(told(0), 'told the packages, in the order picked').toContain('`packages/core`, `apps/site`');
 
     await run(answers({ entry: 't001' }), clone, { cli: 'agy' });
-    expect(told(1), 'not asked again, still told').toBe(prompt);
+    expect(told(1), 'not asked again, still told').toBe(told(0));
   });
 
   it('in a monorepo, keeps no scope when user picks the whole repository', async () => {
@@ -245,7 +270,7 @@ describe('a new task', () => {
     mkdirSync(join(clone, 'packages', 'core'), { recursive: true });
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone, { cli: 'agy' });
     expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
-    expect(told(0)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: [] }]));
+    expect(told(0), 'told of no package').not.toContain('packages/core');
   });
 
   it('given its answers with --new, opens the chain itself, asks only what it was not given, and refuses what is not here', async () => {
@@ -422,15 +447,17 @@ describe('the harness', () => {
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: CREATE_NEW, title: 'a' }), here, { extra: ['--search'] });
     expect(started[0]?.cli).toBe('codex');
-    expect(started[0]?.argv).toEqual([
-      '-m', 'gpt-x', '-c', 'model_reasoning_effort=high',
-      '--dangerously-bypass-approvals-and-sandbox',
-      '-c', `developer_instructions=${JSON.stringify(openingPrompt(new Task('t001').dir))}`,
-      '--search',
-    ]);
+    const codex = started[0]?.argv ?? [];
+    expect(codex.slice(0, 4), 'its model and effort').toEqual(['-m', 'gpt-x', '-c', 'model_reasoning_effort=high']);
+    expect(codex).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(codex.find((w) => w.startsWith('developer_instructions=')), 'told it all, with no plugin to read').toContain('yan context');
+    expect(codex.at(-1), 'what came after -- passed on as it is').toBe('--search');
 
     await run(answers({ entry: 't001' }), here, { cli: 'claude' });
-    expect(started[1]?.argv, 'claude is given the plugin and told only its skills').toEqual(['--dangerously-skip-permissions', ...CLAUDE_TAIL()]);
+    const claude = claudeOf(1);
+    expect(claude, 'claude is given the plugin, and none of the model codex was').toMatchObject({ skips: true, rest: [] });
+    expectYanSkills(claude.plugins[0], claude.prompt);
+    expect(claude.prompt, 'told only of the skills, not all a CLI with none is told').not.toContain('yan uat add');
   });
 
   it('pulls the vault each time user sends a message and pushes it after each turn, through hooks for this session alone', async () => {
@@ -458,7 +485,7 @@ describe('the harness', () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ cli: 'claude', skipPermissions: false }));
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
-    expect(started[0]?.argv).toEqual(CLAUDE_TAIL());
+    expect(claudeOf(0)).toMatchObject({ skips: false, rest: [] });
 
     await run(answers({ entry: 't001' }), here, { cli: 'codex' });
     expect(started[1]?.argv).not.toContain('--dangerously-bypass-approvals-and-sandbox');
@@ -472,7 +499,9 @@ describe('the harness', () => {
     const here = normalizePath(realpathSync(mkTempDir()));
 
     await run(answers({ entry: CREATE_NEW, title: 'a' }), here);
-    expect(started[0]?.argv).toEqual(['--dangerously-skip-permissions', '--plugin-dir', pluginDir(), '--plugin-dir', work, '--plugin-dir', more, '--append-system-prompt', skillsPrompt(new Task('t001').dir)]);
+    const claude = claudeOf(0);
+    expect(claude.plugins.slice(1), "after yan's own, in the order skillDir names them").toEqual([work, more]);
+    expectYanSkills(claude.plugins[0], claude.prompt);
 
     await run(answers({ entry: 't001' }), here, { cli: 'codex' });
     expect(started[1]?.argv.join(' '), 'codex takes no plugin').not.toContain(work);
