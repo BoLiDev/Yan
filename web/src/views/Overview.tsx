@@ -45,16 +45,16 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
   }, [value]);
   useEffect(() => area.current?.focus(), []);
   const save = (): void => {
-    if (value.trim() === '') return toast('problem 不能是空的');
+    if (value.trim() === '') return toast('problem.md cannot be blank');
     if (value === text) return onClose();
     setBusy(true);
     postJSON<WriteResult>('/api/problem', { task: t.id, sha: from, text: value }).then((out) => {
-      toast(out.warning ? `已保存 problem.md，推送没成功：${out.warning}` : '已保存 problem.md');
+      toast(out.warning ? `Saved problem.md, but the push failed: ${out.warning}` : 'Saved problem.md');
       onClose();
       void onStatus(out.status);
     }, (err: Error) => {
       setBusy(false);
-      toast(`没保存：${err.message}`);
+      toast(`Not saved: ${err.message}`);
     });
     return undefined;
   };
@@ -68,13 +68,13 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
           }
           if (e.key === 'Escape') {
             if (value === text) onClose();
-            else toast('有没保存的修改：放弃就点取消');
+            else toast('There are changes not saved: Cancel throws them away');
           }
         }} />
       <div className="ov-edit-bar">
-        <span className="dim">Markdown · ⌘↩ 保存 · Esc 取消</span>
-        <button type="button" className="button quiet" disabled={busy} onClick={onClose}>取消</button>
-        <button type="button" className="button" disabled={busy} onClick={save}>保存</button>
+        <span className="dim">Markdown · ⌘↩ saves · Esc cancels</span>
+        <button type="button" className="button quiet" disabled={busy} onClick={onClose}>Cancel</button>
+        <button type="button" className="button" disabled={busy} onClick={save}>Save</button>
       </div>
     </>
   );
@@ -101,7 +101,7 @@ function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const waiting = !!problem && !!was && was !== problem.sha && old.data === undefined && !old.isError;
   const fresh = useMemo(() => !!before && !!problem && [...blocksOf(problem.text)].some((b) => b !== '' && !before.has(b)), [before, problem]);
 
-  const edit = editing ? null : <button type="button" className="ov-edit" onClick={() => setEditing(true)}><Icon name="edit" size={14} />编辑</button>;
+  const edit = editing ? null : <button type="button" className="ov-edit" onClick={() => setEditing(true)}><Icon name="edit" size={14} />Edit</button>;
   if (!problem || !problem.text.trim()) {
     return (
       <section className="ov-section">
@@ -122,7 +122,7 @@ function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   );
 }
 
-const STATE_WORD: Readonly<Record<TaskState, readonly [string, string]>> = { open: ['teal', 'In progress'], uat: ['amber', '验收中'], done: ['green', 'Done'], abandoned: ['', 'Dropped'] };
+const STATE_WORD: Readonly<Record<TaskState, readonly [string, string]>> = { open: ['teal', 'In progress'], uat: ['amber', 'In review'], done: ['green', 'Done'], abandoned: ['', 'Dropped'] };
 
 /** A task as a whole: where it stands, its problem and its deliverables. */
 export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
@@ -159,22 +159,22 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                   <span>
                     <span className="text">
                       <span className="id">{x.id}</span>
-                      <Editable className="words" text={x.text} onSave={(text) => void writeTask('/api/deliverable/text', { task: t.id, id: x.id, text }, `已保存 ${x.id}`)} />
+                      <Editable className="words" text={x.text} onSave={(text) => void writeTask('/api/deliverable/text', { task: t.id, id: x.id, text }, `Saved ${x.id}`)} />
                     </span>
-                    {x.reason ? <Editable className="why" text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已保存 ${x.id} 的放弃理由`)} /> : null}
+                    {x.reason ? <Editable className="why" text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Saved why ${x.id} was given up`)} /> : null}
                   </span>
                   <span className="side">
                     <span className="at">{x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''}</span>
                     <span className="acts">
                       {x.status === 'abandoned' ? null : (
-                        <button type="button" className="ov-icon" title={`放弃 ${x.id}`} aria-label={`放弃 ${x.id}`}
-                          onClick={() => ask({ title: `放弃 ${x.id}？`, sub: x.text, action: '放弃', reason: '写一句原因，它会留在这条 deliverable 下面',
-                            then: (reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `已放弃 ${x.id}`) })}>
+                        <button type="button" className="ov-icon" title={`Give up ${x.id}`} aria-label={`Give up ${x.id}`}
+                          onClick={() => ask({ title: `Give up ${x.id}?`, sub: x.text, action: 'Give up', reason: 'Why, in a line: it stays under the deliverable',
+                            then: (reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Gave up ${x.id}`) })}>
                           <Icon name="ban" size={15} />
                         </button>
                       )}
-                      <button type="button" className="ov-icon remove" title={`删除 ${x.id}`} aria-label={`删除 ${x.id}`}
-                        onClick={() => ask({ title: `删除 ${x.id}？`, sub: x.text, action: '删除', then: () => void writeTask('/api/deliverable/remove', { task: t.id, id: x.id }, `已删除 ${x.id}`) })}>
+                      <button type="button" className="ov-icon remove" title={`Delete ${x.id}`} aria-label={`Delete ${x.id}`}
+                        onClick={() => ask({ title: `Delete ${x.id}?`, sub: x.text, action: 'Delete', then: () => void writeTask('/api/deliverable/remove', { task: t.id, id: x.id }, `Deleted ${x.id}`) })}>
                         <Icon name="trash" size={15} />
                       </button>
                     </span>

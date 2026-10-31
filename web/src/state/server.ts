@@ -195,10 +195,10 @@ export async function pullNow(): Promise<void> {
 /** One change to a task's files from the page, said in a toast; the page shows it once the vault has it. */
 export function writeTask(url: string, value: { readonly task: string } & Record<string, unknown>, said: string): Promise<void> {
   return postJSON<WriteResult>(url, value).then((out) => {
-    toast(out.warning ? `${said}，推送没成功：${out.warning}` : said);
+    toast(out.warning ? `${said}, but the push failed: ${out.warning}` : said);
     void onStatus(out.status);
   }, (err: Error) => {
-    toast(`没保存：${err.message}`);
+    toast(`Not saved: ${err.message}`);
     void queryClient.invalidateQueries({ queryKey: ['task', value.task] });
   });
 }

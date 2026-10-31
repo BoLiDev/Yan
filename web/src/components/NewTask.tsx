@@ -128,15 +128,15 @@ function NewTaskBox() {
     }
   };
 
-  const names: Readonly<Record<Step, string>> = { title: '标题', repos: '仓库', packages: '包' };
+  const names: Readonly<Record<Step, string>> = { title: 'Title', repos: 'Repositories', packages: 'Packages' };
   return (
     <div className={'new-modal' + (leaving ? ' out' : '')} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       {/* A click on anything but a field or a button leaves the keyboard where it was, so Enter and Escape still reach the box. */}
-      <div ref={box} className="new-box" role="dialog" aria-modal="true" aria-label="新建 task" onKeyDown={onKey}
+      <div ref={box} className="new-box" role="dialog" aria-modal="true" aria-label="New task" onKeyDown={onKey}
         onMouseDown={(e) => { if (!(e.target as HTMLElement).closest('input, button, .ms-field')) e.preventDefault(); }}>
         <div className="new-head">
-          <b>新建 task</b>
-          <button type="button" className="new-x" aria-label="关闭" onClick={() => close()}><Icon name="close" size={14} /></button>
+          <b>New task</b>
+          <button type="button" className="new-x" aria-label="Close" onClick={() => close()}><Icon name="close" size={14} /></button>
         </div>
         {steps.length > 1 ? (
           <div className="new-steps">
@@ -153,16 +153,16 @@ function NewTaskBox() {
         <div className="new-body">
           <div key={step} className={`new-step ${way}`}>
             {step === 'title' ? (
-              <input ref={field} className="new-title" aria-label="标题" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} />
+              <input ref={field} className="new-title" aria-label="Title" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} />
             ) : step === 'repos' ? (
-              <MultiSelect label="仓库" options={list.map((r) => r.name)} value={chosen} autoFocus
+              <MultiSelect label="Repositories" options={list.map((r) => r.name)} value={chosen} autoFocus
                 onChange={(next) => setChosen(list.filter((r) => next.includes(r.name)).map((r) => r.name))} />
             ) : (
               <div className="new-scopes">
                 {monorepos.map((r, i) => (
                   <div key={r.name} className="new-scope">
                     <span className="new-scope-name">{r.name}</span>
-                    <MultiSelect label={`${r.name} 的包`} options={r.packages} value={scopes[r.name] ?? []} empty="整个仓库" autoFocus={i === 0}
+                    <MultiSelect label={`Packages of ${r.name}`} options={r.packages} value={scopes[r.name] ?? []} empty="The whole repository" autoFocus={i === 0}
                       onChange={(next) => setScopes((s) => ({ ...s, [r.name]: r.packages.filter((p) => next.includes(p)) }))} />
                   </div>
                 ))}
@@ -171,10 +171,10 @@ function NewTaskBox() {
           </div>
         </div>
         <div className="new-foot">
-          {at > 0 ? <button type="button" className="new-back" onClick={() => go(steps[at - 1] as Step)}>上一步</button> : null}
+          {at > 0 ? <button type="button" className="new-back" onClick={() => go(steps[at - 1] as Step)}>Back</button> : null}
           <span className="new-error" role="alert">{error ?? ''}</span>
           <button type="button" className="button new-go" disabled={!ready || busy} onClick={forward}>
-            {busy ? <><Ring size={14} />创建中</> : <>{last ? '创建' : '下一步'}<span className="new-kb" aria-hidden="true">↵</span></>}
+            {busy ? <><Ring size={14} />Creating</> : <>{last ? 'Create' : 'Next'}<span className="new-kb" aria-hidden="true">↵</span></>}
           </button>
         </div>
       </div>

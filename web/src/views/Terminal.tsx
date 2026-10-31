@@ -30,16 +30,16 @@ let sending: Promise<void> = Promise.resolve();
  * back.
  */
 function send(task: string, pane: string, what: Input): void {
-  sending = sending.then(() => postJSON('/api/terminal/input', { task, pane, ...what }).then(() => undefined, (err: Error) => toast(`没发出去：${err.message}`)));
+  sending = sending.then(() => postJSON('/api/terminal/input', { task, pane, ...what }).then(() => undefined, (err: Error) => toast(`Not sent: ${err.message}`)));
 }
 
 /** A pane split off, or closed, through herdr; the tab as herdr then has it is asked for at once. */
 async function reshape(what: 'split' | 'close', body: Record<string, unknown>): Promise<{ pane?: string } | undefined> {
-  const failed = what === 'split' ? '没分出来' : '没关掉';
+  const failed = what === 'split' ? 'Could not split the pane' : 'Could not close the pane';
   try {
     return await postJSON<{ pane?: string }>(`/api/terminal/${what}`, body);
   } catch (err) {
-    toast(`${failed}：${(err as Error).message}`);
+    toast(`${failed}: ${(err as Error).message}`);
     return undefined;
   } finally {
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
@@ -93,14 +93,14 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
         await postJSON('/api/launch', { task: id });
       } catch (err) {
         setStarting(false);
-        return void toast(`没能继续：${(err as Error).message}`);
+        return void toast(`Could not continue: ${(err as Error).message}`);
       }
       void queryClient.invalidateQueries({ queryKey: ['terminals'] });
     };
     return (
       <>
-        {/* 继续 is where 结束 is while one runs: the bar's own way to start or stop it. */}
-        <Bar title="Terminal" meta="" tools={goesOn ? <button type="button" className="button term-go" onClick={() => void goOn()}>继续</button> : null} />
+        {/* Continue is where Stop is while one runs: the bar's own way to start or stop it. */}
+        <Bar title="Terminal" meta="" tools={goesOn ? <button type="button" className="button term-go" onClick={() => void goOn()}>Continue</button> : null} />
         {/* A terminal, large, and nothing to read. */}
         <div className="term-off">
           <Icon name="terminal" size={256} width={0.4} />
@@ -111,7 +111,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
   const tiles = tilesOf(state.layout ?? { pane: state.pane });
   return (
     <>
-      {/* What the agent is doing is the Terminal row's to say, and the terminal's own: the bar holds only 结束. */}
+      {/* What the agent is doing is the Terminal row's to say, and the terminal's own: the bar holds only Stop. */}
       <Bar title="Terminal" meta="" tools={waiting ? null : <StopButton id={id} />} />
       {state.streams ? (
         <div className="term-tiles">
@@ -126,7 +126,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
           ) : null}
         </div>
       ) : (
-        <Empty title="herdr 版本太旧">{`这台机器上的 herdr 是 ${state.herdr || '未知版本'}，在网页里显示 pane 需要 0.7.2 或更新的版本（推荐最新的稳定版）。运行 herdr update 升级。`}</Empty>
+        <Empty title="herdr is too old">{`herdr on this machine is ${state.herdr || 'a version it does not say'}; showing its panes here takes 0.7.2 or newer (the latest stable is best). Run herdr update.`}</Empty>
       )}
     </>
   );
@@ -134,7 +134,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
 
 /**
  * The task's agent stopped: its herdr tab closed, the shells beside it with
- * it. Asked twice, the first click only turning it to 确认结束, which goes
+ * it. Asked twice, the first click only turning it to Really stop, which goes
  * back after a few seconds untouched.
  */
 function StopButton({ id }: { id: string }) {
@@ -149,11 +149,11 @@ function StopButton({ id }: { id: string }) {
     try {
       await postJSON('/api/terminal/stop', { task: id });
     } catch (err) {
-      return void toast(`没能结束：${(err as Error).message}`);
+      return void toast(`Could not stop: ${(err as Error).message}`);
     }
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
   };
-  return <button type="button" className={'term-stop' + (sure ? ' sure' : '')} onClick={() => (sure ? void stop() : setSure(true))}>{sure ? '确认结束' : '结束'}</button>;
+  return <button type="button" className={'term-stop' + (sure ? ' sure' : '')} onClick={() => (sure ? void stop() : setSure(true))}>{sure ? 'Really stop' : 'Stop'}</button>;
 }
 
 /**
@@ -308,7 +308,7 @@ function PaneTerm({ task, tile, agent, panes }: { task: string; tile: Tile; agen
       s.onerror = () => {
         if (s.readyState !== EventSource.CLOSED) return;
         if (source === s) source = undefined;
-        end('连不上 herdr 的画面');
+        end('herdr\'s screen cannot be reached');
       };
     };
     // Unseen, the page lets the pane go back to herdr's own size; seen again, it takes it at its room's.
@@ -385,8 +385,8 @@ function PaneTerm({ task, tile, agent, panes }: { task: string; tile: Tile; agen
       <div className="term" ref={host} />
       {ended !== null ? (
         <div className="term-ended">
-          <span>{`画面断开了：${ended}`}</span>
-          <button type="button" className="button" onClick={() => setAttempt((n) => n + 1)}>重新连接</button>
+          <span>{`The screen was cut off: ${ended}`}</span>
+          <button type="button" className="button" onClick={() => setAttempt((n) => n + 1)}>Reconnect</button>
         </div>
       ) : null}
     </div>
@@ -447,24 +447,24 @@ function PaneMenu({ at, agent, term, onClose, split, paste, close }: {
   };
   return (
     <div ref={box} className="term-menu" role="menu" style={{ left: place.x, top: place.y }}>
-      <button type="button" role="menuitem" onClick={act(() => split('right'))}>向右分屏</button>
-      <button type="button" role="menuitem" onClick={act(() => split('down'))}>向下分屏</button>
+      <button type="button" role="menuitem" onClick={act(() => split('right'))}>Split right</button>
+      <button type="button" role="menuitem" onClick={act(() => split('down'))}>Split down</button>
       <hr />
       <button type="button" role="menuitem" disabled={selected === ''} onClick={act(() => {
         void navigator.clipboard?.writeText(selected);
         term?.focus();
-      })}>复制</button>
+      })}>Copy</button>
       <button type="button" role="menuitem" onClick={act(() => {
         term?.focus();
         // Reading the clipboard is the browser's to allow; refused, the keys still paste.
         void navigator.clipboard?.readText().then((text) => {
           if (text !== '') paste(text);
-        }, () => toast(`浏览器没有允许读取剪贴板，可以用 ${MOD}V 粘贴`));
-      })}>粘贴</button>
+        }, () => toast(`The browser did not allow reading the clipboard: paste with ${MOD}V`));
+      })}>Paste</button>
       {agent ? null : (
         <>
           <hr />
-          <button type="button" role="menuitem" className="red" onClick={act(close)}>关闭</button>
+          <button type="button" role="menuitem" className="red" onClick={act(close)}>Close</button>
         </>
       )}
     </div>

@@ -17,7 +17,7 @@ import { ask, copyText, setPref, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
 
 /** How the nav says where a branch stands. */
-const BRANCH_SAID = { open: '进行中', merged: '已合并', abandoned: '已废弃' } as const;
+const BRANCH_SAID = { open: 'in progress', merged: 'merged', abandoned: 'abandoned' } as const;
 const STATUS_WORD: Record<string, string> = { A: 'added', D: 'deleted', R: 'renamed', M: 'changed', C: 'copied', T: 'type changed' };
 
 /** A task's artifacts folders that are open, as last left; every one starts closed. */
@@ -56,7 +56,7 @@ function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRout
     top: (
       <div className="section-head">
         <b>Artifacts</b><span className="grow" />
-        {dotted ? <button type="button" className="tool text read-all" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>全部已读</button> : null}
+        {dotted ? <button type="button" className="tool text read-all" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>Mark all read</button> : null}
         {d.files.length ? <FoldAll id={t.id} files={d.files} open={open} /> : null}
         {d.files.length ? <Tool name="grid" label="See them all as a grid" href={link.folder(t.id, '')} newTab={false} small /> : null}
       </div>
@@ -219,7 +219,7 @@ function MrRows({ t, r, ready }: { t: TaskSummary; r: Route; ready: boolean }) {
     // Its name is what a branch's row is wanted for most: a click copies it, and opens the branch too.
     return (
       <a key={`${l.i}:${b.name}`} className={'row other' + (deep ? ' deep' : '') + (on ? ' on' : '')} href={b.name === l.repo.branch ? link.branch(t.id, l.i) : link.branch(t.id, l.i, 'changes', '', b.name)}
-        title={`${b.name}: click to copy`} onClick={() => copyText(b.name, '分支名已复制', 'The branch')}>
+        title={`${b.name}: click to copy`} onClick={() => copyText(b.name, 'Branch name copied', 'The branch')}>
         <span className="grow mono">{b.name}</span>
         <span className="aside">{b.pr ? `${BRANCH_SAID.merged} PR #${b.pr}` : BRANCH_SAID[b.state]}</span>
       </a>
@@ -266,7 +266,7 @@ function ResourceRow({ task, name, where, deep }: { task: string; name: string; 
     return (
       <div className={className}>
         <span className="res-name">{name}</span>
-        <Editable className="grow res-edit" text={where} autoFocus onSave={(to) => void writeTask('/api/resource', { task, name, where: to }, `已保存 ${name}`)} onLeft={(changed) => { if (!changed) setEditing(false); }} />
+        <Editable className="grow res-edit" text={where} autoFocus onSave={(to) => void writeTask('/api/resource', { task, name, where: to }, `Saved ${name}`)} onLeft={(changed) => { if (!changed) setEditing(false); }} />
       </div>
     );
   }
@@ -276,9 +276,9 @@ function ResourceRow({ task, name, where, deep }: { task: string; name: string; 
         ? <a className="grow res-link" href={where.trim()} target="_blank" rel="noopener">{name}</a>
         : <><span className="res-name">{name}</span><span className="grow res-words">{where}</span></>}
       <span className="res-tools">
-        <button type="button" className="ov-icon" title={`编辑 ${name}`} aria-label={`编辑 ${name}`} onClick={() => setEditing(true)}><Icon name="edit" size={14} /></button>
-        <button type="button" className="ov-icon" title={`删除 ${name}`} aria-label={`删除 ${name}`}
-          onClick={() => ask({ title: `删除资源 ${name}？`, sub: where, action: '删除', then: () => void writeTask('/api/resource', { task, name, remove: true }, `已删除 ${name}`) })}>
+        <button type="button" className="ov-icon" title={`Edit ${name}`} aria-label={`Edit ${name}`} onClick={() => setEditing(true)}><Icon name="edit" size={14} /></button>
+        <button type="button" className="ov-icon" title={`Delete ${name}`} aria-label={`Delete ${name}`}
+          onClick={() => ask({ title: `Delete the resource ${name}?`, sub: where, action: 'Delete', then: () => void writeTask('/api/resource', { task, name, remove: true }, `Deleted ${name}`) })}>
           <Icon name="trash" size={14} />
         </button>
       </span>
@@ -309,7 +309,7 @@ function ResourceRows({ t, d, on }: { t: TaskSummary; d: TaskDetail; on: boolean
         <Icon name="link" size={16} />
         <span className="word">Resources</span>
         <span className="grow" />
-        <span className="aside">{`${resources.length} 个`}</span>
+        <span className="aside">{resources.length}</span>
         <span className="fold"><Icon name={open ? 'up' : 'down'} size={15} /></span>
       </button>
       {open && groups.length === 1 ? rows((groups[0] as (typeof groups)[number])[1], false) : null}
@@ -360,7 +360,7 @@ function AgentRows({ t, agents, on }: { t: TaskSummary; agents: readonly (readon
     const to = dropTo(order.map(([name]) => name), drag.from, drag.gap);
     setDropped({ was: names.join('\n'), names: to });
     setDrag(null);
-    void writeTask('/api/agents', { task: t.id, order: to }, `${to[0] as string} 排到了第一`);
+    void writeTask('/api/agents', { task: t.id, order: to }, `${to[0] as string} is first now`);
   };
   const line = (gap: number): ReactNode => (drag !== null && drag.gap === gap && moves(drag.from, gap) ? <div key={`gap${gap}`} className="drop-line" /> : null);
   return (
@@ -369,7 +369,7 @@ function AgentRows({ t, agents, on }: { t: TaskSummary; agents: readonly (readon
         <Icon name="cloud" size={16} />
         <span className={'word' + shim(!unfolded && order.some(([, where]) => where === showing))}>Agent</span>
         <span className="grow" />
-        <span className="aside">{`${order.length} 个`}</span>
+        <span className="aside">{order.length}</span>
         <span className="fold"><Icon name={unfolded ? 'up' : 'down'} size={15} /></span>
       </button>
       {unfolded ? order.flatMap(([name, where], i) => [

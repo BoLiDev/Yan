@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { getJSON, postJSON, type Behind, type UpdateState as Progress } from '../lib/api';
 import { Icon } from './Icon';
 
-const STEP_WORD: Readonly<Record<Progress['steps'][number]['step'], string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
+const STEP_WORD: Readonly<Record<Progress['steps'][number]['step'], string>> = { pull: 'Pulling', install: 'Installing', build: 'Building', restart: 'Restarting' };
 
 /** What the card is showing: nothing asked yet, a check under way, its outcome, a new version to take, or an update. */
 type Card =
@@ -86,18 +86,18 @@ export function UpdateCard() {
   let title = '';
   let action: ReactNode = null;
   let below: ReactNode = null;
-  if (card.is === 'checking') [title, action] = ['检查中', tile('on', <Ring />)];
-  else if (card.is === 'none') [title, action] = ['无更新', tile('ok', <Icon name="tick" size={14} />, ['再检查', check])];
-  else if (card.is === 'unchecked') [title, action] = ['检查失败', tile('bad', again, ['重新检查', check])];
-  else if (card.is === 'behind') [title, action] = ['发现新版本', tile('on', <Icon name="arrowUp" size={14} />, ['更新', update])];
+  if (card.is === 'checking') [title, action] = ['Checking', tile('on', <Ring />)];
+  else if (card.is === 'none') [title, action] = ['Up to date', tile('ok', <Icon name="tick" size={14} />, ['Check again', check])];
+  else if (card.is === 'unchecked') [title, action] = ['Could not check', tile('bad', again, ['Check again', check])];
+  else if (card.is === 'behind') [title, action] = ['A new yan is out', tile('on', <Icon name="arrowUp" size={14} />, ['Update', update])];
   else if (card.is === 'updating') {
     const { steps, running: going } = card.progress;
     const failed = steps.findIndex((s) => s.state === 'failed');
     const at = failed >= 0 ? failed : Math.max(0, steps.findIndex((s) => s.state === 'now'));
     const word = STEP_WORD[steps[at]?.step ?? 'pull'];
     // The title is the step; the bar says how far along.
-    title = failed >= 0 ? `${word}失败` : `正在${word}`;
-    action = failed >= 0 ? tile('bad', again, going ? undefined : ['重试', update]) : tile('on', <Ring />);
+    title = failed >= 0 ? `${word} failed` : word;
+    action = failed >= 0 ? tile('bad', again, going ? undefined : ['Try again', update]) : tile('on', <Ring />);
     below = <div className="update-bar">{steps.map((s) => <i key={s.step} className={s.state} />)}</div>;
   }
 
@@ -105,9 +105,9 @@ export function UpdateCard() {
     <div className="update-card" style={height === undefined ? undefined : { height }}>
       <div ref={inner} className={`update-inner ${card.is}`}>
         <div className="update-row">
-          {/* Nothing asked yet, the card is the one thing to do, 检查更新, across it. Then each part comes in as it
+          {/* Nothing asked yet, the card is the one thing to do, Check for updates, across it. Then each part comes in as it
               changes: the title with its words, what is on the right with the card's state. */}
-          {card.is === 'idle' ? <button type="button" className="update-check" onClick={check}><Icon name="refresh" size={13} />检查更新</button> : (
+          {card.is === 'idle' ? <button type="button" className="update-check" onClick={check}><Icon name="refresh" size={13} />Check for updates</button> : (
             <>
               <b key={title}>{title}</b>
               <span className="update-action" key={card.is}>{action}</span>

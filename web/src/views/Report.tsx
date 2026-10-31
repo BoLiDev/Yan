@@ -25,7 +25,7 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
     island.current?.say(text, bad);
   };
   const wrote = (out: WriteResult, ok: string, pushed: string): void => {
-    say(out.warning ? `${pushed}：${out.warning}` : ok, !!out.warning);
+    say(out.warning ? `${pushed}: ${out.warning}` : ok, !!out.warning);
     void onStatus(out.status);
   };
   // The latest of these, for the island, which is built once and calls them later.
@@ -43,26 +43,26 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
     island.current = buildIsland(root, report, d.deliverables, {
       send: (id: string, to: DeliverableStatus, reason?: string) => {
         postJSON<WriteResult>('/api/deliverable', { task: t.id, id, to, reason }).then(
-          (out) => latest.current.wrote(out, `已写回 ${t.id} 的 deliverables`, '已写回，推送没成功'),
+          (out) => latest.current.wrote(out, `Saved ${t.id}'s deliverables`, 'Saved, but the push failed'),
           (err: Error) => {
-            latest.current.say(`没写进去：${err.message}`, true);
+            latest.current.say(`Not saved: ${err.message}`, true);
             void queryClient.invalidateQueries({ queryKey: ['task', t.id] });
           },
         );
       },
       reason: (id, reason) => {
         postJSON<WriteResult>('/api/deliverable', { task: t.id, id, to: 'abandoned', reason }).then(
-          (out) => latest.current.wrote(out, `已保存 ${id} 的放弃理由`, '已保存，推送没成功'),
-          (err: Error) => latest.current.say(`没保存：${err.message}`, true),
+          (out) => latest.current.wrote(out, `Saved why ${id} was given up`, 'Saved, but the push failed'),
+          (err: Error) => latest.current.say(`Not saved: ${err.message}`, true),
         );
       },
       edit: (index, text) => {
         postJSON<WriteResult>('/api/report/edit', { task: t.id, sha: report.sha, index, text }).then(
-          (out) => latest.current.wrote(out, '已保存到 report.html', '已保存，推送没成功'),
-          (err: Error) => latest.current.say(`没保存：${err.message}`, true),
+          (out) => latest.current.wrote(out, 'Saved to report.html', 'Saved, but the push failed'),
+          (err: Error) => latest.current.say(`Not saved: ${err.message}`, true),
         );
       },
-      copied: (url) => void navigator.clipboard.writeText(url).then(() => toast('链接已复制')),
+      copied: (url) => void navigator.clipboard.writeText(url).then(() => toast('Link copied')),
       uatUrl: (path) => fileUrl(vaultPath(t.id, `uat/${path}`)),
       downloadUrl: `/api/report/download?task=${encodeURIComponent(t.id)}`,
     }, said && Date.now() - said.at < SAID_FOR_MS ? said : null);

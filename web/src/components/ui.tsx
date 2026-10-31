@@ -149,7 +149,7 @@ export function AskModal() {
         {ask.sub ? <div className="s">{ask.sub}</div> : null}
         {ask.reason ? <input ref={first} className="ask-input" aria-label={ask.reason} placeholder={ask.reason} value={given} onChange={(e) => setGiven(e.target.value)} /> : null}
         <div className="b">
-          <button type="button" className="button quiet" onClick={close}>取消</button>
+          <button type="button" className="button quiet" onClick={close}>Cancel</button>
           <button ref={ask.reason ? undefined : first} type="button" className="button danger" disabled={!ready} onClick={answer}>{ask.action}</button>
         </div>
       </div>

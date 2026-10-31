@@ -29,7 +29,7 @@ export function AgentView({ t }: { t: TaskSummary }) {
             <a key={name} className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={where} target={AGENT_TAB} title={where} onClick={onAgentClick(where)} onMouseMove={() => pick(i)}>
               <Icon name="cloud" size={20} />
               <span className="grow"><b className={showing === where ? 'shimmer' : undefined}>{name}</b><span className="where">{where}</span></span>
-              {i === at ? <span className="button">打开<kbd>↵</kbd></span> : null}
+              {i === at ? <span className="button">Open<kbd>↵</kbd></span> : null}
             </a>
           ))}
         </div>

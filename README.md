@@ -169,7 +169,7 @@ changed carries a dot, in its task and in Latest, until it is opened, or,
 when the push changed it while it was open, until it is clicked in; it
 lights again when it changes again, and the page being open, in front or
 not, counts for nothing. A task stays in Latest and in its count until its
-last dot is gone, and 全部已读 beside its Artifacts clears them all at once,
+last dot is gone, and Mark all read beside its Artifacts clears them all at once,
 as Log's dot goes when the log is opened. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. Markdown and the report
 an agent wrote are shown without anything in them that runs, and load
@@ -223,9 +223,9 @@ An open task has a Terminal row under Log. While an agent bare `yan`
 started in a [herdr](https://herdr.dev) pane on this machine runs, the row
 says what herdr says of it: at work, waiting on you (a question or a
 permission), done or idle; with none running, its page is a terminal
-drawn large, and 继续 on the right of the bar, where 结束 is while one
+drawn large, and Continue on the right of the bar, where Stop is while one
 runs, opens a herdr tab named for the task
-and types `yan --task` into it, the page showing it at once. 结束 on the
+and types `yan --task` into it, the page showing it at once. Stop on the
 right of the page's bar, clicked twice, stops the agent: its herdr tab is
 closed, the shells split off beside it with it.
 Its page is the pane itself, as herdr streams it (`herdr terminal session
@@ -295,7 +295,7 @@ task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
 closing them all once any is open. A card at the foot of the task list
-updates yan's own clone: its 检查更新 fetches what the clone tracks, the card
+updates yan's own clone: its Check for updates fetches what the clone tracks, the card
 saying it is checking and then that there is nothing new, or that there is
 a new version with a button to take it, which pulls, runs `npm install` and
 `npm run build` there, the card naming each step as it goes with a bar
@@ -320,7 +320,7 @@ changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 
 A task's overview is where its problem and deliverables are put right while
-they are still being defined. 编辑 opens problem.md whole, as Markdown, and
+they are still being defined. Edit opens problem.md whole, as Markdown, and
 saving is refused when an agent changed it since the page read it. A
 deliverable's text is edited where it stands. Under its date on hover, one
 button gives it up, with a reason that stays on its line and is edited the

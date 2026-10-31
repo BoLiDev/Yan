@@ -113,7 +113,7 @@ export function MultiSelect({ options, value, onChange, empty, label, autoFocus 
         {value.map((v) => (
           <span key={v} className="ms-tag">
             {v}
-            <button type="button" tabIndex={-1} aria-label={`去掉 ${v}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => toggle(v)}><Icon name="close" size={10} width={2.25} /></button>
+            <button type="button" tabIndex={-1} aria-label={`Remove ${v}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => toggle(v)}><Icon name="close" size={10} width={2.25} /></button>
           </span>
         ))}
         <input ref={input} value={query} aria-label={label} spellCheck={false} autoComplete="off" role="combobox" aria-expanded={open}
@@ -129,7 +129,7 @@ export function MultiSelect({ options, value, onChange, empty, label, autoFocus 
       {open && place !== null ? createPortal(
         <div ref={list} className="ms-list" role="listbox" aria-label={label} aria-multiselectable style={{ left: place.left, top: place.top, width: place.width }}
           onMouseDown={(e) => e.preventDefault()}>
-          {shown.length === 0 ? <div className="ms-none">没有匹配的</div> : shown.map((o, i) => (
+          {shown.length === 0 ? <div className="ms-none">No match</div> : shown.map((o, i) => (
             <div key={o.value} role="option" aria-selected={value.includes(o.value)} className={'ms-opt' + (i === at ? ' at' : '') + (value.includes(o.value) ? ' on' : '')}
               onMouseMove={() => setAt(i)} onClick={() => toggle(o.value)}>
               <span className="ms-name"><Marked text={o.value} marks={o.marks} /></span>

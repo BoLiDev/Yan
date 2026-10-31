@@ -104,7 +104,7 @@ export function Left() {
     const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string }[] = [];
     // Waiting on `user`, so above the rest; the group is not there when none is.
     const uat = tasks.filter((t) => t.state === 'uat').sort(byTouched);
-    if (uat.length) out.push({ label: '验收中', rows: uat.map((t) => ({ t })) });
+    if (uat.length) out.push({ label: 'In review', rows: uat.map((t) => ({ t })) });
     // A state this page does not know, a newer yan's, is taken as open, so the task is never left out of every group.
     const open = tasks.filter((t) => stateOf(t.state) === 'open').sort(byTouched);
     out.push({ label: 'In progress', rows: open.map((t) => ({ t })), none: 'Nothing open' });
@@ -138,7 +138,7 @@ export function Left() {
           <span className="grow">Find a task</span>
           <kbd>{`${MOD}K`}</kbd>
         </button>
-        <button type="button" className={'find-new' + (creating ? ' on' : '')} aria-label="新建 task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></button>
+        <button type="button" className={'find-new' + (creating ? ' on' : '')} aria-label="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></button>
       </div>
       <div className={'latest-line' + (onLatest ? ' on' : '')}>
         <a className={'row' + (onLatest ? ' on' : '')} href="#/latest" style={{ fontWeight: 700 }}>

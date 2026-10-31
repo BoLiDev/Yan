@@ -33,7 +33,7 @@ async function onTask(): Promise<Page> {
 describe('a box over the page', () => {
   it("keeps the keyboard while it is open, whatever Tab is pressed on, and leaves the page where it was", async () => {
     const page = await onTask();
-    await page.getByRole('button', { name: '新建 task' }).click();
+    await page.getByRole('button', { name: 'New task' }).click();
     await page.getByRole('dialog').waitFor();
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press(i % 2 === 0 ? 'Tab' : 'Shift+Tab');
@@ -46,7 +46,7 @@ describe('a box over the page', () => {
 
   it('asks a question that keeps the keyboard until it is answered or let go', async () => {
     const page = await onTask();
-    await page.getByRole('button', { name: '删除 d1' }).click();
+    await page.getByRole('button', { name: 'Delete d1' }).click();
     await page.getByRole('dialog').waitFor();
     for (let i = 0; i < 4; i++) {
       await page.keyboard.press('Tab');

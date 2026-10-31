@@ -171,7 +171,7 @@ function zoomShot(shell: HTMLElement, shots: HTMLImageElement[], start: number):
   const n = el('span', { class: 'yan-zoom-n' });
   const close = (): void => view.remove();
   const view = el('div', { class: 'yan-zoom', tabindex: '-1', role: 'dialog', 'aria-modal': 'true', onclick: (e: Event) => { if (e.target === view) close(); } },
-    img, n, el('button', { type: 'button', class: 'yan-zoom-close', 'aria-label': '关闭', onclick: close, html: CLOSE_ICON }));
+    img, n, el('button', { type: 'button', class: 'yan-zoom-close', 'aria-label': 'Close', onclick: close, html: CLOSE_ICON }));
   const show = (i: number): void => {
     at = (i + shots.length) % shots.length;
     img.src = (shots[at] as HTMLImageElement).src;
@@ -193,14 +193,14 @@ function zoomShot(shell: HTMLElement, shots: HTMLImageElement[], start: number):
 
 /** The pop-up for giving a deliverable up: a reason is needed, since `yan deliverable abandon` keeps it. */
 function askReason(shell: HTMLElement, id: string, name: string, then: (reason: string) => void): void {
-  const input = el('input', { 'aria-label': '放弃的原因', placeholder: '' });
-  const ok = el('button', { type: 'button', class: 'yan-btn main', disabled: true }, '放弃');
+  const input = el('input', { 'aria-label': 'Why it is given up', placeholder: '' });
+  const ok = el('button', { type: 'button', class: 'yan-btn main', disabled: true }, 'Give up');
   const close = (): void => modal.remove();
   const modal = el('div', { class: 'yan-modal', onclick: (e: Event) => { if (e.target === modal) close(); } },
-    el('div', { class: 'yan-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': `放弃 ${id}` },
-      el('div', null, el('div', { class: 't' }, `放弃 ${id.slice(1)}. ${name}？`), el('div', { class: 's' }, '写一句原因，以后不会再被提起')),
+    el('div', { class: 'yan-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Give up ${id}` },
+      el('div', null, el('div', { class: 't' }, `Give up ${id.slice(1)}. ${name}?`), el('div', { class: 's' }, 'Why, in a line: it will not be asked for again')),
       input,
-      el('div', { class: 'b' }, el('button', { type: 'button', class: 'yan-btn', onclick: close }, '取消'), ok)));
+      el('div', { class: 'b' }, el('button', { type: 'button', class: 'yan-btn', onclick: close }, 'Cancel'), ok)));
   input.addEventListener('input', () => {
     ok.disabled = input.value.trim() === '';
   });
@@ -255,7 +255,7 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
     uatButton.setAttribute('aria-expanded', String(!uatList.hidden));
   } });
   const bar = el('div', { class: 'yan-bar' },
-    el('div', { class: 'yan-bar-in' }, facts, el('div', { class: 'yan-actions' }, uatButton, el('a', { class: 'yan-btn main', href: hooks.downloadUrl }, '下载 HTML'))),
+    el('div', { class: 'yan-bar-in' }, facts, el('div', { class: 'yan-actions' }, uatButton, el('a', { class: 'yan-btn main', href: hooks.downloadUrl }, 'Download HTML'))),
     uatList);
   const shell = el('div', { class: 'yan-report' }, bar, ...[...body.childNodes].map((n) => document.importNode(n, true)));
   root.replaceChildren(el('style', null, `${style}\n${REPORT_PANEL_CSS}`), shell);
@@ -281,11 +281,11 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
     if (why && document.activeElement !== why) why.textContent = status === 'abandoned' ? reason ?? '' : '';
     const tick = node.querySelector<HTMLButtonElement>('.yan-tick');
     if (tick) {
-      tick.setAttribute('aria-label', status === 'done' ? `${id} 标回待确认` : `${id} 标为完成`);
+      tick.setAttribute('aria-label', status === 'done' ? `Mark ${id} not done` : `Mark ${id} done`);
       tick.disabled = status === 'abandoned';
     }
     const side = node.querySelector('.yan-side');
-    if (side) side.textContent = status === 'abandoned' ? '恢复' : '放弃';
+    if (side) side.textContent = status === 'abandoned' ? 'Restore' : 'Give up';
   };
   const send = (id: string, to: DeliverableStatus, reason?: string): void => {
     state.set(id, to);
@@ -324,22 +324,22 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
     line.replaceWith(el('div', { class: 'yan-video' },
       el('video', { controls: true, preload: 'metadata', src: hooks.uatUrl(path) }),
       el('div', { class: 'row' }, el('span', null, path),
-        info?.url ? el('button', { type: 'button', class: 'yan-btn', style: { minHeight: '32px' }, onclick: () => hooks.copied(info.url as string) }, '复制链接') : null)));
+        info?.url ? el('button', { type: 'button', class: 'yan-btn', style: { minHeight: '32px' }, onclick: () => hooks.copied(info.url as string) }, 'Copy link') : null)));
   }
 
   const island: Island = {
     setFacts(r) {
-      const generated = r.generatedAt ? `生成于 ${dayOf(fromIso(r.generatedAt))} ${clock(fromIso(r.generatedAt))}` : null;
+      const generated = r.generatedAt ? `written ${dayOf(fromIso(r.generatedAt))} ${clock(fromIso(r.generatedAt))}` : null;
       const legacy = r.behind.length === 0 ? null : el('button', { type: 'button', class: 'yan-legacy', 'aria-label': `legacy: ${r.behind.join('; ')}` }, 'legacy',
-        el('span', { class: 'tip' }, el('div', { class: 'yan-tip-head' }, '报告生成之后：'), r.behind.map((line) => el('div', null, line)),
-          el('div', { class: 'yan-tip-head', style: { marginTop: '6px' } }, '重跑 /report 更新它')));
+        el('span', { class: 'tip' }, el('div', { class: 'yan-tip-head' }, 'Since the report was written:'), r.behind.map((line) => el('div', null, line)),
+          el('div', { class: 'yan-tip-head', style: { marginTop: '6px' } }, 'Run /report again to bring it up to date')));
       facts.replaceChildren(...[el('span', { class: 'file' }, 'report.html'), generated ? el('span', null, generated) : null, legacy, saidEl].filter((x): x is HTMLElement => !!x));
-      uatButton.textContent = `uat 素材 ${r.uat.length}`;
-      uatList.replaceChildren(...(r.uat.length === 0 ? [el('div', { class: 'yan-uat-row' }, el('span', { class: 'w' }, 'uat/ 里还没有素材'))] : r.uat.map((f) => el('div', { class: 'yan-uat-row' },
+      uatButton.textContent = `UAT files ${r.uat.length}`;
+      uatList.replaceChildren(...(r.uat.length === 0 ? [el('div', { class: 'yan-uat-row' }, el('span', { class: 'w' }, 'Nothing in uat/ yet'))] : r.uat.map((f) => el('div', { class: 'yan-uat-row' },
         el('span', { class: 'p' }, f.path),
-        VIDEO.has(ext(f.path)) && f.url ? el('button', { type: 'button', onclick: () => hooks.copied(f.url as string) }, '复制链接') : el('span', null),
-        el('a', { href: `${hooks.uatUrl(f.path)}?download` }, '下载'),
-        el('span', { class: 'w' }, f.for.length ? `${f.for.join('、')} · ${f.shows ?? ''}` : '没有用 yan uat 登记')))));
+        VIDEO.has(ext(f.path)) && f.url ? el('button', { type: 'button', onclick: () => hooks.copied(f.url as string) }, 'Copy link') : el('span', null),
+        el('a', { href: `${hooks.uatUrl(f.path)}?download` }, 'Download'),
+        el('span', { class: 'w' }, f.for.length ? `${f.for.join(', ')} · ${f.shows ?? ''}` : 'Not recorded with yan uat')))));
     },
     setDeliverables(next) {
       state.clear();

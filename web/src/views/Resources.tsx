@@ -31,7 +31,7 @@ export function ResourcesView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                 <a className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={url ? r.where.trim() : undefined} target="_blank" rel="noopener" title={r.where} onMouseMove={() => pick(i)}>
                   <Icon name={url ? 'link' : 'note'} size={18} />
                   <span className="grow"><b>{r.name}</b><span className="where">{r.where}</span></span>
-                  {url && i === at ? <span className="button">打开<kbd>↵</kbd></span> : null}
+                  {url && i === at ? <span className="button">Open<kbd>↵</kbd></span> : null}
                 </a>
               </div>
             );
