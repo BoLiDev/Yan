@@ -8,7 +8,7 @@ import { useUI } from '../state/ui';
 import { Icon, StateIcon } from './Icon';
 
 /** A title with the parts that matched what was typed marked. */
-function Marked({ text, marks }: { text: string; marks: Found['marks'] }) {
+export function Marked({ text, marks }: { text: string; marks: Found['marks'] }) {
   const out: ReactNode[] = [];
   let from = 0;
   for (const [start, end] of marks) {

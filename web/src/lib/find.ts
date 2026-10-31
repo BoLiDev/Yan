@@ -10,7 +10,7 @@ export interface Found {
   readonly group?: 'Recent' | 'Open';
 }
 
-interface Match {
+export interface Match {
   readonly score: number;
   readonly marks: [number, number][];
 }
@@ -39,6 +39,23 @@ function inTitle(title: string, term: string): Match | undefined {
     from = i + 1;
   }
   return { score: Math.max(1, 30 - marks.length * 4), marks };
+}
+
+/**
+ * How well `query` matches `text`, every word typed matching somewhere in
+ * it as a word matches a task's title, and where; none when a word does not.
+ */
+export function matchText(text: string, query: string): Match | undefined {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  let score = 0;
+  const marks: [number, number][] = [];
+  for (const term of terms) {
+    const m = inTitle(text, term);
+    if (m === undefined) return undefined;
+    score += m.score;
+    marks.push(...m.marks);
+  }
+  return { score, marks: marks.sort((x, y) => x[0] - y[0]) };
 }
 
 /** An id typed whole or by its number, `t042` or `42`, is the task; the start of one nearly so. */

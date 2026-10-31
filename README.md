@@ -251,8 +251,11 @@ the repositories it works in (those registered and cloned here), picked
 as in a cascading select: the repositories, and beside the one open, its
 packages; a repository ticked is the whole of it, some of its packages
 ticked are those alone, and all of them the whole of it again. ↑ and ↓
-move in a column, → and ← between them, Space ticks, Enter goes on and
-Escape closes it. Created, serve opens a herdr tab named for it and
+move in a column, → and ← between them, Space ticks. What is typed searches
+both, as ⌘K searches the tasks, a package by its path (`web core` finds
+`web / packages/core`), into one list clicked to tick, or ticked with Enter,
+which clears the search. Enter goes on, ⌘ or Ctrl with it creates at once,
+and Escape clears the search, then closes the box. Created, serve opens a herdr tab named for it and
 types bare `yan` into it with those answers (`yan --new`), in the vault the
 page shows; one serve cannot start says why in the box. The middle column
 is the task as it is made, its title and repositories, and the right one

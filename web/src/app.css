@@ -267,12 +267,19 @@ button.update-tile:hover { filter: brightness(.95); }
 .new-step.on { animation: new-from-right .28s cubic-bezier(.2, .8, .3, 1); }
 .new-step.back { animation: new-from-left .28s cubic-bezier(.2, .8, .3, 1); }
 .new-title { width: 100%; height: 36px; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--accent); font: inherit; font-size: 20px; }
-/* The repositories, picked as antd's Cascader picks several: a column of them and the open one's packages beside it. */
+/* The repositories, picked as antd's Cascader picks several: a column of them and the open one's packages beside it,
+   or, with something typed, what it finds of both in one list. */
+.casc-search { display: flex; align-items: center; gap: 8px; height: 34px; margin-bottom: 6px; color: var(--ink-3); }
+.casc-search input { flex: 1 1 auto; min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--accent); font: inherit; font-size: 14px; }
+.casc-search input::placeholder { color: var(--ink-3); }
+.casc-hits { display: flex; flex-direction: column; gap: 2px; min-height: 120px; max-height: 240px; overflow-y: auto; margin: 0 -4px; padding: 4px; }
+.casc-it mark { background: none; color: var(--accent-ink); font-weight: 700; }
+.casc-none { padding: 6px 2px; color: var(--ink-3); font-size: 13px; }
 .casc { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); min-height: 120px; outline: none; }
 .casc-col { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; padding: 4px; }
 .casc-col:first-child { margin-left: -4px; border-right: 1px solid var(--line); }
 .casc-col + .casc-col { padding-left: 8px; }
-.casc-it { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; border-radius: 4px; color: var(--ink); font-size: 14px; cursor: pointer; user-select: none; transition: background .12s; }
+.casc-it { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; border-radius: 4px; color: var(--ink); font-size: 14px; cursor: pointer; user-select: none; transition: background .12s; }
 .casc-it.at { background: var(--hover); }
 .casc-it.open { background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); font-weight: 600; }
 .casc-it > svg { flex: none; color: var(--ink-3); }
