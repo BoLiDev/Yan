@@ -158,6 +158,14 @@ describe('yan serve', () => {
     expect(status).toBe(403);
   });
 
+  it("gives its API only to its own page: a page elsewhere, an agent's on the files port among them, is refused", async () => {
+    const from = async (site: string): Promise<number> => (await fetch(page('/api/hello'), { headers: { 'Sec-Fetch-Site': site } })).status;
+    expect(await from('cross-site')).toBe(403);
+    expect(await from('same-site')).toBe(403);
+    expect(await from('same-origin')).toBe(200);
+    expect((await fetch(page('/api/pull'), { method: 'POST', headers: { Origin: files('') } })).status).toBe(403);
+  });
+
   it('shows what was pushed to origin within a tick, and says so on the event stream', async () => {
     const before = (await (await fetch(page('/api/index'))).json()) as { status: { version: number } };
     const events = await fetch(page('/api/events'));
@@ -384,6 +392,12 @@ describe('the overview on yan serve', () => {
     expect((await post('/api/problem', { task: 't002', sha: read.sha, text: 'what was wrong, said better' })).status).toBe(200);
     expect((await post('/api/problem', { task: 't002', sha: read.sha, text: 'laid over the other' })).status).toBe(409);
     expect(readFileSync(at('problem.md'), 'utf8')).toBe('what was wrong, said better\n');
+  });
+
+  it('refuses a body too large to take, saying so rather than dropping the connection', async () => {
+    const r = await post('/api/problem', { task: 't002', sha: '', text: 'x'.repeat(70_000) });
+    expect(r.status).toBe(413);
+    expect(readFileSync(at('problem.md'), 'utf8')).not.toContain('xxxx');
   });
 
   it('rewords a deliverable, keeping its id and state', async () => {

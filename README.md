@@ -333,8 +333,10 @@ it was. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, give it
 up with a reason or edit the reason it was given up for, and task.json
 changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report is committed and pushed as
-`yan vault push` would; those are the only writes `yan serve` makes, and
-only from its own page.
+`yan vault push` would, one after another and without holding up the
+rest of the page; those are the only writes `yan serve` makes, and only
+from its own page. Its API is the page's alone: a page anywhere else,
+an agent's page on the files port among them, is refused it.
 report.html carries its pictures inside it, so it can be dragged into a
 document whole; the page is sent it with them taken out, and loads each
 beside it as it comes into view.

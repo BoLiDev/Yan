@@ -70,6 +70,15 @@ interface Status {
   build: string;
 }
 
+/** Something the page asks serve to do with a POST. */
+interface Post {
+  /** What it does, for the refusal any other page gets. */
+  readonly does: string;
+  /** Whether it takes the request's JSON body; without one, it is given nothing. */
+  readonly json: boolean;
+  readonly run: (res: ServerResponse, given: Record<string, unknown>) => Promise<void>;
+}
+
 const OWN_REF = 'refs/yan/serve/heads/';
 
 const TYPES: Record<string, string> = {
@@ -158,16 +167,38 @@ function originOk(req: IncomingMessage, port: number): boolean {
   return origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}`;
 }
 
-/** A JSON body, at most 64 KB; anything else is `undefined`. */
-async function body(req: IncomingMessage): Promise<Record<string, unknown> | undefined> {
+/**
+ * Whether a browser says the request comes from a page of this origin. A GET
+ * carries no Origin of its own, and some here act: a terminal's stream takes
+ * the pane over and sizes it, a branch or a check for updates fetches. Any
+ * page could ask for one with an <img>, an agent's on the files port among
+ * them, which is the same site, ports not counting; the browser names which
+ * in Sec-Fetch-Site. A request without it is not from a browser, so no page
+ * is behind it.
+ */
+function fromThisOrigin(req: IncomingMessage): boolean {
+  const site = req.headers['sec-fetch-site'];
+  return site === undefined || site === 'same-origin' || site === 'none';
+}
+
+/** The most a JSON body may be. */
+const BODY_LIMIT = 65_536;
+
+/**
+ * A JSON object for a body, `'too large'` past BODY_LIMIT, `undefined` for
+ * anything else. A body too large is read to its end all the same: leaving
+ * the loop early destroys the request, its socket with it, and the page would
+ * see the connection fail rather than be told why.
+ */
+async function body(req: IncomingMessage): Promise<Record<string, unknown> | 'too large' | undefined> {
   if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return undefined;
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 65_536) return undefined;
-    chunks.push(chunk as Buffer);
+    if (size <= BODY_LIMIT) chunks.push(chunk as Buffer);
   }
+  if (size > BODY_LIMIT) return 'too large';
   try {
     const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
     return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
@@ -400,49 +431,16 @@ export class YanServer {
     const p = url.pathname;
     const q = url.searchParams;
 
-    if (req.method === 'POST' && p === '/api/pull') {
-      await this.tick();
-      return json(res, this.status);
-    }
-    // yan updating itself: only the page may start it.
-    if (req.method === 'POST' && p === '/api/yan/update') {
-      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may update yan');
-      return this.updater.start() ? json(res, this.updater.now) : send(res, 409, 'an update is running');
-    }
-    // What is typed into an agent's terminal: not the vault's, so nothing is committed, but only the page may send it.
-    if (req.method === 'POST' && p === '/api/terminal/input') {
-      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may type into a terminal');
+    // The API is the page's: a page elsewhere gets nothing of it, and changes nothing through it.
+    if (p.startsWith('/api/') && !fromThisOrigin(req)) return send(res, 403, "only yan serve's own page may ask for that");
+    const post = req.method === 'POST' ? this.posts[p] : undefined;
+    if (post !== undefined) {
+      if (!originOk(req, this.port)) return send(res, 403, `only yan serve's own page may ${post.does}`);
+      if (!post.json) return post.run(res, {});
       const given = await body(req);
+      if (given === 'too large') return send(res, 413, `a body is at most ${BODY_LIMIT / 1024} KB`);
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return this.terminals.input(res, given);
-    }
-    // A new task started in a new herdr tab: only the page may.
-    if (req.method === 'POST' && p === '/api/launch') {
-      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may start a task');
-      const given = await body(req);
-      if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return this.launches.start(res, given);
-    }
-    // A task's agent stopped, its herdr tab closed: only the page may.
-    if (req.method === 'POST' && p === '/api/terminal/stop') {
-      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may stop an agent');
-      const given = await body(req);
-      if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return this.terminals.stop(res, given);
-    }
-    // A pane split off beside the agent, or closed: only the page may.
-    if (req.method === 'POST' && (p === '/api/terminal/split' || p === '/api/terminal/close')) {
-      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may split or close a pane');
-      const given = await body(req);
-      if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return p === '/api/terminal/split' ? this.terminals.split(res, given) : this.terminals.closeSplit(res, given);
-    }
-    const write = req.method === 'POST' ? this.writes[p] : undefined;
-    if (write !== undefined) {
-      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may change the vault');
-      const given = await body(req);
-      if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return this.inTurn(() => write(res, given));
+      return post.run(res, given);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
@@ -602,16 +600,39 @@ export class YanServer {
     return turn;
   }
 
-  /** Every change `user` makes from the page, by its path: each takes a JSON body, then commits and pushes. */
-  private readonly writes: Readonly<Record<string, (res: ServerResponse, given: Record<string, unknown>) => Promise<void>>> = {
-    '/api/deliverable': (res, given) => this.setDeliverable(res, given),
-    '/api/deliverable/text': (res, given) => this.rewordDeliverable(res, given),
-    '/api/deliverable/remove': (res, given) => this.removeDeliverable(res, given),
-    '/api/problem': (res, given) => this.editProblem(res, given),
-    '/api/resource': (res, given) => this.setResource(res, given),
-    '/api/agents': (res, given) => this.orderAgents(res, given),
-    '/api/report/edit': (res, given) => this.editReport(res, given),
+  /**
+   * Everything the page asks serve to do, by its path: what it does, for the
+   * refusal any other page gets, and how. One that takes the request's JSON
+   * body is given it; the changes to the vault commit and push, in turn.
+   */
+  private readonly posts: Readonly<Record<string, Post>> = {
+    '/api/pull': { does: 'pull the vault', json: false, run: async (res) => {
+      await this.tick();
+      json(res, this.status);
+    } },
+    '/api/yan/update': { does: 'update yan', json: false, run: async (res) => {
+      if (this.updater.start()) json(res, this.updater.now);
+      else send(res, 409, 'an update is running');
+    } },
+    // What is typed into an agent's terminal: not the vault's, so nothing is committed.
+    '/api/terminal/input': { does: 'type into a terminal', json: true, run: async (res, given) => this.terminals.input(res, given) },
+    '/api/launch': { does: 'start a task', json: true, run: async (res, given) => this.launches.start(res, given) },
+    '/api/terminal/stop': { does: 'stop an agent', json: true, run: async (res, given) => this.terminals.stop(res, given) },
+    '/api/terminal/split': { does: 'split a pane', json: true, run: async (res, given) => this.terminals.split(res, given) },
+    '/api/terminal/close': { does: 'close a pane', json: true, run: async (res, given) => this.terminals.closeSplit(res, given) },
+    '/api/deliverable': this.change((res, given) => this.setDeliverable(res, given)),
+    '/api/deliverable/text': this.change((res, given) => this.rewordDeliverable(res, given)),
+    '/api/deliverable/remove': this.change((res, given) => this.removeDeliverable(res, given)),
+    '/api/problem': this.change((res, given) => this.editProblem(res, given)),
+    '/api/resource': this.change((res, given) => this.setResource(res, given)),
+    '/api/agents': this.change((res, given) => this.orderAgents(res, given)),
+    '/api/report/edit': this.change((res, given) => this.editReport(res, given)),
   };
+
+  /** A change to the vault from the page, which waits its turn. */
+  private change(run: (res: ServerResponse, given: Record<string, unknown>) => Promise<void>): Post {
+    return { does: 'change the vault', json: true, run: (res, given) => this.inTurn(() => run(res, given)) };
+  }
 
   /**
    * `{ task, id }`: a deliverable deleted on the overview, as if never added;
