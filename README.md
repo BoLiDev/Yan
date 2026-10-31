@@ -291,7 +291,7 @@ task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
 closing them all once any is open. A card at the foot of the task list
-updates yan's own clone: its 检查 fetches what the clone tracks, the card
+updates yan's own clone: its 检查更新 fetches what the clone tracks, the card
 saying it is checking and then that there is nothing new, or that there is
 a new version with a button to take it, which pulls, runs `npm install` and
 `npm run build` there, the card naming each step as it goes with a bar

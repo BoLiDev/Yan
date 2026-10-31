@@ -202,8 +202,8 @@ button.update-tile:hover { filter: brightness(.95); }
 .update-tile.ok { background: var(--green-soft); color: var(--green); }
 .update-tile.bad { background: #f6dedb; color: var(--red); }
 .update-tile .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
-.update-link { margin-right: -4px; padding: 4px 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; }
-.update-link:hover { background: var(--accent-wash); }
+.update-check { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; margin: 0 -6px; border: 0; border-radius: 8px; background: none; color: var(--accent-ink); font: inherit; font-size: 13.5px; font-weight: 700; text-align: center; cursor: pointer; animation: update-in .3s ease-out; transition: background .15s; }
+.update-check:hover { background: var(--accent-wash); }
 .update-bar { display: flex; gap: 4px; animation: update-in .3s ease-out; }
 .update-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--sunken); transition: background .3s; }
 .update-bar i.done { background: var(--green); }
@@ -214,7 +214,7 @@ button.update-tile:hover { filter: brightness(.95); }
 @keyframes update-in { from { opacity: 0; transform: translateY(3px); } }
 @media (prefers-reduced-motion: reduce) {
   .update-card { transition: none; }
-  .update-row b, .update-action, .update-bar { animation: none; }
+  .update-row b, .update-action, .update-check, .update-bar { animation: none; }
   .update-tile .ring, .update-bar i.now { animation-duration: 3s; }
 }
 

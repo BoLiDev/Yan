@@ -92,8 +92,8 @@ export function UpdateCard() {
     : <span className={`update-tile ${tone}`}>{icon}</span>;
   const again = <AntIcon name="reload" />;
 
-  let title = '更新';
-  let action: ReactNode = <button type="button" className="update-link" onClick={check}>检查</button>;
+  let title = '';
+  let action: ReactNode = null;
   let below: ReactNode = null;
   if (card.is === 'checking') [title, action] = ['检查中', tile('on', <Ring />)];
   else if (card.is === 'none') [title, action] = ['无更新', tile('ok', <AntIcon name="check" />, ['再检查', check])];
@@ -114,9 +114,14 @@ export function UpdateCard() {
     <div className="update-card" style={height === undefined ? undefined : { height }}>
       <div ref={inner} className={`update-inner ${card.is}`}>
         <div className="update-row">
-          {/* Each comes in as it changes: the title with its words, what is on the right with the card's state. */}
-          <b key={title}>{title}</b>
-          <span className="update-action" key={card.is}>{action}</span>
+          {/* Nothing asked yet, the card is the one thing to do, 检查更新, across it. Then each part comes in as it
+              changes: the title with its words, what is on the right with the card's state. */}
+          {card.is === 'idle' ? <button type="button" className="update-check" onClick={check}><AntIcon name="sync" size={13} />检查更新</button> : (
+            <>
+              <b key={title}>{title}</b>
+              <span className="update-action" key={card.is}>{action}</span>
+            </>
+          )}
         </div>
         {below}
       </div>
