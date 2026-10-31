@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import type { LogEntry, TaskDetail, TaskSummary } from '../lib/api';
 import { fromIso, monthName, nowS, plural, sameDay, when } from '../lib/format';
 import { Bar, Empty } from '../components/ui';
@@ -17,12 +17,15 @@ export function LogView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   // Read before it is marked: the tint starts from what came before the visit. Opening the log reads it;
   // entries that arrive while it is open wait for a click in it, as a changed file does.
   const before = useUI((s) => s.logBase[t.id] ?? s.seen?.logs[t.id] ?? n);
-  useEffect(() => {
+  // Only on opening, with the entries there then: what arrives later is read by a click in the pane.
+  const opened = useEffectEvent(() => {
     const s = useUI.getState();
     if (!(t.id in s.logBase)) useUI.setState({ logBase: { ...s.logBase, [t.id]: s.seen?.logs[t.id] ?? n } });
     setSeen((seen) => (seen.logs[t.id] === n ? null : { ...seen, logs: { ...seen.logs, [t.id]: n } }));
-    // Only on opening: what arrives later is read by a click in the pane.
-  }, [t.id]);
+  });
+  useEffect(() => opened(), [t.id]);
+  // Today as the log was opened, for the day it names as today.
+  const [now] = useState(() => new Date());
 
   const year = new Date((fromIso(t.createdAt) || nowS()) * 1000).getFullYear();
   const rows: ReactNode[] = [];
@@ -33,7 +36,7 @@ export function LogView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
       day = e.day;
       const [mm = 0, dd = 0] = e.day.split('-').map(Number);
       const label = `${monthName(mm - 1)} ${dd}`;
-      const today = sameDay(new Date(year, mm - 1, dd), new Date());
+      const today = sameDay(new Date(year, mm - 1, dd), now);
       rows.push(<div className="log-day" key={`day:${e.day}:${i}`}>{today ? `Today · ${label}` : label}</div>);
     }
     rows.push(

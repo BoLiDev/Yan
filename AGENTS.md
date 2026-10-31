@@ -68,8 +68,12 @@ module's `index.ts`, and one external never imports another.
 
 ## Checking a change
 
-`npm test` builds, the page included, then runs every test; the integration
-tests run `bin/yan.mjs` against `dist/`, so they need the build.
+`npm test` builds, the page included, holds the page to React's rules of
+hooks and its other lint (`npm run lint:page`, oxlint, which needs no
+TypeScript of its own), then runs every test; the integration tests run
+`bin/yan.mjs` against `dist/`, so they need the build. An Effect that runs
+on some changes and reads other values reads those through useEffectEvent;
+a lint rule is not turned off for a line without a comment saying why.
 `npm run typecheck` type-checks the tests, which the build does not, and the
 page. The page's logic that runs without a browser is tested beside it in
 `web/src/` (`*.test.ts`); its parts as a person uses them, drawn in

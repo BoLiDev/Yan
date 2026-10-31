@@ -16,7 +16,9 @@ export function MarkdownDoc({ text, task, dir, before, dropTitle, outline, bare 
   const [loaded, setLoaded] = useState(0);
   const rendered = useMemo(
     () => renderMarkdown(text, { task, dir, files, filesOrigin: filesOrigin(), before, dropTitle }),
-    // `loaded` is in the list so a language arriving makes it again.
+    // `loaded` stands for what renderMarkdown reads besides its arguments, the languages highlight.js has loaded:
+    // one arriving makes it again.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [text, task, dir, files, before, dropTitle, loaded],
   );
   useEffect(() => {

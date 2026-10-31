@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getJSON, postJSON, type LaunchRepo as RepoOption } from '../lib/api';
-import { link } from '../lib/route';
+import { go as goTo, link } from '../lib/route';
 import { cn } from '../lib/utils';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
@@ -91,7 +91,7 @@ function NewTaskBox() {
       const { launch } = await postJSON<{ launch: string }>('/api/launch', made);
       useUI.setState((s) => ({ launched: { ...s.launched, [launch]: made }, newTask: false }));
       void queryClient.invalidateQueries({ queryKey: ['terminals'] });
-      location.hash = link.new(launch);
+      goTo(link.new(launch));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

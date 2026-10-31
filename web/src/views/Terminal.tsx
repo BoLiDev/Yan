@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { postJSON, type TerminalState } from '../lib/api';
@@ -75,10 +75,10 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
   useKeyNav(null, null);
   // Gone on with from here, the task's terminal is the dark stage until herdr lists the new tab's pane.
   const [starting, setStarting] = useState(false);
-  useEffect(() => {
-    if (state) setStarting(false);
-  }, [state]);
-  const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined }).current;
+  // Listed, it is no longer starting: put so as it is drawn, not after, so a stop later shows Continue again.
+  if (state && starting) setStarting(false);
+  // The panes' terminals, read in effects and handlers only: none of it is drawn.
+  const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined });
 
   // Enter on the page, nothing else taking it, puts the keys in the terminal typed in last, as a click on it does.
   useEffect(() => {
@@ -86,7 +86,8 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
       const active = document.activeElement as HTMLElement | null;
       if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || boxOpen() || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(active?.tagName ?? '')) return;
       e.preventDefault();
-      (panes.terms.get(panes.last ?? '') ?? panes.terms.get(state?.pane ?? ''))?.focus();
+      const p = panes.current;
+      (p.terms.get(p.last ?? '') ?? p.terms.get(state?.pane ?? ''))?.focus();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -126,7 +127,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
           {tiles.map((tile) => (
             <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes}
               split={(direction) => void reshape('split', { task: id, pane: tile.pane, direction }).then((made) => {
-                panes.next = made?.pane;
+                panes.current.next = made?.pane;
               })}
               paste={(text) => send(id, tile.pane, { paste: text, enter: false })}
               close={() => void reshape('close', { task: id, pane: tile.pane })} />
@@ -176,11 +177,11 @@ function StopButton({ id }: { id: string }) {
  * place to type: the agent's own input takes a message of many lines, a
  * paste and an IME's text as a terminal's does.
  */
-function PaneTerm({ task, tile, agent, panes, split, paste, close }: {
+function PaneTerm({ task, tile, agent, panes: shared, split, paste, close }: {
   task: string;
   tile: Tile;
   agent: boolean;
-  panes: Panes;
+  panes: RefObject<Panes>;
   split: (direction: 'right' | 'down') => void;
   paste: (text: string) => void;
   close: () => void;
@@ -193,6 +194,7 @@ function PaneTerm({ task, tile, agent, panes, split, paste, close }: {
   useEffect(() => {
     const el = host.current;
     if (!el) return;
+    const panes = shared.current;
     setEnded(null);
     let disposed = false;
     const term = new Terminal({
@@ -391,19 +393,19 @@ function PaneTerm({ task, tile, agent, panes, split, paste, close }: {
       window.clearTimeout(wheeling);
       term.dispose();
     };
-  }, [task, pane, agent, panes, attempt]);
+  }, [task, pane, agent, shared, attempt]);
 
   // The theme changing recolours the pane where it stands.
   const theme = useTheme();
   useEffect(() => {
-    const t = panes.terms.get(pane);
+    const t = shared.current.terms.get(pane);
     if (t) t.options.theme = termTheme();
-  }, [theme, panes, pane]);
+  }, [theme, shared, pane]);
 
   const at = (n: number): string => `${n * 100}%`;
   // What is selected in the pane as its menu opens: Copy copies it, and is not offered without it.
   const [selected, setSelected] = useState('');
-  const term = (): Terminal | undefined => panes.terms.get(pane);
+  const term = (): Terminal | undefined => shared.current.terms.get(pane);
   return (
     <ContextMenu onOpenChange={(open) => {
       const t = term();

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { postJSON, type DeliverableStatus, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
 import { Empty } from '../components/ui';
 import { fileUrl, onStatus, queryClient, useReport, vaultPath } from '../state/server';
@@ -20,21 +20,20 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const host = useRef<HTMLDivElement>(null);
   const island = useRef<Island | null>(null);
 
-  const say = (text: string, bad: boolean): void => {
+  // What the island, built once, calls later: these read the task as it is when they are called.
+  const say = useEffectEvent((text: string, bad: boolean): void => {
     useUI.setState((s) => ({ said: { ...s.said, [t.id]: { text, bad, at: Date.now() } } }));
     island.current?.say(text, bad);
-  };
-  const wrote = (out: WriteResult, ok: string, pushed: string): void => {
+  });
+  const wrote = useEffectEvent((out: WriteResult, ok: string, pushed: string): void => {
     say(out.warning ? `${pushed}: ${out.warning}` : ok, !!out.warning);
     void onStatus(out.status);
-  };
-  // The latest of these, for the island, which is built once and calls them later.
-  const latest = useRef({ say, wrote });
-  latest.current = { say, wrote };
+  });
 
   const html = rep.data?.html;
   const sha = rep.data?.sha;
-  useLayoutEffect(() => {
+  // The island built again for a new report.html only; the facts and the deliverables are told below.
+  const build = useEffectEvent(() => {
     const el = host.current;
     const report = rep.data;
     if (!el || !report) return;
@@ -43,31 +42,31 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
     island.current = buildIsland(root, report, d.deliverables, {
       send: (id: string, to: DeliverableStatus, reason?: string) => {
         postJSON<WriteResult>('/api/deliverable', { task: t.id, id, to, reason }).then(
-          (out) => latest.current.wrote(out, `Saved ${t.id}'s deliverables`, 'Saved, but the push failed'),
+          (out) => wrote(out, `Saved ${t.id}'s deliverables`, 'Saved, but the push failed'),
           (err: Error) => {
-            latest.current.say(`Not saved: ${err.message}`, true);
+            say(`Not saved: ${err.message}`, true);
             void queryClient.invalidateQueries({ queryKey: ['task', t.id] });
           },
         );
       },
       reason: (id, reason) => {
         postJSON<WriteResult>('/api/deliverable', { task: t.id, id, to: 'abandoned', reason }).then(
-          (out) => latest.current.wrote(out, `Saved why ${id} was given up`, 'Saved, but the push failed'),
-          (err: Error) => latest.current.say(`Not saved: ${err.message}`, true),
+          (out) => wrote(out, `Saved why ${id} was given up`, 'Saved, but the push failed'),
+          (err: Error) => say(`Not saved: ${err.message}`, true),
         );
       },
       edit: (index, text) => {
         postJSON<WriteResult>('/api/report/edit', { task: t.id, sha: report.sha, index, text }).then(
-          (out) => latest.current.wrote(out, 'Saved to report.html', 'Saved, but the push failed'),
-          (err: Error) => latest.current.say(`Not saved: ${err.message}`, true),
+          (out) => wrote(out, 'Saved to report.html', 'Saved, but the push failed'),
+          (err: Error) => say(`Not saved: ${err.message}`, true),
         );
       },
       copied: (url) => void navigator.clipboard.writeText(url).then(() => toast('Link copied')),
       uatUrl: (path) => fileUrl(vaultPath(t.id, `uat/${path}`)),
       downloadUrl: `/api/report/download?task=${encodeURIComponent(t.id)}`,
     }, said && Date.now() - said.at < SAID_FOR_MS ? said : null);
-    // Built again only for a new report.html; the facts and the deliverables are told below.
-  }, [t.id, html, sha]);
+  });
+  useLayoutEffect(() => build(), [t.id, html, sha]);
 
   useLayoutEffect(() => {
     if (rep.data) island.current?.setFacts(rep.data);

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
@@ -31,7 +31,9 @@ function useRouteEffects(): void {
   const r = useRoute();
   const { data: index } = useIndex();
   const before = useRef<Route | null>(null);
-  useEffect(() => {
+  const hasIndex = index !== undefined;
+  // What a move does reads the route and the index as they are, but only a move, or the index first arriving, makes one.
+  const moved = useEffectEvent(() => {
     const was = before.current;
     before.current = r;
     useUI.setState({ pageSource: false });
@@ -53,16 +55,19 @@ function useRouteEffects(): void {
     if (r.view === 'task' && (was?.view !== 'task' || was.id !== r.id)) useUI.setState((s) => ({ recent: [r.id, ...s.recent.filter((id) => id !== r.id)].slice(0, 20) }));
     // The log marks itself read as it opens, after noting where the visit started.
     if (index && !(r.view === 'task' && r.sub === 'log')) lookAt(r, index);
-    // Only when the route moves, or once the index first arrives.
-  }, [hash, !!index]);
+  });
+  useEffect(() => moved(), [hash, hasIndex]);
 
   // A file asked for opens the folders above it.
   const id = r.view === 'task' && (r.sub === 'file' || r.sub === 'folder') ? r.id : undefined;
   const { data: d } = useTask(id);
-  useEffect(() => {
+  const hasTask = d !== undefined;
+  // Opened once as the file is asked for, and not again as the task's files change: what was closed by hand stays closed.
+  const reveal = useEffectEvent(() => {
     if (!d || r.view !== 'task' || (r.sub !== 'file' && r.sub !== 'folder')) return;
     openTo(d, r.sub === 'file' ? foldersAbove(r.path) : [r.path, ...foldersAbove(r.path)]);
-  }, [hash, !!d]);
+  });
+  useEffect(() => reveal(), [hash, hasTask]);
 }
 
 /**
@@ -76,12 +81,13 @@ function useAgentFollow(): void {
   const id = r.view === 'task' ? r.id : null;
   const first = id === null ? undefined : index?.tasks.find((t) => t.id === id)?.agents[0]?.[1];
   const went = useRef<string | null>(null);
+  const hasIndex = index !== undefined;
   useEffect(() => {
-    if (id === null || !index) return;
+    if (id === null || !hasIndex) return;
     const moved = went.current !== id;
     went.current = id;
     if (moved || (first !== undefined && useAgentTab.getState().showing === noAgent(id))) followAgent(first ?? noAgent(id));
-  }, [id, first, !!index]);
+  }, [id, first, hasIndex]);
 }
 
 function openTo(d: TaskDetail, folders: readonly string[]): void {
