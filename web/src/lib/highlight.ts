@@ -7,7 +7,7 @@ import { baseName, ext } from './files';
  * one outside them that a file here can be in is loaded the first time a
  * file needs it, and a file whose language is not known, or too long to
  * colour quickly, stays plain. The colours are the page's own, `.hljs-*` in
- * app.css, chosen to read on the add and del tints as well.
+ * index.css, chosen to read on the add and del tints as well.
  */
 
 const LANGS: Record<string, string> = {

@@ -4,17 +4,8 @@
  * colour the page draws is one of these; a component names the token, never
  * the colour, so the dark theme is these tokens again and nothing else.
  */
-/*
- * The page's own stylesheet, app.css, is a layer of its own between the reset
- * and Tailwind's utilities: what it says beats the reset, as it was written
- * against the browser's defaults, and a utility on an element beats it, so a
- * class it also names (.group, .grow) never takes over a part moved to
- * Tailwind.
- */
-@layer theme, base, legacy, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "./app.css" layer(legacy);
 
 @custom-variant dark (&:is(.dark *));
 

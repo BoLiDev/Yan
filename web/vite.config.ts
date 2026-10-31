@@ -17,7 +17,7 @@ const serve = process.env.YAN_SERVE ?? 'http://localhost:4747';
 
 /**
  * Quiet when it builds, as part of `npm run build`, and as usual when it
- * serves. The fonts app.css names are served by yan serve from
+ * serves. The fonts the theme names are served by yan serve from
  * templates/fonts/, not built in, so Vite saying it could not find them is no
  * news either way.
  */

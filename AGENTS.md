@@ -24,6 +24,18 @@ imports as types alone. `npm run dev:web` serves the page with hot reload
 against a `yan serve` already running ($YAN_SERVE, http://localhost:4747 by
 default).
 
+The page is drawn in Tailwind on the theme in `web/src/index.css`, which
+holds the tokens, light and dark, and the little that has to be global: the
+scrollbars and highlight.js's colours. An element carries its own
+utilities; what several views draw alike is a part in
+`web/src/components/page/`, beside shadcn's components on Base UI in
+`components/ui/`. HTML the page does not write itself, rendered markdown or
+xterm's, is styled from its container with arbitrary variants, kept in a
+named constant beside the component that draws it. A file of the page's
+stays under 300 lines, blank lines and comments aside (lint holds it there):
+one that grows past that is split by what its parts are, in a folder named
+for the view.
+
 `src/records/` owns the vault's files: `task` (task.json and problem.md),
 `log`, `drafts`, `learnings`, `repos` (repos.json, and where each is cloned).
 `src/externals/` wraps outside things: `worktree` (the pool) and `harness`
