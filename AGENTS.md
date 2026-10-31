@@ -72,8 +72,18 @@ module's `index.ts`, and one external never imports another.
 tests run `bin/yan.mjs` against `dist/`, so they need the build.
 `npm run typecheck` type-checks the tests, which the build does not, and the
 page. The page's logic that runs without a browser is tested beside it in
-`web/src/`; how it behaves in one is checked by driving it, as yan:uat does. A command's own test sits beside
-it in `src/`; a test through `bin/yan` goes in `tests/integration/`.
+`web/src/` (`*.test.ts`); its parts as a person uses them, drawn in
+Chromium with serve stood in for at fetch, beside them too (`*.test.tsx`,
+helpers in `web/src/testing/`); and the page against a real `yan serve`
+in `tests/e2e/`. Those two need Playwright's Chromium, once per machine:
+`npx playwright install chromium`. A command's own test sits beside it in
+`src/`; a test through `bin/yan` goes in `tests/integration/`.
+
+A test says what yan does, as someone using it would see it: what the page
+shows and sends, what a command prints with `--json`, what lands in the vault.
+Not the markup, the wording, or which internal function ran; and not a test
+that only replays one bug's steps when the behaviour it broke can be tested
+instead.
 
 When a command, a file format or what the agent is told changes, update
 `README.md` in the same commit.

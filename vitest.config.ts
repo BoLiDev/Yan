@@ -1,41 +1,62 @@
+import react from '@vitejs/plugin-react';
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 // Where a test lives says who it is for:
 //
-//   web/src/<part>/*.test.ts the page's own logic, beside it: what runs
-//                            without a browser, such as its routes, its
-//                            marks and its diffs
-//   src/<module>/*.test.ts   one module's own test, beside the file it tests,
-//                            whether or not it needs the internals. It may
-//                            import the module's internal files, which a test
-//                            in tests/ could only reach by widening the
+//   src/<module>/*.test.ts   one module's own test, beside the file it tests.
+//                            It may import the module's internal files, which
+//                            a test elsewhere could only reach by widening the
 //                            public surface.
+//   web/src/**/*.test.ts     the page's logic that runs without a browser: its
+//                            routes, its marks, its diffs, its state
+//   web/src/**/*.test.tsx    the page's parts as a person uses them, drawn by
+//                            React in Chromium, serve stood in for at fetch
 //   tests/integration/       command-level: through bin/yan, or a command's
 //                            exported function with its deps injected
-//   tests/e2e/               real Herdr, real forge; skipped loudly when absent
-//   tests/unit/              rules that belong to no one module: the module
-//                            and entry boundaries, the harness bindings, the
-//                            instructions, the shell stub
+//   tests/e2e/               the page in Chromium against a real `yan serve`
+//                            on a fixture vault
 //
-// Only *.test.ts is collected. `tsconfig.json` excludes src/**/*.test.ts from
-// the build, so colocated tests never reach dist/.
+// `tsconfig.json` excludes src/**/*.test.ts from the build, so colocated tests
+// never reach dist/. The integration and e2e tests run bin/yan against dist/,
+// so `npm test` builds first.
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts', 'web/src/**/*.test.ts', 'tests/{unit,integration,e2e}/**/*.test.ts'],
-    setupFiles: ['tests/helpers/setup-env.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
-    // Git and worktree fixtures are real directories on disk; running files in
-    // parallel processes is fine, because each test owns its own temp
-    // directory.
-    //
-    // This carried `fileParallelism: false` for a while, and the reason it does
-    // not any more is worth one line rather than a section: `runYan` and
-    // `fxGit` used `spawnSync`, so a worker's event loop was blocked, it missed
-    // vitest's 60 s RPC deadline under contention, and the run EXITED 1 WITH
-    // EVERY TEST PASSING. Both are async now, and `tests/helpers/fixtures.ts`
-    // carries the measurements — including the one that says why making only
-    // `runYan` async was not enough.
     reporters: ['default'],
+    projects: [
+      {
+        test: {
+          name: 'node',
+          include: ['src/**/*.test.ts', 'web/src/**/*.test.ts', 'tests/{integration,e2e}/**/*.test.ts'],
+          setupFiles: ['tests/helpers/setup-env.ts'],
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
+          // Each test owns its own temp directories, so files run in parallel. What they spawn is awaited rather than
+          // run with spawnSync: a worker whose loop is blocked misses vitest's RPC deadline under load, and the run
+          // fails with every test passing.
+        },
+      },
+      {
+        plugins: [react()],
+        // Found up front, so a dependency first met mid-run does not make Vite reload the tests.
+        optimizeDeps: {
+          include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-dev-runtime', '@tanstack/react-query', 'zustand', 'dompurify', 'marked', 'highlight.js/lib/core', '@xterm/xterm', 'vitest-browser-react'],
+        },
+        test: {
+          name: 'browser',
+          include: ['web/src/**/*.test.tsx'],
+          testTimeout: 20_000,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium' }],
+            screenshotFailures: false,
+          },
+        },
+      },
+    ],
   },
 });
