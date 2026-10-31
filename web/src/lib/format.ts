@@ -5,6 +5,9 @@ const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** What herdr says of an agent in a pane, as its Terminal row says it. */
+export const AGENT_WORD: Readonly<Record<'working' | 'blocked' | 'done' | 'idle' | 'unknown', string>> = { working: '工作中', blocked: '等你确认', done: '完成', idle: '空闲', unknown: '' };
 export const nowS = (): number => Math.floor(Date.now() / 1000);
 export const fromIso = (iso: string | null | undefined): number => (iso ? Math.floor(new Date(iso).getTime() / 1000) || 0 : 0);
 

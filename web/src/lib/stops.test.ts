@@ -12,6 +12,7 @@ describe('Tab in a task', () => {
     expect(taskStops(task(1, true), true)).toEqual(['#/t/t1', '#/t/t1/report', '#/t/t1/log', '#/t/t1/agent', '#/t/t1/b/1/changes']);
     expect(taskStops(task(0, false), false)).toEqual(['#/t/t1', '#/t/t1/log']);
     expect(taskStops(task(0, true), false, true)).toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/b/1/changes', '#/t/t1/resources']);
+    expect(taskStops(task(1, false), false, false, true), 'a terminal after Log').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/terminal', '#/t/t1/agent']);
   });
 
   it('goes down and round, and back up and round', () => {

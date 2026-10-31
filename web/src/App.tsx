@@ -107,7 +107,8 @@ function useKeys(): void {
         e.preventDefault();
         const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
         const report = !!d?.files.some((f) => f.path === 'report.html');
-        const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0), r, e.shiftKey);
+        const terminal = !!queryClient.getQueryData<Record<string, unknown>>(['terminals'])?.[r.id];
+        const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0, terminal), r, e.shiftKey);
         active?.blur();
         if (to) location.hash = to;
         return;

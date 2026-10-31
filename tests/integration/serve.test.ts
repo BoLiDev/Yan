@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
@@ -430,6 +430,92 @@ describe('the overview on yan serve', () => {
     const said = await none.text();
     expect(said, 'the task named, and nothing else said').toContain('<h1><span>first</span><b> 没有 Agent</b></h1>');
     expect(said).not.toMatch(/<p[ >]/);
+  });
+});
+
+describe('an agent in a herdr pane on yan serve', () => {
+  /** A herdr: its socket answering as 0.9.5 with the pane `w1:p2` waiting on user, and keeping what it was asked. */
+  const asked: { method: string; params: Record<string, unknown> }[] = [];
+  let herdr: ReturnType<typeof createServer> | undefined;
+  afterAll(() => herdr?.close());
+
+  async function aHerdr(version: string): Promise<{ socket: string; bin: string }> {
+    const dir = mkTempDir('yan-herdr-');
+    const socket = join(dir, 'herdr.sock');
+    herdr = createServer((conn) => {
+      let got = '';
+      conn.setEncoding('utf8');
+      conn.on('data', (chunk: string) => {
+        got += chunk;
+        const nl = got.indexOf('\n');
+        if (nl < 0) return;
+        const req = JSON.parse(got.slice(0, nl)) as { id: string; method: string; params: Record<string, unknown> };
+        asked.push({ method: req.method, params: req.params });
+        const result = req.method === 'ping' ? { type: 'pong', version }
+          : req.method === 'pane.get' ? (req.params.pane_id === 'w1:p2' ? { type: 'pane_info', pane: { pane_id: 'w1:p2', agent: 'claude', agent_status: 'blocked' } } : undefined)
+            : req.method === 'pane.layout' ? { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p2', rect: { width: 100, height: 30 } }] } }
+              : { type: 'ok' };
+        conn.end(`${JSON.stringify(result === undefined ? { id: req.id, error: { code: 'not_found', message: 'pane not found' } } : { id: req.id, result })}\n`);
+      });
+    });
+    await new Promise<void>((resolve) => herdr?.listen(socket, resolve));
+    // `herdr terminal session observe`: two frames of what it was asked, then the stream ends.
+    const bin = join(dir, 'herdr');
+    writeFileSync(bin, `#!${process.execPath}\nconst a = process.argv.slice(2).join(' ');\nconst frame = (s) => JSON.stringify({ type: 'terminal.frame', seq: 1, encoding: 'ansi', width: 100, height: 30, full: true, bytes: Buffer.from(s).toString('base64') });\nconsole.log(frame(a + ' ' + process.env.HERDR_SOCKET_PATH));\nconsole.log(frame('\\u001b[1mDo you want to proceed?\\u001b[0m'));\nconsole.log(JSON.stringify({ type: 'terminal.closed', reason: 'done' }));\n`);
+    chmodSync(bin, 0o755);
+    return { socket, bin };
+  }
+
+  function keep(socket: string, bin: string, extra: { task: string; pane: string }[] = []): void {
+    // The vault is $YAN_VAULT, so the machine's config.json registers none.
+    const at = home;
+    mkdirSync(join(home, '.machine'), { recursive: true });
+    writeFileSync(join(home, '.machine', 'config.json'), JSON.stringify({
+      version: 1, vaults: {}, clones: {},
+      terminals: [{ vault: at, task: 't001', pane: 'w1:p2', socket, bin, cli: 'claude', since: '2026-10-31T09:00:00Z' }, ...extra.map((e) => ({ vault: at, ...e, socket, bin, cli: 'claude', since: '' }))],
+    }));
+  }
+
+  it('lists a task whose pane is there with what herdr says of it, streams the pane, and types into it', async () => {
+    if (process.platform === 'win32') return;
+    const { socket, bin } = await aHerdr('0.9.5');
+    keep(socket, bin, [{ task: 't002', pane: 'w9:p9' }]);
+    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { status: string; agent: string; herdr: string; streams: boolean }>;
+    expect(states, 'a pane gone is left out').toEqual({ t001: expect.objectContaining({ status: 'blocked', agent: 'claude', herdr: '0.9.5', streams: true, pane: 'w1:p2' }) });
+
+    const stream = await (await fetch(page('/api/terminal/stream?task=t001'))).text();
+    const frames = [...stream.matchAll(/^data: (.*)$/gm)].map((m) => JSON.parse(m[1] as string) as { bytes: string; type: string; why?: string });
+    const drawn = frames.filter((f) => f.type === 'terminal.frame').map((f) => Buffer.from(f.bytes, 'base64').toString());
+    expect(drawn[0], 'observed at the pane\'s size, from the herdr the pane is in').toBe(`terminal session observe w1:p2 --cols 100 --rows 30 ${socket}`);
+    expect(drawn[1]).toContain('Do you want to proceed?');
+    expect(stream).toMatch(/event: closed/);
+
+    const post = (value: unknown, origin = page('')) => fetch(page('/api/terminal/input'), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+    asked.length = 0;
+    expect((await post({ task: 't001', keys: ['2'] })).status).toBe(200);
+    expect((await post({ task: 't001', text: '\x1b[H' })).status).toBe(200);
+    expect((await post({ task: 't001', paste: '换个做法', enter: true })).status).toBe(200);
+    expect((await post({ task: 't001', keys: ['2'] }, 'http://evil.example')).status).toBe(403);
+    expect((await post({ task: 't003', keys: ['2'] })).status).toBe(404);
+    expect(asked).toEqual([
+      { method: 'pane.send_keys', params: { pane_id: 'w1:p2', keys: ['2'] } },
+      { method: 'pane.send_text', params: { pane_id: 'w1:p2', text: '\x1b[H' } },
+      { method: 'pane.send_input', params: { pane_id: 'w1:p2', text: '换个做法', keys: ['enter'] } },
+    ]);
+  });
+
+  it('says which herdr is too old to stream a pane', async () => {
+    if (process.platform === 'win32') return;
+    herdr?.close();
+    const { socket, bin } = await aHerdr('0.7.1');
+    keep(socket, bin);
+    // What herdr says is kept for a second, for every page asks every two.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { streams: boolean }>;
+    expect(states.t001?.streams).toBe(false);
+    const r = await fetch(page('/api/terminal/stream?task=t001'));
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain('0.7.2');
   });
 });
 

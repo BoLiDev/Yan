@@ -23,6 +23,10 @@ import { normalizePath } from './paths.js';
  * skills such as the ones a workplace keeps. It is this machine's and not the
  * vault's, since the folder is only here.
  *
+ * `terminals` is written by bare `yan` alone: each agent it started in a
+ * herdr pane here, while the agent runs, so `yan serve` on this machine can
+ * show the pane and type into it. A pane is only on this machine.
+ *
  * Data access only: nothing here refuses a missing or broken registration, and
  * `util/vault.ts` decides what to do about one. `$YAN_MACHINE_DIR` overrides
  * the location, for tests.
@@ -35,6 +39,31 @@ interface MachineConfig {
   readonly clones: Readonly<Record<string, string>>;
   /** As written, a path or a list of them, so a rewrite of the file keeps it as it was. */
   readonly skillDir?: string | readonly string[];
+  readonly terminals?: readonly HeldTerminal[];
+}
+
+/** An agent bare `yan` started in a herdr pane: which task, which pane, and the socket herdr answers on. */
+export interface HeldTerminal {
+  readonly vault: string;
+  readonly task: string;
+  readonly pane: string;
+  readonly socket: string;
+  /** The herdr itself, which streams the pane. */
+  readonly bin: string;
+  /** claude, codex or agy. */
+  readonly cli: string;
+  /** When it started, as an ISO time. */
+  readonly since: string;
+}
+
+function readTerminals(raw: unknown): HeldTerminal[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    const r = asRecord(entry);
+    const [vault, task, pane, socket] = [set(r.vault), set(r.task), set(r.pane), set(r.socket)];
+    if (vault === undefined || task === undefined || pane === undefined || socket === undefined) return [];
+    return [{ vault: normalizePath(vault), task, pane, socket, bin: set(r.bin) ?? 'herdr', cli: set(r.cli) ?? 'claude', since: set(r.since) ?? '' }];
+  });
 }
 
 const EMPTY: MachineConfig = { version: 1, vaults: {}, clones: {} };
@@ -74,12 +103,14 @@ export function readMachine(): MachineConfig {
   const active = set(record.active);
   const skillDir = typeof record.skillDir === 'string' ? record.skillDir
     : Array.isArray(record.skillDir) ? record.skillDir.filter((d): d is string => typeof d === 'string') : undefined;
+  const terminals = readTerminals(record.terminals);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
     vaults,
     clones,
     ...(skillDir === undefined ? {} : { skillDir }),
+    ...(terminals.length === 0 ? {} : { terminals }),
   };
 }
 
@@ -146,4 +177,29 @@ export function skillDirs(): string[] {
   const given = typeof skillDir === 'string' ? [skillDir] : skillDir ?? [];
   return given.map((d) => d.trim()).filter((d) => d !== '')
     .map((d) => normalizePath(resolve(homedir(), d.replace(/^~(?:[\\/]|$)/, ''))));
+}
+
+/** Keep that `held` runs in its pane, in place of any other agent kept for its task. */
+export function holdTerminal(held: HeldTerminal): void {
+  const vault = normalizePath(held.vault);
+  editMachine((current) => ({
+    ...current,
+    terminals: [...(current.terminals ?? []).filter((t) => t.vault !== vault || t.task !== held.task), { ...held, vault }],
+  }));
+}
+
+/** Forget the agent of `task` in `pane`, once it has exited; one started since in another pane stays. */
+export function letTerminalGo(vault: string, task: string, pane: string): void {
+  const at = normalizePath(vault);
+  editMachine((current) => {
+    const terminals = (current.terminals ?? []).filter((t) => t.vault !== at || t.task !== task || t.pane !== pane);
+    const { terminals: _was, ...rest } = current;
+    return terminals.length === 0 ? rest : { ...rest, terminals };
+  });
+}
+
+/** The agents running in herdr panes for the tasks of the vault at `vault`, as bare `yan` kept them. */
+export function terminalsOf(vault: string): HeldTerminal[] {
+  const at = normalizePath(vault);
+  return (readMachine().terminals ?? []).filter((t) => t.vault === at);
 }

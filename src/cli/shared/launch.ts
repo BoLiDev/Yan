@@ -12,12 +12,13 @@ export { CREATE_NEW };
 export type { Said, Working };
 import { tildePath } from './style.js';
 import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs, takesPlugins } from '../../externals/harness/index.js';
+import { herdrPane } from '../../externals/herdr/index.js';
 import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
 import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
-import { machineConfigPath, skillDirs } from '../../util/machine.js';
+import { holdTerminal, letTerminalGo, machineConfigPath, skillDirs } from '../../util/machine.js';
 import { branchOf, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
@@ -542,6 +543,24 @@ export async function enter(options: { cli?: string; extra: readonly string[] },
   const addDirs = trees.slice(1).map((t) => t.path);
   const prompt = promptFor(harness.cli, task.dir, told(task, trees));
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
-  // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
-  return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
+  // Started in a herdr pane, it is kept on this machine while it runs, so `yan serve` can show the pane and type into it.
+  // Only a convenience: a config.json that cannot be written never keeps the agent from starting.
+  const pane = herdrPane(process.env);
+  const kept = pane !== undefined && quietly(() => holdTerminal({ vault, task: task.id, ...pane, cli: cliKind(harness.cli), since: new Date().toISOString() }));
+  try {
+    // The vault is explicit, so `yan vault use` elsewhere cannot move a running agent.
+    return (deps.start ?? startAgent)(harness.cli, argv, { cwd: workdir, env: { ...process.env, YAN_TASK: task.id, YAN_VAULT: vault } });
+  } finally {
+    if (kept) quietly(() => letTerminalGo(vault, task.id, pane.pane));
+  }
+}
+
+/** Whether `act` ran without throwing; what it threw is dropped. */
+function quietly(act: () => void): boolean {
+  try {
+    act();
+    return true;
+  } catch {
+    return false;
+  }
 }

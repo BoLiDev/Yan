@@ -58,6 +58,22 @@ export interface FileLink {
   readonly template: string;
 }
 
+/** What herdr says of a pane's agent: at work, waiting on `user`, finished and not looked at, or idle. */
+export type AgentStatus = 'idle' | 'working' | 'blocked' | 'done' | 'unknown';
+
+/** A task's agent that bare `yan` started in a herdr pane on this machine, while it runs. */
+export interface TerminalState {
+  readonly status: AgentStatus;
+  /** The agent herdr finds in the pane; null once it has exited. */
+  readonly agent: string | null;
+  readonly cli: string;
+  readonly pane: string;
+  readonly since: string;
+  /** herdr's version, and whether it can stream the pane (0.7.2 and later). */
+  readonly herdr: string;
+  readonly streams: boolean;
+}
+
 export interface Index {
   readonly tasks: readonly TaskSummary[];
   readonly latest: readonly Push[];

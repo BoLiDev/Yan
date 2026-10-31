@@ -1,5 +1,5 @@
 import { QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type WriteResult } from '../lib/api';
+import { getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WriteResult } from '../lib/api';
 import { enc } from '../lib/files';
 import { langLoaded, langReady } from '../lib/highlight';
 import { parseRoute } from '../lib/route';
@@ -30,6 +30,14 @@ async function fetchIndex(): Promise<Index> {
 }
 
 export const useIndex = (): UseQueryResult<Index> => useQuery({ queryKey: ['index'], queryFn: fetchIndex });
+
+/**
+ * The tasks whose agent runs in a herdr pane here, with what herdr says of
+ * each. Not the vault's, so no event says it moved: it is asked every two
+ * seconds instead.
+ */
+export const useTerminals = (): UseQueryResult<Readonly<Record<string, TerminalState>>> =>
+  useQuery({ queryKey: ['terminals'], queryFn: () => getJSON<Record<string, TerminalState>>('/api/terminals'), staleTime: 0, refetchInterval: 2000, retry: false });
 
 export function useTask(id: string | undefined): UseQueryResult<TaskDetail> {
   return useQuery({ queryKey: ['task', id], queryFn: () => getJSON<TaskDetail>(`/api/task/${encodeURIComponent(id as string)}`), enabled: !!id });

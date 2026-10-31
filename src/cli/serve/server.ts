@@ -11,6 +11,7 @@ import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
 import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtasks } from './report.js';
 import { noAgentPage } from './no-agent.js';
+import { Terminals } from './terminal.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
@@ -182,6 +183,7 @@ export class YanServer {
   private readonly view: VaultView;
   private readonly branches: Branches;
   private readonly thumbs = new Thumbs();
+  private readonly terminals: Terminals;
   /** The sha256 of each blob of uat/ a report was checked against, by its git sha. */
   private readonly hashes = new Map<string, string>();
   /** The last few reports as the page is sent them, and the pictures taken out of each, by report.html's blob. */
@@ -202,6 +204,7 @@ export class YanServer {
 
   public constructor(private readonly options: ServeOptions) {
     this.view = new VaultView(options.vaultDir);
+    this.terminals = new Terminals(options.vaultDir);
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
     this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home) };
@@ -238,6 +241,7 @@ export class YanServer {
   public stop(): Promise<void> {
     if (this.timer !== undefined) clearTimeout(this.timer);
     for (const c of this.clients) c.end();
+    this.terminals.close();
     const closed = Promise.all(this.servers.map((s) => new Promise<void>((resolve) => {
       s.close(() => resolve());
       s.closeAllConnections();
@@ -369,6 +373,13 @@ export class YanServer {
       await this.tick();
       return json(res, this.status);
     }
+    // What is typed into an agent's terminal: not the vault's, so nothing is committed, but only the page may send it.
+    if (req.method === 'POST' && p === '/api/terminal/input') {
+      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may type into a terminal');
+      const given = await body(req);
+      if (given === undefined) return send(res, 400, 'a JSON body is needed');
+      return this.terminals.input(res, given);
+    }
     const write = req.method === 'POST' ? this.writes[p] : undefined;
     if (write !== undefined) {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may change the vault');
@@ -393,6 +404,8 @@ export class YanServer {
       return send(res, 200, noAgentPage(id, this.view.index().tasks.find((t) => t.id === id)?.title), 'text/html; charset=utf-8', { 'Cache-Control': 'no-store' });
     }
     if (p === '/api/events') return this.events(req, res);
+    if (p === '/api/terminals') return json(res, await this.terminals.states());
+    if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', req, res);
     if (p === '/api/index') {
       return json(res, {
         ...this.view.index(),

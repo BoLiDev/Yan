@@ -4,9 +4,10 @@ import { buildTree, dirName, treeOrder } from '../lib/files';
 import { link, useRoute, viewKey, type Route } from '../lib/route';
 import { feedFiles, markLooked, unseenPushes } from '../lib/seen';
 import { Empty } from '../components/ui';
-import { queryClient, useIndex, useTask } from '../state/server';
+import { queryClient, useIndex, useTask, useTerminals } from '../state/server';
 import { setSeen, useUI } from '../state/ui';
 import { AgentView } from '../views/Agent';
+import { TerminalView } from '../views/Terminal';
 import { ResourcesView } from '../views/Resources';
 import { BranchView } from '../views/Branch';
 import { FileView } from '../views/File';
@@ -43,6 +44,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   const seen = useUI((s) => s.seen);
   const known = r.id !== undefined && index.tasks.some((t) => t.id === r.id);
   const { data: d } = useTask(known ? r.id : undefined);
+  const { data: terminals } = useTerminals();
 
   if (r.view === 'latest') {
     if (!r.id) {
@@ -75,6 +77,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   if (r.sub === 'report') return <ReportView t={t} d={d} />;
   if (r.sub === 'folder') return <FolderView t={t} d={d} path={r.path} />;
   if (r.sub === 'branch') return <BranchView t={t} r={r} />;
+  if (r.sub === 'terminal') return <TerminalView t={t} state={terminals?.[t.id]} />;
   if (r.sub === 'agent') return <AgentView t={t} />;
   if (r.sub === 'resources') return <ResourcesView t={t} d={d} />;
   if (r.sub !== 'file') return null;

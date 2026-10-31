@@ -207,7 +207,21 @@ word Agent while they are folded). A reload of the page lets the tab go
 until an agent is opened again, and no tab is opened that was not asked
 for. Unfolded, agents are dragged into another order, which is kept in
 task.json; the first is the one going to the task opens. They are left
-out of its Resources, and are added and forgotten with `yan resource`. Code
+out of its Resources, and are added and forgotten with `yan resource`.
+An agent bare `yan` started in a [herdr](https://herdr.dev) pane on this
+machine is a Terminal row under Log while it runs, with what herdr says of
+it: at work, waiting on you (a question or a permission), done or idle.
+Its page is the pane itself, as herdr streams it (`herdr terminal session
+observe`, herdr 0.7.2 or later; the newest stable herdr is the one to
+use): the bytes the agent draws, drawn at the pane's size and scaled to
+the column, so a question, a menu or a slash command's completion is the
+agent's own, as in the terminal. What is typed in it goes to the pane as
+typed, keys herdr names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by
+their names, and a paste as one; ⌘ chords stay the page's. The box under
+it sends a message whole, Enter sending and Shift+Enter starting a line,
+for one longer than a line or typed with an IME; Enter on the page goes to
+it and Esc gives the keys back. The pane is only on this machine, so
+serve shows the terminal only where the agent runs. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches
 nothing from the network; a language outside the common set is loaded the
@@ -243,7 +257,7 @@ then given up; with
 nothing typed it offers the tasks visited last, the one being read left
 out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab
-move through its nav, Overview, Report, Log, Agent, MR and Resources,
+move through its nav, Overview, Report, Log, Terminal, Agent, MR and Resources,
 showing each as they reach it and round again, and nowhere else on the
 page: MR shows the branch its first tree is on, and Agent and Resources
 the task's agents and its resources by kind, the first picked, ↑ and ↓
@@ -305,7 +319,7 @@ what it was written from), its bar says legacy and what changed.
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
         uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
       misc/                    anything else worth keeping: a script, a query, data pulled for a check
-~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned; skillDir: plugin folders claude is started with here, besides yan's
+~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned; skillDir: plugin folders claude is started with here, besides yan's; terminals: each agent bare yan started in a herdr pane here, while it runs (vault, task, pane, socket, bin, cli, since)
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```
 

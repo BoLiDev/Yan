@@ -19,7 +19,7 @@ export type BranchTab = (typeof BRANCH_TABS)[number];
 
 export type Route =
   | { readonly view: 'latest'; readonly id?: string; readonly path?: string }
-  | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'agent' | 'resources' }
+  | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'terminal' | 'agent' | 'resources' }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'file' | 'folder'; readonly path: string }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'branch'; readonly repo: number; readonly name: string | null; readonly tab: BranchTab; readonly item: string };
 
@@ -39,6 +39,7 @@ export function parseRoute(hash: string): Route {
     const rest = parts.slice(2);
     if (rest[0] === 'log') return { view: 'task', id, sub: 'log' };
     if (rest[0] === 'report') return { view: 'task', id, sub: 'report' };
+    if (rest[0] === 'terminal') return { view: 'task', id, sub: 'terminal' };
     if (rest[0] === 'agent') return { view: 'task', id, sub: 'agent' };
     if (rest[0] === 'resources') return { view: 'task', id, sub: 'resources' };
     if (rest[0] === 'a') {
@@ -69,6 +70,7 @@ export const link = {
   task: (id: string): string => `#/t/${id}`,
   log: (id: string): string => `#/t/${id}/log`,
   report: (id: string): string => `#/t/${id}/report`,
+  terminal: (id: string): string => `#/t/${id}/terminal`,
   agent: (id: string): string => `#/t/${id}/agent`,
   resources: (id: string): string => `#/t/${id}/resources`,
   file: (id: string, p: string): string => `#/t/${id}/a/${enc(p)}`,

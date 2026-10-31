@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Index, TaskDetail, TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
-import { clock, dayLabel, dayOf, plural, short } from '../lib/format';
+import { AGENT_WORD, clock, dayLabel, dayOf, plural, short } from '../lib/format';
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { KIND_WORD, isLink, listResources, type Listed as Resource } from '../lib/resources';
 import { isSource, sourceView } from '../lib/source';
@@ -9,7 +9,7 @@ import { dropped as dropTo, gapAt, moves } from '../lib/drag';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Editable, Empty, Pane, PushTags, Seg, Tool } from '../components/ui';
-import { useBranch, useBranches, useBranchTree, useIndex, useTask, writeTask } from '../state/server';
+import { useBranch, useBranches, useBranchTree, useIndex, useTask, useTerminals, writeTask } from '../state/server';
 import { onAgentClick, useAgentTab } from '../state/agentTab';
 import { ask, copyText, setPref, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
@@ -395,6 +395,7 @@ function AgentRows({ t, agents, on }: { t: TaskSummary; agents: readonly (readon
 
 function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index: Index; seen: Seen }) {
   const { data: d } = useTask(t.id);
+  const terminal = useTerminals().data?.[t.id];
   const unseen = unseenOf(index, seen, t.id);
   const total = t.deliverables.done + t.deliverables.todo + t.deliverables.abandoned;
   const logCount = d?.log?.entries.length ?? 0;
@@ -424,6 +425,12 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
+        {terminal ? (
+          <a className={'row' + (r.sub === 'terminal' ? ' on' : '')} href={link.terminal(t.id)}>
+            <Icon name="terminal" size={16} /><span className="grow">Terminal</span>
+            <span className={`aside term-status ${terminal.status}`}>{AGENT_WORD[terminal.status] || (terminal.agent ?? '')}</span>
+          </a>
+        ) : null}
         {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}
         {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
         {d ? <ResourceRows t={t} d={d} on={r.sub === 'resources'} /> : null}

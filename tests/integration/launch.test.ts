@@ -7,7 +7,9 @@ import { WAIT_LINE } from '../../src/externals/harness/index.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
+import { terminalsOf } from '../../src/util/machine.js';
 import { normalizePath } from '../../src/util/paths.js';
+import { vaultDir } from '../../src/util/vault.js';
 import { tildePath } from '../../src/cli/shared/style.js';
 
 /**
@@ -334,6 +336,39 @@ describe('an existing task', () => {
     await run(answers({ entry: 't001' }), here);
     expect(started[0]?.cwd).toBe(here);
     expect(said[0]).toMatch(/^warn demo has no clone on this machine, so no tree/);
+  });
+});
+
+describe('an agent started in herdr', () => {
+  const HERDR = { HERDR_ENV: '1', HERDR_PANE_ID: 'w1:p2', HERDR_SOCKET_PATH: '/run/herdr.sock', HERDR_BIN_PATH: '/opt/herdr' } as const;
+  afterEach(() => {
+    for (const k of Object.keys(HERDR)) delete process.env[k];
+  });
+
+  it('is kept on this machine with its pane while it runs, and forgotten once it exits', async () => {
+    Object.assign(process.env, HERDR);
+    const here = normalizePath(realpathSync(mkTempDir()));
+    let during: unknown[] = [];
+    await enter({ extra: [] }, {
+      prompts: answers({ entry: CREATE_NEW, title: 'a' }),
+      chain,
+      cwd: here,
+      start: () => {
+        during = terminalsOf(vaultDir());
+        return 0;
+      },
+    });
+    expect(during).toEqual([expect.objectContaining({ task: 't001', pane: 'w1:p2', socket: '/run/herdr.sock', bin: '/opt/herdr', cli: 'claude' })]);
+    expect(terminalsOf(vaultDir())).toEqual([]);
+  });
+
+  it('keeps nothing outside herdr', async () => {
+    let during: unknown[] = ['not asked'];
+    await enter({ extra: [] }, { prompts: answers({ entry: CREATE_NEW, title: 'a' }), chain, cwd: normalizePath(realpathSync(mkTempDir())), start: () => {
+      during = terminalsOf(vaultDir());
+      return 0;
+    } });
+    expect(during).toEqual([]);
   });
 });
 
