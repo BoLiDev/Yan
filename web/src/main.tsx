@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { queryClient } from './state/server';
 import './index.css';
-import './app.css';
 
 /*
  * yan serve's page. Three panes: the tasks on the left, one task's index in

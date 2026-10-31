@@ -62,7 +62,6 @@ export default defineConfig({
             'tailwind-merge',
             'class-variance-authority',
             'sonner',
-            'cmdk',
             '@base-ui/react',
             '@base-ui/react/alert-dialog',
             '@base-ui/react/button',

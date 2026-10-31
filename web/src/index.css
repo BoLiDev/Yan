@@ -4,8 +4,17 @@
  * colour the page draws is one of these; a component names the token, never
  * the colour, so the dark theme is these tokens again and nothing else.
  */
+/*
+ * The page's own stylesheet, app.css, is a layer of its own between the reset
+ * and Tailwind's utilities: what it says beats the reset, as it was written
+ * against the browser's defaults, and a utility on an element beats it, so a
+ * class it also names (.group, .grow) never takes over a part moved to
+ * Tailwind.
+ */
+@layer theme, base, legacy, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./app.css" layer(legacy);
 
 @custom-variant dark (&:is(.dark *));
 
@@ -132,4 +141,9 @@
   a:hover { color: var(--brand-ink); }
   :focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   img { -webkit-user-drag: none; }
+}
+
+/* Asked for less motion, nothing on the page moves to get where it goes. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

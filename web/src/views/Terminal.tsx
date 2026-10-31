@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { postJSON, type TerminalState } from '../lib/api';
@@ -8,6 +8,8 @@ import { boxOpen } from '../lib/modal';
 import { tilesOf, type Tile } from '../lib/tiles';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
+import { Button } from '../components/ui/button';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu';
 import { queryClient } from '../state/server';
 import { toast } from '../state/ui';
 import { useKeyNav } from './nav';
@@ -46,12 +48,11 @@ async function reshape(what: 'split' | 'close', body: Record<string, unknown>): 
   }
 }
 
-/** What the tab's panes share: each one's terminal, the one typed in last, one split off to be typed in next, and the menu. */
+/** What the tab's panes share: each one's terminal, the one typed in last, and one split off to be typed in next. */
 interface Panes {
   readonly terms: Map<string, Terminal>;
   last: string | undefined;
   next: string | undefined;
-  menu: (at: { x: number; y: number }, pane: string) => void;
 }
 
 /**
@@ -68,9 +69,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
   useEffect(() => {
     if (state) setStarting(false);
   }, [state]);
-  const [menu, setMenu] = useState<{ x: number; y: number; pane: string } | null>(null);
-  const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined, menu: () => undefined }).current;
-  panes.menu = (at, pane) => setMenu({ ...at, pane });
+  const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined }).current;
 
   // Enter on the page, nothing else taking it, puts the keys in the terminal typed in last, as a click on it does.
   useEffect(() => {
@@ -115,15 +114,14 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
       <Bar title="Terminal" meta="" tools={waiting ? null : <StopButton id={id} />} />
       {state.streams ? (
         <div className="term-tiles">
-          {tiles.map((tile) => <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes} />)}
-          {menu !== null ? (
-            <PaneMenu at={menu} agent={menu.pane === state.pane} term={panes.terms.get(menu.pane)} onClose={() => setMenu(null)}
-              split={(direction) => void reshape('split', { task: id, pane: menu.pane, direction }).then((made) => {
+          {tiles.map((tile) => (
+            <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes}
+              split={(direction) => void reshape('split', { task: id, pane: tile.pane, direction }).then((made) => {
                 panes.next = made?.pane;
               })}
-              paste={(text) => send(id, menu.pane, { paste: text, enter: false })}
-              close={() => void reshape('close', { task: id, pane: menu.pane })} />
-          ) : null}
+              paste={(text) => send(id, tile.pane, { paste: text, enter: false })}
+              close={() => void reshape('close', { task: id, pane: tile.pane })} />
+          ))}
         </div>
       ) : (
         <Empty title="herdr is too old">{`herdr on this machine is ${state.herdr || 'a version it does not say'}; showing its panes here takes 0.7.2 or newer (the latest stable is best). Run herdr update.`}</Empty>
@@ -166,7 +164,15 @@ function StopButton({ id }: { id: string }) {
  * place to type: the agent's own input takes a message of many lines, a
  * paste and an IME's text as a terminal's does.
  */
-function PaneTerm({ task, tile, agent, panes }: { task: string; tile: Tile; agent: boolean; panes: Panes }) {
+function PaneTerm({ task, tile, agent, panes, split, paste, close }: {
+  task: string;
+  tile: Tile;
+  agent: boolean;
+  panes: Panes;
+  split: (direction: 'right' | 'down') => void;
+  paste: (text: string) => void;
+  close: () => void;
+}) {
   const { pane } = tile;
   const host = useRef<HTMLDivElement>(null);
   const [ended, setEnded] = useState<string | null>(null);
@@ -376,97 +382,47 @@ function PaneTerm({ task, tile, agent, panes }: { task: string; tile: Tile; agen
   }, [task, pane, agent, panes, attempt]);
 
   const at = (n: number): string => `${n * 100}%`;
+  // What is selected in the pane as its menu opens: Copy copies it, and is not offered without it.
+  const [selected, setSelected] = useState('');
+  const term = (): Terminal | undefined => panes.terms.get(pane);
   return (
-    <div className={'term-stage' + (tile.left ? ' left' : '') + (tile.top ? ' top' : '')} style={{ left: at(tile.x), top: at(tile.y), width: at(tile.w), height: at(tile.h) }}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        panes.menu({ x: e.clientX, y: e.clientY }, pane);
-      }}>
-      <div className="term" ref={host} />
-      {ended !== null ? (
-        <div className="term-ended">
-          <span>{`The screen was cut off: ${ended}`}</span>
-          <button type="button" className="button" onClick={() => setAttempt((n) => n + 1)}>Reconnect</button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * A pane's own menu, where it was right-clicked, in place of the browser's:
- * split it beside or below, copy what is selected in it, paste into it, and
- * close it, when it is not the agent's own. Gone at a click elsewhere, Esc,
- * the wheel, or the window losing focus.
- */
-function PaneMenu({ at, agent, term, onClose, split, paste, close }: {
-  at: { x: number; y: number };
-  agent: boolean;
-  term: Terminal | undefined;
-  onClose: () => void;
-  split: (direction: 'right' | 'down') => void;
-  paste: (text: string) => void;
-  close: () => void;
-}) {
-  const box = useRef<HTMLDivElement>(null);
-  const [place, setPlace] = useState(at);
-  // Kept inside the window, as a menu near its edge opens the other way.
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    setPlace({ x: Math.max(8, Math.min(at.x, window.innerWidth - el.offsetWidth - 8)), y: Math.max(8, Math.min(at.y, window.innerHeight - el.offsetHeight - 8)) });
-  }, [at.x, at.y]);
-  useEffect(() => {
-    const away = (e: MouseEvent): void => {
-      if (!box.current?.contains(e.target as Node)) onClose();
-    };
-    const key = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      onClose();
-    };
-    document.addEventListener('mousedown', away, true);
-    document.addEventListener('keydown', key, true);
-    document.addEventListener('wheel', onClose, true);
-    window.addEventListener('blur', onClose);
-    window.addEventListener('resize', onClose);
-    return () => {
-      document.removeEventListener('mousedown', away, true);
-      document.removeEventListener('keydown', key, true);
-      document.removeEventListener('wheel', onClose, true);
-      window.removeEventListener('blur', onClose);
-      window.removeEventListener('resize', onClose);
-    };
-  }, [onClose]);
-
-  const selected = term?.hasSelection() === true ? term.getSelection() : '';
-  const act = (then: () => void) => () => {
-    onClose();
-    then();
-  };
-  return (
-    <div ref={box} className="term-menu" role="menu" style={{ left: place.x, top: place.y }}>
-      <button type="button" role="menuitem" onClick={act(() => split('right'))}>Split right</button>
-      <button type="button" role="menuitem" onClick={act(() => split('down'))}>Split down</button>
-      <hr />
-      <button type="button" role="menuitem" disabled={selected === ''} onClick={act(() => {
-        void navigator.clipboard?.writeText(selected);
-        term?.focus();
-      })}>Copy</button>
-      <button type="button" role="menuitem" onClick={act(() => {
-        term?.focus();
-        // Reading the clipboard is the browser's to allow; refused, the keys still paste.
-        void navigator.clipboard?.readText().then((text) => {
-          if (text !== '') paste(text);
-        }, () => toast(`The browser did not allow reading the clipboard: paste with ${MOD}V`));
-      })}>Paste</button>
-      {agent ? null : (
-        <>
-          <hr />
-          <button type="button" role="menuitem" className="red" onClick={act(close)}>Close</button>
-        </>
-      )}
-    </div>
+    <ContextMenu onOpenChange={(open) => {
+      const t = term();
+      if (open) setSelected(t?.hasSelection() === true ? t.getSelection() : '');
+    }}>
+      {/* A right click on a pane opens its own menu in place of the browser's. */}
+      <ContextMenuTrigger render={<div className={'term-stage' + (tile.left ? ' left' : '') + (tile.top ? ' top' : '')} style={{ left: at(tile.x), top: at(tile.y), width: at(tile.w), height: at(tile.h) }} />}>
+        <div className="term" ref={host} />
+        {ended !== null ? (
+          <div className="term-ended">
+            <span>{`The screen was cut off: ${ended}`}</span>
+            <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>Reconnect</Button>
+          </div>
+        ) : null}
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-40">
+        <ContextMenuItem onClick={() => split('right')}>Split right</ContextMenuItem>
+        <ContextMenuItem onClick={() => split('down')}>Split down</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={selected === ''} onClick={() => {
+          void navigator.clipboard?.writeText(selected);
+          term()?.focus();
+        }}>Copy</ContextMenuItem>
+        <ContextMenuItem onClick={() => {
+          term()?.focus();
+          // Reading the clipboard is the browser's to allow; refused, the keys still paste.
+          void navigator.clipboard?.readText().then((text) => {
+            if (text !== '') paste(text);
+          }, () => toast(`The browser did not allow reading the clipboard: paste with ${MOD}V`));
+        }}>Paste</ContextMenuItem>
+        {/* The agent's own pane is never closed from here: that would end the agent. */}
+        {agent ? null : (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem variant="destructive" onClick={close}>Close</ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
