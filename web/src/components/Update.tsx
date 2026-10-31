@@ -93,12 +93,14 @@ export function UpdateCard() {
   let sub: ReactNode = head;
   let action: ReactNode = <button type="button" className="update-link" onClick={check}>检查</button>;
   let below: ReactNode = null;
+  // What a check is doing, or came to, takes the place of 检查 on the right; yan and its commit stay as they are.
   if (card.is === 'checking') {
-    [tone, icon, sub, action] = ['on', <Ring key="r" />, '检查中…', null];
+    [tone, icon, action] = ['on', <Ring key="r" />, <span className="update-state on">检查中…</span>];
   } else if (card.is === 'none') {
-    [tone, icon, sub, action] = ['ok', <Icon key="t" name="tick" size={15} width={2.2} />, '无更新', null];
+    [tone, icon, action] = ['ok', <Icon key="t" name="tick" size={15} width={2.2} />, <span className="update-state ok">无更新</span>];
   } else if (card.is === 'unchecked') {
-    [tone, sub] = ['bad', '检查失败'];
+    tone = 'bad';
+    action = <button type="button" className="update-link bad" onClick={check}>检查失败</button>;
   } else if (card.is === 'behind') {
     [tone, title, sub] = ['on', `${card.n} 个更新`, null];
     action = <button type="button" className="button" onClick={update}>更新</button>;
@@ -110,7 +112,8 @@ export function UpdateCard() {
     tone = failed >= 0 ? 'bad' : 'on';
     icon = failed >= 0 ? <Icon name="close" size={14} width={2.2} /> : <Ring />;
     title = failed >= 0 ? '更新失败' : '更新中';
-    sub = `${STEP_WORD[step]} · ${at + 1} / ${steps.length}`;
+    // The bar says how far along; the line says only which step.
+    sub = STEP_WORD[step];
     action = !going && failed >= 0 ? <button type="button" className="button" onClick={update}>重试</button> : null;
     below = <div className="update-bar">{steps.map((s) => <i key={s.step} className={s.state} />)}</div>;
   }
@@ -122,7 +125,7 @@ export function UpdateCard() {
           <span className={`update-icon ${tone}`}>{icon}</span>
           <span className="update-words">
             <b>{title}</b>
-            {sub ? <span className={tone}>{sub}</span> : null}
+            {sub ? <span className={card.is === 'updating' ? tone : undefined}>{sub}</span> : null}
           </span>
           {action}
         </div>

@@ -203,6 +203,10 @@ img { -webkit-user-drag: none; }
 .update-words span.bad { color: var(--red); }
 .update-link { flex: none; margin-right: -4px; padding: 4px 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; }
 .update-link:hover { background: var(--accent-wash); }
+.update-link.bad { color: var(--red); }
+.update-state { flex: none; margin-right: -4px; padding: 4px 8px; font-size: 12.5px; animation: update-in .3s ease-out; }
+.update-state.on { color: var(--accent-ink); }
+.update-state.ok { color: var(--green); }
 .update-row .button { flex: none; height: 30px; padding: 0 14px; font-size: 13px; }
 .update-bar { display: flex; gap: 4px; animation: update-in .3s ease-out; }
 .update-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--sunken); transition: background .3s; }
