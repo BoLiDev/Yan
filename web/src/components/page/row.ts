@@ -10,8 +10,8 @@ const rows = cva(
   {
     variants: {
       on: { true: 'bg-card font-bold ring-1 ring-border hover:bg-card', false: '' },
-      /** In a task's nav the rows are a little rounder at the corners than a card; in a tree, closer together. */
-      at: { list: '', nav: 'rounded-lg', tree: 'gap-2 rounded-lg py-1 text-[13.5px]' },
+      /** In a task's nav and its trees the rows are a little less round than the task list's; in a tree, closer together too. */
+      at: { list: '', nav: 'rounded-[8px]', tree: 'gap-2 rounded-[8px] py-1 text-[13.5px]' },
     },
     defaultVariants: { on: false, at: 'list' },
   },
