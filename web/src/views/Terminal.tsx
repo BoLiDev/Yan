@@ -196,8 +196,10 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       connect();
     });
 
-    // The column changing, as DevTools opening beside it, sizes the pane anew, once it has settled; and once it has
-    // stopped, herdr is asked for one more full redraw at that size, so nothing a drag left behind outlasts it.
+    // The column changing, as DevTools opening beside it, sizes the pane anew once it has stopped changing, not at each
+    // step of a drag: every size is a redraw of the agent's own, and Claude Code on the normal screen leaves a line of
+    // its old bottom behind at each, as in any terminal dragged. Then herdr is asked for one more full redraw at that
+    // size, so nothing of the page's outlasts the drag.
     let settling: number | undefined;
     let settled: number | undefined;
     const sized = new ResizeObserver(() => {
@@ -210,7 +212,7 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
         settled = window.setTimeout(() => {
           if (source !== undefined && asked !== undefined) ask(asked);
         }, 600);
-      }, 120);
+      }, 350);
     });
     sized.observe(stage);
 

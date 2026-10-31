@@ -14,32 +14,49 @@ type Behind = { readonly behind: number } | { readonly error: string };
 const STEP_WORD: Readonly<Record<Step, string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
 const MARK: Readonly<Record<StepState, string>> = { done: '✓', now: '●', wait: '○', failed: '✗' };
 
+/** What the chip is doing: waiting to be asked, asking, told there is nothing, failing to ask, or updating. */
+type Chip = 'idle' | 'checking' | 'none' | 'failed' | 'running';
+
 /**
- * yan updating itself, beside its name: opened, it asks how many commits
- * its clone is behind and offers to take them; taking them, it shows the
- * steps until serve restarts on the new build and the page reloads with it.
+ * yan updating itself, beside its name. A click asks how many commits its
+ * clone is behind, and the chip says so as it goes, checking and then
+ * nothing new; only commits to take open a box, with how many and the one
+ * button, and taking them it shows the steps until serve restarts on the
+ * new build and the page reloads with it.
  */
 export function UpdateYan() {
+  const [chip, setChip] = useState<Chip>('idle');
+  const [failure, setFailure] = useState('');
+  const [behind, setBehind] = useState(0);
   const [open, setOpen] = useState(false);
-  const [behind, setBehind] = useState<Behind | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const here = useRef<HTMLDivElement>(null);
   const started = progress !== null && progress.steps.some((s) => s.state !== 'wait');
 
-  // Opened, it asks: an update running, from this page or another, or how far behind the clone is.
+  // An update already running, from this page or another, shows on the chip.
   useEffect(() => {
-    if (!open) return;
-    setBehind(null);
-    void getJSON<Progress>('/api/yan/update').then(setProgress, () => undefined);
-    void getJSON<Behind>('/api/yan/updates').then(setBehind, (err: Error) => setBehind({ error: err.message }));
-  }, [open]);
+    void getJSON<Progress>('/api/yan/update').then((p) => {
+      setProgress(p);
+      if (p.running) setChip('running');
+    }, () => undefined);
+  }, []);
 
   // While it runs, it is asked again each second; serve restarting on the new build reloads the page.
   useEffect(() => {
     if (!progress?.running) return;
-    const timer = window.setInterval(() => void getJSON<Progress>('/api/yan/update').then(setProgress, () => undefined), 1000);
+    const timer = window.setInterval(() => void getJSON<Progress>('/api/yan/update').then((p) => {
+      setProgress(p);
+      if (!p.running) setChip('idle');
+    }, () => undefined), 1000);
     return () => window.clearInterval(timer);
   }, [progress?.running]);
+
+  // What the chip said of a check goes back to the chip after a while.
+  useEffect(() => {
+    if (chip !== 'none' && chip !== 'failed') return;
+    const timer = window.setTimeout(() => setChip('idle'), chip === 'none' ? 3000 : 6000);
+    return () => window.clearTimeout(timer);
+  }, [chip]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,14 +74,46 @@ export function UpdateYan() {
     };
   }, [open]);
 
+  const check = (): void => {
+    if (chip === 'running' || started) return setOpen((o) => !o);
+    if (chip === 'checking') return;
+    setOpen(false);
+    setChip('checking');
+    void getJSON<Behind>('/api/yan/updates').then((b) => {
+      if ('error' in b) {
+        setFailure(b.error);
+        setChip('failed');
+      } else if (b.behind === 0) setChip('none');
+      else {
+        setBehind(b.behind);
+        setChip('idle');
+        setOpen(true);
+      }
+    }, (err: Error) => {
+      setFailure(err.message);
+      setChip('failed');
+    });
+  };
   const update = (): void => {
-    void postJSON<Progress>('/api/yan/update', {}).then(setProgress, (err: Error) => setBehind({ error: err.message }));
+    void postJSON<Progress>('/api/yan/update', {}).then((p) => {
+      setProgress(p);
+      setChip('running');
+    }, (err: Error) => {
+      setFailure(err.message);
+      setChip('failed');
+      setOpen(false);
+    });
   };
 
+  const [icon, word] = chip === 'checking' ? ['spinner', '检查中']
+    : chip === 'none' ? ['tick', '无更新']
+      : chip === 'failed' ? ['arrowUp', '检查失败']
+        : chip === 'running' ? ['spinner', '更新中']
+          : open && !started ? ['arrowUp', `${behind} 个更新`] : ['arrowUp', '更新'];
   return (
     <div className="update" ref={here}>
-      <button type="button" className={'update-chip' + (progress?.running ? ' running' : '')} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <Icon name="arrowUp" size={13} width={2.2} />{progress?.running ? '更新中' : '更新'}
+      <button type="button" className={`update-chip ${chip}`} aria-expanded={open} title={chip === 'failed' ? failure : undefined} onClick={check}>
+        <span className={icon === 'spinner' ? 'spin' : undefined}><Icon name={icon as 'arrowUp' | 'tick' | 'spinner'} size={13} width={2.2} /></span>{word}
       </button>
       {open ? (
         <div className="update-pop" role="dialog" aria-label="更新 yan">
@@ -76,15 +125,9 @@ export function UpdateYan() {
               {progress.error ? <pre className="update-error">{progress.error}</pre> : null}
               {!progress.running && progress.error ? <button type="button" className="button" onClick={update}>再试一次</button> : null}
             </>
-          ) : behind === null ? (
-            <div className="update-said">检查中…</div>
-          ) : 'error' in behind ? (
-            <pre className="update-error">{behind.error}</pre>
-          ) : behind.behind === 0 ? (
-            <div className="update-said">已是最新</div>
           ) : (
             <>
-              <div className="update-count">{`${behind.behind} 个更新`}</div>
+              <div className="update-count">{`${behind} 个更新`}</div>
               <button type="button" className="button" onClick={update}>更新</button>
             </>
           )}

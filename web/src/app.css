@@ -188,7 +188,13 @@ img { -webkit-user-drag: none; }
 /* yan updating itself: a chip beside its name, and what it opens, under the whole row, so it stays inside the pane. */
 .update-chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 9px; border: 0; border-radius: 999px; background: var(--sunken); color: var(--ink-3); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .update-chip:hover, .update-chip[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-ink); }
-.update-chip.running { background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; }
+.update-chip.running, .update-chip.checking { background: var(--accent-soft); color: var(--accent-ink); }
+.update-chip.none { color: var(--green); }
+.update-chip.failed { color: var(--red); }
+.update-chip > span { display: flex; }
+.update-chip .spin { animation: update-spin .8s linear infinite; }
+@keyframes update-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .update-chip .spin { animation-duration: 2.4s; } }
 .update-pop { position: absolute; left: 6px; right: 6px; top: 36px; z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0, 0, 0, .14); font-size: 13px; color: var(--ink-2); }
 .update-count { font-size: 15px; font-weight: 700; color: var(--ink); }
 .update-said { color: var(--ink-3); }
