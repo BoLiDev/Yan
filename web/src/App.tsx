@@ -11,6 +11,7 @@ import { Palette } from './components/Palette';
 import { NewTaskModal } from './components/NewTask';
 import { AskModal } from './components/ui';
 import { Toaster } from './components/ui/sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
@@ -168,7 +169,7 @@ export function App() {
   useAgentFollow();
   useKeys();
   return (
-    <>
+    <TooltipProvider delay={400}>
       <div className={'app' + (left ? '' : ' left-hidden')} id="app">
         <Left />
         <Middle />
@@ -181,6 +182,6 @@ export function App() {
       <AskModal />
       <Palette />
       <NewTaskModal />
-    </>
+    </TooltipProvider>
   );
 }

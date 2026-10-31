@@ -4,7 +4,13 @@ import type { PushFile } from '../lib/api';
 import { useUI, type Ask } from '../state/ui';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
+import { cn } from '../lib/utils';
 import { Icon, type IconName } from './Icon';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Empty as EmptyState, EmptyDescription, EmptyHeader, EmptyTitle } from './ui/empty';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface ToolProps {
   name: IconName;
@@ -19,29 +25,39 @@ interface ToolProps {
   blocked?: boolean;
 }
 
-/** An icon button, or an icon link when it has somewhere to go; a link with nowhere to go is a button, so it can be disabled. */
+/**
+ * An icon button, or an icon link when it has somewhere to go, named by its
+ * tooltip; a link with nowhere to go is a button, so it can be disabled.
+ */
 export function Tool({ name, label, onClick, href, newTab = true, small, pressed, disabled, blocked }: ToolProps) {
-  const className = 'tool' + (small ? ' small' : '') + (blocked ? ' blocked' : '');
+  const look = cn('text-ink-3 hover:text-foreground aria-pressed:bg-muted aria-pressed:text-foreground', blocked && 'opacity-40 hover:bg-transparent hover:text-ink-3');
+  const size = small ? 'icon-sm' : 'icon';
   const icon = <Icon name={name} size={small ? 15 : 17} />;
-  if (href) {
-    return (
-      <a className={className} aria-label={label} title={label} href={href} target={newTab ? '_blank' : undefined}
-        rel="noopener" onClick={onClick}>{icon}</a>
-    );
-  }
+  const trigger = href
+    ? <Button variant="ghost" size={size} className={look} aria-label={label} nativeButton={false}
+      render={<a href={href} target={newTab ? '_blank' : undefined} rel="noopener" onClick={onClick} />}>{icon}</Button>
+    : <Button variant="ghost" size={size} className={look} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>{icon}</Button>;
   return (
-    <button type="button" className={className} aria-label={label} title={label} aria-pressed={pressed === undefined ? undefined : pressed}
-      disabled={disabled} onClick={onClick}>{icon}</button>
+    <Tooltip>
+      <TooltipTrigger render={trigger} />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
+/** One of a few, as a row of toggles; the one picked stays picked. */
 export function Seg<V extends string>({ options, current, onPick, wide }: { options: readonly (readonly [V, string])[]; current: V; onPick: (v: V) => void; wide?: boolean }) {
   return (
-    <div className={'seg' + (wide ? ' wide' : '')} role="group">
+    <ToggleGroup value={[current]} onValueChange={(next) => {
+      if (next[0] !== undefined) onPick(next[0] as V);
+    }} spacing={1} className={cn('rounded-lg bg-muted p-[3px]', wide && 'flex w-auto')}>
       {options.map(([value, label]) => (
-        <button key={value} type="button" aria-pressed={value === current} onClick={() => onPick(value)}>{label}</button>
+        <ToggleGroupItem key={value} value={value} size="sm"
+          className={cn('h-7 px-3 text-[13px] font-normal text-ink-2 hover:bg-transparent data-[pressed]:bg-card data-[pressed]:font-bold data-[pressed]:text-foreground data-[pressed]:shadow-xs', wide && 'flex-1')}>
+          {label}
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 
@@ -60,15 +76,23 @@ export function Crumb({ path }: { path: string }) {
   return <>{dir ? <span className="dir">{dir} / </span> : null}{baseName(path)}</>;
 }
 
+/** What a pane says when it has nothing else to show: a title, and a line or two under it. */
 export function Empty({ title, children }: { title?: string; children?: ReactNode }) {
-  return <div className="empty">{title ? <h2>{title}</h2> : null}{children}</div>;
+  return (
+    <EmptyState className="flex-1">
+      <EmptyHeader>
+        {title ? <EmptyTitle className="text-lg font-bold">{title}</EmptyTitle> : null}
+        {children ? <EmptyDescription>{children}</EmptyDescription> : null}
+      </EmptyHeader>
+    </EmptyState>
+  );
 }
 
 /** `+2 ~1 −1`: what a push added, changed and deleted, as tags. */
 export function PushTags({ files }: { files: readonly PushFile[] }) {
   const n = (st: string): number => files.filter((f) => f.status === st).length;
-  const tags = ([['A', 'new', '+', 'added'], ['M', 'changed', '~', 'changed'], ['D', 'gone', '−', 'deleted']] as const).filter(([st]) => n(st) > 0);
-  return <>{tags.map(([st, cls, sign, word]) => <span key={st} className={`tag ${cls}`} title={`${n(st)} ${word}`}>{`${sign}${n(st)}`}</span>)}</>;
+  const tags = ([['A', 'success', '+', 'added'], ['M', 'brand', '~', 'changed'], ['D', 'destructive', '−', 'deleted']] as const).filter(([st]) => n(st) > 0);
+  return <>{tags.map(([st, variant, sign, word]) => <Badge key={st} variant={variant} className="h-[18px] rounded-md px-1.5 tabular-nums" title={`${n(st)} ${word}`}>{`${sign}${n(st)}`}</Badge>)}</>;
 }
 
 /** Where each scrolling list was left, by what it lists, for when the page comes back to it. */
