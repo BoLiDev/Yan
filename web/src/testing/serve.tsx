@@ -6,7 +6,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { vi } from 'vitest';
-import { render } from 'vitest-browser-react';
+import { cleanup, render } from 'vitest-browser-react';
 import type { Index, Status, TaskDetail, TaskSummary } from '../lib/api';
 import { initSeen } from '../lib/seen';
 import { queryClient } from '../state/server';
@@ -65,8 +65,11 @@ export function have(ix: Index, details: readonly TaskDetail[] = []): void {
 
 const fresh = useUI.getState();
 
-/** Back to a page just opened: no data, no state of its own, no stand-ins, at #/latest. */
-export function reset(): void {
+/** Back to a page just opened: nothing drawn, no data, no state of its own, no stand-ins, at #/latest. */
+export async function reset(): Promise<void> {
+  await cleanup();
+  // What was still being asked for is let go of quietly: nobody is waiting for it any more.
+  await queryClient.cancelQueries(undefined, { silent: true });
   vi.unstubAllGlobals();
   queryClient.clear();
   useUI.setState(fresh, true);
