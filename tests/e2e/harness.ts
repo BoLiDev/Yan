@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -84,7 +84,14 @@ export async function serve(home: string, env: Readonly<Record<string, string>> 
       if (child.exitCode !== null) return;
       const gone = new Promise((resolve) => child.once('exit', resolve));
       child.kill();
+      // A serve that outlives its signal is a finding, said with what it still runs; the run goes on without it.
+      const late = setTimeout(() => {
+        const left = spawnSync('ps', ['-o', 'pid,stat,args', '--ppid', String(child.pid)], { encoding: 'utf8' }).stdout ?? '';
+        process.stderr.write(`yan serve (pid ${child.pid}) was still running 10 s after SIGTERM; killed. Its children:\n${left}\n`);
+        child.kill('SIGKILL');
+      }, 10_000);
       await gone;
+      clearTimeout(late);
     },
   };
 }
@@ -105,7 +112,13 @@ export async function open(url: string): Promise<{ page: Page; errors: string[] 
   return { page, errors };
 }
 
+/** Close the browser; one that has not closed in ten seconds is left for vitest's exit to end. */
 export async function closeBrowser(): Promise<void> {
-  await browser?.close();
+  const b = browser;
   browser = undefined;
+  if (b === undefined) return;
+  await Promise.race([b.close(), new Promise<void>((resolve) => setTimeout(() => {
+    process.stderr.write('Chromium had not closed 10 s after it was asked to.\n');
+    resolve();
+  }, 10_000))]);
 }
