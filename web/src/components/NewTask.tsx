@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getJSON } from '../lib/api';
 import { link } from '../lib/route';
@@ -52,9 +52,7 @@ function NewTaskBox() {
   const [leaving, setLeaving] = useState(false);
   const before = useRef(document.activeElement as HTMLElement | null);
   const box = useRef<HTMLDivElement>(null);
-  const inner = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
-  const [height, setHeight] = useState<number | undefined>(undefined);
 
   const list = repos ?? [];
   // Until serve has said what there is, a second step is taken to come.
@@ -66,15 +64,6 @@ function NewTaskBox() {
   const at = steps.indexOf(step);
   const last = at === steps.length - 1;
   const ready = title.trim() !== '';
-
-  // The body's height follows the step it holds, so moving between them springs rather than jumps.
-  useLayoutEffect(() => {
-    const el = inner.current;
-    if (!el) return;
-    const sized = new ResizeObserver(() => setHeight(el.offsetHeight));
-    sized.observe(el);
-    return () => sized.disconnect();
-  }, [step]);
 
   useEffect(() => {
     if (step === 'title') field.current?.focus();
@@ -180,8 +169,8 @@ function NewTaskBox() {
             ))}
           </div>
         ) : null}
-        <div className="new-body" style={height === undefined ? undefined : { height }}>
-          <div ref={inner} key={step} className={`new-step ${way}`}>
+        <div className="new-body">
+          <div key={step} className={`new-step ${way}`}>
             {step === 'title' ? (
               <input ref={field} className="new-title" aria-label="标题" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} />
             ) : step === 'repos' ? (

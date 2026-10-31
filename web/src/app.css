@@ -264,7 +264,8 @@ button.update-tile:hover { filter: brightness(.95); }
 .new-link { position: relative; flex: 1 1 auto; height: 1.5px; overflow: hidden; border-radius: 1px; background: var(--line); }
 .new-link::after { content: ""; position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .4s ease; }
 .new-link.on::after { transform: scaleX(1); }
-.new-body { margin: 0 -26px; overflow: hidden; transition: height .42s cubic-bezier(.34, 1.4, .5, 1); }
+/* The box is as tall as its step, at once: only the step slides in. */
+.new-body { margin: 0 -26px; overflow: hidden; }
 .new-step { padding: 18px 26px 2px; }
 .new-step.on { animation: new-from-right .28s cubic-bezier(.2, .8, .3, 1); }
 .new-step.back { animation: new-from-left .28s cubic-bezier(.2, .8, .3, 1); }
@@ -314,7 +315,7 @@ button.update-tile:hover { filter: brightness(.95); }
 @keyframes new-tick { from { transform: scale(0); } }
 @media (prefers-reduced-motion: reduce) {
   .new-modal, .new-box, .new-step, .new-error, .ms-list, .ms-tag { animation: none !important; }
-  .new-body, .new-link::after { transition: none; }
+  .new-link::after { transition: none; }
 }
 /* A new task as it is made: a turning ring where its state will be. */
 .launch-ring { display: flex; margin-top: 4px; color: var(--accent); }
