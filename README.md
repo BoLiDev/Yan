@@ -246,10 +246,11 @@ place of the browser's: split it to the right or down, which herdr does,
 so its window has the new shell too, in the directory the pane works in;
 copy what is selected in it; paste into it; and close it, unless it is the
 agent's own. The + beside Find a task starts a task from the page: a box
-over it asks what bare `yan` would, a step at a time, its title, then the
-repositories it works in (those registered and cloned here, each picked as
-a card) and, for one with several packages, which it is about; Enter goes
-on and Escape closes it. Created, serve opens a herdr tab named for it and
+over it asks what bare `yan` would, a step at a time, ① its title, then ②
+the repositories it works in (those registered and cloned here), picked
+from a list as at a terminal, ↑ and ↓ to move and Space to pick, and for
+one with several packages, which it is about; Enter goes on and Escape
+closes it. Created, serve opens a herdr tab named for it and
 types bare `yan` into it with those answers (`yan --new`), in the vault the
 page shows; one serve cannot start says why in the box. The middle column
 is the task as it is made, its title and repositories, and the right one

@@ -243,59 +243,64 @@ button.update-tile:hover { filter: brightness(.95); }
 .find-new:hover { color: var(--ink); background: rgba(27, 27, 25, .1); }
 .find-new.on { background: var(--surface); box-shadow: 0 0 0 1px var(--line); color: var(--ink); }
 
-/* A new task's packages, picked as chips. */
-.chip { height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--hover); color: var(--ink-2); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s, color .15s; }
-.chip:hover { color: var(--ink); }
-.chip.on { background: var(--accent-soft); color: var(--accent-ink); }
-.chip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
-
-/* A new task asked for in a box over the page, a step at a time: its title, then its repositories. */
+/* A new task asked for over the page as bare yan asks it: a step at a time, ① its title, ② its repositories. Nothing
+   framed in it but itself: the steps are numbers joined by a line, the title a caret, the repositories a list. */
 .new-modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-start; justify-content: center; padding: 14vh 16px 16px; background: rgba(20, 20, 18, .32); animation: new-fade .16s ease-out; }
 .new-modal.out { animation: new-fade .14s ease-in reverse forwards; }
-.new-box { width: min(480px, 100%); display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 24px 60px rgba(0, 0, 0, .2); animation: new-pop .24s cubic-bezier(.2, .9, .3, 1.15); }
+.new-box { width: min(500px, 100%); display: flex; flex-direction: column; padding: 22px 26px; border-radius: 16px; background: var(--surface); box-shadow: 0 24px 60px rgba(0, 0, 0, .2); animation: new-pop .24s cubic-bezier(.2, .9, .3, 1.15); }
 .new-modal.out .new-box { animation: new-pop .14s ease-in reverse forwards; }
-.new-head { display: flex; align-items: center; gap: 8px; padding: 16px 14px 0 20px; }
+.new-head { display: flex; align-items: center; }
 .new-head b { flex: 1 1 auto; font-size: 16px; }
-.new-x { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: var(--ink-3); cursor: pointer; }
-.new-x:hover { background: var(--hover); color: var(--ink); }
-.new-steps { display: flex; gap: 4px; padding: 12px 20px 0; }
-.new-steps i { flex: 1; height: 3px; border-radius: 2px; background: var(--sunken); transition: background .35s; }
-.new-steps i.on { background: var(--accent); }
-.new-body { overflow: hidden; transition: height .42s cubic-bezier(.34, 1.4, .5, 1); }
-.new-step { padding: 18px 20px 2px; }
+.new-x { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: -6px; padding: 0; border: 0; background: none; color: var(--ink-3); cursor: pointer; transition: color .15s; }
+.new-x:hover { color: var(--ink); }
+.new-steps { display: flex; align-items: center; gap: 10px; margin-top: 22px; font-size: 13px; }
+.new-steps button { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; cursor: pointer; transition: color .25s; }
+.new-steps button:disabled { cursor: default; }
+.new-steps button.at, .new-steps button.done { color: var(--ink); font-weight: 600; }
+.new-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-3); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background .25s, color .25s, box-shadow .25s; }
+.at .new-num, .done .new-num { background: var(--accent); box-shadow: none; color: #fff; }
+.new-link { position: relative; flex: 1 1 auto; height: 1.5px; overflow: hidden; border-radius: 1px; background: var(--line); }
+.new-link::after { content: ""; position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .4s ease; }
+.new-link.on::after { transform: scaleX(1); }
+.new-body { margin: 0 -26px; overflow: hidden; transition: height .42s cubic-bezier(.34, 1.4, .5, 1); }
+.new-step { padding: 18px 26px 2px; }
 .new-step.on { animation: new-from-right .28s cubic-bezier(.2, .8, .3, 1); }
 .new-step.back { animation: new-from-left .28s cubic-bezier(.2, .8, .3, 1); }
-.new-field { display: flex; flex-direction: column; gap: 8px; }
-.new-label { padding: 0 2px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
-.new-title { height: 46px; padding: 0 14px; border: 0; border-radius: 11px; background: var(--ground); box-shadow: 0 0 0 1px var(--line); color: var(--ink); font: inherit; font-size: 16px; outline: none; transition: box-shadow .15s, background .15s; }
-.new-title:focus { background: var(--surface); box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px var(--accent-soft); }
-.new-repos { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; margin: 0 -4px; padding: 2px 4px 4px; }
-.new-repo { border-radius: 12px; box-shadow: 0 0 0 1px var(--line); transition: box-shadow .15s, background .15s; }
-.new-repo:hover { box-shadow: 0 0 0 1px var(--ink-3); }
-.new-repo.on { background: var(--accent-wash); box-shadow: 0 0 0 1.5px var(--accent); }
-.new-repo-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; padding: 0 14px; border: 0; border-radius: 12px; background: none; color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
-/* Where the keyboard is, a tint; a border in the accent is only for what is picked. */
-.new-repo-row:focus-visible { outline: none; background: var(--hover); }
-.new-repo-row > svg { color: var(--ink-3); }
-.new-repo.on .new-repo-row { font-weight: 700; }
-.new-repo.on .new-repo-row > svg { color: var(--accent-ink); }
-.new-check { flex: none; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line); color: #fff; transition: background .15s, box-shadow .15s; }
-.new-repo.on .new-check { background: var(--accent); box-shadow: none; animation: new-tick .3s cubic-bezier(.3, 1.6, .5, 1); }
-.new-packages { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px 40px; animation: new-from-top .2s ease-out; }
-.new-error { margin: 12px 20px 0; padding: 9px 12px; border-radius: 9px; background: #f6dedb; color: var(--red); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; animation: new-from-top .2s ease-out; }
-.new-foot { display: flex; align-items: center; gap: 8px; padding: 18px 20px 20px; }
-.new-foot .button { min-width: 76px; justify-content: center; }
-.new-foot .button:disabled { opacity: .4; cursor: default; }
-.new-foot .button .ring, .launch-ring .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
+.new-title { width: 100%; height: 36px; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--accent); font: inherit; font-size: 20px; }
+.new-opts { display: flex; flex-direction: column; outline: none; }
+.new-opt { display: flex; align-items: center; gap: 10px; height: 34px; color: var(--ink-2); font-size: 14px; cursor: pointer; user-select: none; }
+.new-ptr { width: 10px; color: var(--accent); font-weight: 700; visibility: hidden; }
+.new-opt.at .new-ptr { visibility: visible; }
+.new-opt.on { color: var(--ink); }
+.new-opt.at { color: var(--ink); font-weight: 600; }
+.new-mk { position: relative; flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3); transition: background .15s, box-shadow .15s; }
+.on > .new-mk { background: var(--accent); box-shadow: none; }
+.on > .new-mk::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--surface); animation: new-tick .3s cubic-bezier(.3, 1.6, .5, 1); }
+.new-pkgs { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 8px 34px; color: var(--ink-3); font-size: 13px; animation: new-from-top .2s ease-out; }
+.new-pkg { display: inline-flex; align-items: center; gap: 6px; height: 22px; cursor: pointer; user-select: none; }
+.new-pkg .new-mk { width: 11px; height: 11px; }
+.new-pkg.on > .new-mk::after { inset: 3px; }
+.new-pkg.on { color: var(--accent-ink); }
+.new-pkg.at { color: var(--ink); font-weight: 600; }
+.new-pkg.on.at { color: var(--accent-ink); }
+.new-foot { display: flex; align-items: center; gap: 16px; min-height: 34px; margin-top: 26px; }
+.new-back { flex: none; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: 13.5px; cursor: pointer; transition: color .15s; }
+.new-back:hover { color: var(--ink); }
+.new-error { flex: 1 1 auto; min-width: 0; color: var(--red); font-size: 13px; overflow-wrap: anywhere; }
+.new-error:not(:empty) { animation: new-fade .2s ease-out; }
+.new-go { flex: none; justify-content: center; gap: 8px; }
+.new-go:disabled { opacity: .35; cursor: default; }
+.new-kb { opacity: .55; }
+.new-go .ring, .launch-ring .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
 @keyframes new-fade { from { opacity: 0; } }
 @keyframes new-pop { from { opacity: 0; transform: translateY(8px) scale(.97); } }
 @keyframes new-from-right { from { opacity: 0; transform: translateX(28px); } }
 @keyframes new-from-left { from { opacity: 0; transform: translateX(-28px); } }
 @keyframes new-from-top { from { opacity: 0; transform: translateY(-4px); } }
-@keyframes new-tick { from { transform: scale(.4); } }
+@keyframes new-tick { from { transform: scale(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .new-modal, .new-box, .new-step, .new-packages, .new-error, .new-repo.on .new-check { animation: none !important; }
-  .new-body { transition: none; }
+  .new-modal, .new-box, .new-step, .new-pkgs, .new-error, .on > .new-mk::after { animation: none !important; }
+  .new-body, .new-link::after { transition: none; }
 }
 /* A new task as it is made: a turning ring where its state will be. */
 .launch-ring { display: flex; margin-top: 4px; color: var(--accent); }

@@ -4,7 +4,7 @@ import { getJSON } from '../lib/api';
 import { link } from '../lib/route';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
-import { AntIcon, Icon } from './Icon';
+import { AntIcon } from './Icon';
 
 /** A repository a new task may work in, as serve offers it, with its packages when it has several. */
 interface RepoOption {
@@ -12,19 +12,30 @@ interface RepoOption {
   readonly packages: readonly string[];
 }
 
+/** Where the keyboard is among the repositories: one, or one of a picked one's packages (`null` for the whole of it). */
+interface Stop {
+  readonly repo: string;
+  readonly pkg?: string | null;
+}
+const stopKey = (s: Stop): string => (s.pkg === undefined ? s.repo : `${s.repo}\n${s.pkg ?? ''}`);
+
 /** A ring of dashes, turning: a task being made. */
 export const Ring = ({ size = 16 }: { size?: number }) => (
   <svg className="ring" width={size} height={size} viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /></svg>
 );
 
 /**
- * The + beside Find a task: a new task asked for in a box over the page, a
- * step at a time, as bare `yan` asks it at a terminal. Its title first; then
- * the repositories it works in, each one picked a card, and for one with
- * several packages, which it is about, the whole repository unless some are
- * picked. A task with no repository to pick from is made from its title.
- * Created, it is bare `yan` in a new herdr tab, which the page then shows;
- * one serve cannot start says why here, and the box stays as it was.
+ * The + beside Find a task: a new task asked for over the page as bare `yan`
+ * asks it at a terminal, a step at a time, ① its title and ② the
+ * repositories it works in, the two joined by a line that fills as the
+ * second is reached. The repositories are picked as the terminal's list is:
+ * › where the keyboard is, moved with ↑ and ↓ or the pointer, Space or a
+ * click to pick, ● for what is picked; a repository with several packages,
+ * picked, offers them under it, the whole repository unless some are. Enter
+ * goes on, then creates; Escape closes. A task with no repository to pick
+ * from is made from its title. Created, it is bare `yan` in a new herdr tab,
+ * which the page then shows; one serve cannot start says why in a line, and
+ * nothing asked is lost.
  */
 export function NewTaskModal() {
   const open = useUI((s) => s.newTask);
@@ -33,12 +44,13 @@ export function NewTaskModal() {
 
 function NewTaskBox() {
   const { data: repos } = useQuery({ queryKey: ['launch-repos'], queryFn: () => getJSON<RepoOption[]>('/api/launch/repos'), staleTime: 30_000 });
-  const [step, setStep] = useState<'title' | 'repos'>('title');
+  const [step, setStep] = useState<1 | 2>(1);
   // Which way the step came, so it slides in from that side.
   const [way, setWay] = useState<'on' | 'back'>('on');
   const [title, setTitle] = useState('');
   // Each repository picked, with its packages: `[]` for the whole of it.
   const [picked, setPicked] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const [at, setAt] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -46,10 +58,20 @@ function NewTaskBox() {
   const box = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | undefined>(undefined);
   // Until serve has said what there is, a second step is taken to come.
   const twoSteps = repos === undefined || repos.length > 0;
   const ready = title.trim() !== '';
+
+  // Every place the keyboard can be, in order: each repository, and under a picked one with packages, each of them.
+  const stops: Stop[] = (repos ?? []).flatMap((r) => {
+    const own = picked[r.name];
+    return [{ repo: r.name }, ...(own !== undefined && r.packages.length > 0 ? [{ repo: r.name, pkg: null }, ...r.packages.map((pkg) => ({ repo: r.name, pkg }))] : [])];
+  });
+  // A package gone with its repository's pick leaves the keyboard on the repository.
+  const here = stops.findIndex((s) => stopKey(s) === at);
+  const cursor = here >= 0 ? here : Math.max(0, stops.findIndex((s) => s.pkg === undefined && at.startsWith(`${s.repo}\n`)));
 
   // The body's height follows the step it holds, so moving between them springs rather than jumps.
   useLayoutEffect(() => {
@@ -60,11 +82,11 @@ function NewTaskBox() {
     return () => sized.disconnect();
   }, [step]);
 
-  // Each step takes the keyboard as it comes: the title's field, or the first repository.
+  // Each step takes the keyboard as it comes: the title, or the list.
   useEffect(() => {
-    if (step === 'title') field.current?.focus();
-    else box.current?.querySelector<HTMLElement>('[data-repo]')?.focus();
-  }, [step, repos]);
+    if (step === 1) field.current?.focus();
+    else list.current?.focus();
+  }, [step]);
 
   const close = (then?: () => void): void => {
     if (leaving) return;
@@ -75,21 +97,25 @@ function NewTaskBox() {
       else before.current?.focus({ preventScroll: true });
     }, 140);
   };
-  const go = (to: 'title' | 'repos'): void => {
+  const go = (to: 1 | 2): void => {
+    if (to === step || (to === 2 && (!ready || !twoSteps))) return;
     setError(null);
-    setWay(to === 'repos' ? 'on' : 'back');
+    setWay(to === 2 ? 'on' : 'back');
     setStep(to);
   };
-  const toggle = (name: string): void => setPicked((p) => {
-    const { [name]: was, ...rest } = p;
-    return was === undefined ? { ...p, [name]: [] } : rest;
-  });
-  // A package picked narrows the repository to the packages picked; the whole repository drops them.
-  const scope = (name: string, pkg: string | null): void => setPicked((p) => {
-    if (pkg === null) return { ...p, [name]: [] };
-    const was = p[name] ?? [];
-    return { ...p, [name]: was.includes(pkg) ? was.filter((x) => x !== pkg) : [...was, pkg] };
-  });
+  // A repository picked or let go; a package picked narrows its repository to the packages picked, the whole of it drops them.
+  const pick = (s: Stop): void => {
+    setAt(stopKey(s));
+    setPicked((p) => {
+      if (s.pkg === undefined) {
+        const { [s.repo]: was, ...rest } = p;
+        return was === undefined ? { ...p, [s.repo]: [] } : rest;
+      }
+      if (s.pkg === null) return { ...p, [s.repo]: [] };
+      const was = p[s.repo] ?? [];
+      return { ...p, [s.repo]: was.includes(s.pkg) ? was.filter((x) => x !== s.pkg) : [...was, s.pkg] };
+    });
+  };
 
   const create = async (): Promise<void> => {
     if (!ready || busy) return;
@@ -116,30 +142,30 @@ function NewTaskBox() {
   };
   const forward = (): void => {
     if (!ready) return;
-    if (step === 'title' && twoSteps) go('repos');
+    if (step === 1 && twoSteps) go(2);
     else void create();
   };
 
-  // Enter goes on, Escape closes, ↑ and ↓ move between the repositories, Space picks one; Tab stays in the box.
   const onKey = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Escape') {
       e.preventDefault();
       close();
     } else if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.shiftKey) {
-      // ×, 上一步 and the step's own button do what they say; anywhere else Enter goes on, as Space picks.
-      if (e.target instanceof HTMLButtonElement && e.target.closest('.new-repo') === null) return;
+      // × and 上一步 do what they say; anywhere else Enter goes on.
+      if (e.target instanceof HTMLButtonElement && !e.target.classList.contains('new-go')) return;
       e.preventDefault();
       forward();
-    } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && step === 'repos') {
-      const rows = [...(box.current?.querySelectorAll<HTMLElement>('[data-repo]') ?? [])];
-      const at = rows.indexOf(document.activeElement as HTMLElement);
-      const to = rows[Math.max(0, Math.min(rows.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))];
-      if (to) {
-        e.preventDefault();
-        to.focus();
-      }
+    } else if (step === 2 && stops.length > 0 && ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(e.key)) {
+      e.preventDefault();
+      const by = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+      setAt(stopKey(stops[Math.max(0, Math.min(stops.length - 1, cursor + by))] as Stop));
+    } else if (step === 2 && e.key === ' ' && e.target === list.current) {
+      e.preventDefault();
+      const s = stops[cursor];
+      if (s) pick(s);
     } else if (e.key === 'Tab') {
-      const all = [...(box.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input') ?? [])];
+      // The keyboard stays in the box.
+      const all = [...(box.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input, [tabindex="0"]') ?? [])];
       const [first, last] = [all[0], all[all.length - 1]];
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
@@ -151,6 +177,7 @@ function NewTaskBox() {
     }
   };
 
+  const mark = <span className="new-mk" aria-hidden="true" />;
   return (
     <div className={'new-modal' + (leaving ? ' out' : '')} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div ref={box} className="new-box" role="dialog" aria-modal="true" aria-label="新建 task" onKeyDown={onKey}>
@@ -158,50 +185,55 @@ function NewTaskBox() {
           <b>新建 task</b>
           <button type="button" className="new-x" aria-label="关闭" onClick={() => close()}><AntIcon name="close" size={13} /></button>
         </div>
-        {twoSteps ? <div className="new-steps" aria-hidden="true"><i className="on" /><i className={step === 'repos' ? 'on' : ''} /></div> : null}
+        {twoSteps ? (
+          <div className="new-steps">
+            <button type="button" tabIndex={-1} className={step === 1 ? 'at' : 'done'} onClick={() => go(1)}><span className="new-num">1</span>标题</button>
+            <span className={'new-link' + (step === 2 ? ' on' : '')} />
+            <button type="button" tabIndex={-1} className={step === 2 ? 'at' : ''} disabled={!ready} onClick={() => go(2)}><span className="new-num">2</span>仓库</button>
+          </div>
+        ) : null}
         <div className="new-body" style={height === undefined ? undefined : { height }}>
           <div ref={inner} key={step} className={`new-step ${way}`}>
-            {step === 'title' ? (
-              <label className="new-field">
-                <span className="new-label">标题</span>
-                <input ref={field} className="new-title" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} />
-              </label>
+            {step === 1 ? (
+              <input ref={field} className="new-title" aria-label="标题" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} />
             ) : (
-              <div className="new-field">
-                <span className="new-label">仓库</span>
-                <div className="new-repos">
-                  {(repos ?? []).map((repo) => {
-                    const on = picked[repo.name];
-                    return (
-                      <div key={repo.name} className={'new-repo' + (on !== undefined ? ' on' : '')}>
-                        <button type="button" data-repo className="new-repo-row" aria-pressed={on !== undefined} onClick={() => toggle(repo.name)}>
-                          <Icon name="branch" size={16} />
-                          <span className="grow">{repo.name}</span>
-                          <span className="new-check">{on !== undefined ? <AntIcon name="check" size={10} /> : null}</span>
-                        </button>
-                        {on !== undefined && repo.packages.length > 0 ? (
-                          <div className="new-packages">
-                            <button type="button" className={'chip' + (on.length === 0 ? ' on' : '')} aria-pressed={on.length === 0} onClick={() => scope(repo.name, null)}>整个仓库</button>
-                            {repo.packages.map((pkg) => (
-                              <button key={pkg} type="button" className={'chip' + (on.includes(pkg) ? ' on' : '')} aria-pressed={on.includes(pkg)} onClick={() => scope(repo.name, pkg)}>{pkg}</button>
-                            ))}
-                          </div>
-                        ) : null}
+              <div ref={list} className="new-opts" role="listbox" aria-label="仓库" aria-multiselectable tabIndex={0}>
+                {(repos ?? []).map((repo) => {
+                  const own = picked[repo.name];
+                  const row: Stop = { repo: repo.name };
+                  return (
+                    <div key={repo.name}>
+                      <div role="option" aria-selected={own !== undefined} className={'new-opt' + (own !== undefined ? ' on' : '') + (stops[cursor] !== undefined && stopKey(stops[cursor] as Stop) === repo.name ? ' at' : '')}
+                        onMouseMove={() => setAt(repo.name)} onClick={() => pick(row)}>
+                        <span className="new-ptr" aria-hidden="true">›</span>{mark}{repo.name}
                       </div>
-                    );
-                  })}
-                </div>
+                      {own !== undefined && repo.packages.length > 0 ? (
+                        <div className="new-pkgs">
+                          {[null, ...repo.packages].map((pkg) => {
+                            const s: Stop = { repo: repo.name, pkg };
+                            const on = pkg === null ? own.length === 0 : own.includes(pkg);
+                            return (
+                              <span key={pkg ?? ''} role="option" aria-selected={on} className={'new-pkg' + (on ? ' on' : '') + (stopKey(stops[cursor] ?? row) === stopKey(s) ? ' at' : '')}
+                                onMouseMove={() => setAt(stopKey(s))} onClick={() => pick(s)}>
+                                {mark}{pkg ?? '整个仓库'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-        {error !== null ? <div className="new-error" role="alert">{error}</div> : null}
         <div className="new-foot">
-          {step === 'repos' ? <button type="button" className="button quiet" onClick={() => go('title')}>上一步</button> : null}
-          <span className="grow" />
-          {step === 'title' && twoSteps
-            ? <button type="button" className="button" disabled={!ready} onClick={forward}>下一步</button>
-            : <button type="button" className="button" disabled={!ready || busy} onClick={() => void create()}>{busy ? <><Ring size={14} />创建中</> : '创建'}</button>}
+          {step === 2 ? <button type="button" className="new-back" onClick={() => go(1)}>上一步</button> : null}
+          <span className="new-error" role="alert">{error ?? ''}</span>
+          <button type="button" className="button new-go" disabled={!ready || busy} onClick={forward}>
+            {busy ? <><Ring size={14} />创建中</> : <>{step === 1 && twoSteps ? '下一步' : '创建'}<span className="new-kb" aria-hidden="true">↵</span></>}
+          </button>
         </div>
       </div>
     </div>
