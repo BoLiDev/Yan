@@ -261,7 +261,9 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
     },
     scrolledBack: (id) => panes.get(id)?.scroll.offset,
     controllers: () => {
-      const lines = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((l) => l !== '').map((l) => JSON.parse(l) as { id: number; took?: Omit<Controller, 'commands' | 'holding'>; command?: unknown; let_go?: true }) : [];
+      // The last line is left until it ends: a controller may be writing it.
+      const written = existsSync(log) ? readFileSync(log, 'utf8').split('\n').slice(0, -1) : [];
+      const lines = written.map((l) => JSON.parse(l) as { id: number; took?: Omit<Controller, 'commands' | 'holding'>; command?: unknown; let_go?: true });
       const byId = new Map<number, { took: Omit<Controller, 'commands' | 'holding'>; commands: unknown[]; holding: boolean }>();
       for (const l of lines) {
         if (l.took !== undefined) byId.set(l.id, { took: l.took, commands: [], holding: true });

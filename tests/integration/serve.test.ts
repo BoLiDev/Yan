@@ -201,9 +201,10 @@ describe('yan serve', () => {
 
     const index = await until(async () => {
       const i = (await (await fetch(page('/api/index'))).json()) as { status: { version: number }; tasks: { id: string; artifacts: number }[] };
-      return i.status.version > before.status.version ? i : undefined;
+      return i.tasks.some((t) => t.id === 't005') ? i : undefined;
     }, 20_000);
     expect(index.tasks.find((t) => t.id === 't005')?.artifacts).toBe(1);
+    expect(index.status.version).toBeGreaterThan(before.status.version);
 
     let seen = '';
     const decoder = new TextDecoder();
