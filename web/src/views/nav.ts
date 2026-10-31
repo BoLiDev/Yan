@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { boxOpen } from '../lib/modal';
+import { usePageKeys } from '../lib/modal';
 import { useUI } from '../state/ui';
 
 /** Where ← and → go from the view on the right, for as long as it is shown. */
@@ -23,20 +23,18 @@ export function usePick(count: number, open: (at: number) => void): { at: number
     // In a block: scrollIntoView returns a promise in newer browsers, which React would take for a cleanup.
     list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [at]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      const active = document.activeElement as HTMLElement | null;
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(active?.tagName ?? '') || active?.isContentEditable || boxOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        pick((a) => Math.max(0, Math.min(count - 1, a + (e.key === 'ArrowDown' ? 1 : -1))));
-      } else if (e.key === 'Enter' && (!active || active === document.body) && at < count) {
-        e.preventDefault();
-        open(at);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+  usePageKeys((e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      pick((a) => Math.max(0, Math.min(count - 1, a + (e.key === 'ArrowDown' ? 1 : -1))));
+      return true;
+    }
+    // Enter with nothing else having the keyboard opens the card picked.
+    const active = document.activeElement;
+    if (e.key === 'Enter' && (!active || active === document.body) && at < count) {
+      open(at);
+      return true;
+    }
+    return false;
   });
   return { at, pick, list };
 }

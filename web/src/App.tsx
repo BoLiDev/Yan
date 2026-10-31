@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
-import { boxOpen } from './lib/modal';
+import { usePageKeys } from './lib/modal';
 import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
@@ -121,48 +121,41 @@ function paletteKey(e: KeyboardEvent): boolean {
 }
 
 function useKeys(): void {
+  // ⌘K is the page's one key that works anywhere, in a field and over a box, which it closes when it is ⌘K's.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (paletteKey(e)) {
-        e.preventDefault();
-        useUI.setState((s) => ({ palette: !s.palette }));
-        return;
-      }
-      const active = document.activeElement as HTMLElement | null;
-      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(active?.tagName ?? '') || !!active?.isContentEditable;
-      // A box over the page has the keys while it is open.
-      if (typing || boxOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
-      const r = parseRoute(location.hash);
-      if (r.view === 'task' && e.key === 'Tab') {
-        const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === r.id);
-        if (!t) return;
-        e.preventDefault();
-        const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
-        const report = !!d?.files.some((f) => f.path === 'report.html');
-        const terminal = !!queryClient.getQueryData<Record<string, unknown>>(['terminals'])?.[r.id];
-        const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0, terminal || goesOn(t)), r, e.shiftKey);
-        active?.blur();
-        if (to) location.hash = to;
-        return;
-      }
-      const { prev, next } = useUI.getState().keyNav;
-      if (e.key === 'ArrowLeft' && prev) {
-        e.preventDefault();
-        location.hash = prev;
-      } else if (e.key === 'ArrowRight' && next) {
-        e.preventDefault();
-        location.hash = next;
-      } else if (e.key === 'f' || e.key === 'F') {
-        const stage = document.querySelector<HTMLElement>('.right .stage');
-        if (stage?.querySelector('img.shot')) {
-          if (document.fullscreenElement) void document.exitFullscreen();
-          else void stage.requestFullscreen?.();
-        }
-      }
+      if (!paletteKey(e)) return;
+      e.preventDefault();
+      useUI.setState((s) => ({ palette: !s.palette }));
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
+
+  usePageKeys((e) => {
+    const r = parseRoute(location.hash);
+    if (r.view === 'task' && e.key === 'Tab') {
+      const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === r.id);
+      if (!t) return false;
+      const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
+      const report = !!d?.files.some((f) => f.path === 'report.html');
+      const terminal = !!queryClient.getQueryData<Record<string, unknown>>(['terminals'])?.[r.id];
+      const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0, terminal || goesOn(t)), r, e.shiftKey);
+      (document.activeElement as HTMLElement | null)?.blur();
+      if (to) location.hash = to;
+      return true;
+    }
+    const { prev, next } = useUI.getState().keyNav;
+    if (e.key === 'ArrowLeft' && prev) location.hash = prev;
+    else if (e.key === 'ArrowRight' && next) location.hash = next;
+    else if (e.key === 'f' || e.key === 'F') {
+      const stage = document.querySelector<HTMLElement>('.right .stage');
+      if (!stage?.querySelector('img.shot')) return false;
+      if (document.fullscreenElement) void document.exitFullscreen();
+      else void stage.requestFullscreen?.();
+    } else return false;
+    return true;
+  });
 }
 
 export function App() {

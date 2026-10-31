@@ -4,7 +4,7 @@ import '@xterm/xterm/css/xterm.css';
 import { postJSON, type TerminalState } from '../lib/api';
 import { MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
-import { boxOpen } from '../lib/modal';
+import { usePageKeys } from '../lib/modal';
 import { tilesOf, type Tile } from '../lib/tiles';
 import { cn } from '../lib/utils';
 import { Icon } from '../components/Icon';
@@ -81,17 +81,14 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
   const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined });
 
   // Enter on the page, nothing else taking it, puts the keys in the terminal typed in last, as a click on it does.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      const active = document.activeElement as HTMLElement | null;
-      if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || boxOpen() || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(active?.tagName ?? '')) return;
-      e.preventDefault();
-      const p = panes.current;
-      (p.terms.get(p.last ?? '') ?? p.terms.get(state?.pane ?? ''))?.focus();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [panes, state?.pane]);
+  usePageKeys((e) => {
+    const active = document.activeElement;
+    if (e.key !== 'Enter' || /^(BUTTON|A)$/.test(active?.tagName ?? '')) return false;
+    const p = panes.current;
+    const term = p.terms.get(p.last ?? '') ?? p.terms.get(state?.pane ?? '');
+    term?.focus();
+    return term !== undefined;
+  });
 
   // A new task's tab, opened a moment ago, is a dark terminal until herdr lists its pane.
   if (!state && (waiting || starting)) return <><Bar title="Terminal" meta="" /><div className="term-tiles" /></>;
