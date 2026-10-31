@@ -219,7 +219,8 @@ An open task has a Terminal row under Log. While an agent bare `yan`
 started in a [herdr](https://herdr.dev) pane on this machine runs, the row
 says what herdr says of it: at work, waiting on you (a question or a
 permission), done or idle; with none running, its page is a terminal
-drawn large and 继续 under it, which opens a herdr tab named for the task
+drawn large, and 继续 on the right of the bar, where 结束 is while one
+runs, opens a herdr tab named for the task
 and types `yan --task` into it, the page showing it at once. 结束 on the
 right of the page's bar, clicked twice, stops the agent: its herdr tab is
 closed, the shells split off beside it with it.

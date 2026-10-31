@@ -379,13 +379,14 @@ button.update-tile:hover { filter: brightness(.95); }
 .nav .row .term-status.blocked { color: #8a4b08; font-weight: 700; }
 .nav .row .term-status.done { color: var(--green); }
 /* The pane as herdr streams it, sized to the column, which it fills to the bottom of the page. */
-/* A task with no terminal: a terminal, large, and 继续 under it. */
-/* The icon's own margin below its frame is the room between them. */
-.term-off { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 40px; }
+/* A task with no terminal: a terminal, drawn large, and 继续 in the bar where 结束 is while one runs. */
+.term-off { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; padding: 40px; }
 .term-off svg { flex: none; color: #a3a29b; }
 .term-stop { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--red); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s, color .15s; }
 .term-stop:hover { background: #f6dedb; }
 .term-stop.sure { background: var(--red); color: #fff; }
+.term-go { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s; }
+.term-go:hover { background: var(--accent-wash); }
 
 /* The agent's tab, each pane where herdr's split puts it, a line where one meets another. The light lines that edge
    the page's columns, the bar's foot and the task list's side, would frame the dark tab, so it is drawn over the one

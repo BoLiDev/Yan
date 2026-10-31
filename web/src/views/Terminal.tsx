@@ -102,11 +102,11 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
     };
     return (
       <>
-        <Bar title="Terminal" meta="" />
-        {/* A terminal, large, and the way to start it again: nothing to read. */}
+        {/* 继续 is where 结束 is while one runs: the bar's own way to start or stop it. */}
+        <Bar title="Terminal" meta="" tools={goesOn ? <button type="button" className="term-go" onClick={() => void goOn()}>继续</button> : null} />
+        {/* A terminal, large, and nothing to read. */}
         <div className="term-off">
-          <Icon name="terminal" size={168} width={0.6} />
-          {goesOn ? <button type="button" className="button" onClick={() => void goOn()}>继续</button> : null}
+          <Icon name="terminal" size={256} width={0.4} />
         </div>
       </>
     );
