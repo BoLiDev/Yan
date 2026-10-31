@@ -259,6 +259,8 @@ button.update-tile:hover { filter: brightness(.95); }
 .new-steps button.at, .new-steps button.done { color: var(--ink); font-weight: 600; }
 .new-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-3); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background .25s, color .25s, box-shadow .25s; }
 .at .new-num, .done .new-num { background: var(--accent); box-shadow: none; color: #fff; }
+.new-stop { flex: none; display: flex; align-items: center; gap: 10px; }
+.new-stop.joined { flex: 1 1 auto; }
 .new-link { position: relative; flex: 1 1 auto; height: 1.5px; overflow: hidden; border-radius: 1px; background: var(--line); }
 .new-link::after { content: ""; position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .4s ease; }
 .new-link.on::after { transform: scaleX(1); }
@@ -267,27 +269,34 @@ button.update-tile:hover { filter: brightness(.95); }
 .new-step.on { animation: new-from-right .28s cubic-bezier(.2, .8, .3, 1); }
 .new-step.back { animation: new-from-left .28s cubic-bezier(.2, .8, .3, 1); }
 .new-title { width: 100%; height: 36px; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--accent); font: inherit; font-size: 20px; }
-/* The repositories, picked as antd's Cascader picks several: a column of them and the open one's packages beside it,
-   or, with something typed, what it finds of both in one list. */
-.casc-search { display: flex; align-items: center; gap: 8px; height: 34px; margin-bottom: 6px; color: var(--ink-3); }
-.casc-search input { flex: 1 1 auto; min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--accent); font: inherit; font-size: 14px; }
-.casc-search input::placeholder { color: var(--ink-3); }
-.casc-hits { display: flex; flex-direction: column; gap: 2px; min-height: 120px; max-height: 240px; overflow-y: auto; margin: 0 -4px; padding: 4px; }
-.casc-it mark { background: none; color: var(--accent-ink); font-weight: 700; }
-.casc-none { padding: 6px 2px; color: var(--ink-3); font-size: 13px; }
-.casc { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); min-height: 120px; outline: none; }
-.casc-col { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; padding: 4px; }
-.casc-col:first-child { margin-left: -4px; border-right: 1px solid var(--line); }
-.casc-col + .casc-col { padding-left: 8px; }
-.casc-it { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; border-radius: 4px; color: var(--ink); font-size: 14px; cursor: pointer; user-select: none; transition: background .12s; }
-.casc-it.at { background: var(--hover); }
-.casc-it.open { background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); font-weight: 600; }
-.casc-it > svg { flex: none; color: var(--ink-3); }
-.casc-cb { position: relative; flex: none; display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--ink-3); color: #fff; transition: background .15s, box-shadow .15s; }
-.casc-cb.on { background: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.casc-cb.on svg { animation: new-tick .2s cubic-bezier(.3, 1.6, .5, 1); }
-.casc-cb.some::after { content: ""; width: 8px; height: 8px; border-radius: 1px; background: var(--accent); animation: new-tick .2s cubic-bezier(.3, 1.6, .5, 1); }
-.casc-it:hover .casc-cb.off { box-shadow: inset 0 0 0 1px var(--accent); }
+/* A select of several, as antd's is: what is picked as tags in the field with a search beside them, the list hung
+   under it over whatever is around. */
+.ms-field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 40px; padding: 5px 10px 5px 6px; border-radius: 8px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); cursor: text; transition: box-shadow .15s; }
+.ms-field:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+.ms-field:focus-within { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.ms-field > svg { flex: none; color: var(--ink-3); transition: transform .2s; }
+.ms-field.open > svg { transform: rotate(180deg); }
+/* The search takes what is left of the row the tags end on, so what the field says with nothing picked is whole. */
+.ms-field input { flex: 1 1 48px; min-width: 48px; height: 28px; padding: 0 4px; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--accent); font: inherit; font-size: 14px; }
+.ms-field input::placeholder { color: var(--ink-3); }
+.ms-tag { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 4px 0 8px; border-radius: 4px; background: var(--sunken); color: var(--ink); font-size: 13px; animation: ms-in .16s ease-out; }
+.ms-tag button { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; background: none; color: var(--ink-3); cursor: pointer; }
+.ms-tag button:hover { color: var(--ink); }
+.ms-list { position: fixed; z-index: 80; max-height: 256px; overflow-y: auto; padding: 4px; border-radius: 8px; background: var(--surface); box-shadow: 0 6px 16px rgba(0, 0, 0, .08), 0 3px 6px -4px rgba(0, 0, 0, .12), 0 9px 28px 8px rgba(0, 0, 0, .05); transform-origin: top; animation: ms-drop .16s ease-out; }
+.ms-opt { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; color: var(--ink); font-size: 14px; cursor: pointer; }
+.ms-opt.at { background: var(--hover); }
+.ms-opt.on { background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); font-weight: 600; }
+.ms-opt.on.at { background: var(--accent-soft); }
+.ms-opt > svg { flex: none; color: var(--accent-ink); }
+.ms-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-opt mark { background: none; color: var(--accent-ink); font-weight: 700; }
+.ms-none { padding: 8px 12px; color: var(--ink-3); font-size: 13px; }
+@keyframes ms-drop { from { opacity: 0; transform: scaleY(.92); } }
+@keyframes ms-in { from { opacity: 0; transform: scale(.9); } }
+/* ③: each monorepo picked, named over its own select of its packages. */
+.new-scopes { display: flex; flex-direction: column; gap: 14px; }
+.new-scope { display: flex; flex-direction: column; gap: 6px; }
+.new-scope-name { padding: 0 2px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
 .new-foot { display: flex; align-items: center; gap: 16px; min-height: 34px; margin-top: 26px; }
 .new-back { flex: none; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: 13.5px; cursor: pointer; transition: color .15s; }
 .new-back:hover { color: var(--ink); }
@@ -304,7 +313,7 @@ button.update-tile:hover { filter: brightness(.95); }
 @keyframes new-from-top { from { opacity: 0; transform: translateY(-4px); } }
 @keyframes new-tick { from { transform: scale(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .new-modal, .new-box, .new-step, .new-error, .casc-cb.on svg, .casc-cb.some::after { animation: none !important; }
+  .new-modal, .new-box, .new-step, .new-error, .ms-list, .ms-tag { animation: none !important; }
   .new-body, .new-link::after { transition: none; }
 }
 /* A new task as it is made: a turning ring where its state will be. */

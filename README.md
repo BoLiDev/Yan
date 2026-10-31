@@ -246,16 +246,15 @@ place of the browser's: split it to the right or down, which herdr does,
 so its window has the new shell too, in the directory the pane works in;
 copy what is selected in it; paste into it; and close it, unless it is the
 agent's own. The + beside Find a task starts a task from the page: a box
-over it asks what bare `yan` would, a step at a time, ① its title, then ②
-the repositories it works in (those registered and cloned here), picked
-as in a cascading select: the repositories, and beside the one open, its
-packages; a repository ticked is the whole of it, some of its packages
-ticked are those alone, and all of them the whole of it again. ↑ and ↓
-move in a column, → and ← between them, Space ticks. What is typed searches
-both, as ⌘K searches the tasks, a package by its path (`web core` finds
-`web / packages/core`), into one list clicked to tick, or ticked with Enter,
-which clears the search. Enter goes on, ⌘ or Ctrl with it creates at once,
-and Escape clears the search, then closes the box. Created, serve opens a herdr tab named for it and
+over it asks what bare `yan` would, a step at a time, ① its title, ② the
+repositories it works in (those registered and cloned here) and, when one
+picked has several packages, ③ which of each one's it is about, none
+picked being the whole of it, every one picked the whole of it too. Each
+step picks from one list, in a select of several with a dropdown: what is
+picked shows as tags, what is typed searches the list as ⌘K searches the
+tasks, ↑ and ↓ move in it and Enter picks, a click picks and keeps it open.
+Enter goes on, ⌘ or Ctrl with it creates at once, and Escape closes the
+list, then the box. Created, serve opens a herdr tab named for it and
 types bare `yan` into it with those answers (`yan --new`), in the vault the
 page shows; one serve cannot start says why in the box. The middle column
 is the task as it is made, its title and repositories, and the right one

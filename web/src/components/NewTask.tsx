@@ -1,40 +1,37 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getJSON } from '../lib/api';
-import { findPicks, packageOn, stateOf, tickPackage, tickRepo, type Checked, type Hit, type Picked, type RepoOption } from '../lib/pick';
 import { link } from '../lib/route';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
-import { AntIcon, Icon } from './Icon';
-import { Marked } from './Palette';
+import { AntIcon } from './Icon';
+import { MultiSelect } from './MultiSelect';
 
-/** A box ticked, part-ticked or empty, as antd's Cascader draws one. */
-const Check = ({ state, onClick }: { state: Checked; onClick?: (e: MouseEvent) => void }) => (
-  <span className={`casc-cb ${state}`} aria-hidden="true" onClick={onClick}>{state === 'on' ? <AntIcon name="check" size={10} /> : null}</span>
-);
+/** A repository a new task may work in, as serve offers it, with its packages when it has several. */
+interface RepoOption {
+  readonly name: string;
+  readonly packages: readonly string[];
+}
 
 /** A ring of dashes, turning: a task being made. */
 export const Ring = ({ size = 16 }: { size?: number }) => (
   <svg className="ring" width={size} height={size} viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /></svg>
 );
 
+type Step = 'title' | 'repos' | 'packages';
+
 /**
  * The + beside Find a task: a new task asked for over the page as bare `yan`
- * asks it at a terminal, a step at a time, ① its title and ② the
- * repositories it works in, the two joined by a line that fills as the
- * second is reached. The repositories are picked as antd's Cascader picks
- * several: a column of them and, beside it, the packages of the one open; a
- * repository ticked is the whole of it, some of its packages ticked are
- * those alone, its box part-ticked, and all of them ticked are the whole of
- * it again. ↑ and ↓ move in a column, → and ← between them, Space ticks.
- * What is typed searches both, as ⌘K searches the tasks: the repositories by
- * name and the packages by their path, `web / packages/core`, in one list,
- * clicked to tick or ticked with Enter, which clears the search. Enter goes
- * on, then creates, ⌘ or Ctrl with it creating at once; Escape clears the
- * search, then closes. A task with no repository to
- * pick from is made from its title. Created, it is bare `yan` in a new herdr
- * tab, which the page then shows; one serve cannot start says why in a
- * line, and nothing asked is lost.
+ * asks it at a terminal, a step at a time: ① its title, ② the repositories
+ * it works in, and ③, when one picked has several packages, which of each
+ * one's it is about, none picked being the whole of it. Each step picks one
+ * thing from one list, in a select of several as antd's is, so nothing
+ * cascades. The steps are numbers joined by lines that fill as each is
+ * reached, ③ there only while a repository picked has packages. Enter goes
+ * on, then creates, ⌘ or Ctrl with it creating at once; Escape closes. A
+ * task with no repository to pick from is made from its title. Created, it
+ * is bare `yan` in a new herdr tab, which the page then shows; one serve
+ * cannot start says why in a line, and nothing asked is lost.
  */
 export function NewTaskModal() {
   const open = useUI((s) => s.newTask);
@@ -43,18 +40,13 @@ export function NewTaskModal() {
 
 function NewTaskBox() {
   const { data: repos } = useQuery({ queryKey: ['launch-repos'], queryFn: () => getJSON<RepoOption[]>('/api/launch/repos'), staleTime: 30_000 });
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<Step>('title');
   // Which way the step came, so it slides in from that side.
   const [way, setWay] = useState<'on' | 'back'>('on');
   const [title, setTitle] = useState('');
-  // Each repository picked, with its packages: `[]` for the whole of it.
-  const [picked, setPicked] = useState<Picked>({});
-  const [query, setQuery] = useState('');
-  // Where the keyboard is among what a search found.
-  const [hit, setHit] = useState(0);
-  // Where the keyboard is: a row of the repositories' column, or of the open one's packages.
-  const [cursor, setCursor] = useState<{ col: 0 | 1; row: number }>({ col: 0, row: 0 });
-  const [open, setOpen] = useState(0);
+  const [chosen, setChosen] = useState<string[]>([]);
+  // Each picked monorepo's packages; none is the whole of it.
+  const [scopes, setScopes] = useState<Readonly<Record<string, string[]>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -62,21 +54,18 @@ function NewTaskBox() {
   const box = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
-  const search = useRef<HTMLInputElement>(null);
   const [height, setHeight] = useState<number | undefined>(undefined);
-  // Until serve has said what there is, a second step is taken to come.
-  const twoSteps = repos === undefined || repos.length > 0;
-  const ready = title.trim() !== '';
 
   const list = repos ?? [];
-  const opened = list[open];
-  const searching = query.trim() !== '';
-  const hits = searching ? findPicks(list, query) : [];
-
-  // What the keyboard is on stays in sight as it moves through a long list.
-  useLayoutEffect(() => {
-    box.current?.querySelector('.casc-it.at')?.scrollIntoView({ block: 'nearest' });
-  }, [cursor, hit, searching]);
+  // Until serve has said what there is, a second step is taken to come.
+  const hasRepos = repos === undefined || repos.length > 0;
+  // What was picked in the list's order, as bare yan's own list gives it: the first is where the agent starts.
+  const picked = list.filter((r) => chosen.includes(r.name));
+  const monorepos = picked.filter((r) => r.packages.length > 0);
+  const steps: Step[] = ['title', ...(hasRepos ? ['repos' as const] : []), ...(monorepos.length > 0 ? ['packages' as const] : [])];
+  const at = steps.indexOf(step);
+  const last = at === steps.length - 1;
+  const ready = title.trim() !== '';
 
   // The body's height follows the step it holds, so moving between them springs rather than jumps.
   useLayoutEffect(() => {
@@ -87,10 +76,8 @@ function NewTaskBox() {
     return () => sized.disconnect();
   }, [step]);
 
-  // Each step takes the keyboard as it comes: the title, or the list.
   useEffect(() => {
-    if (step === 1) field.current?.focus();
-    else search.current?.focus();
+    if (step === 'title') field.current?.focus();
   }, [step]);
 
   const close = (then?: () => void): void => {
@@ -102,27 +89,26 @@ function NewTaskBox() {
       else before.current?.focus({ preventScroll: true });
     }, 140);
   };
-  const go = (to: 1 | 2): void => {
-    if (to === step || (to === 2 && (!ready || !twoSteps))) return;
+  const go = (to: Step): void => {
+    const where = steps.indexOf(to);
+    if (where < 0 || where === at || (where > at && !ready)) return;
     setError(null);
-    setWay(to === 2 ? 'on' : 'back');
+    setWay(where > at ? 'on' : 'back');
     setStep(to);
-  };
-  const repoTicked = (r: RepoOption): void => setPicked((p) => tickRepo(p, r));
-  const packageTicked = (r: RepoOption, pkg: string): void => setPicked((p) => tickPackage(p, r, pkg));
-  const hitTicked = (h: Hit): void => (h.pkg === undefined ? repoTicked(h.repo) : packageTicked(h.repo, h.pkg));
-  const hitState = (h: Hit): Checked => (h.pkg === undefined ? stateOf(picked, h.repo) : packageOn(picked, h.repo, h.pkg) ? 'on' : 'off');
-  const point = (col: 0 | 1, row: number): void => {
-    setCursor({ col, row });
-    if (col === 0) setOpen(row);
   };
 
   const create = async (): Promise<void> => {
     if (!ready || busy) return;
     setBusy(true);
     setError(null);
-    // In the list's order, as bare yan's own list gives them: the first is where the agent starts.
-    const made: Launched = { title: title.trim(), repos: list.flatMap((r) => (picked[r.name] === undefined ? [] : [{ name: r.name, scope: picked[r.name] as readonly string[] }])) };
+    // Every package of a repository picked is the whole of it.
+    const made: Launched = {
+      title: title.trim(),
+      repos: picked.map((r) => {
+        const own = scopes[r.name] ?? [];
+        return { name: r.name, scope: own.length === r.packages.length ? [] : r.packages.filter((p) => own.includes(p)) };
+      }),
+    };
     try {
       const r = await fetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(made) });
       if (!r.ok) {
@@ -143,137 +129,82 @@ function NewTaskBox() {
   };
   const forward = (): void => {
     if (!ready) return;
-    if (step === 1 && twoSteps) go(2);
-    else void create();
+    if (last) void create();
+    else go(steps[at + 1] as Step);
   };
 
+  // A select's list takes ↑, ↓, Enter and Escape while it is open; what it lets through is the box's.
   const onKey = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      if (step === 2 && query !== '') setQuery('');
-      else close();
+      close();
     } else if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.shiftKey) {
-      // × and 上一步 do what they say. While a search is shown, Enter ticks what the keyboard is on and the search
-      // goes, as antd's does, so the next Enter creates; ⌘ or Ctrl with it creates at once. Anywhere else it goes on.
+      // × and 上一步 do what they say; anywhere else Enter goes on, ⌘ or Ctrl with it creating at once.
       if (e.target instanceof HTMLButtonElement && !e.target.classList.contains('new-go')) return;
       e.preventDefault();
-      if (step === 2 && searching && !(e.metaKey || e.ctrlKey)) {
-        const h = hits[hit];
-        if (h) hitTicked(h);
-        setQuery('');
-        setHit(0);
-      } else if (e.metaKey || e.ctrlKey) void create();
+      if (e.metaKey || e.ctrlKey) void create();
       else forward();
-    } else if (step === 2 && searching && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-      e.preventDefault();
-      setHit((h) => Math.max(0, Math.min(hits.length - 1, h + (e.key === 'ArrowDown' ? 1 : -1))));
-    } else if (step === 2 && searching) {
-      // Space, ← and → are the search's, as in any field.
-    } else if (step === 2 && list.length > 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-      e.preventDefault();
-      const rows = cursor.col === 0 ? list.length : (opened?.packages.length ?? 0);
-      point(cursor.col, Math.max(0, Math.min(rows - 1, cursor.row + (e.key === 'ArrowDown' ? 1 : -1))));
-    } else if (step === 2 && e.key === 'ArrowRight' && cursor.col === 0 && (opened?.packages.length ?? 0) > 0) {
-      e.preventDefault();
-      setCursor({ col: 1, row: 0 });
-    } else if (step === 2 && e.key === 'ArrowLeft' && cursor.col === 1) {
-      e.preventDefault();
-      setCursor({ col: 0, row: open });
-    } else if (step === 2 && e.key === ' ' && e.target === search.current) {
-      e.preventDefault();
-      if (cursor.col === 0 && list[cursor.row]) repoTicked(list[cursor.row] as RepoOption);
-      else if (cursor.col === 1 && opened?.packages[cursor.row] !== undefined) packageTicked(opened, opened.packages[cursor.row] as string);
     } else if (e.key === 'Tab') {
       // The keyboard stays in the box.
-      const all = [...(box.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input') ?? [])];
-      const [first, last] = [all[0], all[all.length - 1]];
+      const all = [...(box.current?.querySelectorAll<HTMLElement>('button:not(:disabled):not([tabindex="-1"]), input') ?? [])];
+      const [first, end] = [all[0], all[all.length - 1]];
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
-        last?.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
+        end?.focus();
+      } else if (!e.shiftKey && document.activeElement === end) {
         e.preventDefault();
         first?.focus();
       }
     }
   };
 
+  const names: Readonly<Record<Step, string>> = { title: '标题', repos: '仓库', packages: '包' };
   return (
     <div className={'new-modal' + (leaving ? ' out' : '')} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       {/* A click on anything but a field or a button leaves the keyboard where it was, so Enter and Escape still reach the box. */}
       <div ref={box} className="new-box" role="dialog" aria-modal="true" aria-label="新建 task" onKeyDown={onKey}
-        onMouseDown={(e) => { if (!(e.target as HTMLElement).closest('input, button')) e.preventDefault(); }}>
+        onMouseDown={(e) => { if (!(e.target as HTMLElement).closest('input, button, .ms-field')) e.preventDefault(); }}>
         <div className="new-head">
           <b>新建 task</b>
           <button type="button" className="new-x" aria-label="关闭" onClick={() => close()}><AntIcon name="close" size={13} /></button>
         </div>
-        {twoSteps ? (
+        {steps.length > 1 ? (
           <div className="new-steps">
-            <button type="button" tabIndex={-1} className={step === 1 ? 'at' : 'done'} onClick={() => go(1)}><span className="new-num">1</span>标题</button>
-            <span className={'new-link' + (step === 2 ? ' on' : '')} />
-            <button type="button" tabIndex={-1} className={step === 2 ? 'at' : ''} disabled={!ready} onClick={() => go(2)}><span className="new-num">2</span>仓库</button>
+            {steps.map((s, i) => (
+              <span key={s} className={'new-stop' + (i > 0 ? ' joined' : '')}>
+                {i > 0 ? <span className={'new-link' + (i <= at ? ' on' : '')} /> : null}
+                <button type="button" tabIndex={-1} className={i === at ? 'at' : i < at ? 'done' : ''} disabled={i > at && !ready} onClick={() => go(s)}>
+                  <span className="new-num">{i + 1}</span>{names[s]}
+                </button>
+              </span>
+            ))}
           </div>
         ) : null}
         <div className="new-body" style={height === undefined ? undefined : { height }}>
           <div ref={inner} key={step} className={`new-step ${way}`}>
-            {step === 1 ? (
+            {step === 'title' ? (
               <input ref={field} className="new-title" aria-label="标题" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} />
+            ) : step === 'repos' ? (
+              <MultiSelect label="仓库" options={list.map((r) => r.name)} value={chosen} autoFocus
+                onChange={(next) => setChosen(list.filter((r) => next.includes(r.name)).map((r) => r.name))} />
             ) : (
-              <div className="casc-pick">
-                <label className="casc-search">
-                  <Icon name="search" size={15} />
-                  <input ref={search} value={query} placeholder="搜索" aria-label="搜索仓库和包" spellCheck={false} autoComplete="off"
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setHit(0);
-                    }} />
-                </label>
-                {searching ? (
-                  <div className="casc-hits" role="listbox" aria-label="仓库和包" aria-multiselectable>
-                    {hits.length === 0 ? <div className="casc-none">没有匹配的仓库或包</div> : hits.map((h, i) => (
-                      <div key={h.label} role="option" aria-selected={hitState(h) !== 'off'} className={'casc-it' + (i === hit ? ' at' : '')}
-                        onMouseEnter={() => setHit(i)} onClick={() => hitTicked(h)}>
-                        <Check state={hitState(h)} />
-                        <span className="grow"><Marked text={h.label} marks={h.marks} /></span>
-                      </div>
-                    ))}
+              <div className="new-scopes">
+                {monorepos.map((r, i) => (
+                  <div key={r.name} className="new-scope">
+                    <span className="new-scope-name">{r.name}</span>
+                    <MultiSelect label={`${r.name} 的包`} options={r.packages} value={scopes[r.name] ?? []} empty="整个仓库" autoFocus={i === 0}
+                      onChange={(next) => setScopes((s) => ({ ...s, [r.name]: r.packages.filter((p) => next.includes(p)) }))} />
                   </div>
-                ) : (
-                  <div className="casc" role="tree" aria-label="仓库" aria-multiselectable>
-                    <div className="casc-col" role="group">
-                      {list.map((r, i) => (
-                        <div key={r.name} role="treeitem" aria-selected={stateOf(picked, r) !== 'off'} aria-expanded={r.packages.length > 0 ? i === open : undefined}
-                          className={'casc-it' + (i === open && r.packages.length > 0 ? ' open' : '') + (cursor.col === 0 && cursor.row === i ? ' at' : '')}
-                          onMouseEnter={() => point(0, i)} onClick={() => (r.packages.length > 0 ? point(0, i) : repoTicked(r))}>
-                          <Check state={stateOf(picked, r)} onClick={(e) => {
-                            e.stopPropagation();
-                            point(0, i);
-                            repoTicked(r);
-                          }} />
-                          <span className="grow">{r.name}</span>
-                          {r.packages.length > 0 ? <Icon name="chev" size={12} /> : null}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="casc-col" role="group">
-                      {opened !== undefined ? opened.packages.map((pkg, j) => (
-                        <div key={`${opened.name}/${pkg}`} role="treeitem" aria-selected={packageOn(picked, opened, pkg)} className={'casc-it' + (cursor.col === 1 && cursor.row === j ? ' at' : '')}
-                          onMouseEnter={() => setCursor({ col: 1, row: j })} onClick={() => packageTicked(opened, pkg)}>
-                          <Check state={packageOn(picked, opened, pkg) ? 'on' : 'off'} />
-                          <span className="grow">{pkg}</span>
-                        </div>
-                      )) : null}
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>
         </div>
         <div className="new-foot">
-          {step === 2 ? <button type="button" className="new-back" onClick={() => go(1)}>上一步</button> : null}
+          {at > 0 ? <button type="button" className="new-back" onClick={() => go(steps[at - 1] as Step)}>上一步</button> : null}
           <span className="new-error" role="alert">{error ?? ''}</span>
           <button type="button" className="button new-go" disabled={!ready || busy} onClick={forward}>
-            {busy ? <><Ring size={14} />创建中</> : <>{step === 1 && twoSteps ? '下一步' : '创建'}<span className="new-kb" aria-hidden="true">↵</span></>}
+            {busy ? <><Ring size={14} />创建中</> : <>{last ? '创建' : '下一步'}<span className="new-kb" aria-hidden="true">↵</span></>}
           </button>
         </div>
       </div>
