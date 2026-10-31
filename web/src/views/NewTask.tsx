@@ -3,9 +3,11 @@ import type { Index, TerminalState } from '../lib/api';
 import { link } from '../lib/route';
 import { Icon } from '../components/Icon';
 import { Spinner } from '../components/ui/spinner';
-import { Pane } from '../components/page';
+import { ASIDE, GROW, Pane } from '../components/page';
 import { pullNow } from '../state/server';
 import { useUI } from '../state/ui';
+import { NAV, navRow } from '../panes/middle/look';
+import { TaskHead } from '../panes/middle/TaskHead';
 import { TerminalView } from './TerminalLazy';
 import { useKeyNav } from './nav';
 
@@ -17,18 +19,14 @@ import { useKeyNav } from './nav';
 export function LaunchHead({ launch, state }: { launch: string; state: TerminalState | undefined }) {
   const given = useUI((s) => s.launched[launch]);
   const title = given?.title ?? state?.title ?? '';
-  const top = (
-    <div className="task-head">
-      <div className="t"><Spinner className="size-[18px] text-brand" /><h1>{title}</h1></div>
-    </div>
-  );
+  const top = <TaskHead icon={<Spinner className="size-[18px] text-brand" />} title={title} />;
   const body = given !== undefined && given.repos.length > 0 ? (
-    <div className="nav launch-repos">
+    <div className={NAV}>
       {given.repos.map((r) => (
-        <div key={r.name} className="row">
+        <div key={r.name} className={navRow()}>
           <Icon name="branch" size={16} />
-          <span className="grow">{r.name}</span>
-          {r.scope.length > 0 ? <span className="aside">{r.scope.join(' · ')}</span> : null}
+          <span className={GROW}>{r.name}</span>
+          {r.scope.length > 0 ? <span className={ASIDE}>{r.scope.join(' · ')}</span> : null}
         </div>
       ))}
     </div>
