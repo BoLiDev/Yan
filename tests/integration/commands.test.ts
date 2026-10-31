@@ -35,6 +35,7 @@ describe('the surface', () => {
     expectUsage(await yan(['--repo', 'app']), 'given with --new');
     expectUsage(await yan(['--new', 'x', '--repo', 'app', '--no-repo']), 'give one');
     expectUsage(await yan(['--new', 'x', '--repo', 'app:packages/web']), 'needs a terminal');
+    expectUsage(await yan(['--task', 't001', '--new', 'x']), 'give one');
   });
 });
 

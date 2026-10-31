@@ -111,8 +111,8 @@ pulled and pushed by hand. A push keeps the branch each tree is on, commits
 everything in the vault and rebases it onto the remote first; a conflict
 stops it, the commit kept here, and the hook says so.
 `--cli codex` runs another agent this once; anything after `--` goes to the
-agent as it is. `--new "<title>"` starts a task with that title without
-asking which; `--repo <name>` names a repository it works in, as many times
+agent as it is. `--task <id>` goes on with an open task without asking
+which, and `--new "<title>"` starts a task with that title; `--repo <name>` names a repository it works in, as many times
 as it has, with the packages it is about after a colon
 (`--repo app:packages/web,packages/core`; without, the whole repository),
 and `--no-repo` none. What is not given is asked as before. A new task is

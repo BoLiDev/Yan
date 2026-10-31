@@ -89,8 +89,8 @@ function splitHooks(argv: readonly string[]): { argv: string[]; hooks: string[] 
   return { argv: rest, hooks };
 }
 
-function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask } = {}): Promise<number> {
-  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }) }, {
+function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string } = {}): Promise<number> {
+  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }) }, {
     prompts,
     chain,
     cwd,
@@ -293,6 +293,15 @@ describe('a new task', () => {
 });
 
 describe('an existing task', () => {
+  it('given with --task, goes on with it without the chooser, and refuses one that is not open', async () => {
+    Task.create('the one');
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001' });
+    expect(said.slice(0, 2)).toEqual([expect.stringMatching(/^begin /), 'done t001  the one']);
+    expect(started).toHaveLength(1);
+    await expect(run(answers({ entry: 'never chosen' }), here, { task: 't404' })).rejects.toThrow(/t404 is not an open task/);
+  });
+
   it('starts in the tree it holds, asking nothing, and names the branch the agent cut in it', async () => {
     const { clone } = await aClone();
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), clone);

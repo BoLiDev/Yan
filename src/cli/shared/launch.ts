@@ -574,7 +574,7 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  *
  * @param extra arguments after `--`, passed to the harness as they are.
  */
-export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask }, deps: EntryDeps = {}): Promise<number> {
+export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string }, deps: EntryDeps = {}): Promise<number> {
   const vault = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
@@ -584,13 +584,14 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   const prompts = options.new === undefined ? asking : answering(asking, options.new);
   const chain = deps.chain ?? (await import('../../ui/chain.js'));
 
-  // A new task given on the command line is not chosen: the chain still opens as the chooser opens it, and says which.
+  // A task given on the command line, new or open, is not chosen: the chain still opens as the chooser opens it, and says which.
   const vaultName = readVaultJson(vault).name;
-  if (options.new !== undefined) {
-    chain.begin(vaultName);
-    chain.say({ kind: 'done', line: `new task: ${options.new.title.trim()}` });
-  }
-  const chosen = await prompts.chooseEntry(openTasks(), vaultName);
+  const given = options.task === undefined ? undefined : openTasks().find((t) => t.id === options.task);
+  if (options.task !== undefined && given === undefined) throw YanError.usage('yan_usage', `${options.task} is not an open task in this vault - 'yan ls' lists those that are`);
+  if (options.new !== undefined || given !== undefined) chain.begin(vaultName);
+  if (options.new !== undefined) chain.say({ kind: 'done', line: `new task: ${options.new.title.trim()}` });
+  if (given !== undefined) chain.say({ kind: 'done', line: `${given.id}  ${given.title}` });
+  const chosen = given?.id ?? await prompts.chooseEntry(openTasks(), vaultName);
   const { task, trees } = chosen === CREATE_NEW
     ? await newTask(cwd, prompts, chain)
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };

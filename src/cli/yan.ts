@@ -59,11 +59,12 @@ Bare 'yan', at a terminal, picks a task or starts one and runs an agent on it
 here, in the task's first worktree when it has any ('yan repo' keeps the
 repositories a new task picks from):
 
-  yan [--cli claude|codex|agy] [--new <title> [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
+  yan [--cli claude|codex|agy] [--task <id> | --new <title> [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
 
---new starts a task called <title> without asking which task; --repo names a
-repository it works in, with the packages it is about after a colon (the
-whole repository without), and --no-repo none. What is not given is asked.`,
+--task goes on with an open task without asking which. --new starts a task
+called <title>; --repo names a repository it works in, with the packages it
+is about after a colon (the whole repository without), and --no-repo none.
+What is not given is asked.`,
     );
 
   for (const name of found) {
@@ -102,11 +103,12 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/** What bare `yan` was given: the CLI to run instead, a new task's answers, and what to pass the agent. */
+/** What bare `yan` was given: the CLI to run instead, an open task or a new task's answers, and what to pass the agent. */
 interface EntryArgs {
   readonly cli?: string;
   readonly extra: string[];
   readonly new?: NewTask;
+  readonly task?: string;
 }
 
 /** `name` or `name:package,package`, as `--repo` takes a repository and the packages a new task is about. */
@@ -128,6 +130,7 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   const first = argv[0];
   if (first !== undefined && (!first.startsWith('-') || ['-h', '--help', '-V', '--version'].includes(first))) return undefined;
   let cli: string | undefined;
+  let task: string | undefined;
   let title: string | undefined;
   let repos: { name: string; scope: string[] }[] | undefined;
   let noRepo = false;
@@ -144,18 +147,20 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
       extra = argv.slice(i + 1);
       break;
     }
-    const given = valueOf('--cli', i) ?? valueOf('--new', i) ?? valueOf('--repo', i);
+    const given = valueOf('--cli', i) ?? valueOf('--task', i) ?? valueOf('--new', i) ?? valueOf('--repo', i);
     if (given !== undefined && word.startsWith('--cli')) cli = given[0];
+    else if (given !== undefined && word.startsWith('--task')) task = given[0];
     else if (given !== undefined && word.startsWith('--new')) title = given[0];
     else if (given !== undefined) (repos ??= []).push(repoArg(given[0]));
     else if (word === '--no-repo') noRepo = true;
-    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --new <title> with --repo <name> or --no-repo, and, after --, arguments for the agent - not '${word}'`);
+    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --task <id> or --new <title> with --repo <name> or --no-repo, and, after --, arguments for the agent - not '${word}'`);
     i += given?.[1] ?? 1;
   }
   if (title === undefined && (repos !== undefined || noRepo)) throw YanError.usage('yan_usage', '--repo and --no-repo are a new task\'s, given with --new <title>');
   if (repos !== undefined && noRepo) throw YanError.usage('yan_usage', '--repo and --no-repo say opposite things; give one');
+  if (task !== undefined && title !== undefined) throw YanError.usage('yan_usage', '--task goes on with a task and --new starts one; give one');
   const made = title === undefined ? {} : { new: { title, ...(noRepo ? { repos: [] } : repos === undefined ? {} : { repos }) } };
-  return { ...(cli === undefined ? {} : { cli }), extra, ...made };
+  return { ...(cli === undefined ? {} : { cli }), extra, ...made, ...(task === undefined ? {} : { task }) };
 }
 
 async function main(argv: readonly string[]): Promise<number> {
