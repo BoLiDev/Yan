@@ -315,13 +315,9 @@ button.update-tile:hover { filter: brightness(.95); }
 .nav .row .term-status.blocked { color: #8a4b08; font-weight: 700; }
 .nav .row .term-status.done { color: var(--green); }
 /* The pane as herdr streams it, sized to the column, which it fills to the bottom of the page. */
-/* A task with no terminal: as the agent tab's page for a task with none, one line, and the way to start it again. */
-.term-off { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px; }
+/* A task with no terminal: a terminal, large, and 继续 under it. */
+.term-off { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px; }
 .term-off svg { flex: none; color: #a3a29b; }
-.term-off h1 { display: flex; max-width: min(560px, 100%); margin: 0; font-size: 18px; font-weight: 400; white-space: nowrap; }
-.term-off h1 span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.term-off h1 b { flex: none; font-weight: inherit; white-space: pre; }
-.term-off .button { margin-top: 4px; }
 .term-stop { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--red); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s, color .15s; }
 .term-stop:hover { background: #f6dedb; }
 .term-stop.sure { background: var(--red); color: #fff; }

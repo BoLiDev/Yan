@@ -65,7 +65,7 @@ interface Panes {
  * as herdr has it, the agent and any shell split off beside it, in herdr or
  * here: a right click on a pane splits it, copies, pastes, or closes a shell.
  */
-export function TerminalView({ id, state, waiting = false, title, goesOn = false }: { id: string; state: TerminalState | undefined; waiting?: boolean; title?: string; goesOn?: boolean }) {
+export function TerminalView({ id, state, waiting = false, goesOn = false }: { id: string; state: TerminalState | undefined; waiting?: boolean; goesOn?: boolean }) {
   useKeyNav(null, null);
   // Gone on with from here, the task's terminal is the dark stage until herdr lists the new tab's pane.
   const [starting, setStarting] = useState(false);
@@ -103,10 +103,9 @@ export function TerminalView({ id, state, waiting = false, title, goesOn = false
     return (
       <>
         <Bar title="Terminal" meta="" />
-        {/* As the agent tab's page for a task with none: one line naming the task, and the way to start it again. */}
+        {/* A terminal, large, and the way to start it again: nothing to read. */}
         <div className="term-off">
-          <Icon name="terminal" size={56} width={1.4} />
-          <h1><span>{title?.trim() || id}</span><b> 没有 Terminal</b></h1>
+          <Icon name="terminal" size={168} width={0.6} />
           {goesOn ? <button type="button" className="button" onClick={() => void goOn()}>继续</button> : null}
         </div>
       </>

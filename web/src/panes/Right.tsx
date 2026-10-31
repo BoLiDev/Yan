@@ -76,7 +76,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   const t = index.tasks.find((x) => x.id === r.id);
   if (!t) return <Nothing title="No such task">{`There is no ${r.id} in this vault.`}</Nothing>;
   // The terminal is herdr's, not the vault's: it is shown without waiting for the task's files.
-  if (r.sub === 'terminal') return <TerminalView id={t.id} state={terminals?.[t.id]} title={t.title} goesOn={goesOn(t)} />;
+  if (r.sub === 'terminal') return <TerminalView id={t.id} state={terminals?.[t.id]} goesOn={goesOn(t)} />;
   if (!d) return <Nothing title="Loading…" />;
   if (r.sub === 'overview') return <Overview t={t} d={d} />;
   if (r.sub === 'log') return <LogView t={t} d={d} />;
