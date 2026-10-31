@@ -71,52 +71,14 @@
 .month .chev { flex: none; display: flex; transition: transform .12s; }
 .month.open .chev { transform: rotate(90deg); }
 .month .aside { flex: none; font-variant-numeric: tabular-nums; }
-.badge {
-  flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
-  background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 700;
-  line-height: 20px; text-align: center; font-variant-numeric: tabular-nums;
-}
-.badge.solid { background: var(--brand); color: #fff; }
 .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
 
-.tool {
-  flex: none; width: 34px; height: 34px; border: 0; border-radius: 9px;
-  background: transparent; color: var(--ink-2); cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
-}
-.tool:hover { background: var(--sunken); color: var(--ink); }
-.tool[aria-pressed="true"] { background: var(--sunken); color: var(--ink); }
-.tool:disabled { opacity: 0.35; cursor: default; background: transparent; }
-.tool.text { width: auto; padding: 0 10px; font-size: 13px; gap: 6px; }
-.tool.text.read-all { height: 24px; padding: 0 8px; font-size: 12px; color: var(--brand); }
-.tool.small { width: 28px; height: 28px; border-radius: 7px; color: var(--ink-3); }
-.tool.blocked { opacity: 0.4; cursor: default; }
-.tool.blocked:hover { background: transparent; color: var(--ink-3); }
 /* The Latest line is the card, so the bell sits inside it: a button cannot sit inside the row's link. */
 .latest-line { display: flex; align-items: center; gap: 2px; padding-right: 4px; border-radius: 10px; }
 .latest-line:has(> .row:hover):not(.on) { background: var(--hover); }
 .latest-line.on { background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
 .latest-line .row { flex: 1 1 auto; min-width: 0; }
 .latest-line .row:hover, .latest-line .row.on { background: transparent; box-shadow: none; }
-.latest-line .tool[aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); }
-
-.seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--sunken); border-radius: 10px; }
-.seg button {
-  height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent;
-  color: var(--ink-3); font-size: 12.5px; cursor: pointer; white-space: nowrap;
-}
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(27, 27, 25, 0.08); }
-.seg.wide { display: flex; margin: 0 2px; background: var(--hover); }
-.seg.wide button { flex: 1 1 0; }
-
-.pill {
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
-  border-radius: 999px; background: var(--sunken); color: var(--ink-2);
-  font-size: 12.5px; line-height: 26px; text-decoration: none; white-space: nowrap;
-}
-.pill.teal { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
-.pill.green { background: var(--green-soft); color: var(--green); font-weight: 700; }
-.pill.amber { background: var(--amber-soft); color: var(--amber); font-weight: 700; }
 
 .thumb {
   flex: none; width: 30px; height: 22px; border-radius: 4px; object-fit: cover; background: #0e141b;
@@ -189,9 +151,6 @@ button.update-tile:hover { filter: brightness(.95); }
 .find:hover { color: var(--ink-2); }
 .find-line { display: flex; gap: 6px; }
 .find-line .find { flex: 1 1 auto; width: auto; min-width: 0; }
-.find-new { flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 10px; background: var(--hover); color: var(--ink-2); cursor: pointer; }
-.find-new:hover { color: var(--ink); background: rgba(27, 27, 25, .1); }
-.find-new.on { background: rgba(27, 27, 25, .1); color: var(--ink); }
 
 /* A new task asked for over the page as bare yan asks it: a step at a time, ① its title, ② its repositories. Nothing
    framed in it but itself: the steps are numbers joined by a line, the title a caret, the repositories a list. */
@@ -226,12 +185,6 @@ button.update-tile:hover { filter: brightness(.95); }
 .nav .row.repo-row .fold { display: flex; flex: none; margin-right: -2px; color: var(--ink-3); }
 .nav .row.other.deep { padding-left: 52px; }
 /* A branch's files, all of them or its source code alone, by the vault's rules: a switch under its tabs. */
-.src-toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; margin: 0 2px; padding: 6px 10px; border-radius: 9px; background: var(--hover); font-size: 13px; color: var(--ink-2); cursor: pointer; }
-.src-toggle .switch { flex: none; position: relative; width: 30px; height: 18px; border-radius: 999px; background: var(--line); transition: background .15s; }
-.src-toggle .switch span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
-.src-toggle[aria-pressed="true"] { color: var(--ink); }
-.src-toggle[aria-pressed="true"] .switch { background: var(--brand); }
-.src-toggle[aria-pressed="true"] .switch span { transform: translateX(12px); }
 /* A resource under Resources: a link by its name, or its name and its words; its pencil and bin on hover. */
 .nav .row.res-row { gap: 6px; }
 .nav .row.res-row .res-link { color: inherit; text-decoration: none; }
@@ -240,7 +193,6 @@ button.update-tile:hover { filter: brightness(.95); }
 .nav .row.res-row .res-edit { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; white-space: normal; }
 .nav .row.res-row .res-tools { display: none; flex: none; margin: -5px -2px; }
 .nav .row.res-row:hover .res-tools, .nav .row.res-row:focus-within .res-tools { display: flex; }
-.nav .row.res-row .ov-icon { width: 24px; height: 24px; opacity: 1; }
 /* An Agent row names the agent beside its word, giving way first, and ends in the arrow of a link that leaves the page. */
 .nav .row .word { flex: none; white-space: nowrap; }
 .nav .row .aside.name { flex: 0 1 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -262,11 +214,7 @@ button.update-tile:hover { filter: brightness(.95); }
 /* A task with no terminal: a terminal, drawn large, and 继续 in the bar where 结束 is while one runs. */
 .term-off { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; padding: 40px; }
 .term-off svg { flex: none; color: #a3a29b; }
-.term-stop { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--red); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s, color .15s; }
-.term-stop:hover { background: #f6dedb; }
-.term-stop.sure { background: var(--red); color: #fff; }
 /* 继续 is the page's one thing to do, so it is the primary button. */
-.term-go { flex: none; align-self: center; }
 
 /* The agent's tab, each pane where herdr's split puts it, a line where one meets another. The light lines that edge
    the page's columns, the bar's foot and the task list's side, would frame the dark tab, so it is drawn over the one
@@ -325,7 +273,6 @@ button.update-tile:hover { filter: brightness(.95); }
 .push-line:has(> .push-head:hover) { background: var(--hover); }
 .push-line > .push-head { flex: 1 1 auto; min-width: 0; }
 .push-line > .push-head:hover { background: transparent; }
-.push-line > .tool { flex: none; }
 .push-head b { flex: none; font-variant-numeric: tabular-nums; color: var(--ink); }
 .push-head .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .push-head .chev { flex: none; display: flex; color: var(--ink-3); transition: transform .12s; }
@@ -376,12 +323,6 @@ button.update-tile:hover { filter: brightness(.95); }
   flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 44px;
   padding: 8px 20px; border-top: 1px solid var(--sunken); font-size: 12.5px; color: var(--ink-3);
 }
-.copy {
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px;
-  background: transparent; color: var(--ink-3); font: 12px var(--mono); cursor: pointer; max-width: 100%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.copy:hover { background: var(--sunken); color: var(--ink); }
 .pair {
   display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 4px; border: 0; border-radius: 999px;
   background: var(--sunken); color: var(--ink); font-size: 12.5px; cursor: pointer; text-decoration: none;
@@ -443,7 +384,6 @@ button.update-tile:hover { filter: brightness(.95); }
 
 /* overview */
 .ov-head { display: flex; flex-direction: column; gap: 12px; margin-bottom: 34px; }
-.ov-head .pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ov-head h2 { margin: 0; font-size: 30px; line-height: 38px; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .ov-section { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
 .ov-section .h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -464,17 +404,8 @@ button.update-tile:hover { filter: brightness(.95); }
 /* the date, and under it, a gap away, giving up and the bin that show on hover: laid over the row, so a row of one line keeps its height */
 .deliv .side { position: relative; display: flex; justify-content: flex-end; }
 .deliv .side .acts { position: absolute; z-index: 1; top: 24px; right: -5px; display: flex; gap: 2px; }
-.deliv .side .ov-icon { width: 22px; height: 22px; }
 
 /* editing on the overview: the problem whole, a text in place, the icons on hover */
-.ov-section .h .ov-edit { margin-left: auto; }
-.ov-edit[hidden] { display: none; }
-.ov-edit { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-3); font: inherit; font-size: 13px; cursor: pointer; }
-.ov-edit:hover { background: var(--hover); color: var(--ink); }
-.ov-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink-3); cursor: pointer; opacity: 0; transition: opacity .12s; }
-.ov-icon:hover { background: var(--hover); color: var(--ink); }
-.deliv:hover .ov-icon, .ov-icon:focus-visible { opacity: 1; }
-.deliv .side .ov-icon.remove:hover { color: var(--red); }
 .deliv .words, .deliv .why, .res-edit { border-radius: 4px; outline: 1px dashed transparent; outline-offset: 3px; transition: outline-color .12s; }
 .deliv .words:hover, .deliv .why:hover { outline-color: var(--line); cursor: text; }
 .deliv .words:focus, .deliv .why:focus, .res-edit:focus { outline: 1.5px solid var(--brand); }
@@ -536,8 +467,6 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .file-card .big-kind { font: 700 15px var(--mono); padding: 10px 14px; border-radius: 10px; background: var(--sunken); color: var(--ink-2); }
 .button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: var(--ink); color: var(--ground); font-size: 13.5px; text-decoration: none; cursor: pointer; }
 .button:hover { color: var(--ground); opacity: 0.9; }
-.button.quiet { background: var(--sunken); color: var(--ink); }
-.button.quiet:hover { color: var(--ink); background: var(--line); }
 .font-sample { width: min(900px, 100%); background: var(--surface); border-radius: 14px; box-shadow: 0 0 0 1px var(--line); padding: 28px 32px; display: flex; flex-direction: column; gap: 14px; }
 .font-sample div { overflow-wrap: anywhere; }
 audio { width: min(560px, 100%); }

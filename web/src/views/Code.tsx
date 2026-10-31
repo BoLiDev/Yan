@@ -4,6 +4,7 @@ import { KIND_LABEL, WRAPPED, badge, ext, kindOf } from '../lib/files';
 import { bytes, plural } from '../lib/format';
 import { colourLines, langOf } from '../lib/highlight';
 import { Empty } from '../components/ui';
+import { Button } from '../components/ui/button';
 import { useLang, useText } from '../state/server';
 
 /** A line's text as the page shows it: coloured when it was, plain otherwise. */
@@ -26,7 +27,7 @@ export function CodeLines({ lines, wrap, coloured }: { lines: readonly string[];
     <div className={'code' + (wrap ? ' wrap' : '')}>
       {rows}
       {!all && lines.length > LIMIT ? (
-        <div className="more"><button type="button" className="button quiet" onClick={() => setAll(true)}>{`Show the other ${plural(lines.length - LIMIT, 'line')}`}</button></div>
+        <div className="more"><Button variant="secondary" onClick={() => setAll(true)}>{`Show the other ${plural(lines.length - LIMIT, 'line')}`}</Button></div>
       ) : null}
     </div>
   );

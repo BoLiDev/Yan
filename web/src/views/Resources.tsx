@@ -3,6 +3,7 @@ import { plural } from '../lib/format';
 import { KIND_WORD, isLink, listResources } from '../lib/resources';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
+import { Kbd } from '../components/ui/kbd';
 import { useKeyNav, usePick } from './nav';
 
 /**
@@ -31,7 +32,7 @@ export function ResourcesView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                 <a className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={url ? r.where.trim() : undefined} target="_blank" rel="noopener" title={r.where} onMouseMove={() => pick(i)}>
                   <Icon name={url ? 'link' : 'note'} size={18} />
                   <span className="grow"><b>{r.name}</b><span className="where">{r.where}</span></span>
-                  {url && i === at ? <span className="button">Open<kbd>↵</kbd></span> : null}
+                  {url && i === at ? <span className="flex flex-none items-center gap-1.5 text-xs text-muted-foreground">Open<Kbd>↵</Kbd></span> : null}
                 </a>
               </div>
             );

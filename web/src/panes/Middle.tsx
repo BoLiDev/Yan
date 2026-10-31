@@ -15,6 +15,9 @@ import { LaunchHead } from '../views/NewTask';
 import { onAgentClick, useAgentTab } from '../state/agentTab';
 import { ask, copyText, setPref, setSeen, toggled, useUI } from '../state/ui';
 import { FileThumb, TreeRows } from './Tree';
+import { Button } from '../components/ui/button';
+import { Switch } from '../components/ui/switch';
+import { cn } from '../lib/utils';
 
 /** How the nav says where a branch stands. */
 const BRANCH_SAID = { open: 'in progress', merged: 'merged', abandoned: 'abandoned' } as const;
@@ -56,7 +59,7 @@ function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRout
     top: (
       <div className="section-head">
         <b>Artifacts</b><span className="grow" />
-        {dotted ? <button type="button" className="tool text read-all" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>Mark all read</button> : null}
+        {dotted ? <Button variant="ghost" size="xs" className="text-brand hover:text-brand-ink" title="Clear every dot of this task" onClick={() => setSeen((s) => markTaskRead(index, s, t.id, d.log?.entries.length))}>Mark all read</Button> : null}
         {d.files.length ? <FoldAll id={t.id} files={d.files} open={open} /> : null}
         {d.files.length ? <Tool name="grid" label="See them all as a grid" href={link.folder(t.id, '')} newTab={false} small /> : null}
       </div>
@@ -128,11 +131,11 @@ function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode; body: 
   const sourceCount = rules ? b.files.filter((f) => isSource(rules, f.path)).length : b.files.length;
   // Over the changes and the files alike; the commits are what they are.
   const switcher = r.tab === 'commits' ? null : (
-    <button type="button" className="src-toggle" aria-pressed={sourceOnly} onClick={() => setPref('allFiles', sourceOnly)}>
-      <span className="grow">Source code only</span>
-      <span className="aside">{`${sourceCount} / ${b.files.length}`}</span>
-      <span className="switch" aria-hidden="true"><span /></span>
-    </button>
+    <label className={cn('mx-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg bg-hover px-2.5 py-1.5 text-[13px] select-none', sourceOnly ? 'text-foreground' : 'text-ink-2')}>
+      <span className="min-w-0 flex-1 truncate">Source code only</span>
+      <span className="text-xs text-ink-3 tabular-nums">{`${sourceCount} / ${b.files.length}`}</span>
+      <Switch checked={sourceOnly} onCheckedChange={(on) => setPref('allFiles', !on)} className="data-checked:bg-brand" />
+    </label>
   );
   let list: ReactNode;
   if (r.tab === 'commits') {
@@ -276,11 +279,11 @@ function ResourceRow({ task, name, where, deep }: { task: string; name: string; 
         ? <a className="grow res-link" href={where.trim()} target="_blank" rel="noopener">{name}</a>
         : <><span className="res-name">{name}</span><span className="grow res-words">{where}</span></>}
       <span className="res-tools">
-        <button type="button" className="ov-icon" title={`Edit ${name}`} aria-label={`Edit ${name}`} onClick={() => setEditing(true)}><Icon name="edit" size={14} /></button>
-        <button type="button" className="ov-icon" title={`Delete ${name}`} aria-label={`Delete ${name}`}
+        <Button variant="ghost" size="icon-xs" className="text-ink-3" title={`Edit ${name}`} aria-label={`Edit ${name}`} onClick={() => setEditing(true)}><Icon name="edit" size={14} /></Button>
+        <Button variant="ghost" size="icon-xs" className="text-ink-3 hover:text-destructive" title={`Delete ${name}`} aria-label={`Delete ${name}`}
           onClick={() => ask({ title: `Delete the resource ${name}?`, sub: where, action: 'Delete', then: () => void writeTask('/api/resource', { task, name, remove: true }, `Deleted ${name}`) })}>
           <Icon name="trash" size={14} />
-        </button>
+        </Button>
       </span>
       {url ? <span className="go"><Icon name="external" size={14} /></span> : null}
     </div>
@@ -507,7 +510,7 @@ function Feed({ index, seen, r }: { index: Index; seen: Seen; r: Extract<Route, 
     <div className="section-head" style={{ padding: '0 10px' }}>
       <h1 style={{ margin: 0, fontSize: '19px', lineHeight: '26px' }}>Latest</h1>
       <span className="grow" />
-      <button type="button" className="tool text" style={{ height: '28px', color: 'var(--brand)', fontSize: '12.5px' }} onClick={() => setSeen((s) => markAllSeen(index, s))}>Mark all seen</button>
+      <Button variant="ghost" size="sm" className="text-brand hover:text-brand-ink" onClick={() => setSeen((s) => markAllSeen(index, s))}>Mark all seen</Button>
     </div>
   );
   const body = (

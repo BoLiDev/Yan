@@ -5,6 +5,7 @@ import { plural } from '../lib/format';
 import { link } from '../lib/route';
 import { unseenOf } from '../lib/seen';
 import { Icon } from '../components/Icon';
+import { Button } from '../components/ui/button';
 import { Bar, Crumb, Empty } from '../components/ui';
 import { shaUrl, thumbUrl, useIndex, useText } from '../state/server';
 import { useUI } from '../state/ui';
@@ -54,7 +55,7 @@ export function FolderView({ t, d, path }: { t: { id: string }; d: TaskDetail; p
       <Bar
         title={path ? <Crumb path={path} /> : 'Artifacts'}
         meta={plural(node.count, 'file')}
-        tools={path ? <div className="group-tools"><a className="tool text" href={link.folder(t.id, dirName(path))}><Icon name="prev" size={16} />Up</a></div> : null} />
+        tools={path ? <div className="group-tools"><Button variant="ghost" size="sm" nativeButton={false} render={<a href={link.folder(t.id, dirName(path))} />}><Icon name="prev" size={16} />Up</Button></div> : null} />
       <div className="scroll">
         <div className="gallery">
           {sortedDirs(node).map((dir) => {

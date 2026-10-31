@@ -7,6 +7,7 @@ import { colourPatch, parsePatch, splitPairs, type PatchFile, type PatchLine } f
 import { inBranch, type BranchRoute } from '../lib/route';
 import { sourceView } from '../lib/source';
 import { Bar, Crumb, Empty, Seg, Tool } from '../components/ui';
+import { Toggle } from '../components/ui/toggle';
 import { useBranch, useBranchTree, useCommit, useIndex, useLang, useLangs, useText } from '../state/server';
 import { setPref, useUI } from '../state/ui';
 import { CodeStage, CodeText } from './Code';
@@ -256,7 +257,7 @@ function ChangesView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch })
           <NavTools prev={prev} next={next} pos={at + 1} total={b.files.length} />
           <span className="sep" />
           <LayoutTools />
-          <button type="button" className="tool text" aria-pressed={prefs.whole} onClick={() => setPref('whole', !prefs.whole)}>Whole file</button>
+          <Toggle size="sm" className="px-2.5 text-[13px] font-normal text-ink-2 data-[pressed]:text-foreground" pressed={prefs.whole} onPressedChange={(on) => setPref('whole', on)}>Whole file</Toggle>
           {f.status !== 'D' ? forgeTools(b).file(f.path) : null}
         </>
       } />

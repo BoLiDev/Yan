@@ -9,6 +9,9 @@ import { UpdateCard } from '../components/Update';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { cn } from '../lib/utils';
 
 function Sync() {
   const st = useUI((s) => s.status);
@@ -138,13 +141,13 @@ export function Left() {
           <span className="grow">Find a task</span>
           <kbd>{`${MOD}K`}</kbd>
         </button>
-        <button type="button" className={'find-new' + (creating ? ' on' : '')} aria-label="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></button>
+        <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', creating && 'bg-foreground/10 text-foreground')} aria-label="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></Button>
       </div>
       <div className={'latest-line' + (onLatest ? ' on' : '')}>
         <a className={'row' + (onLatest ? ' on' : '')} href="#/latest" style={{ fontWeight: 700 }}>
           <Icon name="latest" size={17} />
           <span className="grow">Latest</span>
-          {unseen > 0 ? <span className="badge solid" title={`${plural(unseen, 'task')} with something new`}>{unseen}</span> : null}
+          {unseen > 0 ? <Badge className="min-w-5 bg-brand px-1.5 font-bold text-white tabular-nums" title={`${plural(unseen, 'task')} with something new`}>{unseen}</Badge> : null}
         </a>
         <Bell />
       </div>

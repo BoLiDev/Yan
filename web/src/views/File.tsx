@@ -3,6 +3,7 @@ import { getBytes, type ArtifactFile } from '../lib/api';
 import { KIND_LABEL, WRAPPED, badge, baseName, dirName, enc, ext, kindOf, variantsOf, viewerOf } from '../lib/files';
 import { bytes, pad, plural, short, when } from '../lib/format';
 import { Icon } from '../components/Icon';
+import { Button } from '../components/ui/button';
 import { Bar, Crumb, Empty, Seg, Tool } from '../components/ui';
 import { fileUrl, shaUrl, thumbUrl, useIndex, useText, vaultPath } from '../state/server';
 import { copyText, setPref, useUI } from '../state/ui';
@@ -240,7 +241,7 @@ export function FileView(ctx: FileContext) {
       <div className="foot">
         {file.added ? <span title={file.changed !== file.added ? `changed ${when(file.changed)}` : ''}>{`Added ${when(file.added)}`}</span> : null}
         {file.commit ? <span className="mono" style={{ fontSize: '12px' }} title={file.commit}>{short(file.commit)}</span> : null}
-        <button type="button" className="copy" title="Copy the path on this machine" onClick={() => copyText(local, 'Path copied', 'The path')}>{path}<Icon name="copy" size={13} /></button>
+        <Button variant="ghost" size="xs" className="max-w-full min-w-0 justify-start font-mono text-xs font-normal text-ink-3" title="Copy the path on this machine" onClick={() => copyText(local, 'Path copied', 'The path')}><span className="truncate">{path}</span><Icon name="copy" size={13} /></Button>
         <span className="grow" />
         {foot}
       </div>

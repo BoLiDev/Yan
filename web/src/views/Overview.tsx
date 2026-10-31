@@ -5,6 +5,9 @@ import { blocksOf } from '../lib/markdown';
 import { link } from '../lib/route';
 import { Icon } from '../components/Icon';
 import { Editable } from '../components/ui';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { cn } from '../lib/utils';
 import { onStatus, useText, writeTask } from '../state/server';
 import { ask, setSeen, toast, useUI } from '../state/ui';
 import { MarkdownDoc } from './Markdown';
@@ -73,8 +76,8 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
         }} />
       <div className="ov-edit-bar">
         <span className="dim">Markdown · ⌘↩ saves · Esc cancels</span>
-        <button type="button" className="button quiet" disabled={busy} onClick={onClose}>Cancel</button>
-        <button type="button" className="button" disabled={busy} onClick={save}>Save</button>
+        <Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button>
+        <Button disabled={busy} onClick={save}>Save</Button>
       </div>
     </>
   );
@@ -101,7 +104,7 @@ function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const waiting = !!problem && !!was && was !== problem.sha && old.data === undefined && !old.isError;
   const fresh = useMemo(() => !!before && !!problem && [...blocksOf(problem.text)].some((b) => b !== '' && !before.has(b)), [before, problem]);
 
-  const edit = editing ? null : <button type="button" className="ov-edit" onClick={() => setEditing(true)}><Icon name="edit" size={14} />Edit</button>;
+  const edit = editing ? null : <Button variant="ghost" size="sm" className="ml-auto font-normal text-ink-3" onClick={() => setEditing(true)}><Icon name="edit" size={14} />Edit</Button>;
   if (!problem || !problem.text.trim()) {
     return (
       <section className="ov-section">
@@ -122,13 +125,17 @@ function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   );
 }
 
-const STATE_WORD: Readonly<Record<TaskState, readonly [string, string]>> = { open: ['teal', 'In progress'], uat: ['amber', 'In review'], done: ['green', 'Done'], abandoned: ['', 'Dropped'] };
+const STATE_WORD: Readonly<Record<TaskState, readonly ['brand' | 'warning' | 'success' | 'secondary', string]>> = { open: ['brand', 'In progress'], uat: ['warning', 'In review'], done: ['success', 'Done'], abandoned: ['secondary', 'Dropped'] };
+/** The tags over a task's title, the first saying where it stands. */
+const PILL = 'h-[26px] gap-1.5 rounded-full px-2.5 text-[12.5px] font-bold';
+/** A deliverable's own tools, seen while it is under the pointer or one of them has the keyboard. */
+const DELIV_TOOL = 'size-[22px] text-ink-3 opacity-0 group-hover/deliv:opacity-100 focus-visible:opacity-100';
 
 /** A task as a whole: where it stands, its problem and its deliverables. */
 export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
   // A state this page does not know, a newer yan's, is named as task.json has it.
-  const word = t.state === stateOf(t.state) ? STATE_WORD[stateOf(t.state)] : ['teal', t.state];
+  const word = t.state === stateOf(t.state) ? STATE_WORD[stateOf(t.state)] : (['brand', t.state] as const);
   const dates = [t.id, t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : null, t.closedAt ? `${t.state === 'done' ? 'done' : 'closed'} ${dayOf(fromIso(t.closedAt))}` : null].filter(Boolean).join(' · ');
   const ds = d.deliverables;
   const n = (s: string): number => ds.filter((x) => x.status === s).length;
@@ -137,12 +144,12 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
     <div className="scroll">
       <div className="paper">
         <header className="ov-head">
-          <div className="pills">
-            <span className={`pill ${word[0]}`}>{word[1]}</span>
-            <span className="pill">{dates}</span>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={word[0]} className={PILL}>{word[1]}</Badge>
+            <Badge variant="secondary" className={cn(PILL, 'font-normal text-ink-2')}>{dates}</Badge>
             {d.repos.map((repo, i) => (repo.branch
-              ? <a key={i} className="pill" href={link.branch(t.id, i)}><Icon name="branch" size={13} />{`${repo.name} · ${repo.branch}`}</a>
-              : <span key={i} className="pill">{repo.name}</span>))}
+              ? <Badge key={i} variant="secondary" className={cn(PILL, 'font-normal text-ink-2 hover:text-foreground')} render={<a href={link.branch(t.id, i)} />}><Icon name="branch" size={13} />{`${repo.name} · ${repo.branch}`}</Badge>
+              : <Badge key={i} variant="secondary" className={cn(PILL, 'font-normal text-ink-2')}>{repo.name}</Badge>))}
           </div>
           <h2>{t.title || t.id}</h2>
         </header>
@@ -154,7 +161,7 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
             <div className="h"><h3>Deliverables</h3><span>{counts}</span></div>
             <div className="rail">
               {ds.map((x) => (
-                <div key={x.id} className={`deliv ${statusOf(x.status)}`}>
+                <div key={x.id} className={`deliv group/deliv ${statusOf(x.status)}`}>
                   <span className="node" title={x.status} />
                   <span>
                     <span className="text">
@@ -167,16 +174,16 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                     <span className="at">{x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''}</span>
                     <span className="acts">
                       {x.status === 'abandoned' ? null : (
-                        <button type="button" className="ov-icon" title={`Give up ${x.id}`} aria-label={`Give up ${x.id}`}
+                        <Button variant="ghost" size="icon-xs" className={DELIV_TOOL} title={`Give up ${x.id}`} aria-label={`Give up ${x.id}`}
                           onClick={() => ask({ title: `Give up ${x.id}?`, sub: x.text, action: 'Give up', reason: 'Why, in a line: it stays under the deliverable',
                             then: (reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Gave up ${x.id}`) })}>
                           <Icon name="ban" size={15} />
-                        </button>
+                        </Button>
                       )}
-                      <button type="button" className="ov-icon remove" title={`Delete ${x.id}`} aria-label={`Delete ${x.id}`}
+                      <Button variant="ghost" size="icon-xs" className={cn(DELIV_TOOL, 'hover:text-destructive')} title={`Delete ${x.id}`} aria-label={`Delete ${x.id}`}
                         onClick={() => ask({ title: `Delete ${x.id}?`, sub: x.text, action: 'Delete', then: () => void writeTask('/api/deliverable/remove', { task: t.id, id: x.id }, `Deleted ${x.id}`) })}>
                         <Icon name="trash" size={15} />
-                      </button>
+                      </Button>
                     </span>
                   </span>
                 </div>

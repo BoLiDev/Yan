@@ -6,6 +6,7 @@ import { MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
 import { boxOpen } from '../lib/modal';
 import { tilesOf, type Tile } from '../lib/tiles';
+import { cn } from '../lib/utils';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
 import { Button } from '../components/ui/button';
@@ -99,7 +100,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
     return (
       <>
         {/* Continue is where Stop is while one runs: the bar's own way to start or stop it. */}
-        <Bar title="Terminal" meta="" tools={goesOn ? <button type="button" className="button term-go" onClick={() => void goOn()}>Continue</button> : null} />
+        <Bar title="Terminal" meta="" tools={goesOn ? <Button className="self-center" onClick={() => void goOn()}>Continue</Button> : null} />
         {/* A terminal, large, and nothing to read. */}
         <div className="term-off">
           <Icon name="terminal" size={256} width={0.4} />
@@ -151,7 +152,10 @@ function StopButton({ id }: { id: string }) {
     }
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
   };
-  return <button type="button" className={'term-stop' + (sure ? ' sure' : '')} onClick={() => (sure ? void stop() : setSure(true))}>{sure ? 'Really stop' : 'Stop'}</button>;
+  return (
+    <Button variant={sure ? 'default' : 'ghost'} className={cn('self-center', sure ? 'bg-destructive text-white hover:bg-destructive/90' : 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
+      onClick={() => (sure ? void stop() : setSure(true))}>{sure ? 'Really stop' : 'Stop'}</Button>
+  );
 }
 
 /**
