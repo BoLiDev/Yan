@@ -130,8 +130,8 @@ export class Launches {
     const bin = this.bin();
     try {
       const herdr = await serverOf(bin);
-      if (!herdr.running) return void res.writeHead(409).end('herdr 没有在运行：先在终端里打开 herdr');
-      if (!atLeast(herdr.version, CONTROL_SINCE)) return void res.writeHead(409).end(`herdr ${herdr.version} 太旧，需要 ${CONTROL_SINCE} 或更新的版本`);
+      if (!herdr.running) return void res.writeHead(409).end('herdr is not running: open it in a terminal first');
+      if (!atLeast(herdr.version, CONTROL_SINCE)) return void res.writeHead(409).end(`herdr ${herdr.version} is too old: ${CONTROL_SINCE} or newer is needed`);
       // The shell starts where bare `yan` typed by hand would, and in the vault serve shows, whichever is this machine's own.
       const pane = await createTab(herdr.socket, { cwd: homedir(), label: title, env: { YAN_VAULT: this.vault } });
       const words = [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), ...args];
@@ -142,7 +142,7 @@ export class Launches {
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
       const unreachable = !isYanError(err) || err.code === 'herdr_unreachable';
-      res.writeHead(unreachable ? 502 : 400).end(unreachable ? `找不到 herdr（${bin}）：${why}` : why);
+      res.writeHead(unreachable ? 502 : 400).end(unreachable ? `herdr cannot be found (${bin}): ${why}` : why);
     }
   }
 }

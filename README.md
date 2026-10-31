@@ -94,7 +94,7 @@ you a link that opens the version with this work, one for the task unless a
 wholly different app or page needs its own, leaving how to get it to
 whatever knows the platform; each is kept as a preview named for what it
 opens, so a newer one replaces it, and the report lists them as the last
-row of its header. It builds the report, then marks the task 验收中 with
+row of its header. It builds the report, then marks the task in review with
 `yan uat ready`. Designs of what you will see go in artifacts/design/,
 written documents in artifacts/docs/, and anything else worth keeping, a
 script, a query or data pulled for a check, in artifacts/misc/, so nothing
@@ -122,7 +122,7 @@ agent starts anyway, its first turn pushing it.
 
 For you:
 
-- `yan ls` — every open task, one line each, those handed to you to accept as 验收中; `--status all` for the rest
+- `yan ls` — every open task, one line each, those handed to you to accept as in review; `--status all` for the rest
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan draft [id]` — your own notes about a task, in your editor
@@ -137,7 +137,7 @@ For the agent:
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
-- `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as 验收中, and stays so through the changes your feedback asks for until `yan done`
+- `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as in review, and stays so through the changes your feedback asks for until `yan done`
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
 - `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and each stays in progress until it is merged or marked given up
 - `yan branch abandon <name>` — mark a branch given up, once the work has left it for another; nothing is deleted, and the tree moving back onto it opens it again
@@ -287,7 +287,7 @@ machine's copy in a tab of its own, the whole window given to it, and is
 the only one of the two for a forge yan cannot tell. A branch's commits and files open on GitHub or
 GitLab the same way.
 
-A task its agent marked with `yan uat ready` is listed under 验收中, above
+A task its agent marked with `yan uat ready` is listed under In review, above
 the ones in progress, and its overview's tag says so. Those done or given up
 are listed under Done by the month they closed in, each month folded, with
 how many it holds, until it is clicked open; a folded month still shows the

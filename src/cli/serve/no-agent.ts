@@ -18,7 +18,7 @@ export function noAgentPage(id: string, title: string | undefined): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(name)} 没有 Agent</title>
+<title>${esc(name)} has no Agent</title>
 <style>
 @font-face{font-family:"Yan Round";src:local("ChillRoundFRegular"),local("ChillRoundF Regular"),url("/fonts/yan-round-regular.woff2") format("woff2");font-weight:400}
 @font-face{font-family:"Yan Round";src:local("ChillRoundFBold"),local("ChillRoundF Bold"),url("/fonts/yan-round-bold.woff2") format("woff2");font-weight:700}
@@ -34,7 +34,7 @@ h1 b{flex:none;font-weight:inherit;white-space:pre}
 <body>
 <main>
 <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CLOUD}</svg>
-<h1><span>${esc(name)}</span><b> 没有 Agent</b></h1>
+<h1><span>${esc(name)}</span><b> has no Agent</b></h1>
 </main>
 </body>
 </html>

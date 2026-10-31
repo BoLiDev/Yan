@@ -235,8 +235,8 @@ describe('yan serve', () => {
       const body = /<body>([\s\S]*)<\/body>/.exec(await r.text())?.[1] ?? '';
       return body.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     };
-    expect(await shown('t001'), 'by its title').toBe('first 没有 Agent');
-    expect(await shown('t404'), 'by its id, when serve has no title for it').toBe('t404 没有 Agent');
+    expect(await shown('t001'), 'by its title').toBe('first has no Agent');
+    expect(await shown('t404'), 'by its id, when serve has no title for it').toBe('t404 has no Agent');
   });
 
   it('opens the one already running rather than starting another', async () => {
@@ -359,7 +359,7 @@ describe('a report on yan serve', () => {
     expect((await post('/api/report/edit', { task: 't002', sha: (await report())?.sha, index: 9, text: 'x' })).status).toBe(400);
   });
 
-  it('lists a task its agent handed over as 验收中, and offers no way back to open', async () => {
+  it('lists a task its agent handed over as in review, and offers no way back to open', async () => {
     expect((await runYan(home, ['uat', 'ready', '--task', 't002'])).code).toBe(0);
     await fxGit(['commit', '-q', '-am', 'ready'], home);
     const state = async (): Promise<string | undefined> => {

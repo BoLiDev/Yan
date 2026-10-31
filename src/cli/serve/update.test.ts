@@ -70,6 +70,6 @@ describe('yan updating itself', () => {
   }, 120_000);
 
   it('says so of a folder that is not a clone', async () => {
-    expect(await new Updater(mkTempDir(), () => 'same').behind()).toEqual({ error: expect.stringContaining('不是 git 仓库') });
+    expect(await new Updater(mkTempDir(), () => 'same').behind()).toEqual({ error: expect.stringContaining('not a git repository') });
   });
 });

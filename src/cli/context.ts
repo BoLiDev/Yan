@@ -46,7 +46,7 @@ function problemLines(task: Task): string[] {
 function contextLines(task: Task): string[] {
   const data = task.read();
   const lines = [`${task.id}  ${data.title}`, '', ...problemLines(task), ''];
-  if (data.state === 'uat') lines.splice(1, 0, "验收中 - 'yan uat ready' handed it to the user, who checks it; changes follow their feedback until they close it with yan done");
+  if (data.state === 'uat') lines.splice(1, 0, "in review - 'yan uat ready' handed it to the user, who checks it; changes follow their feedback until they close it with yan done");
 
   if (data.deliverables.length === 0) {
     lines.push("no deliverables yet - 'yan deliverable add \"<text>\"'");

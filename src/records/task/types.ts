@@ -1,7 +1,7 @@
 /** The vocabulary of `tasks/<id>/task.json`, version 2. */
 
 /**
- * Where a task stands. `uat` (验收中) is still open: its agent has built
+ * Where a task stands. `uat` (in review) is still open: its agent has built
  * every deliverable and recorded what to check each by, and `user` checks
  * it. The agent sets it with `yan uat ready`, and it stays there through
  * the changes `user`'s feedback asks for, until `user` closes it with

@@ -79,7 +79,7 @@ function wanted(row: Row, status: StatusFilter): boolean {
 
 /** The state as `user` reads it: a task waiting to be accepted says so in Chinese, as `yan serve` does. */
 function stateWord(state: TaskState | null): string {
-  return state === null ? 'unreadable' : state === 'uat' ? '验收中' : state;
+  return state === null ? 'unreadable' : state === 'uat' ? 'in review' : state;
 }
 
 /** `10-01` this year, `2025-12-30` before it. */
@@ -89,7 +89,7 @@ function shortDay(day: string): string {
 
 export const command = new Command('ls')
   .description('every task, one line each')
-  .addOption(new Option('--status <status>', 'which tasks: open (验收中 included), done (abandoned included) or all').choices(STATUS_FILTERS).default('open'))
+  .addOption(new Option('--status <status>', 'which tasks: open (in review included), done (abandoned included) or all').choices(STATUS_FILTERS).default('open'))
   .option('--json', 'the same rows as JSON')
   .action(
     action('yan ls', (options: { status: StatusFilter; json?: boolean }) => {

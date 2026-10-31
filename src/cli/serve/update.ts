@@ -42,11 +42,11 @@ export class Updater {
 
   /** Fetch what the clone tracks and count the commits it has that the clone does not. */
   public async behind(): Promise<Behind> {
-    if ((await gitAsync(this.home, ['rev-parse', '--is-inside-work-tree'], 10_000)).code !== 0) return { error: `${this.home} 不是 git 仓库` };
+    if ((await gitAsync(this.home, ['rev-parse', '--is-inside-work-tree'], 10_000)).code !== 0) return { error: `${this.home} is not a git repository` };
     const fetched = await gitAsync(this.home, ['fetch', '--quiet'], 60_000);
-    if (fetched.code !== 0) return { error: tail(fetched.stderr) || '拉取失败' };
+    if (fetched.code !== 0) return { error: tail(fetched.stderr) || 'Could not fetch' };
     const counted = await gitAsync(this.home, ['rev-list', '--count', 'HEAD..@{upstream}'], 10_000);
-    if (counted.code !== 0) return { error: tail(counted.stderr) || '当前分支没有跟踪远端' };
+    if (counted.code !== 0) return { error: tail(counted.stderr) || 'The branch tracks nothing on a remote' };
     return { behind: Number(counted.stdout.trim()) || 0 };
   }
 
@@ -85,6 +85,6 @@ export class Updater {
     // A build that is the one running, nothing having changed, needs no restart.
     const restarted = this.restart();
     if (restarted === 'same') this.mark('restart', 'done');
-    else if (restarted === 'broken') this.mark('restart', 'failed', '新的构建启动不了，yan serve 还在用原来的');
+    else if (restarted === 'broken') this.mark('restart', 'failed', 'The new build does not start; yan serve goes on with the one it has');
   }
 }

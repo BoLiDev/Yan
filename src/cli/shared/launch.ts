@@ -167,7 +167,7 @@ function taskDirLine(dir: string): string {
       'or, where nothing on screen can show it, `yan uat note` saying how it was checked. A change to what the user sees is shot before it is made. ' +
       'When the result is checked by opening it on the web, try to give the user a link that opens the version with this work at the place the change is seen, with whatever the URL needs to reach that version: ' +
       'one for the task, another only for a wholly different app or page, each opened once before it is kept with `yan resource add preview`, named for what it opens, so a newer one replaces it. ' +
-      'Marking the task 验收中 is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
+      'Marking the task in review is yours to do, not the user\'s: once every deliverable is built and its evidence recorded, so that all that is left is for the user to check it, run `yan uat ready`.',
     'artifacts/ holds the work as it stands: an artifact redone replaces its file rather than sitting beside it.',
   ].join('\n');
 }

@@ -7,7 +7,7 @@ description: Use once an implementation is done and its result can be verified i
 
 The user accepts a task by checking each deliverable against what you show them: a screenshot, a recording or a note for each, gathered **deliverable by deliverable** rather than as a sweep of the product, and a report that puts each under the deliverables it shows. This skill does it all in one pass, after the implementation, so what is shot is what the report needs.
 
-Run it again after each round of feedback: shoot again what changed, record it, render the report again. The task stays 验收中 through those rounds until the user closes it.
+Run it again after each round of feedback: shoot again what changed, record it, render the report again. The task stays in review through those rounds until the user closes it.
 
 ## 1. Decide what shows each deliverable
 
@@ -132,6 +132,6 @@ It writes `artifacts/report.html` and `artifacts/report.json` in the task's fold
 
 ## 8. Hand it over
 
-Once every deliverable is built and has its evidence, run `yan uat ready`: the task is 验收中, with the user to check. Give the user the report's path and the links to try it, and say which deliverables have nothing to check them by, and why.
+Once every deliverable is built and has its evidence, run `yan uat ready`: the task is in review, with the user to check. Give the user the report's path and the links to try it, and say which deliverables have nothing to check them by, and why.
 
 Leave the deliverables' state alone: whether each is done is the user's call, made on the report.

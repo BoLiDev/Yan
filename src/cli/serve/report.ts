@@ -193,17 +193,17 @@ export function behind(record: ReportRecord, deliverables: readonly Deliverable[
   const then = new Map(record.deliverables.map((d) => [d.id, d.text]));
   for (const d of deliverables) {
     const was = then.get(d.id);
-    if (was === undefined) said.push(`新加了 ${d.id}`);
-    else if (was !== d.text) said.push(`${d.id} 的描述改了`);
+    if (was === undefined) said.push(`${d.id} was added`);
+    else if (was !== d.text) said.push(`${d.id} was reworded`);
   }
-  for (const id of then.keys()) if (!deliverables.some((d) => d.id === id)) said.push(`${id} 不在了`);
+  for (const id of then.keys()) if (!deliverables.some((d) => d.id === id)) said.push(`${id} is gone`);
 
   for (const f of evidence.files) {
     const was = record.files[f.path];
-    if (was === undefined) said.push(`新登记了 uat/${f.path}`);
-    else if (was.sha256 !== f.sha256) said.push(`uat/${f.path} 换了新的`);
-    else if (!sameList(was.for, f.for)) said.push(`uat/${f.path} 改成了证明 ${f.for.join('、')}`);
+    if (was === undefined) said.push(`uat/${f.path} was recorded`);
+    else if (was.sha256 !== f.sha256) said.push(`uat/${f.path} was replaced`);
+    else if (!sameList(was.for, f.for)) said.push(`uat/${f.path} now shows ${f.for.join(', ')}`);
   }
-  for (const path of Object.keys(record.files)) if (!evidence.files.some((f) => f.path === path)) said.push(`uat/${path} 不再登记`);
+  for (const path of Object.keys(record.files)) if (!evidence.files.some((f) => f.path === path)) said.push(`uat/${path} is no longer recorded`);
   return said;
 }

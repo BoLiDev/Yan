@@ -73,13 +73,13 @@ const rm = new Command('rm')
   );
 
 const ready = new Command('ready')
-  .description('the task is with the user to accept (验收中): say so once every deliverable is built and its evidence recorded')
+  .description('the task is with the user to accept (in review): say so once every deliverable is built and its evidence recorded')
   .option(...TASK_FLAG)
   .action(
     action('yan uat ready', (options: TaskOption) => {
       const task = requiredTask(options.task, '--task <id>');
       task.awaitUat();
-      out(`${task.id}  验收中 - the user checks it, changes follow their feedback, and yan done closes it`);
+      out(`${task.id}  in review - the user checks it, changes follow their feedback, and yan done closes it`);
     }),
   );
 
@@ -114,7 +114,7 @@ file again replaces its entry; a file redone keeps its name. Bare 'yan uat'
 lists every deliverable with its evidence, and which have none.
 
 Once every deliverable is built and has its evidence, 'yan uat ready' sets
-the task to uat (验收中): the user checks it. It stays there while changes
+the task to uat (in review): the user checks it. It stays there while changes
 are made on their feedback, deliverables added or redone with their
 evidence, until the user closes it with 'yan done'.`,
   );

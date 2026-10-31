@@ -158,13 +158,13 @@ describe('behind', () => {
     expect(behind(record, [d('d1', 'todo', 'one, reworded'), d('d3', 'todo', 'three'), d('d4', 'todo', 'four')], {
       files: [{ path: 'a.png', sha256: 'new', for: ['d1'] }, { path: 'b.png', sha256: 'bbb', for: ['d2', 'd3'] }, { path: 'c.png', sha256: 'ccc', for: ['d4'] }],
     })).toEqual([
-      'd1 的描述改了',
-      '新加了 d4',
-      'd2 不在了',
-      'uat/a.png 换了新的',
-      'uat/b.png 改成了证明 d2、d3',
-      '新登记了 uat/c.png',
-      'uat/gone.png 不再登记',
+      'd1 was reworded',
+      'd4 was added',
+      'd2 is gone',
+      'uat/a.png was replaced',
+      'uat/b.png now shows d2, d3',
+      'uat/c.png was recorded',
+      'uat/gone.png is no longer recorded',
     ]);
   });
 
