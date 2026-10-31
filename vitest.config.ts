@@ -45,7 +45,7 @@ export default defineConfig({
         resolve: { alias: { '@': fileURLToPath(new URL('./web/src', import.meta.url)) } },
         // Found up front, so a dependency first met mid-run does not make Vite reload the tests.
         optimizeDeps: {
-          include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-dev-runtime', '@tanstack/react-query', 'zustand', 'dompurify', 'marked', 'highlight.js/lib/core', '@xterm/xterm', 'vitest-browser-react'],
+          include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-dev-runtime', '@tanstack/react-query', 'zustand', 'dompurify', 'marked', 'highlight.js/lib/core', '@xterm/xterm', 'vitest-browser-react', 'lucide-react', 'clsx', 'tailwind-merge', 'class-variance-authority', '@base-ui/react', 'sonner', 'cmdk'],
         },
         test: {
           name: 'browser',
