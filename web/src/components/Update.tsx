@@ -12,7 +12,16 @@ interface Progress {
 type Behind = { readonly behind: number } | { readonly error: string };
 
 const STEP_WORD: Readonly<Record<Step, string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
-const MARK: Readonly<Record<StepState, string>> = { done: '✓', now: '●', wait: '○', failed: '✗' };
+/** A step's mark on the line that joins them: done ticked, the one under way a dashed ring turning, the rest open, a failure crossed. */
+function Mark({ state }: { state: StepState }) {
+  return (
+    <svg className="mark" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      {state === 'done' ? <><circle cx="8" cy="8" r="7" /><path d="m4.8 8.3 2.1 2.1 4.3-4.6" /></>
+        : state === 'failed' ? <><circle cx="8" cy="8" r="7" /><path d="m5.6 5.6 4.8 4.8m0-4.8-4.8 4.8" /></>
+          : <circle cx="8" cy="8" r="6.25" />}
+    </svg>
+  );
+}
 
 /** What the chip is doing: waiting to be asked, asking, told there is nothing, failing to ask, or updating. */
 type Chip = 'idle' | 'checking' | 'none' | 'failed' | 'running';
@@ -120,7 +129,11 @@ export function UpdateYan() {
           {started ? (
             <>
               <div className="update-steps">
-                {progress.steps.map((s) => <div key={s.step} className={s.state}><span className="mark">{MARK[s.state]}</span>{STEP_WORD[s.step]}</div>)}
+                {progress.steps.map((s, i) => (
+                  <div key={s.step} className={s.state + (progress.steps[i - 1]?.state === 'done' ? ' after-done' : '')}>
+                    <Mark state={s.state} />{STEP_WORD[s.step]}
+                  </div>
+                ))}
               </div>
               {progress.error ? <pre className="update-error">{progress.error}</pre> : null}
               {!progress.running && progress.error ? <button type="button" className="button" onClick={update}>再试一次</button> : null}
