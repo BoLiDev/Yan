@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { matchText } from '../lib/find';
-import { AntIcon, Icon } from './Icon';
+import { Icon } from './Icon';
 import { Marked } from './Palette';
 
 /**
@@ -113,7 +113,7 @@ export function MultiSelect({ options, value, onChange, empty, label, autoFocus 
         {value.map((v) => (
           <span key={v} className="ms-tag">
             {v}
-            <button type="button" tabIndex={-1} aria-label={`去掉 ${v}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => toggle(v)}><AntIcon name="close" size={9} /></button>
+            <button type="button" tabIndex={-1} aria-label={`去掉 ${v}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => toggle(v)}><Icon name="close" size={10} width={2.25} /></button>
           </span>
         ))}
         <input ref={input} value={query} aria-label={label} spellCheck={false} autoComplete="off" role="combobox" aria-expanded={open}
@@ -133,7 +133,7 @@ export function MultiSelect({ options, value, onChange, empty, label, autoFocus 
             <div key={o.value} role="option" aria-selected={value.includes(o.value)} className={'ms-opt' + (i === at ? ' at' : '') + (value.includes(o.value) ? ' on' : '')}
               onMouseMove={() => setAt(i)} onClick={() => toggle(o.value)}>
               <span className="ms-name"><Marked text={o.value} marks={o.marks} /></span>
-              {value.includes(o.value) ? <AntIcon name="check" size={12} /> : null}
+              {value.includes(o.value) ? <Icon name="tick" size={13} /> : null}
             </div>
           ))}
         </div>,

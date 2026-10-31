@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { getJSON, postJSON, type Behind, type UpdateState as Progress } from '../lib/api';
-import { AntIcon } from './Icon';
+import { Icon } from './Icon';
 
 const STEP_WORD: Readonly<Record<Progress['steps'][number]['step'], string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
 
@@ -81,15 +81,15 @@ export function UpdateCard() {
   const tile = (tone: string, icon: ReactNode, does?: [string, () => void]): ReactNode => does
     ? <button type="button" className={`update-tile ${tone}`} aria-label={does[0]} onClick={does[1]}>{icon}</button>
     : <span className={`update-tile ${tone}`}>{icon}</span>;
-  const again = <AntIcon name="reload" />;
+  const again = <Icon name="reload" size={14} />;
 
   let title = '';
   let action: ReactNode = null;
   let below: ReactNode = null;
   if (card.is === 'checking') [title, action] = ['检查中', tile('on', <Ring />)];
-  else if (card.is === 'none') [title, action] = ['无更新', tile('ok', <AntIcon name="check" />, ['再检查', check])];
+  else if (card.is === 'none') [title, action] = ['无更新', tile('ok', <Icon name="tick" size={14} />, ['再检查', check])];
   else if (card.is === 'unchecked') [title, action] = ['检查失败', tile('bad', again, ['重新检查', check])];
-  else if (card.is === 'behind') [title, action] = ['发现新版本', tile('on', <AntIcon name="arrowUp" />, ['更新', update])];
+  else if (card.is === 'behind') [title, action] = ['发现新版本', tile('on', <Icon name="arrowUp" size={14} />, ['更新', update])];
   else if (card.is === 'updating') {
     const { steps, running: going } = card.progress;
     const failed = steps.findIndex((s) => s.state === 'failed');
@@ -107,7 +107,7 @@ export function UpdateCard() {
         <div className="update-row">
           {/* Nothing asked yet, the card is the one thing to do, 检查更新, across it. Then each part comes in as it
               changes: the title with its words, what is on the right with the card's state. */}
-          {card.is === 'idle' ? <button type="button" className="update-check" onClick={check}><AntIcon name="sync" size={13} />检查更新</button> : (
+          {card.is === 'idle' ? <button type="button" className="update-check" onClick={check}><Icon name="refresh" size={13} />检查更新</button> : (
             <>
               <b key={title}>{title}</b>
               <span className="update-action" key={card.is}>{action}</span>

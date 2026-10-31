@@ -4,7 +4,7 @@ import { getJSON, postJSON, type LaunchRepo as RepoOption } from '../lib/api';
 import { link } from '../lib/route';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
-import { AntIcon } from './Icon';
+import { Icon } from './Icon';
 import { keepTab } from '../lib/modal';
 import { MultiSelect } from './MultiSelect';
 
@@ -136,7 +136,7 @@ function NewTaskBox() {
         onMouseDown={(e) => { if (!(e.target as HTMLElement).closest('input, button, .ms-field')) e.preventDefault(); }}>
         <div className="new-head">
           <b>新建 task</b>
-          <button type="button" className="new-x" aria-label="关闭" onClick={() => close()}><AntIcon name="close" size={13} /></button>
+          <button type="button" className="new-x" aria-label="关闭" onClick={() => close()}><Icon name="close" size={14} /></button>
         </div>
         {steps.length > 1 ? (
           <div className="new-steps">
