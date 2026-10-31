@@ -151,7 +151,7 @@ function useKeys(): void {
     else if (e.key === 'ArrowRight' && next) location.hash = next;
     else if (e.key === 'f' || e.key === 'F') {
       const stage = document.querySelector<HTMLElement>('#right [data-stage]');
-      if (!stage?.querySelector('img.shot')) return false;
+      if (!stage?.querySelector('img[data-shot]')) return false;
       if (document.fullscreenElement) void document.exitFullscreen();
       else void stage.requestFullscreen?.();
     } else return false;
