@@ -6,7 +6,7 @@ import { isDirectory } from './paths.js';
  * Run git in a given directory. Every function takes that directory as its
  * first argument and throws rather than falling back on `process.cwd()`.
  * Nothing here pushes: the one push yan makes is `yan vault push`, of the
- * vault, and src/util/git.test.ts checks no force flag reaches git anywhere.
+ * vault.
  */
 
 function requireDir(dir: string | undefined): string {

@@ -1,9 +1,9 @@
 {
-  // Typecheck-only view of the whole tree, tests included. `tsconfig.json` is
-  // the BUILD, and it excludes tests on purpose (rootDir would otherwise drag
-  // tests/helpers/ into dist/). That left the test tier unchecked by the
-  // compiler, which is how 90 call sites could be missing an `await` and only a
-  // test run would say so. `npm run typecheck` uses this one.
+  // The whole tree, tests included, type-checked and not built: what
+  // `npm run typecheck` checks. `tsconfig.json` is the build, and leaves the
+  // tests out so that its rootDir does not take tests/helpers/ into dist/;
+  // without this the compiler would never see a test, and a promise a test
+  // forgot to await would show only when it ran.
   "extends": "./tsconfig.json",
   "compilerOptions": { "noEmit": true, "rootDir": "." },
   "include": ["src/**/*.ts", "tests/**/*.ts"],
