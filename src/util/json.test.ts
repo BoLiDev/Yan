@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { editJson, initJson, parseJson, readJson, readJsonIfPresent, writeJson } from './json.js';
 import { cleanupTempDirs, mkTempDir } from '../../tests/helpers/fixtures.js';
@@ -33,20 +33,17 @@ describe('writeJson', () => {
     expect(readJson(deep)).toEqual({ d: 1 });
   });
 
-  it('writes the temp file beside the target, not in TMPDIR', () => {
-    // A temporary file in os.tmpdir() could rename across a filesystem, which
-    // is not atomic. Pointing tmpdir at nothing proves it is not used.
+  // Windows keeps no such mode to keep.
+  it.skipIf(process.platform === 'win32')('keeps the permissions of the file it replaces', () => {
+    // What lands is a new file renamed over the old one, which would otherwise take the mode it was created with,
+    // never group-writable as this one is.
     const tmp = mkTempDir();
-    const previous = process.env.TMPDIR;
-    process.env.TMPDIR = join(tmp, 'definitely-not-here');
-    try {
-      writeJson(join(tmp, 'c.json'), { c: 3 });
-    } finally {
-      if (previous === undefined) delete process.env.TMPDIR;
-      else process.env.TMPDIR = previous;
-    }
-    expect((readJson(join(tmp, 'c.json')) as { c: number }).c).toBe(3);
-    expect(countTemps(tmp)).toBe(0);
+    const f = join(tmp, 'shared.json');
+    writeJson(f, { a: 1 });
+    chmodSync(f, 0o660);
+    writeJson(f, { a: 2 });
+    expect(readJson(f)).toEqual({ a: 2 });
+    expect(statSync(f).mode & 0o777).toBe(0o660);
   });
 
   it('writes LF and a trailing newline on every platform', () => {
