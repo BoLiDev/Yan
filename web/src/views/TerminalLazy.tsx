@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentProps } from 'react';
-import { Bar } from '../components/page';
+import { Waiting } from './terminal/Tiles';
 
 /**
  * The terminal, loaded the first time one is shown: xterm.js is a third of
@@ -10,7 +10,7 @@ const Terminal = lazy(() => import('./Terminal').then((m) => ({ default: m.Termi
 
 export function TerminalView(props: ComponentProps<typeof Terminal>) {
   return (
-    <Suspense fallback={<><Bar title="Terminal" meta="" /><div className="term-tiles" /></>}>
+    <Suspense fallback={<Waiting />}>
       <Terminal {...props} />
     </Suspense>
   );

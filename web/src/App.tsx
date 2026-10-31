@@ -117,7 +117,7 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
 function paletteKey(e: KeyboardEvent): boolean {
   if (e.key.toLowerCase() !== 'k' || e.altKey) return false;
   if (MOD === '⌘') return e.metaKey && !e.ctrlKey;
-  const inTerminal = e.target instanceof Element && e.target.closest('.term') !== null;
+  const inTerminal = e.target instanceof Element && e.target.closest('[data-term]') !== null;
   return e.ctrlKey && !e.metaKey && (e.shiftKey || !inTerminal);
 }
 
