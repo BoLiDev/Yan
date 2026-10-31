@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { getJSON, postJSON } from '../lib/api';
 import { Icon } from './Icon';
 
@@ -12,139 +12,122 @@ interface Progress {
 type Behind = { readonly behind: number } | { readonly error: string };
 
 const STEP_WORD: Readonly<Record<Step, string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
-/** A step's mark on the line that joins them: done ticked, the one under way a dashed ring turning, the rest open, a failure crossed. */
-function Mark({ state }: { state: StepState }) {
-  return (
-    <svg className="mark" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      {state === 'done' ? <><circle cx="8" cy="8" r="7" /><path d="m4.8 8.3 2.1 2.1 4.3-4.6" /></>
-        : state === 'failed' ? <><circle cx="8" cy="8" r="7" /><path d="m5.6 5.6 4.8 4.8m0-4.8-4.8 4.8" /></>
-          : <circle cx="8" cy="8" r="6.25" />}
-    </svg>
-  );
-}
 
-/** What the chip is doing: waiting to be asked, asking, told there is nothing, failing to ask, or updating. */
-type Chip = 'idle' | 'checking' | 'none' | 'failed' | 'running';
+/** What the card is showing: yan as it is, a check under way, its outcome, updates to take, or an update. */
+type Card =
+  | { readonly is: 'idle' }
+  | { readonly is: 'checking' }
+  | { readonly is: 'none' }
+  | { readonly is: 'unchecked' }
+  | { readonly is: 'behind'; readonly n: number }
+  | { readonly is: 'updating'; readonly progress: Progress };
+
+/** A ring of dashes, turning: a step under way. */
+const Ring = () => (
+  <svg className="ring" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /></svg>
+);
 
 /**
- * yan updating itself, beside its name. A click asks how many commits its
- * clone is behind, and the chip says so as it goes, checking and then
- * nothing new; only commits to take open a box, with how many and the one
- * button, and taking them it shows the steps until serve restarts on the
- * new build and the page reloads with it.
+ * yan updating itself, a card at the foot of the task list. It says which
+ * commit yan is on; a click on 检查 asks how many it is behind, the card
+ * saying it is checking and then that there is nothing new; commits to take
+ * turn it to how many and a button to take them; taking them, it grows to
+ * the steps as a bar, until serve restarts on the new build and the page
+ * reloads with it. Its height follows what it holds, with a spring.
  */
-export function UpdateYan() {
-  const [chip, setChip] = useState<Chip>('idle');
-  const [failure, setFailure] = useState('');
-  const [behind, setBehind] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const here = useRef<HTMLDivElement>(null);
-  const started = progress !== null && progress.steps.some((s) => s.state !== 'wait');
+export function UpdateCard() {
+  const [card, setCard] = useState<Card>({ is: 'idle' });
+  const [head, setHead] = useState('');
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>(undefined);
 
-  // An update already running, from this page or another, shows on the chip.
+  // The commit yan is on, and an update already running, from this page or another.
   useEffect(() => {
+    void getJSON<{ head: string }>('/api/yan').then((y) => setHead(y.head), () => undefined);
     void getJSON<Progress>('/api/yan/update').then((p) => {
-      setProgress(p);
-      if (p.running) setChip('running');
+      if (p.running) setCard({ is: 'updating', progress: p });
     }, () => undefined);
   }, []);
 
-  // While it runs, it is asked again each second; serve restarting on the new build reloads the page.
+  // While it runs, it is asked again each second. A serve that knows of no update begun is the new build, restarted
+  // on: the page reloads with it then, rather than show for a moment what it showed before the update.
+  const running = card.is === 'updating' && card.progress.running;
   useEffect(() => {
-    if (!progress?.running) return;
+    if (!running) return;
     const timer = window.setInterval(() => void getJSON<Progress>('/api/yan/update').then((p) => {
-      setProgress(p);
-      if (!p.running) setChip('idle');
+      if (!p.steps.some((s) => s.state !== 'wait')) return location.reload();
+      setCard({ is: 'updating', progress: p });
     }, () => undefined), 1000);
     return () => window.clearInterval(timer);
-  }, [progress?.running]);
+  }, [running]);
 
-  // What the chip said of a check goes back to the chip after a while.
+  // What a check came to goes back to yan as it is after a while.
   useEffect(() => {
-    if (chip !== 'none' && chip !== 'failed') return;
-    const timer = window.setTimeout(() => setChip('idle'), chip === 'none' ? 3000 : 6000);
+    if (card.is !== 'none' && card.is !== 'unchecked') return;
+    const timer = window.setTimeout(() => setCard({ is: 'idle' }), card.is === 'none' ? 3000 : 5000);
     return () => window.clearTimeout(timer);
-  }, [chip]);
+  }, [card.is]);
 
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent): void => {
-      if (!here.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open]);
+  // The card's height follows what it holds, so a change of it springs rather than jumps.
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const sized = new ResizeObserver(() => setHeight(el.offsetHeight));
+    sized.observe(el);
+    return () => sized.disconnect();
+  }, []);
 
   const check = (): void => {
-    if (chip === 'running' || started) return setOpen((o) => !o);
-    if (chip === 'checking') return;
-    setOpen(false);
-    setChip('checking');
+    setCard({ is: 'checking' });
     void getJSON<Behind>('/api/yan/updates').then((b) => {
-      if ('error' in b) {
-        setFailure(b.error);
-        setChip('failed');
-      } else if (b.behind === 0) setChip('none');
-      else {
-        setBehind(b.behind);
-        setChip('idle');
-        setOpen(true);
-      }
-    }, (err: Error) => {
-      setFailure(err.message);
-      setChip('failed');
-    });
+      setCard('error' in b ? { is: 'unchecked' } : b.behind === 0 ? { is: 'none' } : { is: 'behind', n: b.behind });
+    }, () => setCard({ is: 'unchecked' }));
   };
   const update = (): void => {
-    void postJSON<Progress>('/api/yan/update', {}).then((p) => {
-      setProgress(p);
-      setChip('running');
-    }, (err: Error) => {
-      setFailure(err.message);
-      setChip('failed');
-      setOpen(false);
-    });
+    void postJSON<Progress>('/api/yan/update', {}).then((p) => setCard({ is: 'updating', progress: p }), () => setCard({ is: 'unchecked' }));
   };
 
-  const [icon, word] = chip === 'checking' ? ['spinner', '检查中']
-    : chip === 'none' ? ['tick', '无更新']
-      : chip === 'failed' ? ['arrowUp', '检查失败']
-        : chip === 'running' ? ['spinner', '更新中']
-          : open && !started ? ['arrowUp', `${behind} 个更新`] : ['arrowUp', '更新'];
+  let tone = '';
+  let icon: ReactNode = <Icon name="arrowUp" size={15} width={2.1} />;
+  let title: ReactNode = 'yan';
+  let sub: ReactNode = head;
+  let action: ReactNode = <button type="button" className="update-link" onClick={check}>检查</button>;
+  let below: ReactNode = null;
+  if (card.is === 'checking') {
+    [tone, icon, sub, action] = ['on', <Ring key="r" />, '检查中…', null];
+  } else if (card.is === 'none') {
+    [tone, icon, sub, action] = ['ok', <Icon key="t" name="tick" size={15} width={2.2} />, '无更新', null];
+  } else if (card.is === 'unchecked') {
+    [tone, sub] = ['bad', '检查失败'];
+  } else if (card.is === 'behind') {
+    [tone, title, sub] = ['on', `${card.n} 个更新`, null];
+    action = <button type="button" className="button" onClick={update}>更新</button>;
+  } else if (card.is === 'updating') {
+    const { steps, running: going } = card.progress;
+    const failed = steps.findIndex((s) => s.state === 'failed');
+    const at = failed >= 0 ? failed : Math.max(0, steps.findIndex((s) => s.state === 'now'));
+    const step = steps[at]?.step ?? 'pull';
+    tone = failed >= 0 ? 'bad' : 'on';
+    icon = failed >= 0 ? <Icon name="close" size={14} width={2.2} /> : <Ring />;
+    title = failed >= 0 ? '更新失败' : '更新中';
+    sub = `${STEP_WORD[step]} · ${at + 1} / ${steps.length}`;
+    action = !going && failed >= 0 ? <button type="button" className="button" onClick={update}>重试</button> : null;
+    below = <div className="update-bar">{steps.map((s) => <i key={s.step} className={s.state} />)}</div>;
+  }
+
   return (
-    <div className="update" ref={here}>
-      <button type="button" className={`update-chip ${chip}`} aria-expanded={open} title={chip === 'failed' ? failure : undefined} onClick={check}>
-        <span className={icon === 'spinner' ? 'spin' : undefined}><Icon name={icon as 'arrowUp' | 'tick' | 'spinner'} size={13} width={2.2} /></span>{word}
-      </button>
-      {open ? (
-        <div className="update-pop" role="dialog" aria-label="更新 yan">
-          {started ? (
-            <>
-              <div className="update-steps">
-                {progress.steps.map((s, i) => (
-                  <div key={s.step} className={s.state + (progress.steps[i - 1]?.state === 'done' ? ' after-done' : '')}>
-                    <Mark state={s.state} />{STEP_WORD[s.step]}
-                  </div>
-                ))}
-              </div>
-              {!progress.running && progress.error ? <button type="button" className="button" onClick={update}>再试一次</button> : null}
-            </>
-          ) : (
-            <>
-              <div className="update-count">{`${behind} 个更新`}</div>
-              <button type="button" className="button" onClick={update}>更新</button>
-            </>
-          )}
+    <div className="update-card" style={height === undefined ? undefined : { height }}>
+      <div ref={inner} className={`update-inner ${card.is}`}>
+        <div className="update-row" key={card.is}>
+          <span className={`update-icon ${tone}`}>{icon}</span>
+          <span className="update-words">
+            <b>{title}</b>
+            {sub ? <span className={tone}>{sub}</span> : null}
+          </span>
+          {action}
         </div>
-      ) : null}
+        {below}
+      </div>
     </div>
   );
 }

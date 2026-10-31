@@ -426,6 +426,7 @@ export class YanServer {
     }
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
+    if (p === '/api/yan') return json(res, { head: await this.updater.head() });
     if (p === '/api/yan/updates') return json(res, await this.updater.behind());
     if (p === '/api/yan/update') return json(res, this.updater.now);
     if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', q, req, res);

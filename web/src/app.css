@@ -185,35 +185,38 @@ img { -webkit-user-drag: none; }
 
 .brand { position: relative; display: flex; align-items: center; gap: 8px; padding: 2px 2px 2px 10px; }
 .brand b { font-size: 22px; letter-spacing: -0.03em; }
-/* yan updating itself: a chip beside its name, and what it opens, under the whole row, so it stays inside the pane. */
-/* As wide whatever it says, so nothing beside it moves as it changes. */
-.update-chip { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 86px; height: 24px; padding: 0 9px; border: 0; border-radius: 999px; background: var(--sunken); color: var(--ink-3); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-.update-chip:hover, .update-chip[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-ink); }
-.update-chip.running, .update-chip.checking { background: var(--accent-soft); color: var(--accent-ink); }
-.update-chip.none { color: var(--green); }
-.update-chip.failed { color: var(--red); }
-.update-chip > span { display: flex; }
-.update-chip .spin { animation: update-spin .8s linear infinite; }
+/* yan updating itself: a card at the foot of the task list, its height following what it holds, with a spring. */
+.update-card { overflow: hidden; border-radius: 12px; background: var(--surface); transition: height .45s cubic-bezier(.34, 1.5, .5, 1); }
+.update-inner { display: flex; flex-direction: column; gap: 12px; padding: 9px 12px; }
+.update-inner.updating { padding: 12px 12px 14px; }
+.update-row { display: flex; align-items: center; gap: 10px; min-height: 34px; animation: update-in .3s ease-out; }
+.update-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: var(--sunken); color: var(--ink-3); transition: background .2s, color .2s; }
+.update-icon.on { background: var(--accent-soft); color: var(--accent-ink); }
+.update-icon.ok { background: var(--green-soft); color: var(--green); }
+.update-icon.bad { background: #f6dedb; color: var(--red); }
+.update-icon .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
+.update-words { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 17px; }
+.update-words b { font-size: 13px; color: var(--ink); }
+.update-words span { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.update-words span.on { color: var(--accent-ink); }
+.update-words span.ok { color: var(--green); }
+.update-words span.bad { color: var(--red); }
+.update-link { flex: none; margin-right: -4px; padding: 4px 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; }
+.update-link:hover { background: var(--accent-wash); }
+.update-row .button { flex: none; height: 30px; padding: 0 14px; font-size: 13px; }
+.update-bar { display: flex; gap: 4px; animation: update-in .3s ease-out; }
+.update-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--sunken); transition: background .3s; }
+.update-bar i.done { background: var(--green); }
+.update-bar i.now { background: var(--accent); animation: update-pulse 1.2s ease-in-out infinite; }
+.update-bar i.failed { background: var(--red); }
 @keyframes update-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .update-chip .spin { animation-duration: 2.4s; } }
-.update-pop { position: absolute; left: 6px; right: 6px; top: 36px; z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0, 0, 0, .14); font-size: 13px; color: var(--ink-2); }
-.update-count { font-size: 15px; font-weight: 700; color: var(--ink); }
-.update-said { color: var(--ink-3); }
-.update-pop .button { justify-content: center; }
-/* The steps on one line: each mark joined to the one before, the join green once the step before is done. */
-.update-steps { display: flex; flex-direction: column; }
-.update-steps > div { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 0; color: var(--ink-2); }
-.update-steps > div + div::before { content: ""; position: absolute; left: 7.25px; top: -7px; width: 1.5px; height: 14px; border-radius: 1px; background: var(--line); }
-.update-steps > div.after-done::before { background: var(--green); }
-.update-steps .mark { flex: none; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.update-steps .wait { color: var(--ink-3); }
-.update-steps .wait .mark { stroke: var(--line); stroke: color-mix(in srgb, var(--ink-3) 45%, transparent); }
-.update-steps .done .mark circle { fill: var(--green); stroke: none; }
-.update-steps .done .mark path, .update-steps .failed .mark path { stroke: #fff; stroke-width: 1.8; }
-.update-steps .now { color: var(--ink); font-weight: 700; }
-.update-steps .now .mark { stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
-.update-steps .failed { color: var(--red); font-weight: 700; }
-.update-steps .failed .mark circle { fill: var(--red); stroke: none; }
+@keyframes update-pulse { 50% { opacity: .4; } }
+@keyframes update-in { from { opacity: 0; transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .update-card { transition: none; }
+  .update-row, .update-bar { animation: none; }
+  .update-icon .ring, .update-bar i.now { animation-duration: 3s; }
+}
 
 
 

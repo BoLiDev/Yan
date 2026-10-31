@@ -48,6 +48,12 @@ export class Updater {
     return this.state;
   }
 
+  /** The commit yan's clone is on, short; '' outside a clone. Nothing is fetched. */
+  public async head(): Promise<string> {
+    const r = await gitAsync(this.home, ['rev-parse', '--short', 'HEAD'], 10_000);
+    return r.code === 0 ? r.stdout.trim() : '';
+  }
+
   /** Fetch what the clone tracks and count the commits it has that the clone does not. */
   public async behind(): Promise<Behind> {
     if ((await gitAsync(this.home, ['rev-parse', '--is-inside-work-tree'], 10_000)).code !== 0) return { error: `${this.home} 不是 git 仓库` };

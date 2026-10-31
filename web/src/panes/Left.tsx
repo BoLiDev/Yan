@@ -5,7 +5,7 @@ import { link, useRoute } from '../lib/route';
 import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Pane, PushTags, Tool } from '../components/ui';
-import { UpdateYan } from '../components/Update';
+import { UpdateCard } from '../components/Update';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
@@ -125,7 +125,6 @@ export function Left() {
     <>
       <div className="brand">
         <b title={index ? `${index.vault.name} · ${index.vault.dir}` : undefined}>yan</b>
-        <UpdateYan />
         <span className="grow" />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
@@ -158,5 +157,5 @@ export function Left() {
       ))}
     </div>
   );
-  return <nav className="left" aria-label="Tasks"><Pane top={top} body={body} /></nav>;
+  return <nav className="left" aria-label="Tasks"><Pane top={top} body={body} foot={<UpdateCard />} /></nav>;
 }

@@ -40,6 +40,7 @@ describe('yan updating itself', () => {
       return 'restarting';
     });
     expect(await u.behind()).toEqual({ behind: 0 });
+    expect(await u.head()).toMatch(/^[0-9a-f]{7,}$/);
     await push('two\n');
     await push('three\n');
     expect(await u.behind()).toEqual({ behind: 2 });

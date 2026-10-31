@@ -255,12 +255,12 @@ how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
-closing them all once any is open. The update chip beside yan's name, clicked,
-asks how many commits yan's own clone is behind, saying as it goes that it
-is checking and then that there is nothing new; only commits to take open a
-box with how many and a button to take them, which pulls, runs `npm install`
-and `npm run build` there, showing each step, and serve restarts on the new
-build, the page reloading with it. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
+closing them all once any is open. A card at the foot of the task list says
+which commit yan's own clone is on; its 检查 asks how many it is behind, the
+card saying it is checking and then that there is nothing new, or how many
+there are with a button to take them, which pulls, runs `npm install` and
+`npm run build` there, the card growing to show the steps as a bar, and
+serve restarts on the new build, the page reloading with it. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
 off a Mac, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there, and of
 tasks that match as well one in UAT first, then in progress, then done,
