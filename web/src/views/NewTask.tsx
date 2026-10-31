@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { Index, TerminalState } from '../lib/api';
 import { link } from '../lib/route';
 import { Icon } from '../components/Icon';
-import { Ring } from '../components/NewTask';
+import { Spinner } from '../components/ui/spinner';
 import { Pane } from '../components/ui';
 import { pullNow } from '../state/server';
 import { useUI } from '../state/ui';
@@ -19,7 +19,7 @@ export function LaunchHead({ launch, state }: { launch: string; state: TerminalS
   const title = given?.title ?? state?.title ?? '';
   const top = (
     <div className="task-head">
-      <div className="t"><span className="launch-ring"><Ring size={18} /></span><h1>{title}</h1></div>
+      <div className="t"><Spinner className="size-[18px] text-brand" /><h1>{title}</h1></div>
     </div>
   );
   const body = given !== undefined && given.repos.length > 0 ? (

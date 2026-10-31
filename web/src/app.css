@@ -1,6 +1,5 @@
 /* yan serve — warm ground, white surfaces, teal for what is live, green for done. */
 
-
 /* The palette and the faces are the theme's, in index.css. */
 
 .app { display: flex; height: 100vh; }
@@ -170,8 +169,6 @@ button.update-tile:hover { filter: brightness(.95); }
   .update-tile .ring, .update-bar i.now { animation-duration: 3s; }
 }
 
-
-
 .sync {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px;
   border: 0; border-radius: 12px; background: var(--surface); text-align: left; cursor: pointer;
@@ -199,75 +196,12 @@ button.update-tile:hover { filter: brightness(.95); }
 
 /* A new task asked for over the page as bare yan asks it: a step at a time, ① its title, ② its repositories. Nothing
    framed in it but itself: the steps are numbers joined by a line, the title a caret, the repositories a list. */
-.new-modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-start; justify-content: center; padding: 14vh 16px 16px; background: rgba(20, 20, 18, .32); animation: new-fade .16s ease-out; }
-.new-modal.out { animation: new-fade .14s ease-in reverse forwards; }
-.new-box { width: min(500px, 100%); display: flex; flex-direction: column; padding: 22px 26px; border-radius: 16px; background: var(--surface); box-shadow: 0 24px 60px rgba(0, 0, 0, .2); animation: new-pop .24s cubic-bezier(.2, .9, .3, 1.15); }
-.new-modal.out .new-box { animation: new-pop .14s ease-in reverse forwards; }
-.new-head { display: flex; align-items: center; }
-.new-head b { flex: 1 1 auto; font-size: 16px; }
-.new-x { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: -6px; padding: 0; border: 0; background: none; color: var(--ink-3); cursor: pointer; transition: color .15s; }
-.new-x:hover { color: var(--ink); }
-.new-steps { display: flex; align-items: center; gap: 10px; margin-top: 22px; font-size: 13px; }
-.new-steps button { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; cursor: pointer; transition: color .25s; }
-.new-steps button:disabled { cursor: default; }
-.new-steps button.at, .new-steps button.done { color: var(--ink); font-weight: 600; }
-.new-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-3); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background .25s, color .25s, box-shadow .25s; }
-.at .new-num, .done .new-num { background: var(--brand); box-shadow: none; color: #fff; }
-.new-stop { flex: none; display: flex; align-items: center; gap: 10px; }
-.new-stop.joined { flex: 1 1 auto; }
-.new-link { position: relative; flex: 1 1 auto; height: 1.5px; overflow: hidden; border-radius: 1px; background: var(--line); }
-.new-link::after { content: ""; position: absolute; inset: 0; background: var(--brand); transform: scaleX(0); transform-origin: left; transition: transform .4s ease; }
-.new-link.on::after { transform: scaleX(1); }
 /* The box is as tall as its step, at once: only the step slides in. */
-.new-body { margin: 0 -26px; overflow: hidden; }
-.new-step { padding: 18px 26px 2px; }
-.new-step.on { animation: new-from-right .28s cubic-bezier(.2, .8, .3, 1); }
-.new-step.back { animation: new-from-left .28s cubic-bezier(.2, .8, .3, 1); }
 /* The title is a field as antd's is, the same as the selects of the steps after it. */
-.new-title { width: 100%; height: 40px; padding: 0 12px; border: 0; border-radius: 8px; outline: none; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); caret-color: var(--brand); font: inherit; font-size: 15px; transition: box-shadow .15s; }
-.new-title:hover { box-shadow: inset 0 0 0 1px var(--brand); }
-.new-title:focus { box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 3px var(--brand-soft); }
 /* A select of several, as antd's is: what is picked as tags in the field with a search beside them, the list hung
    under it over whatever is around. */
-.ms-field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 40px; padding: 5px 10px 5px 6px; border-radius: 8px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); cursor: text; transition: box-shadow .15s; }
-.ms-field:hover { box-shadow: inset 0 0 0 1px var(--brand); }
-.ms-field:focus-within { box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 3px var(--brand-soft); }
-.ms-field > svg { flex: none; color: var(--ink-3); transition: transform .2s; }
-.ms-field.open > svg { transform: rotate(180deg); }
 /* The search takes what is left of the row the tags end on, so what the field says with nothing picked is whole. */
-.ms-field input { flex: 1 1 48px; min-width: 48px; height: 28px; padding: 0 4px; border: 0; outline: none; background: transparent; color: var(--ink); caret-color: var(--brand); font: inherit; font-size: 14px; }
-.ms-field input::placeholder { color: var(--ink-3); }
-.ms-tag { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 4px 0 8px; border-radius: 4px; background: var(--sunken); color: var(--ink); font-size: 13px; animation: ms-in .16s ease-out; }
-.ms-tag button { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; background: none; color: var(--ink-3); cursor: pointer; }
-.ms-tag button:hover { color: var(--ink); }
-.ms-list { position: fixed; z-index: 80; max-height: 256px; overflow-y: auto; padding: 4px; border-radius: 8px; background: var(--surface); box-shadow: 0 6px 16px rgba(0, 0, 0, .08), 0 3px 6px -4px rgba(0, 0, 0, .12), 0 9px 28px 8px rgba(0, 0, 0, .05); transform-origin: top; animation: ms-drop .16s ease-out; }
-.ms-opt { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; color: var(--ink); font-size: 14px; cursor: pointer; }
-.ms-opt.at { background: var(--hover); }
-.ms-opt.on { background: color-mix(in srgb, var(--brand-soft) 70%, var(--surface)); font-weight: 600; }
-.ms-opt.on.at { background: var(--brand-soft); }
-.ms-opt > svg { flex: none; color: var(--brand-ink); }
-.ms-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ms-opt mark { background: none; color: var(--brand-ink); font-weight: 700; }
-.ms-none { padding: 8px 12px; color: var(--ink-3); font-size: 13px; }
-@keyframes ms-drop { from { opacity: 0; transform: scaleY(.92); } }
-@keyframes ms-in { from { opacity: 0; transform: scale(.9); } }
 /* ③: each monorepo picked, named over its own select of its packages. */
-.new-scopes { display: flex; flex-direction: column; gap: 14px; }
-.new-scope { display: flex; flex-direction: column; gap: 6px; }
-.new-scope-name { padding: 0 2px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
-.new-foot { display: flex; align-items: center; gap: 16px; min-height: 34px; margin-top: 26px; }
-.new-back { flex: none; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: 13.5px; cursor: pointer; transition: color .15s; }
-.new-back:hover { color: var(--ink); }
-.new-error { flex: 1 1 auto; min-width: 0; color: var(--red); font-size: 13px; overflow-wrap: anywhere; }
-.new-error:not(:empty) { animation: new-fade .2s ease-out; }
-.new-go { flex: none; justify-content: center; gap: 8px; }
-.new-go:disabled { opacity: .35; cursor: default; }
-.new-kb { opacity: .55; }
-.new-go .ring, .launch-ring .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
-@keyframes new-fade { from { opacity: 0; } }
-@keyframes new-pop { from { opacity: 0; transform: translateY(8px) scale(.97); } }
-@keyframes new-from-right { from { opacity: 0; transform: translateX(28px); } }
-@keyframes new-from-left { from { opacity: 0; transform: translateX(-28px); } }
 @keyframes new-from-top { from { opacity: 0; transform: translateY(-4px); } }
 @keyframes new-tick { from { transform: scale(0); } }
 @media (prefers-reduced-motion: reduce) {
@@ -275,7 +209,6 @@ button.update-tile:hover { filter: brightness(.95); }
   .new-link::after { transition: none; }
 }
 /* A new task as it is made: a turning ring where its state will be. */
-.launch-ring { display: flex; margin-top: 4px; color: var(--brand); }
 .launch-repos .row { cursor: default; }
 .launch-repos .row:hover { background: transparent; }
 .group { display: flex; flex-direction: column; gap: 1px; }
@@ -598,16 +531,6 @@ button.update-tile:hover { filter: brightness(.95); }
 .palette-none { padding: 18px 12px; font-size: 13.5px; color: var(--ink-3); }
 .palette-foot { flex: none; display: flex; align-items: center; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-3); }
 kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; margin-right: 2px; border-radius: 5px; background: var(--hover); box-shadow: inset 0 -1px 0 var(--line); font: inherit; font-size: 11px; color: var(--ink-2); }
-.ask-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 20, 18, .32); }
-.ask { width: min(460px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 20px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 24px 60px rgba(0, 0, 0, .18); }
-.ask .t { font-size: 16px; font-weight: 700; }
-.ask .s { font-size: 13.5px; line-height: 1.6; color: var(--ink-3); overflow-wrap: anywhere; }
-.ask-input { height: 38px; padding: 0 12px; border: 0; border-radius: 9px; box-shadow: 0 0 0 1px var(--line); background: var(--ground); color: var(--ink); font: inherit; font-size: 14px; }
-.ask-input:focus { outline: none; box-shadow: 0 0 0 1.5px var(--brand); }
-.ask .b { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-.button.danger { background: var(--red); color: #fff; }
-.button.danger:hover { color: #fff; }
-.button.danger:disabled { opacity: .45; cursor: default; }
 
 /* log */
 .log-day { margin: 22px 0 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
@@ -710,13 +633,6 @@ audio { width: min(560px, 100%); }
 .commit-line .aside { flex: none; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 .commit-body { margin: 0 0 18px; padding: 12px 16px; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); white-space: pre-wrap; font-size: 13.5px; line-height: 22px; }
 .notice { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: var(--amber-soft); color: var(--amber); font-size: 13px; }
-
-.toast {
-  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 20;
-  padding: 8px 14px; border-radius: 10px; background: var(--ink); color: var(--ground); font-size: 13px;
-  opacity: 0; transition: opacity 0.15s; pointer-events: none;
-}
-.toast.show { opacity: 1; }
 
 @media (max-width: 1100px) {
   .middle { width: 280px; }
