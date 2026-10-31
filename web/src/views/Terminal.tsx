@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import type { TerminalState } from '../lib/api';
+import { postJSON, type TerminalState } from '../lib/api';
 import { MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
 import { tilesOf, type Tile } from '../lib/tiles';
@@ -29,21 +29,16 @@ let sending: Promise<void> = Promise.resolve();
  * back.
  */
 function send(task: string, pane: string, what: Input): void {
-  sending = sending.then(() => fetch('/api/terminal/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task, pane, ...what }) })
-    .then(async (r) => {
-      if (!r.ok) toast(`没发出去：${(await r.text()) || r.status}`);
-    }, (err: Error) => toast(`没发出去：${err.message}`)));
+  sending = sending.then(() => postJSON('/api/terminal/input', { task, pane, ...what }).then(() => undefined, (err: Error) => toast(`没发出去：${err.message}`)));
 }
 
 /** A pane split off, or closed, through herdr; the tab as herdr then has it is asked for at once. */
 async function reshape(what: 'split' | 'close', body: Record<string, unknown>): Promise<{ pane?: string } | undefined> {
   const failed = what === 'split' ? '没分出来' : '没关掉';
   try {
-    const r = await fetch(`/api/terminal/${what}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!r.ok) return void toast(`${failed}：${(await r.text()) || r.status}`);
-    return (await r.json()) as { pane?: string };
+    return await postJSON<{ pane?: string }>(`/api/terminal/${what}`, body);
   } catch (err) {
-    toast(`${failed}：${err instanceof Error ? err.message : String(err)}`);
+    toast(`${failed}：${(err as Error).message}`);
     return undefined;
   } finally {
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
@@ -93,10 +88,11 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
   if (!state) {
     const goOn = async (): Promise<void> => {
       setStarting(true);
-      const r = await fetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task: id }) }).catch((err: Error) => err);
-      if (r instanceof Error || !r.ok) {
+      try {
+        await postJSON('/api/launch', { task: id });
+      } catch (err) {
         setStarting(false);
-        return void toast(`没能继续：${r instanceof Error ? r.message : (await r.text()) || r.status}`);
+        return void toast(`没能继续：${(err as Error).message}`);
       }
       void queryClient.invalidateQueries({ queryKey: ['terminals'] });
     };
@@ -149,8 +145,11 @@ function StopButton({ id }: { id: string }) {
   }, [sure]);
   const stop = async (): Promise<void> => {
     setSure(false);
-    const r = await fetch('/api/terminal/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task: id }) }).catch((err: Error) => err);
-    if (r instanceof Error || !r.ok) return void toast(`没能结束：${r instanceof Error ? r.message : (await r.text()) || r.status}`);
+    try {
+      await postJSON('/api/terminal/stop', { task: id });
+    } catch (err) {
+      return void toast(`没能结束：${(err as Error).message}`);
+    }
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
   };
   return <button type="button" className={'term-stop' + (sure ? ' sure' : '')} onClick={() => (sure ? void stop() : setSure(true))}>{sure ? '确认结束' : '结束'}</button>;

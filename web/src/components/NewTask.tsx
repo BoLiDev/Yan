@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getJSON, type LaunchRepo as RepoOption } from '../lib/api';
+import { getJSON, postJSON, type LaunchRepo as RepoOption } from '../lib/api';
 import { link } from '../lib/route';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
@@ -92,12 +92,7 @@ function NewTaskBox() {
       }),
     };
     try {
-      const r = await fetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(made) });
-      if (!r.ok) {
-        setError((await r.text()) || `serve 答了 ${r.status}`);
-        return;
-      }
-      const { launch } = (await r.json()) as { launch: string };
+      const { launch } = await postJSON<{ launch: string }>('/api/launch', made);
       useUI.setState((s) => ({ launched: { ...s.launched, [launch]: made } }));
       void queryClient.invalidateQueries({ queryKey: ['terminals'] });
       close(() => {

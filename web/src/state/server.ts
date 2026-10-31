@@ -1,5 +1,5 @@
 import { QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WriteResult } from '../lib/api';
+import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WriteResult } from '../lib/api';
 import { enc } from '../lib/files';
 import { langLoaded, langReady } from '../lib/highlight';
 import { parseRoute } from '../lib/route';
@@ -171,21 +171,25 @@ export function connect(): () => void {
   return () => es.close();
 }
 
-/** A pull now, by hand: it fetches the branch being looked at too, and waits for it. */
+/**
+ * A pull now, by hand: it fetches the branch being looked at too, and waits
+ * for it. Only serve not answering says it stopped; a branch it cannot read
+ * is the branch view's to say, as it says it on any other tick.
+ */
 export async function pullNow(): Promise<void> {
   if (useUI.getState().pulling) return;
   useUI.setState({ pulling: true });
   try {
-    const r = await fetch('/api/pull', { method: 'POST' });
-    if (r.ok) await onStatus((await r.json()) as Status);
+    await onStatus(await postJSON<Status>('/api/pull', {}));
     const at = parseRoute(location.hash);
     if (at.view === 'task' && at.sub === 'branch') {
       queryClient.setQueryData(['branch', at.id, at.repo, at.name ?? ''], await getJSON<BranchView>(branchUrl(at.id, at.repo, at.name, true)));
     }
-  } catch {
-    useUI.setState({ connected: false });
+  } catch (err) {
+    if (!(err instanceof ApiError)) useUI.setState({ connected: false });
+  } finally {
+    useUI.setState({ pulling: false });
   }
-  useUI.setState({ pulling: false });
 }
 
 /** One change to a task's files from the page, said in a toast; the page shows it once the vault has it. */

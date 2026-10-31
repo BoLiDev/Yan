@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { ArtifactFile } from '../lib/api';
+import { getBytes, type ArtifactFile } from '../lib/api';
 import { KIND_LABEL, WRAPPED, badge, baseName, dirName, enc, ext, kindOf, variantsOf, viewerOf } from '../lib/files';
 import { bytes, pad, plural, short, when } from '../lib/format';
 import { Icon } from '../components/Icon';
@@ -97,7 +97,7 @@ function FontStage({ file, name }: { file: ArtifactFile; name: string }) {
   const [family, setFamily] = useState<string | null | false>(null);
   useEffect(() => {
     let live = true;
-    void fetch(`/blob/${file.sha}`).then((r) => r.arrayBuffer()).then(async (buf) => {
+    void getBytes(`/blob/${file.sha}`).then(async (buf) => {
       const fam = `yan-preview-${file.sha.slice(0, 12)}`;
       const face = new FontFace(fam, buf);
       await face.load();
