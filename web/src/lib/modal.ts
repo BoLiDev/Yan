@@ -3,9 +3,11 @@
 /**
  * Whether a box is open over the page: while one is, the keys are its, and
  * the page's own (Tab through a task's nav, ← and →, Enter into a terminal)
- * wait. Every such box says so with aria-modal.
+ * wait. Base UI's dialogs say so as open dialogs; one drawn by hand, the
+ * report's own, with aria-modal.
  */
-export const boxOpen = (): boolean => document.querySelector('[aria-modal="true"]') !== null;
+export const boxOpen = (): boolean =>
+  document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open], [aria-modal="true"]') !== null;
 
 /**
  * Tab and Shift+Tab kept inside `box`, going round from its last field or

@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { dirName, baseName } from '../lib/files';
 import type { PushFile } from '../lib/api';
-import { keepTab } from '../lib/modal';
-import { useUI } from '../state/ui';
+import { useUI, type Ask } from '../state/ui';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { Input } from './ui/input';
 import { Icon, type IconName } from './Icon';
 
 interface ToolProps {
@@ -101,59 +102,48 @@ export function Pane({ top, body, foot, remember }: { top: ReactNode; body: Reac
   );
 }
 
-export function Toast() {
-  const toast = useUI((s) => s.toast);
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    if (!toast) return undefined;
-    setShown(true);
-    const t = setTimeout(() => setShown(false), 1600);
-    return () => clearTimeout(t);
-  }, [toast]);
-  return <div className={'toast' + (shown ? ' show' : '')} role="status" aria-live="polite">{toast?.text ?? ''}</div>;
-}
-
 /**
  * A question over the page, answered by its button or let go. With a
  * `reason`, it also asks for a line, which the button waits for and which
- * the answer is given.
+ * the answer is given. Its button has the keyboard, so Enter answers it as
+ * the click that asked it would; with a reason, the line has it.
  */
 export function AskModal() {
   const ask = useUI((s) => s.ask);
+  // The last question asked stays drawn while the box closes.
+  const [held, setHeld] = useState<Ask | null>(ask);
+  if (ask !== null && ask !== held) setHeld(ask);
   const [given, setGiven] = useState('');
-  const first = useRef<HTMLInputElement & HTMLButtonElement>(null);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    setGiven('');
-    first.current?.focus();
-  }, [ask]);
-  if (!ask) return null;
+  const action = useRef<HTMLButtonElement>(null);
+  const line = useRef<HTMLInputElement>(null);
   const close = (): void => useUI.setState({ ask: null });
-  const ready = !ask.reason || given.trim() !== '';
+  const ready = !held?.reason || given.trim() !== '';
   const answer = (): void => {
-    if (!ready) return;
+    if (held === null || !ready) return;
     close();
-    ask.then(given.trim());
+    held.then(given.trim());
   };
   return (
-    <div className="ask-modal" onClick={(e) => { if (e.target === e.currentTarget) close(); }} onKeyDown={(e) => {
-      keepTab(e, box.current);
-      if (e.key === 'Escape') close();
-      if (e.key === 'Enter' && ready) {
-        e.preventDefault();
-        answer();
-      }
-    }}>
-      <div ref={box} className="ask" role="dialog" aria-modal="true" aria-label={ask.title}>
-        <div className="t">{ask.title}</div>
-        {ask.sub ? <div className="s">{ask.sub}</div> : null}
-        {ask.reason ? <input ref={first} className="ask-input" aria-label={ask.reason} placeholder={ask.reason} value={given} onChange={(e) => setGiven(e.target.value)} /> : null}
-        <div className="b">
-          <button type="button" className="button quiet" onClick={close}>Cancel</button>
-          <button ref={ask.reason ? undefined : first} type="button" className="button danger" disabled={!ready} onClick={answer}>{ask.action}</button>
-        </div>
-      </div>
-    </div>
+    <AlertDialog open={ask !== null} onOpenChange={(open) => { if (!open) close(); }} onOpenChangeComplete={(open) => { if (!open) setGiven(''); }}>
+      <AlertDialogContent initialFocus={held?.reason ? line : action}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{held?.title}</AlertDialogTitle>
+          {held?.sub ? <AlertDialogDescription>{held.sub}</AlertDialogDescription> : null}
+        </AlertDialogHeader>
+        {held?.reason ? (
+          <Input ref={line} aria-label={held.reason} placeholder={held.reason} value={given} onChange={(e) => setGiven(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              answer();
+            }} />
+        ) : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction ref={action} variant="destructive" disabled={!ready} onClick={answer}>{held?.action}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

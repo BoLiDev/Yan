@@ -54,7 +54,7 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
       void onStatus(out.status);
     }, (err: Error) => {
       setBusy(false);
-      toast(`Not saved: ${err.message}`);
+      toast(`Not saved: ${err.message}`, true);
     });
     return undefined;
   };

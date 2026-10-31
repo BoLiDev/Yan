@@ -21,8 +21,16 @@ afterAll(async () => {
   cleanupTempDirs();
 });
 
-/** Where the keyboard is: inside the box over the page, and where the page itself is. */
-const where = (page: Page) => page.evaluate(() => ({ inBox: !!document.activeElement?.closest('[role="dialog"]'), hash: location.hash }));
+/**
+ * Where the keyboard is, once it has settled: inside the box over the page,
+ * and where the page itself is. A box's focus trap may pass the keyboard
+ * through a guard beside it on its way round, so it is asked until it stays.
+ */
+async function where(page: Page): Promise<{ inBox: boolean; hash: string }> {
+  const now = () => page.evaluate(() => ({ inBox: !!document.activeElement?.closest('[role="dialog"], [role="alertdialog"]'), hash: location.hash }));
+  await expect.poll(async () => (await now()).inBox, { timeout: 1000 }).toBe(true).catch(() => undefined);
+  return now();
+}
 
 async function onTask(): Promise<Page> {
   const { page } = await open(served.url('/#/t/t001'));
@@ -47,13 +55,13 @@ describe('a box over the page', () => {
   it('asks a question that keeps the keyboard until it is answered or let go', async () => {
     const page = await onTask();
     await page.getByRole('button', { name: 'Delete d1' }).click();
-    await page.getByRole('dialog').waitFor();
+    await page.getByRole('alertdialog').waitFor();
     for (let i = 0; i < 4; i++) {
       await page.keyboard.press('Tab');
       expect(await where(page)).toEqual({ inBox: true, hash: '#/t/t001' });
     }
     await page.keyboard.press('Escape');
-    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    await page.getByRole('alertdialog').waitFor({ state: 'detached' });
     await page.getByText('it works').waitFor();
   });
 

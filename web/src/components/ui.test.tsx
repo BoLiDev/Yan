@@ -13,6 +13,7 @@ describe('a question over the page', () => {
     const screen = await draw(<AskModal />);
     await userEvent.keyboard('{Escape}');
     await expect.poll(() => useUI.getState().ask).toBeNull();
+    await expect.element(screen.getByRole('alertdialog')).not.toBeInTheDocument();
     expect(then).not.toHaveBeenCalled();
 
     ask({ title: 'Delete d1?', action: 'Delete', then });

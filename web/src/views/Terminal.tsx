@@ -30,7 +30,7 @@ let sending: Promise<void> = Promise.resolve();
  * back.
  */
 function send(task: string, pane: string, what: Input): void {
-  sending = sending.then(() => postJSON('/api/terminal/input', { task, pane, ...what }).then(() => undefined, (err: Error) => toast(`Not sent: ${err.message}`)));
+  sending = sending.then(() => postJSON('/api/terminal/input', { task, pane, ...what }).then(() => undefined, (err: Error) => toast(`Not sent: ${err.message}`, true)));
 }
 
 /** A pane split off, or closed, through herdr; the tab as herdr then has it is asked for at once. */
@@ -39,7 +39,7 @@ async function reshape(what: 'split' | 'close', body: Record<string, unknown>): 
   try {
     return await postJSON<{ pane?: string }>(`/api/terminal/${what}`, body);
   } catch (err) {
-    toast(`${failed}: ${(err as Error).message}`);
+    toast(`${failed}: ${(err as Error).message}`, true);
     return undefined;
   } finally {
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
@@ -93,7 +93,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
         await postJSON('/api/launch', { task: id });
       } catch (err) {
         setStarting(false);
-        return void toast(`Could not continue: ${(err as Error).message}`);
+        return void toast(`Could not continue: ${(err as Error).message}`, true);
       }
       void queryClient.invalidateQueries({ queryKey: ['terminals'] });
     };
@@ -149,7 +149,7 @@ function StopButton({ id }: { id: string }) {
     try {
       await postJSON('/api/terminal/stop', { task: id });
     } catch (err) {
-      return void toast(`Could not stop: ${(err as Error).message}`);
+      return void toast(`Could not stop: ${(err as Error).message}`, true);
     }
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
   };

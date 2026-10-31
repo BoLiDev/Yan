@@ -1,3 +1,4 @@
+import { toast as sonner } from 'sonner';
 import { create } from 'zustand';
 import type { Status } from '../lib/api';
 import type { Seen } from '../lib/seen';
@@ -83,7 +84,6 @@ interface UI {
   mdSource: boolean;
   /** Where ← and → go from what the right pane shows. */
   keyNav: { readonly prev: string | null; readonly next: string | null };
-  toast: { readonly text: string; readonly n: number } | null;
   ask: Ask | null;
   said: Readonly<Record<string, Said>>;
 }
@@ -141,7 +141,6 @@ export const useUI = create<UI>(() => ({
   pageSource: false,
   mdSource: false,
   keyNav: { prev: null, next: null },
-  toast: null,
   ask: null,
   said: {},
 }));
@@ -166,8 +165,10 @@ export function setSeen(change: (seen: Seen) => Seen | null): boolean {
   return true;
 }
 
-export function toast(text: string): void {
-  useUI.setState((s) => ({ toast: { text, n: (s.toast?.n ?? 0) + 1 } }));
+/** A line at the foot of the page saying what came of something; `bad` when it did not go through. */
+export function toast(text: string, bad = false): void {
+  if (bad) sonner.error(text);
+  else sonner(text);
 }
 
 export function ask(question: Ask): void {

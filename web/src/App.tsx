@@ -9,7 +9,8 @@ import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
 import { NewTaskModal } from './components/NewTask';
-import { AskModal, Toast } from './components/ui';
+import { AskModal } from './components/ui';
+import { Toaster } from './components/ui/sonner';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
@@ -176,7 +177,7 @@ export function App() {
           <Icon name="panel" size={17} />
         </button>
       </div>
-      <Toast />
+      <Toaster position="bottom-center" />
       <AskModal />
       <Palette />
       <NewTaskModal />

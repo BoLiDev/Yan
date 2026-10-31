@@ -11,6 +11,9 @@ import type { Index, Status, TaskDetail, TaskSummary } from '../lib/api';
 import { initSeen } from '../lib/seen';
 import { queryClient } from '../state/server';
 import { useUI } from '../state/ui';
+// Drawn with the page's own styles, so what is on top and what can be clicked is as on the page.
+import '../index.css';
+import '../app.css';
 
 /** A request the page made, as serve would have seen it. */
 export interface Asked {

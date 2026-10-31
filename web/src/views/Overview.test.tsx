@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser';
 import type { TaskDetail } from '../lib/api';
 import { detail, draw, have, index, reset, serve, status, task } from '../testing/serve';
 import { useUI } from '../state/ui';
+import { Toaster } from '../components/ui/sonner';
 import { Overview } from './Overview';
 
 const t = task('t1', 'pay retries');
@@ -29,11 +30,11 @@ describe("a task's overview", () => {
 
   it('keeps what was typed when an agent changed the file meanwhile, and says so', async () => {
     serve({ 'POST /api/problem': new Response('problem.md changed since this page loaded it', { status: 409 }) });
-    const screen = await draw(<Overview t={t} d={d} />);
+    const screen = await draw(<><Overview t={t} d={d} /><Toaster /></>);
     await screen.getByRole('button', { name: /Edit/ }).click();
     await screen.getByRole('textbox', { name: 'problem.md' }).fill('mine');
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
-    await expect.poll(() => useUI.getState().toast?.text).toMatch(/problem\.md changed/);
+    await expect.element(screen.getByText(/problem\.md changed since this page loaded it/)).toBeVisible();
     await expect.element(screen.getByRole('textbox', { name: 'problem.md' })).toHaveValue('mine');
   });
 
