@@ -50,7 +50,6 @@ function NewTaskBox() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
-  const before = useRef(document.activeElement as HTMLElement | null);
   const box = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
 
@@ -72,10 +71,10 @@ function NewTaskBox() {
   const close = (then?: () => void): void => {
     if (leaving) return;
     setLeaving(true);
+    // The keyboard is not put back on the +: the box closing leaves nothing to do there, and its focus ring would stay.
     window.setTimeout(() => {
       useUI.setState({ newTask: false });
-      if (then) then();
-      else before.current?.focus({ preventScroll: true });
+      then?.();
     }, 140);
   };
   const go = (to: Step): void => {

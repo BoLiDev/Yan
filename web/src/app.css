@@ -239,9 +239,9 @@ button.update-tile:hover { filter: brightness(.95); }
 .find:hover { color: var(--ink-2); }
 .find-line { display: flex; gap: 6px; }
 .find-line .find { flex: 1 1 auto; width: auto; min-width: 0; }
-.find-new { flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; background: var(--hover); color: var(--ink-2); text-decoration: none; }
+.find-new { flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 10px; background: var(--hover); color: var(--ink-2); cursor: pointer; }
 .find-new:hover { color: var(--ink); background: rgba(27, 27, 25, .1); }
-.find-new.on { background: var(--surface); box-shadow: 0 0 0 1px var(--line); color: var(--ink); }
+.find-new.on { background: rgba(27, 27, 25, .1); color: var(--ink); }
 
 /* A new task asked for over the page as bare yan asks it: a step at a time, ① its title, ② its repositories. Nothing
    framed in it but itself: the steps are numbers joined by a line, the title a caret, the repositories a list. */
