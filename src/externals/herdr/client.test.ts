@@ -1,8 +1,9 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:net';
+import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { atLeast, closePane, controlCommand, herdrPane, layoutOf, paneOf, panesIn, sendInput, sendKeys, splitPane, versionOf } from './client.js';
+import { atLeast, closePane, controlCommand, createTab, herdrPane, layoutOf, paneOf, panesIn, sendInput, sendKeys, serverOf, splitPane, versionOf } from './client.js';
 
 afterAll(cleanupTempDirs);
 
@@ -90,6 +91,23 @@ describe('herdr', () => {
       { method: 'pane.split', params: { target_pane_id: 'w1:p2', direction: 'down', focus: false } },
       { method: 'pane.close', params: { pane_id: 'w1:p5' } },
     ]);
+  });
+
+  it('finds the server a herdr command talks to, and opens a tab in it', async () => {
+    if (process.platform === 'win32') return;
+    const bin = join(mkTempDir(), 'herdr');
+    writeFileSync(bin, `#!/bin/sh\n[ "$*" = "status server --json" ] && echo '{"status":"running","running":true,"version":"0.9.5","socket":"/run/h/herdr.sock","session":null}'\n`);
+    chmodSync(bin, 0o755);
+    expect(await serverOf(bin)).toEqual({ running: true, version: '0.9.5', socket: '/run/h/herdr.sock' });
+    const silent = join(mkTempDir(), 'herdr');
+    writeFileSync(silent, '#!/bin/sh\nexit 1\n');
+    chmodSync(silent, 0o755);
+    await expect(serverOf(silent)).rejects.toMatchObject({ code: 'herdr_unreachable' });
+
+    const h = await fakeHerdr(() => ({ result: { type: 'tab_created', tab: { tab_id: 'w1:t4' }, root_pane: { pane_id: 'w1:p9', agent_status: 'unknown' } } }));
+    servers.push(h.server);
+    expect(await createTab(h.socket, { cwd: '/home/u', label: 'pay retries', env: { YAN_VAULT: '/v' } })).toBe('w1:p9');
+    expect(h.asked).toEqual([{ method: 'tab.create', params: { cwd: '/home/u', label: 'pay retries', env: { YAN_VAULT: '/v' }, focus: false } }]);
   });
 
   it('says herdr\'s own error, and that nothing answers where nothing listens', async () => {

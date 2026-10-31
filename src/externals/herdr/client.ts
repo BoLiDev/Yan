@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { YanError } from '../../util/error.js';
 
@@ -145,6 +145,42 @@ export async function splitPane(socket: string, pane: string, direction: 'right'
 /** The pane closed, and whatever runs in it with it. */
 export async function closePane(socket: string, pane: string): Promise<void> {
   await call(socket, 'pane.close', { pane_id: pane });
+}
+
+/** The herdr server a herdr command talks to: whether one runs, its version, and the socket it answers on. */
+export interface Server {
+  readonly running: boolean;
+  readonly version: string;
+  readonly socket: string;
+}
+
+/**
+ * The herdr server the herdr at `bin` finds, as `herdr status server --json`
+ * says (herdr 0.5.3 and later): the session it would attach to, wherever
+ * that session keeps its socket.
+ */
+export function serverOf(bin: string): Promise<Server> {
+  return new Promise((resolve, reject) => {
+    execFile(bin, ['status', 'server', '--json'], { timeout: 10_000, windowsHide: true }, (err, stdout) => {
+      let said: { running?: boolean; version?: string | null; socket?: string } | undefined;
+      try {
+        said = JSON.parse(stdout) as typeof said;
+      } catch {
+        said = undefined;
+      }
+      if (said?.socket === undefined) return reject(new YanError('herdr_unreachable', `${bin} status server said nothing yan can read${err ? `: ${err.message}` : ''}`));
+      resolve({ running: said.running === true, version: said.version ?? '', socket: said.socket });
+    });
+  });
+}
+
+/**
+ * A new tab in herdr's focused workspace, named `label`, its shell started
+ * in `cwd` with `env` beside herdr's own, herdr's focus left where it is.
+ * Its first pane.
+ */
+export async function createTab(socket: string, tab: { readonly cwd: string; readonly label: string; readonly env: Readonly<Record<string, string>> }): Promise<string> {
+  return (await call<{ root_pane: { pane_id: string } }>(socket, 'tab.create', { cwd: tab.cwd, label: tab.label, env: tab.env, focus: false })).root_pane.pane_id;
 }
 
 /** One frame of a pane's stream: ANSI bytes, base64, for a terminal `width` by `height`; a `full` one draws it all. */

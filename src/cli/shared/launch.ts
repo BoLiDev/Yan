@@ -422,6 +422,15 @@ function candidates(cwd: string): Candidate[] {
 }
 
 /**
+ * What a new task started in `cwd` may work in, as bare `yan` would offer
+ * it, those registered: each repository by name, with its packages when it
+ * has several, for `yan --new`'s `--repo` to be picked from elsewhere.
+ */
+export function newTaskRepos(cwd: string): { name: string; packages: string[] }[] {
+  return candidates(cwd).filter((c) => c.registered).map((c) => ({ name: c.name, packages: workspacePackages(c.clone) }));
+}
+
+/**
  * Start a task: its title, the repositories it works in, picked from the
  * registry wherever `yan` was typed, and for each one that has several
  * packages, the ones it is about. Asked once; every later start reads them

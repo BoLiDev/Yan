@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CONTROL_SINCE, atLeast, closePane, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, versionOf, type AgentStatus, type Layout } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
+import type { Launches } from './launch.js';
 
 /**
  * The terminals the page shows: each task's agent that bare `yan` started in
@@ -40,6 +41,9 @@ export interface TerminalState {
   readonly streams: boolean;
   /** The agent's tab, as herdr has it split: its pane alone, or it and the panes split off beside it. */
   readonly layout: Layout;
+  /** A launch's: the new task's title, and the task once bare `yan` keeps the pane as its terminal. */
+  readonly title?: string;
+  readonly task?: string;
 }
 
 /**
@@ -63,10 +67,11 @@ export class Terminals {
   /** The controller a page holds of each pane, by herdr socket and pane. */
   private readonly controllers = new Map<string, ChildProcess>();
 
-  public constructor(private readonly vault: string) {}
+  /** A launch's pane is the page's as a task's terminal is, by the launch's name, until it is one. */
+  public constructor(private readonly vault: string, private readonly launches?: Launches) {}
 
   private held(task: string): HeldTerminal | undefined {
-    return terminalsOf(this.vault).find((t) => t.task === task);
+    return terminalsOf(this.vault).find((t) => t.task === task) ?? this.launches?.held(task);
   }
 
   /** The agent's tab as herdr has it split; the agent's pane alone when herdr cannot say. */
@@ -99,10 +104,11 @@ export class Terminals {
   /** Each task's terminal whose pane is there, by task; a pane closed, or a herdr stopped, is left out. */
   public states(): Promise<Record<string, TerminalState>> {
     if (this.asked !== undefined && Date.now() - this.asked.at < 1000) return this.asked.states;
-    const states = Promise.all(terminalsOf(this.vault).map(async (t) => {
+    const launched = (this.launches?.all() ?? []).map((l) => ({ held: l.held, launch: { title: l.title, ...(l.task === undefined ? {} : { task: l.task }) } }));
+    const states = Promise.all([...terminalsOf(this.vault).map((held) => ({ held, launch: {} })), ...launched].map(async ({ held: t, launch }) => {
       try {
         const [pane, herdr, layout] = await Promise.all([paneOf(t.socket, t.pane), this.version(t.socket), this.layout(t)]);
-        const state: TerminalState = { status: pane.agent_status, agent: pane.agent ?? null, cli: t.cli, pane: t.pane, since: t.since, herdr, streams: atLeast(herdr, CONTROL_SINCE), layout };
+        const state: TerminalState = { status: pane.agent_status, agent: pane.agent ?? null, cli: t.cli, pane: t.pane, since: t.since, herdr, streams: atLeast(herdr, CONTROL_SINCE), layout, ...launch };
         return [[t.task, state] as const];
       } catch {
         return [];

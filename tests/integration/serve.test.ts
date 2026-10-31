@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { readJson } from '../../src/util/json.js';
@@ -454,7 +455,9 @@ describe('an agent in a herdr pane on yan serve', () => {
         const req = JSON.parse(got.slice(0, nl)) as { id: string; method: string; params: Record<string, unknown> };
         asked.push({ method: req.method, params: req.params });
         const result = req.method === 'ping' ? { type: 'pong', version }
-          : req.method === 'pane.get' ? (req.params.pane_id === 'w1:p2' ? { type: 'pane_info', pane: { pane_id: 'w1:p2', agent: 'claude', agent_status: 'blocked' } } : undefined)
+          : req.method === 'pane.get' ? (req.params.pane_id === 'w1:p2' ? { type: 'pane_info', pane: { pane_id: 'w1:p2', agent: 'claude', agent_status: 'blocked' } }
+            : req.params.pane_id === 'w1:p9' ? { type: 'pane_info', pane: { pane_id: 'w1:p9', agent_status: 'unknown' } } : undefined)
+            : req.method === 'tab.create' ? { type: 'tab_created', tab: { tab_id: 'w1:t4' }, root_pane: { pane_id: 'w1:p9', agent_status: 'unknown' } }
             : req.method === 'pane.layout' ? { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p2', rect: { width: 100, height: 30 } }] } }
               : req.method === 'layout.export' ? { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: 'w1:t1', zoomed: false, focused_pane_id: 'w1:p2', root: tab } }
                 : req.method === 'pane.split' ? { type: 'pane_info', pane: { pane_id: 'w1:p4', agent_status: 'unknown' } }
@@ -469,6 +472,7 @@ describe('an agent in a herdr pane on yan serve', () => {
     writeFileSync(bin, [
       `#!${process.execPath}`,
       "const fs = require('fs');",
+      `if (process.argv[2] === 'status') { console.log(JSON.stringify({ status: 'running', running: true, version: ${JSON.stringify(version)}, socket: ${JSON.stringify(socket)} })); process.exit(0); }`,
       "const frame = (s) => JSON.stringify({ type: 'terminal.frame', seq: 1, encoding: 'ansi', width: 100, height: 30, full: true, bytes: Buffer.from(s).toString('base64') });",
       "console.log(frame(process.argv.slice(2).join(' ') + ' ' + process.env.HERDR_SOCKET_PATH));",
       "console.log(frame('\\u001b[1mDo you want to proceed?\\u001b[0m'));",
@@ -570,6 +574,41 @@ describe('an agent in a herdr pane on yan serve', () => {
       { method: 'pane.split', params: { target_pane_id: 'w1:p3', direction: 'down', focus: false } },
       { method: 'pane.close', params: { pane_id: 'w1:p3' } },
     ]);
+  });
+
+  it('starts a new task in a new herdr tab, streams it by the launch\'s name, and says the task it becomes', async () => {
+    if (process.platform === 'win32') return;
+    herdr?.close();
+    const { socket, bin } = await aHerdr('0.9.5');
+    keep(socket, bin);
+    expect(await (await fetch(page('/api/launch/repos'))).json(), 'nothing registered here').toEqual([]);
+    const post = (path: string, value: unknown, origin = page('')) => fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+    expect((await post('/api/launch', { title: 'pay retries' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/launch', { title: '  ' })).status).toBe(400);
+    expect((await post('/api/launch', { title: 'x', repos: [{ name: 'nope', scope: [] }] })).status).toBe(400);
+
+    asked.length = 0;
+    const started = await post('/api/launch', { title: "pay's retries", repos: [] });
+    expect(started.status).toBe(200);
+    const { launch } = (await started.json()) as { launch: string };
+    expect(launch).toMatch(/^new-[0-9a-f]{8}$/);
+    expect(asked[0]).toEqual({ method: 'tab.create', params: { cwd: homedir(), label: "pay's retries", env: { YAN_VAULT: home }, focus: false } });
+    expect(asked[1]?.method).toBe('pane.send_text');
+    expect(asked[1]?.params.pane_id).toBe('w1:p9');
+    expect(asked[1]?.params.text, 'bare yan with the answers, quoted for the shell').toMatch(/bin\/yan\.mjs' '--new' 'pay'\\''s retries' '--no-repo'\r$/);
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    let states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { title?: string; task?: string; pane: string; cli: string }>;
+    expect(states[launch]).toMatchObject({ title: "pay's retries", pane: 'w1:p9', cli: 'yan' });
+    expect(states[launch]?.task).toBeUndefined();
+    expect((await post('/api/terminal/input', { task: launch, text: 'x' })).status, 'typed into as a terminal').toBe(200);
+    expect(asked.at(-1)).toEqual({ method: 'pane.send_text', params: { pane_id: 'w1:p9', text: 'x' } });
+
+    // bare yan keeps the pane as the new task's terminal.
+    keep(socket, bin, [{ task: 't002', pane: 'w1:p9' }]);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    states = (await (await fetch(page('/api/terminals'))).json()) as typeof states;
+    expect(states[launch]?.task).toBe('t002');
   });
 
   it('says which herdr is too old to stream a pane', async () => {

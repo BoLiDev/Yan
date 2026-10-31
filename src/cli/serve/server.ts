@@ -12,6 +12,7 @@ import { gitAsync } from './blobs.js';
 import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtasks } from './report.js';
 import { noAgentPage } from './no-agent.js';
 import { Terminals } from './terminal.js';
+import { Launches } from './launch.js';
 import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
@@ -185,6 +186,7 @@ export class YanServer {
   private readonly branches: Branches;
   private readonly thumbs = new Thumbs();
   private readonly terminals: Terminals;
+  private readonly launches: Launches;
   private readonly updater: Updater;
   /** The sha256 of each blob of uat/ a report was checked against, by its git sha. */
   private readonly hashes = new Map<string, string>();
@@ -206,7 +208,8 @@ export class YanServer {
 
   public constructor(private readonly options: ServeOptions) {
     this.view = new VaultView(options.vaultDir);
-    this.terminals = new Terminals(options.vaultDir);
+    this.launches = new Launches(options.vaultDir);
+    this.terminals = new Terminals(options.vaultDir, this.launches);
     this.updater = new Updater(options.home, () => this.restartOnBuild());
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
@@ -401,6 +404,13 @@ export class YanServer {
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
       return this.terminals.input(res, given);
     }
+    // A new task started in a new herdr tab: only the page may.
+    if (req.method === 'POST' && p === '/api/launch') {
+      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may start a task');
+      const given = await body(req);
+      if (given === undefined) return send(res, 400, 'a JSON body is needed');
+      return this.launches.start(res, given);
+    }
     // A pane split off beside the agent, or closed: only the page may.
     if (req.method === 'POST' && (p === '/api/terminal/split' || p === '/api/terminal/close')) {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may split or close a pane');
@@ -433,6 +443,7 @@ export class YanServer {
     }
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
+    if (p === '/api/launch/repos') return json(res, this.launches.repos());
     if (p === '/api/yan/updates') return json(res, await this.updater.behind());
     if (p === '/api/yan/update') return json(res, this.updater.now);
     if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', q, req, res);
