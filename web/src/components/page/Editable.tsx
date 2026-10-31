@@ -1,4 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import { cn } from '../../lib/utils';
+
+/** A text edited where it stands: a dashed line round it under the pointer, a solid one while it is typed in, fading between. */
+const FRAME = 'cursor-text rounded-[4px] outline-1 outline-offset-3 outline-transparent outline-dashed transition-[outline-color] duration-[120ms] ease-[ease] hover:outline-border focus:outline-[1.5px] focus:outline-solid focus:outline-brand';
 
 /**
  * A text edited where it stands: Enter or leaving it keeps what was typed,
@@ -28,7 +32,7 @@ export function Editable({ text, onSave, onLeft, className, as = 'span', autoFoc
   }, [autoFocus]);
   const Tag = as;
   return (
-    <Tag ref={ref as never} className={className} contentEditable="plaintext-only" spellCheck={false} suppressContentEditableWarning
+    <Tag ref={ref as never} className={cn(FRAME, className)} contentEditable="plaintext-only" spellCheck={false} suppressContentEditableWarning
       onFocus={(e) => { was.current = e.currentTarget.textContent ?? ''; }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {

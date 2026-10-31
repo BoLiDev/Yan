@@ -13,13 +13,9 @@ import { GO, underRow } from './look';
 
 /**
  * Where a resource points, as it is edited: whole, wrapping rather than
- * giving way, and framed while it has the keys, the frame fading in.
+ * giving way, and framed as any text edited where it stands is.
  */
-const EDITING = cn(
-  'min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-normal wrap-anywhere text-[12.5px] text-ink-2',
-  'rounded-[4px] outline-1 outline-dashed outline-transparent outline-offset-3 transition-[outline-color] duration-120',
-  'focus:outline-[1.5px] focus:outline-solid focus:outline-brand',
-);
+const EDITING = 'min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-normal wrap-anywhere text-[12.5px] text-ink-2';
 
 /**
  * A resource under the Resources row: a web link is its name, opening in a

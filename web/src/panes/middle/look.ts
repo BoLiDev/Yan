@@ -6,12 +6,8 @@ import { cn } from '../../lib/utils';
 /** A task's nav: its rows one under another. */
 export const NAV = 'flex flex-col gap-px';
 
-/**
- * A row of a task's nav, its corners a little tighter than a row of the task
- * list's: 8px where those are 10. The nav's own variant names rounded-lg,
- * which this theme makes 10px, so the corner is given again here.
- */
-export const navRow = (on = false): string => cn(row({ on, at: 'nav' }), 'rounded-md');
+/** A row of a task's nav, its corners a little tighter than a row of the task list's. */
+export const navRow = (on = false): string => row({ on, at: 'nav' });
 
 /**
  * A row under one that folds: a branch, a resource, an agent. The one being
@@ -34,14 +30,3 @@ export const GO = 'flex flex-none text-ink-3';
 /** A heading over a part of the column, with what it says and the tools for it beside it. */
 export const SECTION = 'flex min-h-7 items-center gap-2 px-2.5';
 export const SECTION_TITLE = 'text-[12.5px] text-ink-3';
-
-/**
- * What the agent tab is showing while this page holds it: a light passes
- * over its name. Asked for less motion, the name is the brand's colour and
- * stays still.
- */
-export const SHIMMER = cn(
-  'bg-[linear-gradient(100deg,var(--brand)_0%,var(--brand)_38%,var(--brand-glint)_50%,var(--brand)_62%,var(--brand)_100%)]',
-  'bg-[length:250%_100%] bg-[position:100%_0] bg-clip-text text-transparent animate-shimmer',
-  'motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-brand',
-);

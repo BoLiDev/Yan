@@ -10,4 +10,5 @@ export { PushTags } from './PushTags';
 export { ASIDE, GROW, KIND, LABEL, SUBLABEL, THUMB, row } from './row';
 export { Paper, Scroll } from './Scroll';
 export { Seg } from './Seg';
+export { SHIMMER } from './shimmer';
 export { Tool } from './Tool';

@@ -1,13 +1,7 @@
 import type { ComponentProps, ReactNode, RefObject } from 'react';
-import { Scroll } from '../components/page';
+import { SHIMMER, Scroll } from '../components/page';
 import { Kbd } from '../components/ui/kbd';
 import { cn } from '../lib/utils';
-
-/**
- * A light passing over a name: what the agent tab is showing while this page
- * holds it. Asked for less motion, the name is the light's colour and still.
- */
-export const SHIMMER = 'animate-shimmer bg-[linear-gradient(100deg,var(--brand)_0%,var(--brand)_38%,var(--brand-glint)_50%,var(--brand)_62%,var(--brand)_100%)] bg-size-[250%_100%] bg-position-[100%_0] bg-clip-text text-transparent motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-brand';
 
 /** A task's agents or its resources, as Tab comes to them: a card each, in a column under the bar, Enter opening the picked one. */
 export function PickList({ list, children }: { list: RefObject<HTMLDivElement | null>; children: ReactNode }) {

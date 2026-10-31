@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from '../../components/Icon';
-import { ASIDE, GROW } from '../../components/page';
+import { ASIDE, GROW, SHIMMER } from '../../components/page';
 import { cn } from '../../lib/utils';
-import { FOLD, SHIMMER, STEP_ROW, WORD, navRow } from './look';
+import { FOLD, STEP_ROW, WORD, navRow } from './look';
 
 /**
  * A row of the nav that folds the rows under it away: MR, Resources, Agent.

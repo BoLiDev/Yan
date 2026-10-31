@@ -13,8 +13,6 @@ const NODE: Readonly<Record<DeliverableStatus, string>> = {
   done: 'mt-1.5 size-2.5 rounded-[3px] bg-brand',
   abandoned: 'mt-2.5 h-0.5 w-2.5 rounded-[1px] bg-ink-4',
 };
-/** A text edited where it stands: a dashed line round it under the pointer, a solid one while it is typed in. */
-const EDITABLE = 'rounded-[4px] outline-1 outline-offset-3 outline-transparent outline-dashed transition-[outline-color] duration-[120ms] ease-[ease] cursor-text hover:outline-border focus:outline-[1.5px] focus:outline-solid focus:outline-brand';
 /** A deliverable's own tools, seen while it is under the pointer or one of them has the keyboard. */
 const DELIV_TOOL = 'size-[22px] text-ink-3 opacity-0 group-hover/deliv:opacity-100 focus-visible:opacity-100';
 
@@ -39,9 +37,9 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
               <span>
                 <span className={status === 'abandoned' ? 'text-ink-3' : undefined}>
                   <span className="mr-2 font-mono text-[12px] leading-normal text-ink-3">{x.id}</span>
-                  <Editable className={EDITABLE} text={x.text} onSave={(text) => void writeTask('/api/deliverable/text', { task: t.id, id: x.id, text }, `Saved ${x.id}`)} />
+                  <Editable text={x.text} onSave={(text) => void writeTask('/api/deliverable/text', { task: t.id, id: x.id, text }, `Saved ${x.id}`)} />
                 </span>
-                {x.reason ? <Editable className={`block w-fit max-w-full text-[13px] leading-5 text-ink-3 ${EDITABLE}`} text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Saved why ${x.id} was given up`)} /> : null}
+                {x.reason ? <Editable className="block w-fit max-w-full text-[13px] leading-5 text-ink-3" text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Saved why ${x.id} was given up`)} /> : null}
               </span>
               {/* The date, and under it, a gap away, giving up and the bin that show on hover: laid over the row, so a row of one line keeps its height. */}
               <span className="relative flex justify-end">

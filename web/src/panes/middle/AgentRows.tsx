@@ -3,14 +3,14 @@ import type { TaskSummary } from '../../lib/api';
 import { dropped as dropTo, gapAt, moves } from '../../lib/drag';
 import { AGENT_TAB } from '../../lib/route';
 import { Icon } from '../../components/Icon';
-import { ASIDE, GROW } from '../../components/page';
+import { ASIDE, GROW, SHIMMER } from '../../components/page';
 import { cn } from '../../lib/utils';
 import { onAgentClick, useAgentTab } from '../../state/agentTab';
 import { writeTask } from '../../state/server';
 import { useUI } from '../../state/ui';
 import { FoldRow } from './FoldRow';
 import { flip } from './folds';
-import { GO, SHIMMER, WORD, navRow, underRow } from './look';
+import { GO, WORD, navRow, underRow } from './look';
 
 /**
  * An Agent row under Log: one agent opens from it; several fold under it,
