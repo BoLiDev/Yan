@@ -13,6 +13,8 @@ const STROKE = {
   arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   spinner: '<path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5"/>',
   tick: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  // Round again, clockwise: its head stops short of its tail.
+  again: '<path d="M18.76 10.99A7 7 0 1 1 12 5.8"/><path d="M9.17 2.97 12 5.8l-2.83 2.83"/>',
   terminal: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15H17"/>',
   prev: '<path d="m15 6-6 6 6 6"/>',
   next: '<path d="m9 6 6 6-6 6"/>',

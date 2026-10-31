@@ -189,26 +189,19 @@ img { -webkit-user-drag: none; }
 .update-card { overflow: hidden; border-radius: 12px; background: var(--surface); transition: height .45s cubic-bezier(.34, 1.5, .5, 1); }
 .update-inner { display: flex; flex-direction: column; gap: 12px; padding: 9px 12px; }
 .update-inner.updating { padding: 12px 12px 14px; }
-.update-row { display: flex; align-items: center; gap: 10px; min-height: 34px; animation: update-in .3s ease-out; }
-.update-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: var(--sunken); color: var(--ink-3); transition: background .2s, color .2s; }
-.update-icon.on { background: var(--accent-soft); color: var(--accent-ink); }
-.update-icon.ok { background: var(--green-soft); color: var(--green); }
-.update-icon.bad { background: #f6dedb; color: var(--red); }
-.update-icon .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
-.update-words { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 17px; }
-.update-words b { font-size: 13px; color: var(--ink); }
-.update-words span { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.update-words.beside { flex-direction: row; align-items: center; gap: 8px; }
-.update-words span.on { color: var(--accent-ink); }
-.update-words span.ok { color: var(--green); }
-.update-words span.bad { color: var(--red); }
-.update-link { flex: none; margin-right: -4px; padding: 4px 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; }
+.update-row { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+.update-row b { flex: 1 1 auto; min-width: 0; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: update-in .3s ease-out; }
+.update-action { flex: none; display: flex; animation: update-in .3s ease-out; }
+/* What the card is doing, on its right; the tile is a button when it has a next move. */
+.update-tile { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 9px; transition: background .2s, color .2s, filter .2s; }
+button.update-tile { cursor: pointer; }
+button.update-tile:hover { filter: brightness(.95); }
+.update-tile.on { background: var(--accent-soft); color: var(--accent-ink); }
+.update-tile.ok { background: var(--green-soft); color: var(--green); }
+.update-tile.bad { background: #f6dedb; color: var(--red); }
+.update-tile .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
+.update-link { margin-right: -4px; padding: 4px 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; }
 .update-link:hover { background: var(--accent-wash); }
-.update-link.bad { color: var(--red); }
-.update-state { flex: none; margin-right: -4px; padding: 4px 8px; font-size: 12.5px; animation: update-in .3s ease-out; }
-.update-state.on { color: var(--accent-ink); }
-.update-state.ok { color: var(--green); }
-.update-row .button { flex: none; height: 30px; padding: 0 14px; font-size: 13px; }
 .update-bar { display: flex; gap: 4px; animation: update-in .3s ease-out; }
 .update-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--sunken); transition: background .3s; }
 .update-bar i.done { background: var(--green); }
@@ -219,8 +212,8 @@ img { -webkit-user-drag: none; }
 @keyframes update-in { from { opacity: 0; transform: translateY(3px); } }
 @media (prefers-reduced-motion: reduce) {
   .update-card { transition: none; }
-  .update-row, .update-bar { animation: none; }
-  .update-icon .ring, .update-bar i.now { animation-duration: 3s; }
+  .update-row b, .update-action, .update-bar { animation: none; }
+  .update-tile .ring, .update-bar i.now { animation-duration: 3s; }
 }
 
 
