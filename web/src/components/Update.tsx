@@ -135,7 +135,6 @@ export function UpdateYan() {
                   </div>
                 ))}
               </div>
-              {progress.error ? <pre className="update-error">{progress.error}</pre> : null}
               {!progress.running && progress.error ? <button type="button" className="button" onClick={update}>再试一次</button> : null}
             </>
           ) : (

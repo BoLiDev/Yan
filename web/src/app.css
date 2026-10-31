@@ -213,7 +213,7 @@ img { -webkit-user-drag: none; }
 .update-steps .now .mark { stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
 .update-steps .failed { color: var(--red); font-weight: 700; }
 .update-steps .failed .mark circle { fill: var(--red); stroke: none; }
-.update-error { margin: 0; max-height: 120px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--sunken); color: var(--ink-2); font-family: var(--mono); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .vault-chip { height: 24px; padding: 0 9px; border-radius: 999px; background: var(--hover); color: var(--ink-3); font-size: 12.5px; line-height: 24px; }
 
 .sync {
