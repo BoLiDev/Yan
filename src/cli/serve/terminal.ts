@@ -1,9 +1,9 @@
 import { createInterface } from 'node:readline';
 import type { ChildProcess } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, closePane, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, versionOf, type AgentStatus, type Layout } from '../../externals/herdr/index.js';
+import { CONTROL_SINCE, atLeast, closePane, closeTab, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, tabOf, versionOf, type AgentStatus, type Layout } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
-import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
+import { letTerminalGo, terminalsOf, type HeldTerminal } from '../../util/machine.js';
 import type { Launches } from './launch.js';
 
 /**
@@ -106,7 +106,8 @@ export class Terminals {
     const all = this.launches?.all() ?? [];
     if (this.asked !== undefined && Date.now() - this.asked.at < 1000 && this.asked.launches === all.length) return this.asked.states;
     const launched = all.map((l) => ({ held: l.held, launch: { title: l.title, ...(l.task === undefined ? {} : { task: l.task }) } }));
-    const states = Promise.all([...terminalsOf(this.vault).map((held) => ({ held, launch: {} })), ...launched].map(async ({ held: t, launch }) => {
+    // A task's own terminal comes after its launch, so once bare yan keeps the pane, what herdr says of the agent is the task's.
+    const states = Promise.all([...launched, ...terminalsOf(this.vault).map((held) => ({ held, launch: {} }))].map(async ({ held: t, launch }) => {
       try {
         const [pane, herdr, layout] = await Promise.all([paneOf(t.socket, t.pane), this.version(t.socket), this.layout(t)]);
         const state: TerminalState = { status: pane.agent_status, agent: pane.agent ?? null, cli: t.cli, pane: t.pane, since: t.since, herdr, streams: atLeast(herdr, CONTROL_SINCE), layout, ...launch };
@@ -264,6 +265,29 @@ export class Terminals {
     } catch (err) {
       res.writeHead(isYanError(err) && err.code !== 'herdr_unreachable' ? 400 : 502).end(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  /**
+   * `{ task }`: the task's agent stopped, its herdr tab closed and every
+   * pane in it, the shells split off beside the agent with it; the pane
+   * alone when herdr cannot say which tab it is in. The task is no longer
+   * this machine's terminal, whether or not bare `yan` lived to say so.
+   */
+  public async stop(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const task = typeof given.task === 'string' ? given.task : '';
+    const t = this.held(task);
+    if (t === undefined) return void res.writeHead(404).end('this task has no agent in a herdr pane on this machine');
+    try {
+      const tab = await tabOf(t.socket, t.pane).catch(() => undefined);
+      if (tab === undefined) await closePane(t.socket, t.pane);
+      else await closeTab(t.socket, tab);
+    } catch (err) {
+      return void res.writeHead(isYanError(err) && err.code !== 'herdr_unreachable' ? 400 : 502).end(err instanceof Error ? err.message : String(err));
+    }
+    letTerminalGo(this.vault, task, t.pane);
+    this.launches?.forget(task);
+    this.asked = undefined;
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
   }
 
   /** End every stream, as serve stops. */

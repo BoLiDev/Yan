@@ -7,16 +7,18 @@ import { isYanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
 import { newTaskRepos } from '../shared/launch.js';
+import { openTasks } from '../shared/task-id.js';
 
 /**
- * A new task started from the page: the page's form has asked what bare
- * `yan` would ask, so serve opens a herdr tab and types bare `yan` into it
- * with those answers (`yan --new`), as `user` would type it there. What
- * bare `yan` says as it makes the task and its trees, and the agent after,
- * is that tab's, which the page shows as it shows any terminal, by the
- * launch's own name until bare `yan` keeps the pane as the new task's.
- * Launches live in serve's memory: one that serve restarts across goes on
- * in herdr, and is the task's terminal once it has one.
+ * A task started from the page, new or gone on with: serve opens a herdr
+ * tab and types bare `yan` into it, as `user` would type it there, with the
+ * answers the page's form asked for (`yan --new`) or the task to go on with
+ * (`yan --task`). What bare `yan` says as it makes the task and its trees,
+ * and the agent after, is that tab's, which the page shows as it shows any
+ * terminal: a new task's by the launch's own name until bare `yan` keeps
+ * the pane as the task's, a task gone on with by the task's own id from the
+ * start. Launches live in serve's memory: one that serve restarts across
+ * goes on in herdr, and is the task's terminal once it has one.
  */
 
 /** A launch's name where a task's id would be, so the page streams and types into it as into a task's terminal. */
@@ -51,10 +53,15 @@ export class Launches {
     return process.env.HERDR_BIN_PATH?.trim() || terminalsOf(this.vault)[0]?.bin || 'herdr';
   }
 
-  /** The launch `key` names, as a terminal held for it; none once its pane is kept as a task's. */
+  /** The launch `key` names, a new task's or a task's own id, as a terminal held for it. */
   public held(key: string): HeldTerminal | undefined {
-    const l = key.startsWith(LAUNCHED) ? this.launched.get(key) : undefined;
+    const l = this.launched.get(key);
     return l === undefined ? undefined : { vault: this.vault, task: key, pane: l.pane, socket: l.socket, bin: l.bin, cli: 'yan', since: l.since };
+  }
+
+  /** The launch forgotten, its tab closed. */
+  public forget(key: string): void {
+    this.launched.delete(key);
   }
 
   /** Every launch, and the task it has become once bare `yan` keeps its pane for one. */
@@ -70,9 +77,15 @@ export class Launches {
 
   /**
    * `{ title, repos: [{ name, scope }] }`: a new task, started in a new herdr
-   * tab named for it. Answers the launch's name.
+   * tab named for it; `{ task }`: an open task gone on with in one. Answers
+   * the launch's name, the task's own id for one gone on with.
    */
   public async start(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    if (given.task !== undefined) {
+      const open = openTasks().find((t) => t.id === given.task);
+      if (open === undefined) return void res.writeHead(404).end(`${String(given.task)} is not an open task in this vault`);
+      return this.open(res, open.id, open.title, ['--task', open.id]);
+    }
     const title = typeof given.title === 'string' ? given.title.trim() : '';
     if (title === '' || title.length > 200) return void res.writeHead(400).end('a new task needs a title, of 200 characters at most');
     const offered = this.repos();
@@ -86,6 +99,14 @@ export class Launches {
       repos.push({ name, scope });
     }
 
+    const answers = ['--new', title];
+    for (const r of repos) answers.push('--repo', r.scope.length === 0 ? r.name : `${r.name}:${r.scope.join(',')}`);
+    if (repos.length === 0) answers.push('--no-repo');
+    return this.open(res, `${LAUNCHED}${randomBytes(4).toString('hex')}`, title, answers);
+  }
+
+  /** A herdr tab named `title`, bare `yan` typed into it with `args`, kept as the launch `key`. */
+  private async open(res: ServerResponse, key: string, title: string, args: readonly string[]): Promise<void> {
     const bin = this.bin();
     try {
       const herdr = await serverOf(bin);
@@ -93,11 +114,8 @@ export class Launches {
       if (!atLeast(herdr.version, CONTROL_SINCE)) return void res.writeHead(409).end(`herdr ${herdr.version} 太旧，需要 ${CONTROL_SINCE} 或更新的版本`);
       // The shell starts where bare `yan` typed by hand would, and in the vault serve shows, whichever is this machine's own.
       const pane = await createTab(herdr.socket, { cwd: homedir(), label: title, env: { YAN_VAULT: this.vault } });
-      const words = [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), '--new', title];
-      for (const r of repos) words.push('--repo', r.scope.length === 0 ? r.name : `${r.name}:${r.scope.join(',')}`);
-      if (repos.length === 0) words.push('--no-repo');
+      const words = [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), ...args];
       await sendText(herdr.socket, pane, `${words.map(quoted).join(' ')}\r`);
-      const key = `${LAUNCHED}${randomBytes(4).toString('hex')}`;
       this.launched.set(key, { socket: herdr.socket, bin, pane, title, since: new Date().toISOString() });
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ launch: key }));
     } catch (err) {

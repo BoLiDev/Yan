@@ -411,6 +411,13 @@ export class YanServer {
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
       return this.launches.start(res, given);
     }
+    // A task's agent stopped, its herdr tab closed: only the page may.
+    if (req.method === 'POST' && p === '/api/terminal/stop') {
+      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may stop an agent');
+      const given = await body(req);
+      if (given === undefined) return send(res, 400, 'a JSON body is needed');
+      return this.terminals.stop(res, given);
+    }
     // A pane split off beside the agent, or closed: only the page may.
     if (req.method === 'POST' && (p === '/api/terminal/split' || p === '/api/terminal/close')) {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may split or close a pane');

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -609,6 +609,36 @@ describe('an agent in a herdr pane on yan serve', () => {
     await new Promise((resolve) => setTimeout(resolve, 1100));
     states = (await (await fetch(page('/api/terminals'))).json()) as typeof states;
     expect(states[launch]?.task).toBe('t002');
+  });
+
+  it('goes on with a task in a new herdr tab, shown by its own id, and stops an agent by closing its tab', async () => {
+    if (process.platform === 'win32') return;
+    herdr?.close();
+    const { socket, bin } = await aHerdr('0.9.5');
+    keep(socket, bin);
+    const post = (path: string, value: unknown, origin = page('')) => fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+    write(home, 'tasks/t007/task.json', task('t007', 'go on'));
+    expect((await post('/api/launch', { task: 't404' })).status).toBe(404);
+
+    asked.length = 0;
+    const went = await post('/api/launch', { task: 't007' });
+    expect(await went.json()).toEqual({ launch: 't007' });
+    expect(asked[0]).toMatchObject({ method: 'tab.create', params: { label: 'go on', focus: false } });
+    expect(asked[1]?.params.text, 'bare yan given the task to go on with').toMatch(/yan\.mjs --task t007\r$/);
+    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { pane: string; cli: string; title?: string }>;
+    expect(states.t007, 'the page shows it as the task\'s terminal at once').toMatchObject({ pane: 'w1:p9', cli: 'yan', title: 'go on' });
+
+    asked.length = 0;
+    expect((await post('/api/terminal/stop', { task: 't001' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/terminal/stop', { task: 't001' })).status).toBe(200);
+    expect(asked, 'the whole tab the agent is in').toEqual([
+      { method: 'layout.export', params: { pane_id: 'w1:p2' } },
+      { method: 'tab.close', params: { tab_id: 'w1:t1' } },
+    ]);
+    expect((readJson(join(home, '.machine', 'config.json')) as { terminals?: unknown[] }).terminals ?? [], 'no longer this machine\'s terminal').toEqual([]);
+    expect((await post('/api/terminal/stop', { task: 't007' })).status, 'a launch stops as a terminal does').toBe(200);
+    expect((await post('/api/terminal/stop', { task: 't007' })).status, 'and is then gone').toBe(404);
+    rmSync(join(home, 'tasks', 't007'), { recursive: true });
   });
 
   it('says which herdr is too old to stream a pane', async () => {

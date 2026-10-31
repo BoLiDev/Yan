@@ -4,5 +4,5 @@
  * in split and closed, and a new tab opened.
  */
 
-export { CONTROL_SINCE, atLeast, call, closePane, control, controlCommand, createTab, herdrPane, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, serverOf, splitPane, versionOf } from './client.js';
+export { CONTROL_SINCE, atLeast, call, closePane, closeTab, control, controlCommand, createTab, herdrPane, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, serverOf, splitPane, tabOf, versionOf } from './client.js';
 export type { AgentStatus, Frame, Layout, Pane, Server } from './client.js';

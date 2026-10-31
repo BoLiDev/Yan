@@ -128,6 +128,16 @@ export async function layoutOf(socket: string, pane: string): Promise<Layout> {
   return layoutFrom((await call<{ layout: { root: LayoutNode } }>(socket, 'layout.export', { pane_id: pane })).layout.root);
 }
 
+/** The tab `pane` is in. */
+export async function tabOf(socket: string, pane: string): Promise<string> {
+  return (await call<{ layout: { tab_id: string } }>(socket, 'layout.export', { pane_id: pane })).layout.tab_id;
+}
+
+/** The tab closed, every pane in it and whatever runs in them with it. */
+export async function closeTab(socket: string, tab: string): Promise<void> {
+  await call(socket, 'tab.close', { tab_id: tab });
+}
+
 /** Every pane a layout holds, first to last. */
 export function panesIn(layout: Layout): string[] {
   return 'pane' in layout ? [layout.pane] : [...panesIn(layout.first), ...panesIn(layout.second)];
