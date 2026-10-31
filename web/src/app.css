@@ -189,9 +189,11 @@ img { -webkit-user-drag: none; }
 .brand b { font-size: 22px; letter-spacing: -0.03em; }
 /* yan updating itself: a card at the foot of the task list, its height following what it holds, with a spring. */
 .update-card { overflow: hidden; border-radius: 12px; background: var(--surface); transition: height .45s cubic-bezier(.34, 1.5, .5, 1); }
-.update-inner { display: flex; flex-direction: column; gap: 12px; padding: 9px 12px; }
-.update-inner.updating { padding: 12px 12px 14px; }
-.update-row { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+/* A row is as high as its tile and a little more, whatever the state, so the card keeps its height until a bar comes under it. */
+.update-inner { display: flex; flex-direction: column; gap: 10px; padding: 5px 5px 5px 12px; }
+.update-inner.idle { padding: 0; }
+.update-inner.updating { padding-bottom: 14px; }
+.update-row { display: flex; align-items: center; gap: 10px; min-height: 30px; }
 .update-row b { flex: 1 1 auto; min-width: 0; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: update-in .3s ease-out; }
 .update-action { flex: none; display: flex; animation: update-in .3s ease-out; }
 /* What the card is doing, on its right; the tile is a button when it has a next move. */
@@ -202,9 +204,10 @@ button.update-tile:hover { filter: brightness(.95); }
 .update-tile.ok { background: var(--green-soft); color: var(--green); }
 .update-tile.bad { background: #f6dedb; color: var(--red); }
 .update-tile .ring { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-dasharray: 3.2 2.35; animation: update-spin 1.6s linear infinite; }
-.update-check { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; margin: 0 -6px; border: 0; border-radius: 8px; background: none; color: var(--accent-ink); font: inherit; font-size: 13.5px; font-weight: 700; text-align: center; cursor: pointer; animation: update-in .3s ease-out; transition: background .15s; }
-.update-check:hover { background: var(--accent-wash); }
-.update-bar { display: flex; gap: 4px; animation: update-in .3s ease-out; }
+.update-check { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; border: 0; border-radius: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 13.5px; font-weight: 700; text-align: center; cursor: pointer; animation: update-in .3s ease-out; transition: background .15s; }
+/* The card is the button: all of it takes the colour. */
+.update-check:hover, .update-check:focus-visible { outline: 0; background: var(--accent-soft); }
+.update-bar { display: flex; gap: 4px; margin-right: 7px; animation: update-in .3s ease-out; }
 .update-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--sunken); transition: background .3s; }
 .update-bar i.done { background: var(--green); }
 .update-bar i.now { background: var(--accent); animation: update-pulse 1.2s ease-in-out infinite; }
