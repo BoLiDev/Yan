@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
-import { CREATE_NEW, enter, openingPrompt, openingPromptNow, pluginDir, skillsPrompt, type EntryChain, type EntryPrompts, type Said } from '../../src/cli/shared/launch.js';
+import { CREATE_NEW, enter, openingPrompt, openingPromptNow, pluginDir, skillsPrompt, type EntryChain, type EntryPrompts, type NewTask, type Said } from '../../src/cli/shared/launch.js';
 import { WAIT_LINE } from '../../src/externals/harness/index.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
 import { register, registry } from '../../src/records/repos/index.js';
@@ -34,6 +34,7 @@ let started: Started[] = [];
 let said: string[] = [];
 
 const chain: EntryChain = {
+  begin: (vault) => said.push(`begin ${vault}`),
   working: (doing) => {
     said.push(`working ${doing}`);
     return { update: (next) => said.push(`working ${next}`), finish: (s) => note(s) };
@@ -88,8 +89,8 @@ function splitHooks(argv: readonly string[]): { argv: string[]; hooks: string[] 
   return { argv: rest, hooks };
 }
 
-function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[] } = {}): Promise<number> {
-  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [] }, {
+function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask } = {}): Promise<number> {
+  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }) }, {
     prompts,
     chain,
     cwd,
@@ -245,6 +246,29 @@ describe('a new task', () => {
     await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'], scope: [] }), clone, { cli: 'agy' });
     expect(new Task('t001').read().repos).toEqual([{ url: (await fxGit(['remote', 'get-url', 'origin'], clone)).stdout.trim() }]);
     expect(told(0)).toBe(openingPrompt(new Task('t001').dir, [{ name: 'demo', path: treeOf(), scope: [] }]));
+  });
+
+  it('given its answers with --new, opens the chain itself, asks only what it was not given, and refuses what is not here', async () => {
+    const web = await aClone('web');
+    for (const p of ['packages/core', 'packages/web']) mkdirSync(join(web.clone, p), { recursive: true });
+    register('web', web.bare, web.clone);
+    const here = normalizePath(realpathSync(mkTempDir()));
+    const given = answers({ entry: 'never chosen' });
+    await run(given, here, { new: { title: ' pay retries ', repos: [{ name: 'web', scope: ['packages/core'] }] } });
+    expect(given.asked, 'nothing it was given is asked').toEqual([]);
+    expect(said[0]).toMatch(/^begin /);
+    expect(said[1]).toBe('done new task: pay retries');
+    expect(new Task('t001').read()).toMatchObject({ title: 'pay retries', repos: [{ url: web.bare, scope: ['packages/core'] }] });
+    expect(leasesHeldBy('t001')).toHaveLength(1);
+
+    await expect(run(answers({ entry: CREATE_NEW }), here, { new: { title: 'x', repos: [{ name: 'nope', scope: [] }] } })).rejects.toThrow(/no repository called nope/);
+    await expect(run(answers({ entry: CREATE_NEW }), here, { new: { title: 'x', repos: [{ name: 'web', scope: ['packages/nope'] }] } })).rejects.toThrow(/web has no package packages\/nope/);
+    await expect(run(answers({ entry: CREATE_NEW }), here, { new: { title: '  ' } })).rejects.toThrow(/needs a title/);
+    expect(new Task('t002').exists(), 'nothing made of a refused one').toBe(false);
+
+    const asking = answers({ entry: 'never chosen', repos: [] });
+    await run(asking, here, { new: { title: 'notes' } });
+    expect(asking.asked, 'the repositories, not given, are asked').toEqual(['repos: web']);
   });
 
   it('in a clone, has no tree when user picks no repository, and registers nothing', async () => {

@@ -6,6 +6,7 @@ import { YanError, isYanError } from '../util/error.js';
 import { yanHome, subcommands } from '../util/home.js';
 import { readJsonOrNone } from '../util/json.js';
 import { asString } from '../util/narrow.js';
+import type { NewTask } from './shared/launch.js';
 
 /**
  * The Commander root, and the only place subcommands are composed. A command
@@ -58,7 +59,11 @@ Bare 'yan', at a terminal, picks a task or starts one and runs an agent on it
 here, in the task's first worktree when it has any ('yan repo' keeps the
 repositories a new task picks from):
 
-  yan [--cli claude|codex|agy] [-- <args for the agent>]`,
+  yan [--cli claude|codex|agy] [--new <title> [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
+
+--new starts a task called <title> without asking which task; --repo names a
+repository it works in, with the packages it is about after a colon (the
+whole repository without), and --no-repo none. What is not given is asked.`,
     );
 
   for (const name of found) {
@@ -97,10 +102,20 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/** What bare `yan` was given: the CLI to run instead, and what to pass it. */
+/** What bare `yan` was given: the CLI to run instead, a new task's answers, and what to pass the agent. */
 interface EntryArgs {
   readonly cli?: string;
   readonly extra: string[];
+  readonly new?: NewTask;
+}
+
+/** `name` or `name:package,package`, as `--repo` takes a repository and the packages a new task is about. */
+function repoArg(spec: string): { name: string; scope: string[] } {
+  const colon = spec.indexOf(':');
+  const name = (colon < 0 ? spec : spec.slice(0, colon)).trim();
+  if (name === '') throw YanError.usage('yan_usage', `--repo takes a repository's name, as in --repo app or --repo app:packages/web - not '${spec}'`);
+  const scope = colon < 0 ? [] : spec.slice(colon + 1).split(',').map((p) => p.trim()).filter((p) => p !== '');
+  return { name, scope };
 }
 
 /**
@@ -113,19 +128,34 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   const first = argv[0];
   if (first !== undefined && (!first.startsWith('-') || ['-h', '--help', '-V', '--version'].includes(first))) return undefined;
   let cli: string | undefined;
-  for (let i = 0; i < argv.length; i += 1) {
+  let title: string | undefined;
+  let repos: { name: string; scope: string[] }[] | undefined;
+  let noRepo = false;
+  let extra: string[] = [];
+  // `--flag value` or `--flag=value`; the value, and how many words it took.
+  const valueOf = (flag: string, i: number): [string, number] | undefined => {
     const word = argv[i] as string;
-    if (word === '--') return { ...(cli === undefined ? {} : { cli }), extra: argv.slice(i + 1) };
-    if (word === '--cli' && argv[i + 1] !== undefined) {
-      cli = argv[i + 1];
-      i += 1;
-    } else if (word.startsWith('--cli=')) {
-      cli = word.slice('--cli='.length);
-    } else {
-      throw YanError.usage('yan_usage', `bare yan takes --cli <name> and, after --, arguments for the agent - not '${word}'`);
+    if (word === flag && argv[i + 1] !== undefined) return [argv[i + 1] as string, 2];
+    return word.startsWith(`${flag}=`) ? [word.slice(flag.length + 1), 1] : undefined;
+  };
+  for (let i = 0; i < argv.length;) {
+    const word = argv[i] as string;
+    if (word === '--') {
+      extra = argv.slice(i + 1);
+      break;
     }
+    const given = valueOf('--cli', i) ?? valueOf('--new', i) ?? valueOf('--repo', i);
+    if (given !== undefined && word.startsWith('--cli')) cli = given[0];
+    else if (given !== undefined && word.startsWith('--new')) title = given[0];
+    else if (given !== undefined) (repos ??= []).push(repoArg(given[0]));
+    else if (word === '--no-repo') noRepo = true;
+    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --new <title> with --repo <name> or --no-repo, and, after --, arguments for the agent - not '${word}'`);
+    i += given?.[1] ?? 1;
   }
-  return { ...(cli === undefined ? {} : { cli }), extra: [] };
+  if (title === undefined && (repos !== undefined || noRepo)) throw YanError.usage('yan_usage', '--repo and --no-repo are a new task\'s, given with --new <title>');
+  if (repos !== undefined && noRepo) throw YanError.usage('yan_usage', '--repo and --no-repo say opposite things; give one');
+  const made = title === undefined ? {} : { new: { title, ...(noRepo ? { repos: [] } : repos === undefined ? {} : { repos }) } };
+  return { ...(cli === undefined ? {} : { cli }), extra, ...made };
 }
 
 async function main(argv: readonly string[]): Promise<number> {

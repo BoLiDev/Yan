@@ -320,6 +320,46 @@ async function leaseTree(task: Task, repo: { name: string; clone: string; scope:
   }
 }
 
+/**
+ * A new task's answers given before it is asked, as `yan --new` takes them:
+ * its title, and, when given, the repositories it works in by their
+ * registered names, each with the packages it is about (`[]` for the whole
+ * repository). Repositories not given are asked, as bare `yan` asks them.
+ */
+export interface NewTask {
+  readonly title: string;
+  readonly repos?: readonly { readonly name: string; readonly scope: readonly string[] }[];
+}
+
+/**
+ * The questions for a new task, those `given` answers answered by it: the
+ * entry is a new task, its title the one given; its repositories and their
+ * packages too, when given, as long as each is one offered and has the
+ * packages named. Anything else is asked as it would be.
+ */
+function answering(asking: EntryPrompts, given: NewTask): EntryPrompts {
+  const title = given.title.trim();
+  if (title === '') throw YanError.usage('yan_usage', 'a new task needs a title');
+  const repos = given.repos;
+  return {
+    chooseEntry: async () => CREATE_NEW,
+    askTitle: async () => title,
+    chooseRepos: repos === undefined ? (offered) => asking.chooseRepos(offered) : async (offered) => {
+      const missing = repos.filter((r) => !offered.some((o) => o.name === r.name)).map((r) => r.name);
+      if (missing.length > 0) throw YanError.usage('yan_usage', `no repository called ${missing.join(', ')} is registered and cloned here - 'yan repo ls' lists those that are`);
+      return repos.map((r) => r.name);
+    },
+    confirmTree: (repo, why) => asking.confirmTree(repo, why),
+    chooseScope: async (repo, packages) => {
+      const scope = repos?.find((r) => r.name === repo)?.scope;
+      if (scope === undefined) return asking.chooseScope(repo, packages);
+      const unknown = scope.filter((p) => !packages.includes(p));
+      if (unknown.length > 0) throw YanError.usage('yan_usage', `${repo} has no package ${unknown.join(', ')}; it has ${packages.join(', ')}`);
+      return [...scope];
+    },
+  };
+}
+
 /** The questions bare `yan` asks. The real ones are Clack's; a test answers them itself. */
 export interface EntryPrompts {
   chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string>;
@@ -334,6 +374,7 @@ export interface EntryPrompts {
  * questions' chain. The real one is Clack's; a test keeps what it was told.
  */
 export interface EntryChain {
+  begin(vault: string): void;
   working(doing: string): Working;
   say(said: Said): void;
   end(line: string): void;
@@ -523,16 +564,23 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  *
  * @param extra arguments after `--`, passed to the harness as they are.
  */
-export async function enter(options: { cli?: string; extra: readonly string[] }, deps: EntryDeps = {}): Promise<number> {
+export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask }, deps: EntryDeps = {}): Promise<number> {
   const vault = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
   const plugins = takesPlugins(harness.cli) ? [pluginDir(), ...skillPlugins()] : [];
   const cwd = normalizePath(deps.cwd ?? process.cwd());
-  const prompts = deps.prompts ?? (await import('../../ui/prompts.js'));
+  const asking = deps.prompts ?? (await import('../../ui/prompts.js'));
+  const prompts = options.new === undefined ? asking : answering(asking, options.new);
   const chain = deps.chain ?? (await import('../../ui/chain.js'));
 
-  const chosen = await prompts.chooseEntry(openTasks(), readVaultJson(vault).name);
+  // A new task given on the command line is not chosen: the chain still opens as the chooser opens it, and says which.
+  const vaultName = readVaultJson(vault).name;
+  if (options.new !== undefined) {
+    chain.begin(vaultName);
+    chain.say({ kind: 'done', line: `new task: ${options.new.title.trim()}` });
+  }
+  const chosen = await prompts.chooseEntry(openTasks(), vaultName);
   const { task, trees } = chosen === CREATE_NEW
     ? await newTask(cwd, prompts, chain)
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };

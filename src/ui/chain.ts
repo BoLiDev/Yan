@@ -1,5 +1,5 @@
 import { styleText } from 'node:util';
-import { log, outro, spinner } from '@clack/prompts';
+import { intro, log, outro, spinner } from '@clack/prompts';
 
 /**
  * What bare `yan` says between its questions and the agent, on the same
@@ -33,6 +33,11 @@ function symbol(kind: StepKind): string {
 function write(said: Said, spacing: number): void {
   const detail = (said.detail ?? []).map((d) => styleText('dim', d));
   log.message([said.line, ...detail], { symbol: symbol(said.kind), spacing });
+}
+
+/** The chain's head, as bare `yan`'s first question draws it, for a run that asks none first. */
+export function begin(vault: string): void {
+  intro(vault === '' ? 'yan' : `yan · ${vault}`);
 }
 
 export function working(doing: string): Working {
