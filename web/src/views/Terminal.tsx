@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import type { TerminalState } from '../lib/api';
-import { AGENT_WORD, MOD } from '../lib/format';
+import { MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
 import { tilesOf, type Tile } from '../lib/tiles';
 import { Icon } from '../components/Icon';
@@ -111,13 +111,11 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
       </>
     );
   }
-  // A launch's pane is bare yan's until the agent starts in it.
-  const program = state.agent ?? (state.title !== undefined ? state.title : `${state.cli}（已退出）`);
-  const meta = [program, `herdr ${state.pane}`, AGENT_WORD[state.status]].filter(Boolean).join(' · ');
   const tiles = tilesOf(state.layout ?? { pane: state.pane });
   return (
     <>
-      <Bar title="Terminal" meta={meta} tools={waiting ? null : <StopButton id={id} />} />
+      {/* What the agent is doing is the Terminal row's to say, and the terminal's own: the bar holds only 结束. */}
+      <Bar title="Terminal" meta="" tools={waiting ? null : <StopButton id={id} />} />
       {state.streams ? (
         <div className="term-tiles">
           {tiles.map((tile) => <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes} />)}
