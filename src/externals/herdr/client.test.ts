@@ -2,7 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:net';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { atLeast, controlCommand, herdrPane, paneOf, sendInput, sendKeys, versionOf } from './client.js';
+import { atLeast, closePane, controlCommand, herdrPane, layoutOf, paneOf, panesIn, sendInput, sendKeys, splitPane, versionOf } from './client.js';
 
 afterAll(cleanupTempDirs);
 
@@ -67,6 +67,28 @@ describe('herdr', () => {
     expect(h.asked.slice(2)).toEqual([
       { method: 'pane.send_keys', params: { pane_id: 'w1:p2', keys: ['shift+tab'] } },
       { method: 'pane.send_input', params: { pane_id: 'w1:p2', text: 'go on', keys: ['enter'] } },
+    ]);
+  });
+
+  it('reads how a tab is split, splits a pane and closes one', async () => {
+    const pane = (id: string) => ({ type: 'pane', pane_id: id, cwd: '/code/app' });
+    const h = await fakeHerdr((method) =>
+      method === 'layout.export' ? { result: { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: 'w1:t1', zoomed: false, focused_pane_id: 'w1:p2',
+        root: { type: 'split', direction: 'right', ratio: 0.6, first: pane('w1:p2'), second: { type: 'split', direction: 'down', ratio: 7, first: pane('w1:p3'), second: pane('w1:p4') } } } } }
+        : method === 'pane.split' ? { result: { type: 'pane_info', pane: { pane_id: 'w1:p5', agent_status: 'unknown' } } }
+          : { result: { type: 'ok' } });
+    servers.push(h.server);
+    const layout = await layoutOf(h.socket, 'w1:p2');
+    expect(layout, 'a ratio herdr could not have is taken for half').toEqual({
+      split: 'right', ratio: 0.6, first: { pane: 'w1:p2' }, second: { split: 'down', ratio: 0.5, first: { pane: 'w1:p3' }, second: { pane: 'w1:p4' } },
+    });
+    expect(panesIn(layout)).toEqual(['w1:p2', 'w1:p3', 'w1:p4']);
+    expect(await splitPane(h.socket, 'w1:p2', 'down')).toBe('w1:p5');
+    await closePane(h.socket, 'w1:p5');
+    expect(h.asked).toEqual([
+      { method: 'layout.export', params: { pane_id: 'w1:p2' } },
+      { method: 'pane.split', params: { target_pane_id: 'w1:p2', direction: 'down', focus: false } },
+      { method: 'pane.close', params: { pane_id: 'w1:p5' } },
     ]);
   });
 

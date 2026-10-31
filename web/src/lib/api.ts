@@ -72,7 +72,14 @@ export interface TerminalState {
   /** herdr's version, and whether it can stream the pane (0.7.2 and later). */
   readonly herdr: string;
   readonly streams: boolean;
+  /** The agent's tab, as herdr has it split: its pane alone, or it and the panes split off beside it. */
+  readonly layout?: Layout;
 }
+
+/** How herdr has split a tab: a pane, or two side by side (`right`) or one over the other (`down`), the first taking `ratio` of the room. */
+export type Layout =
+  | { readonly pane: string }
+  | { readonly split: 'right' | 'down'; readonly ratio: number; readonly first: Layout; readonly second: Layout };
 
 export interface Index {
   readonly tasks: readonly TaskSummary[];

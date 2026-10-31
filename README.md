@@ -226,7 +226,14 @@ names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
 as one, and what an IME is composing stays the IME's, so the Enter that
 commits English letters typed in a Chinese IME commits them; ⌘ chords stay
 the page's, and in the terminal Ctrl+K is the agent's. Enter on the page
-puts the keys in the terminal, as a click on it does. The pane is only on this machine, so
+puts the keys in the terminal typed in last, as a click on it does. The
+page is the agent's whole herdr tab, split as herdr has it: a shell split
+off beside the agent, in herdr or here, is there too, streamed and typed
+into as the agent is. A right click on a pane opens the page's own menu in
+place of the browser's: split it to the right or down, which herdr does,
+so its window has the new shell too, in the directory the pane works in;
+copy what is selected in it; paste into it; and close it, unless it is the
+agent's own. The pane is only on this machine, so
 serve shows the terminal only where the agent runs. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced
 block alike, by highlight.js, built into the page, so the page still fetches

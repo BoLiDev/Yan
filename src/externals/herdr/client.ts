@@ -99,6 +99,54 @@ export async function paneOf(socket: string, pane: string): Promise<Pane> {
   return (await call<{ pane: Pane }>(socket, 'pane.get', { pane_id: pane })).pane;
 }
 
+/**
+ * How herdr has split the tab a pane is in: a pane, or two side by side
+ * (`right`) or one over the other (`down`), the first taking `ratio` of the
+ * room.
+ */
+export type Layout =
+  | { readonly pane: string }
+  | { readonly split: 'right' | 'down'; readonly ratio: number; readonly first: Layout; readonly second: Layout };
+
+interface LayoutNode {
+  readonly type: 'pane' | 'split';
+  readonly pane_id?: string;
+  readonly direction?: string;
+  readonly ratio?: number;
+  readonly first?: LayoutNode;
+  readonly second?: LayoutNode;
+}
+
+function layoutFrom(node: LayoutNode): Layout {
+  if (node.type !== 'split' || node.first === undefined || node.second === undefined) return { pane: node.pane_id ?? '' };
+  const ratio = typeof node.ratio === 'number' && node.ratio > 0 && node.ratio < 1 ? node.ratio : 0.5;
+  return { split: node.direction === 'down' ? 'down' : 'right', ratio, first: layoutFrom(node.first), second: layoutFrom(node.second) };
+}
+
+/** The panes of the tab `pane` is in, as herdr has them split (herdr 0.7.0 and later). */
+export async function layoutOf(socket: string, pane: string): Promise<Layout> {
+  return layoutFrom((await call<{ layout: { root: LayoutNode } }>(socket, 'layout.export', { pane_id: pane })).layout.root);
+}
+
+/** Every pane a layout holds, first to last. */
+export function panesIn(layout: Layout): string[] {
+  return 'pane' in layout ? [layout.pane] : [...panesIn(layout.first), ...panesIn(layout.second)];
+}
+
+/**
+ * A new pane split off `pane`, beside it or below it, a shell in the
+ * directory the pane is working in, as herdr's own split makes one; herdr's
+ * focus stays where it was. Its id.
+ */
+export async function splitPane(socket: string, pane: string, direction: 'right' | 'down'): Promise<string> {
+  return (await call<{ pane: { pane_id: string } }>(socket, 'pane.split', { target_pane_id: pane, direction, focus: false })).pane.pane_id;
+}
+
+/** The pane closed, and whatever runs in it with it. */
+export async function closePane(socket: string, pane: string): Promise<void> {
+  await call(socket, 'pane.close', { pane_id: pane });
+}
+
 /** One frame of a pane's stream: ANSI bytes, base64, for a terminal `width` by `height`; a `full` one draws it all. */
 export interface Frame {
   readonly type: 'terminal.frame';

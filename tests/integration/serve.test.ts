@@ -437,6 +437,8 @@ describe('an agent in a herdr pane on yan serve', () => {
   /** A herdr: its socket answering as 0.9.5 with the pane `w1:p2` waiting on user, and keeping what it was asked. */
   const asked: { method: string; params: Record<string, unknown> }[] = [];
   let herdr: ReturnType<typeof createServer> | undefined;
+  /** The agent's tab: its pane, and a shell split off to its right. */
+  const tab = { type: 'split', direction: 'right', ratio: 0.6, first: { type: 'pane', pane_id: 'w1:p2' }, second: { type: 'pane', pane_id: 'w1:p3' } };
   afterAll(() => herdr?.close());
 
   async function aHerdr(version: string): Promise<{ socket: string; bin: string; controlled: string }> {
@@ -454,7 +456,9 @@ describe('an agent in a herdr pane on yan serve', () => {
         const result = req.method === 'ping' ? { type: 'pong', version }
           : req.method === 'pane.get' ? (req.params.pane_id === 'w1:p2' ? { type: 'pane_info', pane: { pane_id: 'w1:p2', agent: 'claude', agent_status: 'blocked' } } : undefined)
             : req.method === 'pane.layout' ? { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p2', rect: { width: 100, height: 30 } }] } }
-              : { type: 'ok' };
+              : req.method === 'layout.export' ? { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: 'w1:t1', zoomed: false, focused_pane_id: 'w1:p2', root: tab } }
+                : req.method === 'pane.split' ? { type: 'pane_info', pane: { pane_id: 'w1:p4', agent_status: 'unknown' } }
+                  : { type: 'ok' };
         conn.end(`${JSON.stringify(result === undefined ? { id: req.id, error: { code: 'not_found', message: 'pane not found' } } : { id: req.id, result })}\n`);
       });
     });
@@ -530,6 +534,41 @@ describe('an agent in a herdr pane on yan serve', () => {
       { method: 'pane.send_input', params: { pane_id: 'w1:p2', text: '换个做法', keys: ['enter'] } },
       { method: 'pane.get', params: { pane_id: 'w1:p2' } },
       { method: 'pane.send_text', params: { pane_id: 'w1:p2', text: '\x1b[<64;5;7M\x1b[<64;5;7M' } },
+    ]);
+  });
+
+  it('shows the agent\'s whole tab, streams and types into a shell split off in it, and splits and closes one', async () => {
+    if (process.platform === 'win32') return;
+    herdr?.close();
+    const { socket, bin } = await aHerdr('0.9.5');
+    keep(socket, bin);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { layout: unknown }>;
+    expect(states.t001?.layout).toEqual({ split: 'right', ratio: 0.6, first: { pane: 'w1:p2' }, second: { pane: 'w1:p3' } });
+
+    const holding = new AbortController();
+    const res = await fetch(page('/api/terminal/stream?task=t001&pane=w1:p3&cols=60&rows=30'), { signal: holding.signal });
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+    let stream = '';
+    while (!stream.includes('data: ')) stream += new TextDecoder().decode((await reader.read()).value);
+    expect(Buffer.from((JSON.parse(/^data: (.*)$/m.exec(stream)?.[1] as string) as { bytes: string }).bytes, 'base64').toString()).toContain('control w1:p3 --takeover --cols 60');
+    holding.abort();
+    expect((await fetch(page('/api/terminal/stream?task=t001&pane=w9:p9&cols=60&rows=30'))).status, 'a pane outside the tab').toBe(404);
+
+    const post = (path: string, value: unknown, origin = page('')) => fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+    asked.length = 0;
+    expect((await post('/api/terminal/input', { task: 't001', pane: 'w1:p3', text: 'ls\r' })).status).toBe(200);
+    const split = await post('/api/terminal/split', { task: 't001', pane: 'w1:p3', direction: 'down' });
+    expect(await split.json()).toEqual({ pane: 'w1:p4' });
+    expect((await post('/api/terminal/close', { task: 't001', pane: 'w1:p3' })).status).toBe(200);
+    expect((await post('/api/terminal/close', { task: 't001', pane: 'w1:p2' })).status, 'the agent\'s own pane').toBe(400);
+    expect((await post('/api/terminal/close', { task: 't001', pane: 'w9:p9' })).status, 'a pane outside the tab').toBe(404);
+    expect((await post('/api/terminal/split', { task: 't001', direction: 'up' })).status).toBe(400);
+    expect((await post('/api/terminal/split', { task: 't001', direction: 'right' }, 'http://evil.example')).status).toBe(403);
+    expect(asked.filter((a) => a.method !== 'layout.export')).toEqual([
+      { method: 'pane.send_text', params: { pane_id: 'w1:p3', text: 'ls\r' } },
+      { method: 'pane.split', params: { target_pane_id: 'w1:p3', direction: 'down', focus: false } },
+      { method: 'pane.close', params: { pane_id: 'w1:p3' } },
     ]);
   });
 
