@@ -385,8 +385,8 @@ button.update-tile:hover { filter: brightness(.95); }
 .term-stop { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--red); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s, color .15s; }
 .term-stop:hover { background: #f6dedb; }
 .term-stop.sure { background: var(--red); color: #fff; }
-.term-go { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s; }
-.term-go:hover { background: var(--accent-wash); }
+/* 继续 is the page's one thing to do, so it is the primary button. */
+.term-go { flex: none; align-self: center; }
 
 /* The agent's tab, each pane where herdr's split puts it, a line where one meets another. The light lines that edge
    the page's columns, the bar's foot and the task list's side, would frame the dark tab, so it is drawn over the one
