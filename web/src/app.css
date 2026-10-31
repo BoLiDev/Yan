@@ -316,7 +316,8 @@ button.update-tile:hover { filter: brightness(.95); }
 .nav .row .term-status.done { color: var(--green); }
 /* The pane as herdr streams it, sized to the column, which it fills to the bottom of the page. */
 /* A task with no terminal: a terminal, large, and 继续 under it. */
-.term-off { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px; }
+/* The icon's own margin below its frame is the room between them. */
+.term-off { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 40px; }
 .term-off svg { flex: none; color: #a3a29b; }
 .term-stop { flex: none; align-self: center; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--red); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s, color .15s; }
 .term-stop:hover { background: #f6dedb; }
