@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Index, TaskDetail, TaskSummary } from '../lib/api';
 import { badge, baseName, buildTree, changeOrder, dirName, foldersAbove } from '../lib/files';
-import { AGENT_WORD, clock, dayLabel, dayOf, plural, short } from '../lib/format';
+import { AGENT_WORD, clock, dayLabel, dayOf, short } from '../lib/format';
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { KIND_WORD, isLink, listResources, type Listed as Resource } from '../lib/resources';
 import { isSource, sourceView } from '../lib/source';
@@ -399,7 +399,6 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
   const { data: d } = useTask(t.id);
   const terminal = useTerminals().data?.[t.id];
   const unseen = unseenOf(index, seen, t.id);
-  const total = t.deliverables.done + t.deliverables.todo + t.deliverables.abandoned;
   const logCount = d?.log?.entries.length ?? 0;
   // Against what was last read, not what this visit started from: reading the log clears it.
   const fresh = !!d?.log && logFresh(seen, t.id, logCount);
@@ -413,7 +412,8 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
       <div className="task-head"><div className="t"><StateIcon state={t.state} size={18} /><h1>{t.title || t.id}</h1></div></div>
       <div className="nav">
         <a className={'row' + (r.sub === 'overview' ? ' on' : '')} href={link.task(t.id)}>
-          <Icon name="overview" size={16} /><span className="grow">Overview</span><span className="aside">{total ? plural(total, 'deliverable') : 'problem'}</span>
+          {/* Overview and Log say nothing beside their names: what is in them is a click away. */}
+          <Icon name="overview" size={16} /><span className="grow">Overview</span>
         </a>
         {d?.files.some((f) => f.path === 'report.html') ? (
           <a className={'row' + (r.sub === 'report' ? ' on' : '')} href={link.report(t.id)}>
@@ -425,7 +425,6 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
         <a className={'row' + (r.sub === 'log' ? ' on' : '')} href={link.log(t.id)}>
           <Icon name="log" size={16} /><span className="grow">Log</span>
           {fresh ? <span className="dot" title="new entries" /> : null}
-          <span className="aside">{d ? logCount : ''}</span>
         </a>
         {/* An open task keeps its Terminal row with no agent running, where it is started again. */}
         {terminal || goesOn(t) ? (
