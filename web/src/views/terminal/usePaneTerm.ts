@@ -60,8 +60,12 @@ export function usePaneTerm({ task, pane, agent, shared }: {
     };
     const followed = follow(term, { task, pane, agent, stage, fits, ended: setEnded });
 
-    // Both faces loaded before xterm.js measures its cells, the Chinese one by a character it is needed for.
-    void Promise.all([document.fonts.load('13px "Yan Code"'), document.fonts.load('13px "Yan Round"', '中')]).finally(() => {
+    // Both faces loaded before xterm.js measures its cells, the Chinese one by a character it is needed for, and
+    // each in bold too: bold has files of its own, and a bold cell drawn before its file arrives is drawn in a
+    // stand-in face, its letters spaced to cells measured for another.
+    const faces = ['13px "Yan Code"', 'bold 13px "Yan Code"'].map((f) => document.fonts.load(f));
+    const round = ['13px "Yan Round"', 'bold 13px "Yan Round"'].map((f) => document.fonts.load(f, '中'));
+    void Promise.all([...faces, ...round]).finally(() => {
       if (disposed) return;
       term.open(el);
       panes.terms.set(pane, term);
