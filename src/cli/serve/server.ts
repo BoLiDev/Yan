@@ -1,8 +1,8 @@
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
-import { saveVault } from '../shared/vault-push.js';
 import { Task, parseUat } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
 import { cloneOf } from '../../util/machine.js';
@@ -173,6 +173,17 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown> | und
   } catch {
     return undefined;
   }
+}
+
+/** `saveVault` in a worker (save-worker.ts): the warning the page is shown, or null. */
+function saveOffThread(dir: string, message: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const worker = new Worker(new URL('./save-worker.js', import.meta.url), { workerData: { dir, message } });
+    worker.once('message', (said: { warning: string | null }) => resolve(said.warning));
+    worker.once('error', (err) => resolve(err.message));
+    // Ended without a word: a resolve after the message is a no-op.
+    worker.once('exit', (code) => resolve(`the save stopped before it said how it went (exit ${code})`));
+  });
 }
 
 /** A request whose Host is not this machine by name is refused: a page elsewhere that rebinds its name to 127.0.0.1 gets nothing. */
@@ -430,7 +441,7 @@ export class YanServer {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may change the vault');
       const given = await body(req);
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return write(res, given);
+      return this.inTurn(() => write(res, given));
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
@@ -567,16 +578,27 @@ export class YanServer {
     return out;
   }
 
-  /** Commit and push what `user` changed, then show the commit; a push that fails leaves the change committed here. */
+  /**
+   * Commit and push what `user` changed, then show the commit; a push that
+   * fails leaves the change committed here. The git of it runs on a thread
+   * of its own, so terminals and every other request go on meanwhile.
+   */
   private async save(res: ServerResponse, message: string): Promise<void> {
-    let warning: string | null = null;
-    try {
-      saveVault(this.options.vaultDir, message);
-    } catch (err) {
-      warning = isYanError(err) ? err.message : String(err);
-    }
+    const warning = await saveOffThread(this.options.vaultDir, message);
     await this.tick();
     json(res, { ok: true, warning, status: this.status });
+  }
+
+  /**
+   * The page's changes, one after another. Each writes its file and then
+   * commits everything, so a second written while the first commits would
+   * land in the middle of the first's git, catching up with origin included.
+   */
+  private writing: Promise<void> = Promise.resolve();
+  private inTurn(change: () => Promise<void>): Promise<void> {
+    const turn = this.writing.then(change);
+    this.writing = turn.catch(() => undefined);
+    return turn;
   }
 
   /** Every change `user` makes from the page, by its path: each takes a JSON body, then commits and pushes. */

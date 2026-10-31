@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { readJson } from '../../src/util/json.js';
@@ -431,6 +431,27 @@ describe('the overview on yan serve', () => {
     const said = await none.text();
     expect(said, 'the task named, and nothing else said').toContain('<h1><span>first</span><b> 没有 Agent</b></h1>');
     expect(said).not.toMatch(/<p[ >]/);
+  });
+
+  it('goes on answering while a save waits for the vault, and saves once the vault is free', async () => {
+    // The vault held as an agent's hook holds it while it pushes.
+    const lock = join(home, '.git', 'yan-sync.lock');
+    writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), at: Math.floor(Date.now() / 1000) }));
+    const saving = post('/api/deliverable/text', { task: 't001', id: 'd1', text: 'it still works' });
+    try {
+      // task.json written, the save is under way and waiting for the vault.
+      await until(async () => (readFileSync(join(home, 'tasks/t001/task.json'), 'utf8').includes('it still works') ? true : undefined), 10_000);
+      const asked = Date.now();
+      const hello = await Promise.race([fetch(page('/api/hello')).then((r) => r.status), new Promise((resolve) => setTimeout(() => resolve('no answer'), 2000))]);
+      expect(hello).toBe(200);
+      expect(Date.now() - asked).toBeLessThan(2000);
+      const first = await Promise.race([saving.then(() => 'saved'), new Promise((resolve) => setTimeout(() => resolve('waiting'), 300))]);
+      expect(first).toBe('waiting');
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    expect((await saving).status).toBe(200);
+    expect(await subject()).toBe('t001: d1 reworded in yan serve');
   });
 });
 
