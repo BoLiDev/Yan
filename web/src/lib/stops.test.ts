@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskSummary } from './api';
 import { parseRoute, type TaskRoute } from './route';
-import { nextStop, taskStops } from './stops';
+import { goesOn, nextStop, taskStops } from './stops';
 
 const task = (agents: number, branch: boolean): TaskSummary =>
   ({ id: 't1', agents: Array.from({ length: agents }, (_, i) => [`a${i}`, `https://agent/${i}`]), repos: [{ name: 'web', branch: null, earlier: [], abandoned: [] }, { name: 'api', branch: branch ? 'feat/x' : null, earlier: [], abandoned: [] }] }) as unknown as TaskSummary;
@@ -13,6 +13,11 @@ describe('Tab in a task', () => {
     expect(taskStops(task(0, false), false)).toEqual(['#/t/t1', '#/t/t1/log']);
     expect(taskStops(task(0, true), false, true)).toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/b/1/changes', '#/t/t1/resources']);
     expect(taskStops(task(1, false), false, false, true), 'a terminal after Log').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/terminal', '#/t/t1/agent']);
+  });
+
+  it('starts the agent again only for a task still open or handed over to be accepted', () => {
+    const as = (state: string): TaskSummary => ({ ...task(0, false), state }) as unknown as TaskSummary;
+    expect(['open', 'uat', 'done', 'abandoned'].map((s) => goesOn(as(s)))).toEqual([true, true, false, false]);
   });
 
   it('goes down and round, and back up and round', () => {

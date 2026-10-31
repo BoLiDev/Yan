@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import type { Index, TaskDetail } from '../lib/api';
 import { buildTree, dirName, treeOrder } from '../lib/files';
+import { goesOn } from '../lib/stops';
 import { link, useRoute, viewKey, type Route } from '../lib/route';
 import { feedFiles, markLooked, unseenPushes } from '../lib/seen';
 import { Empty } from '../components/ui';
@@ -75,7 +76,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   const t = index.tasks.find((x) => x.id === r.id);
   if (!t) return <Nothing title="No such task">{`There is no ${r.id} in this vault.`}</Nothing>;
   // The terminal is herdr's, not the vault's: it is shown without waiting for the task's files.
-  if (r.sub === 'terminal') return <TerminalView id={t.id} state={terminals?.[t.id]} />;
+  if (r.sub === 'terminal') return <TerminalView id={t.id} state={terminals?.[t.id]} title={t.title} goesOn={goesOn(t)} />;
   if (!d) return <Nothing title="Loading…" />;
   if (r.sub === 'overview') return <Overview t={t} d={d} />;
   if (r.sub === 'log') return <LogView t={t} d={d} />;

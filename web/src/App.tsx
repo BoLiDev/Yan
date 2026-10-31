@@ -4,7 +4,7 @@ import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
 import { parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
-import { nextStop, taskStops } from './lib/stops';
+import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
 import { AskModal, Toast } from './components/ui';
@@ -123,7 +123,7 @@ function useKeys(): void {
         const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
         const report = !!d?.files.some((f) => f.path === 'report.html');
         const terminal = !!queryClient.getQueryData<Record<string, unknown>>(['terminals'])?.[r.id];
-        const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0, terminal), r, e.shiftKey);
+        const to = nextStop(taskStops(t, report, !!d && listResources(t, d).length > 0, terminal || goesOn(t)), r, e.shiftKey);
         active?.blur();
         if (to) location.hash = to;
         return;

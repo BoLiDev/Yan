@@ -5,6 +5,7 @@ import { AGENT_WORD, clock, dayLabel, dayOf, plural, short } from '../lib/format
 import { AGENT_TAB, inBranch, link, useHash, useRoute, type BranchRoute, type Route, type TaskRoute } from '../lib/route';
 import { KIND_WORD, isLink, listResources, type Listed as Resource } from '../lib/resources';
 import { isSource, sourceView } from '../lib/source';
+import { goesOn } from '../lib/stops';
 import { dropped as dropTo, gapAt, moves } from '../lib/drag';
 import { logFresh, markAllSeen, markTaskRead, unseenOf, unseenPushes, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
@@ -426,10 +427,11 @@ function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index:
           {fresh ? <span className="dot" title="new entries" /> : null}
           <span className="aside">{d ? logCount : ''}</span>
         </a>
-        {terminal ? (
+        {/* An open task keeps its Terminal row with no agent running, where it is started again. */}
+        {terminal || goesOn(t) ? (
           <a className={'row' + (r.sub === 'terminal' ? ' on' : '')} href={link.terminal(t.id)}>
             <Icon name="terminal" size={16} /><span className="grow">Terminal</span>
-            <span className={`aside term-status ${terminal.status}`}>{AGENT_WORD[terminal.status] || (terminal.agent ?? '')}</span>
+            {terminal ? <span className={`aside term-status ${terminal.status}`}>{AGENT_WORD[terminal.status] || (terminal.agent ?? '')}</span> : null}
           </a>
         ) : null}
         {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}

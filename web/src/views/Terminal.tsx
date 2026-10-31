@@ -5,6 +5,7 @@ import type { TerminalState } from '../lib/api';
 import { AGENT_WORD, MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
 import { tilesOf, type Tile } from '../lib/tiles';
+import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
 import { queryClient } from '../state/server';
 import { toast } from '../state/ui';
@@ -64,8 +65,13 @@ interface Panes {
  * as herdr has it, the agent and any shell split off beside it, in herdr or
  * here: a right click on a pane splits it, copies, pastes, or closes a shell.
  */
-export function TerminalView({ id, state, waiting = false }: { id: string; state: TerminalState | undefined; waiting?: boolean }) {
+export function TerminalView({ id, state, waiting = false, title, goesOn = false }: { id: string; state: TerminalState | undefined; waiting?: boolean; title?: string; goesOn?: boolean }) {
   useKeyNav(null, null);
+  // Gone on with from here, the task's terminal is the dark stage until herdr lists the new tab's pane.
+  const [starting, setStarting] = useState(false);
+  useEffect(() => {
+    if (state) setStarting(false);
+  }, [state]);
   const [menu, setMenu] = useState<{ x: number; y: number; pane: string } | null>(null);
   const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined, menu: () => undefined }).current;
   panes.menu = (at, pane) => setMenu({ ...at, pane });
@@ -83,15 +89,36 @@ export function TerminalView({ id, state, waiting = false }: { id: string; state
   }, [panes, state?.pane]);
 
   // A new task's tab, opened a moment ago, is a dark terminal until herdr lists its pane.
-  if (!state && waiting) return <><Bar title="Terminal" meta="" /><div className="term-tiles" /></>;
-  if (!state) return <Empty title="No terminal">{`${id}'s agent is not running in a herdr pane on this machine.`}</Empty>;
+  if (!state && (waiting || starting)) return <><Bar title="Terminal" meta="" /><div className="term-tiles" /></>;
+  if (!state) {
+    const goOn = async (): Promise<void> => {
+      setStarting(true);
+      const r = await fetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task: id }) }).catch((err: Error) => err);
+      if (r instanceof Error || !r.ok) {
+        setStarting(false);
+        return void toast(`没能继续：${r instanceof Error ? r.message : (await r.text()) || r.status}`);
+      }
+      void queryClient.invalidateQueries({ queryKey: ['terminals'] });
+    };
+    return (
+      <>
+        <Bar title="Terminal" meta="" />
+        {/* As the agent tab's page for a task with none: one line naming the task, and the way to start it again. */}
+        <div className="term-off">
+          <Icon name="terminal" size={56} width={1.4} />
+          <h1><span>{title?.trim() || id}</span><b> 没有 Terminal</b></h1>
+          {goesOn ? <button type="button" className="button" onClick={() => void goOn()}>继续</button> : null}
+        </div>
+      </>
+    );
+  }
   // A launch's pane is bare yan's until the agent starts in it.
   const program = state.agent ?? (state.title !== undefined ? state.title : `${state.cli}（已退出）`);
   const meta = [program, `herdr ${state.pane}`, AGENT_WORD[state.status]].filter(Boolean).join(' · ');
   const tiles = tilesOf(state.layout ?? { pane: state.pane });
   return (
     <>
-      <Bar title="Terminal" meta={meta} />
+      <Bar title="Terminal" meta={meta} tools={waiting ? null : <StopButton id={id} />} />
       {state.streams ? (
         <div className="term-tiles">
           {tiles.map((tile) => <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes} />)}
@@ -109,6 +136,27 @@ export function TerminalView({ id, state, waiting = false }: { id: string; state
       )}
     </>
   );
+}
+
+/**
+ * The task's agent stopped: its herdr tab closed, the shells beside it with
+ * it. Asked twice, the first click only turning it to 确认结束, which goes
+ * back after a few seconds untouched.
+ */
+function StopButton({ id }: { id: string }) {
+  const [sure, setSure] = useState(false);
+  useEffect(() => {
+    if (!sure) return;
+    const back = window.setTimeout(() => setSure(false), 3000);
+    return () => window.clearTimeout(back);
+  }, [sure]);
+  const stop = async (): Promise<void> => {
+    setSure(false);
+    const r = await fetch('/api/terminal/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task: id }) }).catch((err: Error) => err);
+    if (r instanceof Error || !r.ok) return void toast(`没能结束：${r instanceof Error ? r.message : (await r.text()) || r.status}`);
+    void queryClient.invalidateQueries({ queryKey: ['terminals'] });
+  };
+  return <button type="button" className={'term-stop' + (sure ? ' sure' : '')} onClick={() => (sure ? void stop() : setSure(true))}>{sure ? '确认结束' : '结束'}</button>;
 }
 
 /**

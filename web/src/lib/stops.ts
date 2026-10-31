@@ -9,6 +9,9 @@ import { link, type TaskRoute } from './route';
  * Agent when there is one, MR, which shows the branch its first tree is on,
  * and Resources when there are any.
  */
+/** Whether a task's agent may be started again from the page: it is open, or handed over to be accepted. */
+export const goesOn = (t: TaskSummary): boolean => t.state === 'open' || t.state === 'uat';
+
 export function taskStops(t: TaskSummary, hasReport: boolean, hasResources = false, hasTerminal = false): string[] {
   const repo = t.repos.findIndex((r) => r.branch);
   return [
