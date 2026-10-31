@@ -10,6 +10,8 @@ import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
 import { Badge } from '../components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import { useTheme } from '../state/theme';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
 
@@ -45,6 +47,27 @@ function Sync() {
       <span className="words"><b>{head}</b><span>{sub}</span></span>
       <Icon name="refresh" size={16} />
     </button>
+  );
+}
+
+/** Which theme the page is drawn in: the browser's, or light or dark whatever it says. */
+function ThemeMenu() {
+  const theme = useUI((s) => s.prefs.theme);
+  const now = useTheme();
+  const choices = [['system', 'As the browser', 'system'], ['light', 'Light', 'light'], ['dark', 'Dark', 'night']] as const;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-ink-3 hover:text-foreground" aria-label="Theme" title="Theme" />}>
+        <Icon name={now === 'dark' ? 'night' : 'light'} size={15} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setPref('theme', v as typeof theme)}>
+          {choices.map(([value, label, icon]) => (
+            <DropdownMenuRadioItem key={value} value={value} closeOnClick><Icon name={icon} size={15} />{label}</DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -131,6 +154,7 @@ export function Left() {
       <div className="brand">
         <b title={index ? `${index.vault.name} · ${index.vault.dir}` : undefined}>yan</b>
         <span className="grow" />
+        <ThemeMenu />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
       <Sync />

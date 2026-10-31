@@ -46,6 +46,39 @@
   --amber-soft: #fbefd9;
   --hover: rgba(27, 27, 25, 0.06);
   --shade: rgba(20, 20, 18, 0.32);
+  --amber-ink: #8a4b08;
+  --brand-glint: #8fdbe6;
+  /* what is raised off the page, and its shadows */
+  --raised: #faf9f6;
+  --shadow-line: rgba(27, 27, 25, 0.08);
+  --shadow-drop: rgba(27, 27, 25, 0.14);
+  --shadow-strong: rgba(27, 27, 25, 0.25);
+  --scroll-thumb: rgba(27, 27, 25, 0.12);
+  --scroll-thumb-on: rgba(27, 27, 25, 0.24);
+  --scroll-thumb-hover: rgba(27, 27, 25, 0.4);
+  /* where a picture is shown, and a folder's card holds one */
+  --stage: #f3f2ee;
+  --stage-dark: #141413;
+  --check-a: #ebeae5;
+  --check-b: #f7f6f2;
+  --well: #eceae4;
+  --thumb-well: #0e141b;
+  /* text set as a document, and code */
+  --doc-ink: #2a2a27;
+  --code-bg: #f7f6f2;
+  --gutter: rgba(27, 27, 25, 0.025);
+  --diff-hunk: #eef5f7;
+  --diff-hunk-gutter: #e3eef1;
+  --diff-del: #fdf0ee;
+  --diff-del-gutter: #fbe2de;
+  --diff-add: #eaf5ed;
+  --diff-add-gutter: #d9eedf;
+  /* a terminal is dark whatever the page is */
+  --term-bg: #1b1b19;
+  --term-fg: #e3e1d9;
+  --term-line: #3a3a37;
+  --term-selection: #4a4a44;
+  --term-note: rgba(255, 255, 255, 0.92);
   /* code: six inks for highlight.js's classes, each dark enough to read on the add and del tints */
   --code-comment: #77766f;
   --code-keyword: #8e3a9c;
@@ -78,6 +111,124 @@
   --ring: var(--brand);
   color-scheme: light;
 }
+
+/*
+ * The dark theme: yan's palette again, by night. It is what the browser asks
+ * for unless the page was told otherwise (prefs.theme), and `.dark` on <html>
+ * when it was told dark, so shadcn's own `dark:` touches follow it too.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) { 
+    --ground: #191917;
+    --surface: #20201d;
+    --sunken: #121210;
+    --line: #31302c;
+    --ink: #ecebe5;
+    --ink-2: #cfcec6;
+    --ink-3: #a09f96;
+    --ink-4: #6f6e67;
+    --brand: #45b8cc;
+    --brand-ink: #82d2e0;
+    --brand-soft: rgba(69, 184, 204, 0.16);
+    --brand-wash: rgba(69, 184, 204, 0.07);
+    --brand-glint: #c3eef5;
+    --green: #5bbd7b;
+    --green-soft: rgba(91, 189, 123, 0.16);
+    --red: #f07a6a;
+    --red-soft: rgba(240, 122, 106, 0.16);
+    --amber: #e3a54a;
+    --amber-soft: rgba(227, 165, 74, 0.16);
+    --amber-ink: #f0c27e;
+    --hover: rgba(236, 235, 229, 0.07);
+    --shade: rgba(0, 0, 0, 0.55);
+    --raised: #24241f;
+    --shadow-line: rgba(0, 0, 0, 0.4);
+    --shadow-drop: rgba(0, 0, 0, 0.45);
+    --shadow-strong: rgba(0, 0, 0, 0.6);
+    --scroll-thumb: rgba(236, 235, 229, 0.12);
+    --scroll-thumb-on: rgba(236, 235, 229, 0.22);
+    --scroll-thumb-hover: rgba(236, 235, 229, 0.36);
+    --stage: #121210;
+    --stage-dark: #0b0b0a;
+    --check-a: #1d1d1a;
+    --check-b: #252521;
+    --well: #2a2a26;
+    --doc-ink: #dddcd4;
+    --code-bg: #1b1b18;
+    --gutter: rgba(236, 235, 229, 0.03);
+    --diff-hunk: rgba(69, 184, 204, 0.1);
+    --diff-hunk-gutter: rgba(69, 184, 204, 0.16);
+    --diff-del: rgba(240, 122, 106, 0.1);
+    --diff-del-gutter: rgba(240, 122, 106, 0.18);
+    --diff-add: rgba(91, 189, 123, 0.1);
+    --diff-add-gutter: rgba(91, 189, 123, 0.18);
+    --term-bg: #121210;
+    --term-line: #2e2e2a;
+    --code-comment: #8f8e85;
+    --code-keyword: #d79ae3;
+    --code-string: #8fd1a6;
+    --code-number: #e3a54a;
+    --code-title: #86b8f5;
+    --code-type: #5cc8db;
+    --primary-foreground: #191917;
+    color-scheme: dark;
+   }
+}
+:root.dark { 
+    --ground: #191917;
+    --surface: #20201d;
+    --sunken: #121210;
+    --line: #31302c;
+    --ink: #ecebe5;
+    --ink-2: #cfcec6;
+    --ink-3: #a09f96;
+    --ink-4: #6f6e67;
+    --brand: #45b8cc;
+    --brand-ink: #82d2e0;
+    --brand-soft: rgba(69, 184, 204, 0.16);
+    --brand-wash: rgba(69, 184, 204, 0.07);
+    --brand-glint: #c3eef5;
+    --green: #5bbd7b;
+    --green-soft: rgba(91, 189, 123, 0.16);
+    --red: #f07a6a;
+    --red-soft: rgba(240, 122, 106, 0.16);
+    --amber: #e3a54a;
+    --amber-soft: rgba(227, 165, 74, 0.16);
+    --amber-ink: #f0c27e;
+    --hover: rgba(236, 235, 229, 0.07);
+    --shade: rgba(0, 0, 0, 0.55);
+    --raised: #24241f;
+    --shadow-line: rgba(0, 0, 0, 0.4);
+    --shadow-drop: rgba(0, 0, 0, 0.45);
+    --shadow-strong: rgba(0, 0, 0, 0.6);
+    --scroll-thumb: rgba(236, 235, 229, 0.12);
+    --scroll-thumb-on: rgba(236, 235, 229, 0.22);
+    --scroll-thumb-hover: rgba(236, 235, 229, 0.36);
+    --stage: #121210;
+    --stage-dark: #0b0b0a;
+    --check-a: #1d1d1a;
+    --check-b: #252521;
+    --well: #2a2a26;
+    --doc-ink: #dddcd4;
+    --code-bg: #1b1b18;
+    --gutter: rgba(236, 235, 229, 0.03);
+    --diff-hunk: rgba(69, 184, 204, 0.1);
+    --diff-hunk-gutter: rgba(69, 184, 204, 0.16);
+    --diff-del: rgba(240, 122, 106, 0.1);
+    --diff-del-gutter: rgba(240, 122, 106, 0.18);
+    --diff-add: rgba(91, 189, 123, 0.1);
+    --diff-add-gutter: rgba(91, 189, 123, 0.18);
+    --term-bg: #121210;
+    --term-line: #2e2e2a;
+    --code-comment: #8f8e85;
+    --code-keyword: #d79ae3;
+    --code-string: #8fd1a6;
+    --code-number: #e3a54a;
+    --code-title: #86b8f5;
+    --code-type: #5cc8db;
+    --primary-foreground: #191917;
+    color-scheme: dark;
+   }
 
 @theme inline {
   --font-sans: var(--font);

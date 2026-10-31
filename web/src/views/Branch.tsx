@@ -197,7 +197,7 @@ function BranchFile({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Branch }) 
     stage = (
       <div className="stage top">
         {text.data !== undefined ? (
-          <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 0 0 1px var(--line)', width: '100%', maxWidth: '1000px' }}><MarkdownDoc text={text.data} /></div>
+          <div className="w-full max-w-[1000px] rounded-xl bg-card ring-1 ring-border"><MarkdownDoc text={text.data} /></div>
         ) : null}
       </div>
     );

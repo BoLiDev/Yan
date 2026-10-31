@@ -12,6 +12,7 @@ import { Bar, Empty } from '../components/ui';
 import { Button } from '../components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu';
 import { queryClient } from '../state/server';
+import { useTheme } from '../state/theme';
 import { toast } from '../state/ui';
 import { useKeyNav } from './nav';
 
@@ -21,6 +22,13 @@ import { useKeyNav } from './nav';
  * come first and yan's copies after.
  */
 const MONO = '"Yan Code", "Yan Round", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+/** A terminal's colours, the theme's: dark whatever the page is, a shade darker when the page is. */
+function termTheme(): { background: string; foreground: string; cursor: string; selectionBackground: string } {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name: string): string => css.getPropertyValue(name).trim();
+  return { background: v('--term-bg'), foreground: v('--term-fg'), cursor: v('--term-fg'), selectionBackground: v('--term-selection') };
+}
 
 type Input = { keys: string[] } | { text: string } | { paste: string; enter: boolean } | { wheel: number; col: number; row: number } | { cols: number; rows: number };
 
@@ -189,7 +197,7 @@ function PaneTerm({ task, tile, agent, panes, split, paste, close }: {
     let disposed = false;
     const term = new Terminal({
       fontFamily: MONO, fontSize: 13, lineHeight: 1.15, cursorBlink: false, scrollback: 0, rightClickSelectsWord: false,
-      theme: { background: '#1b1b19', foreground: '#e3e1d9', cursor: '#e3e1d9', selectionBackground: '#4a4a44' },
+      theme: termTheme(),
     });
     const stage = el.parentElement as HTMLElement;
     // As many cells as the pane's room holds, a cell as xterm.js draws one; nothing around the terminal scrolls, so
@@ -384,6 +392,13 @@ function PaneTerm({ task, tile, agent, panes, split, paste, close }: {
       term.dispose();
     };
   }, [task, pane, agent, panes, attempt]);
+
+  // The theme changing recolours the pane where it stands.
+  const theme = useTheme();
+  useEffect(() => {
+    const t = panes.terms.get(pane);
+    if (t) t.options.theme = termTheme();
+  }, [theme, panes, pane]);
 
   const at = (n: number): string => `${n * 100}%`;
   // What is selected in the pane as its menu opens: Copy copies it, and is not offered without it.

@@ -163,7 +163,9 @@ and on the same port, and an open page reloads onto it. With the bell beside Lat
 notification when a push arrives, the task's name as its title and nothing
 else, and clicking it opens Latest on that push; the page has to be open for
 it, in the background or minimised, and Chrome's permission is asked on the
-first click. Each push's line in Latest opens to the files it brought, and
+first click. The page is light or dark as the browser asks, or as picked
+from the moon or sun beside the task list's name, kept in that browser; a
+terminal is dark either way. Each push's line in Latest opens to the files it brought, and
 the arrow at its end opens the task's overview. A file a push added or
 changed carries a dot, in its task and in Latest, until it is opened, or,
 when the push changed it while it was open, until it is clicked in; it

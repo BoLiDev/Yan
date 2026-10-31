@@ -12,6 +12,7 @@ import { NewTaskModal } from './components/NewTask';
 import { AskModal } from './components/ui';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
+import { useTheme } from './state/theme';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
@@ -159,6 +160,7 @@ function useKeys(): void {
 }
 
 export function App() {
+  const theme = useTheme();
   const left = useUI((s) => s.prefs.left);
   const index = useIndex();
   useEffect(() => connect(), []);
@@ -178,7 +180,7 @@ export function App() {
           <Icon name="panel" size={17} />
         </button>
       </div>
-      <Toaster position="bottom-center" />
+      <Toaster position="bottom-center" theme={theme} />
       <AskModal />
       <Palette />
       <NewTaskModal />

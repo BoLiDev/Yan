@@ -14,6 +14,8 @@ export interface Prefs {
   readonly left: boolean;
   /** A dark backdrop behind pictures. */
   readonly dark: boolean;
+  /** The page's own theme: the browser's, or light or dark whatever the browser says. */
+  readonly theme: 'system' | 'light' | 'dark';
   readonly layout: 'unified' | 'split';
   /** The width a page is drawn at. */
   readonly width: 'fit' | '1280' | '390';
@@ -115,7 +117,7 @@ function save(key: string, value: unknown): void {
   }
 }
 
-const DEFAULT_PREFS: Prefs = { left: true, dark: false, layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false };
+const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false };
 
 /** What this browser kept of the marks, read once: the first index decides what a first visit starts from. */
 export const storedSeen: unknown = load(SEEN_KEY, null);
