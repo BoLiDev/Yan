@@ -385,8 +385,11 @@ button.update-tile:hover { filter: brightness(.95); }
 .term-stop:hover { background: #f6dedb; }
 .term-stop.sure { background: var(--red); color: #fff; }
 
-/* The agent's tab, each pane where herdr's split puts it, a line where one meets another. */
-.term-tiles { position: relative; flex: 1 1 auto; min-height: 0; background: #1b1b19; }
+/* The agent's tab, each pane where herdr's split puts it, a line where one meets another. The light lines that edge
+   the page's columns, the bar's foot and the task list's side, would frame the dark tab, so it is drawn over the one
+   and the bar above it has none. */
+.term-tiles { position: relative; flex: 1 1 auto; min-height: 0; margin-left: -1px; background: #1b1b19; }
+.bar:has(+ .term-tiles) { border-bottom-color: transparent; }
 .term-stage { position: absolute; overflow: hidden; background: #1b1b19; padding: 8px 10px; }
 .term-stage.left { border-left: 1px solid #3a3a37; }
 .term-stage.top { border-top: 1px solid #3a3a37; }
