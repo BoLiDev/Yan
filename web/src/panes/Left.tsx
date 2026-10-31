@@ -124,8 +124,7 @@ export function Left() {
   const top = (
     <>
       <div className="brand">
-        <b>yan</b>
-        <span className="vault-chip" title={index?.vault.dir}>{index?.vault.name ?? ''}</span>
+        <b title={index ? `${index.vault.name} · ${index.vault.dir}` : undefined}>yan</b>
         <UpdateYan />
         <span className="grow" />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
