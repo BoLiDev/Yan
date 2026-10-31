@@ -548,6 +548,16 @@ describe('an agent in a herdr pane on yan serve', () => {
   });
 });
 
+describe('yan updated from yan serve', () => {
+  it('lets only its own page start an update, and counts what its clone is behind', async () => {
+    const start = (origin: string) => fetch(page('/api/yan/update'), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: '{}' });
+    expect((await start('http://evil.example')).status).toBe(403);
+    expect(await (await fetch(page('/api/yan/update'))).json()).toMatchObject({ running: false, error: null });
+    // yan's folder here is the vault's clone too, level with its origin.
+    expect(await (await fetch(page('/api/yan/updates'))).json()).toEqual({ behind: 0 });
+  });
+});
+
 describe('a yan serve left running while yan is updated', () => {
   const build = async (): Promise<string | undefined> => {
     try {

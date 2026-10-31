@@ -10,6 +10,7 @@ const STROKE = {
   up: '<path d="m6 15 6-6 6 6"/>',
   go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   grip: '<path d="M9 6h0M15 6h0M9 12h0M15 12h0M9 18h0M15 18h0"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   terminal: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15H17"/>',
   prev: '<path d="m15 6-6 6 6 6"/>',
   next: '<path d="m9 6 6 6-6 6"/>',

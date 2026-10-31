@@ -255,7 +255,10 @@ how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
-closing them all once any is open. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
+closing them all once any is open. The update chip beside yan's name says
+how many commits yan's own clone is behind and takes them: it pulls, runs
+`npm install` and `npm run build` there, showing each step, and serve
+restarts on the new build, the page reloading with it. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
 off a Mac, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there, and of
 tasks that match as well one in UAT first, then in progress, then done,

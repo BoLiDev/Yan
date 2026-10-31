@@ -5,6 +5,7 @@ import { link, useRoute } from '../lib/route';
 import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Pane, PushTags, Tool } from '../components/ui';
+import { UpdateYan } from '../components/Update';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
@@ -125,6 +126,7 @@ export function Left() {
       <div className="brand">
         <b>yan</b>
         <span className="vault-chip" title={index?.vault.dir}>{index?.vault.name ?? ''}</span>
+        <UpdateYan />
         <span className="grow" />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>

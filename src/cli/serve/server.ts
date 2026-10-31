@@ -12,6 +12,7 @@ import { gitAsync } from './blobs.js';
 import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtasks } from './report.js';
 import { noAgentPage } from './no-agent.js';
 import { Terminals } from './terminal.js';
+import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
@@ -184,6 +185,7 @@ export class YanServer {
   private readonly branches: Branches;
   private readonly thumbs = new Thumbs();
   private readonly terminals: Terminals;
+  private readonly updater: Updater;
   /** The sha256 of each blob of uat/ a report was checked against, by its git sha. */
   private readonly hashes = new Map<string, string>();
   /** The last few reports as the page is sent them, and the pictures taken out of each, by report.html's blob. */
@@ -205,6 +207,7 @@ export class YanServer {
   public constructor(private readonly options: ServeOptions) {
     this.view = new VaultView(options.vaultDir);
     this.terminals = new Terminals(options.vaultDir);
+    this.updater = new Updater(options.home, () => this.restartOnBuild());
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
     this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home) };
@@ -278,6 +281,19 @@ export class YanServer {
         .catch(() => undefined)
         .finally(() => this.schedule());
     }, this.options.everyS * 1000);
+  }
+
+  /**
+   * Restart now on the build in `home`, made whole by the page's update:
+   * one other than the running one, which starts.
+   */
+  private restartOnBuild(): 'restarting' | 'same' | 'broken' {
+    const now = buildPrint(this.options.home);
+    if (now === '' || now === this.status.build) return 'same';
+    if (this.options.onNewBuild === undefined || !buildLoads(this.options.home)) return 'broken';
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.options.onNewBuild();
+    return 'restarting';
   }
 
   /**
@@ -373,6 +389,11 @@ export class YanServer {
       await this.tick();
       return json(res, this.status);
     }
+    // yan updating itself: only the page may start it.
+    if (req.method === 'POST' && p === '/api/yan/update') {
+      if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may update yan');
+      return this.updater.start() ? json(res, this.updater.now) : send(res, 409, 'an update is running');
+    }
     // What is typed into an agent's terminal: not the vault's, so nothing is committed, but only the page may send it.
     if (req.method === 'POST' && p === '/api/terminal/input') {
       if (!originOk(req, this.port)) return send(res, 403, 'only yan serve\'s own page may type into a terminal');
@@ -405,6 +426,8 @@ export class YanServer {
     }
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
+    if (p === '/api/yan/updates') return json(res, await this.updater.behind());
+    if (p === '/api/yan/update') return json(res, this.updater.now);
     if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', q, req, res);
     if (p === '/api/index') {
       return json(res, {
