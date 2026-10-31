@@ -8,7 +8,12 @@ import { Bar, Empty } from '../components/ui';
 import { toast } from '../state/ui';
 import { useKeyNav } from './nav';
 
-const MONO = '"Yan Code", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+/**
+ * The terminal's face, as a terminal set up for yan's page has it: 0xProto (its Nerd Font build when installed) for
+ * Latin, ChillRound (寒蝉圆体) for Chinese, which 0xProto has none of; the page's own faces, so installed copies
+ * come first and yan's copies after.
+ */
+const MONO = '"Yan Code", "Yan Round", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 
 let sending: Promise<void> = Promise.resolve();
 
@@ -129,17 +134,38 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
     el.addEventListener('paste', onPaste, true);
 
     let source: EventSource | undefined;
+    // A frame is herdr's picture at the size it was made for: a full one draws it all, any other only what changed
+    // since the last. One made for a size the pane no longer has, on its way while the pane was sized anew (as
+    // when DevTools' edge is dragged), laid on the new size would leave stale lines behind it. So the terminal takes
+    // its size from the frames alone; after asking for a size, frames are let pass until herdr's full one for it comes,
+    // which it sends after every resize, asked for again if it is slow; and a full one clears the screen first.
+    let asked: { cols: number; rows: number } | undefined;
+    let waitingSince: number | undefined;
+    const ask = (size: { cols: number; rows: number }): void => {
+      asked = size;
+      waitingSince = Date.now();
+      send(t.id, size);
+    };
+    const draw = (frame: { width: number; height: number; full: boolean; bytes: string }): void => {
+      if (!frame.full) {
+        const stale = frame.width !== term.cols || frame.height !== term.rows;
+        if (waitingSince === undefined && !stale) return term.write(Uint8Array.from(atob(frame.bytes), (c) => c.charCodeAt(0)));
+        if (waitingSince === undefined || Date.now() - waitingSince > 2000) ask(fits() ?? asked ?? { cols: term.cols, rows: term.rows });
+        return;
+      }
+      waitingSince = undefined;
+      if (frame.width > 0 && frame.height > 0 && (frame.width !== term.cols || frame.height !== term.rows)) term.resize(frame.width, frame.height);
+      term.write('\x1b[H\x1b[2J');
+      term.write(Uint8Array.from(atob(frame.bytes), (c) => c.charCodeAt(0)));
+    };
     const connect = (): void => {
       const size = fits();
       if (disposed || source !== undefined || size === undefined || document.visibilityState === 'hidden') return;
-      term.resize(size.cols, size.rows);
+      asked = size;
+      waitingSince = Date.now();
       const s = new EventSource(`/api/terminal/stream?task=${encodeURIComponent(t.id)}&cols=${size.cols}&rows=${size.rows}`);
       source = s;
-      s.onmessage = (m) => {
-        const frame = JSON.parse(m.data as string) as { width: number; height: number; bytes: string };
-        if (frame.width > 0 && frame.height > 0 && (frame.width !== term.cols || frame.height !== term.rows)) term.resize(frame.width, frame.height);
-        term.write(Uint8Array.from(atob(frame.bytes), (c) => c.charCodeAt(0)));
-      };
+      s.onmessage = (m) => draw(JSON.parse(m.data as string) as { width: number; height: number; full: boolean; bytes: string });
       s.addEventListener('closed', (m) => {
         s.close();
         if (source === s) source = undefined;
@@ -160,7 +186,8 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
     };
     document.addEventListener('visibilitychange', onShown);
 
-    void document.fonts.load(`13px ${MONO}`).finally(() => {
+    // Both faces loaded before xterm.js measures its cells, the Chinese one by a character it is needed for.
+    void Promise.all([document.fonts.load('13px "Yan Code"'), document.fonts.load('13px "Yan Round"', '中')]).finally(() => {
       if (disposed) return;
       term.open(el);
       typing.current = term;
@@ -169,15 +196,20 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       connect();
     });
 
-    // The column changing, as DevTools opening beside it, sizes the pane anew, once it has settled.
+    // The column changing, as DevTools opening beside it, sizes the pane anew, once it has settled; and once it has
+    // stopped, herdr is asked for one more full redraw at that size, so nothing a drag left behind outlasts it.
     let settling: number | undefined;
+    let settled: number | undefined;
     const sized = new ResizeObserver(() => {
       window.clearTimeout(settling);
+      window.clearTimeout(settled);
       settling = window.setTimeout(() => {
         const size = fits();
-        if (size === undefined || (size.cols === term.cols && size.rows === term.rows)) return;
-        term.resize(size.cols, size.rows);
-        if (source !== undefined) send(t.id, size);
+        if (size === undefined || source === undefined || (size.cols === asked?.cols && size.rows === asked.rows)) return;
+        ask(size);
+        settled = window.setTimeout(() => {
+          if (source !== undefined && asked !== undefined) ask(asked);
+        }, 600);
       }, 120);
     });
     sized.observe(stage);
@@ -189,6 +221,7 @@ export function TerminalView({ t, state }: { t: TaskSummary; state: TerminalStat
       sized.disconnect();
       document.removeEventListener('visibilitychange', onShown);
       window.clearTimeout(settling);
+      window.clearTimeout(settled);
       el.removeEventListener('paste', onPaste, true);
       stage.removeEventListener('wheel', onWheel);
       window.clearTimeout(flush);

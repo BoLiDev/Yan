@@ -219,7 +219,8 @@ sizes the pane to its column, as a terminal window does, so the agent
 fills it, and sizes it anew as the column changes, DevTools opening beside
 it among the rest; while the page is seen, herdr's own window shows that
 pane at the page's size, and has it back as soon as the page is left or
-hidden. The wheel anywhere over it goes to the pane, as herdr turns it in
+hidden. Its text is in 0xProto (the Nerd Font build when installed) and its
+Chinese in ChillRound, the page's own faces. The wheel anywhere over it goes to the pane, as herdr turns it in
 its own window. What is typed in it goes to the pane as typed, keys herdr
 names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
 as one, and what an IME is composing stays the IME's, so the Enter that
