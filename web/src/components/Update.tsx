@@ -123,7 +123,8 @@ export function UpdateCard() {
       <div ref={inner} className={`update-inner ${card.is}`}>
         <div className="update-row" key={card.is}>
           <span className={`update-icon ${tone}`}>{icon}</span>
-          <span className="update-words">
+          {/* An update's step goes beside its title, on one line; yan's commit goes under yan. */}
+          <span className={'update-words' + (card.is === 'updating' ? ' beside' : '')}>
             <b>{title}</b>
             {sub ? <span className={card.is === 'updating' ? tone : undefined}>{sub}</span> : null}
           </span>

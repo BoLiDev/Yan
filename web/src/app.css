@@ -198,6 +198,7 @@ img { -webkit-user-drag: none; }
 .update-words { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 17px; }
 .update-words b { font-size: 13px; color: var(--ink); }
 .update-words span { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.update-words.beside { flex-direction: row; align-items: center; gap: 8px; }
 .update-words span.on { color: var(--accent-ink); }
 .update-words span.ok { color: var(--green); }
 .update-words span.bad { color: var(--red); }
