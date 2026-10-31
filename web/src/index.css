@@ -306,6 +306,25 @@
   @supports not selector(::-webkit-scrollbar) {
     * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb-on) transparent; }
   }
+
+  /* Code colours: highlight.js's classes, in the page's own inks. What it writes, in a file, a diff
+     or a fence in markdown alike, has no element a utility could go on, so its classes are named here.
+     Punctuation, operators and plain names stay in ink, so a line is mostly ink with its keywords,
+     strings and names picked out; a key (JSON, an object literal, an HTML attribute, a CSS property)
+     is a name, and blue like one. */
+  .hljs-comment, .hljs-quote { color: var(--code-comment); }
+  .hljs-keyword, .hljs-selector-tag, .hljs-template-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-name { color: var(--code-keyword); }
+  .hljs-string, .hljs-regexp, .hljs-char.escape_, .hljs-selector-attr, .hljs-selector-pseudo { color: var(--code-string); }
+  .hljs-number, .hljs-literal, .hljs-symbol, .hljs-link, .hljs-bullet { color: var(--code-number); }
+  .hljs-title, .hljs-title.function_, .hljs-section, .hljs-selector-id, .hljs-selector-class { color: var(--code-title); }
+  .hljs-title.class_, .hljs-type, .hljs-built_in, .hljs-variable.language_, .hljs-template-variable { color: var(--code-type); }
+  .hljs-attr, .hljs-attribute { color: var(--code-title); }
+  .hljs-property, .hljs-variable, .hljs-params, .hljs-subst, .hljs-punctuation, .hljs-operator { color: inherit; }
+  .hljs-meta { color: var(--code-comment); }
+  .hljs-addition { color: var(--green); }
+  .hljs-deletion { color: var(--red); }
+  .hljs-emphasis { font-style: italic; }
+  .hljs-strong { font-weight: 700; }
 }
 
 /* Asked for less motion, nothing on the page moves to get where it goes. */

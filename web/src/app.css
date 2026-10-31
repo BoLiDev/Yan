@@ -348,22 +348,6 @@ audio { width: min(560px, 100%); }
   box-shadow: 0 0 0 1px var(--shadow-line), 0 12px 32px var(--shadow-drop);
 }
 
-/* code colours: highlight.js's classes, in the page's own inks. Punctuation, operators and
-   plain names stay in ink, so a line is mostly ink with its keywords, strings and names picked out;
-   a key (JSON, an object literal, an HTML attribute, a CSS property) is a name, and blue like one. */
-.hljs-comment, .hljs-quote { color: var(--code-comment); }
-.hljs-keyword, .hljs-selector-tag, .hljs-template-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-name { color: var(--code-keyword); }
-.hljs-string, .hljs-regexp, .hljs-char.escape_, .hljs-selector-attr, .hljs-selector-pseudo { color: var(--code-string); }
-.hljs-number, .hljs-literal, .hljs-symbol, .hljs-link, .hljs-bullet { color: var(--code-number); }
-.hljs-title, .hljs-title.function_, .hljs-section, .hljs-selector-id, .hljs-selector-class { color: var(--code-title); }
-.hljs-title.class_, .hljs-type, .hljs-built_in, .hljs-variable.language_, .hljs-template-variable { color: var(--code-type); }
-.hljs-attr, .hljs-attribute { color: var(--code-title); }
-.hljs-property, .hljs-variable, .hljs-params, .hljs-subst, .hljs-punctuation, .hljs-operator { color: inherit; }
-.hljs-meta { color: var(--code-comment); }
-.hljs-addition { color: var(--green); }
-.hljs-deletion { color: var(--red); }
-.hljs-emphasis { font-style: italic; }
-.hljs-strong { font-weight: 700; }
 
 /* diffs */
 .diff-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px 20px 48px; background: var(--code-bg); }
