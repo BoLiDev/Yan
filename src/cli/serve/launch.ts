@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, createTab, sendText, serverOf } from '../../externals/herdr/index.js';
+import { CONTROL_SINCE, atLeast, createTab, readPane, sendText, serverOf } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
@@ -34,6 +34,26 @@ interface Launch {
 
 /** A word for the shell as sh, bash, zsh and fish all read it back as it was: as it is when nothing in it is the shell's, else in single quotes. */
 const quoted = (word: string): string => (/^[\w./:@%+=,-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`);
+
+/**
+ * Until the new tab's shell has drawn something and gone still: the shell
+ * draws its prompt as it starts reading the terminal, and what is typed
+ * before it does, the terminal echoes, then the shell draws again, so the
+ * command would show twice. Typed anyway after a few seconds.
+ */
+async function shellReady(socket: string, pane: string, still = 300, most = 5000): Promise<void> {
+  const end = Date.now() + most;
+  let seen = -1;
+  let since = Date.now();
+  while (Date.now() < end) {
+    const now = await readPane(socket, pane).catch(() => undefined);
+    if (now !== undefined && now.text.trim() !== '') {
+      if (now.revision !== seen) [seen, since] = [now.revision, Date.now()];
+      else if (Date.now() - since >= still) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
 
 export class Launches {
   private readonly launched = new Map<string, Launch>();
@@ -115,6 +135,7 @@ export class Launches {
       // The shell starts where bare `yan` typed by hand would, and in the vault serve shows, whichever is this machine's own.
       const pane = await createTab(herdr.socket, { cwd: homedir(), label: title, env: { YAN_VAULT: this.vault } });
       const words = [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), ...args];
+      await shellReady(herdr.socket, pane);
       await sendText(herdr.socket, pane, `${words.map(quoted).join(' ')}\r`);
       this.launched.set(key, { socket: herdr.socket, bin, pane, title, since: new Date().toISOString() });
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ launch: key }));

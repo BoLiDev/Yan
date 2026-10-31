@@ -461,6 +461,7 @@ describe('an agent in a herdr pane on yan serve', () => {
             : req.method === 'pane.layout' ? { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p2', rect: { width: 100, height: 30 } }] } }
               : req.method === 'layout.export' ? { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: 'w1:t1', zoomed: false, focused_pane_id: 'w1:p2', root: tab } }
                 : req.method === 'pane.split' ? { type: 'pane_info', pane: { pane_id: 'w1:p4', agent_status: 'unknown' } }
+                  : req.method === 'pane.read' ? { type: 'pane_read', read: { pane_id: req.params.pane_id, text: '~ ❯ ', revision: 4 } }
                   : { type: 'ok' };
         conn.end(`${JSON.stringify(result === undefined ? { id: req.id, error: { code: 'not_found', message: 'pane not found' } } : { id: req.id, result })}\n`);
       });
@@ -592,6 +593,8 @@ describe('an agent in a herdr pane on yan serve', () => {
     expect(started.status).toBe(200);
     const { launch } = (await started.json()) as { launch: string };
     expect(launch).toMatch(/^new-[0-9a-f]{8}$/);
+    expect(asked.some((a) => a.method === 'pane.read'), 'the shell waited for before typing').toBe(true);
+    asked.splice(0, asked.length, ...asked.filter((a) => a.method !== 'pane.read'));
     expect(asked[0]).toEqual({ method: 'tab.create', params: { cwd: homedir(), label: "pay's retries", env: { YAN_VAULT: home }, focus: false } });
     expect(asked[1]?.method).toBe('pane.send_text');
     expect(asked[1]?.params.pane_id).toBe('w1:p9');
@@ -623,6 +626,7 @@ describe('an agent in a herdr pane on yan serve', () => {
     asked.length = 0;
     const went = await post('/api/launch', { task: 't007' });
     expect(await went.json()).toEqual({ launch: 't007' });
+    asked.splice(0, asked.length, ...asked.filter((a) => a.method !== 'pane.read'));
     expect(asked[0]).toMatchObject({ method: 'tab.create', params: { label: 'go on', focus: false } });
     expect(asked[1]?.params.text, 'bare yan given the task to go on with').toMatch(/yan\.mjs --task t007\r$/);
     const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { pane: string; cli: string; title?: string }>;

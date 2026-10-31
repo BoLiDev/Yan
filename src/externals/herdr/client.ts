@@ -128,6 +128,12 @@ export async function layoutOf(socket: string, pane: string): Promise<Layout> {
   return layoutFrom((await call<{ layout: { root: LayoutNode } }>(socket, 'layout.export', { pane_id: pane })).layout.root);
 }
 
+/** What `pane` shows, as text, and herdr's count of its changes, which moves with each. */
+export async function readPane(socket: string, pane: string): Promise<{ text: string; revision: number }> {
+  const { read } = await call<{ read: { text: string; revision: number } }>(socket, 'pane.read', { pane_id: pane, source: 'visible' });
+  return { text: read.text, revision: read.revision };
+}
+
 /** The tab `pane` is in. */
 export async function tabOf(socket: string, pane: string): Promise<string> {
   return (await call<{ layout: { tab_id: string } }>(socket, 'layout.export', { pane_id: pane })).layout.tab_id;

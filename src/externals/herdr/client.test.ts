@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:net';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { atLeast, closePane, controlCommand, createTab, herdrPane, layoutOf, paneOf, panesIn, sendInput, sendKeys, serverOf, splitPane, versionOf } from './client.js';
+import { atLeast, closePane, closeTab, controlCommand, createTab, herdrPane, layoutOf, paneOf, panesIn, readPane, sendInput, sendKeys, serverOf, splitPane, tabOf, versionOf } from './client.js';
 
 afterAll(cleanupTempDirs);
 
@@ -108,6 +108,22 @@ describe('herdr', () => {
     servers.push(h.server);
     expect(await createTab(h.socket, { cwd: '/home/u', label: 'pay retries', env: { YAN_VAULT: '/v' } })).toBe('w1:p9');
     expect(h.asked).toEqual([{ method: 'tab.create', params: { cwd: '/home/u', label: 'pay retries', env: { YAN_VAULT: '/v' }, focus: false } }]);
+  });
+
+  it('reads what a pane shows, and closes the tab it is in', async () => {
+    const h = await fakeHerdr((method) =>
+      method === 'pane.read' ? { result: { type: 'pane_read', read: { pane_id: 'w1:p9', tab_id: 'w1:t4', text: '~ ❯ ', revision: 7, truncated: false } } }
+        : method === 'layout.export' ? { result: { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: 'w1:t4', zoomed: false, focused_pane_id: 'w1:p9', root: { type: 'pane', pane_id: 'w1:p9' } } } }
+          : { result: { type: 'ok' } });
+    servers.push(h.server);
+    expect(await readPane(h.socket, 'w1:p9')).toEqual({ text: '~ ❯ ', revision: 7 });
+    expect(await tabOf(h.socket, 'w1:p9')).toBe('w1:t4');
+    await closeTab(h.socket, 'w1:t4');
+    expect(h.asked).toEqual([
+      { method: 'pane.read', params: { pane_id: 'w1:p9', source: 'visible' } },
+      { method: 'layout.export', params: { pane_id: 'w1:p9' } },
+      { method: 'tab.close', params: { tab_id: 'w1:t4' } },
+    ]);
   });
 
   it('says herdr\'s own error, and that nothing answers where nothing listens', async () => {
