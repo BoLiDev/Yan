@@ -1,4 +1,4 @@
-import type { TaskState } from '../lib/api';
+import { stateOf, type TaskState } from '../lib/api';
 
 const STROKE = {
   latest: '<path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M6.5 5h11L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z"/>',
@@ -71,6 +71,7 @@ export function AntIcon({ name, size = 14 }: { name: AntIconName; size?: number 
   return <svg width={size} height={size} viewBox="64 64 896 896" aria-hidden="true" fill="currentColor"><path d={ANT[name]} /></svg>;
 }
 
-export function StateIcon({ state, size = 16 }: { state: TaskState; size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" style={{ flex: 'none' }} dangerouslySetInnerHTML={{ __html: STATES[state] ?? STATES.open }} />;
+/** A task's state as a mark; one this page does not know is drawn as open. */
+export function StateIcon({ state, size = 16 }: { state: string; size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" style={{ flex: 'none' }} dangerouslySetInnerHTML={{ __html: STATES[stateOf(state)] }} />;
 }

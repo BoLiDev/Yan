@@ -4,6 +4,7 @@ import { forgeOf, forgePage } from '../shared/forge.js';
 import type { ProcessResult } from '../../util/process.js';
 import { BlobReader, gitAsync } from './blobs.js';
 import { mergeTaking, namedMergeHead, namingArgs, takingArgs } from '../shared/merged.js';
+import type { BranchFile, BranchView } from './wire.js';
 
 /**
  * A task's branch, as `yan serve` shows it: what it changes against the
@@ -26,49 +27,7 @@ const OWN = 'refs/yan/serve/heads/';
 /** Large enough for any file a person reads; a patch longer than this is cut. */
 export const PATCH_LIMIT = 2_000_000;
 
-export interface BranchCommit {
-  readonly sha: string;
-  readonly at: number;
-  readonly author: string;
-  readonly subject: string;
-}
-
-export interface BranchFile {
-  readonly path: string;
-  /** Where a renamed file came from. */
-  readonly from: string | null;
-  /** A, M, D, R, C, T. */
-  readonly status: string;
-  /** null for a binary file. */
-  readonly add: number | null;
-  readonly del: number | null;
-}
-
-export interface BranchView {
-  readonly repo: string;
-  readonly url: string;
-  readonly branch: string;
-  readonly clone: string | null;
-  /** Why there is nothing more to show; null when there is. */
-  readonly missing: string | null;
-  readonly fetchedAt: number | null;
-  readonly fetchError: string | null;
-  readonly target: string;
-  readonly base: string;
-  readonly head: string;
-  readonly merged: { readonly sha: string; readonly at: number; readonly pr: number | null } | null;
-  readonly ahead: number;
-  readonly behind: number;
-  readonly links: {
-    readonly pr: string | null;
-    readonly compare: string | null;
-    readonly branch: string | null;
-    /** Where a commit and a file of the repository open on its forge, `{sha}`, `{ref}` and `{path}` to fill in; null for a forge yan cannot tell. */
-    readonly forge: { readonly name: string; readonly commit: string; readonly blob: string } | null;
-  };
-  readonly commits: readonly BranchCommit[];
-  readonly files: readonly BranchFile[];
-}
+export type { BranchCommit, BranchFile, BranchView } from './wire.js';
 
 /** A branch name safe to put in a refspec and on a command line. */
 export function isBranchName(name: string): boolean {

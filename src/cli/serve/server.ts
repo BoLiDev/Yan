@@ -18,6 +18,7 @@ import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
+import type { BranchBlob, CommitPatch, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
 import { buildLoads, buildPrint } from './build.js';
 
 /**
@@ -56,19 +57,8 @@ export interface ServeOptions {
   readonly onNewBuild?: () => void;
 }
 
-interface Status {
-  version: number;
-  commit: string | null;
-  checkedAt: number | null;
-  pulledAt: number | null;
-  ok: boolean;
-  error: string | null;
-  everyS: number;
-  /** The vault has no origin, so nothing is fetched. */
-  local: boolean;
-  /** Which yan is serving, from `buildPrint`: a page loaded from another reloads itself. */
-  build: string;
-}
+/** The status the page is sent, kept here and moved on each tick. */
+type Status = { -readonly [K in keyof WireStatus]: WireStatus[K] };
 
 /** Something the page asks serve to do with a POST. */
 interface Post {
@@ -472,7 +462,7 @@ export class YanServer {
         status: this.status,
         vault: { name: this.options.vaultName, dir: this.options.vaultDir, fileLink: this.fileLink ?? null, source: sourceRules(await this.vaultConfig()) },
         filesOrigin: this.filesOrigin,
-      });
+      } satisfies Index);
     }
     const task = /^\/api\/task\/([\w.-]+)$/.exec(p);
     if (task !== null) {
@@ -487,7 +477,7 @@ export class YanServer {
     }
     if (p === '/api/report') {
       const report = await this.report(q.get('task') ?? '');
-      return report === undefined ? send(res, 404, 'that task has no report') : json(res, { ...report, html: withoutSubtasks((await this.light(report.sha)).html) });
+      return report === undefined ? send(res, 404, 'that task has no report') : json(res, { ...report, html: withoutSubtasks((await this.light(report.sha)).html) } satisfies Report);
     }
     if (p === '/api/report/download') {
       const id = q.get('task') ?? '';
@@ -587,7 +577,7 @@ export class YanServer {
   private async save(res: ServerResponse, message: string): Promise<void> {
     const warning = await saveOffThread(this.options.vaultDir, message);
     await this.tick();
-    json(res, { ok: true, warning, status: this.status });
+    json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
   }
 
   /**
@@ -812,7 +802,7 @@ export class YanServer {
       ]);
       if (head.code !== 0) return send(res, 404, 'no such commit');
       const [full = c, at = '0', author = '', subject = '', body = ''] = head.stdout.split('\x1f');
-      return json(res, { sha: full, at: Number(at), author, subject, body: body.trim(), patch: patch.stdout, truncated: patch.truncated === true });
+      return json(res, { sha: full, at: Number(at), author, subject, body: body.trim(), patch: patch.stdout, truncated: patch.truncated === true } satisfies CommitPatch);
     }
     if (p === '/api/branch/tree') {
       const head = sha('head');
@@ -826,7 +816,7 @@ export class YanServer {
           return tab < 0 || type !== 'blob' ? undefined : { path: line.slice(tab + 1), sha: s, size: Number(size) || 0 };
         })
         .filter((f) => f !== undefined);
-      return json(res, files);
+      return json(res, files satisfies BranchBlob[]);
     }
     if (p === '/api/branch/blob') {
       const s = sha('sha');

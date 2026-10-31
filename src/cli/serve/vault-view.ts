@@ -4,6 +4,7 @@ import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { BRANCH_MARKS, branchMark, type BranchMark } from '../../records/task/index.js';
 import { BlobReader, gitAsync } from './blobs.js';
+import type { ArtifactFile, Deliverable, LogEntry, Push, TaskDetail, TaskSummary } from './wire.js';
 
 /**
  * The vault as `yan serve` shows it: every task at one commit, and when each
@@ -39,83 +40,8 @@ interface FileTimes {
   commit: string;
 }
 
-/** One artifact, its path from the task's `artifacts/`. */
-export interface ArtifactFile {
-  readonly path: string;
-  readonly sha: string;
-  readonly size: number;
-  readonly added: number;
-  readonly changed: number;
-  readonly commit: string;
-}
-
-export interface TaskSummary {
-  readonly id: string;
-  /** "" when task.json cannot be read. */
-  readonly title: string;
-  readonly state: string;
-  readonly createdAt: string | null;
-  readonly closedAt: string | null;
-  readonly repos: readonly { readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[] }[];
-  readonly deliverables: { readonly done: number; readonly todo: number; readonly abandoned: number };
-  /** Its agents running elsewhere, as on a cloud platform: its run resources that are web links, by name, the last kept first. */
-  readonly agents: readonly (readonly [string, string])[];
-  readonly artifacts: number;
-  /** When each shown artifact was added, newest first: the page counts what is new against its own last visit. */
-  readonly added: readonly number[];
-  /** The newest commit that touched anything of the task's. */
-  readonly touched: number;
-  /**
-   * Its files as they are now, every path and sha hashed: what the page
-   * reloads a task by, so a push to one task leaves the others as they are.
-   */
-  readonly rev: string;
-}
-
-export interface Push {
-  readonly task: string;
-  /** The newest commit's time. */
-  readonly at: number;
-  /**
-   * A deleted file has no sha: there is nothing left to show. `at` is the
-   * newest commit of the push that touched it, so a file looked at stays seen
-   * when later commits join its push.
-   */
-  readonly files: readonly { readonly path: string; readonly sha: string; readonly status: 'A' | 'M' | 'D'; readonly at: number }[];
-}
-
-export interface Deliverable {
-  readonly id: string;
-  readonly text: string;
-  readonly status: string;
-  readonly doneAt: string | null;
-  readonly reason: string | null;
-}
-
-export interface LogEntry {
-  readonly day: string;
-  readonly type: string;
-  readonly text: string;
-}
-
-export interface TaskDetail {
-  readonly id: string;
-  readonly title: string;
-  readonly state: string;
-  readonly createdAt: string | null;
-  readonly closedAt: string | null;
-  readonly reason: string | null;
-  readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[]; readonly bases: Readonly<Record<string, string>> }[];
-  readonly deliverables: readonly Deliverable[];
-  readonly resources: readonly (readonly [string, string])[];
-  /** Each resource's kind by its name, as task.json keeps them; one with none is general. */
-  readonly resourceKinds: Readonly<Record<string, string>>;
-  readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
-  readonly log: { readonly sha: string; readonly entries: readonly LogEntry[]; readonly changed: number } | null;
-  readonly files: readonly ArtifactFile[];
-  /** What is kept out of the tree, by the folder or file that hides it. */
-  readonly hidden: readonly { readonly name: string; readonly count: number }[];
-}
+// What the page is sent of the vault: the wire's shapes, named here too for whoever builds them.
+export type { ArtifactFile, Deliverable, LogEntry, Push, TaskDetail, TaskSummary } from './wire.js';
 
 /**
  * Folders nobody opens to look at: a browser profile a test left behind,

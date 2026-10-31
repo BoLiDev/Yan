@@ -1,10 +1,11 @@
 import { createInterface } from 'node:readline';
 import type { ChildProcess } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, closePane, closeTab, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, tabOf, versionOf, type AgentStatus, type Layout } from '../../externals/herdr/index.js';
+import { CONTROL_SINCE, atLeast, closePane, closeTab, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, tabOf, versionOf, type Layout } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { letTerminalGo, terminalsOf, type HeldTerminal } from '../../util/machine.js';
 import type { Launches } from './launch.js';
+import type { TerminalState } from './wire.js';
 
 /**
  * The terminals the page shows: each task's agent that bare `yan` started in
@@ -28,23 +29,7 @@ import type { Launches } from './launch.js';
  */
 
 /** What the page is told of a task's terminal. */
-export interface TerminalState {
-  readonly status: AgentStatus;
-  /** The agent herdr finds in the pane, as `claude`; null once it has exited and the pane is a shell again. */
-  readonly agent: string | null;
-  /** The CLI bare `yan` started. */
-  readonly cli: string;
-  readonly pane: string;
-  readonly since: string;
-  /** herdr's version, and whether it streams a pane (`CONTROL_SINCE`). */
-  readonly herdr: string;
-  readonly streams: boolean;
-  /** The agent's tab, as herdr has it split: its pane alone, or it and the panes split off beside it. */
-  readonly layout: Layout;
-  /** A launch's: the new task's title, and the task once bare `yan` keeps the pane as its terminal. */
-  readonly title?: string;
-  readonly task?: string;
-}
+export type { TerminalState } from './wire.js';
 
 /**
  * A mouse wheel, as a terminal reports it to a program that asked for the

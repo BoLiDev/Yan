@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import type { Deliverable, DeliverableStatus, Report } from '../lib/api';
+import { statusOf, type Deliverable, type DeliverableStatus, type Report } from '../lib/api';
 import { VIDEO, ext } from '../lib/files';
 import { clock, dayOf, fromIso } from '../lib/format';
 
@@ -263,7 +263,7 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
   // The deliverables: ticked, unticked and given up here, shown as task.json has them now.
   // A click shows its result at once, counts included: the page is told again only once the
   // vault is committed and pushed, which can take seconds.
-  const state = new Map<string, DeliverableStatus>(ds.map((x) => [x.id, x.status]));
+  const state = new Map<string, DeliverableStatus>(ds.map((x) => [x.id, statusOf(x.status)]));
   const live = new Set(ds.map((x) => x.id));
   const progress = shell.querySelector('[data-yan-progress]');
   // Progress is done out of what is to be delivered, the ones given up left out of both.
@@ -343,11 +343,11 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
     },
     setDeliverables(next) {
       state.clear();
-      for (const x of next) state.set(x.id, x.status);
+      for (const x of next) state.set(x.id, statusOf(x.status));
       const byId = new Map(next.map((x) => [x.id, x]));
       for (const node of shell.querySelectorAll<HTMLElement>('[data-yan-d]')) {
         const now = byId.get(node.dataset.yanD as string);
-        if (now) show(node, now.id, now.status, now.reason);
+        if (now) show(node, now.id, statusOf(now.status), now.reason);
       }
       recount();
     },

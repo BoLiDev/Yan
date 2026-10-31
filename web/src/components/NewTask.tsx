@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getJSON } from '../lib/api';
+import { getJSON, type LaunchRepo as RepoOption } from '../lib/api';
 import { link } from '../lib/route';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
 import { AntIcon } from './Icon';
 import { MultiSelect } from './MultiSelect';
-
-/** A repository a new task may work in, as serve offers it, with its packages when it has several. */
-interface RepoOption {
-  readonly name: string;
-  readonly packages: readonly string[];
-}
 
 /** A ring of dashes, turning: a task being made. */
 export const Ring = ({ size = 16 }: { size?: number }) => (

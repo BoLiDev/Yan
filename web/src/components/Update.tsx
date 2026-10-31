@@ -1,17 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { getJSON, postJSON } from '../lib/api';
+import { getJSON, postJSON, type Behind, type UpdateState as Progress } from '../lib/api';
 import { AntIcon } from './Icon';
 
-type Step = 'pull' | 'install' | 'build' | 'restart';
-type StepState = 'wait' | 'now' | 'done' | 'failed';
-interface Progress {
-  readonly running: boolean;
-  readonly steps: readonly { readonly step: Step; readonly state: StepState }[];
-  readonly error: string | null;
-}
-type Behind = { readonly behind: number } | { readonly error: string };
-
-const STEP_WORD: Readonly<Record<Step, string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
+const STEP_WORD: Readonly<Record<Progress['steps'][number]['step'], string>> = { pull: '拉取代码', install: '安装依赖', build: '构建', restart: '重启' };
 
 /** What the card is showing: nothing asked yet, a check under way, its outcome, a new version to take, or an update. */
 type Card =

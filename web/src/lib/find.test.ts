@@ -38,6 +38,12 @@ describe('finding a task', () => {
     expect(ids([task('t1', 'login page', 'abandoned'), task('t2', 'fix login', 'uat')], 'login'), 'a better match still comes first').toEqual(['t1', 't2']);
   });
 
+  it('takes a task in a state a newer yan wrote as one in progress, ranked and offered as such', () => {
+    const tasks = [task('t1', 'login', 'done', 9), task('t2', 'login', 'paused', 1), task('t3', 'login', 'open', 2)];
+    expect(ids(tasks, 'login')).toEqual(['t3', 't2', 't1']);
+    expect(findTasks(tasks, '', [], null).map((f) => `${f.group} ${f.task.id}`)).toEqual(['Open t3', 'Open t2']);
+  });
+
   it('lists, with nothing typed, the tasks visited last but the one being read, then the open ones', () => {
     const tasks = [task('t1', 'a', 'open', 1), task('t2', 'b', 'open', 5), task('t3', 'c', 'done'), task('t4', 'd', 'uat', 3)];
     const found = findTasks(tasks, '  ', ['t1', 't3', 't2'], 't1');

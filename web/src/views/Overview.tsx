@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { postJSON, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
+import { postJSON, stateOf, statusOf, type TaskDetail, type TaskState, type TaskSummary, type WriteResult } from '../lib/api';
 import { dayOf, fromIso, when } from '../lib/format';
 import { blocksOf } from '../lib/markdown';
 import { link } from '../lib/route';
@@ -122,10 +122,13 @@ function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   );
 }
 
+const STATE_WORD: Readonly<Record<TaskState, readonly [string, string]>> = { open: ['teal', 'In progress'], uat: ['amber', '验收中'], done: ['green', 'Done'], abandoned: ['', 'Dropped'] };
+
 /** A task as a whole: where it stands, its problem and its deliverables. */
 export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
-  const word = ({ open: ['teal', 'In progress'], uat: ['amber', '验收中'], done: ['green', 'Done'] } as Record<string, [string, string]>)[t.state] ?? ['', 'Dropped'];
+  // A state this page does not know, a newer yan's, is named as task.json has it.
+  const word = t.state === stateOf(t.state) ? STATE_WORD[stateOf(t.state)] : ['teal', t.state];
   const dates = [t.id, t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : null, t.closedAt ? `${t.state === 'done' ? 'done' : 'closed'} ${dayOf(fromIso(t.closedAt))}` : null].filter(Boolean).join(' · ');
   const ds = d.deliverables;
   const n = (s: string): number => ds.filter((x) => x.status === s).length;
@@ -151,7 +154,7 @@ export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
             <div className="h"><h3>Deliverables</h3><span>{counts}</span></div>
             <div className="rail">
               {ds.map((x) => (
-                <div key={x.id} className={`deliv ${x.status}`}>
+                <div key={x.id} className={`deliv ${statusOf(x.status)}`}>
                   <span className="node" title={x.status} />
                   <span>
                     <span className="text">

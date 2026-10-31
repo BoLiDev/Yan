@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { gitAsync } from './blobs.js';
+import type { Behind, UpdateState, UpdateStep, UpdateStepState } from './wire.js';
 
 /**
  * yan updating itself from the page, as `user` would at a terminal in its
@@ -9,19 +10,10 @@ import { gitAsync } from './blobs.js';
  * an update changes in place. One update at a time, whoever asks.
  */
 
-export const STEPS = ['pull', 'install', 'build', 'restart'] as const;
-export type Step = (typeof STEPS)[number];
-export type StepState = 'wait' | 'now' | 'done' | 'failed';
-
-export interface UpdateState {
-  readonly running: boolean;
-  readonly steps: readonly { readonly step: Step; readonly state: StepState }[];
-  /** What the step that failed said last. */
-  readonly error: string | null;
-}
-
-/** How far yan's clone is behind what it tracks, once fetched; or why that cannot be told. */
-export type Behind = { readonly behind: number } | { readonly error: string };
+export type { Behind, UpdateState } from './wire.js';
+export type Step = UpdateStep;
+export type StepState = UpdateStepState;
+export const STEPS: readonly Step[] = ['pull', 'install', 'build', 'restart'];
 
 /** The last lines a command said, enough to tell why it failed. */
 const tail = (said: string): string => said.trim().split('\n').slice(-6).join('\n');

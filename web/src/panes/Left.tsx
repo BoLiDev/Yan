@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Index, TaskSummary } from '../lib/api';
+import { stateOf, type Index, type TaskSummary } from '../lib/api';
 import { MOD, clock, fromIso, monthLabel, plural } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
@@ -105,7 +105,8 @@ export function Left() {
     // Waiting on `user`, so above the rest; the group is not there when none is.
     const uat = tasks.filter((t) => t.state === 'uat').sort(byTouched);
     if (uat.length) out.push({ label: '验收中', rows: uat.map((t) => ({ t })) });
-    const open = tasks.filter((t) => t.state === 'open').sort(byTouched);
+    // A state this page does not know, a newer yan's, is taken as open, so the task is never left out of every group.
+    const open = tasks.filter((t) => stateOf(t.state) === 'open').sort(byTouched);
     out.push({ label: 'In progress', rows: open.map((t) => ({ t })), none: 'Nothing open' });
     const closed = tasks.filter((t) => t.state === 'done' || t.state === 'abandoned')
       .sort((a, b) => (fromIso(b.closedAt) || b.touched) - (fromIso(a.closedAt) || a.touched));

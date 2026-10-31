@@ -18,8 +18,11 @@ per repository a task works in. Read `README.md` for what it does.
 into dist/web/, which the server serves. Server data is held by TanStack
 Query and fetched again only when the server says that part of the vault
 moved; the page's own state, its preferences and what it has seen, is a
-zustand store. `npm run dev:web` serves the page with hot reload against a
-`yan serve` already running ($YAN_SERVE, http://localhost:4747 by default).
+zustand store. What serve sends the page is typed once, in
+`src/cli/serve/wire.ts`, which serve builds its answers to and the page
+imports as types alone. `npm run dev:web` serves the page with hot reload
+against a `yan serve` already running ($YAN_SERVE, http://localhost:4747 by
+default).
 
 `src/records/` owns the vault's files: `task` (task.json and problem.md),
 `log`, `drafts`, `learnings`, `repos` (repos.json, and where each is cloned).
