@@ -6,7 +6,7 @@ import { Spinner } from '../components/ui/spinner';
 import { Pane } from '../components/ui';
 import { pullNow } from '../state/server';
 import { useUI } from '../state/ui';
-import { TerminalView } from './Terminal';
+import { TerminalView } from './TerminalLazy';
 import { useKeyNav } from './nav';
 
 /**

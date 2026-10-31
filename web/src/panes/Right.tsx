@@ -8,7 +8,7 @@ import { Empty } from '../components/ui';
 import { queryClient, useIndex, useTask, useTerminals } from '../state/server';
 import { setSeen, useUI } from '../state/ui';
 import { AgentView } from '../views/Agent';
-import { TerminalView } from '../views/Terminal';
+import { TerminalView } from '../views/TerminalLazy';
 import { LaunchView } from '../views/NewTask';
 import { ResourcesView } from '../views/Resources';
 import { BranchView } from '../views/Branch';

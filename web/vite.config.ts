@@ -43,8 +43,9 @@ export default defineConfig(({ command }) => {
     build: {
       outDir: '../dist/web',
       emptyOutDir: true,
-      // React, highlight.js and marked in one file: some 550 kB, read from this machine, so it is not split further.
-      chunkSizeWarningLimit: 800,
+      // The page in one file but for the terminal (xterm.js) and highlight.js's languages, which load when first
+      // wanted: React, Base UI, marked, DOMPurify and the page come to some 950 kB, read from this machine.
+      chunkSizeWarningLimit: 1000,
     },
     server: {
       proxy: Object.fromEntries(['/api', '/blob', '/fonts'].map((path): [string, ProxyOptions] => [path, {
