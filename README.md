@@ -245,14 +245,16 @@ into as the agent is. A right click on a pane opens the page's own menu in
 place of the browser's: split it to the right or down, which herdr does,
 so its window has the new shell too, in the directory the pane works in;
 copy what is selected in it; paste into it; and close it, unless it is the
-agent's own. The + beside Find a task starts a task from the page: a form
-asks what bare `yan` would, its title, the repositories it works in (those
-registered and cloned here) and, for one with several packages, which it is
-about; created, serve opens a herdr tab named for it and types bare `yan`
-into it with those answers (`yan --new`), in the vault the page shows. The
-right column is that tab as bare `yan` makes the task and its trees, pushes
-it and starts the agent, and once the task is in the vault the page is its
-own Terminal. herdr has to be running on this machine; serve finds it as
+agent's own. The + beside Find a task starts a task from the page: a box
+over it asks what bare `yan` would, a step at a time, its title, then the
+repositories it works in (those registered and cloned here, each picked as
+a card) and, for one with several packages, which it is about; Enter goes
+on and Escape closes it. Created, serve opens a herdr tab named for it and
+types bare `yan` into it with those answers (`yan --new`), in the vault the
+page shows; one serve cannot start says why in the box. The middle column
+is the task as it is made, its title and repositories, and the right one
+that tab as bare `yan` makes the task and its trees, pushes it and starts
+the agent; once the task is in the vault the page is its own Terminal. herdr has to be running on this machine; serve finds it as
 `herdr status server` does. The pane is only on this machine, so
 serve shows the terminal only where the agent runs. Code
 is coloured by its language, in a diff, in a file and in a Markdown fenced

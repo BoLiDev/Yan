@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
-import { parseRoute, useHash, useRoute, type Route } from './lib/route';
+import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
+import { NewTaskModal } from './components/NewTask';
 import { AskModal, Toast } from './components/ui';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
@@ -30,6 +31,12 @@ function useRouteEffects(): void {
     const was = before.current;
     before.current = r;
     useUI.setState({ pageSource: false });
+    // A new task is asked for in a box over the page: #/new alone opens it, over Latest.
+    if (r.view === 'new' && r.launch === undefined) {
+      useUI.setState({ newTask: true });
+      location.replace(link.latest());
+      return;
+    }
     if (was?.view === 'task' && (r.view !== 'task' || r.id !== was.id)) {
       useUI.setState((s) => {
         const { [was.id]: _p, ...problemBase } = s.problemBase;
@@ -171,6 +178,7 @@ export function App() {
       <Toast />
       <AskModal />
       <Palette />
+      <NewTaskModal />
     </>
   );
 }

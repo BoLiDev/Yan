@@ -56,6 +56,10 @@ interface UI {
   status: Status | null;
   /** ⌘K's box is open. */
   palette: boolean;
+  /** The new task's box is open. */
+  newTask: boolean;
+  /** What each new task started from this page was given, by its launch, for the page to show while it is made. */
+  launched: Readonly<Record<string, Launched>>;
   /** The tasks visited, the last first, kept in this browser: what ⌘K offers before anything is typed. */
   recent: readonly string[];
   /** `<task>:<repo>` → whether the nav lists its branches, as last asked; folded until then. */
@@ -82,6 +86,12 @@ interface UI {
   toast: { readonly text: string; readonly n: number } | null;
   ask: Ask | null;
   said: Readonly<Record<string, Said>>;
+}
+
+/** A new task as the page asked for it: its title, and each repository with the packages it is about, `[]` for all. */
+export interface Launched {
+  readonly title: string;
+  readonly repos: readonly { readonly name: string; readonly scope: readonly string[] }[];
 }
 
 const PREFS_KEY = 'yan.serve.prefs';
@@ -117,6 +127,8 @@ export const useUI = create<UI>(() => ({
   pulling: false,
   status: null,
   palette: false,
+  newTask: false,
+  launched: {},
   recent: load<string[]>(RECENT_KEY, []),
   unfolded: {},
   open: {},

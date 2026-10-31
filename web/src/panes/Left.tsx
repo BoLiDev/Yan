@@ -120,6 +120,7 @@ export function Left() {
   }, [index]);
 
   const onLatest = r.view === 'latest';
+  const creating = useUI((s) => s.newTask);
   const unseen = index && seen ? latestUnseen(index, seen) : 0;
   const top = (
     <>
@@ -129,14 +130,14 @@ export function Left() {
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
       <Sync />
-      {/* Beside finding a task, starting one: a form for what bare yan would ask, run in a new herdr tab. */}
+      {/* Beside finding a task, starting one: a box asking what bare yan would, run in a new herdr tab. */}
       <div className="find-line">
         <button type="button" className="find" onClick={() => useUI.setState({ palette: true })}>
           <Icon name="search" size={15} />
           <span className="grow">Find a task</span>
           <kbd>{`${MOD}K`}</kbd>
         </button>
-        <a className={'find-new' + (r.view === 'new' ? ' on' : '')} href={link.new()} aria-label="新建 task"><AntIcon name="plus" size={14} /></a>
+        <button type="button" className={'find-new' + (creating ? ' on' : '')} aria-label="新建 task" onClick={() => useUI.setState({ newTask: true })}><AntIcon name="plus" size={14} /></button>
       </div>
       <div className={'latest-line' + (onLatest ? ' on' : '')}>
         <a className={'row' + (onLatest ? ' on' : '')} href="#/latest" style={{ fontWeight: 700 }}>
