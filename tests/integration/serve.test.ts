@@ -1,12 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { AGENT_PANE, SHELL_PANE, startFakeHerdr, type FakeHerdr } from '../helpers/fake-herdr.js';
 import { readJson } from '../../src/util/json.js';
+import type { TerminalState } from '../../src/cli/serve/wire.js';
 
 /**
  * `yan serve` through `bin/yan.mjs`, against a vault with an origin: what the
@@ -20,6 +22,10 @@ let port = 0;
 let server: ChildProcess | undefined;
 const page = (path: string): string => `http://localhost:${port}${path}`;
 const files = (path: string): string => `http://localhost:${port + 1}${path}`;
+
+/** A POST as the page makes one, or as a page at `origin` would. */
+const post = (path: string, value: unknown, origin = page('')): Promise<Response> =>
+  fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
 
 afterAll(async () => {
   if (server !== undefined && server.exitCode === null) {
@@ -469,226 +475,188 @@ describe('the overview on yan serve', () => {
   });
 });
 
-describe('an agent in a herdr pane on yan serve', () => {
-  /** A herdr: its socket answering as 0.9.5 with the pane `w1:p2` waiting on user, and keeping what it was asked. */
-  const asked: { method: string; params: Record<string, unknown> }[] = [];
-  let herdr: ReturnType<typeof createServer> | undefined;
-  /** The agent's tab: its pane, and a shell split off to its right. */
-  const tab = { type: 'split', direction: 'right', ratio: 0.6, first: { type: 'pane', pane_id: 'w1:p2' }, second: { type: 'pane', pane_id: 'w1:p3' } };
-  afterAll(() => herdr?.close());
+// herdr's socket here is a Unix socket and its command a script with a shebang.
+describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan serve', () => {
+  let herdr: FakeHerdr | undefined;
+  afterEach(async () => {
+    await herdr?.close();
+    herdr = undefined;
+  });
 
-  async function aHerdr(version: string): Promise<{ socket: string; bin: string; controlled: string }> {
-    const dir = mkTempDir('yan-herdr-');
-    const socket = join(dir, 'herdr.sock');
-    herdr = createServer((conn) => {
-      let got = '';
-      conn.setEncoding('utf8');
-      conn.on('data', (chunk: string) => {
-        got += chunk;
-        const nl = got.indexOf('\n');
-        if (nl < 0) return;
-        const req = JSON.parse(got.slice(0, nl)) as { id: string; method: string; params: Record<string, unknown> };
-        asked.push({ method: req.method, params: req.params });
-        const result = req.method === 'ping' ? { type: 'pong', version }
-          : req.method === 'pane.get' ? (req.params.pane_id === 'w1:p2' ? { type: 'pane_info', pane: { pane_id: 'w1:p2', agent: 'claude', agent_status: 'blocked' } }
-            : req.params.pane_id === 'w1:p9' ? { type: 'pane_info', pane: { pane_id: 'w1:p9', agent_status: 'unknown' } } : undefined)
-            : req.method === 'tab.create' ? { type: 'tab_created', tab: { tab_id: 'w1:t4' }, root_pane: { pane_id: 'w1:p9', agent_status: 'unknown' } }
-            : req.method === 'pane.layout' ? { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p2', rect: { width: 100, height: 30 } }] } }
-              : req.method === 'layout.export' ? { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: 'w1:t1', zoomed: false, focused_pane_id: 'w1:p2', root: tab } }
-                : req.method === 'pane.split' ? { type: 'pane_info', pane: { pane_id: 'w1:p4', agent_status: 'unknown' } }
-                  : req.method === 'pane.read' ? { type: 'pane_read', read: { pane_id: req.params.pane_id, text: '~ ❯ ', revision: 4 } }
-                  : { type: 'ok' };
-        conn.end(`${JSON.stringify(result === undefined ? { id: req.id, error: { code: 'not_found', message: 'pane not found' } } : { id: req.id, result })}\n`);
-      });
-    });
-    await new Promise<void>((resolve) => herdr?.listen(socket, resolve));
-    // `herdr terminal session control`: two frames of what it was asked, then each command it is sent kept in
-    // control.log, until its stdin ends.
-    const bin = join(dir, 'herdr');
-    writeFileSync(bin, [
-      `#!${process.execPath}`,
-      "const fs = require('fs');",
-      `if (process.argv[2] === 'status') { console.log(JSON.stringify({ status: 'running', running: true, version: ${JSON.stringify(version)}, socket: ${JSON.stringify(socket)} })); process.exit(0); }`,
-      "const frame = (s) => JSON.stringify({ type: 'terminal.frame', seq: 1, encoding: 'ansi', width: 100, height: 30, full: true, bytes: Buffer.from(s).toString('base64') });",
-      "console.log(frame(process.argv.slice(2).join(' ') + ' ' + process.env.HERDR_SOCKET_PATH));",
-      "console.log(frame('\\u001b[1mDo you want to proceed?\\u001b[0m'));",
-      `require('readline').createInterface({ input: process.stdin }).on('line', (l) => fs.appendFileSync(${JSON.stringify(join(dir, 'control.log'))}, l + '\\n')).on('close', () => process.exit(0));`,
-    ].join('\n'));
-    chmodSync(bin, 0o755);
-    return { socket, bin, controlled: join(dir, 'control.log') };
-  }
-
-  function keep(socket: string, bin: string, extra: { task: string; pane: string }[] = []): void {
+  /** This machine keeping t001's agent in `h`'s agent pane, and the terminals in `more` beside it. */
+  function keep(h: FakeHerdr, more: { task: string; pane: string }[] = []): void {
     // The vault is $YAN_VAULT, so the machine's config.json registers none.
-    const at = home;
     mkdirSync(join(home, '.machine'), { recursive: true });
     writeFileSync(join(home, '.machine', 'config.json'), JSON.stringify({
       version: 1, vaults: {}, clones: {},
-      terminals: [{ vault: at, task: 't001', pane: 'w1:p2', socket, bin, cli: 'claude', since: '2026-10-31T09:00:00Z' }, ...extra.map((e) => ({ vault: at, ...e, socket, bin, cli: 'claude', since: '' }))],
+      terminals: [h.terminal(home, 't001'), ...more.map((m) => h.terminal(home, m.task, m.pane))],
     }));
   }
 
-  it('lists a task whose pane is there with what herdr says of it, streams the pane, and types into it', async () => {
-    if (process.platform === 'win32') return;
-    const { socket, bin, controlled } = await aHerdr('0.9.5');
-    keep(socket, bin, [{ task: 't002', pane: 'w9:p9' }]);
-    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { status: string; agent: string; herdr: string; streams: boolean }>;
-    expect(states, 'a pane gone is left out').toEqual({ t001: expect.objectContaining({ status: 'blocked', agent: 'claude', herdr: '0.9.5', streams: true, pane: 'w1:p2' }) });
+  /** A herdr of `version`, with t001's agent kept in its agent pane. */
+  async function aHerdr(version: string, more: { task: string; pane: string }[] = []): Promise<FakeHerdr> {
+    herdr = await startFakeHerdr({ version });
+    keep(herdr, more);
+    return herdr;
+  }
 
-    const post = (value: unknown, origin = page('')) => fetch(page('/api/terminal/input'), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+  const terminals = async (): Promise<Record<string, TerminalState>> => (await (await fetch(page('/api/terminals'))).json()) as Record<string, TerminalState>;
+  const input = (value: unknown, origin?: string): Promise<Response> => post('/api/terminal/input', value, origin);
+
+  /** The first `n` frames a terminal stream sends, as herdr's controller wrote them, their bytes as text. */
+  async function framesOf(res: Response, n: number): Promise<{ width: number; height: number; text: string }[]> {
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    let got = '';
+    const events = (): string[] => got.split('\n\n').slice(0, -1).filter((e) => e.startsWith('data: '));
+    while (events().length < n) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      got += decoder.decode(chunk.value, { stream: true });
+    }
+    return events().slice(0, n).map((e) => {
+      const f = JSON.parse(e.slice('data: '.length)) as { width: number; height: number; bytes: string };
+      return { width: f.width, height: f.height, text: Buffer.from(f.bytes, 'base64').toString() };
+    });
+  }
+
+  it('lists a task whose pane is there with what herdr says of it, and streams the pane at the size the page holds it at', async () => {
+    const h = await aHerdr('0.9.5', [{ task: 't009', pane: 'w9:p9' }]);
+    expect(await terminals(), 'a pane gone is left out').toEqual({ t001: expect.objectContaining({ status: 'blocked', agent: 'claude', herdr: '0.9.5', streams: true, pane: AGENT_PANE }) });
     expect((await fetch(page('/api/terminal/stream?task=t001'))).status, 'a stream is sized by the page').toBe(400);
 
-    // The page holds the pane at its column's size; the column changing and the wheel go to the controller.
     const holding = new AbortController();
     const res = await fetch(page('/api/terminal/stream?task=t001&cols=132&rows=41'), { signal: holding.signal });
-    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-    let stream = '';
-    while ((stream.match(/^data: /gm) ?? []).length < 2) stream += new TextDecoder().decode((await reader.read()).value);
-    const drawn = [...stream.matchAll(/^data: (.*)$/gm)].map((m) => Buffer.from((JSON.parse(m[1] as string) as { bytes: string }).bytes, 'base64').toString());
-    expect(drawn[0], 'held at the column\'s size, from the herdr the pane is in').toBe(`terminal session control w1:p2 --takeover --cols 132 --rows 41 ${socket}`);
-    expect(drawn[1]).toContain('Do you want to proceed?');
-    expect((await post({ task: 't001', cols: 120, rows: 40 })).status).toBe(200);
-    expect((await post({ task: 't001', wheel: -3, col: 5, row: 7 })).status).toBe(200);
-    expect((await post({ task: 't001', cols: 3, rows: 40 })).status, 'a size no terminal is').toBe(409);
-    const commands = await until(async () => {
-      const lines = existsSync(controlled) ? readFileSync(controlled, 'utf8').trim().split('\n') : [];
-      return lines.length >= 2 ? lines.map((l) => JSON.parse(l) as unknown) : undefined;
+    const frames = await framesOf(res, 2);
+    expect(frames.map((f) => f.text), "herdr's frames of the agent's pane, as it drew them").toEqual([`the screen of ${AGENT_PANE}`, '\x1b[1mDo you want to proceed?\x1b[0m']);
+    expect(frames.map((f) => [f.width, f.height])).toEqual([[132, 41], [132, 41]]);
+    expect(h.controllers(), 'held at the column\'s size, through the herdr the pane is in').toEqual([expect.objectContaining({ pane: AGENT_PANE, cols: 132, rows: 41, socket: h.socket, holding: true })]);
+
+    // The column changing and the wheel go to the controller, which herdr routes as in its own window.
+    expect((await input({ task: 't001', cols: 120, rows: 40 })).status).toBe(200);
+    expect((await input({ task: 't001', wheel: -3, col: 5, row: 7 })).status).toBe(200);
+    expect((await input({ task: 't001', cols: 3, rows: 40 })).status, 'a size no terminal is').toBe(409);
+    const told = await until(async () => {
+      const commands = h.controllers()[0]?.commands ?? [];
+      return commands.length >= 2 ? commands : undefined;
     }, 5000);
-    expect(commands).toEqual([
+    expect(told).toEqual([
       { type: 'terminal.resize', cols: 120, rows: 40 },
       { type: 'terminal.scroll', direction: 'up', lines: 3, column: 4, row: 6 },
     ]);
-    holding.abort();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(h.received(AGENT_PANE), 'nothing typed into the pane behind it').toEqual([]);
 
-    asked.length = 0;
-    expect((await post({ task: 't001', keys: ['2'] })).status).toBe(200);
-    expect((await post({ task: 't001', text: '\x1b[H' })).status).toBe(200);
-    expect((await post({ task: 't001', paste: '换个做法', enter: true })).status).toBe(200);
-    expect((await post({ task: 't001', wheel: -2, col: 5, row: 7 })).status, 'with no page holding it, a pane with no history to scroll back is a full-screen program, sent the wheel').toBe(200);
-    expect((await post({ task: 't001', keys: ['2'] }, 'http://evil.example')).status).toBe(403);
-    expect((await post({ task: 't003', keys: ['2'] })).status).toBe(404);
-    expect(asked).toEqual([
-      { method: 'pane.send_keys', params: { pane_id: 'w1:p2', keys: ['2'] } },
-      { method: 'pane.send_text', params: { pane_id: 'w1:p2', text: '\x1b[H' } },
-      { method: 'pane.send_input', params: { pane_id: 'w1:p2', text: '换个做法', keys: ['enter'] } },
-      { method: 'pane.get', params: { pane_id: 'w1:p2' } },
-      { method: 'pane.send_text', params: { pane_id: 'w1:p2', text: '\x1b[<64;5;7M\x1b[<64;5;7M' } },
-    ]);
+    holding.abort();
+    expect(await until(async () => (h.controllers()[0]?.holding === false ? true : undefined), 5000), 'the page going lets the pane go').toBe(true);
   });
 
-  it('shows the agent\'s whole tab, streams and types into a shell split off in it, and splits and closes one', async () => {
-    if (process.platform === 'win32') return;
-    herdr?.close();
-    const { socket, bin } = await aHerdr('0.9.5');
-    keep(socket, bin);
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { layout: unknown }>;
-    expect(states.t001?.layout).toEqual({ split: 'right', ratio: 0.6, first: { pane: 'w1:p2' }, second: { pane: 'w1:p3' } });
+  it('types into the pane what the page sends, and turns the wheel as the program in it takes it when no page holds it', async () => {
+    const h = await aHerdr('0.9.5');
+    expect((await input({ task: 't001', keys: ['2'] })).status).toBe(200);
+    expect((await input({ task: 't001', text: '\x1b[H' })).status).toBe(200);
+    expect((await input({ task: 't001', paste: '换个做法', enter: true })).status).toBe(200);
+    expect(h.received(AGENT_PANE), 'a key by its name, bytes as they are, a paste and its Enter').toEqual([{ keys: ['2'] }, { text: '\x1b[H' }, { paste: '换个做法', keys: ['enter'] }]);
+
+    expect((await input({ task: 't001', wheel: -2, col: 5, row: 7 })).status).toBe(200);
+    expect(h.wheels(AGENT_PANE), 'a full-screen program, with no history to scroll back, reads the wheel itself').toEqual([{ up: true, col: 5, row: 7 }, { up: true, col: 5, row: 7 }]);
+    expect((await input({ task: 't001', pane: SHELL_PANE, wheel: -3, col: 5, row: 7 })).status).toBe(200);
+    expect(h.scrolledBack(SHELL_PANE), "a shell with history has herdr's view of it scrolled back").toBe(3);
+    expect(h.wheels(SHELL_PANE)).toEqual([]);
+
+    const typed = h.received(AGENT_PANE).length;
+    expect((await input({ task: 't001', keys: ['2'] }, 'http://evil.example')).status).toBe(403);
+    expect((await input({ task: 't404', keys: ['2'] })).status).toBe(404);
+    expect(h.received(AGENT_PANE), 'nothing typed for either').toHaveLength(typed);
+  });
+
+  it("shows the agent's whole tab, streams and types into a shell split off in it, and splits and closes one", async () => {
+    const h = await aHerdr('0.9.5');
+    expect(await until(async () => (await terminals()).t001?.layout, 5000)).toEqual({ split: 'right', ratio: 0.6, first: { pane: AGENT_PANE }, second: { pane: SHELL_PANE } });
 
     const holding = new AbortController();
-    const res = await fetch(page('/api/terminal/stream?task=t001&pane=w1:p3&cols=60&rows=30'), { signal: holding.signal });
-    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-    let stream = '';
-    while (!stream.includes('data: ')) stream += new TextDecoder().decode((await reader.read()).value);
-    expect(Buffer.from((JSON.parse(/^data: (.*)$/m.exec(stream)?.[1] as string) as { bytes: string }).bytes, 'base64').toString()).toContain('control w1:p3 --takeover --cols 60');
+    const res = await fetch(page(`/api/terminal/stream?task=t001&pane=${SHELL_PANE}&cols=60&rows=30`), { signal: holding.signal });
+    expect((await framesOf(res, 1))[0]).toEqual({ width: 60, height: 30, text: `the screen of ${SHELL_PANE}` });
     holding.abort();
     expect((await fetch(page('/api/terminal/stream?task=t001&pane=w9:p9&cols=60&rows=30'))).status, 'a pane outside the tab').toBe(404);
+    expect((await input({ task: 't001', pane: SHELL_PANE, text: 'ls\r' })).status).toBe(200);
+    expect(h.received(SHELL_PANE)).toEqual([{ text: 'ls\r' }]);
 
-    const post = (path: string, value: unknown, origin = page('')) => fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
-    asked.length = 0;
-    expect((await post('/api/terminal/input', { task: 't001', pane: 'w1:p3', text: 'ls\r' })).status).toBe(200);
-    const split = await post('/api/terminal/split', { task: 't001', pane: 'w1:p3', direction: 'down' });
-    expect(await split.json()).toEqual({ pane: 'w1:p4' });
-    expect((await post('/api/terminal/close', { task: 't001', pane: 'w1:p3' })).status).toBe(200);
-    expect((await post('/api/terminal/close', { task: 't001', pane: 'w1:p2' })).status, 'the agent\'s own pane').toBe(400);
+    const split = await post('/api/terminal/split', { task: 't001', pane: SHELL_PANE, direction: 'down' });
+    const { pane: made } = (await split.json()) as { pane: string };
+    expect((await terminals()).t001?.layout, "split below the shell in herdr's tab, and so on the page").toEqual({
+      split: 'right', ratio: 0.6, first: { pane: AGENT_PANE }, second: { split: 'down', ratio: 0.5, first: { pane: SHELL_PANE }, second: { pane: made } },
+    });
+    expect((await post('/api/terminal/close', { task: 't001', pane: SHELL_PANE })).status).toBe(200);
+    expect((await terminals()).t001?.layout, 'closed in herdr, the pane split off it taking its place').toEqual({ split: 'right', ratio: 0.6, first: { pane: AGENT_PANE }, second: { pane: made } });
+
+    expect((await post('/api/terminal/close', { task: 't001', pane: AGENT_PANE })).status, "the agent's own pane").toBe(400);
     expect((await post('/api/terminal/close', { task: 't001', pane: 'w9:p9' })).status, 'a pane outside the tab').toBe(404);
     expect((await post('/api/terminal/split', { task: 't001', direction: 'up' })).status).toBe(400);
     expect((await post('/api/terminal/split', { task: 't001', direction: 'right' }, 'http://evil.example')).status).toBe(403);
-    expect(asked.filter((a) => a.method !== 'layout.export')).toEqual([
-      { method: 'pane.send_text', params: { pane_id: 'w1:p3', text: 'ls\r' } },
-      { method: 'pane.split', params: { target_pane_id: 'w1:p3', direction: 'down', focus: false } },
-      { method: 'pane.close', params: { pane_id: 'w1:p3' } },
-    ]);
+    expect(h.tabs().map((t) => t.panes), 'nothing split or closed for any of them').toEqual([[AGENT_PANE, made]]);
   });
 
-  it('starts a new task in a new herdr tab, streams it by the launch\'s name, and says the task it becomes', async () => {
-    if (process.platform === 'win32') return;
-    herdr?.close();
-    const { socket, bin } = await aHerdr('0.9.5');
-    keep(socket, bin);
+  it("starts a new task in a new herdr tab, streams it by the launch's name, and says the task it becomes", async () => {
+    const h = await aHerdr('0.9.5');
     expect(await (await fetch(page('/api/launch/repos'))).json(), 'nothing registered here').toEqual([]);
-    const post = (path: string, value: unknown, origin = page('')) => fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
     expect((await post('/api/launch', { title: 'pay retries' }, 'http://evil.example')).status).toBe(403);
     expect((await post('/api/launch', { title: '  ' })).status).toBe(400);
     expect((await post('/api/launch', { title: 'x', repos: [{ name: 'nope', scope: [] }] })).status).toBe(400);
+    expect(h.tabs(), 'no tab opened for any of them').toHaveLength(1);
 
-    asked.length = 0;
     const started = await post('/api/launch', { title: "pay's retries", repos: [] });
     expect(started.status).toBe(200);
     const { launch } = (await started.json()) as { launch: string };
     expect(launch).toMatch(/^new-[0-9a-f]{8}$/);
-    expect(asked.some((a) => a.method === 'pane.read'), 'the shell waited for before typing').toBe(true);
-    asked.splice(0, asked.length, ...asked.filter((a) => a.method !== 'pane.read'));
-    expect(asked[0]).toEqual({ method: 'tab.create', params: { cwd: homedir(), label: "pay's retries", env: { YAN_VAULT: home }, focus: false } });
-    expect(asked[1]?.method).toBe('pane.send_text');
-    expect(asked[1]?.params.pane_id).toBe('w1:p9');
-    expect(asked[1]?.params.text, 'bare yan with the answers, quoted for the shell where it must be').toMatch(/bin\/yan\.mjs --new 'pay'\\''s retries' --no-repo\r$/);
+    const tab = h.tabs().find((t) => t.label === "pay's retries");
+    expect(tab, "its shell where bare yan typed by hand would start, in this vault, and herdr's focus left where it was").toMatchObject({ cwd: homedir(), env: { YAN_VAULT: home }, focused: false });
+    const pane = tab?.panes[0] ?? '';
+    expect(h.received(pane), 'bare yan with the answers, quoted for the shell where it must be, typed once the shell is at its prompt')
+      .toEqual([{ text: expect.stringMatching(/bin\/yan\.mjs --new 'pay'\\''s retries' --no-repo\r$/) }]);
 
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-    let states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { title?: string; task?: string; pane: string; cli: string }>;
-    expect(states[launch]).toMatchObject({ title: "pay's retries", pane: 'w1:p9', cli: 'yan' });
-    expect(states[launch]?.task).toBeUndefined();
-    expect((await post('/api/terminal/input', { task: launch, text: 'x' })).status, 'typed into as a terminal').toBe(200);
-    expect(asked.at(-1)).toEqual({ method: 'pane.send_text', params: { pane_id: 'w1:p9', text: 'x' } });
+    expect((await terminals())[launch], "shown by the launch's name at once").toMatchObject({ title: "pay's retries", pane, cli: 'yan' });
+    expect((await terminals())[launch]?.task).toBeUndefined();
+    expect((await input({ task: launch, text: 'x' })).status, 'typed into as a terminal').toBe(200);
+    expect(h.received(pane).at(-1)).toEqual({ text: 'x' });
 
     // bare yan keeps the pane as the new task's terminal.
-    keep(socket, bin, [{ task: 't002', pane: 'w1:p9' }]);
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-    states = (await (await fetch(page('/api/terminals'))).json()) as typeof states;
-    expect(states[launch]?.task).toBe('t002');
+    keep(h, [{ task: 't008', pane }]);
+    expect(await until(async () => (await terminals())[launch]?.task, 5000)).toBe('t008');
   });
 
   it('goes on with a task in a new herdr tab, shown by its own id, and stops an agent by closing its tab', async () => {
-    if (process.platform === 'win32') return;
-    herdr?.close();
-    const { socket, bin } = await aHerdr('0.9.5');
-    keep(socket, bin);
-    const post = (path: string, value: unknown, origin = page('')) => fetch(page(path), { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify(value) });
+    const h = await aHerdr('0.9.5');
     write(home, 'tasks/t007/task.json', task('t007', 'go on'));
-    expect((await post('/api/launch', { task: 't404' })).status).toBe(404);
+    try {
+      expect((await post('/api/launch', { task: 't404' })).status).toBe(404);
+      const went = await post('/api/launch', { task: 't007' });
+      expect(await went.json()).toEqual({ launch: 't007' });
+      const tab = h.tabs().find((t) => t.label === 'go on');
+      expect(tab?.focused).toBe(false);
+      const pane = tab?.panes[0] ?? '';
+      expect(h.received(pane), 'bare yan given the task to go on with').toEqual([{ text: expect.stringMatching(/yan\.mjs --task t007\r$/) }]);
+      expect((await terminals()).t007, "the page shows it as the task's terminal at once").toMatchObject({ pane, cli: 'yan', title: 'go on' });
 
-    asked.length = 0;
-    const went = await post('/api/launch', { task: 't007' });
-    expect(await went.json()).toEqual({ launch: 't007' });
-    asked.splice(0, asked.length, ...asked.filter((a) => a.method !== 'pane.read'));
-    expect(asked[0]).toMatchObject({ method: 'tab.create', params: { label: 'go on', focus: false } });
-    expect(asked[1]?.params.text, 'bare yan given the task to go on with').toMatch(/yan\.mjs --task t007\r$/);
-    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { pane: string; cli: string; title?: string }>;
-    expect(states.t007, 'the page shows it as the task\'s terminal at once').toMatchObject({ pane: 'w1:p9', cli: 'yan', title: 'go on' });
-
-    asked.length = 0;
-    expect((await post('/api/terminal/stop', { task: 't001' }, 'http://evil.example')).status).toBe(403);
-    expect((await post('/api/terminal/stop', { task: 't001' })).status).toBe(200);
-    expect(asked, 'the whole tab the agent is in').toEqual([
-      { method: 'layout.export', params: { pane_id: 'w1:p2' } },
-      { method: 'tab.close', params: { tab_id: 'w1:t1' } },
-    ]);
-    expect((readJson(join(home, '.machine', 'config.json')) as { terminals?: unknown[] }).terminals ?? [], 'no longer this machine\'s terminal').toEqual([]);
-    expect((await post('/api/terminal/stop', { task: 't007' })).status, 'a launch stops as a terminal does').toBe(200);
-    expect((await post('/api/terminal/stop', { task: 't007' })).status, 'and is then gone').toBe(404);
-    rmSync(join(home, 'tasks', 't007'), { recursive: true });
+      expect((await post('/api/terminal/stop', { task: 't001' }, 'http://evil.example')).status).toBe(403);
+      expect(h.tabs()).toHaveLength(2);
+      expect((await post('/api/terminal/stop', { task: 't001' })).status).toBe(200);
+      expect(h.tabs().map((t) => t.label), 'the whole tab the agent is in, the shell beside it with it').toEqual(['go on']);
+      expect((readJson(join(home, '.machine', 'config.json')) as { terminals?: unknown[] }).terminals ?? [], "no longer this machine's terminal").toEqual([]);
+      expect((await post('/api/terminal/stop', { task: 't007' })).status, 'a launch stops as a terminal does').toBe(200);
+      expect(h.tabs()).toEqual([]);
+      expect((await post('/api/terminal/stop', { task: 't007' })).status, 'and is then gone').toBe(404);
+    } finally {
+      rmSync(join(home, 'tasks', 't007'), { recursive: true, force: true });
+    }
   });
 
   it('says which herdr is too old to stream a pane', async () => {
-    if (process.platform === 'win32') return;
-    herdr?.close();
-    const { socket, bin } = await aHerdr('0.7.1');
-    keep(socket, bin);
-    // What herdr says is kept for a second, for every page asks every two.
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-    const states = (await (await fetch(page('/api/terminals'))).json()) as Record<string, { streams: boolean }>;
-    expect(states.t001?.streams).toBe(false);
+    await aHerdr('0.7.1');
+    const state = await until(async () => {
+      const t001 = (await terminals()).t001;
+      return t001?.herdr === '0.7.1' ? t001 : undefined;
+    }, 5000);
+    expect(state.streams).toBe(false);
     const r = await fetch(page('/api/terminal/stream?task=t001&cols=100&rows=30'));
     expect(r.status).toBe(409);
     expect(await r.text()).toContain('0.7.2');
