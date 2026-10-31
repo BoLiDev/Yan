@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import type { Deliverable, DeliverableStatus, Report } from '../lib/api';
 import { VIDEO, ext } from '../lib/files';
 import { clock, dayOf, fromIso } from '../lib/format';
@@ -98,31 +99,31 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string,
 }
 
 /**
- * The page's own nodes with nothing that runs: no scripts, frames or
- * handlers, links only to the web or to pictures inside. A link to the web
- * opens in a tab of its own, since the report is drawn in yan's page, which
- * it would otherwise take the place of; one written before reports said so
- * is told here.
+ * The page's own nodes with nothing that runs, by DOMPurify: no scripts,
+ * frames or handlers, links only to the web or to pictures inside. Its
+ * styles are not among them; they are taken apart and scoped to the shadow
+ * root. A link to the web opens in a tab of its own, since the report is
+ * drawn in yan's page, which it would otherwise take the place of; one
+ * written before reports said so is told here.
  */
-function cleanReport(doc: Document): Document {
-  doc.querySelectorAll('script,iframe,frame,object,embed,link,meta,base,form,style,noscript,template').forEach((x) => x.remove());
-  for (const node of doc.body.querySelectorAll('*')) {
-    for (const a of [...node.attributes]) {
-      const name = a.name.toLowerCase();
-      if (name.startsWith('on') || name === 'srcdoc' || name === 'formaction') node.removeAttribute(a.name);
-      else if (name === 'href' || name === 'src' || name === 'xlink:href') {
-        const v = a.value.trim();
-        const ok = name === 'href' ? /^(https?:|#)/i.test(v) : /^(https?:|data:image\/(png|jpe?g|gif|webp);)/i.test(v);
-        if (!ok) node.removeAttribute(a.name);
-      }
-    }
-  }
-  for (const a of doc.body.querySelectorAll('a[href]')) {
+const purify = DOMPurify();
+purify.addHook('uponSanitizeAttribute', (_node, data) => {
+  const name = data.attrName;
+  if (name !== 'href' && name !== 'src' && name !== 'xlink:href') return;
+  const v = data.attrValue.trim();
+  if (!(name === 'href' ? /^(https?:|#)/i.test(v) : /^(https?:|data:image\/(png|jpe?g|gif|webp);)/i.test(v))) data.keepAttr = false;
+});
+
+/** report.html's body, clean, in a document of its own that loads nothing. */
+function cleanReport(html: string): HTMLElement {
+  // RETURN_DOM gives the body of DOMPurify's own document.
+  const body = purify.sanitize(html, { RETURN_DOM: true, FORBID_TAGS: ['style', 'form', 'noscript', 'template'], FORBID_ATTR: ['srcdoc', 'formaction'] }) as HTMLElement;
+  for (const a of body.querySelectorAll('a[href]')) {
     if (!/^https?:/i.test(a.getAttribute('href') ?? '')) continue;
     a.setAttribute('target', '_blank');
     a.setAttribute('rel', 'noopener');
   }
-  return doc;
+  return body;
 }
 
 /**
@@ -241,7 +242,7 @@ export interface Island {
 
 /** Build the report in `root`, replacing what was there. */
 export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Deliverable[], hooks: IslandHooks, said: { text: string; bad: boolean } | null): Island {
-  const doc = cleanReport(new DOMParser().parseFromString(rep.html, 'text/html'));
+  const body = cleanReport(rep.html);
   const style = [...new DOMParser().parseFromString(rep.html, 'text/html').querySelectorAll('style')]
     .map((x) => x.textContent ?? '').join('\n')
     .replace(/:root\s*\{/g, ':host{').replace(/(^|[}\s,])body\s*\{/g, '$1.yan-report{');
@@ -256,7 +257,7 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
   const bar = el('div', { class: 'yan-bar' },
     el('div', { class: 'yan-bar-in' }, facts, el('div', { class: 'yan-actions' }, uatButton, el('a', { class: 'yan-btn main', href: hooks.downloadUrl }, '下载 HTML'))),
     uatList);
-  const shell = el('div', { class: 'yan-report' }, bar, ...[...doc.body.childNodes].map((n) => document.importNode(n, true)));
+  const shell = el('div', { class: 'yan-report' }, bar, ...[...body.childNodes].map((n) => document.importNode(n, true)));
   root.replaceChildren(el('style', null, `${style}\n${REPORT_PANEL_CSS}`), shell);
 
   // The deliverables: ticked, unticked and given up here, shown as task.json has them now.

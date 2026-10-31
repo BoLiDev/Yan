@@ -445,7 +445,9 @@ export class YanServer {
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
     // The page, as `vite build` wrote it from web/: its files are named for their content, so they keep forever.
-    if (p === '/' || p === '/index.html') return this.asset(res, join(this.options.home, 'dist', 'web', 'index.html'), 'text/html; charset=utf-8');
+    if (p === '/' || p === '/index.html') {
+      return this.asset(res, join(this.options.home, 'dist', 'web', 'index.html'), 'text/html; charset=utf-8', 'no-cache', { 'Content-Security-Policy': this.pagePolicy() });
+    }
     if (p.startsWith('/assets/') && /^[\w.-]+$/.test(p.slice(8))) {
       return this.asset(res, join(this.options.home, 'dist', 'web', 'assets', p.slice(8)), typeOf(p), 'max-age=31536000, immutable');
     }
@@ -840,14 +842,37 @@ export class YanServer {
     return send(res, 404, 'not found');
   }
 
-  private asset(res: ServerResponse, file: string, type: string, cache = 'no-cache'): void {
+  /**
+   * What the page may load and run, should anything an agent wrote get past
+   * the page's cleaning: its own scripts alone, no plugins, no <base>, no
+   * forms. Pictures and players come from the files origin and from the web,
+   * pages in frames from the files origin only, and the API is this origin's.
+   */
+  private pagePolicy(): string {
+    return [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      'img-src * data: blob:',
+      'media-src * data: blob:',
+      `frame-src ${this.filesOrigin}`,
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+    ].join('; ');
+  }
+
+  private asset(res: ServerResponse, file: string, type: string, cache = 'no-cache', headers: Readonly<Record<string, string>> = {}): void {
     let size: number;
     try {
       size = statSync(file).size;
     } catch {
       return send(res, 404, `yan serve: ${file} is missing - is this yan's own clone?`);
     }
-    res.writeHead(200, { 'Content-Type': type, 'Content-Length': String(size), 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' });
+    res.writeHead(200, { ...headers, 'Content-Type': type, 'Content-Length': String(size), 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' });
     // A build empties dist/ while serve runs, an update's among them: a file gone mid-read ends this answer, not serve.
     pipeline(createReadStream(file), res, () => undefined);
   }

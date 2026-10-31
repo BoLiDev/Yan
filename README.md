@@ -171,7 +171,10 @@ lights again when it changes again, and the page being open, in front or
 not, counts for nothing. A task stays in Latest and in its count until its
 last dot is gone, and 全部已读 beside its Artifacts clears them all at once,
 as Log's dot goes when the log is opened. Images, pages, Markdown, code, logs, audio, video and fonts
-open in place, and prev and next walk a folder. A picture shown small, in a
+open in place, and prev and next walk a folder. Markdown and the report
+an agent wrote are shown without anything in them that runs, and load
+nothing from the page's own address; a page an agent wrote runs as itself
+on the files port. A picture shown small, in a
 list, a folder's grid or beside the picture open, is a small copy the
 server makes of it once, with sharp; the picture itself is loaded only when
 it is opened, so a folder of screenshots costs the page no more than a

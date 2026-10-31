@@ -1,3 +1,4 @@
+import DOMPurify, { type Config } from 'dompurify';
 import { marked, type Token, type TokensList } from 'marked';
 import { colourLines, langLoaded, langOfFence } from './highlight';
 import { resolveRel } from './files';
@@ -39,18 +40,30 @@ export interface RenderedMarkdown {
   readonly waiting: readonly string[];
 }
 
-const ALLOWED_URL = /^(https?:|mailto:|#|\/|\.|[^:]*$)/i;
+/**
+ * What marked writes, minus anything that runs, by DOMPurify: an agent
+ * writes the Markdown, and this page's origin holds the API, which types
+ * into terminals. Links go to the web, to mail, or to the task's own files.
+ * Nothing loads from this origin by its path: a picture of `/api/…` would be
+ * a request made by the page itself.
+ */
+const purify = DOMPurify();
+purify.addHook('uponSanitizeAttribute', (_node, data) => {
+  if (data.attrName === 'src' && /^\/(?!\/)/.test(data.attrValue.trim())) data.keepAttr = false;
+});
+const PURIFY: Config = {
+  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|#|\/|\.|[^:]*$)/i,
+  FORBID_TAGS: ['style', 'form'],
+  FORBID_ATTR: ['srcdoc', 'formaction'],
+};
 
-/** What marked writes, minus anything that runs: this page's origin holds the API. */
-function sanitize(root: Element): void {
-  for (const el of root.querySelectorAll('script, iframe, object, embed, style, link, meta, base, form')) el.remove();
-  for (const el of root.querySelectorAll('*')) {
-    for (const attr of [...el.attributes]) {
-      const n = attr.name.toLowerCase();
-      if (n.startsWith('on') || n === 'srcdoc' || n === 'formaction') el.removeAttribute(attr.name);
-      else if ((n === 'href' || n === 'src' || n === 'xlink:href') && !ALLOWED_URL.test(attr.value.trim())) el.removeAttribute(attr.name);
-    }
-  }
+/**
+ * Markdown's HTML, clean, in a document of its own that loads nothing:
+ * what is done to it after is done before any of it is shown.
+ */
+function cleaned(html: string): HTMLElement {
+  // RETURN_DOM gives the body of DOMPurify's own document.
+  return purify.sanitize(html, { ...PURIFY, RETURN_DOM: true }) as HTMLElement;
 }
 
 /**
@@ -72,7 +85,7 @@ function trimAutolinks(root: Element): void {
     if (cut <= 0) continue;
     a.textContent = text.slice(0, cut);
     a.setAttribute('href', text.slice(0, cut));
-    a.after(document.createTextNode(text.slice(cut)));
+    a.after(a.ownerDocument.createTextNode(text.slice(cut)));
   }
 }
 
@@ -146,7 +159,6 @@ function slug(text: string, used: Set<string>): string {
 }
 
 export function renderMarkdown(text: string, ctx: MarkdownContext = {}): RenderedMarkdown {
-  const doc = document.createElement('div');
   const tokens: TokensList = marked.lexer(text, { gfm: true });
   // A title line repeats the heading the page already has.
   if (ctx.dropTitle) {
@@ -154,20 +166,22 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
     const tok = tokens[first] as (Token & { depth?: number }) | undefined;
     if (first >= 0 && tok?.type === 'heading' && tok.depth === 1) tokens.splice(first, 1);
   }
+  let doc: HTMLElement;
   if (ctx.before) {
+    // Each block read on its own, so one left open cannot take in the next; one new since `before` in a tinted holder.
+    doc = document.implementation.createHTMLDocument('').body;
     for (const tok of tokens) {
-      const one = Object.assign([tok], { links: tokens.links }) as TokensList;
-      const holder = document.createElement('div');
-      holder.innerHTML = marked.parser(one, { gfm: true });
+      const one = cleaned(marked.parser(Object.assign([tok], { links: tokens.links }) as TokensList, { gfm: true }));
       if (tok.type !== 'space' && !ctx.before.has(tok.raw.trim())) {
+        const holder = doc.ownerDocument.createElement('div');
         holder.className = 'fresh';
+        holder.append(...one.childNodes);
         doc.append(holder);
-      } else doc.append(...holder.childNodes);
+      } else doc.append(...one.childNodes);
     }
   } else {
-    doc.innerHTML = marked.parser(tokens, { gfm: true });
+    doc = cleaned(marked.parser(tokens, { gfm: true }));
   }
-  sanitize(doc);
   const waiting = new Set<string>();
   colourBlocks(doc, waiting);
   trimAutolinks(doc);
