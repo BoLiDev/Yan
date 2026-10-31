@@ -1,10 +1,11 @@
+import { Fragment } from 'react';
 import type { TaskDetail, TaskSummary } from '../lib/api';
 import { plural } from '../lib/format';
 import { KIND_WORD, isLink, listResources } from '../lib/resources';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/page';
-import { Kbd } from '../components/ui/kbd';
 import { useKeyNav, usePick } from './nav';
+import { PickCard, PickList } from './PickCard';
 
 /**
  * A task's resources, as Tab comes to them: under their kinds, one picked,
@@ -22,23 +23,18 @@ export function ResourcesView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   return (
     <>
       <Bar title="Resources" meta={plural(listed.length, 'resource')} />
-      <div className="scroll">
-        <div className="agent-page" ref={list}>
-          {listed.map((r, i) => {
-            const url = isLink(r.where);
-            return (
-              <div key={r.name} style={{ display: 'contents' }}>
-                {r.kind !== listed[i - 1]?.kind ? <div className="res-page-kind">{KIND_WORD[r.kind]}</div> : null}
-                <a className={'agent-card' + (i === at ? ' picked' : '')} aria-selected={i === at} href={url ? r.where.trim() : undefined} target="_blank" rel="noopener" title={r.where} onMouseMove={() => pick(i)}>
-                  <Icon name={url ? 'link' : 'note'} size={18} />
-                  <span className="grow"><b>{r.name}</b><span className="where">{r.where}</span></span>
-                  {url && i === at ? <span className="flex flex-none items-center gap-1.5 text-xs text-muted-foreground">Open<Kbd>↵</Kbd></span> : null}
-                </a>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <PickList list={list}>
+        {listed.map((r, i) => {
+          const url = isLink(r.where);
+          return (
+            <Fragment key={r.name}>
+              {r.kind !== listed[i - 1]?.kind ? <div className="mt-2 text-[12.5px] font-bold text-ink-3">{KIND_WORD[r.kind]}</div> : null}
+              <PickCard icon={<Icon name={url ? 'link' : 'note'} size={18} />} name={r.name} where={r.where} picked={i === at} hint={url && i === at}
+                href={url ? r.where.trim() : undefined} target="_blank" rel="noopener" onMouseMove={() => pick(i)} />
+            </Fragment>
+          );
+        })}
+      </PickList>
     </>
   );
 }

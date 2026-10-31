@@ -49,11 +49,12 @@ describe("a task's overview", () => {
 
   it('asks before deleting a deliverable, and deletes it once asked', async () => {
     const asked = serve({ 'POST /api/deliverable/remove': Response.json({ ok: true, warning: null, status: status() }) });
-    const screen = await draw(<Overview t={t} d={d} />);
+    const screen = await draw(<><Overview t={t} d={d} /><Toaster /></>);
     await screen.getByRole('button', { name: 'Delete d1' }).click();
     expect(asked.filter((a) => a.method === 'POST')).toEqual([]);
     expect(useUI.getState().ask?.title).toMatch(/d1/);
     useUI.getState().ask?.then('');
     await expect.poll(() => asked.find((a) => a.method === 'POST')?.body).toEqual({ task: 't1', id: 'd1' });
+    await expect.element(screen.getByText('Deleted d1')).toBeVisible();
   });
 });

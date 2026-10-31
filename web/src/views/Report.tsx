@@ -1,6 +1,6 @@
 import { useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { postJSON, type DeliverableStatus, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
-import { Empty } from '../components/page';
+import { Empty, Scroll } from '../components/page';
 import { fileUrl, onStatus, queryClient, useReport, vaultPath } from '../state/server';
 import { toast, useUI } from '../state/ui';
 import { useKeyNav } from './nav';
@@ -77,5 +77,5 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
 
   if (rep.isError && !rep.data) return <Empty title="No report">{String(rep.error.message)}</Empty>;
   if (!rep.data) return <Empty>Loading…</Empty>;
-  return <div className="scroll" style={{ background: '#000' }}><div className="report-host" ref={host} data-task={t.id} /></div>;
+  return <Scroll className="bg-black"><div ref={host} data-task={t.id} /></Scroll>;
 }

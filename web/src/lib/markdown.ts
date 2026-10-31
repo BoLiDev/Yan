@@ -174,7 +174,7 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
       const one = cleaned(marked.parser(Object.assign([tok], { links: tokens.links }) as TokensList, { gfm: true }));
       if (tok.type !== 'space' && !ctx.before.has(tok.raw.trim())) {
         const holder = doc.ownerDocument.createElement('div');
-        holder.className = 'fresh';
+        holder.dataset.fresh = '';
         holder.append(...one.childNodes);
         doc.append(holder);
       } else doc.append(...one.childNodes);

@@ -21,7 +21,7 @@ const t = task('t1', 'pay retries');
 const wrote = Response.json({ ok: true, warning: null, status: status() });
 
 /** The report as drawn, inside its shadow root. */
-const shadow = (): ShadowRoot => document.querySelector('.report-host')?.shadowRoot as ShadowRoot;
+const shadow = (): ShadowRoot => document.querySelector('[data-task="t1"]')?.shadowRoot as ShadowRoot;
 const progress = (): string | null | undefined => shadow()?.querySelector('[data-yan-progress]')?.textContent;
 
 describe("a task's report", () => {

@@ -52,8 +52,8 @@ describe('Markdown an agent wrote', () => {
   it('tints the blocks new since the last look, each block read on its own', () => {
     const before = new Set(['# Title', 'Old paragraph.']);
     const doc = shown('Old paragraph.\n\nNew paragraph.\n\n<div>left open', { before });
-    const fresh = [...doc.querySelectorAll('.fresh')].map((el) => el.textContent?.trim());
+    const fresh = [...doc.querySelectorAll('[data-fresh]')].map((el) => el.textContent?.trim());
     expect(fresh).toEqual(['New paragraph.', 'left open']);
-    expect(doc.querySelector('.fresh')?.previousElementSibling?.textContent).toBe('Old paragraph.');
+    expect(doc.querySelector('[data-fresh]')?.previousElementSibling?.textContent).toBe('Old paragraph.');
   });
 });

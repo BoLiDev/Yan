@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { langReady } from '../lib/highlight';
 import { renderMarkdown, type MarkdownContext } from '../lib/markdown';
+import { cn } from '../lib/utils';
 import { filesOrigin, useTask } from '../state/server';
+import { DOC } from './doc';
 
 /**
  * Markdown as a document, with an outline beside it when asked for and it
@@ -33,16 +35,18 @@ export function MarkdownDoc({ text, task, dir, before, dropTitle, outline, bare 
   }, [rendered.waiting]);
   const doc = useRef<HTMLDivElement>(null);
   const heads = rendered.heads;
-  // Bare, the text alone, for a page that has its own margins: the overview.
-  if (bare) return <div className="doc" ref={doc} dangerouslySetInnerHTML={{ __html: rendered.html }} />;
+  // Bare, the text alone, for a page that has its own margins, and its width: the overview.
+  if (bare) return <div className={DOC} ref={doc} dangerouslySetInnerHTML={{ __html: rendered.html }} />;
   return (
-    <div className="doc-wrap">
-      <div className="doc" ref={doc} dangerouslySetInnerHTML={{ __html: rendered.html }} />
+    <div className="mx-auto flex max-w-[1080px] gap-8 px-10 pt-8 pb-20">
+      <div className={`${DOC} max-w-[760px]`} ref={doc} dangerouslySetInnerHTML={{ __html: rendered.html }} />
       {outline && heads.length >= 3 ? (
-        <nav className="outline" aria-label="Outline">
-          <b>On this page</b>
+        // Beside the text and staying in view as it scrolls; a page too narrow for both shows the text alone.
+        <nav className="sticky top-4 flex w-[200px] flex-none flex-col gap-0.5 self-start text-[13px] leading-[19px] [@media(max-width:1280px)]:hidden" aria-label="Outline">
+          <b className="px-2 pb-1.5 text-[12px] text-ink-3">On this page</b>
           {heads.map((x) => (
-            <a key={x.id} href="#" className={x.level === 3 ? 'l3' : ''} onClick={(e) => {
+            // A third-level heading a step in, and dimmer, whether or not it is under the pointer.
+            <a key={x.id} href="#" className={cn('truncate rounded-[6px] py-[3px] pr-2 no-underline hover:bg-sunken', x.level === 3 ? 'pl-5 text-ink-3' : 'pl-2 text-ink-2 hover:text-ink')} onClick={(e) => {
               e.preventDefault();
               doc.current?.querySelector(`#${CSS.escape(x.id)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}>{x.text}</a>
