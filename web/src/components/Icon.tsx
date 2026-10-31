@@ -10,11 +10,6 @@ const STROKE = {
   up: '<path d="m6 15 6-6 6 6"/>',
   go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   grip: '<path d="M9 6h0M15 6h0M9 12h0M15 12h0M9 18h0M15 18h0"/>',
-  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
-  spinner: '<path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5"/>',
-  tick: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
-  // Round again, clockwise: its head stops short of its tail.
-  again: '<path d="M18.76 10.99A7 7 0 1 1 12 5.8"/><path d="M9.17 2.97 12 5.8l-2.83 2.83"/>',
   terminal: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15H17"/>',
   prev: '<path d="m15 6-6 6 6 6"/>',
   next: '<path d="m9 6 6 6-6 6"/>',
@@ -46,6 +41,15 @@ const STROKE = {
 
 export type IconName = keyof typeof STROKE;
 
+/** Ant Design's outlined icons, their paths as @ant-design/icons-svg 4.6.0 has them (MIT), filled on a 1024 grid. */
+const ANT = {
+  reload: 'M909.1 209.3l-56.4 44.1C775.8 155.1 656.2 92 521.9 92 290 92 102.3 279.5 102 511.5 101.7 743.7 289.8 932 521.9 932c181.3 0 335.8-115 394.6-276.1 1.5-4.2-.7-8.9-4.9-10.3l-56.7-19.5a8 8 0 00-10.1 4.8c-1.8 5-3.8 10-5.9 14.9-17.3 41-42.1 77.8-73.7 109.4A344.77 344.77 0 01655.9 829c-42.3 17.9-87.4 27-133.8 27-46.5 0-91.5-9.1-133.8-27A341.5 341.5 0 01279 755.2a342.16 342.16 0 01-73.7-109.4c-17.9-42.4-27-87.4-27-133.9s9.1-91.5 27-133.9c17.3-41 42.1-77.8 73.7-109.4 31.6-31.6 68.4-56.4 109.3-73.8 42.3-17.9 87.4-27 133.8-27 46.5 0 91.5 9.1 133.8 27a341.5 341.5 0 01109.3 73.8c9.9 9.9 19.2 20.4 27.8 31.4l-60.2 47a8 8 0 003 14.1l175.6 43c5 1.2 9.9-2.6 9.9-7.7l.8-180.9c-.1-6.6-7.8-10.3-13-6.2z',
+  check: 'M912 190h-69.9c-9.8 0-19.1 4.5-25.1 12.2L404.7 724.5 207 474a32 32 0 00-25.1-12.2H112c-6.7 0-10.4 7.7-6.3 12.9l273.9 347c12.8 16.2 37.4 16.2 50.3 0l488.4-618.9c4.1-5.1.4-12.8-6.3-12.8z',
+  arrowUp: 'M868 545.5L536.1 163a31.96 31.96 0 00-48.3 0L156 545.5a7.97 7.97 0 006 13.2h81c4.6 0 9-2 12.1-5.5L474 300.9V864c0 4.4 3.6 8 8 8h60c4.4 0 8-3.6 8-8V300.9l218.9 252.3c3 3.5 7.4 5.5 12.1 5.5h81c6.8 0 10.5-8 6-13.2z',
+} as const;
+
+export type AntIconName = keyof typeof ANT;
+
 const STATES: Record<TaskState, string> = {
   open: '<circle cx="8" cy="8" r="6.25" fill="none" stroke="#0b7285" stroke-width="1.5"/><path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="#0b7285"/>',
   done: '<circle cx="8" cy="8" r="7" fill="#1f7a3d"/><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -58,6 +62,10 @@ export function Icon({ name, size = 16, width = 1.75 }: { name: IconName; size?:
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={width}
       strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: STROKE[name] }} />
   );
+}
+
+export function AntIcon({ name, size = 14 }: { name: AntIconName; size?: number }) {
+  return <svg width={size} height={size} viewBox="64 64 896 896" aria-hidden="true" fill="currentColor"><path d={ANT[name]} /></svg>;
 }
 
 export function StateIcon({ state, size = 16 }: { state: TaskState; size?: number }) {

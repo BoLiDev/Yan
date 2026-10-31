@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { getJSON, postJSON } from '../lib/api';
-import { Icon } from './Icon';
+import { AntIcon } from './Icon';
 
 type Step = 'pull' | 'install' | 'build' | 'restart';
 type StepState = 'wait' | 'now' | 'done' | 'failed';
@@ -28,13 +28,13 @@ const Ring = () => (
 );
 
 /**
- * yan updating itself, a card at the foot of the task list: a title, and on
- * its right 检查 or, once asked, a tile saying where the update is, which is
- * the button to its next move: a tick to check again, an arrow to take a new
- * version, a red turn to try again. Taking one, the title is the step under
- * way and a bar below says how far along, until serve restarts on the new
- * build and the page reloads with it. Its height follows what it holds,
- * with a spring.
+ * yan updating itself, a card at the foot of the task list: a title saying
+ * what it is doing, and on its right 检查 or, once asked, a tile saying where
+ * the update is, which is the button to its next move: a tick to check
+ * again, an arrow to take a new version, a red turn to try again. Taking
+ * one, the title is the step under way and a bar below says how far along,
+ * until serve restarts on the new build and the page reloads with it. Its
+ * height follows what it holds, with a spring.
  */
 export function UpdateCard() {
   const [card, setCard] = useState<Card>({ is: 'idle' });
@@ -90,15 +90,15 @@ export function UpdateCard() {
   const tile = (tone: string, icon: ReactNode, does?: [string, () => void]): ReactNode => does
     ? <button type="button" className={`update-tile ${tone}`} aria-label={does[0]} onClick={does[1]}>{icon}</button>
     : <span className={`update-tile ${tone}`}>{icon}</span>;
-  const again = <Icon name="again" size={16} width={2.1} />;
+  const again = <AntIcon name="reload" />;
 
   let title = '更新';
   let action: ReactNode = <button type="button" className="update-link" onClick={check}>检查</button>;
   let below: ReactNode = null;
-  if (card.is === 'checking') action = tile('on', <Ring />);
-  else if (card.is === 'none') action = tile('ok', <Icon name="tick" size={15} width={2.2} />, ['再检查', check]);
-  else if (card.is === 'unchecked') action = tile('bad', again, ['重新检查', check]);
-  else if (card.is === 'behind') [title, action] = ['发现新版本', tile('on', <Icon name="arrowUp" size={15} width={2.1} />, ['更新', update])];
+  if (card.is === 'checking') [title, action] = ['正在检查更新', tile('on', <Ring />)];
+  else if (card.is === 'none') [title, action] = ['已是最新版本', tile('ok', <AntIcon name="check" />, ['再检查', check])];
+  else if (card.is === 'unchecked') [title, action] = ['检查失败', tile('bad', again, ['重新检查', check])];
+  else if (card.is === 'behind') [title, action] = ['发现新版本', tile('on', <AntIcon name="arrowUp" />, ['更新', update])];
   else if (card.is === 'updating') {
     const { steps, running: going } = card.progress;
     const failed = steps.findIndex((s) => s.state === 'failed');
