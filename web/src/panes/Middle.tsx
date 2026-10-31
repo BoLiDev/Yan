@@ -507,7 +507,7 @@ function Feed({ index, seen, r }: { index: Index; seen: Seen; r: Extract<Route, 
     <div className="section-head" style={{ padding: '0 10px' }}>
       <h1 style={{ margin: 0, fontSize: '19px', lineHeight: '26px' }}>Latest</h1>
       <span className="grow" />
-      <button type="button" className="tool text" style={{ height: '28px', color: 'var(--accent)', fontSize: '12.5px' }} onClick={() => setSeen((s) => markAllSeen(index, s))}>Mark all seen</button>
+      <button type="button" className="tool text" style={{ height: '28px', color: 'var(--brand)', fontSize: '12.5px' }} onClick={() => setSeen((s) => markAllSeen(index, s))}>Mark all seen</button>
     </div>
   );
   const body = (

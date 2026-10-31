@@ -1,0 +1,135 @@
+/*
+ * yan serve's theme: Tailwind, and shadcn's tokens over yan's own palette,
+ * warm ground, white surfaces, teal for what is live, green for done. Every
+ * colour the page draws is one of these; a component names the token, never
+ * the colour, so the dark theme is these tokens again and nothing else.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face { font-family: "Yan Round"; src: local("ChillRoundFRegular"), local("ChillRoundF Regular"), url("/fonts/yan-round-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Yan Round"; src: local("ChillRoundFBold"), local("ChillRoundF Bold"), url("/fonts/yan-round-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+/* Code is in 0xProto: the Nerd Font build a terminal has installed first, then the plain one, then yan's own copy. */
+@font-face { font-family: "Yan Code"; src: local("0xProto Nerd Font"), local("0xProto Nerd Font Regular"), local("0xProtoNerdFont-Regular"), local("0xProto Nerd Font Mono"), local("0xProtoNerdFontMono-Regular"), local("0xProto Regular"), local("0xProto-Regular"), url("/fonts/0xproto-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Yan Code"; src: local("0xProto Nerd Font Bold"), local("0xProtoNerdFont-Bold"), local("0xProto Nerd Font Mono Bold"), local("0xProtoNerdFontMono-Bold"), local("0xProto Bold"), local("0xProto-Bold"), url("/fonts/0xproto-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+
+:root {
+  /* yan's palette, by what each is for */
+  --ground: #f6f5f1;
+  --surface: #ffffff;
+  --sunken: #efeee9;
+  --line: #e7e5df;
+  --ink: #1b1b19;
+  --ink-2: #45443f;
+  --ink-3: #66655f;
+  --ink-4: #a3a29b;
+  --brand: #0b7285;
+  --brand-ink: #085a69;
+  --brand-soft: #d9eaed;
+  --brand-wash: #f2f8f9;
+  --green: #1f7a3d;
+  --green-soft: #e3efe6;
+  --red: #b42318;
+  --red-soft: #f6dedb;
+  --amber: #a15c07;
+  --amber-soft: #fbefd9;
+  --hover: rgba(27, 27, 25, 0.06);
+  --shade: rgba(20, 20, 18, 0.32);
+  /* code: six inks for highlight.js's classes, each dark enough to read on the add and del tints */
+  --code-comment: #77766f;
+  --code-keyword: #8e3a9c;
+  --code-string: #2d6a4f;
+  --code-number: #a15c07;
+  --code-title: #1d5fb5;
+  --code-type: #0b7285;
+  --mono: "Yan Code", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --font: "Yan Round", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* shadcn's tokens, named for where they are used, in yan's colours */
+  --radius: 0.625rem;
+  --background: var(--ground);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--ground);
+  --secondary: var(--sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--sunken);
+  --muted-foreground: var(--ink-3);
+  --accent: var(--sunken);
+  --accent-foreground: var(--ink);
+  --destructive: var(--red);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--brand);
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  /* yan's own, beside shadcn's */
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-hover: var(--hover);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-wash: var(--brand-wash);
+  --color-success: var(--green);
+  --color-success-soft: var(--green-soft);
+  --color-warning: var(--amber);
+  --color-warning-soft: var(--amber-soft);
+  --color-danger-soft: var(--red-soft);
+  --color-shade: var(--shade);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html, body { height: 100%; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  /* What the page was drawn against before Tailwind's reset: headings and bold are bold, a document's lists keep their marks. */
+  h1, h2, h3, h4, h5, h6, b, strong, th { font-weight: 700; }
+  a { color: var(--brand); }
+  a:hover { color: var(--brand-ink); }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  img { -webkit-user-drag: none; }
+}

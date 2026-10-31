@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
@@ -39,7 +41,8 @@ export default defineConfig({
         },
       },
       {
-        plugins: [react()],
+        plugins: [react(), tailwindcss()],
+        resolve: { alias: { '@': fileURLToPath(new URL('./web/src', import.meta.url)) } },
         // Found up front, so a dependency first met mid-run does not make Vite reload the tests.
         optimizeDeps: {
           include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-dev-runtime', '@tanstack/react-query', 'zustand', 'dompurify', 'marked', 'highlight.js/lib/core', '@xterm/xterm', 'vitest-browser-react'],

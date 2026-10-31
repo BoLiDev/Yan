@@ -19,7 +19,9 @@
 
     "declaration": false,
     "sourceMap": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // Not the CLI's: shadcn's CLI, run at the root, reads the page's `@/` from here (components.json).
+    "paths": { "@/*": ["./web/src/*"] }
   },
   "include": ["src/**/*.ts"],
   // A module's own test lives beside it (vitest.config.ts says why) but is not

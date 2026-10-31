@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { createLogger, defineConfig, type Logger, type ProxyOptions } from 'vite';
 
@@ -35,7 +36,8 @@ export default defineConfig(({ command }) => {
   const level = command === 'build' ? 'warn' : 'info';
   return {
     root: fileURLToPath(new URL('.', import.meta.url)),
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
+    resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
     logLevel: level,
     customLogger: quietAbout(level),
     build: {
