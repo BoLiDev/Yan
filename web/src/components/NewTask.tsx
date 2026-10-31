@@ -5,6 +5,7 @@ import { link } from '../lib/route';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
 import { AntIcon } from './Icon';
+import { keepTab } from '../lib/modal';
 import { MultiSelect } from './MultiSelect';
 
 /** A ring of dashes, turning: a task being made. */
@@ -121,17 +122,9 @@ function NewTaskBox() {
       e.preventDefault();
       if (e.metaKey || e.ctrlKey) void create();
       else forward();
-    } else if (e.key === 'Tab') {
+    } else {
       // The keyboard stays in the box.
-      const all = [...(box.current?.querySelectorAll<HTMLElement>('button:not(:disabled):not([tabindex="-1"]), input') ?? [])];
-      const [first, end] = [all[0], all[all.length - 1]];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        end?.focus();
-      } else if (!e.shiftKey && document.activeElement === end) {
-        e.preventDefault();
-        first?.focus();
-      }
+      keepTab(e, box.current);
     }
   };
 

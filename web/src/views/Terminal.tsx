@@ -4,6 +4,7 @@ import '@xterm/xterm/css/xterm.css';
 import { postJSON, type TerminalState } from '../lib/api';
 import { MOD } from '../lib/format';
 import { keyFor } from '../lib/keys';
+import { boxOpen } from '../lib/modal';
 import { tilesOf, type Tile } from '../lib/tiles';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/ui';
@@ -75,7 +76,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false }: { i
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const active = document.activeElement as HTMLElement | null;
-      if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(active?.tagName ?? '')) return;
+      if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || boxOpen() || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(active?.tagName ?? '')) return;
       e.preventDefault();
       (panes.terms.get(panes.last ?? '') ?? panes.terms.get(state?.pane ?? ''))?.focus();
     };

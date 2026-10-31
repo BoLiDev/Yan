@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { boxOpen } from '../lib/modal';
 import { useUI } from '../state/ui';
 
 /** Where ← and → go from the view on the right, for as long as it is shown. */
@@ -25,7 +26,7 @@ export function usePick(count: number, open: (at: number) => void): { at: number
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const active = document.activeElement as HTMLElement | null;
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(active?.tagName ?? '') || active?.isContentEditable || useUI.getState().palette || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(active?.tagName ?? '') || active?.isContentEditable || boxOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         pick((a) => Math.max(0, Math.min(count - 1, a + (e.key === 'ArrowDown' ? 1 : -1))));

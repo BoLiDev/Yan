@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
+import { boxOpen } from './lib/modal';
 import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
@@ -120,10 +121,10 @@ function useKeys(): void {
       }
       const active = document.activeElement as HTMLElement | null;
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(active?.tagName ?? '') || !!active?.isContentEditable;
-      if (typing || e.altKey || e.ctrlKey || e.metaKey) return;
+      // A box over the page has the keys while it is open.
+      if (typing || boxOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
       const r = parseRoute(location.hash);
-      const { palette, ask } = useUI.getState();
-      if (r.view === 'task' && !palette && !ask && e.key === 'Tab') {
+      if (r.view === 'task' && e.key === 'Tab') {
         const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === r.id);
         if (!t) return;
         e.preventDefault();

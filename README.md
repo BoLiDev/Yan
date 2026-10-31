@@ -314,7 +314,8 @@ showing each as they reach it and round again, and nowhere else on the
 page: MR shows the branch its first tree is on, and Agent and Resources
 the task's agents and its resources by kind, the first picked, ↑ and ↓
 picking another and Enter opening it, an agent in the tab every agent
-opens in and a resource in a tab of its own. It stays there while
+opens in and a resource in a tab of its own. While a box is open over the
+page, ⌘K's, a new task's or a question, the keys are the box's alone. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { dirName, baseName } from '../lib/files';
 import type { PushFile } from '../lib/api';
+import { keepTab } from '../lib/modal';
 import { useUI } from '../state/ui';
 import { Icon, type IconName } from './Icon';
 
@@ -121,6 +122,7 @@ export function AskModal() {
   const ask = useUI((s) => s.ask);
   const [given, setGiven] = useState('');
   const first = useRef<HTMLInputElement & HTMLButtonElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setGiven('');
     first.current?.focus();
@@ -135,13 +137,14 @@ export function AskModal() {
   };
   return (
     <div className="ask-modal" onClick={(e) => { if (e.target === e.currentTarget) close(); }} onKeyDown={(e) => {
+      keepTab(e, box.current);
       if (e.key === 'Escape') close();
       if (e.key === 'Enter' && ready) {
         e.preventDefault();
         answer();
       }
     }}>
-      <div className="ask" role="dialog" aria-modal="true" aria-label={ask.title}>
+      <div ref={box} className="ask" role="dialog" aria-modal="true" aria-label={ask.title}>
         <div className="t">{ask.title}</div>
         {ask.sub ? <div className="s">{ask.sub}</div> : null}
         {ask.reason ? <input ref={first} className="ask-input" aria-label={ask.reason} placeholder={ask.reason} value={given} onChange={(e) => setGiven(e.target.value)} /> : null}
