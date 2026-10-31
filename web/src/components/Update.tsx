@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { getJSON, postJSON, type Behind, type UpdateState as Progress } from '../lib/api';
+import { cn } from '../lib/utils';
 import { Icon } from './Icon';
+import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
 
 const STEP_WORD: Readonly<Record<Progress['steps'][number]['step'], string>> = { pull: 'Pulling', install: 'Installing', build: 'Building', restart: 'Restarting' };
 
@@ -13,10 +16,13 @@ type Card =
   | { readonly is: 'behind' }
   | { readonly is: 'updating'; readonly progress: Progress };
 
-/** A ring of dashes, turning: a step under way. */
-const Ring = () => (
-  <svg className="ring" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /></svg>
-);
+const TONE = {
+  on: 'bg-brand-soft text-brand-ink',
+  ok: 'bg-success-soft text-success',
+  bad: 'bg-danger-soft text-destructive',
+} as const;
+/** Each part coming in as it changes. */
+const ARRIVE = 'animate-in fade-in-0 slide-in-from-bottom-1 duration-300';
 
 /**
  * yan updating itself, a card at the foot of the task list: a title saying
@@ -78,15 +84,16 @@ export function UpdateCard() {
   };
 
   // A tile on the right; one with something to do next is its button, named for that alone.
-  const tile = (tone: string, icon: ReactNode, does?: [string, () => void]): ReactNode => does
-    ? <button type="button" className={`update-tile ${tone}`} aria-label={does[0]} onClick={does[1]}>{icon}</button>
-    : <span className={`update-tile ${tone}`}>{icon}</span>;
+  const tile = (tone: keyof typeof TONE, icon: ReactNode, does?: [string, () => void]): ReactNode => does
+    ? <Button size="icon" className={cn('rounded-[9px] hover:brightness-95', TONE[tone])} aria-label={does[0]} onClick={does[1]}>{icon}</Button>
+    : <span className={cn('flex size-8 items-center justify-center rounded-[9px]', TONE[tone])}>{icon}</span>;
+  const turning = <Spinner className="size-4" />;
   const again = <Icon name="reload" size={14} />;
 
   let title = '';
   let action: ReactNode = null;
   let below: ReactNode = null;
-  if (card.is === 'checking') [title, action] = ['Checking', tile('on', <Ring />)];
+  if (card.is === 'checking') [title, action] = ['Checking', tile('on', turning)];
   else if (card.is === 'none') [title, action] = ['Up to date', tile('ok', <Icon name="tick" size={14} />, ['Check again', check])];
   else if (card.is === 'unchecked') [title, action] = ['Could not check', tile('bad', again, ['Check again', check])];
   else if (card.is === 'behind') [title, action] = ['A new yan is out', tile('on', <Icon name="arrowUp" size={14} />, ['Update', update])];
@@ -97,20 +104,28 @@ export function UpdateCard() {
     const word = STEP_WORD[steps[at]?.step ?? 'pull'];
     // The title is the step; the bar says how far along.
     title = failed >= 0 ? `${word} failed` : word;
-    action = failed >= 0 ? tile('bad', again, going ? undefined : ['Try again', update]) : tile('on', <Ring />);
-    below = <div className="update-bar">{steps.map((s) => <i key={s.step} className={s.state} />)}</div>;
+    action = failed >= 0 ? tile('bad', again, going ? undefined : ['Try again', update]) : tile('on', turning);
+    below = (
+      <div className={cn('mr-[7px] flex gap-1', ARRIVE)}>
+        {steps.map((s) => <i key={s.step} className={cn('h-1 flex-1 rounded-sm bg-sunken transition-colors duration-300', s.state === 'done' && 'bg-success', s.state === 'now' && 'animate-pulse bg-brand', s.state === 'failed' && 'bg-destructive')} />)}
+      </div>
+    );
   }
 
   return (
-    <div className="update-card" style={height === undefined ? undefined : { height }}>
-      <div ref={inner} className={`update-inner ${card.is}`}>
-        <div className="update-row">
+    <div className="overflow-hidden rounded-xl bg-card transition-[height] duration-450 ease-[cubic-bezier(.34,1.5,.5,1)] motion-reduce:transition-none" style={height === undefined ? undefined : { height }}>
+      <div ref={inner} className={cn('flex flex-col gap-2.5', card.is === 'idle' ? 'p-0' : 'py-[5px] pr-[5px] pl-3', card.is === 'updating' && 'pb-3.5')}>
+        <div className="flex min-h-[30px] items-center gap-2.5">
           {/* Nothing asked yet, the card is the one thing to do, Check for updates, across it. Then each part comes in as it
               changes: the title with its words, what is on the right with the card's state. */}
-          {card.is === 'idle' ? <button type="button" className="update-check" onClick={check}><Icon name="refresh" size={13} />Check for updates</button> : (
+          {card.is === 'idle' ? (
+            <Button variant="ghost" className={cn('h-10 flex-1 rounded-none text-[13.5px] font-bold text-brand-ink hover:bg-brand-soft hover:text-brand-ink', ARRIVE)} onClick={check}>
+              <Icon name="refresh" size={13} />Check for updates
+            </Button>
+          ) : (
             <>
-              <b key={title}>{title}</b>
-              <span className="update-action" key={card.is}>{action}</span>
+              <b key={title} className={cn('min-w-0 flex-1 truncate text-[13.5px]', ARRIVE)}>{title}</b>
+              <span key={card.is} className={cn('flex flex-none', ARRIVE)}>{action}</span>
             </>
           )}
         </div>
