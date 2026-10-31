@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
+// yan's own rules, as serve keeps them and sends them to the page.
+import { DEFAULT_SOURCE as RULES } from '../../../src/cli/serve/source';
 import { isSource } from './source';
-
-/** yan's own rules, as src/cli/serve/source.ts has them. */
-const RULES = {
-  include: ['*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs', '*.vue', '*.svelte', '*.html', '*.css', '*.scss', '*.less'],
-  exclude: ['*.test.*', '*.spec.*', '*.stories.*', '*.min.*', '**/__tests__/**', '**/__mocks__/**', '**/__snapshots__/**', '**/e2e/**', '**/dist/**', '**/build/**'],
-};
 
 describe('source code', () => {
   it('is a front end\'s scripts, pages and styles', () => {
