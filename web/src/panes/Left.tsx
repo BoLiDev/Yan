@@ -4,11 +4,11 @@ import { MOD, clock, fromIso, monthLabel, plural } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
-import { Dot, GROW, LABEL, Pane, PushTags, SUBLABEL, Tool, row } from '../components/page';
+import { Dot, GROW, LABEL, Pane, PushTags, SUBLABEL, Tool, WORKING, row } from '../components/page';
 import { Kbd } from '../components/ui/kbd';
 import { UpdateCard } from '../components/Update';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
-import { pullNow, useIndex } from '../state/server';
+import { pullNow, useIndex, useTerminals } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
 import { Badge } from '../components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
@@ -96,11 +96,13 @@ function Bell() {
 
 function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: Seen; on: boolean }) {
   const last = useUI((s) => s.last[t.id]);
+  const { data: terminals } = useTerminals();
+  const working = terminals?.[t.id]?.status === 'working';
   const fresh = on ? [] : [...unseenOf(index, seen, t.id).values()];
   return (
-    <a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}`}>
+    <a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${working ? ' · its agent is at work' : ''}`}>
       <StateIcon state={t.state} />
-      <span className={GROW}>{t.title || t.id}</span>
+      <span className={cn(GROW, working && WORKING)}>{t.title || t.id}</span>
       {fresh.length ? <span className="flex flex-none gap-1" title="since you last looked"><PushTags files={fresh} /></span> : null}
     </a>
   );

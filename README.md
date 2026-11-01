@@ -224,7 +224,8 @@ out of its Resources, and are added and forgotten with `yan resource`.
 An open task has a Terminal row under Log. While an agent bare `yan`
 started in a [herdr](https://herdr.dev) pane on this machine runs, the row
 says what herdr says of it: at work, waiting on you (a question or a
-permission), done or idle; with none running, its page is a terminal
+permission), done or idle, and while it is at work a light passes over the
+task's title in the task list; with none running, its page is a terminal
 drawn large, and Continue on the right of the bar, where Stop is while one
 runs, opens a herdr tab named for the task
 and types `yan --task` into it, the page showing it at once. Stop on the
