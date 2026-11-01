@@ -44,7 +44,15 @@ export function follow(term: Terminal, { task, pane, agent, stage, fits, ended }
       return;
     }
     waitingSince = undefined;
-    if (frame.width > 0 && frame.height > 0 && (frame.width !== term.cols || frame.height !== term.rows)) term.resize(frame.width, frame.height);
+    // The old picture is let go before the size changes, not reflowed into the new one. With no scrollback, xterm.js
+    // (6.0, and 6.1's betas) narrowing a screen whose rows run the full width, as every row of herdr's frames does,
+    // wraps them past its last row and is left scrolled one row down with nothing below: what is drawn after goes a
+    // row out of place in its ring of lines, and its view, settling at the top, shows the pane's bottom line above
+    // the rest, until the page is loaded again. The full frame redraws it all anyway.
+    if (frame.width > 0 && frame.height > 0 && (frame.width !== term.cols || frame.height !== term.rows)) {
+      term.reset();
+      term.resize(frame.width, frame.height);
+    }
     term.write('\x1b[H\x1b[2J');
     term.write(bytesOf(frame));
   };
