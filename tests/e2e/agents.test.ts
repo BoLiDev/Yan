@@ -70,6 +70,18 @@ describe('a task\'s agent, at a glance', () => {
     expect(await tasks(page).getByTitle('agent needs you', { exact: true }).count()).toBe(1);
   });
 
+  it('is not told while its task is the one being read, its Terminal row marked instead', async () => {
+    h.agentIs(AGENT_PANE, 'working');
+    const { page } = await open(served.url('/#/t/t001'));
+    const column = page.getByRole('complementary', { name: 'Task' });
+    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
+
+    h.agentIs(AGENT_PANE, 'done');
+    await column.getByRole('link', { name: /Terminal/ }).getByTitle('agent finished', { exact: true }).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(1000);
+    expect(await page.getByText('Its agent has finished.').count()).toBe(0);
+  });
+
   it('shows on the rail the task list folds to, every open task a click away', async () => {
     h.agentIs(AGENT_PANE, 'working');
     const { page } = await open(served.url('/#/t/t002'));

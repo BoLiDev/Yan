@@ -5,8 +5,7 @@ import { link, type TaskRoute } from '../../lib/route';
 import { logFresh, unseenOf, type Seen } from '../../lib/seen';
 import { goesOn } from '../../lib/stops';
 import { Icon, StateIcon, type IconName } from '../../components/Icon';
-import { ASIDE, Dot, GROW, Pane, WORKING, row } from '../../components/page';
-import { cn } from '../../lib/utils';
+import { ASIDE, Dot, GROW, Pane, row } from '../../components/page';
 import { useTask, useTerminals } from '../../state/server';
 import { AgentRows } from './AgentRows';
 import { useArtifactsPart } from './ArtifactsPart';
@@ -16,11 +15,11 @@ import { ResourceRows } from './ResourceRows';
 import { TaskHead } from './TaskHead';
 import { NAV, navRow } from './look';
 
-/** A row of the nav that opens a page of the task: its icon, its word, and what is beside it; `shine` lights the word. */
-function NavLink({ href, on, icon, word, title, shine, children }: { href: string; on: boolean; icon: IconName; word: string; title?: string; shine?: boolean; children?: ReactNode }) {
+/** A row of the nav that opens a page of the task: its icon, its word, and what is beside it. */
+function NavLink({ href, on, icon, word, title, children }: { href: string; on: boolean; icon: IconName; word: string; title?: string; children?: ReactNode }) {
   return (
     <a className={navRow(on)} aria-current={on ? 'page' : undefined} href={href} title={title}>
-      <Icon name={icon} size={16} /><span className={cn(GROW, shine && WORKING)}>{word}</span>{children}
+      <Icon name={icon} size={16} /><span className={GROW}>{word}</span>{children}
     </a>
   );
 }
@@ -54,10 +53,10 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
         <NavLink href={link.log(t.id)} on={r.sub === 'log'} icon="log" word="Log">
           {fresh ? <Dot title="new entries" /> : null}
         </NavLink>
-        {/* An open task keeps its Terminal row with no agent running, where it is started again. Its agent is told as
-            everywhere else, a light over the word while it works and a dot while it waits or has finished unseen. */}
+        {/* An open task keeps its Terminal row with no agent running, where it is started again. Its agent has the
+            dot it has everywhere else while it waits or has finished unseen; that it is at work, the task's title says. */}
         {terminal || goesOn(t) ? (
-          <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal" title={agent ? agentWords(agent) : undefined} shine={agent?.kind === 'working'}>
+          <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal" title={agent ? agentWords(agent) : undefined}>
             {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
           </NavLink>
         ) : null}

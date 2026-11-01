@@ -195,7 +195,7 @@ export function Left() {
         <a className={cn(row(), 'min-w-0 flex-1 font-bold hover:bg-transparent')} aria-current={onLatest ? 'page' : undefined} href="#/latest">
           <Icon name="latest" size={17} />
           <span className={GROW}>Latest</span>
-          {unseen > 0 ? <Badge className="min-w-5 bg-brand px-1.5 font-bold text-white tabular-nums" title={`${plural(unseen, 'task')} with something new`}>{unseen}</Badge> : null}
+          {unseen > 0 ? <Badge className="min-w-5 bg-success px-1.5 font-bold text-white tabular-nums dark:text-sunken" title={`${plural(unseen, 'task')} with something new`}>{unseen}</Badge> : null}
         </a>
         <Bell />
       </div>

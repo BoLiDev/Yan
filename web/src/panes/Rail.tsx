@@ -81,7 +81,7 @@ export function Rail() {
       <RailButton icon="search" label={`Find a task (${MOD}K)`} onClick={() => useUI.setState({ palette: true })} />
       <RailButton icon="plus" label="New task" onClick={() => useUI.setState({ newTask: true })} />
       <RailButton icon="latest" label="Latest" href="#/latest" on={r.view === 'latest'}
-        mark={fresh > 0 ? <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-brand ring-2 ring-sunken" /> : null} />
+        mark={fresh > 0 ? <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-sunken" /> : null} />
       <span className="my-2 h-px w-7 flex-none bg-border" />
       {tasks.map((t) => <TaskSquare key={t.id} t={t} letters={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} />)}
     </nav>

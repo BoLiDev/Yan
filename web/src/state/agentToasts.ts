@@ -9,11 +9,16 @@ import { setSeen, useUI } from './ui';
 /** The toaster at the page's top right, apart from the foot's, where what an agent did is told. */
 export const AGENT_TOASTER = 'agents';
 
-/** Whether `user` is looking at `task`'s terminal now: its page in front, in a window with the focus. */
-export function lookingAt(task: string): boolean {
-  if (document.visibilityState !== 'visible' || !document.hasFocus()) return false;
+/**
+ * Where `user` is in `task` now, the page showing: at its terminal, or on
+ * another of its pages; null when the page is hidden or shows something else.
+ * Whether the window has the focus is not asked: a page in sight is looked at.
+ */
+export function lookingAt(task: string): 'terminal' | 'task' | null {
+  if (document.visibilityState !== 'visible') return null;
   const r = parseRoute(location.hash);
-  return r.view === 'task' && r.id === task && r.sub === 'terminal';
+  if (r.view !== 'task' || r.id !== task) return null;
+  return r.sub === 'terminal' ? 'terminal' : 'task';
 }
 
 /** `task`'s agent looked at, in its terminal: what it last did is no longer news. */
@@ -32,8 +37,8 @@ export function sawAllAgents(): void {
  * on `user` for a question or a permission: `user` works elsewhere while
  * agents run, and the page is where they look up. Its button opens the
  * task's terminal. What the page found when it opened is Latest's to show,
- * not a burst of toasts; a change while `user` is looking at that terminal
- * is seen as it happens. One toast a task, a later one taking its place.
+ * not a burst of toasts, and nothing is told of the task the page shows. One
+ * toast a task, a later one taking its place.
  */
 export function useAgentToasts(): void {
   const { data: terminals } = useTerminals();
@@ -57,10 +62,11 @@ export function useAgentToasts(): void {
       told.current.set(task, at);
       const news = agentNews(task, s, seen);
       if (news.kind !== 'finished' && news.kind !== 'blocked') continue;
-      if (lookingAt(task)) {
-        setSeen((m) => markAgentSeen(m, task, at));
-        continue;
-      }
+      // Nothing is told of the task being read: at its terminal it is seen as it happens; on another of its pages,
+      // its Terminal row's dot says it.
+      const where = lookingAt(task);
+      if (where === 'terminal') setSeen((m) => markAgentSeen(m, task, at));
+      if (where !== null) continue;
       const title = index.tasks.find((t) => t.id === task)?.title || task;
       toast(title, {
         id: `agent:${task}`,

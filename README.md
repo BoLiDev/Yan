@@ -178,8 +178,7 @@ marked as on the task list and saying how long since it last changed (`3m`,
 `2h`), as serve saw it, which asks herdr every few seconds whether or not a
 page is open; a line opens the task's terminal. An agent that
 finishes, or comes to wait on you, is also told at the page's top right,
-with a button to its terminal, unless that terminal is what you are looking
-at. A finish is news, in Latest, in its count, and as a green dot on the
+with a button to its terminal, unless the page is showing that task. A finish is news, in Latest, in its count, and as a green dot on the
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an
 amber dot, until it is answered. Hidden, the task list folds to a rail:
@@ -236,10 +235,10 @@ task.json; the first is the one going to the task opens. They are left
 out of its Resources, and are added and forgotten with `yan resource`.
 An open task has a Terminal row under Log. While an agent bare `yan`
 started in a [herdr](https://herdr.dev) pane on this machine runs, the row
-tells what herdr says of it as the task list does: while it is at work a
-light passes over the row's word, and the task's title in the task list;
-waiting on you (a question or a permission) it has an amber dot, and
-finished and not yet looked at, a green one; with none running, its page is a terminal
+tells what herdr says of it as the task list does: waiting on you (a
+question or a permission) it has an amber dot, and finished and not yet
+looked at, a green one, while at work a light passes over the task's title
+in the task list; with none running, its page is a terminal
 drawn large, and Continue on the right of the bar, where Stop is while one
 runs, opens a herdr tab named for the task
 and types `yan --task` into it, the page showing it at once. Stop on the
