@@ -17,6 +17,13 @@ describe('launchArgs', () => {
     expect(launchArgs('agy', plain)).toEqual(['--add-dir', '/tree', '-i', `the prompt\n${WAIT_LINE}`]);
   });
 
+  it("says what user says first as each CLI takes a first message: claude's and codex's prompt, and agy's in place of waiting", () => {
+    const told = { ...plain, first: '/yan:done' };
+    expect(launchArgs('claude', told)).toEqual(['--append-system-prompt', 'the prompt', '/yan:done']);
+    expect(launchArgs('codex', told)).toEqual(['-c', 'developer_instructions="the prompt"', '/yan:done']);
+    expect(launchArgs('agy', told)).toEqual(['--add-dir', '/tree', '-i', 'the prompt\n/yan:done']);
+  });
+
   it("speaks each CLI's spelling of a model and an effort, first", () => {
     const spec = { ...plain, model: 'm', effort: 'e' };
     expect(launchArgs('claude', spec).slice(0, 4)).toEqual(['--model', 'm', '--effort', 'e']);

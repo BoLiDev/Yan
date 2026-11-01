@@ -66,7 +66,8 @@ and which holds the rules for keeping its notes, its files, its resources and
 its branches; `yan:define`, to work out the problem and the solution with
 you; `yan:uat`, once an implementation is done and its result can be
 verified interactively; and `yan:done`, which only you start, to close a
-task. Claude is started with them (`--plugin-dir`), and its prompt says only
+task, done, or given up with the reason you give it (`/yan:done --abandon
+<why>`). Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
 which skills there are, and that an implementation ends with `yan:uat`. A skill can be carried where yan does not start the
 agent and so cannot give it a prompt. A machine can give claude skills of
@@ -115,7 +116,10 @@ agent as it is. `--task <id>` goes on with an open task without asking
 which, and `--new "<title>"` starts a task with that title; `--repo <name>` names a repository it works in, as many times
 as it has, with the packages it is about after a colon
 (`--repo app:packages/web,packages/core`; without, the whole repository),
-and `--no-repo` none. What is not given is asked as before. A new task is
+and `--no-repo` none. `--done`, or `--abandon "<why>"`, starts the agent on
+the task asking it to close it, as `yan:done` does, as your first message:
+the skill by its name to claude, what the skill says to codex and agy, which
+take none. What is not given is asked as before. A new task is
 pushed as soon as it is made, before the agent starts, so `yan serve` and
 your other machines have it at once; a push that fails is said, and the
 agent starts anyway, its first turn pushing it.
@@ -184,7 +188,21 @@ waiting on you is news, an
 amber dot, until it is answered. Hidden, the task list folds to a rail:
 finding a task, starting one, Latest, and a square for each task in review
 or in progress, the one being read framed and each one's agent marked as
-on the list. Images, pages, Markdown, code, logs, audio, video and fonts
+on the list. A right click on a task's row in the list, or its square on
+the rail, opens the page's own menu in place of the browser's: Rename, and,
+while the task is open, Done and Abandon. Rename asks for the new title in
+a box, the old one in it; the id stays. Done and Abandon, the second with
+the reason it is given up, have the task's agent close it, as `yan:done`
+does: serve closes nothing itself, since returning a worktree wipes it and
+whether one holds work the task meant to keep is the agent's to judge. An
+agent running in a herdr pane here is typed the skill, as you would type
+it, unless it is at work or waiting on you, which the box says rather than
+typing into the middle of it; with none, one is started on the task as
+Continue starts one, given it as your first message (`yan --task <id>
+--done`). The page then goes to the task's terminal, where the agent says
+what it did, or stops and asks about a worktree holding work that looks
+unsaved. Each box's button waits for serve's answer; one refused says why
+in the box, which stays open to try again. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. Markdown and the report
 an agent wrote are shown without anything in them that runs, and load
 nothing from the page's own address; a page an agent wrote runs as itself
@@ -352,7 +370,7 @@ taken out; its links open in a tab of their own, so the report stays where
 it was. Each deliverable
 is shown there as task.json has it now: tick it done, untick it, give it
 up with a reason or edit the reason it was given up for, and task.json
-changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report is committed and pushed as
+changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report, and a task renamed from its menu, is committed and pushed as
 `yan vault push` would, one after another and without holding up the
 rest of the page; those are the only writes `yan serve` makes, and only
 from its own page. Its API is the page's alone: a page anywhere else,

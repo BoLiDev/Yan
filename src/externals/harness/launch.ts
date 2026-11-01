@@ -6,7 +6,10 @@
  *
  * The opening prompt goes where the CLI lets it go without a reply: claude's
  * system prompt, codex's developer instructions. agy has neither, so it gets
- * the prompt as its first message, with a line asking it to wait.
+ * the prompt as its first message, with a line asking it to wait. A start
+ * that already knows what `user` wants says it as `user`'s first message:
+ * claude and codex take one as their positional prompt, and agy has it in
+ * place of the line asking it to wait.
  *
  * yan's skills come as a plugin, which only claude loads for one session,
  * with `--plugin-dir`; the others are told what the skills say in their
@@ -38,6 +41,8 @@ export interface Launch {
   readonly hooks?: { readonly prompt: string; readonly stop: string };
   /** Plugin folders to load for this session alone, for a CLI that takes them (`takesPlugins`). */
   readonly plugins?: readonly string[];
+  /** What `user` says first, as though typed once it is up; without, it waits for `user`. */
+  readonly first?: string;
 }
 
 /** The line a first message ends with, so a prompt that is not a request starts no work. */
@@ -77,7 +82,8 @@ const claude: Harness = {
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
     const plugins = (launch.plugins ?? []).flatMap((p) => ['--plugin-dir', p]);
-    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt];
+    const first = launch.first === undefined ? [] : [launch.first];
+    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt, ...first];
   },
 };
 
@@ -111,6 +117,7 @@ const codex: Harness = {
     return [
       ...codexModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), ...codexHooks(launch.hooks),
       '-c', `developer_instructions=${JSON.stringify(launch.prompt)}`,
+      ...(launch.first === undefined ? [] : [launch.first]),
     ];
   },
 };
@@ -120,13 +127,14 @@ const codex: Harness = {
 /**
  * Agy ignores the directory it starts in: its working set is the workspace
  * `--add-dir` names, and with none it invents a project under `~/.gemini`.
- * `-i` sends the prompt as the first message and stays open.
+ * `-i` sends the prompt as the first message and stays open: with what
+ * `user` says first after it, or else the line asking it to wait.
  */
 const agy: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
-    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags([launch.workdir, ...launch.addDirs]), '-i', `${launch.prompt}\n${WAIT_LINE}`];
+    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags([launch.workdir, ...launch.addDirs]), '-i', `${launch.prompt}\n${launch.first ?? WAIT_LINE}`];
   },
 };
 

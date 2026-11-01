@@ -95,6 +95,29 @@ export const OPENING_PROMPT = [
     'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
 ].join('\n');
 
+/**
+ * What `user` says to have the agent close the task, as yan:done closes it:
+ * for good, or given up for `abandon`, the reason. claude is asked by the
+ * skill's own name, since the skill is `user`'s alone to start; an agent
+ * with no plugin is told what the skill says, kept in step with
+ * `plugin/skills/done/SKILL.md`. What a closing has to judge, whether a
+ * worktree holds work the task meant to keep, is the agent's, so it is
+ * asked rather than `yan done` run for it.
+ */
+export function closingRequest(cli: string, abandon?: string): string {
+  const why = abandon?.replace(/\s+/g, ' ').trim();
+  if (takesPlugins(cli)) return why === undefined ? '/yan:done' : `/yan:done --abandon ${why}`;
+  return [
+    why === undefined
+      ? 'Close this task with `yan done`: it marks the task done and returns its worktrees to the pool, which resets and cleans them.'
+      : `Close this task as given up, with \`yan done --abandon\` and this reason: ${why}. It returns the task's worktrees to the pool, which resets and cleans them.`,
+    'Leave the deliverables alone: I mark them, so never run `yan deliverable` here.',
+    'If it refuses because a worktree has uncommitted changes or commits no remote branch has, look at what they are. ' +
+      'When something looks like work the task meant to keep and never committed or pushed (changes to the code the deliverables are about, commits on the task\'s branch that never reached origin), list it for me and stop. ' +
+      'Anything else (build output, debug leftovers, a lockfile touched by an install, scratch files) is thrown away by running it again with `--force`.',
+  ].join('\n');
+}
+
 /** One of the task's trees on this machine, as the agent is told about it. */
 export interface Tree {
   /** The repository's registered name, or the last part of its URL. */
@@ -573,8 +596,10 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  * The whole of bare `yan`, at a terminal. Returns the agent's exit status.
  *
  * @param extra arguments after `--`, passed to the harness as they are.
+ * @param close the agent started to close the task, as `user`'s first
+ *   message asks it to: done, or given up with `abandon`'s reason.
  */
-export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string }, deps: EntryDeps = {}): Promise<number> {
+export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string } }, deps: EntryDeps = {}): Promise<number> {
   const vault = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
@@ -602,7 +627,8 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
   const prompt = promptFor(harness.cli, task.dir, told(task, trees));
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
+  const first = options.close === undefined ? {} : { first: closingRequest(harness.cli, options.close.abandon) };
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // Started in a herdr pane, it is kept on this machine while it runs, so `yan serve` can show the pane and type into it.
   // Only a convenience: a config.json that cannot be written never keeps the agent from starting.
   const pane = herdrPane(process.env);

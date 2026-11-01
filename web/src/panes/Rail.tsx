@@ -8,6 +8,7 @@ import { cn } from '../lib/utils';
 import { Icon, type IconName } from '../components/Icon';
 import { WORKING } from '../components/page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
+import { TaskMenu } from '../components/TaskMenu';
 import { useIndex, useTerminals } from '../state/server';
 import { setPref, useUI } from '../state/ui';
 
@@ -44,14 +45,17 @@ function TaskSquare({ t, letters, news, on }: { t: TaskSummary; letters: string;
   const name = t.title || t.id;
   const label = news ? `${name} · ${agentWords(news)}` : name;
   const working = news?.kind === 'working';
+  // The square is the tooltip's trigger and the task's menu's at once.
+  const square = <a className={cn(SQUARE, 'text-[12.5px] font-bold tracking-tight text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
+    href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined} />;
   return (
-    <Tip label={label}>
-      <a className={cn(SQUARE, 'text-[12.5px] font-bold tracking-tight text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
-        href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined}>
+    <Tooltip>
+      <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
         <span className={cn(working && WORKING)}>{letters}</span>
         <Mark news={news} />
-      </a>
-    </Tip>
+      </TaskMenu>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -101,11 +101,7 @@ export class Launches {
    * the launch's name, the task's own id for one gone on with.
    */
   public async start(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
-    if (given.task !== undefined) {
-      const open = openTasks().find((t) => t.id === given.task);
-      if (open === undefined) return void res.writeHead(404).end(`${String(given.task)} is not an open task in this vault`);
-      return this.open(res, open.id, open.title, ['--task', open.id]);
-    }
+    if (given.task !== undefined) return this.goOn(res, given.task);
     const title = typeof given.title === 'string' ? given.title.trim() : '';
     if (title === '' || title.length > 200) return void res.writeHead(400).end('a new task needs a title, of 200 characters at most');
     const offered = this.repos();
@@ -123,6 +119,17 @@ export class Launches {
     for (const r of repos) answers.push('--repo', r.scope.length === 0 ? r.name : `${r.name}:${r.scope.join(',')}`);
     if (repos.length === 0) answers.push('--no-repo');
     return this.open(res, `${LAUNCHED}${randomBytes(4).toString('hex')}`, title, answers);
+  }
+
+  /**
+   * The open task `task` gone on with in a herdr tab named for it, bare
+   * `yan --task` typed into it with `more` after: the closing an agent is
+   * started for, say. Answers the launch's name, the task's own id.
+   */
+  public async goOn(res: ServerResponse, task: unknown, more: readonly string[] = []): Promise<void> {
+    const open = openTasks().find((t) => t.id === task);
+    if (open === undefined) return void res.writeHead(404).end(`${String(task)} is not an open task in this vault`);
+    return this.open(res, open.id, open.title, ['--task', open.id, ...more]);
   }
 
   /** A herdr tab named `title`, bare `yan` typed into it with `args`, kept as the launch `key`. */

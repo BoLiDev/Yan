@@ -14,6 +14,7 @@ import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtas
 import { noAgentPage } from './no-agent.js';
 import { Terminals } from './terminal.js';
 import { Launches } from './launch.js';
+import { askToClose } from './closing.js';
 import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
@@ -612,6 +613,9 @@ export class YanServer {
     '/api/terminal/stop': { does: 'stop an agent', json: true, run: async (res, given) => this.terminals.stop(res, given) },
     '/api/terminal/split': { does: 'split a pane', json: true, run: async (res, given) => this.terminals.split(res, given) },
     '/api/terminal/close': { does: 'close a pane', json: true, run: async (res, given) => this.terminals.closeSplit(res, given) },
+    // The agent asked to close the task, which it does with yan done: nothing of the vault's is written here.
+    '/api/task/close': { does: 'ask an agent to close a task', json: true, run: async (res, given) => askToClose(res, given, this.options.vaultDir, this.launches) },
+    '/api/task/title': this.change((res, given) => this.renameTask(res, given)),
     '/api/deliverable': this.change((res, given) => this.setDeliverable(res, given)),
     '/api/deliverable/text': this.change((res, given) => this.rewordDeliverable(res, given)),
     '/api/deliverable/remove': this.change((res, given) => this.removeDeliverable(res, given)),
@@ -624,6 +628,18 @@ export class YanServer {
   /** A change to the vault from the page, which waits its turn. */
   private change(run: (res: ServerResponse, given: Record<string, unknown>) => Promise<void>): Post {
     return { does: 'change the vault', json: true, run: (res, given) => this.inTurn(() => run(res, given)) };
+  }
+
+  /** `{ task, title }`: the task called something else, from its row in the task list. */
+  private async renameTask(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, title] = [given.task, given.title];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof title !== 'string') return send(res, 400, 'task and title are needed');
+    try {
+      new Task(id).rename(title);
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: renamed in yan serve`);
   }
 
   /**

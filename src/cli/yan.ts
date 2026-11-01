@@ -60,11 +60,14 @@ here, in the task's first worktree when it has any ('yan repo' keeps the
 repositories a new task picks from):
 
   yan [--cli claude|codex|agy] [--task <id> | --new <title> [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
+  yan [--cli claude|codex|agy] [--task <id>] --done | --abandon <why>
 
 --task goes on with an open task without asking which. --new starts a task
 called <title>; --repo names a repository it works in, with the packages it
 is about after a colon (the whole repository without), and --no-repo none.
-What is not given is asked.`,
+--done, or --abandon with the reason it is given up, starts the agent asking
+it to close the task, as yan:done does: it stops to ask when a worktree holds
+work that looks unsaved. What is not given is asked.`,
     );
 
   for (const name of found) {
@@ -103,12 +106,13 @@ function commanderExitCode(err: CommanderError): number {
   return COMMANDER_INFORMATIONAL.has(err.code) ? err.exitCode : 2;
 }
 
-/** What bare `yan` was given: the CLI to run instead, an open task or a new task's answers, and what to pass the agent. */
+/** What bare `yan` was given: the CLI to run instead, an open task or a new task's answers, whether to close it, and what to pass the agent. */
 interface EntryArgs {
   readonly cli?: string;
   readonly extra: string[];
   readonly new?: NewTask;
   readonly task?: string;
+  readonly close?: { readonly abandon?: string };
 }
 
 /** `name` or `name:package,package`, as `--repo` takes a repository and the packages a new task is about. */
@@ -134,6 +138,7 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   let title: string | undefined;
   let repos: { name: string; scope: string[] }[] | undefined;
   let noRepo = false;
+  let close: { abandon?: string } | undefined;
   let extra: string[] = [];
   // `--flag value` or `--flag=value`; the value, and how many words it took.
   const valueOf = (flag: string, i: number): [string, number] | undefined => {
@@ -147,20 +152,24 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
       extra = argv.slice(i + 1);
       break;
     }
-    const given = valueOf('--cli', i) ?? valueOf('--task', i) ?? valueOf('--new', i) ?? valueOf('--repo', i);
+    const given = valueOf('--cli', i) ?? valueOf('--task', i) ?? valueOf('--new', i) ?? valueOf('--repo', i) ?? valueOf('--abandon', i);
     if (given !== undefined && word.startsWith('--cli')) cli = given[0];
     else if (given !== undefined && word.startsWith('--task')) task = given[0];
     else if (given !== undefined && word.startsWith('--new')) title = given[0];
+    else if (given !== undefined && word.startsWith('--abandon')) close = { abandon: given[0] };
     else if (given !== undefined) (repos ??= []).push(repoArg(given[0]));
     else if (word === '--no-repo') noRepo = true;
-    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --task <id> or --new <title> with --repo <name> or --no-repo, and, after --, arguments for the agent - not '${word}'`);
+    else if (word === '--done') close = {};
+    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --task <id> or --new <title> with --repo <name> or --no-repo, --done or --abandon <why>, and, after --, arguments for the agent - not '${word}'`);
     i += given?.[1] ?? 1;
   }
   if (title === undefined && (repos !== undefined || noRepo)) throw YanError.usage('yan_usage', '--repo and --no-repo are a new task\'s, given with --new <title>');
   if (repos !== undefined && noRepo) throw YanError.usage('yan_usage', '--repo and --no-repo say opposite things; give one');
   if (task !== undefined && title !== undefined) throw YanError.usage('yan_usage', '--task goes on with a task and --new starts one; give one');
+  if (close !== undefined && title !== undefined) throw YanError.usage('yan_usage', '--done and --abandon close a task there is, not one --new starts');
+  if (close?.abandon !== undefined && close.abandon.trim() === '') throw YanError.usage('yan_usage', '--abandon takes the reason the task is being given up');
   const made = title === undefined ? {} : { new: { title, ...(noRepo ? { repos: [] } : repos === undefined ? {} : { repos }) } };
-  return { ...(cli === undefined ? {} : { cli }), extra, ...made, ...(task === undefined ? {} : { task }) };
+  return { ...(cli === undefined ? {} : { cli }), extra, ...made, ...(task === undefined ? {} : { task }), ...(close === undefined ? {} : { close }) };
 }
 
 async function main(argv: readonly string[]): Promise<number> {

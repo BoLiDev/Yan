@@ -11,6 +11,13 @@ import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
 import { Uat, type Renumbered } from './uat.js';
 import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
+/** A title as a task keeps it: trimmed, and refused when blank or on more than one line. */
+function titleOf(title: string): string {
+  const name = title.trim();
+  if (name === '' || /[\r\n]/.test(name)) throw YanError.usage('task_usage', 'a task needs a title, on one line');
+  return name;
+}
+
 /**
  * A handle on one `tasks/<id>/task.json`: what the task is called, whether it
  * is finished, which repositories its trees are cut from, the deliverables it
@@ -60,6 +67,18 @@ export class Task {
    */
   public read(): TaskData {
     return validate(readJson(this.require()), this);
+  }
+
+  /**
+   * Call it something else, on one line as a new task is. The id stays: it
+   * is a number, never made from the title, so nothing that names the task
+   * moves with it.
+   */
+  public rename(title: string): void {
+    const name = titleOf(title);
+    this.edit((doc) => {
+      doc.title = name;
+    });
   }
 
   /**
@@ -380,8 +399,7 @@ export class Task {
    *   none for a task with no tree.
    */
   public static create(title: string, repos: readonly TaskRepo[] = []): Task {
-    const name = title.trim();
-    if (name === '' || /[\r\n]/.test(name)) throw YanError.usage('task_usage', 'a task needs a title, on one line');
+    const name = titleOf(title);
     const task = new Task(nextNumbered(Task.list(), 't', 3));
     mkdirSync(task.dir, { recursive: true });
     initJson(task.file, {

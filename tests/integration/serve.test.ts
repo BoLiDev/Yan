@@ -440,6 +440,20 @@ describe('the overview on yan serve', () => {
     expect(existsSync(at('problem.md')) ? readFileSync(at('problem.md'), 'utf8') : '').not.toContain('xxxx');
   });
 
+  it('renames the task, its id and all else kept, and the index shows it called that once pushed', async () => {
+    expect((await post('/api/task/title', { task: 't004', title: 'x' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/task/title', { task: 't004', title: '  ' })).status).toBe(400);
+    expect((await post('/api/task/title', { task: 't404', title: 'x' })).status).toBe(400);
+    expect((await post('/api/task/title', { task: 't004', title: '  the overview, renamed ' })).status).toBe(200);
+    expect(readJson(at('task.json'))).toMatchObject({ id: 't004', title: 'the overview, renamed', state: 'open' });
+    expect(await subject()).toBe('t004: renamed in yan serve');
+    const listed = await until(async () => {
+      const index = (await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; title: string }[] };
+      return index.tasks.find((t) => t.id === 't004' && t.title === 'the overview, renamed');
+    }, 20_000);
+    expect(listed).toBeDefined();
+  });
+
   it('rewords a deliverable, keeping its id and state', async () => {
     expect((await post('/api/deliverable/text', { task: 't004', id: 'd1', text: 'one, reworded' })).status).toBe(200);
     expect((readJson(at('task.json')) as { deliverables: { id: string; text: string; status: string }[] }).deliverables[0]).toMatchObject({ id: 'd1', text: 'one, reworded', status: 'done' });
@@ -683,6 +697,49 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
       expect((await post('/api/terminal/stop', { task: 't007' })).status, 'a launch stops as a terminal does').toBe(200);
       expect(h.tabs()).toEqual([]);
       expect((await post('/api/terminal/stop', { task: 't007' })).status, 'and is then gone').toBe(404);
+    } finally {
+      rmSync(join(home, 'tasks', 't007'), { recursive: true, force: true });
+    }
+  });
+
+  it("asks the task's agent to close it, typing yan:done into it as user would, and refuses while it is at work or waiting on user", async () => {
+    const h = await aHerdr('0.9.5');
+    expect((await post('/api/task/close', { task: 't001' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/task/close', { task: 't404' })).status).toBe(404);
+    expect((await post('/api/task/close', { task: 't001', abandon: ' ' })).status, 'a reason, to give it up').toBe(400);
+
+    const blocked = await post('/api/task/close', { task: 't001' });
+    expect(blocked.status).toBe(409);
+    expect(await blocked.text()).toContain('waiting on you');
+    h.agentIs(AGENT_PANE, 'working');
+    expect((await post('/api/task/close', { task: 't001' })).status).toBe(409);
+    expect(h.received(AGENT_PANE), 'nothing typed while it is busy').toEqual([]);
+
+    h.agentIs(AGENT_PANE, 'done');
+    expect(await (await post('/api/task/close', { task: 't001' })).json()).toEqual({ typed: true });
+    h.agentIs(AGENT_PANE, 'idle');
+    expect((await post('/api/task/close', { task: 't001', abandon: 'the API\nwas dropped' })).status).toBe(200);
+    expect(h.received(AGENT_PANE), "the skill by its name, then Enter, as a paste is sent").toEqual([
+      { paste: '/yan:done', keys: ['enter'] },
+      { paste: '/yan:done --abandon the API was dropped', keys: ['enter'] },
+    ]);
+    expect(h.tabs(), 'no agent started beside it').toHaveLength(1);
+    expect(readJson(join(home, 'tasks/t001/task.json')), 'serve closes nothing itself').toMatchObject({ state: 'open' });
+  });
+
+  it('starts an agent asked to close a task that has none here, in a herdr tab as Continue opens, and asks no second one beside it', async () => {
+    const h = await aHerdr('0.9.5');
+    write(home, 'tasks/t007/task.json', task('t007', 'given up'));
+    try {
+      expect(await (await post('/api/task/close', { task: 't007', abandon: 'no longer wanted' })).json()).toEqual({ launch: 't007' });
+      const pane = h.tabs().find((t) => t.label === 'given up')?.panes[0] ?? '';
+      expect(h.received(pane), 'bare yan, given the task and the reason').toEqual([{ text: expect.stringMatching(/yan\.mjs --task t007 --abandon 'no longer wanted'\r$/) }]);
+      expect((await terminals()).t007, "the page shows it as the task's terminal at once").toMatchObject({ pane, title: 'given up' });
+
+      const again = await post('/api/task/close', { task: 't007' });
+      expect(again.status, 'its agent not kept yet').toBe(409);
+      expect(await again.text()).toContain('stop it first');
+      expect(h.tabs().filter((t) => t.label === 'given up')).toHaveLength(1);
     } finally {
       rmSync(join(home, 'tasks', 't007'), { recursive: true, force: true });
     }

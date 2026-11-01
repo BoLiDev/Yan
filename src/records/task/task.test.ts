@@ -40,6 +40,22 @@ describe('create', () => {
   });
 });
 
+describe('rename', () => {
+  it('changes the title alone, trimmed, keeping the id and every other field', () => {
+    const task = Task.create('first');
+    writeFileSync(task.file, JSON.stringify({ ...raw(task), mine: 'kept' }));
+    task.rename('  the first, called better  ');
+    expect(raw(task)).toMatchObject({ id: 't001', title: 'the first, called better', state: 'open', mine: 'kept' });
+  });
+
+  it('refuses an empty or multi-line title, leaving the one it had', () => {
+    const task = Task.create('first');
+    expect(() => task.rename(' ')).toThrow(/title/);
+    expect(() => task.rename('a\nb')).toThrow(/title/);
+    expect(task.read().title).toBe('first');
+  });
+});
+
 describe('read', () => {
   it('refuses a version 1 task.json', () => {
     const task = Task.create('x');

@@ -8,6 +8,7 @@ import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Palette } from './components/Palette';
 import { NewTaskModal } from './components/NewTask';
+import { TaskActModal } from './components/TaskMenu';
 import { AskModal } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -181,6 +182,7 @@ export function App() {
       <AskModal />
       <Palette />
       <NewTaskModal />
+      <TaskActModal />
     </TooltipProvider>
   );
 }

@@ -43,6 +43,12 @@ export interface Ask {
   readonly then: (given: string) => void;
 }
 
+/** What a task's menu asked for: a new title, or its agent to close it as done or given up. */
+export interface TaskAct {
+  readonly kind: 'rename' | 'done' | 'abandon';
+  readonly id: string;
+}
+
 /** Last words said on a task's report, so a redraw for the commit they caused keeps them a moment. */
 export interface Said {
   readonly text: string;
@@ -87,6 +93,8 @@ interface UI {
   /** Where ← and → go from what the right pane shows. */
   keyNav: { readonly prev: string | null; readonly next: string | null };
   ask: Ask | null;
+  /** The box a task's menu opened over the page: renaming it, or having its agent close it. */
+  taskAct: TaskAct | null;
   said: Readonly<Record<string, Said>>;
 }
 
@@ -144,6 +152,7 @@ export const useUI = create<UI>(() => ({
   mdSource: false,
   keyNav: { prev: null, next: null },
   ask: null,
+  taskAct: null,
   said: {},
 }));
 

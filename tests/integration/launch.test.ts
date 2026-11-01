@@ -90,8 +90,8 @@ function splitHooks(argv: readonly string[]): { argv: string[]; hooks: string[] 
   return { argv: rest, hooks };
 }
 
-function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string } = {}): Promise<number> {
-  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }) }, {
+function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string; close?: { abandon?: string } } = {}): Promise<number> {
+  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }), ...(options.close === undefined ? {} : { close: options.close }) }, {
     prompts,
     chain,
     cwd,
@@ -325,6 +325,23 @@ describe('an existing task', () => {
     expect(said.slice(0, 2)).toEqual([expect.stringMatching(/^begin /), 'done t001  the one']);
     expect(started).toHaveLength(1);
     await expect(run(answers({ entry: 'never chosen' }), here, { task: 't404' })).rejects.toThrow(/t404 is not an open task/);
+  });
+
+  it('asked to close it, starts the agent with that as what user says first: yan:done by name to claude, what it says to the others', async () => {
+    Task.create('the one');
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', close: {} });
+    expect(claudeOf(0).rest, "the skill's slash command, the agent's to carry out").toEqual(['/yan:done']);
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', close: { abandon: 'the API\n  was dropped' } });
+    expect(claudeOf(1).rest, 'the reason on one line').toEqual(['/yan:done --abandon the API was dropped']);
+
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', cli: 'codex', close: { abandon: 'the API was dropped' } });
+    const told = started[2]?.argv.at(-1) ?? '';
+    expect(told, 'codex has no skill, so it is told what yan:done says').toContain('`yan done --abandon` and this reason: the API was dropped');
+    expect(told).toContain('`--force`');
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', cli: 'agy', close: {} });
+    expect(started[3]?.argv.at(-1), "agy hears it after its prompt, where it would be told to wait").toMatch(/\nClose this task with `yan done`/);
+    expect(started[3]?.argv.at(-1)).not.toContain(WAIT_LINE);
   });
 
   it('starts in the tree it holds, asking nothing, and names the branch the agent cut in it', async () => {

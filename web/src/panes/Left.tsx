@@ -9,6 +9,7 @@ import { Dot, GROW, LABEL, Pane, PushTags, SUBLABEL, Tool, WORKING, row } from '
 import { Kbd } from '../components/ui/kbd';
 import { UpdateCard } from '../components/Update';
 import { Rail } from './Rail';
+import { TaskMenu } from '../components/TaskMenu';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex, useTerminals } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
@@ -101,12 +102,12 @@ function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: S
   const agent = state === undefined ? undefined : agentNews(t.id, state, seen);
   const fresh = on ? [] : [...unseenOf(index, seen, t.id).values()];
   return (
-    <a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${agent ? ` · ${agentWords(agent)}` : ''}`}>
+    <TaskMenu t={t} render={<a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${agent ? ` · ${agentWords(agent)}` : ''}`} />}>
       <StateIcon state={t.state} />
       <span className={cn(GROW, agent?.kind === 'working' && WORKING)}>{t.title || t.id}</span>
       {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
       {fresh.length ? <span className="flex flex-none gap-1" title="since you last looked"><PushTags files={fresh} /></span> : null}
-    </a>
+    </TaskMenu>
   );
 }
 
