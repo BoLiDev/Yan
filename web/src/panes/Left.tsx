@@ -31,7 +31,8 @@ function Sync() {
   const connected = useUI((s) => s.connected);
   const pulling = useUI((s) => s.pulling);
   let tone: keyof typeof LIGHT = 'ok';
-  let head = 'Up to date';
+  // In sync it says so in a word; when it last asked origin is the tooltip's, not a clock ticking on the card.
+  let head = 'Synced';
   let sub = '';
   if (!connected) {
     tone = 'down';
@@ -40,7 +41,6 @@ function Sync() {
   } else if (pulling) {
     tone = 'busy';
     head = 'Pulling…';
-    sub = st?.checkedAt ? `checked ${clock(st.checkedAt, true)}` : '';
   } else if (st?.local) {
     head = 'Local vault';
     sub = 'no origin to pull from';
@@ -48,17 +48,15 @@ function Sync() {
     tone = 'warn';
     head = "Can't reach origin";
     sub = st.pulledAt ? `last pulled ${clock(st.pulledAt)}` : 'not pulled yet';
-  } else if (st?.checkedAt) {
-    sub = `checked ${clock(st.checkedAt, true)}`;
   }
-  const every = st ? `Pulls every ${st.everyS} s by itself. ` : '';
+  const every = st ? `Pulls every ${st.everyS} s by itself${st.checkedAt ? `, last at ${clock(st.checkedAt, true)}` : ''}. ` : '';
   return (
-    <button type="button" className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl bg-card px-3 py-2 text-left" aria-label="Pull now"
+    <button type="button" className="flex min-h-[50px] w-full cursor-pointer items-center gap-2.5 rounded-xl bg-card px-3 py-2 text-left" aria-label="Pull now"
       title={(st?.error ? `${st.error}\n` : '') + every + 'Click to pull now.'} onClick={() => void pullNow()}>
       <span className={cn('size-2 flex-none rounded-full', LIGHT[tone])} />
       <span className="flex min-w-0 flex-1 flex-col leading-[17px]">
         <b className="text-[13px]">{head}</b>
-        <span className="truncate text-xs/[17px] text-ink-3">{sub}</span>
+        {sub ? <span className="truncate text-xs/[17px] text-ink-3">{sub}</span> : null}
       </span>
       <Icon name="refresh" size={16} className={cn('text-ink-3', tone === 'busy' && 'animate-spin')} />
     </button>
