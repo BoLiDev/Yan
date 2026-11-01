@@ -4,9 +4,12 @@ import { cn } from '../../lib/utils';
 /**
  * The page's rows, in the task list, a task's nav and its trees: an icon,
  * what it is, and figures at its end. The one being shown is a card.
+ * Focused, its ring is drawn inside its own edge, not past it as the page's
+ * other rings are: rows sit a hair apart, and a ring outside one ran into the
+ * row beside it lit by the pointer.
  */
 const rows = cva(
-  'flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-[7px] text-left text-foreground no-underline hover:bg-hover hover:text-foreground [&_svg]:shrink-0',
+  'flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-[7px] text-left text-foreground no-underline hover:bg-hover hover:text-foreground focus-visible:-outline-offset-2 [&_svg]:shrink-0',
   {
     variants: {
       on: { true: 'bg-card font-bold ring-1 ring-border hover:bg-card', false: '' },

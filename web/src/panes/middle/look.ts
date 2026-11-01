@@ -3,8 +3,8 @@
 import { row } from '../../components/page';
 import { cn } from '../../lib/utils';
 
-/** A task's nav: its rows one under another. */
-export const NAV = 'flex flex-col gap-px';
+/** A task's nav: its rows one under another, far enough apart that a lit row and a focused one do not touch. */
+export const NAV = 'flex flex-col gap-0.5';
 
 /** A row of a task's nav, its corners a little tighter than a row of the task list's. */
 export const navRow = (on = false): string => row({ on, at: 'nav' });
