@@ -247,9 +247,23 @@ export type Layout =
   | { readonly pane: string }
   | { readonly split: 'right' | 'down'; readonly ratio: number; readonly first: Layout; readonly second: Layout };
 
+/**
+ * An agent's last change of status, as this serve saw it: what it was, what
+ * it became, and when, in seconds. serve watches herdr while it runs, so a
+ * change comes with its time whether or not a page was open; one restarted
+ * knows none until the next.
+ */
+export interface AgentChange {
+  readonly from: AgentStatus;
+  readonly to: AgentStatus;
+  readonly at: number;
+}
+
 /** `/api/terminals`, by task: an agent bare `yan` started in a herdr pane on this machine, while it runs. */
 export interface TerminalState {
   readonly status: AgentStatus;
+  /** How it came to be `status`, when serve saw it change. */
+  readonly change?: AgentChange;
   /** The agent herdr finds in the pane, as `claude`; null once it has exited and the pane is a shell again. */
   readonly agent: string | null;
   /** The CLI bare `yan` started. */

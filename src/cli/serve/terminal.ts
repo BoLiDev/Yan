@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CONTROL_SINCE, atLeast, closePane, closeTab, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, tabOf, versionOf, type Layout } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { letTerminalGo, terminalsOf, type HeldTerminal } from '../../util/machine.js';
+import { AgentWatch } from './agent-watch.js';
 import type { Launches } from './launch.js';
 import type { TerminalState } from './wire.js';
 
@@ -52,8 +53,16 @@ export class Terminals {
   /** The controller a page holds of each pane, by herdr socket and pane. */
   private readonly controllers = new Map<string, ChildProcess>();
 
+  /** When each agent last changed, as serve has watched it. */
+  private readonly watch = new AgentWatch();
+  /** herdr asked every few seconds whether or not a page asks, so a change has its time while no page is open. */
+  private readonly watching: NodeJS.Timeout;
+
   /** A launch's pane is the page's as a task's terminal is, by the launch's name, until it is one. */
-  public constructor(private readonly vault: string, private readonly launches?: Launches) {}
+  public constructor(private readonly vault: string, private readonly launches?: Launches) {
+    this.watching = setInterval(() => void this.read(), 3000);
+    this.watching.unref();
+  }
 
   private held(task: string): HeldTerminal | undefined {
     return terminalsOf(this.vault).find((t) => t.task === task) ?? this.launches?.held(task);
@@ -90,19 +99,33 @@ export class Terminals {
   public states(): Promise<Record<string, TerminalState>> {
     const all = this.launches?.all() ?? [];
     if (this.asked !== undefined && Date.now() - this.asked.at < 1000 && this.asked.launches === all.length) return this.asked.states;
+    const states = this.read(all);
+    this.asked = { at: Date.now(), launches: all.length, states };
+    return states;
+  }
+
+  /**
+   * What herdr says of each terminal now, each agent's change noted on the
+   * way. The watch reads it apart from what pages are answered with, so a
+   * page asking just after a terminal is kept is never answered from before.
+   */
+  private read(all = this.launches?.all() ?? []): Promise<Record<string, TerminalState>> {
     const launched = all.map((l) => ({ held: l.held, launch: { title: l.title, ...(l.task === undefined ? {} : { task: l.task }) } }));
     // A task's own terminal comes after its launch, so once bare yan keeps the pane, what herdr says of the agent is the task's.
-    const states = Promise.all([...launched, ...terminalsOf(this.vault).map((held) => ({ held, launch: {} }))].map(async ({ held: t, launch }) => {
+    return Promise.all([...launched, ...terminalsOf(this.vault).map((held) => ({ held, launch: {} }))].map(async ({ held: t, launch }) => {
       try {
         const [pane, herdr, layout] = await Promise.all([paneOf(t.socket, t.pane), this.version(t.socket), this.layout(t)]);
-        const state: TerminalState = { status: pane.agent_status, agent: pane.agent ?? null, cli: t.cli, pane: t.pane, since: t.since, herdr, streams: atLeast(herdr, CONTROL_SINCE), layout, ...launch };
+        const change = this.watch.note(t.task, pane.agent_status);
+        const state: TerminalState = { status: pane.agent_status, ...(change === undefined ? {} : { change }), agent: pane.agent ?? null, cli: t.cli, pane: t.pane, since: t.since, herdr, streams: atLeast(herdr, CONTROL_SINCE), layout, ...launch };
         return [[t.task, state] as const];
       } catch {
         return [];
       }
-    })).then((found) => Object.fromEntries(found.flat()));
-    this.asked = { at: Date.now(), launches: all.length, states };
-    return states;
+    })).then((found) => {
+      const states = Object.fromEntries(found.flat());
+      this.watch.keep(new Set(Object.keys(states)));
+      return states;
+    });
   }
 
   /**
@@ -275,8 +298,9 @@ export class Terminals {
     res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
   }
 
-  /** End every stream, as serve stops. */
+  /** End every stream, and the watch, as serve stops. */
   public close(): void {
+    clearInterval(this.watching);
     for (const child of this.controllers.values()) child.kill();
     this.controllers.clear();
   }
