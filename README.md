@@ -201,7 +201,11 @@ typing into the middle of it; with none, one is started on the task as
 Continue starts one, given it as your first message (`yan --task <id>
 --done`). The page then goes to the task's terminal, where the agent says
 what it did, or stops and asks about a worktree holding work that looks
-unsaved. Each box's button waits for serve's answer; one refused says why
+unsaved. A closed task keeps no terminal: once the closing, however it was
+made, is on origin (in the vault, for one with no origin), so the agent's
+turn and the push at its end are over, and the agent is neither at work nor
+waiting on you, serve closes its herdr tab as Stop does, the shells beside
+it with it, and a page showing it goes on to the task's overview. Each box's button waits for serve's answer; one refused says why
 in the box, which stays open to try again. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. Markdown and the report
 an agent wrote are shown without anything in them that runs, and load

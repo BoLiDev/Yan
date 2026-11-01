@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TerminalState } from '../../lib/api';
+import { link } from '../../lib/route';
 import { usePageKeys } from '../../lib/modal';
 import { tilesOf } from '../../lib/tiles';
 import { Icon } from '../../components/Icon';
@@ -17,9 +18,18 @@ import type { Panes } from './usePaneTerm';
  * the agent's questions, menus and completions with it. The tab is split
  * as herdr has it, the agent and any shell split off beside it, in herdr or
  * here: a right click on a pane splits it, copies, pastes, or closes a shell.
+ *
+ * `over` says the task is closed and serve has said which terminals there
+ * are: one not there will not come back, serve having closed it once the
+ * agent's closing went through, so the page goes on to the task's overview,
+ * in place of where it was.
  */
-export function TerminalView({ id, state, waiting = false, goesOn = false }: { id: string; state: TerminalState | undefined; waiting?: boolean; goesOn?: boolean }) {
+export function TerminalView({ id, state, waiting = false, goesOn = false, over = false }: { id: string; state: TerminalState | undefined; waiting?: boolean; goesOn?: boolean; over?: boolean }) {
   useKeyNav(null, null);
+  const gone = over && !state;
+  useEffect(() => {
+    if (gone) location.replace(link.task(id));
+  }, [gone, id]);
   // Gone on with from here, the task's terminal is the dark stage until herdr lists the new tab's pane.
   const [starting, setStarting] = useState(false);
   // Listed, it is no longer starting: put so as it is drawn, not after, so a stop later shows Continue again.

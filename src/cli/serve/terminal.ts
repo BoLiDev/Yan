@@ -286,16 +286,43 @@ export class Terminals {
     const t = this.held(task);
     if (t === undefined) return void res.writeHead(404).end('this task has no agent in a herdr pane on this machine');
     try {
-      const tab = await tabOf(t.socket, t.pane).catch(() => undefined);
-      if (tab === undefined) await closePane(t.socket, t.pane);
-      else await closeTab(t.socket, tab);
+      await this.end(task, t);
     } catch (err) {
       return void res.writeHead(isYanError(err) && err.code !== 'herdr_unreachable' ? 400 : 502).end(err instanceof Error ? err.message : String(err));
     }
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+  }
+
+  /**
+   * The terminal of each task here that `closed` says is closed, ended as
+   * Stop ends one, once its agent is neither at work nor waiting on `user`:
+   * a closed task's worktrees are back in the pool, wiped, so its agent has
+   * nothing left to work on. `closed` is asked only of the tasks with a
+   * terminal here, and says whether the closing has gone through, so the
+   * turn that closed the task, and the push at its end, are over.
+   */
+  public async endClosed(closed: (task: string) => Promise<boolean>): Promise<void> {
+    for (const t of terminalsOf(this.vault)) {
+      if (!(await closed(t.task))) continue;
+      const status = await paneOf(t.socket, t.pane).then((p) => p.agent_status, () => undefined);
+      if (status === undefined || status === 'working' || status === 'blocked') continue;
+      // One herdr will not close is tried again on the next tick.
+      await this.end(t.task, t).catch(() => undefined);
+    }
+  }
+
+  /**
+   * The task's terminal ended: its herdr tab closed and every pane in it,
+   * the pane alone when herdr cannot say which tab it is in, and it no
+   * longer this machine's, whether or not bare `yan` lives to say so.
+   */
+  private async end(task: string, t: HeldTerminal): Promise<void> {
+    const tab = await tabOf(t.socket, t.pane).catch(() => undefined);
+    if (tab === undefined) await closePane(t.socket, t.pane);
+    else await closeTab(t.socket, tab);
     letTerminalGo(this.vault, task, t.pane);
     this.launches?.forget(task);
     this.asked = undefined;
-    res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
   }
 
   /** End every stream, and the watch, as serve stops. */

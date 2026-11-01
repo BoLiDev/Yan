@@ -390,11 +390,35 @@ export class YanServer {
         this.status.ok = false;
         this.status.error = (err as Error).message;
       }
+      await this.terminals.endClosed((id) => this.closedUpstream(id)).catch(() => undefined);
       this.broadcast();
     })().finally(() => {
       this.ticking = undefined;
     });
     return this.ticking;
+  }
+
+  /**
+   * Whether origin has task `id` closed, or the vault has when it has no
+   * origin: the agent that closed it has pushed it, so the turn it closed
+   * it in is over, and its terminal can go without cutting the push short.
+   * The push's own note of origin is read with what this tick fetched, so a
+   * fetch that fails does not hold it up.
+   */
+  private async closedUpstream(id: string): Promise<boolean> {
+    if (!Task.isId(id)) return false;
+    const refs = this.status.local ? ['HEAD'] : [`refs/remotes/origin/${this.branch}`, `${OWN_REF}${this.branch}`];
+    for (const ref of refs) {
+      const shown = await gitAsync(this.options.vaultDir, ['show', `${ref}:tasks/${id}/task.json`]);
+      if (shown.code !== 0) continue;
+      try {
+        const state = (JSON.parse(shown.stdout) as { state?: unknown }).state;
+        if (state === 'done' || state === 'abandoned') return true;
+      } catch {
+        // A task.json git has but nobody can read says nothing of the task.
+      }
+    }
+    return false;
   }
 
   /** The newest of `refs`: one that descends from all the others before it. */

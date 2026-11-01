@@ -745,6 +745,32 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
     }
   });
 
+  it("closes a closed task's tab once its closing has reached origin and its agent is neither at work nor waiting on user", async () => {
+    const h = await aHerdr('0.9.5');
+    write(home, 'tasks/t008/task.json', task('t008', 'closing'));
+    await post('/api/launch', { task: 't008' });
+    const pane = h.tabs().find((t) => t.label === 'closing')?.panes[0] ?? '';
+    // bare yan keeps the pane as t008's terminal, and its agent closes the task as yan done does.
+    keep(h, [{ task: 't008', pane }]);
+    h.agentIs(pane, 'idle');
+    const ticks = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 4500));
+
+    await commit('t008', { 'task.json': JSON.stringify({ ...JSON.parse(task('t008', 'closing')), state: 'done', closedAt: '2026-11-01T10:00:00Z' }) }, 't008 done');
+    await ticks();
+    expect(h.tabs().map((t) => t.label), 'committed here, its push not through yet').toContain('closing');
+
+    h.agentIs(pane, 'working');
+    await fxGit(['push', '-q', 'origin', 'main'], home);
+    await ticks();
+    expect(h.tabs().map((t) => t.label), 'pushed, but its agent still at work').toContain('closing');
+
+    h.agentIs(pane, 'done');
+    await until(async () => (h.tabs().some((t) => t.label === 'closing') ? undefined : true), 20_000);
+    expect(await terminals(), "no longer the task's terminal, and t001's left as it was").not.toHaveProperty('t008');
+    expect(await terminals()).toHaveProperty('t001');
+    expect(((readJson(join(home, '.machine', 'config.json')) as { terminals?: { task: string }[] }).terminals ?? []).map((t) => t.task)).toEqual(['t001']);
+  });
+
   it('says which herdr is too old to stream a pane', async () => {
     await aHerdr('0.7.1');
     const state = await until(async () => {
