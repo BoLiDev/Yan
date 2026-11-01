@@ -6,20 +6,19 @@ import { usePageKeys } from './lib/modal';
 import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
-import { Icon } from './components/Icon';
 import { Palette } from './components/Palette';
 import { NewTaskModal } from './components/NewTask';
 import { AskModal } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
-import { Button } from './components/ui/button';
+import { AGENT_TOASTER, useAgentToasts } from './state/agentToasts';
 import { useTheme } from './state/theme';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
 import { followAgent, noAgent, useAgentTab } from './state/agentTab';
 import { connect, queryClient, useIndex, useTask } from './state/server';
-import { setPref, useUI } from './state/ui';
+import { useUI } from './state/ui';
 
 /**
  * What moving to a route does besides showing it: a source view is left,
@@ -161,7 +160,6 @@ function useKeys(): void {
 
 export function App() {
   const theme = useTheme();
-  const left = useUI((s) => s.prefs.left);
   const index = useIndex();
   useEffect(() => connect(), []);
   useEffect(() => {
@@ -169,6 +167,7 @@ export function App() {
   }, [index.isError]);
   useRouteEffects();
   useAgentFollow();
+  useAgentToasts();
   useKeys();
   return (
     <TooltipProvider delay={400}>
@@ -176,14 +175,9 @@ export function App() {
         <Left />
         <Middle />
         <Right />
-        {/* With the task list hidden, the way back to it, at the foot of the page's left edge. */}
-        {left ? null : (
-          <Button variant="secondary" size="icon" className="fixed bottom-2.5 left-2 z-[5] rounded-[9px] text-ink-3 ring-1 ring-border" aria-label="Show the task list" title="Show the task list" onClick={() => setPref('left', true)}>
-            <Icon name="panel" size={17} />
-          </Button>
-        )}
       </div>
       <Toaster position="bottom-center" theme={theme} />
+      <Toaster id={AGENT_TOASTER} position="top-right" theme={theme} />
       <AskModal />
       <Palette />
       <NewTaskModal />

@@ -4,8 +4,10 @@ import type { Route } from '../../lib/route';
 import { markAllSeen, unseenOf, unseenPushes, type Seen } from '../../lib/seen';
 import { GROW, Pane, SUBLABEL } from '../../components/page';
 import { Button } from '../../components/ui/button';
+import { sawAllAgents } from '../../state/agentToasts';
 import { setSeen } from '../../state/ui';
 import { SECTION } from './look';
+import { AgentsNews } from './AgentsNews';
 import { PushItem } from './Push';
 
 /**
@@ -13,7 +15,8 @@ import { PushItem } from './Push';
  * push: when, which task, and how many files it added, changed and deleted.
  * Each opens to its files, and a file opens on the right; the arrow at its
  * end opens the task itself, its overview. The push holding the file being
- * shown is open.
+ * shown is open. Above them, what each task's agent on this machine is up
+ * to.
  */
 export function Feed({ index, seen, r }: { index: Index; seen: Seen; r: Extract<Route, { view: 'latest' }> }) {
   const pushes = unseenPushes(index, seen);
@@ -29,11 +32,12 @@ export function Feed({ index, seen, r }: { index: Index; seen: Seen; r: Extract<
     <div className={SECTION}>
       <h1 className="text-[19px]/[26px]">Latest</h1>
       <span className={GROW} />
-      <Button variant="ghost" size="sm" className="text-brand hover:text-brand-ink" onClick={() => setSeen((s) => markAllSeen(index, s))}>Mark all seen</Button>
+      <Button variant="ghost" size="sm" className="text-brand hover:text-brand-ink" onClick={() => { setSeen((s) => markAllSeen(index, s)); sawAllAgents(); }}>Mark all seen</Button>
     </div>
   );
   const body = (
     <>
+      <AgentsNews index={index} seen={seen} />
       {!pushes.length ? <div className={SUBLABEL}>{index.latest.length ? 'Nothing new since you last looked.' : 'Nothing has arrived in any task’s artifacts yet.'}</div> : null}
       {days.map((d) => (
         <div className="flex flex-col gap-0.5" key={d.label}>

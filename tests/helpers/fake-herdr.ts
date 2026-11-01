@@ -16,6 +16,7 @@ import { mkTempDir } from './fixtures.js';
  *   h.received(pane)       what the program in a pane was sent, oldest first
  *   h.wheels(pane)         the mouse wheel as that program reads it from what it was sent
  *   h.scrolledBack(pane)   how many rows herdr's own view of the pane is scrolled back
+ *   h.agentIs(pane, s)     the agent in a pane come to be at work, waiting, done or idle, as herdr will say
  *   h.controllers()        every `terminal session control` started, with what it was told
  *   h.tabs()               every tab open, with its panes as herdr has them split
  *   await h.close()
@@ -70,6 +71,7 @@ export interface FakeHerdr {
   received(pane: string): Received[];
   wheels(pane: string): { up: boolean; col: number; row: number }[];
   scrolledBack(pane: string): number | undefined;
+  agentIs(pane: string, status: 'working' | 'blocked' | 'done' | 'idle'): void;
   controllers(): Controller[];
   tabs(): Tab[];
   close(): Promise<void>;
@@ -260,6 +262,10 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
       return [...typed.matchAll(/\x1b\[<(\d+);(\d+);(\d+)M/g)].filter((m) => m[1] === '64' || m[1] === '65').map((m) => ({ up: m[1] === '64', col: Number(m[2]), row: Number(m[3]) }));
     },
     scrolledBack: (id) => panes.get(id)?.scroll.offset,
+    agentIs: (id, status) => {
+      const p = panes.get(id);
+      if (p !== undefined) p.status = status;
+    },
     controllers: () => {
       // The last line is left until it ends: a controller may be writing it.
       const written = existsSync(log) ? readFileSync(log, 'utf8').split('\n').slice(0, -1) : [];

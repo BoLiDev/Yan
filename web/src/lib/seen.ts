@@ -22,6 +22,8 @@ export interface Seen {
   readonly logs: Readonly<Record<string, number>>;
   /** Per task, each file looked at past the mark, with the change it was looked at in. */
   readonly files: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  /** Per task, the time of its agent's last change looked at in its terminal; a page from before kept none. */
+  readonly agents?: Readonly<Record<string, number>>;
 }
 
 export type Unseen = Map<string, PushFile>;
@@ -30,10 +32,10 @@ export type Unseen = Map<string, PushFile>;
 export function initSeen(index: Index, stored: unknown): Seen {
   const s = stored as Partial<Seen> | null;
   if (s && typeof s === 'object' && s.tasks) {
-    return { init: s.init ?? 0, tasks: s.tasks, problems: s.problems ?? {}, logs: s.logs ?? {}, files: s.files ?? {} };
+    return { init: s.init ?? 0, tasks: s.tasks, problems: s.problems ?? {}, logs: s.logs ?? {}, files: s.files ?? {}, agents: s.agents ?? {} };
   }
   const newest = Math.max(0, ...index.tasks.map((t) => t.touched));
-  return { init: newest, tasks: {}, problems: {}, logs: {}, files: {} };
+  return { init: newest, tasks: {}, problems: {}, logs: {}, files: {}, agents: {} };
 }
 
 export const seenAt = (seen: Seen, id: string): number => seen.tasks[id] ?? seen.init;

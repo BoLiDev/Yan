@@ -6,8 +6,6 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 
 export const pad = (n: number): string => String(n).padStart(2, '0');
 
-/** What herdr says of an agent in a pane, as its Terminal row says it. */
-export const AGENT_WORD: Readonly<Record<'working' | 'blocked' | 'done' | 'idle' | 'unknown', string>> = { working: 'working', blocked: 'needs you', done: 'done', idle: 'idle', unknown: '' };
 export const nowS = (): number => Math.floor(Date.now() / 1000);
 export const fromIso = (iso: string | null | undefined): number => (iso ? Math.floor(new Date(iso).getTime() / 1000) || 0 : 0);
 
@@ -42,6 +40,15 @@ export function when(ts: number | null | undefined): string {
   if (sameDay(d, new Date())) return `today ${clock(ts)}`;
   if (sameDay(d, yesterday())) return `yesterday ${clock(ts)}`;
   return `${dayOf(ts)} ${clock(ts)}`;
+}
+
+/** How long ago `ts` was, as short as it can be said: now, then minutes, hours and days, `3m`, `2h`, `4d`. */
+export function ago(ts: number, now = Date.now() / 1000): string {
+  const s = Math.max(0, now - ts);
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86_400)}d`;
 }
 
 export function dayLabel(ts: number): string {

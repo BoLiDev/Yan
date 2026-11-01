@@ -32,7 +32,7 @@ describe('what is new since the last look', () => {
 
   it('starts a first visit from the vault as it is, and keeps what this browser had', () => {
     expect(initSeen(index, null).init).toBe(300);
-    expect(initSeen(index, { tasks: { t1: 5 }, init: 1 })).toEqual({ init: 1, tasks: { t1: 5 }, problems: {}, logs: {}, files: {} });
+    expect(initSeen(index, { tasks: { t1: 5 }, init: 1 })).toEqual({ init: 1, tasks: { t1: 5 }, problems: {}, logs: {}, files: {}, agents: {} });
   });
 
   it('puts a dot on each file changed since the mark, as its last change, and none on one deleted', () => {

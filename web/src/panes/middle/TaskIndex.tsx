@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import type { Index, TaskSummary } from '../../lib/api';
-import { AGENT_WORD } from '../../lib/format';
+import { agentNews, agentWords } from '../../lib/agents';
 import { link, type TaskRoute } from '../../lib/route';
 import { logFresh, unseenOf, type Seen } from '../../lib/seen';
 import { goesOn } from '../../lib/stops';
 import { Icon, StateIcon, type IconName } from '../../components/Icon';
-import { ASIDE, Dot, GROW, Pane, row } from '../../components/page';
+import { ASIDE, Dot, GROW, Pane, WORKING, row } from '../../components/page';
 import { cn } from '../../lib/utils';
 import { useTask, useTerminals } from '../../state/server';
 import { AgentRows } from './AgentRows';
@@ -16,14 +16,11 @@ import { ResourceRows } from './ResourceRows';
 import { TaskHead } from './TaskHead';
 import { NAV, navRow } from './look';
 
-/** A task's terminal: its agent's status beside the row, the colour of what it asks of user. */
-const STATUS_INK: Record<string, string> = { working: 'text-brand-ink', blocked: 'font-bold text-[color:var(--amber-ink)]', done: 'text-success' };
-
-/** A row of the nav that opens a page of the task: its icon, its word, and what is beside it. */
-function NavLink({ href, on, icon, word, children }: { href: string; on: boolean; icon: IconName; word: string; children?: ReactNode }) {
+/** A row of the nav that opens a page of the task: its icon, its word, and what is beside it; `shine` lights the word. */
+function NavLink({ href, on, icon, word, title, shine, children }: { href: string; on: boolean; icon: IconName; word: string; title?: string; shine?: boolean; children?: ReactNode }) {
   return (
-    <a className={navRow(on)} aria-current={on ? 'page' : undefined} href={href}>
-      <Icon name={icon} size={16} /><span className={GROW}>{word}</span>{children}
+    <a className={navRow(on)} aria-current={on ? 'page' : undefined} href={href} title={title}>
+      <Icon name={icon} size={16} /><span className={cn(GROW, shine && WORKING)}>{word}</span>{children}
     </a>
   );
 }
@@ -32,6 +29,7 @@ function NavLink({ href, on, icon, word, children }: { href: string; on: boolean
 export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index: Index; seen: Seen }) {
   const { data: d } = useTask(t.id);
   const terminal = useTerminals().data?.[t.id];
+  const agent = terminal === undefined ? undefined : agentNews(t.id, terminal, seen);
   const unseen = unseenOf(index, seen, t.id);
   const logCount = d?.log?.entries.length ?? 0;
   // Against what was last read, not what this visit started from: reading the log clears it.
@@ -56,10 +54,11 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
         <NavLink href={link.log(t.id)} on={r.sub === 'log'} icon="log" word="Log">
           {fresh ? <Dot title="new entries" /> : null}
         </NavLink>
-        {/* An open task keeps its Terminal row with no agent running, where it is started again. */}
+        {/* An open task keeps its Terminal row with no agent running, where it is started again. Its agent is told as
+            everywhere else, a light over the word while it works and a dot while it waits or has finished unseen. */}
         {terminal || goesOn(t) ? (
-          <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal">
-            {terminal ? <span className={cn(ASIDE, STATUS_INK[terminal.status])}>{AGENT_WORD[terminal.status] || (terminal.agent ?? '')}</span> : null}
+          <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal" title={agent ? agentWords(agent) : undefined} shine={agent?.kind === 'working'}>
+            {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
           </NavLink>
         ) : null}
         {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}

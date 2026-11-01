@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import { sawAgent } from '../../state/agentToasts';
 import { useTheme } from '../../state/theme';
 import { takePaste, takeTyping, takeWheel } from './input';
 import { MONO, termTheme } from './look';
@@ -55,8 +56,10 @@ export function usePaneTerm({ task, pane, agent, shared }: {
     const typing = takeTyping(term, task, pane);
     const unwheel = takeWheel(stage, el, term, task, pane, typing.sendTyped);
     const unpaste = takePaste(el, task, pane);
+    // Typing in the agent's pane is looking at it: what it last did, finishing or asking, is no longer news.
     const onFocus = (): void => {
       panes.last = pane;
+      if (agent) sawAgent(task);
     };
     const followed = follow(term, { task, pane, agent, stage, fits, ended: setEnded });
 

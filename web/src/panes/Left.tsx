@@ -2,11 +2,13 @@ import { useMemo } from 'react';
 import { stateOf, type Index, type TaskSummary } from '../lib/api';
 import { MOD, clock, fromIso, monthLabel, plural } from '../lib/format';
 import { link, useRoute } from '../lib/route';
-import { latestUnseen, unseenOf, type Seen } from '../lib/seen';
+import { agentNews, agentWords, allNews, tasksWithNews } from '../lib/agents';
+import { unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Dot, GROW, LABEL, Pane, PushTags, SUBLABEL, Tool, WORKING, row } from '../components/page';
 import { Kbd } from '../components/ui/kbd';
 import { UpdateCard } from '../components/Update';
+import { Rail } from './Rail';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex, useTerminals } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
@@ -97,12 +99,14 @@ function Bell() {
 function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: Seen; on: boolean }) {
   const last = useUI((s) => s.last[t.id]);
   const { data: terminals } = useTerminals();
-  const working = terminals?.[t.id]?.status === 'working';
+  const state = terminals?.[t.id];
+  const agent = state === undefined ? undefined : agentNews(t.id, state, seen);
   const fresh = on ? [] : [...unseenOf(index, seen, t.id).values()];
   return (
-    <a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${working ? ' · its agent is at work' : ''}`}>
+    <a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${agent ? ` · ${agentWords(agent)}` : ''}`}>
       <StateIcon state={t.state} />
-      <span className={cn(GROW, working && WORKING)}>{t.title || t.id}</span>
+      <span className={cn(GROW, agent?.kind === 'working' && WORKING)}>{t.title || t.id}</span>
+      {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
       {fresh.length ? <span className="flex flex-none gap-1" title="since you last looked"><PushTags files={fresh} /></span> : null}
     </a>
   );
@@ -164,10 +168,10 @@ export function Left() {
   }, [index]);
 
   const onLatest = r.view === 'latest';
-  // Hidden, it stays drawn, its scroll and folds kept for when it is shown again.
   const shown = useUI((s) => s.prefs.left);
   const creating = useUI((s) => s.newTask);
-  const unseen = index && seen ? latestUnseen(index, seen) : 0;
+  const { data: terminals } = useTerminals();
+  const unseen = index && seen ? tasksWithNews(index, seen, allNews(terminals, seen)) : 0;
   const top = (
     <>
       <div className="flex items-center gap-2 py-0.5 pr-0.5 pl-2.5">
@@ -212,9 +216,13 @@ export function Left() {
       ))}
     </div>
   );
+  // Folded, it is a rail, every open task a click away; the list stays drawn, hidden, its scroll and folds kept.
   return (
-    <nav className={cn('flex h-screen w-60 flex-none flex-col overflow-hidden bg-sunken max-[1100px]:w-[220px]', !shown && 'hidden')} aria-label="Tasks">
-      <Pane tight top={top} body={body} foot={<UpdateCard />} />
-    </nav>
+    <>
+      {shown ? null : <Rail />}
+      <nav className={cn('flex h-screen w-60 flex-none flex-col overflow-hidden bg-sunken max-[1100px]:w-[220px]', !shown && 'hidden')} aria-label="Tasks" aria-hidden={!shown || undefined}>
+        <Pane tight top={top} body={body} foot={<UpdateCard />} />
+      </nav>
+    </>
   );
 }
