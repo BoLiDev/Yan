@@ -134,6 +134,11 @@ export async function readPane(socket: string, pane: string): Promise<{ text: st
   return { text: read.text, revision: read.revision };
 }
 
+/** The panes of tab `tab`, as herdr has them split (herdr 0.7.0 and later). */
+export async function layoutOfTab(socket: string, tab: string): Promise<Layout> {
+  return layoutFrom((await call<{ layout: { root: LayoutNode } }>(socket, 'layout.export', { tab_id: tab })).layout.root);
+}
+
 /** The tab `pane` is in. */
 export async function tabOf(socket: string, pane: string): Promise<string> {
   return (await call<{ layout: { tab_id: string } }>(socket, 'layout.export', { pane_id: pane })).layout.tab_id;
@@ -151,11 +156,12 @@ export function panesIn(layout: Layout): string[] {
 
 /**
  * A new pane split off `pane`, beside it or below it, a shell in the
- * directory the pane is working in, as herdr's own split makes one; herdr's
- * focus stays where it was. Its id.
+ * directory the pane is working in, as herdr's own split makes one, or in
+ * `at.cwd`, with `at.env` beside what it inherits; `at.ratio` is what
+ * `pane` keeps of the room. herdr's focus stays where it was. Its id.
  */
-export async function splitPane(socket: string, pane: string, direction: 'right' | 'down'): Promise<string> {
-  return (await call<{ pane: { pane_id: string } }>(socket, 'pane.split', { target_pane_id: pane, direction, focus: false })).pane.pane_id;
+export async function splitPane(socket: string, pane: string, direction: 'right' | 'down', at: { readonly cwd?: string; readonly ratio?: number; readonly env?: Readonly<Record<string, string>> } = {}): Promise<string> {
+  return (await call<{ pane: { pane_id: string } }>(socket, 'pane.split', { target_pane_id: pane, direction, focus: false, ...at })).pane.pane_id;
 }
 
 /** The pane closed, and whatever runs in it with it. */

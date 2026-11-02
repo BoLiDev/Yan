@@ -85,11 +85,11 @@ describe.skipIf(process.platform === 'win32')("a task's terminal on the page", (
     expect(panes()).toContain(AGENT_PANE);
   });
 
-  it('stops the agent only when asked twice, closing its tab', async () => {
+  it("stops the agent only when asked twice, by its tab's ×, closing its tab", async () => {
     const page = await onTerminal();
-    await page.getByRole('button', { name: 'Stop' }).click();
+    await page.getByRole('tab', { name: /Agent/ }).getByRole('button', { name: 'Close Agent' }).click();
     expect(h.tabs()).toHaveLength(1);
-    await page.getByRole('button', { name: 'Really stop' }).click();
+    await page.getByRole('button', { name: 'Really stop the agent' }).click();
     await expect.poll(() => h.tabs().length, { timeout: 10_000 }).toBe(0);
     // Stopped, the task is one to go on with.
     await page.getByRole('button', { name: 'Continue' }).waitFor({ timeout: 10_000 });

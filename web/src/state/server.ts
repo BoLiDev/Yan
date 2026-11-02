@@ -1,5 +1,5 @@
 import { QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WriteResult } from '../lib/api';
+import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WorktreeState, type WriteResult } from '../lib/api';
 import { enc } from '../lib/files';
 import { langLoaded, langReady } from '../lib/highlight';
 import { parseRoute } from '../lib/route';
@@ -38,6 +38,10 @@ export const useIndex = (): UseQueryResult<Index> => useQuery({ queryKey: ['inde
  */
 export const useTerminals = (): UseQueryResult<Readonly<Record<string, TerminalState>>> =>
   useQuery({ queryKey: ['terminals'], queryFn: () => getJSON<Record<string, TerminalState>>('/api/terminals'), staleTime: 0, refetchInterval: 2000, retry: false });
+
+/** Each task's Worktree tab on this machine, with how herdr has it split; asked every two seconds, as the terminals are. */
+export const useWorktrees = (): UseQueryResult<Readonly<Record<string, WorktreeState>>> =>
+  useQuery({ queryKey: ['worktrees'], queryFn: () => getJSON<Record<string, WorktreeState>>('/api/worktrees'), staleTime: 0, refetchInterval: 2000, retry: false });
 
 export function useTask(id: string | undefined): UseQueryResult<TaskDetail> {
   return useQuery({ queryKey: ['task', id], queryFn: () => getJSON<TaskDetail>(`/api/task/${encodeURIComponent(id as string)}`), enabled: !!id });

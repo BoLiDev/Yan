@@ -19,6 +19,7 @@ import { mkTempDir } from './fixtures.js';
  *   h.agentIs(pane, s)     the agent in a pane come to be at work, waiting, done or idle, as herdr will say
  *   h.controllers()        every `terminal session control` started, with what it was told
  *   h.tabs()               every tab open, with its panes as herdr has them split
+ *   h.cwdOf(pane)          the directory a pane's shell was started in, when it was given one
  *   await h.close()
  *
  * It starts with one tab, w1:t1, split right at 0.6: the agent's pane
@@ -74,6 +75,7 @@ export interface FakeHerdr {
   agentIs(pane: string, status: 'working' | 'blocked' | 'done' | 'idle'): void;
   controllers(): Controller[];
   tabs(): Tab[];
+  cwdOf(pane: string): string | undefined;
   close(): Promise<void>;
 }
 
@@ -85,6 +87,8 @@ interface PaneState {
   promptAt: number;
   screen: string;
   received: Received[];
+  /** The directory its shell was started in, as the tab or the split gave it. */
+  cwd?: string;
 }
 
 interface TabState {
@@ -138,9 +142,9 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
     pane(id);
     return [...tabs.values()].find((t) => panesOf(t.root).includes(id as string)) as TabState;
   };
-  const shell = (): string => {
+  const shell = (cwd?: unknown): string => {
     const id = `w1:p${nextPane++}`;
-    panes.set(id, { status: 'unknown', scroll: { offset: 0, max: 0 }, promptAt: Date.now() + shellAfter, screen: '~ ❯ ', received: [] });
+    panes.set(id, { status: 'unknown', scroll: { offset: 0, max: 0 }, promptAt: Date.now() + shellAfter, screen: '~ ❯ ', received: [], ...(typeof cwd === 'string' ? { cwd } : {}) });
     return id;
   };
   const take = (id: unknown, what: Received): { type: 'ok' } => {
@@ -163,14 +167,17 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
         return { type: 'pane_read', read: { pane_id: q.pane_id, text: drawn ? p.screen : '', revision: drawn ? 2 : 1, truncated: false } };
       }
       case 'layout.export': {
-        const t = tabWith(q.pane_id);
+        const byTab = typeof q.tab_id === 'string' ? tabs.get(q.tab_id) : undefined;
+        if (typeof q.tab_id === 'string' && byTab === undefined) throw new Refused('not_found', `tab ${q.tab_id} not found`);
+        const t = byTab ?? tabWith(q.pane_id);
         return { type: 'layout_export', layout: { workspace_id: 'w1', tab_id: t.id, zoomed: false, focused_pane_id: panesOf(t.root)[0], root: t.root } };
       }
       case 'pane.split': {
         const t = tabWith(q.target_pane_id);
-        const made = shell();
+        const made = shell(q.cwd);
         const direction = q.direction === 'down' ? 'down' : 'right';
-        t.root = replace(t.root, q.target_pane_id as string, (leaf) => ({ type: 'split', direction, ratio: 0.5, first: leaf, second: { type: 'pane', pane_id: made } })) as Node;
+        const ratio = typeof q.ratio === 'number' ? q.ratio : 0.5;
+        t.root = replace(t.root, q.target_pane_id as string, (leaf) => ({ type: 'split', direction, ratio, first: leaf, second: { type: 'pane', pane_id: made } })) as Node;
         return { type: 'pane_info', pane: { pane_id: made, agent_status: 'unknown' } };
       }
       case 'pane.close': {
@@ -183,7 +190,7 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
       }
       case 'tab.create': {
         const id = `w1:t${nextTab++}`;
-        const root = shell();
+        const root = shell(q.cwd);
         tabs.set(id, { id, label: String(q.label ?? ''), ...(typeof q.cwd === 'string' ? { cwd: q.cwd } : {}), ...(q.env === undefined ? {} : { env: q.env as Record<string, string> }), root: { type: 'pane', pane_id: root } });
         if (q.focus !== false) focused = id;
         return { type: 'tab_created', tab: { tab_id: id }, root_pane: { pane_id: root, agent_status: 'unknown' } };
@@ -280,6 +287,7 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
       return [...byId.values()].map((c) => ({ ...c.took, commands: c.commands, holding: c.holding }));
     },
     tabs: () => [...tabs.values()].map((t) => ({ ...t, focused: t.id === focused, panes: panesOf(t.root) })),
+    cwdOf: (id) => panes.get(id)?.cwd,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

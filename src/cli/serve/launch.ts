@@ -69,7 +69,7 @@ export class Launches {
    * The herdr a launch goes to: the one serve runs in, else the one an agent
    * here was started in, else whichever `herdr` on the PATH finds.
    */
-  private bin(): string {
+  public bin(): string {
     return process.env.HERDR_BIN_PATH?.trim() || terminalsOf(this.vault)[0]?.bin || 'herdr';
   }
 

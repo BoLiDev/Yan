@@ -14,6 +14,7 @@ import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtas
 import { noAgentPage } from './no-agent.js';
 import { Terminals } from './terminal.js';
 import { Launches } from './launch.js';
+import { Worktrees } from './worktrees.js';
 import { askToClose, askToPause } from './closing.js';
 import { taskProgress } from '../shared/progress.js';
 import { returnTrees } from '../../externals/worktree/index.js';
@@ -222,6 +223,7 @@ export class YanServer {
   private readonly branches: Branches;
   private readonly thumbs = new Thumbs();
   private readonly terminals: Terminals;
+  private readonly worktrees: Worktrees;
   private readonly launches: Launches;
   private readonly updater: Updater;
   /** The sha256 of each blob of uat/ a report was checked against, by its git sha. */
@@ -246,6 +248,7 @@ export class YanServer {
     this.view = new VaultView(options.vaultDir);
     this.launches = new Launches(options.vaultDir);
     this.terminals = new Terminals(options.vaultDir, this.launches);
+    this.worktrees = new Worktrees(options.vaultDir, () => this.launches.bin());
     this.updater = new Updater(options.home, () => this.restartOnBuild());
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
@@ -393,6 +396,7 @@ export class YanServer {
         this.status.error = (err as Error).message;
       }
       await this.terminals.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
+      await this.worktrees.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
       this.broadcast();
     })().finally(() => {
       this.ticking = undefined;
@@ -479,6 +483,7 @@ export class YanServer {
     }
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
+    if (p === '/api/worktrees') return json(res, await this.worktrees.states());
     if (p === '/api/launch/repos') return json(res, this.launches.repos());
     if (p === '/api/yan/updates') return json(res, await this.updater.behind());
     if (p === '/api/yan/update') return json(res, this.updater.now);
@@ -639,6 +644,8 @@ export class YanServer {
     '/api/terminal/stop': { does: 'stop an agent', json: true, run: async (res, given) => this.terminals.stop(res, given) },
     '/api/terminal/split': { does: 'split a pane', json: true, run: async (res, given) => this.terminals.split(res, given) },
     '/api/terminal/close': { does: 'close a pane', json: true, run: async (res, given) => this.terminals.closeSplit(res, given) },
+    '/api/worktree': { does: 'open a task\'s worktrees', json: true, run: async (res, given) => this.worktrees.open(res, given) },
+    '/api/worktree/close': { does: 'close a task\'s worktrees\' tab', json: true, run: async (res, given) => this.worktrees.close(res, given) },
     // The agent asked to close the task, which it does with yan done: nothing of the vault's is written here.
     '/api/task/close': { does: 'ask an agent to close a task', json: true, run: async (res, given) => askToClose(res, given, this.options.vaultDir, this.launches) },
     '/api/task/pause': { does: 'pause a task', json: true, run: async (res, given) => askToPause(res, given, this.options.vaultDir, this.launches, (r, id) => this.pauseHere(r, id)) },

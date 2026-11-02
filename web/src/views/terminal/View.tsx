@@ -1,23 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import type { TerminalState } from '../../lib/api';
+import type { Layout, TerminalState } from '../../lib/api';
 import { link } from '../../lib/route';
 import { usePageKeys } from '../../lib/modal';
 import { tilesOf } from '../../lib/tiles';
 import { Icon } from '../../components/Icon';
-import { Bar, Empty } from '../../components/page';
+import { Empty } from '../../components/page';
+import { useWorktrees } from '../../state/server';
+import { useUI } from '../../state/ui';
 import { useKeyNav } from '../nav';
-import { ContinueButton, StopButton } from './controls';
+import { ContinueButton } from './controls';
 import { PaneTerm } from './PaneTerm';
-import { Tiles, Waiting } from './Tiles';
+import { TabBar } from './TabBar';
+import { Tiles } from './Tiles';
 import { reshape, send } from './transport';
 import type { Panes } from './usePaneTerm';
 
 /**
- * The agent's tab, as herdr streams its panes: the bytes each program
+ * A task's terminal, as herdr streams its panes: the bytes each program
  * draws, drawn by xterm.js, so what is here is what is in the terminal,
- * the agent's questions, menus and completions with it. The tab is split
- * as herdr has it, the agent and any shell split off beside it, in herdr or
- * here: a right click on a pane splits it, copies, pastes, or closes a shell.
+ * the agent's questions, menus and completions with it. Its tabs are the
+ * agent's own, and Worktree, a shell in each of the task's worktrees, once
+ * MR's page opened it; each is split as herdr has it, the agent and any
+ * shell split off beside it, in herdr or here: a right click on a pane
+ * splits it, copies, pastes, or closes a shell, never the agent's own pane.
  *
  * `over` says the task is closed and serve has said which terminals there
  * are: one not there will not come back, serve having closed it once the
@@ -26,7 +31,10 @@ import type { Panes } from './usePaneTerm';
  */
 export function TerminalView({ id, state, waiting = false, goesOn = false, over = false }: { id: string; state: TerminalState | undefined; waiting?: boolean; goesOn?: boolean; over?: boolean }) {
   useKeyNav(null, null);
-  const gone = over && !state;
+  const worktree = useWorktrees().data?.[id];
+  const picked = useUI((s) => s.termTab[id]);
+  const tab = picked === 'worktree' && worktree !== undefined ? 'worktree' : 'agent';
+  const gone = over && !state && !worktree;
   useEffect(() => {
     if (gone) location.replace(link.task(id));
   }, [gone, id]);
@@ -36,24 +44,31 @@ export function TerminalView({ id, state, waiting = false, goesOn = false, over 
   if (state && starting) setStarting(false);
   // The panes' terminals, read in effects and handlers only: none of it is drawn.
   const panes = useRef<Panes>({ terms: new Map(), last: undefined, next: undefined });
+  const shown: { layout: Layout; agentPane: string | null; streams: boolean; herdr: string } | undefined = tab === 'worktree' && worktree
+    ? { layout: worktree.layout, agentPane: null, streams: worktree.streams, herdr: worktree.herdr }
+    : state ? { layout: state.layout ?? { pane: state.pane }, agentPane: state.pane, streams: state.streams, herdr: state.herdr } : undefined;
 
   // Enter on the page, nothing else taking it, puts the keys in the terminal typed in last, as a click on it does.
   usePageKeys((e) => {
     const active = document.activeElement;
-    if (e.key !== 'Enter' || /^(BUTTON|A)$/.test(active?.tagName ?? '')) return false;
+    if (e.key !== 'Enter' || /^(BUTTON|A)$/.test(active?.tagName ?? '') || active?.getAttribute('role') === 'tab') return false;
     const p = panes.current;
-    const term = p.terms.get(p.last ?? '') ?? p.terms.get(state?.pane ?? '');
+    const term = p.terms.get(p.last ?? '') ?? p.terms.get(shown === undefined ? '' : tilesOf(shown.layout)[0]?.pane ?? '');
     term?.focus();
     return term !== undefined;
   });
 
+  // The bar holds the tabs, and Continue where the agent's would be while none runs; over a dark tab it has no line of its own.
+  const bar = (
+    <TabBar id={id} on={tab} agent={!!state && !waiting} worktree={worktree !== undefined} flush={shown?.streams ?? (waiting || starting)}
+      tools={tab === 'agent' && !state && !waiting && !starting && goesOn ? <ContinueButton id={id} starting={setStarting} /> : null} />
+  );
   // A new task's tab, opened a moment ago, is a dark terminal until herdr lists its pane.
-  if (!state && (waiting || starting)) return <Waiting />;
-  if (!state) {
+  if (shown === undefined && (waiting || starting)) return <>{bar}<Tiles /></>;
+  if (shown === undefined) {
     return (
       <>
-        {/* Continue is where Stop is while one runs: the bar's own way to start or stop it. */}
-        <Bar title="Terminal" meta="" tools={goesOn ? <ContinueButton id={id} starting={setStarting} /> : null} />
+        {bar}
         {/* A task with no terminal: a terminal, large, and nothing to read. */}
         <div className="flex flex-auto items-center justify-center p-10">
           <Icon name="terminal" size={256} width={0.4} className="text-ink-4" />
@@ -61,16 +76,13 @@ export function TerminalView({ id, state, waiting = false, goesOn = false, over 
       </>
     );
   }
-  const tiles = tilesOf(state.layout ?? { pane: state.pane });
   return (
     <>
-      {/* What the agent is doing is the Terminal row's to say, and the terminal's own: the bar holds only Stop. Over
-          the dark tab, it has no line of its own. */}
-      <Bar title="Terminal" meta="" flush={state.streams} tools={waiting ? null : <StopButton id={id} />} />
-      {state.streams ? (
+      {bar}
+      {shown.streams ? (
         <Tiles>
-          {tiles.map((tile) => (
-            <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === state.pane} panes={panes}
+          {tilesOf(shown.layout).map((tile) => (
+            <PaneTerm key={tile.pane} task={id} tile={tile} agent={tile.pane === shown.agentPane} panes={panes}
               split={(direction) => void reshape('split', { task: id, pane: tile.pane, direction }).then((made) => {
                 panes.current.next = made?.pane;
               })}
@@ -79,7 +91,7 @@ export function TerminalView({ id, state, waiting = false, goesOn = false, over 
           ))}
         </Tiles>
       ) : (
-        <Empty title="herdr is too old">{`herdr on this machine is ${state.herdr || 'a version it does not say'}; showing its panes here takes 0.7.2 or newer (the latest stable is best). Run herdr update.`}</Empty>
+        <Empty title="herdr is too old">{`herdr on this machine is ${shown.herdr || 'a version it does not say'}; showing its panes here takes 0.7.2 or newer (the latest stable is best). Run herdr update.`}</Empty>
       )}
     </>
   );

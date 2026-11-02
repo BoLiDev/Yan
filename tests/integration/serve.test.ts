@@ -5,7 +5,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { createServer } from 'node:net';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkEmptyRemote, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { WorktreePool } from '../../src/externals/worktree/index.js';
 import { AGENT_PANE, SHELL_PANE, startFakeHerdr, type FakeHerdr } from '../helpers/fake-herdr.js';
 import { readJson } from '../../src/util/json.js';
 import type { TerminalState } from '../../src/cli/serve/wire.js';
@@ -811,6 +812,40 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
     expect(await terminals(), "no longer the task's terminal, and t001's left as it was").not.toHaveProperty('t008');
     expect(await terminals()).toHaveProperty('t001');
     expect(((readJson(join(home, '.machine', 'config.json')) as { terminals?: { task: string }[] }).terminals ?? []).map((t) => t.task)).toEqual(['t001']);
+  });
+
+  it("opens a task's worktrees in a Worktree tab, a shell in each side by side, typed into with no agent, and goes back to it when asked again", async () => {
+    const h = await aHerdr('0.9.5');
+    // A task in two repositories, a worktree of each on this machine, in the pool serve reads.
+    const [web, api] = [await mkBareRemote(join(mkTempDir(), 'web.git')), await mkBareRemote(join(mkTempDir(), 'api.git'))];
+    write(home, 'tasks/t011/task.json', JSON.stringify({ ...JSON.parse(task('t011', 'two repos')), repos: [{ url: web }, { url: api }] }));
+    process.env.YAN_POOL_ROOT = join(home, '.machine', 'trees');
+    const trees = [new WorktreePool(await mkClone(web, join(mkTempDir(), 'web'))).get('origin/main', 't011').path, new WorktreePool(await mkClone(api, join(mkTempDir(), 'api'))).get('origin/main', 't011').path];
+    delete process.env.YAN_POOL_ROOT;
+    try {
+      expect((await post('/api/worktree', { task: 't011' }, 'http://evil.example')).status).toBe(403);
+      expect((await post('/api/worktree', { task: 't001' })).status, 'no worktree of it here').toBe(409);
+      const { tab } = (await (await post('/api/worktree', { task: 't011' })).json()) as { tab: string };
+      const opened = h.tabs().find((t) => t.id === tab);
+      expect(opened, 'named for the task, its shells told the task').toMatchObject({ label: 'two repos · worktree', focused: false, env: { YAN_TASK: 't011' } });
+      expect(opened?.panes.map((p) => h.cwdOf(p)), 'a shell in each worktree, in the order the task lists them').toEqual(trees);
+      const [first, second] = opened?.panes ?? [];
+      const worktrees = async (): Promise<Record<string, { tab: string; layout: unknown; streams: boolean }>> => (await (await fetch(page('/api/worktrees'))).json()) as Record<string, { tab: string; layout: unknown; streams: boolean }>;
+      expect((await worktrees()).t011).toEqual({ tab, layout: { split: 'right', ratio: 0.5, first: { pane: first }, second: { pane: second } }, herdr: '0.9.5', streams: true });
+
+      expect(await (await post('/api/worktree', { task: 't011' })).json(), 'asked again, the same tab').toEqual({ tab });
+      expect(h.tabs().filter((t) => t.label === 'two repos · worktree')).toHaveLength(1);
+
+      expect((await input({ task: 't011', pane: second, text: 'git status\r' })).status).toBe(200);
+      expect(h.received(second as string)).toEqual([expect.objectContaining({ text: 'git status\r' })]);
+      expect((await input({ task: 't011', pane: AGENT_PANE, text: 'x' })).status, "another task's pane").toBe(404);
+
+      expect((await post('/api/worktree/close', { task: 't011' })).status).toBe(200);
+      expect(h.tabs().map((t) => t.id)).not.toContain(tab);
+      expect(await worktrees()).toEqual({});
+    } finally {
+      rmSync(join(home, 'tasks', 't011'), { recursive: true, force: true });
+    }
   });
 
   it('says which herdr is too old to stream a pane', async () => {

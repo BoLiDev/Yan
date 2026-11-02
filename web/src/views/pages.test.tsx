@@ -5,6 +5,7 @@ import { detail, draw, have, index, reset, serve, status, task, type Asked } fro
 import { AskModal } from '../components/page';
 import { AgentView } from './Agent';
 import { MrView } from './Mr';
+import { useUI } from '../state/ui';
 import { ResourcesView } from './Resources';
 
 // The vault as the page has it, so nothing is fetched again after a save.
@@ -53,6 +54,23 @@ describe("a task's resources, on their page", () => {
     await screen.getByRole('button', { name: 'Delete WEB-1' }).click();
     await screen.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
     await expect.poll(() => posted(asked, '/api/resource').at(-1)).toEqual({ task: 't1', name: 'WEB-1', remove: true });
+  });
+});
+
+describe("a task's worktrees, from MR's page", () => {
+  afterEach(reset);
+
+  it("are opened by one button in the terminal's Worktree tab, shown at once", async () => {
+    const asked = serve({ 'POST /api/worktree': Response.json({ tab: 'w1:t4' }) });
+    const t = task('t1', 'pay retries', { repos: [{ name: 'web', branch: 'feat/retry', earlier: [], abandoned: [] }, { name: 'api', branch: 'feat/retry', earlier: [], abandoned: [] }] });
+    have(index([t]));
+    history.replaceState(null, '', '#/t/t1/mr');
+    const screen = await draw(<MrView t={t} />);
+    expect(screen.getByRole('button', { name: 'Open worktree' }).elements(), 'one for every repository').toHaveLength(1);
+    await screen.getByRole('button', { name: 'Open worktree' }).click();
+    await expect.poll(() => location.hash).toBe('#/t/t1/terminal');
+    expect(asked.filter((a) => a.method === 'POST').map((a) => [a.path, a.body])).toEqual([['/api/worktree', { task: 't1' }]]);
+    expect(useUI.getState().termTab.t1).toBe('worktree');
   });
 });
 

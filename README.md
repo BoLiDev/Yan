@@ -222,7 +222,7 @@ what it did, or stops and asks about a worktree holding work that looks
 unsaved. A closed or paused task keeps no terminal: once the closing or the
 pause, however it was made, is on origin (in the vault, for one with no
 origin), so the agent's turn and the push at its end are over, and the agent is neither at work nor
-waiting on you, serve closes its herdr tab as Stop does, the shells beside
+waiting on you, serve closes its herdr tab as the Agent tab's × does, the shells beside
 it with it, and a page showing it goes on to the task's overview. Each box's button waits for serve's answer; one refused says why
 in the box, which stays open to try again. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. Markdown and the report
@@ -255,7 +255,11 @@ repository, those in progress first, the one its tree
 was last on leading them, then those merged with the pull request they
 came in by, then those abandoned. On hover, a card's copy button copies the
 branch's whole name without opening it; a branch opened shows its changes
-in the column under its name, MR's row lit. A task that refers to anything
+in the column under its name, MR's row lit. One Open worktree button on the
+page, for an open task, opens the task's worktrees on this machine in its
+terminal's Worktree tab, a shell in each, side by side in equal parts, in
+the order the task lists its repositories, and shows it; asked again, it
+shows the same tab, however it has been split since. A task that refers to anything
 else has a Resources row under MR, its page listing them under their kinds,
 Spec, UAT (the links to check the result on) and Other: a link named by
 its name that opens in a tab of its own, or a name and its words. Its
@@ -282,11 +286,18 @@ tells what herdr says of it as the task list does: waiting on you (a
 question or a permission) it has an amber dot, and finished and not yet
 looked at, a green one, while at work a light passes over the task's title
 in the task list; with none running, its page is a terminal
-drawn large, and Continue on the right of the bar, where Stop is while one
-runs, opens a herdr tab named for the task
-and types `yan --task` into it, the page showing it at once. Stop on the
-right of the page's bar, clicked twice, stops the agent: its herdr tab is
-closed, the shells split off beside it with it.
+drawn large, and Continue on the right of the bar opens a herdr tab named
+for the task and types `yan --task` into it, the page showing it at once.
+The page's bar is the terminal's tabs, each a name for its one use: Agent,
+the agent's own herdr tab, and Worktree, once MR's page opened it, a herdr
+tab of its own with a shell in each of the task's worktrees here, its
+shells' `$YAN_TASK` the task's; a click shows one, and a task's terminal is
+left on the one shown last. Each has a × while there is something to close,
+clicked twice: Agent's stops the agent, its herdr tab closed, the shells
+split off beside it with it; Worktree's closes that tab. serve keeps the
+Worktree tab in this machine's config.json, so it is found again after a
+restart, and closes it with the agent's once the task is closed or
+paused.
 Its page is the pane itself, as herdr streams it (`herdr terminal session
 control`, herdr 0.7.2 or later; the newest stable herdr is the one to
 use): the bytes the agent draws, so a question, a menu or a slash
@@ -297,15 +308,16 @@ it among the rest; while the page is seen, herdr's own window shows that
 pane at the page's size, and has it back as soon as the page is left or
 hidden. Its text is in 0xProto (the Nerd Font build when installed) and its
 Chinese in ChillRound, the page's own faces. The wheel anywhere over it goes to the pane, as herdr turns it in
-its own window. What is typed in it goes to the pane as typed, keys herdr
+its own window, a row at a time as a terminal reports it, so a fast wheel
+scrolls the agent as fast as it turns. What is typed in it goes to the pane as typed, keys herdr
 names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
 as one, and what an IME is composing stays the IME's, so the Enter that
 commits English letters typed in a Chinese IME commits them; ⌘ chords stay
 the page's, and in the terminal Ctrl+K is the agent's. Enter on the page
 puts the keys in the terminal typed in last, as a click on it does. The
-page is the agent's whole herdr tab, split as herdr has it: a shell split
-off beside the agent, in herdr or here, is there too, streamed and typed
-into as the agent is. A right click on a pane opens the page's own menu in
+Agent tab is the agent's whole herdr tab, split as herdr has it: a shell
+split off beside the agent, in herdr or here, is there too, streamed and
+typed into as the agent is, and so is every shell of the Worktree tab. A right click on a pane opens the page's own menu in
 place of the browser's: split it to the right or down, which herdr does,
 so its window has the new shell too, in the directory the pane works in;
 copy what is selected in it; paste into it; and close it, unless it is the
@@ -435,7 +447,7 @@ what it was written from), its bar says legacy and what changed.
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
         uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
       misc/                    anything else worth keeping: a script, a query, data pulled for a check
-~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned; skillDir: plugin folders claude is started with here, besides yan's; terminals: each agent bare yan started in a herdr pane here, while it runs (vault, task, pane, socket, bin, cli, since)
+~/.yan/config.json             which vaults this machine has, the active one, and where each repository is cloned; skillDir: plugin folders claude is started with here, besides yan's; terminals: each agent bare yan started in a herdr pane here, while it runs (vault, task, pane, socket, bin, cli, since); worktreeTabs: the herdr tab yan serve opened for each task's worktrees (vault, task, tab, socket, bin)
 ~/.yan/trees/<repo>-<hash>/    the worktree pool: <slot>/<repo>/ and leases/
 ```
 

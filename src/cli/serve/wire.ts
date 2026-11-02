@@ -262,6 +262,16 @@ export interface AgentChange {
   readonly at: number;
 }
 
+/** `/api/worktrees`, by task: the herdr tab `yan serve` opened with a shell in each of the task's worktrees on this machine. */
+export interface WorktreeState {
+  readonly tab: string;
+  /** The tab as herdr has it split: a pane for each worktree, and any split off since. */
+  readonly layout: Layout;
+  /** herdr's version, and whether it streams a pane. */
+  readonly herdr: string;
+  readonly streams: boolean;
+}
+
 /** `/api/terminals`, by task: an agent bare `yan` started in a herdr pane on this machine, while it runs. */
 export interface TerminalState {
   readonly status: AgentStatus;

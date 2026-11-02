@@ -1,9 +1,9 @@
 import { createInterface } from 'node:readline';
 import type { ChildProcess } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, closePane, closeTab, control, controlCommand, layoutOf, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, tabOf, versionOf, type Layout } from '../../externals/herdr/index.js';
+import { CONTROL_SINCE, atLeast, closePane, closeTab, control, controlCommand, layoutOf, layoutOfTab, paneOf, panesIn, scrollPane, sendInput, sendKeys, sendText, splitPane, tabOf, versionOf, type Layout } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
-import { letTerminalGo, terminalsOf, type HeldTerminal } from '../../util/machine.js';
+import { letTerminalGo, terminalsOf, worktreeTabsOf, type HeldTerminal } from '../../util/machine.js';
 import { AgentWatch } from './agent-watch.js';
 import type { Launches } from './launch.js';
 import type { TerminalState } from './wire.js';
@@ -43,6 +43,14 @@ export function wheelReport(up: boolean, col: number, row: number): string {
 /** The most rows one turn of the wheel the page sends goes: a fast spin's worth of a frame or two, and no flood. */
 const WHEEL_MOST = 120;
 
+/** A pane of one of a task's tabs here, the agent's or its worktrees': the herdr it is in, and whether it is the agent's own. */
+interface At {
+  readonly socket: string;
+  readonly bin: string;
+  readonly pane: string;
+  readonly agent: boolean;
+}
+
 /** A size the page asks for, in cells, within what a terminal could be. */
 function cells(value: string | null, least: number, most: number): number | undefined {
   const n = Number(value);
@@ -80,6 +88,22 @@ export class Terminals {
   private async inTab(t: HeldTerminal, pane: unknown): Promise<string | undefined> {
     if (pane === undefined || pane === null || pane === t.pane) return t.pane;
     return typeof pane === 'string' && panesIn(await this.layout(t)).includes(pane) ? pane : undefined;
+  }
+
+  /**
+   * `pane` of one of `task`'s tabs here: the agent's, its own pane when none
+   * is named, or one of its Worktree tab's, which is named. Nothing outside
+   * the two is the page's.
+   */
+  private async paneAt(task: unknown, pane: unknown): Promise<At | undefined> {
+    if (typeof task !== 'string') return undefined;
+    const t = this.held(task);
+    const inAgent = t === undefined ? undefined : await this.inTab(t, pane);
+    if (t !== undefined && inAgent !== undefined) return { socket: t.socket, bin: t.bin, pane: inAgent, agent: inAgent === t.pane };
+    const w = worktreeTabsOf(this.vault).find((x) => x.task === task);
+    if (w === undefined || typeof pane !== 'string') return undefined;
+    const layout = await layoutOfTab(w.socket, w.tab).catch(() => undefined);
+    return layout !== undefined && panesIn(layout).includes(pane) ? { socket: w.socket, bin: w.bin, pane, agent: false } : undefined;
   }
 
   /**
@@ -138,10 +162,9 @@ export class Terminals {
    * stream ends. The page going lets the pane go.
    */
   public async stream(task: string, q: URLSearchParams, req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const t = this.held(task);
-    if (t === undefined) return void res.writeHead(404).end('this task has no agent in a herdr pane on this machine');
-    const pane = await this.inTab(t, q.get('pane'));
-    if (pane === undefined) return void res.writeHead(404).end('that pane is not in the agent\'s tab');
+    const t = await this.paneAt(task, q.get('pane') ?? undefined);
+    if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+    const pane = t.pane;
     const [cols, rows] = [cells(q.get('cols'), 20, 1000), cells(q.get('rows'), 5, 500)];
     if (cols === undefined || rows === undefined) return void res.writeHead(400).end('cols and rows are needed');
     const version = await this.version(t.socket);
@@ -195,11 +218,10 @@ export class Terminals {
    * page's room for it, in cells, which the pane is sized to.
    */
   public async input(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
-    const t = typeof given.task === 'string' ? this.held(given.task) : undefined;
-    if (t === undefined) return void res.writeHead(404).end('this task has no agent in a herdr pane on this machine');
+    const t = await this.paneAt(given.task, given.pane);
+    if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
     try {
-      const pane = await this.inTab(t, given.pane);
-      if (pane === undefined) return void res.writeHead(404).end('that pane is not in the agent\'s tab');
+      const pane = t.pane;
       if (Array.isArray(given.keys) && given.keys.every((k): k is string => typeof k === 'string') && given.keys.length > 0) await sendKeys(t.socket, pane, given.keys);
       else if (typeof given.text === 'string' && given.text !== '') await sendText(t.socket, pane, given.text);
       else if (typeof given.paste === 'string') await sendInput(t.socket, pane, given.paste, given.enter === true ? ['enter'] : []);
@@ -231,7 +253,7 @@ export class Terminals {
    * program that takes the mouse, as Claude Code in its no-flicker mode, and
    * is sent the wheel as a terminal reports it.
    */
-  private async wheel(t: HeldTerminal, pane: string, rows: number, col: number, row: number): Promise<void> {
+  private async wheel(t: At, pane: string, rows: number, col: number, row: number): Promise<void> {
     const turned = Math.min(Math.abs(rows), WHEEL_MOST);
     const held = this.controllers.get(`${t.socket}\n${pane}`);
     if (held?.stdin?.writable === true) {
@@ -253,13 +275,11 @@ export class Terminals {
    * through herdr, so herdr's window has it too. Answers the new pane.
    */
   public async split(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
-    const t = typeof given.task === 'string' ? this.held(given.task) : undefined;
-    if (t === undefined) return void res.writeHead(404).end('this task has no agent in a herdr pane on this machine');
     if (given.direction !== 'right' && given.direction !== 'down') return void res.writeHead(400).end('direction is right or down');
     try {
-      const pane = await this.inTab(t, given.pane);
-      if (pane === undefined) return void res.writeHead(404).end('that pane is not in the agent\'s tab');
-      const made = await splitPane(t.socket, pane, given.direction);
+      const t = await this.paneAt(given.task, given.pane);
+      if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+      const made = await splitPane(t.socket, t.pane, given.direction);
       this.asked = undefined;
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ pane: made }));
     } catch (err) {
@@ -267,15 +287,13 @@ export class Terminals {
     }
   }
 
-  /** `{ task, pane }`: a pane split off in the task's tab closed through herdr, and what runs in it; never the agent's own. */
+  /** `{ task, pane }`: a pane of one of the task's tabs closed through herdr, and what runs in it; never the agent's own. */
   public async closeSplit(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
-    const t = typeof given.task === 'string' ? this.held(given.task) : undefined;
-    if (t === undefined) return void res.writeHead(404).end('this task has no agent in a herdr pane on this machine');
-    if (given.pane === t.pane) return void res.writeHead(400).end('the agent\'s own pane is not closed from the page');
     try {
-      const pane = typeof given.pane === 'string' ? await this.inTab(t, given.pane) : undefined;
-      if (pane === undefined) return void res.writeHead(404).end('that pane is not in the agent\'s tab');
-      await closePane(t.socket, pane);
+      const t = typeof given.pane === 'string' ? await this.paneAt(given.task, given.pane) : undefined;
+      if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+      if (t.agent) return void res.writeHead(400).end('the agent\'s own pane is not closed from the page');
+      await closePane(t.socket, t.pane);
       this.asked = undefined;
       res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
     } catch (err) {

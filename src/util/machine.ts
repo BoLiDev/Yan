@@ -27,6 +27,10 @@ import { normalizePath } from './paths.js';
  * herdr pane here, while the agent runs, so `yan serve` on this machine can
  * show the pane and type into it. A pane is only on this machine.
  *
+ * `worktreeTabs` is written by `yan serve` alone: the herdr tab it opened for
+ * a task's worktrees, a shell in each, so the page goes back to the same tab
+ * however often it is asked for, across a restart of serve too.
+ *
  * Data access only: nothing here refuses a missing or broken registration, and
  * `util/vault.ts` decides what to do about one. `$YAN_MACHINE_DIR` overrides
  * the location, for tests.
@@ -40,6 +44,27 @@ interface MachineConfig {
   /** As written, a path or a list of them, so a rewrite of the file keeps it as it was. */
   readonly skillDir?: string | readonly string[];
   readonly terminals?: readonly HeldTerminal[];
+  readonly worktreeTabs?: readonly WorktreeTab[];
+}
+
+/** The herdr tab `yan serve` opened for a task's worktrees on this machine: which task, which tab, and the socket herdr answers on. */
+export interface WorktreeTab {
+  readonly vault: string;
+  readonly task: string;
+  readonly tab: string;
+  readonly socket: string;
+  /** The herdr itself, which streams its panes. */
+  readonly bin: string;
+}
+
+function readWorktreeTabs(raw: unknown): WorktreeTab[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    const r = asRecord(entry);
+    const [vault, task, tab, socket] = [set(r.vault), set(r.task), set(r.tab), set(r.socket)];
+    if (vault === undefined || task === undefined || tab === undefined || socket === undefined) return [];
+    return [{ vault: normalizePath(vault), task, tab, socket, bin: set(r.bin) ?? 'herdr' }];
+  });
 }
 
 /** An agent bare `yan` started in a herdr pane: which task, which pane, and the socket herdr answers on. */
@@ -104,6 +129,7 @@ export function readMachine(): MachineConfig {
   const skillDir = typeof record.skillDir === 'string' ? record.skillDir
     : Array.isArray(record.skillDir) ? record.skillDir.filter((d): d is string => typeof d === 'string') : undefined;
   const terminals = readTerminals(record.terminals);
+  const worktreeTabs = readWorktreeTabs(record.worktreeTabs);
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
@@ -111,6 +137,7 @@ export function readMachine(): MachineConfig {
     clones,
     ...(skillDir === undefined ? {} : { skillDir }),
     ...(terminals.length === 0 ? {} : { terminals }),
+    ...(worktreeTabs.length === 0 ? {} : { worktreeTabs }),
   };
 }
 
@@ -196,6 +223,31 @@ export function letTerminalGo(vault: string, task: string, pane: string): void {
     const { terminals: _was, ...rest } = current;
     return terminals.length === 0 ? rest : { ...rest, terminals };
   });
+}
+
+/** Keep `held` as the tab of its task's worktrees, in place of any kept before. */
+export function holdWorktreeTab(held: WorktreeTab): void {
+  const vault = normalizePath(held.vault);
+  editMachine((current) => ({
+    ...current,
+    worktreeTabs: [...(current.worktreeTabs ?? []).filter((t) => t.vault !== vault || t.task !== held.task), { ...held, vault }],
+  }));
+}
+
+/** Forget the tab of `task`'s worktrees, once it is closed. */
+export function letWorktreeTabGo(vault: string, task: string): void {
+  const at = normalizePath(vault);
+  editMachine((current) => {
+    const worktreeTabs = (current.worktreeTabs ?? []).filter((t) => t.vault !== at || t.task !== task);
+    const { worktreeTabs: _was, ...rest } = current;
+    return worktreeTabs.length === 0 ? rest : { ...rest, worktreeTabs };
+  });
+}
+
+/** The tabs `yan serve` opened for the worktrees of the tasks of the vault at `vault`. */
+export function worktreeTabsOf(vault: string): WorktreeTab[] {
+  const at = normalizePath(vault);
+  return (readMachine().worktreeTabs ?? []).filter((t) => t.vault === at);
 }
 
 /** The agents running in herdr panes for the tasks of the vault at `vault`, as bare `yan` kept them. */
