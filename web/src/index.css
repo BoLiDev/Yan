@@ -74,6 +74,8 @@
   --term-line: #3a3a37;
   --term-selection: #4a4a44;
   --term-note: rgba(255, 255, 255, 0.92);
+  /* the strip a terminal's tabs are in, apart from the page, the terminal and the tab shown over either */
+  --tab-strip: var(--well);
   /* code: six inks for highlight.js's classes, each dark enough to read on the add and del tints */
   --code-comment: #77766f;
   --code-keyword: #8e3a9c;

@@ -61,9 +61,9 @@ export function TerminalView({ id, state, waiting = false, goesOn = false, over 
     return term !== undefined;
   });
 
-  // The bar holds the tabs, and Continue where the agent's would be while none runs; over a dark tab it has no line of its own.
+  // The strip holds the tabs, and Continue where the agent's would be while none runs; the tab shown is drawn as what is under it, dark or the page.
   const bar = (
-    <TabBar id={id} on={tab} agent={!!state && !waiting} worktrees={worktrees} flush={shown?.streams ?? (waiting || starting)}
+    <TabBar id={id} on={tab} agent={!!state && !waiting} worktrees={worktrees} dark={shown?.streams ?? (waiting || starting)}
       tools={tab === AGENT && !state && !waiting && !starting && goesOn ? <ContinueButton id={id} starting={setStarting} /> : null} />
   );
   // A new task's tab, opened a moment ago, is a dark terminal until herdr lists its pane.

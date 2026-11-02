@@ -288,9 +288,11 @@ tells what herdr says of it as the task list does: waiting on you (a
 question or a permission) it has an amber dot, and finished and not yet
 looked at, a green one, while at work a light passes over the task's title
 in the task list; with none running, its page is a terminal
-drawn large, and Continue on the right of the bar opens a herdr tab named
-for the task and types `yan --task` into it, the page showing it at once.
-The page's bar is the terminal's tabs: Agent, the agent's own herdr tab,
+drawn large, and Continue on the right of the tab strip opens a herdr tab
+named for the task and types `yan --task` into it, the page showing it at
+once. Along the top of the page is the terminal's tab strip, drawn as a
+browser's, the tab shown one shape with the terminal under it: Agent, the
+agent's own herdr tab,
 then one for each worktree MR's page opened, named for its repository, a
 herdr tab of its own with a shell in the worktree, its `$YAN_TASK` the
 task's; a click shows one, and a task's terminal is left on the one shown
