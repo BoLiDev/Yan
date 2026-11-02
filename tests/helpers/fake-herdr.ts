@@ -27,7 +27,8 @@ import { mkTempDir } from './fixtures.js';
  * to scroll back) and a shell beside it (`SHELL_PANE`, with history). A tab
  * opened, or a pane split off, gets a shell that draws its prompt
  * `shellAfterMs` later; anything sent to it before then is marked `early`,
- * as a shell would echo it and draw it again.
+ * as a shell would echo it and draw it again. Streamed, a shell started in
+ * a directory draws its prompt there; any other pane, the agent's question.
  *
  * POSIX only: the command is a script with a shebang.
  */
@@ -121,6 +122,8 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
   const socket = join(dir, 'herdr.sock');
   const bin = join(dir, 'herdr');
   const log = join(dir, 'control.log');
+  // Each shell's directory, by pane, for the command that streams a pane to draw it in.
+  const dirs = join(dir, 'dirs.json');
   const shellAfter = options.shellAfterMs ?? 200;
 
   const panes = new Map<string, PaneState>([
@@ -145,6 +148,7 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
   const shell = (cwd?: unknown): string => {
     const id = `w1:p${nextPane++}`;
     panes.set(id, { status: 'unknown', scroll: { offset: 0, max: 0 }, promptAt: Date.now() + shellAfter, screen: '~ ❯ ', received: [], ...(typeof cwd === 'string' ? { cwd } : {}) });
+    if (typeof cwd === 'string') writeFileSync(dirs, JSON.stringify(Object.fromEntries([...panes].flatMap(([p, state]) => (state.cwd === undefined ? [] : [[p, state.cwd]])))));
     return id;
   };
   const take = (id: unknown, what: Received): { type: 'ok' } => {
@@ -251,7 +255,8 @@ export async function startFakeHerdr(options: { version: string; shellAfterMs?: 
     "note({ took: { pane, cols, rows, socket: process.env.HERDR_SOCKET_PATH } });",
     "const frame = (s) => JSON.stringify({ type: 'terminal.frame', seq: 1, encoding: 'ansi', width: cols, height: rows, full: true, bytes: Buffer.from(s).toString('base64') });",
     "console.log(frame('the screen of ' + pane));",
-    "console.log(frame('\\u001b[1mDo you want to proceed?\\u001b[0m'));",
+    `const dirs = (() => { try { return JSON.parse(fs.readFileSync(${JSON.stringify(dirs)}, 'utf8')); } catch { return {}; } })();`,
+    "console.log(frame(dirs[pane] ? '\\u001b[32m' + dirs[pane] + '\\u001b[0m\\r\\n❯ ' : '\\u001b[1mDo you want to proceed?\\u001b[0m'));",
     "require('readline').createInterface({ input: process.stdin })",
     "  .on('line', (l) => note({ command: JSON.parse(l) }))",
     "  .on('close', () => { note({ let_go: true }); process.exit(0); });",
