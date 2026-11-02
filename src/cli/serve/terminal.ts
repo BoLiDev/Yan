@@ -40,6 +40,9 @@ export function wheelReport(up: boolean, col: number, row: number): string {
   return `\x1b[<${up ? 64 : 65};${Math.max(1, Math.round(col))};${Math.max(1, Math.round(row))}M`;
 }
 
+/** The most rows one turn of the wheel the page sends goes: a fast spin's worth of a frame or two, and no flood. */
+const WHEEL_MOST = 120;
+
 /** A size the page asks for, in cells, within what a terminal could be. */
 function cells(value: string | null, least: number, most: number): number | undefined {
   const n = Number(value);
@@ -217,17 +220,22 @@ export class Terminals {
   /**
    * The wheel as herdr turns it in its own window. A page holding the pane
    * hands it to its controller, and herdr knows what the program asked for:
-   * the mouse, the arrows, or its own history scrolled. With none, as far as
-   * the socket lets it be told: a pane with rows to scroll back to is a
-   * program on the normal screen, and herdr's view of it scrolls; one with
-   * none is taken for a full-screen program that takes the mouse, as Claude
-   * Code in its no-flicker mode, and is sent the wheel as a terminal reports
-   * it.
+   * the mouse, the arrows, or its own history scrolled. It goes a row at a
+   * time: for a program that takes the mouse, as Claude Code does, or the
+   * arrows, herdr makes one report of a scroll whatever its lines, where a
+   * terminal reports each row turned, so the rows the page turned in one go
+   * went as one, and a fast wheel crawled; its own history scrolls the same
+   * either way. With none holding it, as far as the socket lets it be told:
+   * a pane with rows to scroll back to is a program on the normal screen,
+   * and herdr's view of it scrolls; one with none is taken for a full-screen
+   * program that takes the mouse, as Claude Code in its no-flicker mode, and
+   * is sent the wheel as a terminal reports it.
    */
   private async wheel(t: HeldTerminal, pane: string, rows: number, col: number, row: number): Promise<void> {
+    const turned = Math.min(Math.abs(rows), WHEEL_MOST);
     const held = this.controllers.get(`${t.socket}\n${pane}`);
     if (held?.stdin?.writable === true) {
-      held.stdin.write(`${controlCommand({ scroll: rows, col: col - 1, row: row - 1 })}\n`);
+      held.stdin.write(`${controlCommand({ scroll: Math.sign(rows), col: col - 1, row: row - 1 })}\n`.repeat(turned));
       return;
     }
     const scroll = (await paneOf(t.socket, pane)).scroll;
@@ -236,7 +244,7 @@ export class Terminals {
       if (to !== scroll.offset_from_bottom) await scrollPane(t.socket, pane, to);
       return;
     }
-    await sendText(t.socket, pane, wheelReport(rows < 0, col, row).repeat(Math.min(Math.abs(rows), 10)));
+    await sendText(t.socket, pane, wheelReport(rows < 0, col, row).repeat(turned));
   }
 
   /**

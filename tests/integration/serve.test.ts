@@ -610,12 +610,11 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
     expect((await input({ task: 't001', cols: 3, rows: 40 })).status, 'a size no terminal is').toBe(409);
     const told = await until(async () => {
       const commands = h.controllers()[0]?.commands ?? [];
-      return commands.length >= 2 ? commands : undefined;
+      return commands.length >= 4 ? commands : undefined;
     }, 5000);
-    expect(told).toEqual([
-      { type: 'terminal.resize', cols: 120, rows: 40 },
-      { type: 'terminal.scroll', direction: 'up', lines: 3, column: 4, row: 6 },
-    ]);
+    // A row at a time, as a terminal reports each row turned: herdr makes one report of each scroll, whatever its lines.
+    const up = { type: 'terminal.scroll', direction: 'up', lines: 1, column: 4, row: 6 };
+    expect(told).toEqual([{ type: 'terminal.resize', cols: 120, rows: 40 }, up, up, up]);
     expect(h.received(AGENT_PANE), 'nothing typed into the pane behind it').toEqual([]);
 
     holding.abort();
