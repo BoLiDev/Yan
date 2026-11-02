@@ -3,8 +3,11 @@
 import { stateOf, type TaskSummary } from './api';
 import { link, type TaskRoute } from './route';
 
-/** Whether a task's agent may be started again from the page: it is open, or handed over to be accepted. */
-export const goesOn = (t: TaskSummary): boolean => stateOf(t.state) === 'open' || t.state === 'uat';
+/** Whether a task is paused: put aside, open or in review as it was, its worktrees given back, no agent started on it. */
+export const isPaused = (t: Pick<TaskSummary, 'state' | 'pausedAt'>): boolean => !!t.pausedAt && (stateOf(t.state) === 'open' || t.state === 'uat');
+
+/** Whether a task's agent may be started again from the page: it is open, or handed over to be accepted, and not paused. */
+export const goesOn = (t: TaskSummary): boolean => (stateOf(t.state) === 'open' || t.state === 'uat') && !isPaused(t);
 
 /** What a task has beyond what its summary says: a report, resources, a terminal. */
 export interface Has {

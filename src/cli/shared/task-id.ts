@@ -23,13 +23,13 @@ export function existingTask(id: string): Task {
   return task;
 }
 
-/** Every task that is not closed, as a select offers them. */
+/** Every task that is neither closed nor paused, as a select offers them: one an agent may be started on. */
 export function openTasks(): TaskChoice[] {
   const open: TaskChoice[] = [];
   for (const id of Task.list()) {
     try {
       const data = new Task(id).read();
-      if (!isClosed(data.state)) open.push({ id, title: data.title });
+      if (!isClosed(data.state) && data.pausedAt === undefined) open.push({ id, title: data.title });
     } catch {
       // A task.json yan cannot read is not offered; 'yan peek <id>' says why.
     }

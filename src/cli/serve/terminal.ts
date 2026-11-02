@@ -294,16 +294,17 @@ export class Terminals {
   }
 
   /**
-   * The terminal of each task here that `closed` says is closed, ended as
-   * Stop ends one, once its agent is neither at work nor waiting on `user`:
-   * a closed task's worktrees are back in the pool, wiped, so its agent has
-   * nothing left to work on. `closed` is asked only of the tasks with a
-   * terminal here, and says whether the closing has gone through, so the
-   * turn that closed the task, and the push at its end, are over.
+   * The terminal of each task here that `aside` says is set aside, closed or
+   * paused, ended as Stop ends one, once its agent is neither at work nor
+   * waiting on `user`: such a task's worktrees are back in the pool, wiped,
+   * so its agent has nothing left to work on, and a pause is for the room
+   * it took. `aside` is asked only of the tasks with a terminal here, and
+   * says whether that has gone through, so the turn that set the task
+   * aside, and the push at its end, are over.
    */
-  public async endClosed(closed: (task: string) => Promise<boolean>): Promise<void> {
+  public async endSetAside(aside: (task: string) => Promise<boolean>): Promise<void> {
     for (const t of terminalsOf(this.vault)) {
-      if (!(await closed(t.task))) continue;
+      if (!(await aside(t.task))) continue;
       const status = await paneOf(t.socket, t.pane).then((p) => p.agent_status, () => undefined);
       if (status === undefined || status === 'working' || status === 'blocked') continue;
       // One herdr will not close is tried again on the next tick.

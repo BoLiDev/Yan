@@ -40,6 +40,7 @@ describe('task.json', () => {
       state: 'open',
       createdAt: null,
       closedAt: null,
+      pausedAt: null,
       reason: null,
       repos: [{ url: 'git@github.com:o/web.git', name: 'web', branch: 'yan/t1-c', earlier: ['yan/t1-a', 'yan/t1-b'], abandoned: ['yan/t1-a', 'yan/t1-b'], bases: {} }],
       deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15', reason: null }],
@@ -47,6 +48,11 @@ describe('task.json', () => {
       resourceKinds: { a: 'run' },
     });
     expect(readTaskJson('not an object').title).toBe('');
+  });
+
+  it('reads an open task paused, and a closed one as closed whatever was left of a pause', () => {
+    expect(readTaskJson({ state: 'uat', pausedAt: '2026-11-01T10:00:00Z' })).toMatchObject({ state: 'uat', pausedAt: '2026-11-01T10:00:00Z' });
+    expect(readTaskJson({ state: 'done', pausedAt: '2026-11-01T10:00:00Z' }).pausedAt).toBeNull();
   });
 
   it('names the branches the task marks given up, and reads the earlier ones of a yan from before marks as given up', () => {

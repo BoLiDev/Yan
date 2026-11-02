@@ -1,8 +1,8 @@
 import { useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import { postJSON, type TaskSummary, type WriteResult } from '../lib/api';
 import { go, link } from '../lib/route';
-import { goesOn } from '../lib/stops';
-import { onStatus, queryClient, useIndex, useTerminals } from '../state/server';
+import { goesOn, isPaused } from '../lib/stops';
+import { onStatus, queryClient, useIndex, useTerminals, writeTask } from '../state/server';
 import { toast, useUI, type TaskAct } from '../state/ui';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Button } from './ui/button';
@@ -12,9 +12,10 @@ import { Spinner } from './ui/spinner';
 
 /**
  * A task's own menu, in place of the browser's, on a right click on its
- * row in the task list or its square on the rail: rename it, and while it
- * is open, have its agent close it, done or given up. `render` is the row
- * itself, which a click still follows.
+ * row in the task list or its square on the rail: rename it; while it is
+ * open, pause it, or have its agent close it, done or given up; while it is
+ * paused, resume it, which asks nothing, as it takes nothing away. `render`
+ * is the row itself, which a click still follows.
  */
 export function TaskMenu({ t, render, children }: { t: TaskSummary; render: ReactElement; children: ReactNode }) {
   const open = (kind: TaskAct['kind']): void => useUI.setState({ taskAct: { kind, id: t.id } });
@@ -23,9 +24,16 @@ export function TaskMenu({ t, render, children }: { t: TaskSummary; render: Reac
       <ContextMenuTrigger render={render}>{children}</ContextMenuTrigger>
       <ContextMenuContent className="min-w-40">
         <ContextMenuItem onClick={() => open('rename')}>Rename</ContextMenuItem>
+        {isPaused(t) ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => void writeTask('/api/task/resume', { task: t.id }, `Resumed ${t.id}`)}>Resume</ContextMenuItem>
+          </>
+        ) : null}
         {goesOn(t) ? (
           <>
             <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => open('pause')}>Pause</ContextMenuItem>
             <ContextMenuItem onClick={() => open('done')}>Done</ContextMenuItem>
             <ContextMenuItem variant="destructive" onClick={() => open('abandon')}>Abandon</ContextMenuItem>
           </>
@@ -40,24 +48,41 @@ function wordsOf(act: TaskAct, title: string, running: boolean): { title: string
   const who = running ? 'Its agent' : 'An agent started on it in a new herdr tab';
   const how = 'returning its worktrees, and asks you in its terminal when one holds work that looks unsaved.';
   if (act.kind === 'rename') return { title: `Rename ${act.id}`, action: 'Rename', field: 'Title' };
+  if (act.kind === 'pause') {
+    return {
+      title: `Pause ${act.id}?`,
+      sub: running
+        ? `Its agent saves the work of “${title}”, committing and pushing it, and pauses it as yan:pause does, returning its worktrees; its terminal closes once that is through. Resume takes it up again.`
+        : `“${title}” is paused at once, its worktrees here returned, when they hold nothing unsaved; else an agent started on it in a new herdr tab saves its work first. Resume takes it up again.`,
+      action: 'Pause',
+    };
+  }
   if (act.kind === 'done') return { title: `Close ${act.id} as done?`, sub: `${who} closes “${title}” as yan:done does, ${how}`, action: 'Ask the agent' };
   return { title: `Give up ${act.id}?`, sub: `${who} closes “${title}” as given up, with your reason, ${how}`, action: 'Give up', field: 'Why it is given up' };
 }
 
+/** A change serve made itself, said in a toast, and shown once the vault has it. */
+function said(out: WriteResult, what: string): void {
+  toast(out.warning ? `${what}, but the push failed: ${out.warning}` : what, !!out.warning);
+  void onStatus(out.status);
+}
+
 /**
  * What `act` asks of serve, with the line typed. A new title is written
- * and pushed as any change from the page is. A closing is the agent's: serve
- * types it into the agent running here or starts one with it, and the page
- * goes to the task's terminal, once it lists the tab started, to watch it.
+ * and pushed as any change from the page is, and so is a pause serve could
+ * make itself. A closing, and a pause with work to save, is the agent's:
+ * serve types it into the agent running here or starts one with it, and
+ * the page goes to the task's terminal, once it lists the tab started, to
+ * watch it.
  */
 async function perform(act: TaskAct, line: string): Promise<void> {
-  if (act.kind === 'rename') {
-    const out = await postJSON<WriteResult>('/api/task/title', { task: act.id, title: line });
-    toast(out.warning ? `Renamed ${act.id}, but the push failed: ${out.warning}` : `Renamed ${act.id}`, !!out.warning);
-    void onStatus(out.status);
-    return;
+  if (act.kind === 'rename') return said(await postJSON<WriteResult>('/api/task/title', { task: act.id, title: line }), `Renamed ${act.id}`);
+  if (act.kind === 'pause') {
+    const out = await postJSON<WriteResult | { typed: true } | { launch: string }>('/api/task/pause', { task: act.id });
+    if ('ok' in out) return said(out, `Paused ${act.id}`);
+  } else {
+    await postJSON('/api/task/close', act.kind === 'abandon' ? { task: act.id, abandon: line } : { task: act.id });
   }
-  await postJSON('/api/task/close', act.kind === 'abandon' ? { task: act.id, abandon: line } : { task: act.id });
   await queryClient.invalidateQueries({ queryKey: ['terminals'] });
   go(link.terminal(act.id));
 }
@@ -89,7 +114,7 @@ export function TaskActModal() {
   const running = held !== null && terminals?.[held.id] !== undefined;
   const words = held === null ? null : wordsOf(held, title, running);
   const given = line.trim();
-  const ready = held?.kind === 'done' || (given !== '' && !(held?.kind === 'rename' && given === title));
+  const ready = held?.kind === 'done' || held?.kind === 'pause' || (given !== '' && !(held?.kind === 'rename' && given === title));
   const close = (): void => useUI.setState({ taskAct: null });
 
   const submit = async (): Promise<void> => {

@@ -13,6 +13,7 @@ import { TaskMenu } from '../components/TaskMenu';
 import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex, useTerminals } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
+import { isPaused } from '../lib/stops';
 import { Badge } from '../components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { useTheme } from '../state/theme';
@@ -103,7 +104,7 @@ function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: S
   const fresh = on ? [] : [...unseenOf(index, seen, t.id).values()];
   return (
     <TaskMenu t={t} render={<a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${agent ? ` · ${agentWords(agent)}` : ''}`} />}>
-      <StateIcon state={t.state} />
+      <StateIcon t={t} />
       <span className={cn(GROW, agent?.kind === 'working' && WORKING)}>{t.title || t.id}</span>
       {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
       {fresh.length ? <span className="flex flex-none gap-1" title="since you last looked"><PushTags files={fresh} /></span> : null}
@@ -149,11 +150,14 @@ export function Left() {
     const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
     const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string }[] = [];
     // Waiting on `user`, so above the rest; the group is not there when none is.
-    const uat = tasks.filter((t) => t.state === 'uat').sort(byTouched);
+    const uat = tasks.filter((t) => t.state === 'uat' && !isPaused(t)).sort(byTouched);
     if (uat.length) out.push({ label: 'In review', rows: uat.map((t) => ({ t })) });
     // A state this page does not know, a newer yan's, is taken as open, so the task is never left out of every group.
-    const open = tasks.filter((t) => stateOf(t.state) === 'open').sort(byTouched);
+    const open = tasks.filter((t) => stateOf(t.state) === 'open' && !isPaused(t)).sort(byTouched);
     out.push({ label: 'In progress', rows: open.map((t) => ({ t })), none: 'Nothing open' });
+    // Put aside, in review or in progress, below both: wanted again, but not now. The group is not there when none is.
+    const paused = tasks.filter(isPaused).sort((a, b) => (fromIso(b.pausedAt) || b.touched) - (fromIso(a.pausedAt) || a.touched));
+    if (paused.length) out.push({ label: 'Paused', rows: paused.map((t) => ({ t })) });
     const closed = tasks.filter((t) => t.state === 'done' || t.state === 'abandoned')
       .sort((a, b) => (fromIso(b.closedAt) || b.touched) - (fromIso(a.closedAt) || a.touched));
     const months: { month: string; tasks: TaskSummary[] }[] = [];

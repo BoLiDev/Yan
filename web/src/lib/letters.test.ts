@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { initialsOf } from './letters';
 import type { TaskSummary } from './api';
 
-const t = (id: string, title: string): TaskSummary => ({ id, title, state: 'open', createdAt: null, closedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], touched: 0, rev: id });
+const t = (id: string, title: string): TaskSummary => ({ id, title, state: 'open', createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], touched: 0, rev: id });
 
 describe('a task in two letters', () => {
   it('is its first two words\' first letters, its first character in Chinese, its number with no title', () => {

@@ -106,3 +106,39 @@ describe('yan peek', () => {
     expect(r.stdout).toMatch(/│ {2}api +none on this machine$/m);
   });
 });
+
+describe('yan pause and yan resume', () => {
+  it('puts a task aside: its tree goes back, warm, it keeps its state, and resume takes it up again as it was', async () => {
+    new Task('t001').awaitUat();
+    mkdirSync(join(tree, 'node_modules'), { recursive: true });
+    writeFileSync(join(tree, 'node_modules', 'dep.js'), '');
+    const paused = await yan(['pause'], { YAN_TASK: 't001' });
+    expect(paused.code, paused.out).toBe(0);
+    expect(paused.stdout).toContain('tree returned');
+    expect(leasesHeldBy('t001')).toEqual([]);
+    expect(existsSync(join(tree, 'node_modules', 'dep.js'))).toBe(true);
+    expect(new Task('t001').read()).toMatchObject({ state: 'uat', pausedAt: expect.any(String) });
+
+    const listed = JSON.parse((await yan(['ls', '--json'])).stdout) as { id: string; paused: boolean }[];
+    expect(listed.find((r) => r.id === 't001')?.paused, 'still listed among the open ones, as paused').toBe(true);
+    expectUsage(await yan(['pause', 't001']), 'paused already');
+
+    const resumed = await yan(['resume', 't001']);
+    expect(resumed.code, resumed.out).toBe(0);
+    expect(new Task('t001').read().state, 'in review, as it was').toBe('uat');
+    expect(new Task('t001').read().pausedAt).toBeUndefined();
+    expect((await yan(['resume', 't001'])).stdout.trim()).toBe('t001 was not paused');
+  });
+
+  it('keeps a task open while its tree has work nowhere else, and refuses a closed one', async () => {
+    writeFileSync(join(tree, 'wip.txt'), 'half done\n');
+    const refused = await yan(['pause', 't001']);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain('wip.txt');
+    expect(new Task('t001').read().pausedAt).toBeUndefined();
+    expect(leasesHeldBy('t001')).toHaveLength(1);
+
+    new Task('t002').close('done');
+    expectUsage(await yan(['pause', 't002']), 'only an open task is paused');
+  });
+});

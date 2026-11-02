@@ -14,7 +14,9 @@ import { behind, editText, handout, imagesOut, readRecord, sha256, withoutSubtas
 import { noAgentPage } from './no-agent.js';
 import { Terminals } from './terminal.js';
 import { Launches } from './launch.js';
-import { askToClose } from './closing.js';
+import { askToClose, askToPause } from './closing.js';
+import { taskProgress } from '../shared/progress.js';
+import { returnTrees } from '../../externals/worktree/index.js';
 import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
@@ -390,7 +392,7 @@ export class YanServer {
         this.status.ok = false;
         this.status.error = (err as Error).message;
       }
-      await this.terminals.endClosed((id) => this.closedUpstream(id)).catch(() => undefined);
+      await this.terminals.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
       this.broadcast();
     })().finally(() => {
       this.ticking = undefined;
@@ -399,21 +401,21 @@ export class YanServer {
   }
 
   /**
-   * Whether origin has task `id` closed, or the vault has when it has no
-   * origin: the agent that closed it has pushed it, so the turn it closed
-   * it in is over, and its terminal can go without cutting the push short.
-   * The push's own note of origin is read with what this tick fetched, so a
-   * fetch that fails does not hold it up.
+   * Whether origin has task `id` closed or paused, or the vault has when it
+   * has no origin: the agent that set it aside has pushed it, so the turn
+   * it did so in is over, and its terminal can go without cutting the push
+   * short. The push's own note of origin is read with what this tick
+   * fetched, so a fetch that fails does not hold it up.
    */
-  private async closedUpstream(id: string): Promise<boolean> {
+  private async setAsideUpstream(id: string): Promise<boolean> {
     if (!Task.isId(id)) return false;
     const refs = this.status.local ? ['HEAD'] : [`refs/remotes/origin/${this.branch}`, `${OWN_REF}${this.branch}`];
     for (const ref of refs) {
       const shown = await gitAsync(this.options.vaultDir, ['show', `${ref}:tasks/${id}/task.json`]);
       if (shown.code !== 0) continue;
       try {
-        const state = (JSON.parse(shown.stdout) as { state?: unknown }).state;
-        if (state === 'done' || state === 'abandoned') return true;
+        const json = JSON.parse(shown.stdout) as { state?: unknown; pausedAt?: unknown };
+        if (json.state === 'done' || json.state === 'abandoned' || (typeof json.pausedAt === 'string' && json.pausedAt !== '')) return true;
       } catch {
         // A task.json git has but nobody can read says nothing of the task.
       }
@@ -639,6 +641,8 @@ export class YanServer {
     '/api/terminal/close': { does: 'close a pane', json: true, run: async (res, given) => this.terminals.closeSplit(res, given) },
     // The agent asked to close the task, which it does with yan done: nothing of the vault's is written here.
     '/api/task/close': { does: 'ask an agent to close a task', json: true, run: async (res, given) => askToClose(res, given, this.options.vaultDir, this.launches) },
+    '/api/task/pause': { does: 'pause a task', json: true, run: async (res, given) => askToPause(res, given, this.options.vaultDir, this.launches, (r, id) => this.pauseHere(r, id)) },
+    '/api/task/resume': this.change((res, given) => this.resumeTask(res, given)),
     '/api/task/title': this.change((res, given) => this.renameTask(res, given)),
     '/api/deliverable': this.change((res, given) => this.setDeliverable(res, given)),
     '/api/deliverable/text': this.change((res, given) => this.rewordDeliverable(res, given)),
@@ -652,6 +656,42 @@ export class YanServer {
   /** A change to the vault from the page, which waits its turn. */
   private change(run: (res: ServerResponse, given: Record<string, unknown>) => Promise<void>): Post {
     return { does: 'change the vault', json: true, run: (res, given) => this.inTurn(() => run(res, given)) };
+  }
+
+  /**
+   * The task paused here, without an agent, when nothing in its trees on
+   * this machine needs one to judge: each clean, pushed, and on a branch the
+   * task keeps, or none here at all. Its trees go back to the pool, it is
+   * marked paused, and that is committed and pushed. False, and nothing
+   * answered, when a tree holds work an agent has to save first.
+   */
+  private async pauseHere(res: ServerResponse, id: string): Promise<boolean> {
+    const task = new Task(id);
+    const clear = taskProgress(task).every((p) => p.tree === null || (p.uncommitted === 0 && p.unpushed === 0 && p.kept !== false));
+    if (!clear) return false;
+    await this.inTurn(async () => {
+      try {
+        // The guard looks again: a tree written to since is not wiped.
+        returnTrees(id);
+        task.pause();
+      } catch (err) {
+        return send(res, isYanError(err) ? 409 : 500, isYanError(err) ? err.message : String(err));
+      }
+      return this.save(res, `${id}: paused in yan serve`);
+    });
+    return true;
+  }
+
+  /** `{ task }`: a paused task taken up again, as it was; its worktrees come back when an agent is next started on it. */
+  private async resumeTask(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const id = given.task;
+    if (typeof id !== 'string' || !Task.isId(id)) return send(res, 400, 'task is needed');
+    try {
+      if (!new Task(id).resume()) return send(res, 409, `${id} is not paused`);
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    return this.save(res, `${id}: resumed in yan serve`);
   }
 
   /** `{ task, title }`: the task called something else, from its row in the task list. */

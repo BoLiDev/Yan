@@ -42,6 +42,8 @@ export interface TaskSummary {
   readonly state: string;
   readonly createdAt: string | null;
   readonly closedAt: string | null;
+  /** Set while the task is paused: put aside with its state kept, its worktrees given back, no agent on it. */
+  readonly pausedAt: string | null;
   readonly repos: readonly RepoSummary[];
   readonly deliverables: { readonly done: number; readonly todo: number; readonly abandoned: number };
   /** Its agents running elsewhere, as on a cloud platform: its run resources that are web links, by name, the last kept first. */
@@ -135,6 +137,7 @@ export interface TaskDetail {
   readonly state: string;
   readonly createdAt: string | null;
   readonly closedAt: string | null;
+  readonly pausedAt: string | null;
   readonly reason: string | null;
   readonly repos: readonly (RepoSummary & { readonly url: string; readonly bases: Readonly<Record<string, string>> })[];
   readonly deliverables: readonly Deliverable[];

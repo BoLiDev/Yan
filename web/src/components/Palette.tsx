@@ -108,7 +108,7 @@ function PaletteBox({ onGone }: { onGone: () => void }) {
             <div id={`palette-${f.task.id}`} role="option" aria-selected={i === at}
               className="group/option flex h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 aria-selected:bg-hover"
               onMouseMove={() => setAt(i)} onClick={(e) => go(f, e.metaKey || e.ctrlKey)}>
-              <StateIcon state={f.task.state} />
+              <StateIcon t={f.task} />
               <span className={cn('min-w-0 truncate [&_mark]:bg-transparent [&_mark]:font-bold [&_mark]:text-inherit', (f.task.state === 'done' || f.task.state === 'abandoned') && 'text-muted-foreground')}>
                 <Marked text={f.task.title || f.task.id} marks={f.marks} />
               </span>

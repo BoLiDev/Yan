@@ -58,7 +58,7 @@ export function skillsPrompt(taskDir: string): string {
       'Which task it is travels in $YAN_TASK.',
     filesLine(taskDir),
     'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
-      'yan:define works out the problem and the solution with the user; yan:done is the user\'s, to close the task.',
+      'yan:define works out the problem and the solution with the user; yan:done and yan:pause are the user\'s, to close the task or put it aside.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
   ].join('\n');
 }
@@ -114,6 +114,27 @@ export function closingRequest(cli: string, abandon?: string): string {
     'Leave the deliverables alone: I mark them, so never run `yan deliverable` here.',
     'If it refuses because a worktree has uncommitted changes or commits no remote branch has, look at what they are. ' +
       'When something looks like work the task meant to keep and never committed or pushed (changes to the code the deliverables are about, commits on the task\'s branch that never reached origin), list it for me and stop. ' +
+      'Anything else (build output, debug leftovers, a lockfile touched by an install, scratch files) is thrown away by running it again with `--force`.',
+  ].join('\n');
+}
+
+/**
+ * What `user` says to have the agent put the task aside, as yan:pause does:
+ * its work committed and pushed on its branch, a line in the log on where
+ * it stands, then `yan pause`, which gives the worktrees back. claude is
+ * asked by the skill's own name; an agent with no plugin is told what the
+ * skill says, kept in step with `plugin/skills/pause/SKILL.md`.
+ */
+export function pausingRequest(cli: string): string {
+  if (takesPlugins(cli)) return '/yan:pause';
+  return [
+    'Put this task aside for now, to be taken up again later: nothing of it may be lost, and nothing of it keeps taking room on this machine.',
+    'In each worktree, commit what the task means to keep and has not committed, as a work-in-progress commit if it is not finished, on the task\'s branch, and push it; ' +
+      'keep that branch with `yan branch` if the task does not keep it yet, which `yan context` says. ' +
+      'Then say where it stands in one line a later session can pick up from, with `yan log paused "<where the work is, and what comes next>"`, and pause it with `yan pause`, which gives the worktrees back.',
+    'Leave the deliverables alone: I mark them, so never run `yan deliverable` here.',
+    'If `yan pause` refuses because a worktree still has uncommitted changes or commits no remote branch has, look at what they are. ' +
+      'Work the task means to keep is committed and pushed; when it cannot be, list it for me and stop. ' +
       'Anything else (build output, debug leftovers, a lockfile touched by an install, scratch files) is thrown away by running it again with `--force`.',
   ].join('\n');
 }
@@ -604,8 +625,10 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  * @param extra arguments after `--`, passed to the harness as they are.
  * @param close the agent started to close the task, as `user`'s first
  *   message asks it to: done, or given up with `abandon`'s reason.
+ * @param pause the agent started to put the task aside, as `user`'s first
+ *   message asks it to.
  */
-export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string } }, deps: EntryDeps = {}): Promise<number> {
+export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean }, deps: EntryDeps = {}): Promise<number> {
   const vault = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
@@ -618,7 +641,11 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   // A task given on the command line, new or open, is not chosen: the chain still opens as the chooser opens it, and says which.
   const vaultName = readVaultJson(vault).name;
   const given = options.task === undefined ? undefined : openTasks().find((t) => t.id === options.task);
-  if (options.task !== undefined && given === undefined) throw YanError.usage('yan_usage', `${options.task} is not an open task in this vault - 'yan ls' lists those that are`);
+  if (options.task !== undefined && given === undefined) {
+    const paused = Task.exists(options.task) && new Task(options.task).read().pausedAt !== undefined;
+    if (paused) throw YanError.usage('yan_usage', `${options.task} is paused - 'yan resume ${options.task}' takes it up again`);
+    throw YanError.usage('yan_usage', `${options.task} is not an open task in this vault - 'yan ls' lists those that are`);
+  }
   if (options.new !== undefined || given !== undefined) chain.begin(vaultName);
   if (options.new !== undefined) chain.say({ kind: 'done', line: `new task: ${options.new.title.trim()}` });
   if (given !== undefined) chain.say({ kind: 'done', line: `${given.id}  ${given.title}` });
@@ -633,7 +660,8 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
   const prompt = promptFor(harness.cli, task.dir, told(task, trees));
-  const first = options.close === undefined ? {} : { first: closingRequest(harness.cli, options.close.abandon) };
+  const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : undefined;
+  const first = said === undefined ? {} : { first: said };
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // Started in a herdr pane, it is kept on this machine while it runs, so `yan serve` can show the pane and type into it.
   // Only a convenience: a config.json that cannot be written never keeps the agent from starting.

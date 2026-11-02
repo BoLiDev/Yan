@@ -46,6 +46,8 @@ describe('the surface', () => {
     expectUsage(await yan(['--task', 't001', '--new', 'x']), 'give one');
     expectUsage(await yan(['--task', 't001', '--done']), 'needs a terminal');
     expectUsage(await yan(['--new', 'x', '--done']), 'not one --new starts');
+    expectUsage(await yan(['--new', 'x', '--pause']), 'not one --new starts');
+    expectUsage(await yan(['--task', 't001', '--done', '--pause']), 'give one');
     expectUsage(await yan(['--task', 't001', '--abandon', ' ']), 'the reason');
   });
 });

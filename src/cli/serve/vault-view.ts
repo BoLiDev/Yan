@@ -154,6 +154,7 @@ interface TaskJson {
   readonly state: string;
   readonly createdAt: string | null;
   readonly closedAt: string | null;
+  readonly pausedAt: string | null;
   readonly reason: string | null;
   readonly repos: readonly { readonly url: string; readonly name: string; readonly branch: string | null; readonly earlier: readonly string[]; readonly abandoned: readonly string[]; readonly bases: Readonly<Record<string, string>> }[];
   readonly deliverables: readonly Deliverable[];
@@ -174,6 +175,8 @@ export function readTaskJson(raw: unknown): TaskJson {
     state: text(r.state) ?? 'open',
     createdAt: text(r.createdAt),
     closedAt: text(r.closedAt),
+    // A closed task is closed, whatever was left of a pause.
+    pausedAt: text(r.state) === 'done' || text(r.state) === 'abandoned' ? null : text(r.pausedAt),
     reason: text(r.reason),
     repos: repos.map((x) => {
       const branch = text(x!.branch);
@@ -299,6 +302,7 @@ export class VaultView {
         state: json.state,
         createdAt: json.createdAt,
         closedAt: json.closedAt,
+        pausedAt: json.pausedAt,
         repos: json.repos.map((r) => ({ name: r.name, branch: r.branch, earlier: r.earlier, abandoned: r.abandoned })),
         deliverables: { done: count('done'), todo: count('todo'), abandoned: count('abandoned') },
         // Newest first, as the one added last is the one at work; the first is the one going to the task opens.

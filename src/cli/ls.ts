@@ -18,6 +18,8 @@ interface Row {
   readonly title: string;
   /** `null` when task.json cannot be read. */
   readonly state: TaskState | null;
+  /** Put aside with `yan pause`, its state kept for when it is resumed. */
+  readonly paused: boolean;
   /** Delivered and counted: an abandoned deliverable counts toward neither. */
   readonly done: number;
   readonly total: number;
@@ -65,6 +67,7 @@ function rowOf(id: string): Row {
     id,
     title: data?.title ?? '',
     state: data?.state ?? null,
+    paused: data?.pausedAt !== undefined,
     done: counted.filter((d) => d.status === 'done').length,
     total: counted.length,
     updated: updatedOf(task, data, new Date()),
@@ -77,9 +80,11 @@ function wanted(row: Row, status: StatusFilter): boolean {
   return row.state !== null && isClosed(row.state);
 }
 
-/** The state as `user` reads it: a task waiting to be accepted says so in Chinese, as `yan serve` does. */
-function stateWord(state: TaskState | null): string {
-  return state === null ? 'unreadable' : state === 'uat' ? 'in review' : state;
+/** The state as `user` reads it, as `yan serve` says it: in review, or paused whatever it was. */
+function stateWord(row: Row): string {
+  if (row.state === null) return 'unreadable';
+  if (row.paused) return 'paused';
+  return row.state === 'uat' ? 'in review' : row.state;
 }
 
 /** `10-01` this year, `2025-12-30` before it. */
@@ -107,7 +112,7 @@ export const command = new Command('ls')
       const cols = terminalWidth();
       for (const r of rows) {
         const progress = r.total === 0 ? '-' : `${r.done}/${r.total}`;
-        const head = `${padEnd(r.id, idWidth)}  ${padEnd(stateWord(r.state), 10)} ${progress.padStart(5)}  ${padEnd(shortDay(r.updated), dayWidth)}  `;
+        const head = `${padEnd(r.id, idWidth)}  ${padEnd(stateWord(r), 10)} ${progress.padStart(5)}  ${padEnd(shortDay(r.updated), dayWidth)}  `;
         const title = cols === undefined ? r.title : fit(r.title, Math.max(10, cols - head.length - 1));
         out(r.state === null || !isClosed(r.state) ? `${bold(padEnd(r.id, idWidth))}${head.slice(idWidth)}${title}` : dim(`${head}${title}`));
       }

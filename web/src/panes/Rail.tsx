@@ -9,6 +9,7 @@ import { Icon, type IconName } from '../components/Icon';
 import { WORKING } from '../components/page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { TaskMenu } from '../components/TaskMenu';
+import { isPaused } from '../lib/stops';
 import { useIndex, useTerminals } from '../state/server';
 import { setPref, useUI } from '../state/ui';
 
@@ -75,8 +76,9 @@ export function Rail() {
   const fresh = index && seen ? tasksWithNews(index, seen, news) : 0;
   const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
   const tasks = index ? [
-    ...index.tasks.filter((t) => t.state === 'uat').sort(byTouched),
-    ...index.tasks.filter((t) => t.state !== 'uat' && stateOf(t.state) === 'open').sort(byTouched),
+    // A paused task is put aside: the rail is for what is being worked on.
+    ...index.tasks.filter((t) => t.state === 'uat' && !isPaused(t)).sort(byTouched),
+    ...index.tasks.filter((t) => t.state !== 'uat' && stateOf(t.state) === 'open' && !isPaused(t)).sort(byTouched),
   ] : [];
   const letters = initialsOf(tasks);
   return (

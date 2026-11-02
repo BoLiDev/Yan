@@ -82,13 +82,42 @@ export class Task {
   }
 
   /**
+   * Put the open task aside, as it is: `pausedAt` stamped, its state left
+   * as it was, open or in review, for `resume` to bring back.
+   *
+   * @throws YanError `task_closed` when it is closed, `task_paused` when it
+   *   is paused already.
+   */
+  public pause(): void {
+    this.edit((doc, data) => {
+      if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} - only an open task is paused`);
+      if (data.pausedAt !== undefined) throw YanError.usage('task_paused', `${this.id} is paused already - 'yan resume ${this.id}' takes it up again`);
+      doc.pausedAt = isoSecond();
+    });
+  }
+
+  /**
+   * Take the paused task up again, as it was before it was paused.
+   * Returns false when it was not paused.
+   */
+  public resume(): boolean {
+    let was = false;
+    this.edit((doc, data) => {
+      was = data.pausedAt !== undefined;
+      delete doc.pausedAt;
+    });
+    return was;
+  }
+
+  /**
    * Close the task: `done`, or `abandoned` with the reason it was given up.
-   * Stamps `closedAt`.
+   * Stamps `closedAt`; a paused task is no longer paused once closed.
    */
   public close(state: Exclude<TaskState, 'open' | 'uat'>, reason = ''): void {
     this.edit((doc) => {
       doc.state = state;
       doc.closedAt = isoSecond();
+      delete doc.pausedAt;
       if (state === 'abandoned' && reason.trim() !== '') doc.reason = reason.trim();
       else delete doc.reason;
     });
@@ -503,6 +532,8 @@ function validate(raw: unknown, task: Task): TaskData {
 
   const createdAt = text(doc.createdAt);
   const closedAt = text(doc.closedAt);
+  // A closed task is closed, whatever was left of a pause.
+  const pausedAt = isClosed(state as TaskState) ? undefined : text(doc.pausedAt);
   const reason = text(doc.reason);
   // Before a task could have several, it had one `repo` and its `scope`.
   const repos = Array.isArray(doc.repos) ? readRepos(doc.repos) : readRepos([{ url: doc.repo, scope: doc.scope }]);
@@ -514,6 +545,7 @@ function validate(raw: unknown, task: Task): TaskData {
     state: state as TaskState,
     ...(createdAt === undefined ? {} : { createdAt }),
     ...(closedAt === undefined ? {} : { closedAt }),
+    ...(pausedAt === undefined ? {} : { pausedAt }),
     ...(reason === undefined ? {} : { reason }),
     repos,
     // Kept in the file so a deliverable removed by hand, rather than by

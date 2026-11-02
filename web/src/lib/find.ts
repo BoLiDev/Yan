@@ -1,6 +1,7 @@
 // Finding a task by what is typed, for ⌘K: its title or its id, best match first.
 
 import { stateOf, type TaskState, type TaskSummary } from './api';
+import { isPaused } from './stops';
 
 export interface Found {
   readonly task: TaskSummary;
@@ -67,13 +68,14 @@ function inId(id: string, term: string): number | undefined {
 
 /**
  * Between tasks that match as well, the one sought most likely first:
- * waiting on `user`'s check, then in progress, then done, and given up
- * last; then the newest moved.
+ * waiting on `user`'s check, then in progress, then paused, then done, and
+ * given up last; then the newest moved.
  */
-const RANK: Readonly<Record<TaskState, number>> = { uat: 0, open: 1, done: 2, abandoned: 3 };
+const RANK: Readonly<Record<TaskState, number>> = { uat: 0, open: 1, done: 3, abandoned: 4 };
+const rankOf = (t: TaskSummary): number => (isPaused(t) ? 2 : RANK[stateOf(t.state)]);
 
 function standing(a: TaskSummary, b: TaskSummary): number {
-  return RANK[stateOf(a.state)] - RANK[stateOf(b.state)] || b.touched - a.touched;
+  return rankOf(a) - rankOf(b) || b.touched - a.touched;
 }
 
 /**
@@ -87,7 +89,7 @@ export function findTasks(tasks: readonly TaskSummary[], query: string, recent: 
     const byId = new Map(tasks.map((t) => [t.id, t]));
     const visited = recent.filter((id) => id !== current).flatMap((id) => byId.get(id) ?? []).slice(0, 8);
     const shown = new Set([current, ...visited.map((t) => t.id)]);
-    const open = tasks.filter((t) => !shown.has(t.id) && (stateOf(t.state) === 'open' || t.state === 'uat')).sort(standing);
+    const open = tasks.filter((t) => !shown.has(t.id) && (stateOf(t.state) === 'open' || t.state === 'uat') && !isPaused(t)).sort(standing);
     return [...visited.map((task) => ({ task, marks: [], group: 'Recent' as const })), ...open.map((task) => ({ task, marks: [], group: 'Open' as const }))];
   }
   const found: (Found & { score: number })[] = [];

@@ -68,9 +68,11 @@ How to work in a task is in yan's skills, a plugin in `plugin/`:
 and which holds the rules for keeping its notes, its files, its resources and
 its branches; `yan:define`, to work out the problem and the solution with
 you; `yan:uat`, once an implementation is done and its result can be
-verified interactively; and `yan:done`, which only you start, to close a
+verified interactively; `yan:done`, which only you start, to close a
 task, done, or given up with the reason you give it (`/yan:done --abandon
-<why>`). Claude is started with them (`--plugin-dir`), and its prompt says only
+<why>`); and `yan:pause`, which only you start too, to put it aside: its
+work committed and pushed on its branch, a line in the log on where it
+stands, then `yan pause`. Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
 which skills there are, and that an implementation ends with `yan:uat`. A skill can be carried where yan does not start the
 agent and so cannot give it a prompt. A machine can give claude skills of
@@ -122,16 +124,20 @@ as it has, with the packages it is about after a colon
 and `--no-repo` none. `--done`, or `--abandon "<why>"`, starts the agent on
 the task asking it to close it, as `yan:done` does, as your first message:
 the skill by its name to claude, what the skill says to codex and agy, which
-take none. What is not given is asked as before. A new task is
+take none; `--pause` asks it to put the task aside, as `yan:pause` does. A
+paused task is not offered, and `--task` with one says to resume it first.
+What is not given is asked as before. A new task is
 pushed as soon as it is made, before the agent starts, so `yan serve` and
 your other machines have it at once; a push that fails is said, and the
 agent starts anyway, its first turn pushing it.
 
 For you:
 
-- `yan ls` — every open task, one line each, those handed to you to accept as in review; `--status all` for the rest
+- `yan ls` — every open task, one line each, those handed to you to accept as in review and those put aside as paused; `--status all` for the rest
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
+- `yan pause [id]` — put an open task aside, so nothing of it takes room here: its worktrees go back to the pool, refused while one holds work nowhere else (`--force` throws it away), and it keeps its state, open or in review, for later; no agent is started on it until it is resumed
+- `yan resume [id]` — take a paused task up again, as it was; its worktrees come back the next time `yan` starts its agent, on the branch it kept last
 - `yan draft [id]` — your own notes about a task, in your editor
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
@@ -192,11 +198,18 @@ task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an
 amber dot, until it is answered. Hidden, the task list folds to a rail:
 finding a task, starting one, Latest, and a square for each task in review
-or in progress, the one being read framed and each one's agent marked as
+or in progress, not paused, the one being read framed and each one's agent marked as
 on the list. A right click on a task's row in the list, or its square on
-the rail, opens the page's own menu in place of the browser's: Rename, and,
-while the task is open, Done and Abandon. Rename asks for the new title in
-a box, the old one in it; the id stays. Done and Abandon, the second with
+the rail, opens the page's own menu in place of the browser's: Rename;
+while the task is open, Pause, Done and Abandon; and while it is paused,
+Resume, which asks nothing and takes it up again as it was, its Terminal
+row and Continue back. Rename asks for the new title in a box, the old one
+in it; the id stays. Pause, asked in a box, puts the task aside for the
+room it takes here: with no agent running and every tree of it here clean,
+pushed and on a branch it keeps, or none here, serve pauses it at once, its
+trees returned, as `yan pause` does; else its agent is asked, typed
+`yan:pause` or started with it (`yan --task <id> --pause`), to save its
+work first, and the page goes to its terminal. Done and Abandon, the second with
 the reason it is given up, have the task's agent close it, as `yan:done`
 does: serve closes nothing itself, since returning a worktree wipes it and
 whether one holds work the task meant to keep is the agent's to judge. An
@@ -206,9 +219,9 @@ typing into the middle of it; with none, one is started on the task as
 Continue starts one, given it as your first message (`yan --task <id>
 --done`). The page then goes to the task's terminal, where the agent says
 what it did, or stops and asks about a worktree holding work that looks
-unsaved. A closed task keeps no terminal: once the closing, however it was
-made, is on origin (in the vault, for one with no origin), so the agent's
-turn and the push at its end are over, and the agent is neither at work nor
+unsaved. A closed or paused task keeps no terminal: once the closing or the
+pause, however it was made, is on origin (in the vault, for one with no
+origin), so the agent's turn and the push at its end are over, and the agent is neither at work nor
 waiting on you, serve closes its herdr tab as Stop does, the shells beside
 it with it, and a page showing it goes on to the task's overview. Each box's button waits for serve's answer; one refused says why
 in the box, which stays open to try again. Images, pages, Markdown, code, logs, audio, video and fonts
@@ -334,7 +347,11 @@ the only one of the two for a forge yan cannot tell. A branch's commits and file
 GitLab the same way.
 
 A task its agent marked with `yan uat ready` is listed under In review, above
-the ones in progress, and its overview's tag says so. Those done or given up
+the ones in progress, and its overview's tag says so. Those paused, in
+review or in progress, are listed under Paused, below them, the one paused
+last first, with two bars for their mark, and their overview's tag says
+Paused and the day; ⌘K ranks them after those in progress. A paused task
+has no Terminal row, so no agent is started on one until it is resumed. Those done or given up
 are listed under Done by the month they closed in, each month folded, with
 how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
@@ -407,7 +424,7 @@ what it was written from), its bar says legacy and what changed.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
+    task.json                  title, state (open, uat, done, abandoned), pausedAt while an open task is paused, repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

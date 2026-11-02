@@ -18,6 +18,8 @@ describe('Tab in a task', () => {
   it('starts the agent again only for a task still open or handed over to be accepted', () => {
     const as = (state: string): TaskSummary => ({ ...task(0, false), state }) as unknown as TaskSummary;
     expect(['open', 'uat', 'done', 'abandoned'].map((s) => goesOn(as(s)))).toEqual([true, true, false, false]);
+    const paused = (state: string): TaskSummary => ({ ...task(0, false), state, pausedAt: '2026-11-01T10:00:00Z' }) as unknown as TaskSummary;
+    expect(['open', 'uat'].map((s) => goesOn(paused(s))), 'nor a paused one, until it is resumed').toEqual([false, false]);
   });
 
   it('goes down and round, and back up and round', () => {

@@ -4,7 +4,8 @@ import {
   Link, List, Maximize, Maximize2, Monitor, Moon, PanelLeft, Sun, Pencil, Plus, RefreshCw, RotateCw, Search, SquareCheck, SquareTerminal,
   StickyNote, Trash2, WrapText, X, type LucideIcon,
 } from 'lucide-react';
-import { stateOf } from '../lib/api';
+import { stateOf, type TaskSummary } from '../lib/api';
+import { isPaused } from '../lib/stops';
 import { cn } from '../lib/utils';
 
 /** The page's icons, all of them lucide's, by what each is for. */
@@ -63,17 +64,19 @@ export function Icon({ name, size = 16, width = 1.75, className }: { name: IconN
 
 /**
  * A task's state as a mark, in the state's own colour: open half filled,
- * in UAT a dot in a ring, done a tick, given up struck through. One this
- * page does not know is drawn as open.
+ * in UAT a dot in a ring, paused two bars in a ring, done a tick, given up
+ * struck through. One this page does not know is drawn as open.
  */
 const STATES = {
   open: { colour: 'text-brand', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" /></> },
   uat: { colour: 'text-warning', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><circle cx="8" cy="8" r="2.75" fill="currentColor" /></> },
   done: { colour: 'text-success', marks: <><circle cx="8" cy="8" r="7" fill="currentColor" /><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="var(--card)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></> },
   abandoned: { colour: 'text-ink-3', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="m4.2 11.8 7.6-7.6" stroke="currentColor" strokeWidth="1.5" /></> },
+  paused: { colour: 'text-ink-3', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M6.5 5.5v5M9.5 5.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></> },
 } as const;
 
-export function StateIcon({ state, size = 16 }: { state: string; size?: number }) {
-  const { colour, marks } = STATES[stateOf(state)];
+/** The mark of where task `t` stands: paused over the state it keeps while paused. */
+export function StateIcon({ t, size = 16 }: { t: Pick<TaskSummary, 'state' | 'pausedAt'>; size?: number }) {
+  const { colour, marks } = STATES[isPaused(t) ? 'paused' : stateOf(t.state)];
   return <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" className={cn('shrink-0', colour)}>{marks}</svg>;
 }

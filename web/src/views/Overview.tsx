@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { stateOf, type TaskDetail, type TaskState, type TaskSummary } from '../lib/api';
 import { dayOf, fromIso } from '../lib/format';
 import { link } from '../lib/route';
+import { isPaused } from '../lib/stops';
 import { Icon } from '../components/Icon';
 import { Notice, Paper, Scroll } from '../components/page';
 import { Badge } from '../components/ui/badge';
@@ -31,9 +32,14 @@ const PILL = 'h-[26px] gap-1.5 rounded-full px-2.5 text-[12.5px] font-bold';
 /** A task as a whole: where it stands, its problem and its deliverables. */
 export function Overview({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
-  // A state this page does not know, a newer yan's, is named as task.json has it.
-  const word = t.state === stateOf(t.state) ? STATE_WORD[stateOf(t.state)] : (['brand', t.state] as const);
-  const dates = [t.id, t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : null, t.closedAt ? `${t.state === 'done' ? 'done' : 'closed'} ${dayOf(fromIso(t.closedAt))}` : null].filter(Boolean).join(' · ');
+  // A state this page does not know, a newer yan's, is named as task.json has it; a paused task is paused, whatever it keeps.
+  const word = isPaused(t) ? (['secondary', 'Paused'] as const) : t.state === stateOf(t.state) ? STATE_WORD[stateOf(t.state)] : (['brand', t.state] as const);
+  const dates = [
+    t.id,
+    t.createdAt ? `started ${dayOf(fromIso(t.createdAt))}` : null,
+    isPaused(t) && t.pausedAt ? `paused ${dayOf(fromIso(t.pausedAt))}` : null,
+    t.closedAt ? `${t.state === 'done' ? 'done' : 'closed'} ${dayOf(fromIso(t.closedAt))}` : null,
+  ].filter(Boolean).join(' · ');
   return (
     <Scroll>
       <Paper>

@@ -106,6 +106,44 @@ describe("a task's menu in the task list", () => {
   });
 });
 
+describe('pausing a task from its menu', () => {
+  afterEach(reset);
+
+  /** The task list over an open task and a paused one, in review when it was paused. */
+  async function withPaused(routes: Parameters<typeof serve>[0]) {
+    const asked = serve(routes);
+    have(index([task('t1', 'pay retries'), task('t3', 'export orders', { state: 'uat', pausedAt: '2026-11-01T10:00:00Z' })]));
+    const screen = await draw(<><Left /><TaskActModal /></>);
+    return { asked, screen };
+  }
+
+  it('pauses an open task, at once when serve can, and lists a paused one apart, resumed from its menu', async () => {
+    const { asked, screen } = await withPaused({ 'POST /api/task/pause': Response.json(saved), 'POST /api/task/resume': Response.json(saved) });
+    // A paused task is under Paused, and has no Pause, Done or Abandon, only Resume.
+    await expect.element(screen.getByText('Paused', { exact: true })).toBeVisible();
+    await screen.getByRole('link', { name: /export orders/ }).click({ button: 'right' });
+    expect(screen.getByRole('menuitem', { name: 'Pause' }).query()).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Done' }).query()).toBeNull();
+    await screen.getByRole('menuitem', { name: 'Resume' }).click();
+    await expect.poll(() => posted(asked, '/api/task/resume')).toEqual([{ task: 't3' }]);
+
+    await screen.getByRole('link', { name: /pay retries/ }).click({ button: 'right' });
+    await screen.getByRole('menuitem', { name: 'Pause' }).click();
+    await screen.getByRole('alertdialog').getByRole('button', { name: 'Pause' }).click();
+    await expect.element(screen.getByRole('alertdialog')).not.toBeInTheDocument();
+    expect(posted(asked, '/api/task/pause')).toEqual([{ task: 't1' }]);
+    expect(location.hash, 'paused by serve: nothing to watch').toBe('#/latest');
+  });
+
+  it('goes to the terminal when the agent is the one to save the work and pause it', async () => {
+    const { screen } = await withPaused({ '/api/terminals': Response.json({ t1: running }), 'POST /api/task/pause': Response.json({ typed: true }) });
+    await screen.getByRole('link', { name: /pay retries/ }).click({ button: 'right' });
+    await screen.getByRole('menuitem', { name: 'Pause' }).click();
+    await screen.getByRole('alertdialog').getByRole('button', { name: 'Pause' }).click();
+    await expect.poll(() => location.hash).toBe('#/t/t1/terminal');
+  });
+});
+
 describe("a task's menu on the rail", () => {
   afterEach(reset);
 

@@ -90,8 +90,8 @@ function splitHooks(argv: readonly string[]): { argv: string[]; hooks: string[] 
   return { argv: rest, hooks };
 }
 
-function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string; close?: { abandon?: string } } = {}): Promise<number> {
-  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }), ...(options.close === undefined ? {} : { close: options.close }) }, {
+function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean } = {}): Promise<number> {
+  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }), ...(options.close === undefined ? {} : { close: options.close }), ...(options.pause === undefined ? {} : { pause: options.pause }) }, {
     prompts,
     chain,
     cwd,
@@ -342,6 +342,18 @@ describe('an existing task', () => {
     await run(answers({ entry: 'never chosen' }), here, { task: 't001', cli: 'agy', close: {} });
     expect(started[3]?.argv.at(-1), "agy hears it after its prompt, where it would be told to wait").toMatch(/\nClose this task with `yan done`/);
     expect(started[3]?.argv.at(-1)).not.toContain(WAIT_LINE);
+  });
+
+  it('asked to pause it, starts the agent with yan:pause as what user says first, and goes on with no task paused', async () => {
+    Task.create('the one');
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', pause: true });
+    expect(claudeOf(0).rest).toEqual(['/yan:pause']);
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', cli: 'codex', pause: true });
+    expect(started[1]?.argv.at(-1), 'codex is told what yan:pause says').toContain('`yan pause`');
+
+    new Task('t001').pause();
+    await expect(run(answers({ entry: 'never chosen' }), here, { task: 't001' })).rejects.toThrow(/t001 is paused - 'yan resume t001'/);
   });
 
   it('starts in the tree it holds, asking nothing, and names the branch the agent cut in it', async () => {

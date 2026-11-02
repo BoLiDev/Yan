@@ -45,6 +45,13 @@ export interface TaskData {
   readonly createdAt?: string;
   /** Set when the task is closed, done or abandoned. */
   readonly closedAt?: string;
+  /**
+   * Set while an open task is paused: its worktrees given back and no agent
+   * on it, to be resumed later, as it was, open or in review. A field
+   * beside `state` rather than a state of its own, so a yan before pausing
+   * reads a paused task as the open one it still is.
+   */
+  readonly pausedAt?: string;
   /** Why an abandoned task was given up. */
   readonly reason?: string;
   /**

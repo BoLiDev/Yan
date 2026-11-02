@@ -40,6 +40,28 @@ describe('create', () => {
   });
 });
 
+describe('pause', () => {
+  it('puts an open task aside as it is, and resume takes it up again as it was', () => {
+    const task = Task.create('first');
+    task.awaitUat();
+    task.pause();
+    expect(task.read()).toMatchObject({ state: 'uat', pausedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) });
+    expect(() => task.pause()).toThrow(/paused already/);
+    expect(task.resume()).toBe(true);
+    expect(task.read().state).toBe('uat');
+    expect(task.read().pausedAt).toBeUndefined();
+    expect(task.resume(), 'not paused').toBe(false);
+  });
+
+  it('refuses a closed task, and closing a paused one leaves it closed alone', () => {
+    const task = Task.create('first');
+    task.pause();
+    task.close('abandoned', 'not wanted');
+    expect(raw(task)).not.toHaveProperty('pausedAt');
+    expect(() => task.pause()).toThrow(/only an open task is paused/);
+  });
+});
+
 describe('rename', () => {
   it('changes the title alone, trimmed, keeping the id and every other field', () => {
     const task = Task.create('first');

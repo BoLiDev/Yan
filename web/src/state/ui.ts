@@ -43,9 +43,9 @@ export interface Ask {
   readonly then: (given: string) => void;
 }
 
-/** What a task's menu asked for: a new title, or its agent to close it as done or given up. */
+/** What a task's menu asked for: a new title, the task paused, or its agent to close it as done or given up. */
 export interface TaskAct {
-  readonly kind: 'rename' | 'done' | 'abandon';
+  readonly kind: 'rename' | 'pause' | 'done' | 'abandon';
   readonly id: string;
 }
 

@@ -47,11 +47,11 @@ export function serve(routes: Readonly<Record<string, Answer>>): Asked[] {
 export const status = (version = 1): Status => ({ version, commit: 'c1', checkedAt: 1, pulledAt: 1, ok: true, error: null, everyS: 30, local: false, build: 'b1' });
 
 export function task(id: string, title: string, more: Partial<TaskSummary> = {}): TaskSummary {
-  return { id, title, state: 'open', createdAt: null, closedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], touched: 0, rev: id, ...more };
+  return { id, title, state: 'open', createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], touched: 0, rev: id, ...more };
 }
 
 export function detail(id: string, more: Partial<TaskDetail> = {}): TaskDetail {
-  return { id, title: id, state: 'open', createdAt: null, closedAt: null, reason: null, repos: [], deliverables: [], resources: [], resourceKinds: {}, problem: null, log: null, files: [], hidden: [], ...more };
+  return { id, title: id, state: 'open', createdAt: null, closedAt: null, pausedAt: null, reason: null, repos: [], deliverables: [], resources: [], resourceKinds: {}, problem: null, log: null, files: [], hidden: [], ...more };
 }
 
 export function index(tasks: readonly TaskSummary[], more: Partial<Index> = {}): Index {

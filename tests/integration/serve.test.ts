@@ -454,6 +454,26 @@ describe('the overview on yan serve', () => {
     expect(listed).toBeDefined();
   });
 
+  it('pauses a task with no agent and no tree here at once, and resumes it as it was', async () => {
+    expect((await post('/api/task/pause', { task: 't004' }, 'http://evil.example')).status).toBe(403);
+    const paused = await post('/api/task/pause', { task: 't004' });
+    expect(paused.status).toBe(200);
+    expect(await paused.json()).toMatchObject({ ok: true, warning: null });
+    expect(readJson(at('task.json'))).toMatchObject({ state: 'open', pausedAt: expect.any(String) });
+    expect(await subject()).toBe('t004: paused in yan serve');
+    expect((await post('/api/task/pause', { task: 't004' })).status, 'paused already').toBe(404);
+    const listed = await until(async () => {
+      const index = (await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; pausedAt: string | null }[] };
+      return index.tasks.find((t) => t.id === 't004' && t.pausedAt !== null);
+    }, 20_000);
+    expect(listed).toBeDefined();
+
+    expect((await post('/api/task/resume', { task: 't004' })).status).toBe(200);
+    expect(readJson(at('task.json'))).not.toHaveProperty('pausedAt');
+    expect(await subject()).toBe('t004: resumed in yan serve');
+    expect((await post('/api/task/resume', { task: 't004' })).status, 'not paused').toBe(409);
+  });
+
   it('rewords a deliverable, keeping its id and state', async () => {
     expect((await post('/api/deliverable/text', { task: 't004', id: 'd1', text: 'one, reworded' })).status).toBe(200);
     expect((readJson(at('task.json')) as { deliverables: { id: string; text: string; status: string }[] }).deliverables[0]).toMatchObject({ id: 'd1', text: 'one, reworded', status: 'done' });
@@ -743,6 +763,29 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
     } finally {
       rmSync(join(home, 'tasks', 't007'), { recursive: true, force: true });
     }
+  });
+
+  it("asks the task's agent to pause it, typing yan:pause into it, and refuses while it is at work", async () => {
+    const h = await aHerdr('0.9.5');
+    h.agentIs(AGENT_PANE, 'working');
+    expect((await post('/api/task/pause', { task: 't001' })).status).toBe(409);
+    h.agentIs(AGENT_PANE, 'idle');
+    expect(await (await post('/api/task/pause', { task: 't001' })).json()).toEqual({ typed: true });
+    expect(h.received(AGENT_PANE)).toEqual([{ paste: '/yan:pause', keys: ['enter'] }]);
+    expect(readJson(join(home, 'tasks/t001/task.json')), 'the agent pauses it, saving its work first').not.toHaveProperty('pausedAt');
+  });
+
+  it("closes a paused task's tab once the pause has reached origin and its agent has finished", async () => {
+    const h = await aHerdr('0.9.5');
+    write(home, 'tasks/t009/task.json', task('t009', 'set aside'));
+    await post('/api/launch', { task: 't009' });
+    const pane = h.tabs().find((t) => t.label === 'set aside')?.panes[0] ?? '';
+    keep(h, [{ task: 't009', pane }]);
+    h.agentIs(pane, 'done');
+    await commit('t009', { 'task.json': JSON.stringify({ ...JSON.parse(task('t009', 'set aside')), pausedAt: '2026-11-02T10:00:00Z' }) }, 't009 paused');
+    await fxGit(['push', '-q', 'origin', 'main'], home);
+    await until(async () => (h.tabs().some((t) => t.label === 'set aside') ? undefined : true), 20_000);
+    expect(await terminals()).not.toHaveProperty('t009');
   });
 
   it("closes a closed task's tab once its closing has reached origin and its agent is neither at work nor waiting on user", async () => {
