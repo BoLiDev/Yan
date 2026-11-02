@@ -91,8 +91,8 @@ interface UI {
   /** Where ← and → go from what the right pane shows. */
   keyNav: { readonly prev: string | null; readonly next: string | null };
   ask: Ask | null;
-  /** The tab a task's terminal shows, by task: its agent's, unless its worktrees' was asked for. */
-  termTab: Readonly<Record<string, 'agent' | 'worktree'>>;
+  /** The tab a task's terminal shows, by task: its agent's, `agent`, unless one of its worktree tabs, by its id, was asked for. */
+  termTab: Readonly<Record<string, string>>;
   /** The box a task's menu opened over the page: renaming it, or having its agent close it. */
   taskAct: TaskAct | null;
   said: Readonly<Record<string, Said>>;

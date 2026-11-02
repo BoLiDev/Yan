@@ -30,26 +30,27 @@ describe("a task's terminal tabs", () => {
 
   // herdr too old to stream, so each tab says so rather than drawing a pane: what is drawn of a tab is not what is asked here.
   const agent: TerminalState = { status: 'idle', agent: 'claude', cli: 'claude', pane: 'w1:p2', since: '2026-11-01T09:00:00Z', herdr: '0.7.1', streams: false, layout: { pane: 'w1:p2' } };
-  const worktree: WorktreeState = { tab: 'w1:t4', layout: { split: 'right', ratio: 0.5, first: { pane: 'w1:p5' }, second: { pane: 'w1:p6' } }, herdr: '0.7.1', streams: false };
+  const web: WorktreeState = { tab: 'w1:t4', name: 'web', layout: { pane: 'w1:p5' }, herdr: '0.7.1', streams: false };
+  const api: WorktreeState = { tab: 'w1:t5', name: 'api', layout: { pane: 'w1:p6' }, herdr: '0.7.1', streams: false };
   const posted = (asked: readonly Asked[], path: string): unknown[] => asked.filter((a) => a.method === 'POST' && a.path === path).map((a) => a.body);
 
-  it("are Agent and, once opened, Worktree, each shown by a click and closed by its × when asked twice", async () => {
-    const asked = serve({ '/api/terminals': Response.json({ t1: agent }), '/api/worktrees': Response.json({ t1: worktree }), 'POST /api/worktree/close': Response.json({ ok: true }) });
+  it('are Agent and one for each worktree opened, named for its repository, each shown by a click and closed by its × when asked twice', async () => {
+    const asked = serve({ '/api/terminals': Response.json({ t1: agent }), '/api/worktrees': Response.json({ t1: [web, api] }), 'POST /api/worktree/close': Response.json({ ok: true }) });
     have(index([task('t1', 'pay retries')]), [detail('t1')]);
     history.replaceState(null, '', '#/t/t1/terminal');
     const screen = await draw(<Right />);
     const tabs = screen.getByRole('tablist', { name: 'Terminal' });
-    await expect.element(tabs.getByRole('tab', { name: /Worktree/ })).toBeVisible();
+    await expect.element(tabs.getByRole('tab', { name: /api/ })).toBeVisible();
+    expect(tabs.getByRole('tab').elements().map((e) => e.textContent)).toEqual(['Agent', 'web', 'api']);
     await expect.element(tabs.getByRole('tab', { name: /Agent/ })).toHaveAttribute('aria-selected', 'true');
 
-    await tabs.getByRole('tab', { name: /Worktree/ }).click();
-    await expect.element(tabs.getByRole('tab', { name: /Worktree/ })).toHaveAttribute('aria-selected', 'true');
-    expect(useUI.getState().termTab.t1).toBe('worktree');
+    await tabs.getByRole('tab', { name: /web/ }).click();
+    await expect.element(tabs.getByRole('tab', { name: /web/ })).toHaveAttribute('aria-selected', 'true');
 
-    await screen.getByRole('button', { name: 'Close Worktree' }).click();
+    await screen.getByRole('button', { name: 'Close web' }).click();
     expect(posted(asked, '/api/worktree/close'), 'not on the first click').toEqual([]);
-    await screen.getByRole('button', { name: 'Really close the worktrees' }).click();
-    await expect.poll(() => posted(asked, '/api/worktree/close')).toEqual([{ task: 't1' }]);
+    await screen.getByRole('button', { name: 'Really close web' }).click();
+    await expect.poll(() => posted(asked, '/api/worktree/close')).toEqual([{ task: 't1', tab: 'w1:t4' }]);
     expect(useUI.getState().termTab.t1, 'the agent shown again').toBe('agent');
   });
 

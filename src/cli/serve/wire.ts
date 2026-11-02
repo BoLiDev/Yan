@@ -262,10 +262,12 @@ export interface AgentChange {
   readonly at: number;
 }
 
-/** `/api/worktrees`, by task: the herdr tab `yan serve` opened with a shell in each of the task's worktrees on this machine. */
+/** `/api/worktrees`, by task, a list: each herdr tab `yan serve` opened with a shell in one of the task's worktrees on this machine. */
 export interface WorktreeState {
   readonly tab: string;
-  /** The tab as herdr has it split: a pane for each worktree, and any split off since. */
+  /** The repository's name, which the tab is called by. */
+  readonly name: string;
+  /** The tab as herdr has it split: the worktree's shell, and any split off since. */
   readonly layout: Layout;
   /** herdr's version, and whether it streams a pane. */
   readonly herdr: string;

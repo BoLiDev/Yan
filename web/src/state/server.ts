@@ -39,9 +39,9 @@ export const useIndex = (): UseQueryResult<Index> => useQuery({ queryKey: ['inde
 export const useTerminals = (): UseQueryResult<Readonly<Record<string, TerminalState>>> =>
   useQuery({ queryKey: ['terminals'], queryFn: () => getJSON<Record<string, TerminalState>>('/api/terminals'), staleTime: 0, refetchInterval: 2000, retry: false });
 
-/** Each task's Worktree tab on this machine, with how herdr has it split; asked every two seconds, as the terminals are. */
-export const useWorktrees = (): UseQueryResult<Readonly<Record<string, WorktreeState>>> =>
-  useQuery({ queryKey: ['worktrees'], queryFn: () => getJSON<Record<string, WorktreeState>>('/api/worktrees'), staleTime: 0, refetchInterval: 2000, retry: false });
+/** Each task's worktree tabs on this machine, with how herdr has each split; asked every two seconds, as the terminals are. */
+export const useWorktrees = (): UseQueryResult<Readonly<Record<string, readonly WorktreeState[]>>> =>
+  useQuery({ queryKey: ['worktrees'], queryFn: () => getJSON<Record<string, WorktreeState[]>>('/api/worktrees'), staleTime: 0, refetchInterval: 2000, retry: false });
 
 export function useTask(id: string | undefined): UseQueryResult<TaskDetail> {
   return useQuery({ queryKey: ['task', id], queryFn: () => getJSON<TaskDetail>(`/api/task/${encodeURIComponent(id as string)}`), enabled: !!id });

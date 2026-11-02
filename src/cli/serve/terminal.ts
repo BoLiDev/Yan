@@ -92,18 +92,20 @@ export class Terminals {
 
   /**
    * `pane` of one of `task`'s tabs here: the agent's, its own pane when none
-   * is named, or one of its Worktree tab's, which is named. Nothing outside
-   * the two is the page's.
+   * is named, or one of its worktree tabs', which is named. Nothing outside
+   * them is the page's.
    */
   private async paneAt(task: unknown, pane: unknown): Promise<At | undefined> {
     if (typeof task !== 'string') return undefined;
     const t = this.held(task);
     const inAgent = t === undefined ? undefined : await this.inTab(t, pane);
     if (t !== undefined && inAgent !== undefined) return { socket: t.socket, bin: t.bin, pane: inAgent, agent: inAgent === t.pane };
-    const w = worktreeTabsOf(this.vault).find((x) => x.task === task);
-    if (w === undefined || typeof pane !== 'string') return undefined;
-    const layout = await layoutOfTab(w.socket, w.tab).catch(() => undefined);
-    return layout !== undefined && panesIn(layout).includes(pane) ? { socket: w.socket, bin: w.bin, pane, agent: false } : undefined;
+    if (typeof pane !== 'string') return undefined;
+    for (const w of worktreeTabsOf(this.vault).filter((x) => x.task === task)) {
+      const layout = await layoutOfTab(w.socket, w.tab).catch(() => undefined);
+      if (layout !== undefined && panesIn(layout).includes(pane)) return { socket: w.socket, bin: w.bin, pane, agent: false };
+    }
+    return undefined;
   }
 
   /**
@@ -163,7 +165,7 @@ export class Terminals {
    */
   public async stream(task: string, q: URLSearchParams, req: IncomingMessage, res: ServerResponse): Promise<void> {
     const t = await this.paneAt(task, q.get('pane') ?? undefined);
-    if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+    if (t === undefined) return void res.writeHead(404).end('that pane is in none of this task\'s tabs here');
     const pane = t.pane;
     const [cols, rows] = [cells(q.get('cols'), 20, 1000), cells(q.get('rows'), 5, 500)];
     if (cols === undefined || rows === undefined) return void res.writeHead(400).end('cols and rows are needed');
@@ -219,7 +221,7 @@ export class Terminals {
    */
   public async input(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
     const t = await this.paneAt(given.task, given.pane);
-    if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+    if (t === undefined) return void res.writeHead(404).end('that pane is in none of this task\'s tabs here');
     try {
       const pane = t.pane;
       if (Array.isArray(given.keys) && given.keys.every((k): k is string => typeof k === 'string') && given.keys.length > 0) await sendKeys(t.socket, pane, given.keys);
@@ -278,7 +280,7 @@ export class Terminals {
     if (given.direction !== 'right' && given.direction !== 'down') return void res.writeHead(400).end('direction is right or down');
     try {
       const t = await this.paneAt(given.task, given.pane);
-      if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+      if (t === undefined) return void res.writeHead(404).end('that pane is in none of this task\'s tabs here');
       const made = await splitPane(t.socket, t.pane, given.direction);
       this.asked = undefined;
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ pane: made }));
@@ -291,7 +293,7 @@ export class Terminals {
   public async closeSplit(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
     try {
       const t = typeof given.pane === 'string' ? await this.paneAt(given.task, given.pane) : undefined;
-      if (t === undefined) return void res.writeHead(404).end('that pane is in neither the agent\'s tab of this task here nor its Worktree tab');
+      if (t === undefined) return void res.writeHead(404).end('that pane is in none of this task\'s tabs here');
       if (t.agent) return void res.writeHead(400).end('the agent\'s own pane is not closed from the page');
       await closePane(t.socket, t.pane);
       this.asked = undefined;

@@ -60,17 +60,17 @@ describe("a task's resources, on their page", () => {
 describe("a task's worktrees, from MR's page", () => {
   afterEach(reset);
 
-  it("are opened by one button in the terminal's Worktree tab, shown at once", async () => {
-    const asked = serve({ 'POST /api/worktree': Response.json({ tab: 'w1:t4' }) });
-    const t = task('t1', 'pay retries', { repos: [{ name: 'web', branch: 'feat/retry', earlier: [], abandoned: [] }, { name: 'api', branch: 'feat/retry', earlier: [], abandoned: [] }] });
+  it("are opened from a branch's card, its repository's worktree in a tab of the terminal, shown at once", async () => {
+    const asked = serve({ 'POST /api/worktree': (a) => Response.json({ tab: (a.body as { repo: number }).repo === 0 ? 'w1:t4' : 'w1:t5' }) });
+    const t = task('t1', 'pay retries', { repos: [{ name: 'web', branch: 'feat/retry', earlier: [], abandoned: [] }, { name: 'api', branch: 'feat/api-retry', earlier: [], abandoned: [] }] });
     have(index([t]));
     history.replaceState(null, '', '#/t/t1/mr');
     const screen = await draw(<MrView t={t} />);
-    expect(screen.getByRole('button', { name: 'Open worktree' }).elements(), 'one for every repository').toHaveLength(1);
-    await screen.getByRole('button', { name: 'Open worktree' }).click();
+    await screen.getByText('feat/api-retry').hover();
+    await screen.getByRole('button', { name: 'Open the worktree of api' }).click();
     await expect.poll(() => location.hash).toBe('#/t/t1/terminal');
-    expect(asked.filter((a) => a.method === 'POST').map((a) => [a.path, a.body])).toEqual([['/api/worktree', { task: 't1' }]]);
-    expect(useUI.getState().termTab.t1).toBe('worktree');
+    expect(asked.filter((a) => a.method === 'POST').map((a) => [a.path, a.body])).toEqual([['/api/worktree', { task: 't1', repo: 1 }]]);
+    expect(useUI.getState().termTab.t1, "the tab serve answered with is the one shown").toBe('w1:t5');
   });
 });
 
