@@ -68,8 +68,9 @@ describe("a task's branch", () => {
     await fxGit(['push', '-q', 'origin', 'main'], clone);
     await fxGit(['push', '-q', 'origin', '--delete', 'feat/retry'], clone);
 
-    const { page } = await open(served.url('/#/t/t001/b/0/changes'));
+    // Where each branch stands is MR's page's to say.
+    const { page } = await open(served.url('/#/t/t001/mr'));
     await page.getByRole('button', { name: 'Pull now' }).click();
-    await page.getByRole('complementary', { name: 'Task' }).getByText(/PR #7/).waitFor({ timeout: 20_000 });
+    await page.getByRole('main').getByText(/merged · PR #7/).waitFor({ timeout: 20_000 });
   });
 });

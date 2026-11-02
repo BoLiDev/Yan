@@ -8,11 +8,12 @@ const task = (agents: number, branch: boolean): TaskSummary =>
 const at = (hash: string): TaskRoute => parseRoute(hash) as TaskRoute;
 
 describe('Tab in a task', () => {
-  it('stops at the rows there are, MR at the branch of the first tree on one', () => {
-    expect(taskStops(task(1, true), true)).toEqual(['#/t/t1', '#/t/t1/report', '#/t/t1/log', '#/t/t1/agent', '#/t/t1/b/1/changes']);
-    expect(taskStops(task(0, false), false)).toEqual(['#/t/t1', '#/t/t1/log']);
-    expect(taskStops(task(0, true), false, true)).toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/b/1/changes', '#/t/t1/resources']);
-    expect(taskStops(task(1, false), false, false, true), 'a terminal after Log').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/terminal', '#/t/t1/agent']);
+  it("stops at the rows there are, each at its own page, MR's for a branch or a merge request", () => {
+    expect(taskStops(task(1, true), { report: true })).toEqual(['#/t/t1', '#/t/t1/report', '#/t/t1/log', '#/t/t1/agent', '#/t/t1/mr']);
+    expect(taskStops(task(0, false))).toEqual(['#/t/t1', '#/t/t1/log']);
+    expect(taskStops(task(0, true), { resources: true })).toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/mr', '#/t/t1/resources']);
+    expect(taskStops(task(1, false), { terminal: true }), 'a terminal after Log').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/terminal', '#/t/t1/agent']);
+    expect(taskStops(task(0, false), { mergeRequests: true }), 'a merge request with no branch kept').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/mr']);
   });
 
   it('starts the agent again only for a task still open or handed over to be accepted', () => {
@@ -21,24 +22,25 @@ describe('Tab in a task', () => {
   });
 
   it('goes down and round, and back up and round', () => {
-    const stops = taskStops(task(2, true), false);
+    const stops = taskStops(task(2, true));
     expect(nextStop(stops, at('#/t/t1'), false)).toBe('#/t/t1/log');
     expect(nextStop(stops, at('#/t/t1/log'), false)).toBe('#/t/t1/agent');
-    expect(nextStop(stops, at('#/t/t1/b/1/changes'), false)).toBe('#/t/t1');
-    expect(nextStop(stops, at('#/t/t1'), true)).toBe('#/t/t1/b/1/changes');
+    expect(nextStop(stops, at('#/t/t1/mr'), false)).toBe('#/t/t1');
+    expect(nextStop(stops, at('#/t/t1'), true)).toBe('#/t/t1/mr');
   });
 
   it('goes on from MR to Resources, and round from there to Overview', () => {
-    const stops = taskStops(task(1, true), false, true);
-    expect(nextStop(stops, at('#/t/t1/b/1/changes'), false)).toBe('#/t/t1/resources');
+    const stops = taskStops(task(1, true), { resources: true });
+    expect(nextStop(stops, at('#/t/t1/mr'), false)).toBe('#/t/t1/resources');
     expect(nextStop(stops, at('#/t/t1/resources'), false)).toBe('#/t/t1');
     expect(nextStop(stops, at('#/t/t1'), true)).toBe('#/t/t1/resources');
   });
 
-  it('takes any branch shown for MR, and an artifact for none', () => {
-    const stops = taskStops(task(1, true), true);
-    expect(nextStop(stops, at('#/t/t1/b/1/feat%2Fold/commits'), false)).toBe('#/t/t1');
+  it('takes any branch shown for MR, which it was opened from, and an artifact for none', () => {
+    const stops = taskStops(task(1, true), { report: true, resources: true });
+    expect(nextStop(stops, at('#/t/t1/b/1/feat%2Fold/commits'), false)).toBe('#/t/t1/resources');
+    expect(nextStop(stops, at('#/t/t1/b/1/changes'), true)).toBe('#/t/t1/agent');
     expect(nextStop(stops, at('#/t/t1/a/uat/d1.png'), false)).toBe('#/t/t1');
-    expect(nextStop(stops, at('#/t/t1/a/uat/d1.png'), true)).toBe('#/t/t1/b/1/changes');
+    expect(nextStop(stops, at('#/t/t1/a/uat/d1.png'), true)).toBe('#/t/t1/resources');
   });
 });

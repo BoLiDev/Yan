@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { Icon } from '../../components/Icon';
 import type { TaskSummary } from '../../lib/api';
 import { buildTree, changeOrder, foldersAbove } from '../../lib/files';
 import { inBranch, type BranchRoute } from '../../lib/route';
@@ -7,7 +8,7 @@ import { SUBLABEL, Seg } from '../../components/page';
 import { Switch } from '../../components/ui/switch';
 import { cn } from '../../lib/utils';
 import { useBranch, useBranchTree, useIndex } from '../../state/server';
-import { setPref, toggled, useUI } from '../../state/ui';
+import { copyText, setPref, toggled, useUI } from '../../state/ui';
 import { TreeRows } from '../Tree';
 import { Commits, Counts, StatusLetter } from './Changes';
 import { revealOnce, setFolder } from './folds';
@@ -39,9 +40,16 @@ export function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode;
   }, [r.tab, r.item, cur, filesKey, changesKey]);
 
   if (!repo?.branch) return { top: <div className={SUBLABEL}>This task keeps no branch here.</div>, body: null };
-  // The nav's row says which branch this is and where it stands; what is below is what it changed.
-  if (!b) return { top: <div className={SUBLABEL}>Reading the branch…</div>, body: null };
-  if (b.missing) return { top: <div className={cn(SUBLABEL, 'text-destructive')}>{b.missing}</div>, body: null };
+  // Which branch this is heads it, MR's page saying where each stands; a click copies its name.
+  const name = r.name ?? repo.branch;
+  const named = (
+    <button type="button" className="mx-0.5 flex min-w-0 cursor-pointer items-center gap-2 px-2 text-left text-ink-2 hover:text-foreground"
+      title={`${repo.name}: ${name} — click to copy`} onClick={() => copyText(name, 'Branch name copied', 'The branch')}>
+      <Icon name="branch" size={14} className="flex-none text-ink-3" /><span className="truncate font-mono text-[12.5px]">{name}</span>
+    </button>
+  );
+  if (!b) return { top: <div className="flex flex-col gap-2">{named}<div className={SUBLABEL}>Reading the branch…</div></div>, body: null };
+  if (b.missing) return { top: <div className="flex flex-col gap-2">{named}<div className={cn(SUBLABEL, 'text-destructive')}>{b.missing}</div></div>, body: null };
 
   const files = (shown ?? b).files;
   const tabs = <Seg wide options={[['changes', `Changes ${files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']] as const} current={r.tab} onPick={(tab) => { location.hash = inBranch(r, tab); }} />;
@@ -93,5 +101,5 @@ export function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode;
       </>
     );
   }
-  return { top: <div className="flex flex-col gap-2">{tabs}{switcher}</div>, body: <div className="flex flex-col gap-px" role="tree">{list}</div> };
+  return { top: <div className="flex flex-col gap-2">{named}{tabs}{switcher}</div>, body: <div className="flex flex-col gap-px" role="tree">{list}</div> };
 }

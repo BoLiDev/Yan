@@ -227,32 +227,34 @@ patterns to those, `include` and `exclude`, or with `"replace": true`
 takes their place. A pattern with no slash is matched against a file's
 name, one with a slash against its path, `**` crossing folders. A
 commit's files are listed at once and their lines drawn as they are
-scrolled to, so one of tens of thousands of lines opens without a wait. The
-task's nav has one MR row, folded, that counts the branches in progress
-in every repository; unfolded, it lists each repository, open until
-folded by hand, and under it every branch the task kept there, those in
-progress first, the one its tree was last on leading them, then those
-merged with their pull request, then those abandoned. A task in one
-repository has its branches straight under the row. A click on a branch
-copies its whole name and opens it. Under MR, a Resources row, folded
-until asked, counts what the task refers to, its agents aside; unfolded,
-it has a row for each kind, Spec, UAT (the links to check the result on),
-MR and Other, each folded until asked, and under each its resources, a link named by its name
-that opens in a tab of its own, or a name and its words; resources of one
-kind are straight under it. On hover, a resource's pencil edits where it
-points, keeping its kind, and its bin forgets it. A task's
-agents running elsewhere, its `run` resources that are web links, such as
-a cloud platform's agent on the task, are an Agent row under Log, folded
-as MR is when there are several, the last kept first; a click opens one in
+scrolled to, so one of tens of thousands of lines opens without a wait.
+The task's nav is a row for each of its pages, its name and nothing
+beside it but a dot when there is news in it: what a row holds, however
+much, is on its page, a card each, the first picked, ↑ and ↓ picking
+another and Enter opening it as a click does. A task that keeps a branch,
+or refers to a merge request, has an MR row: its page lists the merge
+requests, its `mr` resources, then every branch the task kept, under its
+repository, those in progress first, the one its tree was last on leading
+them, then those merged with their pull request, then those abandoned. A
+branch opened copies its whole name, and the column shows its changes
+under its name, MR's row lit. A task that refers to anything else has a
+Resources row under MR, its page listing them under their kinds, Spec,
+UAT (the links to check the result on) and Other, its agents and its
+merge requests aside: a link named by its name that opens in a tab of its
+own, or a name and its words. On hover, a resource's pencil edits where
+it points, keeping its kind, and its bin forgets it, on either page. A
+task's agents running elsewhere, its `run` resources that are web links,
+such as a cloud platform's agent on the task, are an Agent row under Log,
+its page listing them, the last kept first; one opens in
 the one tab yan keeps for them all, so looking at another task's agent
 takes that tab rather than opening another. Once the page has opened an
 agent there, it holds that tab, as one put beside it in the browser's split
 view: going to another task sends the tab to that task's first agent, or
 to a page of yan's saying it has none, without taking the keys from the
-page, and the agent the tab shows has a light passing over its name (the
-word Agent while they are folded). A reload of the page lets the tab go
+page, and the agent the tab shows has a light passing over its name, and
+over the word Agent in the nav. A reload of the page lets the tab go
 until an agent is opened again, and no tab is opened that was not asked
-for. Unfolded, agents are dragged into another order, which is kept in
+for. On their page, agents are dragged into another order, which is kept in
 task.json; the first is the one going to the task opens. They are left
 out of its Resources, and are added and forgotten with `yan resource`.
 An open task has a Terminal row under Log. While an agent bare `yan`
@@ -348,11 +350,9 @@ nothing typed it offers the tasks visited last, the one being read left
 out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab
 move through its nav, Overview, Report, Log, Terminal, Agent, MR and Resources,
-showing each as they reach it and round again, and nowhere else on the
-page: MR shows the branch its first tree is on, and Agent and Resources
-the task's agents and its resources by kind, the first picked, ↑ and ↓
-picking another and Enter opening it, an agent in the tab every agent
-opens in and a resource in a tab of its own. While a box is open over the
+showing each row's page as they reach it and round again, and nowhere
+else on the page; a branch opened from MR's page is at MR. A click on a
+row leaves the keys to the page it opens, as Tab does. While a box is open over the
 page, ⌘K's, a new task's or a question, the keys are the box's alone. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.

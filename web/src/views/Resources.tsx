@@ -2,15 +2,17 @@ import { Fragment } from 'react';
 import type { TaskDetail, TaskSummary } from '../lib/api';
 import { plural } from '../lib/format';
 import { KIND_WORD, isLink, listResources } from '../lib/resources';
-import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/page';
 import { useKeyNav, usePick } from './nav';
-import { PickCard, PickList } from './PickCard';
+import { PickHeading, PickList } from './PickCard';
+import { ResourceCard } from './ResourceCard';
 
 /**
- * A task's resources, as Tab comes to them: under their kinds, one picked,
- * the first to start; ↑ and ↓ pick another, and Enter opens the picked one
- * in a tab of its own, as a click on any does.
+ * A task's resources, its agents and its merge requests aside, which have
+ * pages of their own: under their kinds, one picked, the first to start;
+ * ↑ and ↓ pick another, and Enter opens the picked one in a tab of its own,
+ * as a click on any does. On hover, a card's pencil edits where it points
+ * and its bin forgets it.
  */
 export function ResourcesView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
@@ -24,16 +26,12 @@ export function ResourcesView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
     <>
       <Bar title="Resources" meta={plural(listed.length, 'resource')} />
       <PickList list={list}>
-        {listed.map((r, i) => {
-          const url = isLink(r.where);
-          return (
-            <Fragment key={r.name}>
-              {r.kind !== listed[i - 1]?.kind ? <div className="mt-2 text-[12.5px] font-bold text-ink-3">{KIND_WORD[r.kind]}</div> : null}
-              <PickCard icon={<Icon name={url ? 'link' : 'note'} size={18} />} name={r.name} where={r.where} picked={i === at} hint={url && i === at}
-                href={url ? r.where.trim() : undefined} target="_blank" rel="noopener" onMouseMove={() => pick(i)} />
-            </Fragment>
-          );
-        })}
+        {listed.map((r, i) => (
+          <Fragment key={r.name}>
+            {r.kind !== listed[i - 1]?.kind ? <PickHeading>{KIND_WORD[r.kind]}</PickHeading> : null}
+            <ResourceCard task={t.id} r={r} picked={i === at} onPick={() => pick(i)} />
+          </Fragment>
+        ))}
       </PickList>
     </>
   );

@@ -152,9 +152,10 @@ export async function onStatus(st: Status): Promise<void> {
     });
     return refreshing;
   }
-  // The branch being looked at is fetched again each tick: the server fetches it from origin when it is stale.
+  // The branch being looked at is fetched again each tick, or every branch MR's page lists: the server fetches it from origin when it is stale.
   const r = parseRoute(location.hash);
   if (r.view === 'task' && r.sub === 'branch') void queryClient.invalidateQueries({ queryKey: ['branch', r.id, r.repo, r.name ?? ''] });
+  if (r.view === 'task' && r.sub === 'mr') void queryClient.invalidateQueries({ queryKey: ['branch', r.id] });
   return undefined;
 }
 
@@ -172,9 +173,10 @@ export function connect(): () => void {
 }
 
 /**
- * A pull now, by hand: it fetches the branch being looked at too, and waits
- * for it. Only serve not answering says it stopped; a branch it cannot read
- * is the branch view's to say, as it says it on any other tick.
+ * A pull now, by hand: it fetches the branch being looked at too, or every
+ * branch MR's page lists, and waits for them. Only serve not answering says
+ * it stopped; a branch it cannot read is the branch view's to say, as it
+ * says it on any other tick.
  */
 export async function pullNow(): Promise<void> {
   if (useUI.getState().pulling) return;
@@ -184,6 +186,12 @@ export async function pullNow(): Promise<void> {
     const at = parseRoute(location.hash);
     if (at.view === 'task' && at.sub === 'branch') {
       queryClient.setQueryData(['branch', at.id, at.repo, at.name ?? ''], await getJSON<BranchView>(branchUrl(at.id, at.repo, at.name, true)));
+    }
+    if (at.view === 'task' && at.sub === 'mr') {
+      const listed = queryClient.getQueriesData<BranchView>({ queryKey: ['branch', at.id] }).map(([key]) => key as readonly [string, string, number, string]);
+      await Promise.all(listed.map(async ([, id, repo, name]) => {
+        queryClient.setQueryData(['branch', id, repo, name], await getJSON<BranchView>(branchUrl(id, repo, name || null, true)));
+      }));
     }
   } catch (err) {
     if (!(err instanceof ApiError)) useUI.setState({ connected: false });

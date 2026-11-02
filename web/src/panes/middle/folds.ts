@@ -20,8 +20,3 @@ export function revealOnce(key: string, item: string): boolean {
   revealed.set(key, item);
   return true;
 }
-
-/** A row that folds, folded if it was open and opened if it was folded. */
-export function flip(key: string, now: boolean): void {
-  useUI.setState((s) => ({ unfolded: { ...s.unfolded, [key]: !now } }));
-}

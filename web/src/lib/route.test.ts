@@ -8,6 +8,7 @@ describe('routes', () => {
     expect(parseRoute(link.task('t1'))).toEqual({ view: 'task', id: 't1', sub: 'overview' });
     expect(parseRoute(link.log('t1'))).toEqual({ view: 'task', id: 't1', sub: 'log' });
     expect(parseRoute(link.report('t1'))).toEqual({ view: 'task', id: 't1', sub: 'report' });
+    expect(parseRoute(link.mr('t1'))).toEqual({ view: 'task', id: 't1', sub: 'mr' });
     expect(parseRoute(link.file('t1', 'uat/d1 after.png'))).toEqual({ view: 'task', id: 't1', sub: 'file', path: 'uat/d1 after.png' });
     expect(parseRoute(link.folder('t1', 'uat'))).toEqual({ view: 'task', id: 't1', sub: 'folder', path: 'uat' });
     expect(parseRoute(link.folder('t1', ''))).toEqual({ view: 'task', id: 't1', sub: 'folder', path: '' });

@@ -71,8 +71,6 @@ interface UI {
   launched: Readonly<Record<string, Launched>>;
   /** The tasks visited, the last first, kept in this browser: what ⌘K offers before anything is typed. */
   recent: readonly string[];
-  /** `<task>:<repo>` → whether the nav lists its branches, as last asked; folded until then. */
-  unfolded: Readonly<Record<string, boolean>>;
   /** A task's artifacts folders that are open, or a branch's files folders; unset until first shown. */
   open: Readonly<Record<string, readonly string[]>>;
   /** A branch's changes folders closed by hand; every other one is open. */
@@ -140,7 +138,6 @@ export const useUI = create<UI>(() => ({
   newTask: false,
   launched: {},
   recent: load<string[]>(RECENT_KEY, []),
-  unfolded: {},
   open: {},
   closed: {},
   months: [],

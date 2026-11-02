@@ -1,25 +1,31 @@
 import type { ReactNode } from 'react';
 import type { Index, TaskSummary } from '../../lib/api';
 import { agentNews, agentWords } from '../../lib/agents';
+import { listResources, mergeRequests } from '../../lib/resources';
 import { link, type TaskRoute } from '../../lib/route';
 import { logFresh, unseenOf, type Seen } from '../../lib/seen';
-import { goesOn } from '../../lib/stops';
+import { goesOn, hasMr } from '../../lib/stops';
+import { cn } from '../../lib/utils';
 import { Icon, StateIcon, type IconName } from '../../components/Icon';
-import { ASIDE, Dot, GROW, Pane, row } from '../../components/page';
+import { Dot, GROW, Pane, SHIMMER, row } from '../../components/page';
+import { useAgentTab } from '../../state/agentTab';
 import { useTask, useTerminals } from '../../state/server';
-import { AgentRows } from './AgentRows';
 import { useArtifactsPart } from './ArtifactsPart';
 import { useBranchPart } from './BranchPart';
-import { MrRows } from './MrRows';
-import { ResourceRows } from './ResourceRows';
 import { TaskHead } from './TaskHead';
 import { NAV, navRow } from './look';
 
-/** A row of the nav that opens a page of the task: its icon, its word, and what is beside it. */
-function NavLink({ href, on, icon, word, title, children }: { href: string; on: boolean; icon: IconName; word: string; title?: string; children?: ReactNode }) {
+/**
+ * A row of the nav that opens a page of the task: its icon and its word,
+ * and beside them only a dot when there is news in it. What it holds,
+ * several agents, branches or resources among them, is on its page.
+ * Clicked, it gives the keyboard back to the page, as Tab does, so ↑, ↓
+ * and Enter go to what the page lists rather than to the row.
+ */
+function NavLink({ href, on, icon, word, title, shine, children }: { href: string; on: boolean; icon: IconName; word: string; title?: string; shine?: boolean; children?: ReactNode }) {
   return (
-    <a className={navRow(on)} aria-current={on ? 'page' : undefined} href={href} title={title}>
-      <Icon name={icon} size={16} /><span className={GROW}>{word}</span>{children}
+    <a className={navRow(on)} aria-current={on ? 'page' : undefined} href={href} title={title} onClick={(e) => e.currentTarget.blur()}>
+      <Icon name={icon} size={16} /><span className={cn(GROW, shine && SHIMMER)}>{word}</span>{children}
     </a>
   );
 }
@@ -33,6 +39,7 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
   const logCount = d?.log?.entries.length ?? 0;
   // Against what was last read, not what this visit started from: reading the log clears it.
   const fresh = !!d?.log && logFresh(seen, t.id, logCount);
+  const showing = useAgentTab((s) => s.showing);
   const artifacts = useArtifactsPart(t, d, r, index, seen);
   // Asked for on every route so the hooks run in the same order; off a branch, it reads none.
   const branch = useBranchPart(t, r.sub === 'branch' ? r : { view: 'task', id: t.id, sub: 'branch', repo: -1, name: null, tab: 'changes', item: '' });
@@ -42,12 +49,10 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
     <>
       <TaskHead icon={<StateIcon state={t.state} size={18} />} title={t.title || t.id} />
       <div className={NAV}>
-        {/* Overview and Log say nothing beside their names: what is in them is a click away. */}
         <NavLink href={link.task(t.id)} on={r.sub === 'overview'} icon="overview" word="Overview" />
         {d?.files.some((f) => f.path === 'report.html') ? (
           <NavLink href={link.report(t.id)} on={r.sub === 'report'} icon="check" word="Report">
             {unseen.has('report.html') ? <Dot title="changed since your last look" /> : null}
-            <span className={ASIDE}>report.html</span>
           </NavLink>
         ) : null}
         <NavLink href={link.log(t.id)} on={r.sub === 'log'} icon="log" word="Log">
@@ -60,9 +65,11 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
             {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
           </NavLink>
         ) : null}
-        {t.agents.length ? <AgentRows t={t} agents={t.agents} on={r.sub === 'agent'} /> : null}
-        {t.repos.some((repo) => repo.branch) ? <MrRows t={t} r={r} ready={!!d} /> : null}
-        {d ? <ResourceRows t={t} d={d} on={r.sub === 'resources'} /> : null}
+        {/* While the agent tab shows one of the task's agents, the word shimmers. */}
+        {t.agents.length ? <NavLink href={link.agent(t.id)} on={r.sub === 'agent'} icon="cloud" word="Agent" shine={t.agents.some(([, where]) => where === showing)} /> : null}
+        {/* A branch opened from MR's page is still MR's. */}
+        {hasMr(t, !!d && mergeRequests(t, d).length > 0) ? <NavLink href={link.mr(t.id)} on={r.sub === 'mr' || r.sub === 'branch'} icon="branch" word="MR" /> : null}
+        {d && listResources(t, d).length ? <NavLink href={link.resources(t.id)} on={r.sub === 'resources'} icon="link" word="Resources" /> : null}
       </div>
       {part.top}
     </>
