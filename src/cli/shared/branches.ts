@@ -1,16 +1,18 @@
 import { mergedInto } from './merged.js';
-import { repoName } from './repo-name.js';
 import { leasesHeldBy } from '../../externals/worktree/index.js';
 import { Task, branchMark, isClosed, type BranchMark, type TaskRepo } from '../../records/task/index.js';
 import { branchOf, defaultBranch, git, remoteUrl, upstreamOf } from '../../util/git.js';
 import { repoKey } from '../../util/repo-key.js';
 
 /**
- * A task keeps every branch its tree of a repository is on: the tree is
- * where the agent cuts them, so yan reads them there rather than waiting to
- * be told. In a monorepo a task may have a branch per app it changes, the one
- * tree moving between them, so the tree moving off a branch leaves it open;
- * only the agent can say one is given up, and only git that one is merged.
+ * Which branches are a task's is the agent's to say: it keeps each with
+ * `yan branch` as it cuts it, one in progress for each app or package it
+ * changes, and marks one given up with `yan branch abandon` once the work
+ * has left it. A branch the tree is on is not taken for the task's: a tree
+ * passes through branches that are nobody's work, and reading every one as
+ * the task's left tasks with several in progress for one app. yan reads
+ * from git only whether a kept branch is merged, and notes, at each push,
+ * where one last met the default branch.
  */
 
 /** A local branch as origin names it, when it tracks one there. */
@@ -51,18 +53,15 @@ function metTargetAt(tree: string, target: string): string | undefined {
 }
 
 /**
- * Keep, for every open task, the branch each of its trees on this machine is
- * on, where it differs from the one kept last: open, as a new one or one the
- * work came back to; and note where that branch last met the default
- * branch, for telling it merged once it is fast-forwarded in. Run before the
- * vault is committed, so a branch the agent cut travels with the push that
- * follows its turn. A tree yan cannot read, or of a repository the task does
- * not list, is left alone: this only ever catches the record up.
- *
- * @returns a line for each branch it kept.
+ * Note, for every open task, where the branch each of its trees on this
+ * machine is on last met the default branch, when the task keeps that
+ * branch, for telling it merged once it is fast-forwarded in: a fact about
+ * a branch the agent kept, not a choice of which are the task's. Run before
+ * the vault is committed, so it travels with the push that follows a turn.
+ * A tree yan cannot read, on a branch the task does not keep, or of a
+ * repository it does not list, is left alone.
  */
-export function keepTreeBranches(): string[] {
-  const said: string[] = [];
+export function noteBranchBases(): void {
   for (const id of Task.list()) {
     try {
       const task = new Task(id);
@@ -74,11 +73,7 @@ export function keepTreeBranches(): string[] {
         if (repo === undefined) continue;
         const target = defaultBranch(lease.path);
         const branch = workBranch(lease.path, target);
-        if (branch === undefined) continue;
-        if (branch !== repo.branch) {
-          task.keepBranch(repo.url, branch);
-          said.push(`kept branch ${branch} for ${repoName(repo.url)} → ${id}`);
-        }
+        if (branch === undefined || !keptIn(repo).includes(branch)) continue;
         const met = target === undefined ? undefined : metTargetAt(lease.path, target);
         if (met !== undefined && met !== repo.branchBases?.[branch]) task.noteBranchBase(repo.url, branch, met);
       }
@@ -86,8 +81,10 @@ export function keepTreeBranches(): string[] {
       // A task.json yan cannot read, or a tree git cannot: the push goes on without it.
     }
   }
-  return said;
 }
+
+/** Every branch the task keeps in `repo`, the one kept last first. */
+export const keptIn = (repo: TaskRepo): string[] => [...(repo.branch === undefined ? [] : [repo.branch]), ...(repo.earlierBranches ?? [])];
 
 /** Where one of a task's branches stands. */
 export type BranchState = BranchMark | 'merged';

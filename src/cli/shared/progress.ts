@@ -1,4 +1,4 @@
-import { branchStates, type BranchState } from './branches.js';
+import { asOriginNames, branchStates, keptIn, type BranchState } from './branches.js';
 import { repoName } from './repo-name.js';
 import { tildePath } from './style.js';
 import { leasesHeldBy, treeState } from '../../externals/worktree/index.js';
@@ -25,6 +25,12 @@ export interface RepoProgress {
   readonly branch: string | null;
   /** The commit a tree on a detached HEAD is at. */
   readonly detachedAt: string | null;
+  /**
+   * Whether the task keeps the branch the tree is on: false for one it does
+   * not, which `yan branch` keeps; null with no tree here, on a detached
+   * HEAD or on the default branch, which is no task's.
+   */
+  readonly kept: boolean | null;
   /** Every branch the task kept but the last its tree was on, oldest first, whatever became of each. */
   readonly earlierBranches: readonly string[];
   /** Every branch the task kept, the last its tree was on first, then newest first. */
@@ -61,10 +67,12 @@ export function taskProgress(task: Task): RepoProgress[] {
       const base = defaultBranch(tree) ?? null;
       const branch = branchOf(tree) ?? null;
       const { dirty } = treeState(tree, { submoduleEdits: false });
+      const named = branch === null ? null : asOriginNames(tree, branch);
       return {
         ...common,
         branch,
         detachedAt: branch === null ? short(tree) : null,
+        kept: named === null || named === base ? null : keptIn(r).includes(named),
         tree,
         base,
         ahead: base === null ? null : commitCount(tree, [`origin/${base}..HEAD`]) ?? null,
@@ -76,7 +84,7 @@ export function taskProgress(task: Task): RepoProgress[] {
     const ahead = clone === undefined || base === null || r.branch === undefined
       ? null
       : commitCount(clone, [`origin/${base}..origin/${r.branch}`]) ?? null;
-    return { ...common, branch: r.branch ?? null, detachedAt: null, tree: null, base, ahead, unpushed: null, uncommitted: null };
+    return { ...common, branch: r.branch ?? null, detachedAt: null, kept: null, tree: null, base, ahead, unpushed: null, uncommitted: null };
   });
 }
 
@@ -98,6 +106,8 @@ export function progressLines(progress: readonly RepoProgress[]): string[] {
   return progress.flatMap((p) => {
     const where = p.branch ?? (p.detachedAt === null ? 'no branch yet' : `detached HEAD at ${p.detachedAt}`);
     const facts: string[] = [];
+    // The agent says which branches are the task's: one it is on and has not kept is said, with how to keep it.
+    if (p.kept === false) facts.push("not kept: 'yan branch' keeps it");
     const own = p.branches.find((b) => b.name === p.branch)?.state;
     if (own !== undefined && own !== 'open') facts.push(SAID[own]);
     if (p.ahead !== null && p.base !== null && p.branch !== null) facts.push(`${p.ahead} ahead of ${p.base}${p.tree === null ? ' on origin, as last fetched' : ''}`);

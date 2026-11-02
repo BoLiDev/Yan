@@ -48,10 +48,16 @@ describe('taskProgress', () => {
 
     const progress = taskProgress(new Task('t001'));
     expect(progress).toEqual([{
-      repo: repoName(bare), url: bare, scope: [], branch: 'feat/x', detachedAt: null, earlierBranches: [], branches: [],
+      repo: repoName(bare), url: bare, scope: [], branch: 'feat/x', detachedAt: null, kept: false, earlierBranches: [], branches: [],
       tree, base: 'main', ahead: 3, unpushed: 1, uncommitted: 1,
     }]);
-    expect(progressLines(progress)[0]).toBe(`  ${repoName(bare)}  feat/x  3 ahead of main · 1 not pushed · 1 uncommitted`);
+    expect(progressLines(progress)[0], 'a branch the task does not keep is said, with how to keep it')
+      .toBe(`  ${repoName(bare)}  feat/x  not kept: 'yan branch' keeps it · 3 ahead of main · 1 not pushed · 1 uncommitted`);
+
+    new Task('t001').keepBranch(bare, 'feat/x');
+    const kept = taskProgress(new Task('t001'));
+    expect(kept[0]?.kept).toBe(true);
+    expect(progressLines(kept)[0]).toBe(`  ${repoName(bare)}  feat/x  3 ahead of main · 1 not pushed · 1 uncommitted`);
   });
 
   it('says which packages a task in a monorepo is about, under its tree', () => {

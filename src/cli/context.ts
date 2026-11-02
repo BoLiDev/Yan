@@ -101,8 +101,9 @@ history.
 Artifacts are grouped as design/, docs/, uat/, misc/ and the rest, a folder in them shown
 as its count of files. Each branch shows how far it is ahead of the default
 branch, how many of its commits no remote branch has, and how many changes
-are uncommitted in its worktree; a repository with no worktree on this
-machine is read from its clone as last fetched.
+are uncommitted in its worktree, and says when the worktree is on a branch
+the task does not keep, which 'yan branch' keeps; a repository with no
+worktree on this machine is read from its clone as last fetched.
 
 With --json, uat is what 'yan uat' records: each file in artifacts/uat/
 with the deliverables it shows, and the notes on how the others were

@@ -38,24 +38,27 @@ false` in the vault's `config.json` hands them back). A new task picks
 the repositories it works in from the registry, and gets a worktree of each
 on a detached HEAD at origin's default branch; in a monorepo it also asks
 which packages the task is about, once. yan never makes a branch, since each
-machine names its branches its own way: the agent is told to cut one before
-it commits, and every `yan vault push` keeps the branch each open task's
-tree is on, as origin names it. A task may have several branches in one
-repository, in a monorepo one for each app it changes, the one tree
-switching between them, so a branch the tree moves off stays in progress:
-until a merge commit takes it into origin's default branch, which yan reads
-from git, or it is fast-forwarded in, or until the agent marks it given up
-with `yan branch abandon`,
-which the agent is told to do once the work has left it for another. A tree
-opened later for the task, on any machine, is put on the branch it was last
-on: the clone's own, brought up to origin's when it is only behind it, or a
-new one tracking origin's; one yan cannot put there starts detached, and
-says why; the agent is told the task's other branches still in progress.
-A fast-forward leaves no merge commit, and git alone cannot tell a branch
-fast-forwarded in from one just cut, so each push also notes, while the
-tree's branch has commits of its own, where it last met the default branch:
-the point moves on each time the default branch is merged in, and a branch
-the default branch has, with commits after its point, was merged.
+machine names its branches its own way, and never takes one for the task's
+because a tree is on it, since a tree passes through branches that are
+nobody's work: which are the task's is the agent's to say. It is told to cut
+one before it commits and keep it at once with `yan branch`, and that one
+branch is in progress for each app the task changes: one in a repository of
+one app, and in a monorepo one for each app or package it changes, the one
+tree switching between them. The work on an app stays on its branch; when it
+moves to another, or stops, the agent marks the old one given up with `yan
+branch abandon`. A kept branch is in progress until a merge commit takes it
+into origin's default branch, which yan reads from git, or it is
+fast-forwarded in, or it is marked given up. A tree opened later for the
+task, on any machine, is put on the branch kept last: the clone's own,
+brought up to origin's when it is only behind it, or a new one tracking
+origin's; one yan cannot put there starts detached, and says why; the agent
+is told the task's other branches still in progress, and `yan context` says
+when the tree is on a branch the task does not keep. A fast-forward leaves
+no merge commit, and git alone cannot tell a branch fast-forwarded in from
+one just cut, so each push also notes, while the tree is on a branch the
+task keeps and that has commits of its own, where it last met the default
+branch: the point moves on each time the default branch is merged in, and a
+branch the default branch has, with commits after its point, was merged.
 Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
 added beside it.
@@ -108,8 +111,8 @@ the agent being told: it is pulled each time you send a message and pushed
 each time the agent finishes a turn, by hooks given to that session alone
 (claude's `--settings`, codex's `-c`, with codex's hook trust bypassed for
 the session). agy takes hooks only from files, so under agy the vault is
-pulled and pushed by hand. A push keeps the branch each tree is on, commits
-everything in the vault and rebases it onto the remote first; a conflict
+pulled and pushed by hand. A push commits everything in the vault and
+rebases it onto the remote first; a conflict
 stops it, the commit kept here, and the hook says so.
 `--cli codex` runs another agent this once; anything after `--` goes to the
 agent as it is. `--task <id>` goes on with an open task without asking
@@ -137,14 +140,14 @@ For you:
 
 For the agent:
 
-- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about; `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
+- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, whether the task keeps the one the worktree is on, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about; `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
 - `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as in review, and stays so through the changes your feedback asks for until `yan done`
 - `yan resource add|rm|ls` — anything the work refers to, under a name, as one of: `spec` (ticket, PRD, design), `mr`, `preview` (a link to the deployed version), `run` (a sub-task elsewhere), `general`
-- `yan branch [name]` — keep a branch for the task by hand; a push keeps the one each worktree is on, and each stays in progress until it is merged or marked given up
-- `yan branch abandon <name>` — mark a branch given up, once the work has left it for another; nothing is deleted, and the tree moving back onto it opens it again
+- `yan branch [name]` — keep a branch as the task's, as soon as it is cut: only the agent keeps them, one in progress for each app or package the task changes; keeping one names the others in progress in that repository, and each stays in progress until it is merged or marked given up
+- `yan branch abandon <name>` — mark a branch given up, as soon as its work moves to another or stops; nothing is deleted, and keeping it again opens it again
 - `yan learn add|ls` — a learning, written only when you ask for one
 
 `yan <command> --help` says the rest. Every command that takes a task reads
@@ -404,7 +407,7 @@ what it was written from), its bar says legacy and what changed.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   tasks/<id>/
-    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, the branch the tree was last on, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
+    task.json                  title, state (open, uat, done, abandoned), repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, in the format of the `draft` CLI

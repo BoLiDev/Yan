@@ -400,9 +400,10 @@ describe('an existing task', () => {
     expect(said).toContain("done demo: worktree on feat/x, the task's branch");
     expect(told(1)).toContain('The worktree is on the branch `feat/x`.');
     expect(told(1), 'the given up one left out').toContain("The task's other branches in progress here: `feat/y`.");
-    expect(told(1)).toContain('yan never makes a branch');
-    expect(told(1)).toContain('yan keeps every branch the worktree is on for the task');
-    expect(told(1)).toContain('mark it with `yan branch abandon <name>`');
+    expect(told(1)).toContain('yan never makes a branch, and never takes one for the task\'s by itself');
+    expect(told(1), 'the agent keeps each it cuts').toContain('keep it at once with `yan branch`');
+    expect(told(1)).toContain('One branch is in progress for each app the task changes');
+    expect(told(1)).toContain('`yan branch abandon <name>`');
   });
 
   it('opens a tree on a detached HEAD when the kept branch is nowhere, and says why', async () => {

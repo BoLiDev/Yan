@@ -1,8 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkCommit, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
-import { branchStates, keepTreeBranches } from './branches.js';
-import { repoName } from './repo-name.js';
+import { branchStates, noteBranchBases } from './branches.js';
 import { WorktreePool } from '../../externals/worktree/index.js';
 import { Task, type TaskRepo } from '../../records/task/index.js';
 
@@ -24,22 +23,15 @@ afterEach(() => {
   delete process.env.YAN_POOL_ROOT;
 });
 
-describe('keepTreeBranches', () => {
-  it('keeps the branch a tree is on, as origin names it, and only when it changed', async () => {
-    expect(keepTreeBranches(), 'a detached HEAD keeps nothing').toEqual([]);
-
-    await fxGit(['checkout', '-b', 'local-name'], tree);
-    await fxGit(['push', '-u', 'origin', 'local-name:feat/remote-name'], tree);
-    expect(keepTreeBranches()).toEqual([`kept branch feat/remote-name for ${repoName(bare)} → t001`]);
-    expect(new Task('t001').read().repos).toEqual([{ url: bare, branch: 'feat/remote-name', branchMarks: { 'feat/remote-name': 'open' } }]);
-    expect(keepTreeBranches(), 'nothing changed since').toEqual([]);
-
-    await fxGit(['checkout', '-b', 'feat/next'], tree);
-    expect(keepTreeBranches()).toEqual([`kept branch feat/next for ${repoName(bare)} → t001`]);
-    expect(new Task('t001').read().repos[0]?.branchMarks, 'the one the tree left stays in progress').toEqual({ 'feat/remote-name': 'open', 'feat/next': 'open' });
+describe('noteBranchBases', () => {
+  it('keeps no branch: which branches are the task\'s is the agent\'s to say', async () => {
+    await fxGit(['checkout', '-b', 'feat/scratch'], tree);
+    await mkCommit(tree, 's.txt', 's', 'scratch');
+    noteBranchBases();
+    expect(new Task('t001').read().repos).toEqual([{ url: bare }]);
   });
 
-  it('notes where the branch last met main while it has commits of its own, so one fast-forwarded in still reads merged', async () => {
+  it('notes where a kept branch last met main while it has commits of its own, so one fast-forwarded in still reads merged', async () => {
     const task = new Task('t001');
     const sha = async (ref: string): Promise<string> => (await fxGit(['rev-parse', ref], tree)).stdout.trim();
     const mainMovesOn = async (file: string): Promise<void> => {
@@ -50,48 +42,50 @@ describe('keepTreeBranches', () => {
     };
     const forkPoint = await sha('origin/main');
     await fxGit(['checkout', '-q', '-b', 'feat/x'], tree);
-    keepTreeBranches();
+    task.keepBranch(bare, 'feat/x');
+    noteBranchBases();
     expect(task.read().repos[0]?.branchBases, 'just cut, nothing of its own: nothing noted').toBeUndefined();
 
     await mkCommit(tree, 'x.txt', 'x', 'x');
-    keepTreeBranches();
+    noteBranchBases();
     expect(task.read().repos[0]?.branchBases).toEqual({ 'feat/x': forkPoint });
 
     await mainMovesOn('m.txt');
     await fxGit(['merge', '-q', '--no-edit', 'origin/main'], tree);
-    keepTreeBranches();
+    noteBranchBases();
     const lastMet = await sha('origin/main');
     expect(task.read().repos[0]?.branchBases, 'main merged in moves it on').toEqual({ 'feat/x': lastMet });
 
     await fxGit(['push', '-q', 'origin', 'feat/x:main', 'feat/x'], tree);
     await fxGit(['fetch', '-q', 'origin'], tree);
-    keepTreeBranches();
+    noteBranchBases();
     const repo = task.read().repos[0] as TaskRepo;
     expect(repo.branchBases, 'fast-forwarded in: main has it all, the point stays').toEqual({ 'feat/x': lastMet });
     expect(branchStates(repo, tree)).toEqual([{ name: 'feat/x', state: 'merged' }]);
 
     // A branch with nothing of its own that catches up with main has only moved forward with it, never been merged.
     await fxGit(['checkout', '-q', '-b', 'feat/idle'], tree);
-    keepTreeBranches();
+    task.keepBranch(bare, 'feat/idle');
+    noteBranchBases();
     await mainMovesOn('n.txt');
     await fxGit(['merge', '-q', '--ff-only', 'origin/main'], tree);
-    keepTreeBranches();
+    noteBranchBases();
     const now = task.read().repos[0] as TaskRepo;
     expect(now.branchBases).toEqual({ 'feat/x': lastMet });
     expect(branchStates(now, tree)).toEqual([{ name: 'feat/idle', state: 'open' }, { name: 'feat/x', state: 'merged' }]);
   });
 
-  it('keeps nothing for a closed task, or for a tree of a repository the task does not list', async () => {
-    await fxGit(['checkout', '-b', 'feat/x'], tree);
+  it('notes nothing for a branch the task does not keep, or for a closed task', async () => {
     const task = new Task('t001');
-    task.close('done');
-    expect(keepTreeBranches()).toEqual([]);
+    task.keepBranch(bare, 'feat/kept');
+    await fxGit(['checkout', '-q', '-b', 'feat/other'], tree);
+    await mkCommit(tree, 'o.txt', 'o', 'o');
+    noteBranchBases();
+    expect(task.read().repos[0]?.branchBases, 'not one of the task\'s').toBeUndefined();
 
-    const other = Task.create('elsewhere', [{ url: 'git@github.com:me/api.git' }]);
-    const otherClone = await mkClone(bare, join(mkTempDir(), 'web-again'));
-    const otherTree = new WorktreePool(otherClone).get('origin/main', other.id).path;
-    await fxGit(['checkout', '-b', 'feat/y'], otherTree);
-    expect(keepTreeBranches()).toEqual([]);
-    expect(task.read().repos[0]?.branch).toBeUndefined();
+    task.keepBranch(bare, 'feat/other');
+    task.close('done');
+    noteBranchBases();
+    expect(task.read().repos[0]?.branchBases).toBeUndefined();
   });
 });

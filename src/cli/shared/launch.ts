@@ -133,19 +133,25 @@ export interface Tree {
 const quoted = (paths: readonly string[]): string => paths.map((p) => `\`${p}\``).join(', ');
 
 /**
- * Said whenever the task has a tree. yan names no branch, since each machine
- * names its branches its own way, so the agent has to know to cut one. It
- * need not keep it: every vault push reads the branch off the tree, so the
- * next start, on any machine, puts the tree back on it. A branch the tree
- * moves off stays in progress, since in a monorepo a task has a branch per
- * app it changes; git tells when one is merged, but only the agent knows
- * when the work has left one for good, so marking it is the agent's.
+ * Said whenever the task has a tree, as yan:recap says it. yan names no
+ * branch, since each machine names its branches its own way, so the agent
+ * has to know to cut one, and keeps none by itself, since a tree passes
+ * through branches that are nobody's work: the agent keeps each it cuts,
+ * and the next start, on any machine, puts the tree on the one kept last.
+ * One is in progress for each app or package the task changes; git tells
+ * when one is merged, but only the agent knows when the work has left one,
+ * so marking it is the agent's.
  */
-const NO_BRANCH = 'yan never makes a branch: a worktree on a detached HEAD has to be put on a branch, ' +
-  'named the way this repository and this machine expect, before committing in it. ' +
-  'yan keeps every branch the worktree is on for the task, so later sessions start the worktree on the last one; ' +
-  'a task may have several in progress in one repository, the worktree switching between them. ' +
-  'Each stays in progress until it is merged: when the work leaves one for good, for another branch, mark it with `yan branch abandon <name>`.';
+const NO_BRANCH = 'yan never makes a branch, and never takes one for the task\'s by itself: which branches are the task\'s is yours to say. ' +
+  'Put a worktree on a detached HEAD on a branch, named the way this repository and this machine expect, before committing in it, ' +
+  'and keep it at once with `yan branch`; later sessions, on any machine, start the worktree on the branch kept last. ' +
+  'One branch is in progress for each app the task changes: one in a repository of one app, and in a monorepo one for each app or package the task changes, ' +
+  'whichever the monorepo is divided into, the worktree switching between them. ' +
+  'The work on an app stays on its branch, a fix, a second try or a next step included; cut another only for another app, ' +
+  'or once the app\'s branch is merged and new work on it begins. ' +
+  'When the work on an app moves to another branch, or stops, mark the old one with `yan branch abandon <name>` at once, so one stays in progress for it. ' +
+  'A branch only to try something out, or to look at old code, stays out of the worktree, in a directory of its own, and is not kept. ' +
+  '`yan context` lists the task\'s branches and where each stands, and says when the worktree is on one the task does not keep.';
 
 /**
  * Where this task's own files are, absolute, since the agent starts in a

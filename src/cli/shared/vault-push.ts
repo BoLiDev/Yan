@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { keepTreeBranches } from './branches.js';
+import { noteBranchBases } from './branches.js';
 import { catchUp } from './vault-pull.js';
 import { currentBranch, git, gitOk, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError } from '../../util/error.js';
@@ -45,15 +45,16 @@ function changedPaths(dir: string): string[] {
 }
 
 /**
- * Keep the branch each open task's trees are on, commit everything, catch up
- * with origin, push. When there is nothing to commit and origin already has
+ * Note where each open task's kept branches last met the default branch,
+ * commit everything, catch up with origin, push. When there is nothing to commit and origin already has
  * every commit, it stops before the network: the hook runs after every turn,
  * and most turns change nothing here.
  *
  * @returns what it did, a line each.
  */
 export function pushVault(dir: string, message: string | undefined): string[] {
-  const said = keepTreeBranches().map((line) => `vault push: ${line}`);
+  noteBranchBases();
+  const said: string[] = [];
   const changed = changedPaths(dir);
 
   const branch = currentBranch(dir);
