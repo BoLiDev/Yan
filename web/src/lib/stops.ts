@@ -6,22 +6,21 @@ import { link, type TaskRoute } from './route';
 /** Whether a task's agent may be started again from the page: it is open, or handed over to be accepted. */
 export const goesOn = (t: TaskSummary): boolean => stateOf(t.state) === 'open' || t.state === 'uat';
 
-/** What a task has beyond what its summary says: a report, resources, a terminal, merge requests. */
+/** What a task has beyond what its summary says: a report, resources, a terminal. */
 export interface Has {
   readonly report?: boolean;
   readonly resources?: boolean;
   readonly terminal?: boolean;
-  readonly mergeRequests?: boolean;
 }
 
-/** Whether a task has an MR row: a branch it keeps, or a merge request it refers to. */
-export const hasMr = (t: TaskSummary, mergeRequests = false): boolean => mergeRequests || t.repos.some((r) => r.branch);
+/** Whether a task has an MR row: it keeps a branch. */
+export const hasMr = (t: TaskSummary): boolean => t.repos.some((r) => r.branch);
 
 /**
  * A task's stops, top to bottom as its nav has them, each a row's own page:
  * Overview, Report when there is one, Log, Terminal while its agent runs in
  * a herdr pane here or it can be started again, Agent when there is one, MR
- * when it keeps a branch or a merge request, and Resources when there are any.
+ * when it keeps a branch, and Resources when there are any.
  */
 export function taskStops(t: TaskSummary, has: Has = {}): string[] {
   return [
@@ -30,7 +29,7 @@ export function taskStops(t: TaskSummary, has: Has = {}): string[] {
     link.log(t.id),
     ...(has.terminal ? [link.terminal(t.id)] : []),
     ...(t.agents.length ? [link.agent(t.id)] : []),
-    ...(hasMr(t, has.mergeRequests) ? [link.mr(t.id)] : []),
+    ...(hasMr(t) ? [link.mr(t.id)] : []),
     ...(has.resources ? [link.resources(t.id)] : []),
   ];
 }

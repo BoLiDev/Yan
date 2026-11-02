@@ -8,12 +8,11 @@ const task = (agents: number, branch: boolean): TaskSummary =>
 const at = (hash: string): TaskRoute => parseRoute(hash) as TaskRoute;
 
 describe('Tab in a task', () => {
-  it("stops at the rows there are, each at its own page, MR's for a branch or a merge request", () => {
+  it("stops at the rows there are, each at its own page, MR's for a branch", () => {
     expect(taskStops(task(1, true), { report: true })).toEqual(['#/t/t1', '#/t/t1/report', '#/t/t1/log', '#/t/t1/agent', '#/t/t1/mr']);
     expect(taskStops(task(0, false))).toEqual(['#/t/t1', '#/t/t1/log']);
     expect(taskStops(task(0, true), { resources: true })).toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/mr', '#/t/t1/resources']);
     expect(taskStops(task(1, false), { terminal: true }), 'a terminal after Log').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/terminal', '#/t/t1/agent']);
-    expect(taskStops(task(0, false), { mergeRequests: true }), 'a merge request with no branch kept').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/mr']);
   });
 
   it('starts the agent again only for a task still open or handed over to be accepted', () => {

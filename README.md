@@ -231,19 +231,19 @@ scrolled to, so one of tens of thousands of lines opens without a wait.
 The task's nav is a row for each of its pages, its name and nothing
 beside it but a dot when there is news in it: what a row holds, however
 much, is on its page, a card each, the first picked, ↑ and ↓ picking
-another and Enter opening it as a click does. A task that keeps a branch,
-or refers to a merge request, has an MR row: its page lists the merge
-requests, its `mr` resources, then every branch the task kept, under its
-repository, those in progress first, the one its tree was last on leading
-them, then those merged with their pull request, then those abandoned. On
-hover, each card's copy button copies a branch's whole name, or a merge
-request's link, without opening it; a branch opened shows its changes in
-the column under its name, MR's row lit. A task that refers to anything else has a
-Resources row under MR, its page listing them under their kinds, Spec,
-UAT (the links to check the result on) and Other, its agents and its
-merge requests aside: a link named by its name that opens in a tab of its
-own, or a name and its words. On hover, a resource's pencil edits where
-it points, keeping its kind, and its bin forgets it, on either page. A
+another and Enter opening it as a click does. A task that keeps a branch
+has an MR row: its page lists every branch the task kept, under its
+repository, those in progress first, the one its tree
+was last on leading them, then those merged with the pull request they
+came in by, then those abandoned. On hover, a card's copy button copies the
+branch's whole name without opening it; a branch opened shows its changes
+in the column under its name, MR's row lit. A task that refers to anything
+else has a Resources row under MR, its page listing them under their kinds,
+Spec, UAT (the links to check the result on) and Other: a link named by
+its name that opens in a tab of its own, or a name and its words. Its
+agents are left out, and its merge requests (`mr` resources) are shown
+nowhere, the branches saying enough. On hover, a resource's pencil edits
+where it points, keeping its kind, and its bin forgets it. A
 task's agents running elsewhere, its `run` resources that are web links,
 such as a cloud platform's agent on the task, are an Agent row under Log,
 its page listing them, the last kept first; one opens in

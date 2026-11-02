@@ -37,7 +37,7 @@ describe("a task's resources, on their page", () => {
     resourceKinds: { 'WEB-1': 'spec', 'pr 42': 'mr', notes: 'general' },
   });
 
-  it('leave the merge requests to MR, and are edited and forgotten from their cards', async () => {
+  it('leave the merge requests out, and are edited and forgotten from their cards', async () => {
     const asked = serve({ 'POST /api/resource': Response.json(saved) });
     have(index([t]), [d]);
     const screen = await draw(<><ResourcesView t={t} d={d} /><AskModal /></>);
@@ -56,29 +56,26 @@ describe("a task's resources, on their page", () => {
   });
 });
 
-describe("a task's merge requests and branches, on MR's page", () => {
+describe("a task's branches, on MR's page", () => {
   afterEach(reset);
 
   it('copy from a card without opening it, and open without copying', async () => {
-    // serve stood in for only where it is asked to save: whether a branch is merged is left unsaid.
+    // serve stood in for nothing: whether a branch is merged is left unsaid.
     serve({});
     const copied = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
-    const t = task('t1', 'pay retries', { repos: [{ name: 'web', branch: 'feat/retry', earlier: [], abandoned: [] }] });
-    const d = detail('t1', { resources: [['pr 42', 'https://git.example/pull/42']], resourceKinds: { 'pr 42': 'mr' } });
-    have(index([t]), [d]);
+    const t = task('t1', 'pay retries', { repos: [{ name: 'web', branch: 'feat/retry', earlier: ['feat/old-try'], abandoned: ['feat/old-try'] }] });
+    have(index([t]));
     history.replaceState(null, '', '#/t/t1/mr');
-    const screen = await draw(<MrView t={t} d={d} />);
+    const screen = await draw(<MrView t={t} />);
 
-    await screen.getByText('feat/retry').hover();
-    await screen.getByRole('button', { name: 'Copy the branch feat/retry' }).click();
-    await screen.getByText('https://git.example/pull/42').hover();
-    await screen.getByRole('button', { name: "Copy pr 42's link" }).click();
-    expect(copied.mock.calls.map(([text]) => text)).toEqual(['feat/retry', 'https://git.example/pull/42']);
+    await screen.getByText('feat/old-try').hover();
+    await screen.getByRole('button', { name: 'Copy the branch feat/old-try' }).click();
+    expect(copied.mock.calls.map(([text]) => text)).toEqual(['feat/old-try']);
     expect(location.hash, 'nothing opened').toBe('#/t/t1/mr');
 
-    // The merge request is picked first, the branch after it.
-    await userEvent.keyboard('{ArrowDown}{Enter}');
-    await expect.poll(() => location.hash).toBe('#/t/t1/b/0/changes');
-    expect(copied, 'opened, nothing copied').toHaveBeenCalledTimes(2);
+    // The card under the pointer is the one picked, and Enter opens it.
+    await userEvent.keyboard('{Enter}');
+    await expect.poll(() => location.hash).toBe('#/t/t1/b/0/feat%2Fold-try/changes');
+    expect(copied, 'opened, nothing copied').toHaveBeenCalledTimes(1);
   });
 });

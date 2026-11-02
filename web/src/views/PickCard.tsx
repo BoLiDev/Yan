@@ -21,7 +21,7 @@ export function PickList({ list, children }: { list: RefObject<HTMLDivElement | 
 
 /**
  * A card's tool that copies `text`, `what` it is, without opening the card:
- * a branch's name, a merge request's link. Clicked, it gives the keys back
+ * a branch's name. Clicked, it gives the keys back
  * to the page, so the arrows and Enter go on picking and opening cards.
  */
 export function CopyTool({ text, what }: { text: string; what: string }) {

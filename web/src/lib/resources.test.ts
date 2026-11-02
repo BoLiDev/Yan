@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLink, listResources, mergeRequests } from './resources';
+import { isLink, listResources } from './resources';
 
 describe('a task\'s resources', () => {
   const t = { agents: [['cloud', 'https://agent/1']] as const };
@@ -12,9 +12,6 @@ describe('a task\'s resources', () => {
     expect(listResources(t, d).map((r) => `${r.kind} ${r.name}`)).toEqual(['spec WEB-1', 'preview try', 'general note', 'general odd']);
   });
 
-  it('keep the merge requests for the MR page', () => {
-    expect(mergeRequests(t, d)).toEqual([{ kind: 'mr', name: 'pr', where: 'https://g/mr/1' }]);
-  });
 
   it('open when they are a web link, and are words otherwise', () => {
     expect(isLink(' https://t/1 ')).toBe(true);

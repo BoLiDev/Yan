@@ -1,14 +1,12 @@
-import { Fragment, useMemo, type ReactNode } from 'react';
-import type { TaskDetail, TaskSummary } from '../lib/api';
+import { Fragment, useMemo } from 'react';
+import type { TaskSummary } from '../lib/api';
 import { plural } from '../lib/format';
-import { isLink, mergeRequests } from '../lib/resources';
 import { link } from '../lib/route';
 import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/page';
 import { useBranches } from '../state/server';
 import { useKeyNav, usePick } from './nav';
 import { CopyTool, PickCard, PickHeading, PickList } from './PickCard';
-import { ResourceCard } from './ResourceCard';
 
 /** How the page says where a branch stands. */
 const BRANCH_SAID = { open: 'in progress', merged: 'merged', abandoned: 'abandoned' } as const;
@@ -46,47 +44,32 @@ function useListed(t: TaskSummary): Listed[] {
 }
 
 /**
- * What the MR row holds: the merge requests the task refers to, which open
- * in a tab of their own and are edited and forgotten as any resource is,
- * then every branch it kept, under its repository, each saying where it
- * stands. One is picked, the first to start; ↑ and ↓ pick another, and
- * Enter opens it as a click does, a branch showing its changes. On hover,
- * each card's copy tool copies a branch's name or a merge request's link
- * without opening it.
+ * What the MR row holds: every branch the task kept, under its repository,
+ * each saying where it stands, a merged one with the pull request it came
+ * in by. One is picked, the first to start; ↑ and ↓ pick another, and Enter
+ * opens it as a click does, showing its changes. On hover, a card's copy
+ * tool copies the branch's name without opening it.
  */
-export function MrView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
+export function MrView({ t }: { t: TaskSummary }) {
   useKeyNav(null, null);
-  const requests = mergeRequests(t, d);
   const branches = useListed(t);
-  const { at, pick, list } = usePick(requests.length + branches.length, (i) => {
-    const r = requests[i];
-    if (r) {
-      if (isLink(r.where)) window.open(r.where.trim(), '_blank', 'noopener');
-      return;
-    }
-    const b = branches[i - requests.length];
+  const { at, pick, list } = usePick(branches.length, (i) => {
+    const b = branches[i];
     if (b) location.hash = b.href;
   });
-  if (!requests.length && !branches.length) return <Empty title="No MR">{`${t.id} keeps no branch and refers to no merge request.`}</Empty>;
-  const meta = [requests.length ? plural(requests.length, 'merge request') : '', branches.length ? plural(branches.length, 'branch', 'branches') : ''].filter(Boolean).join(' · ');
-  const cards: ReactNode[] = [
-    ...(requests.length ? [<PickHeading key="mr">Merge requests</PickHeading>] : []),
-    ...requests.map((r, i) => <ResourceCard key={`mr:${r.name}`} task={t.id} r={r} picked={i === at} onPick={() => pick(i)} copy />),
-    ...branches.map((b, j) => {
-      const i = requests.length + j;
-      return (
-        <Fragment key={`${b.repo}:${b.name}`}>
-          {b.repo !== branches[j - 1]?.repo ? <PickHeading>{b.repo}</PickHeading> : null}
-          <PickCard icon={<Icon name="branch" size={18} />} name={b.name} where={b.said} mono picked={i === at} hint={i === at} onPick={() => pick(i)}
-            href={b.href} title={b.name} tools={<CopyTool text={b.name} what={`the branch ${b.name}`} />} />
-        </Fragment>
-      );
-    }),
-  ];
+  if (!branches.length) return <Empty title="No MR">{`${t.id} keeps no branch.`}</Empty>;
   return (
     <>
-      <Bar title="MR" meta={meta} />
-      <PickList list={list}>{cards}</PickList>
+      <Bar title="MR" meta={plural(branches.length, 'branch', 'branches')} />
+      <PickList list={list}>
+        {branches.map((b, i) => (
+          <Fragment key={`${b.repo}:${b.name}`}>
+            {b.repo !== branches[i - 1]?.repo ? <PickHeading>{b.repo}</PickHeading> : null}
+            <PickCard icon={<Icon name="branch" size={18} />} name={b.name} where={b.said} mono picked={i === at} hint={i === at} onPick={() => pick(i)}
+              href={b.href} title={b.name} tools={<CopyTool text={b.name} what={`the branch ${b.name}`} />} />
+          </Fragment>
+        ))}
+      </PickList>
     </>
   );
 }

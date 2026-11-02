@@ -4,7 +4,7 @@ import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
 import { usePageKeys } from './lib/modal';
 import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
-import { listResources, mergeRequests } from './lib/resources';
+import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Palette } from './components/Palette';
 import { NewTaskModal } from './components/NewTask';
@@ -141,7 +141,7 @@ function useKeys(): void {
       const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
       const report = !!d?.files.some((f) => f.path === 'report.html');
       const terminal = !!queryClient.getQueryData<Record<string, unknown>>(['terminals'])?.[r.id];
-      const has = { report, resources: !!d && listResources(t, d).length > 0, terminal: terminal || goesOn(t), mergeRequests: !!d && mergeRequests(t, d).length > 0 };
+      const has = { report, resources: !!d && listResources(t, d).length > 0, terminal: terminal || goesOn(t) };
       const to = nextStop(taskStops(t, has), r, e.shiftKey);
       (document.activeElement as HTMLElement | null)?.blur();
       if (to) location.hash = to;

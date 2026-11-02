@@ -41,18 +41,17 @@ afterAll(async () => {
 });
 
 describe("a task's nav", () => {
-  it('opens MR on a page of its merge requests and branches, where ↓ and Enter open a branch, named in the column', async () => {
+  it('opens MR on a page of its branches, where Enter opens the one picked, named in the column', async () => {
     const { page, errors } = await open(served.url('/#/t/t001'));
     const nav = page.locator('#middle');
     await nav.getByRole('link', { name: 'MR', exact: true }).click();
     expect(page.url()).toMatch(/#\/t\/t001\/mr$/);
     const right = page.locator('#right');
-    await right.getByText('https://git.example/web/pull/42').waitFor();
     await right.getByText('feat/old-try').waitFor();
     await right.getByText('abandoned').waitFor();
+    expect(await right.getByText('https://git.example/web/pull/42').count(), 'its merge request shown nowhere').toBe(0);
 
-    // The merge request is picked first; the branch the tree is on is next.
-    await page.keyboard.press('ArrowDown');
+    // The branch the tree is on is picked first.
     await page.keyboard.press('Enter');
     await expect.poll(() => page.url()).toMatch(/#\/t\/t001\/b\/0\/changes$/);
     await nav.getByRole('button', { name: 'feat/retry' }).waitFor();
@@ -60,7 +59,7 @@ describe("a task's nav", () => {
     expect(errors).toEqual([]);
   });
 
-  it('leaves the merge requests out of Resources, which MR lists', async () => {
+  it('leaves the merge requests out of Resources too', async () => {
     const { page } = await open(served.url('/#/t/t001'));
     await page.locator('#middle').getByRole('link', { name: 'Resources', exact: true }).click();
     const right = page.locator('#right');

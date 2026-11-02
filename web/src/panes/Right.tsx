@@ -85,7 +85,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   if (r.sub === 'folder') return <FolderView t={t} d={d} path={r.path} />;
   if (r.sub === 'branch') return <BranchView t={t} r={r} />;
   if (r.sub === 'agent') return <AgentView t={t} />;
-  if (r.sub === 'mr') return <MrView t={t} d={d} />;
+  if (r.sub === 'mr') return <MrView t={t} />;
   if (r.sub === 'resources') return <ResourcesView t={t} d={d} />;
   if (r.sub !== 'file') return null;
   const file = d.files.find((f) => f.path === r.path);

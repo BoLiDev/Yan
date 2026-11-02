@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Index, TaskSummary } from '../../lib/api';
 import { agentNews, agentWords } from '../../lib/agents';
-import { listResources, mergeRequests } from '../../lib/resources';
+import { listResources } from '../../lib/resources';
 import { link, type TaskRoute } from '../../lib/route';
 import { logFresh, unseenOf, type Seen } from '../../lib/seen';
 import { goesOn, hasMr } from '../../lib/stops';
@@ -68,7 +68,7 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
         {/* While the agent tab shows one of the task's agents, the word shimmers. */}
         {t.agents.length ? <NavLink href={link.agent(t.id)} on={r.sub === 'agent'} icon="cloud" word="Agent" shine={t.agents.some(([, where]) => where === showing)} /> : null}
         {/* A branch opened from MR's page is still MR's. */}
-        {hasMr(t, !!d && mergeRequests(t, d).length > 0) ? <NavLink href={link.mr(t.id)} on={r.sub === 'mr' || r.sub === 'branch'} icon="branch" word="MR" /> : null}
+        {hasMr(t) ? <NavLink href={link.mr(t.id)} on={r.sub === 'mr' || r.sub === 'branch'} icon="branch" word="MR" /> : null}
         {d && listResources(t, d).length ? <NavLink href={link.resources(t.id)} on={r.sub === 'resources'} icon="link" word="Resources" /> : null}
       </div>
       {part.top}
