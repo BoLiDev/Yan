@@ -3,11 +3,14 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-// The page's theme is given, rather than read from next-themes, which this page does not use.
-const Toaster = ({ theme = "light", ...props }: ToasterProps) => {
+// A toast is drawn light whatever the page's theme, so on a dark page it stands off it, white with its button
+// black, rather than running into it; sonner's own light theme with it, whose description is dark. Every toast
+// can be closed by hand.
+const Toaster = (props: Omit<ToasterProps, "theme">) => {
   return (
     <Sonner
-      theme={theme}
+      theme="light"
+      closeButton
       className="toaster group"
       icons={{
         success: (
@@ -28,9 +31,9 @@ const Toaster = ({ theme = "light", ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-bg": "var(--toast-bg)",
+          "--normal-text": "var(--toast-ink)",
+          "--normal-border": "var(--toast-line)",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }

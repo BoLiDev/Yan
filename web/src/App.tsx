@@ -13,7 +13,6 @@ import { AskModal } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AGENT_TOASTER, useAgentToasts } from './state/agentToasts';
-import { useTheme } from './state/theme';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
@@ -161,7 +160,6 @@ function useKeys(): void {
 }
 
 export function App() {
-  const theme = useTheme();
   const index = useIndex();
   useEffect(() => connect(), []);
   useEffect(() => {
@@ -178,8 +176,8 @@ export function App() {
         <Middle />
         <Right />
       </div>
-      <Toaster position="bottom-center" theme={theme} />
-      <Toaster id={AGENT_TOASTER} position="top-right" theme={theme} />
+      <Toaster position="bottom-center" />
+      <Toaster id={AGENT_TOASTER} position="top-right" />
       <AskModal />
       <Palette />
       <NewTaskModal />

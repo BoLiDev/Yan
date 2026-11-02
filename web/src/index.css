@@ -39,6 +39,10 @@
   --shade: rgba(20, 20, 18, 0.32);
   --amber-ink: #8a4b08;
   --brand-glint: #8fdbe6;
+  /* A toast, light whatever the theme: dark on a dark page it runs into it, and only :root has these. */
+  --toast-bg: #ffffff;
+  --toast-ink: #1b1b19;
+  --toast-line: #e7e5df;
   /* what is raised off the page, and its shadows */
   --raised: #faf9f6;
   --shadow-line: rgba(27, 27, 25, 0.08);

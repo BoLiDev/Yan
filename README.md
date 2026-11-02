@@ -182,7 +182,9 @@ marked as on the task list and saying how long since it last changed (`3m`,
 `2h`), as serve saw it, which asks herdr every few seconds whether or not a
 page is open; a line opens the task's terminal. An agent that
 finishes, or comes to wait on you, is also told at the page's top right,
-with a button to its terminal, unless the page is showing that task. A finish is news, in Latest, in its count, and as a green dot on the
+with a button to its terminal, unless the page is showing that task; it
+is white with its button black in either theme, so it stands off a dark
+page, and its × closes it. A finish is news, in Latest, in its count, and as a green dot on the
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an
 amber dot, until it is answered. Hidden, the task list folds to a rail:
