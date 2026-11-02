@@ -1,7 +1,10 @@
 import type { ComponentProps, HTMLAttributes, ReactNode, RefObject } from 'react';
+import { Icon } from '../components/Icon';
 import { SHIMMER, Scroll } from '../components/page';
+import { Button } from '../components/ui/button';
 import { Kbd } from '../components/ui/kbd';
 import { cn } from '../lib/utils';
+import { copyText } from '../state/ui';
 
 /**
  * What a row of the task's nav holds, on its own page: its agents, its
@@ -13,6 +16,20 @@ export function PickList({ list, children }: { list: RefObject<HTMLDivElement | 
     <Scroll>
       <div className="flex max-w-[720px] flex-col gap-2.5 px-8 py-7" ref={list}>{children}</div>
     </Scroll>
+  );
+}
+
+/**
+ * A card's tool that copies `text`, `what` it is, without opening the card:
+ * a branch's name, a merge request's link. Clicked, it gives the keys back
+ * to the page, so the arrows and Enter go on picking and opening cards.
+ */
+export function CopyTool({ text, what }: { text: string; what: string }) {
+  return (
+    <Button variant="ghost" size="icon-xs" className="text-ink-3" title={`Copy ${what}`} aria-label={`Copy ${what}`}
+      onClick={(e) => { e.currentTarget.blur(); copyText(text, `Copied ${what}`, what); }}>
+      <Icon name="copy" size={14} />
+    </Button>
   );
 }
 

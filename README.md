@@ -235,9 +235,10 @@ another and Enter opening it as a click does. A task that keeps a branch,
 or refers to a merge request, has an MR row: its page lists the merge
 requests, its `mr` resources, then every branch the task kept, under its
 repository, those in progress first, the one its tree was last on leading
-them, then those merged with their pull request, then those abandoned. A
-branch opened copies its whole name, and the column shows its changes
-under its name, MR's row lit. A task that refers to anything else has a
+them, then those merged with their pull request, then those abandoned. On
+hover, each card's copy button copies a branch's whole name, or a merge
+request's link, without opening it; a branch opened shows its changes in
+the column under its name, MR's row lit. A task that refers to anything else has a
 Resources row under MR, its page listing them under their kinds, Spec,
 UAT (the links to check the result on) and Other, its agents and its
 merge requests aside: a link named by its name that opens in a tab of its

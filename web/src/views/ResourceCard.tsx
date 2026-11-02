@@ -5,7 +5,7 @@ import { Editable } from '../components/page';
 import { Button } from '../components/ui/button';
 import { writeTask } from '../state/server';
 import { ask } from '../state/ui';
-import { PickCard } from './PickCard';
+import { CopyTool, PickCard } from './PickCard';
 
 /** Where a resource points, as it is edited: whole, wrapping rather than giving way, and framed as any text edited where it stands is. */
 const EDITING = 'min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-normal wrap-anywhere text-[12.5px] text-ink-2';
@@ -13,13 +13,15 @@ const EDITING = 'min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-normal 
 /**
  * A resource's card: a web link opens in a tab of its own, anything else is
  * its name over its words. On hover, the pencil edits where it points,
- * keeping its kind, and the bin forgets it, once asked.
+ * keeping its kind, and the bin forgets it, once asked; with `copy`, a tool
+ * before them copies where it points without opening it.
  */
-export function ResourceCard({ task, r, picked, onPick }: { task: string; r: Listed; picked: boolean; onPick: () => void }) {
+export function ResourceCard({ task, r, picked, onPick, copy = false }: { task: string; r: Listed; picked: boolean; onPick: () => void; copy?: boolean }) {
   const [editing, setEditing] = useState(false);
   const url = isLink(r.where);
   const tools = (
     <>
+      {copy ? <CopyTool text={r.where.trim()} what={`${r.name}'s ${url ? 'link' : 'text'}`} /> : null}
       <Button variant="ghost" size="icon-xs" className="text-ink-3" title={`Edit ${r.name}`} aria-label={`Edit ${r.name}`} onClick={() => setEditing(true)}><Icon name="edit" size={14} /></Button>
       <Button variant="ghost" size="icon-xs" className="text-ink-3 hover:text-destructive" title={`Delete ${r.name}`} aria-label={`Delete ${r.name}`}
         onClick={() => ask({ title: `Delete the resource ${r.name}?`, sub: r.where, action: 'Delete', then: () => void writeTask('/api/resource', { task, name: r.name, remove: true }, `Deleted ${r.name}`) })}>
