@@ -49,7 +49,6 @@ function DraftsBox() {
           <DialogTitle className="flex-1 text-[17px] font-bold">Drafts</DialogTitle>
           <Button variant="secondary" size="sm" onClick={() => setPicked(NEW)}><Icon name="plus" size={14} />New</Button>
         </div>
-        <span className="px-2 text-[12px] leading-[17px] text-ink-3">Your own notes. Every task's agent can read them.</span>
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
           {shown === NEW ? <Row title="New draft" meta="not saved yet" on onPick={() => undefined} /> : null}
           {list.map((d) => (
