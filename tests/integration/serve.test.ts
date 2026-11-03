@@ -405,6 +405,39 @@ describe('a report on yan serve', () => {
   });
 });
 
+describe("user's drafts on yan serve", () => {
+  const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
+  type Listed = { id: string; title: string; text: string; sha: string; task: string | null }[];
+  const drafts = async (): Promise<Listed> => (await (await fetch(page('/api/drafts'))).json()) as Listed;
+
+  it("lists the vault's and those kept with a task before, writes each where it is, and refuses one laid over a change", async () => {
+    await commit('t005', { 'task.json': task('t005', 'drafted'), 'drafts/2026-09-01_080000.md': '# kept with t005\n' }, 'a task with an old draft');
+    const old = await until(async () => (await drafts()).find((d) => d.id === '2026-09-01_080000'), 20_000);
+    expect(old).toMatchObject({ title: 'kept with t005', task: 't005' });
+
+    expect((await post('/api/draft', { id: null, sha: '', text: 'x' }, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/draft', { id: null, sha: '', text: '  ' })).status).toBe(400);
+    const made = await post('/api/draft', { id: null, sha: '', text: '# Retry ideas\n\nback off twice' });
+    expect(made.status).toBe(200);
+    const id = ((await made.json()) as { id: string }).id;
+    expect(id).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}-retry-ideas$/);
+    expect(readFileSync(join(home, 'drafts', `${id}.md`), 'utf8')).toBe('# Retry ideas\n\nback off twice\n');
+    expect(await subject()).toBe(`draft ${id} written in yan serve`);
+
+    // The one kept with its task is written there, as it began, and not once more over a change since.
+    expect((await post('/api/draft', { id: old.id, sha: old.sha, text: 'kept, and said better' })).status).toBe(200);
+    expect(readFileSync(join(home, 'tasks/t005/drafts/2026-09-01_080000.md'), 'utf8')).toBe('kept, and said better\n');
+    expect((await post('/api/draft', { id: old.id, sha: old.sha, text: 'laid over the other' })).status).toBe(409);
+
+    // Written blank, it is removed; then it is not there to write.
+    const listed = await until(async () => (await drafts()).find((d) => d.id === id), 20_000);
+    expect((await post('/api/draft', { id, sha: listed.sha, text: '' })).status).toBe(200);
+    expect(existsSync(join(home, 'drafts', `${id}.md`))).toBe(false);
+    expect(await subject()).toBe(`draft ${id} removed in yan serve`);
+    expect((await post('/api/draft', { id, sha: listed.sha, text: 'again' })).status).toBe(409);
+  });
+});
+
 describe('the overview on yan serve', () => {
   const at = (rel: string): string => join(home, 'tasks/t004', rel);
   const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();

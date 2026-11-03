@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
@@ -8,31 +8,42 @@ import { isValidId, slugify } from './drafts.js';
 
 /**
  * The store keeps cli-kit's `draft` format, so what its own suite guarantees
- * is guaranteed here too, per task rather than per machine.
+ * is guaranteed here too, for the vault rather than per machine.
  */
 
 let drafts: Drafts;
 
-function write(id: string, body: string, ageSeconds: number): string {
-  mkdirSync(drafts.dir, { recursive: true });
-  const p = drafts.pathFor(id);
+function write(id: string, body: string, ageSeconds: number, dir = drafts.dir): string {
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, `${id}.md`);
   writeFileSync(p, body, 'utf8');
   const t = (Date.now() - ageSeconds * 1000) / 1000;
   utimesSync(p, t, t);
   return p;
 }
 
+let home = '';
 beforeEach(() => {
-  mkYanHome(mkTempDir());
-  drafts = new Drafts(Task.create('unify the auth header').id);
+  home = mkYanHome(mkTempDir());
+  drafts = new Drafts();
 });
 
 
 afterAll(cleanupTempDirs);
 
 describe('where drafts live', () => {
-  it('is drafts/ under the task', () => {
-    expect(drafts.dir).toBe(`${new Task('t001').dir}/drafts`);
+  it('is drafts/ at the top of the vault', () => {
+    expect(drafts.dir).toBe(`${home.replace(/\\/g, '/')}/drafts`);
+  });
+
+  it("reads too the ones kept in a task's own folder before, where they are, a draft at the top winning an id both have", () => {
+    const old = new Task(Task.create('unify the auth header').id).dir;
+    write('2026-09-01_090000', '# Kept with its task\n', 300, join(old, 'drafts'));
+    write('same', '# The task\'s\n', 200, join(old, 'drafts'));
+    write('same', '# The vault\'s\n', 100);
+    expect(drafts.list().map((d) => [d.id, d.title, d.task])).toEqual([['same', "The vault's", undefined], ['2026-09-01_090000', 'Kept with its task', 't001']]);
+    expect(drafts.get('2026-09-01_090000')?.body).toBe('# Kept with its task\n');
+    expect(drafts.pathOf('2026-09-01_090000')).toBe(`${old}/drafts/2026-09-01_090000.md`);
   });
 
   it('reads an absent folder as empty, and does not create it', () => {
@@ -115,6 +126,28 @@ describe('search', () => {
     write('q', 'plan two', 2);
     write('r', 'plan three', 1);
     expect(drafts.search('plan', 2).map((h) => h.id)).toEqual(['r', 'q']);
+  });
+});
+
+describe('writing whole', () => {
+  it('names a new draft for its first line, at the top, and writes an old one where it is', () => {
+    const id = drafts.write(undefined, '# Parser ideas\n\nown the header');
+    expect(id).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}-parser-ideas$/);
+    expect(readFileSync(drafts.pathFor(id ?? ''), 'utf8')).toBe('# Parser ideas\n\nown the header\n');
+    const old = join(new Task(Task.create('older').id).dir, 'drafts');
+    write('kept-before', 'before', 10, old);
+    expect(drafts.write('kept-before', 'after\n')).toBe('kept-before');
+    expect(readFileSync(join(old, 'kept-before.md'), 'utf8')).toBe('after\n');
+    expect(existsSync(drafts.pathFor('kept-before'))).toBe(false);
+  });
+
+  it('removes one written blank, and keeps two begun in the same second apart', () => {
+    const [a, b] = [drafts.write(undefined, 'same'), drafts.write(undefined, 'same')];
+    expect(a).not.toBe(b);
+    expect(drafts.count()).toBe(2);
+    expect(drafts.write(a, '  \n')).toBeUndefined();
+    expect(drafts.list().map((d) => d.id)).toEqual([b]);
+    expect(() => drafts.write('never-was', 'x')).toThrow(/no draft never-was/);
   });
 });
 

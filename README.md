@@ -4,8 +4,9 @@ Notes that outlive an agent session. We think about a task in three parts,
 and it keeps a note for each: the problem (`problem.md`: the background, and
 what the problem is), the solution (its deliverables: how things must be
 once it is solved), and the log of the decisions that steered it. Beside
-them it keeps the resources the work refers to, your own drafts, and, when
-it touches a repository, a worktree of its own. `yan` keeps those and
+them it keeps the resources the work refers to and, when it touches a
+repository, a worktree of its own; and beside every task, your own drafts,
+which every task's agent can read. `yan` keeps those and
 nothing else.
 
 An agent knows about them when you start it through `yan`. Type `yan`, pick
@@ -134,11 +135,11 @@ agent starts anyway, its first turn pushing it.
 For you:
 
 - `yan ls` — every open task, one line each, those handed to you to accept as in review and those put aside as paused; `--status all` for the rest
-- `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources and newest drafts
+- `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources, and your newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan pause [id]` — put an open task aside, so nothing of it takes room here: its worktrees go back to the pool, refused while one holds work nowhere else (`--force` throws it away), and it keeps its state, open or in review, for later; no agent is started on it until it is resumed
 - `yan resume [id]` — take a paused task up again, as it was; its worktrees come back the next time `yan` starts its agent, on the branch it kept last
-- `yan draft [id]` — your own notes about a task, in your editor
+- `yan draft` — your own notes, in your editor: the vault's rather than one task's, so every task's agent can read them, and committed and pushed as soon as one is written; `ls`, `cat <id>`, `search <words>` and `dir` read them
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
@@ -146,7 +147,7 @@ For you:
 
 For the agent:
 
-- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, and where each branch stands (ahead of the default branch, unpushed, uncommitted, whether the task keeps the one the worktree is on, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about; `--json` lists every artifact with its web address in the vault's repository, for a report or a recap to build on
+- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, where each branch stands (ahead of the default branch, unpushed, uncommitted, whether the task keeps the one the worktree is on, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about, and your ten newest drafts by id and title, for the agent to read one with `yan draft cat <id>` when it touches the work and never to write one; `--json` lists every artifact with its web address in the vault's repository, and every draft, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
@@ -196,7 +197,16 @@ is white with its button black in either theme, so it stands off a dark
 page, and its × closes it. A finish is news, in Latest, in its count, and as a green dot on the
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an
-amber dot, until it is answered. Hidden, the task list folds to a rail:
+amber dot, until it is answered. Drafts, under Latest, opens your drafts
+in a large box over the page: the list down its side, newest first, those
+kept with a task before saying which, with New above it, and the one
+picked beside it, its Markdown drawn. There is no edit mode: a click on the
+draft writes it there, where the click fell, in the same place, and
+clicking away, Escape or ⌘↩ saves what changed, committed and pushed, a
+draft left blank removed; Escape again closes the box. A draft changed
+since the page read it is not written over: the save is refused and what
+was written stays, being written. With no drafts, the box opens on a new
+one, ready to write. Hidden, the task list folds to a rail:
 finding a task, starting one, Latest, and a square for each task in review
 or in progress, not paused, the one being read framed and each one's agent marked as
 on the list. A right click on a task's row in the list, or its square on
@@ -438,11 +448,12 @@ what it was written from), its bar says legacy and what changed.
   config.json                  { cli, model, effort, skipPermissions }: the agent bare yan starts; artifactLinks: how a vault file opens on a forge yan cannot tell, an http(s) address; source: { include, exclude, replace }: which files of a branch yan serve counts as source code
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
+  drafts/<draft-id>.md         yours, every task's, in the format of the `draft` CLI: <stamp>[-<slug of its title>]
   tasks/<id>/
     task.json                  title, state (open, uat, done, abandoned), pausedAt while an open task is paused, repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
-    drafts/<draft-id>.md       yours, in the format of the `draft` CLI
+    drafts/<draft-id>.md       yours, from when drafts were kept per task: still read, and written, where they are
     artifacts/                 whatever the work produced worth keeping, as it stands now
       report.html              the report yan:uat writes, report.json beside it: the only files loose here
       design/                  what you will see: pages, canvases, mockups, palettes, icons, and the scripts that build them

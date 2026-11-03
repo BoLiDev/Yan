@@ -170,7 +170,8 @@ function peekLines(task: Task): string[] {
     ...section('Resources', '', resourceLines(data)),
   ];
 
-  const drafts = new Drafts(task.id);
+  // The drafts are every task's, the newest of them beside this one's own notes.
+  const drafts = new Drafts();
   const listed = drafts.list({ limit: DRAFTS_SHOWN });
   if (listed.length > 0) {
     const more = drafts.count() - listed.length;
@@ -181,7 +182,7 @@ function peekLines(task: Task): string[] {
 }
 
 export const command = new Command('peek')
-  .description("your glance at one task: its trees, the start of its problem, its resources and drafts - an agent reads 'yan context'")
+  .description("your glance at one task: its trees, the start of its problem, its resources, and your newest drafts - an agent reads 'yan context'")
   .argument('[task-id]', 'defaults to $YAN_TASK, or asks at a terminal')
   .action(
     action('yan peek', async (given: string | undefined) => {

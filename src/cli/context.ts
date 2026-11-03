@@ -9,7 +9,9 @@ import { byKind, resourceLines } from './shared/resources.js';
 import { coverage } from './shared/uat.js';
 import { terminalWidth } from './shared/style.js';
 import { requiredTask } from './shared/task-id.js';
+import { Drafts } from '../records/drafts/index.js';
 import { Uat, type Task } from '../records/task/index.js';
+import { localStamp } from '../util/time.js';
 
 /**
  * `yan context` — the agent's read of a task's notes: the problem whole,
@@ -43,6 +45,25 @@ function problemLines(task: Task): string[] {
   return [`problem  ${task.problem}`, ...(text === '' ? ['nothing written yet'] : text.split(/\r?\n/))];
 }
 
+/** How many of the newest drafts are named before the rest become a count. */
+const DRAFTS_SHOWN = 10;
+
+/**
+ * The user's newest drafts, which are every task's: named, for the agent to
+ * read one whose title touches the work, and never to write one.
+ */
+function draftLines(): string[] {
+  const drafts = new Drafts();
+  const listed = drafts.list({ limit: DRAFTS_SHOWN });
+  if (listed.length === 0) return [];
+  const more = drafts.count() - listed.length;
+  return [
+    "drafts  the user's own notes, shared by every task - 'yan draft cat <id>' reads one whose title touches this work; never write one",
+    ...listed.map((d) => `  ${d.id}  ${localStamp(new Date(d.updated))}  ${d.title}`),
+    ...(more > 0 ? [`  and ${more} more - 'yan draft ls --plain'`] : []),
+  ];
+}
+
 function contextLines(task: Task): string[] {
   const data = task.read();
   const lines = [`${task.id}  ${data.title}`, '', ...problemLines(task), ''];
@@ -66,6 +87,9 @@ function contextLines(task: Task): string[] {
 
   const progress = taskProgress(task);
   if (progress.length > 0) lines.push('', 'branches', ...progressLines(progress));
+
+  const drafts = draftLines();
+  if (drafts.length > 0) lines.push('', ...drafts);
   return lines;
 }
 
@@ -84,11 +108,12 @@ function contextJson(task: Task): unknown {
     artifacts: listArtifacts(task.dir).map((a) => ({ ...a, file: join(task.dir, 'artifacts', a.path), url: link?.(a.path) ?? null })),
     uat: new Uat(task).read(),
     branches: taskProgress(task),
+    drafts: new Drafts().list(),
   };
 }
 
 export const command = new Command('context')
-  .description('a summary of a task as it stands, for the agent working on it: the problem and its file, the deliverables, the resources, the artifacts and what each deliverable is checked by, where each branch stands')
+  .description("a summary of a task as it stands, for the agent working on it: the problem and its file, the deliverables, the resources, the artifacts and what each deliverable is checked by, where each branch stands, and the user's newest drafts")
   .option('--task <id>', 'the task; defaults to $YAN_TASK')
   .option('--json', 'the same as JSON, every artifact listed with its web address in the vault\'s repository')
   .addHelpText(
@@ -104,6 +129,11 @@ branch, how many of its commits no remote branch has, and how many changes
 are uncommitted in its worktree, and says when the worktree is on a branch
 the task does not keep, which 'yan branch' keeps; a repository with no
 worktree on this machine is read from its clone as last fetched.
+
+The drafts are the user's own notes, the vault's rather than this task's:
+the newest ten are named, newest first, and 'yan draft cat <id>' reads one.
+An agent reads them and never writes one. With --json, every draft is
+listed.
 
 With --json, uat is what 'yan uat' records: each file in artifacts/uat/
 with the deliverables it shows, and the notes on how the others were

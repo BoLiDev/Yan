@@ -1,15 +1,23 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Task } from '../task/index.js';
+import { YanError } from '../../util/error.js';
 import { normalizePath } from '../../util/paths.js';
 import { localDay, localTime } from '../../util/time.js';
+import { draftsDir, tasksDir } from '../../util/vault.js';
 
 /**
- * One task's drafts folder. Ported from cli-kit's `drafts.ts` rather than
- * imported from it, so a machine without cli-kit still lists them.
+ * The vault's drafts folder: `user`'s own notes, one folder for every task,
+ * so every agent on every task can read them. Ported from cli-kit's
+ * `drafts.ts` rather than imported from it, so a machine without cli-kit
+ * still lists them.
  *
- *   2026-09-16_051516.md                  an untitled draft
- *   2026-09-16_051516-parser-ideas.md     one started with a title
+ *   drafts/2026-09-16_051516.md                  an untitled draft
+ *   drafts/2026-09-16_051516-parser-ideas.md     one started with a title
+ *
+ * Drafts were once kept per task, in `tasks/<id>/drafts/`. Those are read
+ * where they are, as drafts like any other, and edited there: a vault is
+ * shared with machines whose yan still looks for them in their task, so
+ * none is moved. A draft at the top wins an id one of those also has.
  *
  * The title is the first non-blank line with any leading `#` stripped;
  * `updated` is the file's mtime; every list is newest first. Reading never
@@ -21,6 +29,8 @@ const EXT = '.md';
 export interface DraftSummary {
   readonly id: string;
   readonly title: string;
+  /** The task whose folder holds it, for a draft from when drafts were kept per task; absent for the rest. */
+  readonly task?: string;
   /** ISO 8601, from the file's modification time. */
   readonly updated: string;
   /** Body after the title, whitespace-collapsed, at most 120 characters. */
@@ -47,6 +57,7 @@ interface Entry {
   readonly id: string;
   readonly path: string;
   readonly mtimeMs: number;
+  readonly task?: string;
 }
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -56,7 +67,8 @@ export function isValidId(id: string): boolean {
   return ID_RE.test(id) && !id.includes('..');
 }
 
-function headline(body: string): { title: string; preview: string } {
+/** A draft's title and the start of the rest of it, as every list shows them. */
+export function headline(body: string): { title: string; preview: string } {
   const lines = body
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -68,23 +80,61 @@ function headline(body: string): { title: string; preview: string } {
 
 function load(e: Entry): Draft {
   const body = readFileSync(e.path, 'utf8');
-  return { id: e.id, path: e.path, body, updated: new Date(e.mtimeMs).toISOString(), ...headline(body) };
+  return { id: e.id, path: e.path, body, updated: new Date(e.mtimeMs).toISOString(), ...headline(body), ...(e.task === undefined ? {} : { task: e.task }) };
 }
 
 function summary(d: Draft): DraftSummary {
-  return { id: d.id, title: d.title, updated: d.updated, preview: d.preview };
+  return { id: d.id, title: d.title, updated: d.updated, preview: d.preview, ...(d.task === undefined ? {} : { task: d.task }) };
+}
+
+/** The `.md` files directly in `dir`, as entries; none when it is not there. */
+function filesIn(dir: string, task?: string): Entry[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const found: Entry[] = [];
+  for (const name of names) {
+    if (!name.endsWith(EXT)) continue;
+    const id = name.slice(0, -EXT.length);
+    const path = normalizePath(join(dir, name));
+    const st = statSync(path);
+    if (!st.isFile() || !isValidId(id)) continue;
+    found.push({ id, path, mtimeMs: st.mtimeMs, ...(task === undefined ? {} : { task }) });
+  }
+  return found;
+}
+
+/** The drafts from when they were kept per task, each in its task's folder. */
+function perTask(): Entry[] {
+  let ids: string[];
+  try {
+    ids = readdirSync(tasksDir());
+  } catch {
+    return [];
+  }
+  return ids.flatMap((id) => filesIn(join(tasksDir(), id, 'drafts'), id));
 }
 
 export class Drafts {
   /** Forward slashes on every platform, like `Task.dir`. */
   public readonly dir: string;
 
-  public constructor(task: string) {
-    this.dir = normalizePath(join(new Task(task).dir, 'drafts'));
+  public constructor() {
+    this.dir = normalizePath(draftsDir());
   }
 
+  /** Where a new draft `id` is written. */
   public pathFor(id: string): string {
     return normalizePath(join(this.dir, id + EXT));
+  }
+
+  /** Where draft `id` is, at the top or in a task's folder from before; undefined when there is none. */
+  public pathOf(id: string): string | undefined {
+    if (!isValidId(id)) return undefined;
+    return this.entries().find((e) => e.id === id)?.path;
   }
 
   /** The folder, created if this is the first draft. */
@@ -94,22 +144,37 @@ export class Drafts {
   }
 
   private entries(): Entry[] {
-    let names: string[];
-    try {
-      names = readdirSync(this.dir);
-    } catch {
-      return [];
-    }
-    const found: Entry[] = [];
-    for (const name of names) {
-      if (!name.endsWith(EXT)) continue;
-      const path = this.pathFor(name.slice(0, -EXT.length));
-      const st = statSync(path);
-      if (!st.isFile()) continue;
-      found.push({ id: name.slice(0, -EXT.length), path, mtimeMs: st.mtimeMs });
-    }
+    const top = filesIn(this.dir);
+    const ids = new Set(top.map((e) => e.id));
+    const found = [...top, ...perTask().filter((e) => !ids.has(e.id))];
     found.sort((a, b) => b.mtimeMs - a.mtimeMs);
     return found;
+  }
+
+  /**
+   * Draft `id` written whole, where it is; with no id, a new one at the
+   * top, named for its first line. One written blank is removed, as the
+   * editor's is. Returns its id, or undefined when nothing is kept.
+   */
+  public write(id: string | undefined, body: string): string | undefined {
+    const path = id === undefined ? undefined : this.pathOf(id);
+    if (id !== undefined && path === undefined) throw new YanError('draft_missing', `no draft ${id} in ${this.dir} - 'yan draft ls --plain' lists them`);
+    if (body.trim() === '') {
+      if (path !== undefined) unlinkSync(path);
+      return undefined;
+    }
+    const text = body.endsWith('\n') ? body : `${body}\n`;
+    if (path !== undefined) {
+      writeFileSync(path, text, 'utf8');
+      return id;
+    }
+    const named = newDraftId(headline(body).title.split(/\s+/).filter((w) => w !== ''));
+    // Two begun in the same second under one title are two drafts, not one written over.
+    let made = named;
+    for (let n = 2; existsSync(this.pathFor(made)); n++) made = `${named}-${n}`;
+    this.ensureDir();
+    writeFileSync(this.pathFor(made), text, 'utf8');
+    return made;
   }
 
   /** How many there are, without reading any. */
@@ -130,9 +195,8 @@ export class Drafts {
 
   public get(id: string): Draft | undefined {
     if (!isValidId(id)) return undefined;
-    const path = this.pathFor(id);
-    if (!existsSync(path)) return undefined;
-    return load({ id, path, mtimeMs: statSync(path).mtimeMs });
+    const e = this.entries().find((x) => x.id === id);
+    return e === undefined ? undefined : load(e);
   }
 
   /** Case-insensitive substring search over the whole file, newest first. */

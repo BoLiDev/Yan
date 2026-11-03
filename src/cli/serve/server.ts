@@ -4,6 +4,7 @@ import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream';
 import { Worker } from 'node:worker_threads';
 import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
+import { Drafts } from '../../records/drafts/index.js';
 import { Task, parseUat } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
 import { cloneOf } from '../../util/machine.js';
@@ -22,7 +23,7 @@ import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
-import type { BranchBlob, CommitPatch, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
+import type { BranchBlob, CommitPatch, DraftWritten, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
 import { buildLoads, buildPrint } from './build.js';
 
 /**
@@ -484,6 +485,7 @@ export class YanServer {
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
     if (p === '/api/worktrees') return json(res, await this.worktrees.states());
+    if (p === '/api/drafts') return json(res, await this.view.drafts());
     if (p === '/api/launch/repos') return json(res, this.launches.repos());
     if (p === '/api/yan/updates') return json(res, await this.updater.behind());
     if (p === '/api/yan/update') return json(res, this.updater.now);
@@ -606,10 +608,10 @@ export class YanServer {
    * fails leaves the change committed here. The git of it runs on a thread
    * of its own, so terminals and every other request go on meanwhile.
    */
-  private async save(res: ServerResponse, message: string): Promise<void> {
+  private async save(res: ServerResponse, message: string, more: Partial<DraftWritten> = {}): Promise<void> {
     const warning = await saveOffThread(this.options.vaultDir, message);
     await this.tick();
-    json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
+    json(res, { ok: true, warning, status: this.status, ...more } satisfies WriteResult);
   }
 
   /**
@@ -658,6 +660,7 @@ export class YanServer {
     '/api/resource': this.change((res, given) => this.setResource(res, given)),
     '/api/agents': this.change((res, given) => this.orderAgents(res, given)),
     '/api/report/edit': this.change((res, given) => this.editReport(res, given)),
+    '/api/draft': this.change((res, given) => this.editDraft(res, given)),
   };
 
   /** A change to the vault from the page, which waits its turn. */
@@ -840,6 +843,38 @@ export class YanServer {
       return send(res, 400, (err as Error).message);
     }
     return this.save(res, `${id}: report edited in yan serve`);
+  }
+
+  /**
+   * `{ id, sha, text }`: one of `user`'s drafts written whole on the page,
+   * `id` null for a new one, which is named for its first line; written
+   * blank, it is removed. `sha` is the draft the edit began from: when the
+   * file is no longer that, the edit is refused rather than laid over what
+   * was written meanwhile. Answers its id, null once removed.
+   */
+  private async editDraft(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, sha, text] = [given.id, given.sha, given.text];
+    if ((id !== null && typeof id !== 'string') || (id !== null && typeof sha !== 'string') || typeof text !== 'string') {
+      return send(res, 400, 'id (null for a new draft), sha and text are needed');
+    }
+    const drafts = new Drafts();
+    let kept: string | undefined;
+    try {
+      if (id === null) {
+        if (text.trim() === '') return send(res, 400, 'a new draft needs something written in it');
+        kept = drafts.write(undefined, text);
+      } else {
+        const file = drafts.pathOf(id);
+        if (file === undefined) return send(res, 409, 'that draft is not there any more - it was removed since this page loaded it');
+        const now = (await gitAsync(this.options.vaultDir, ['hash-object', '--', file])).stdout.trim();
+        if (now !== sha) return send(res, 409, 'that draft changed since this page loaded it - copy what you wrote, reload it and edit again');
+        kept = drafts.write(id, text);
+      }
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    const did = id === null ? 'written' : kept === undefined ? 'removed' : 'edited';
+    return this.save(res, `draft ${kept ?? (id as string)} ${did} in yan serve`, { id: kept ?? null });
   }
 
   private events(req: IncomingMessage, res: ServerResponse): void {

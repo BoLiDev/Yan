@@ -20,8 +20,9 @@ import { isDirectory, normalizePath } from './paths.js';
 
 /**
  * The `vault.json` version this build reads and writes. Version 2 is the
- * memory-only layout: deliverables inside `task.json`, `drafts/` beside it,
- * `learnings/` at the top. A version 1 vault is refused, so nothing
+ * memory-only layout: deliverables inside `task.json`, `drafts/` and
+ * `learnings/` at the top (drafts were once beside `task.json`, and are still
+ * read there). A version 1 vault is refused, so nothing
  * half-reads the old shape.
  */
 export const VAULT_VERSION = 2;
@@ -162,6 +163,11 @@ export function tasksDir(): string {
 
 export function taskDir(id: string): string {
   return join(vaultDir(), 'tasks', id);
+}
+
+/** `drafts/` — `user`'s own notes, read by every task. */
+export function draftsDir(): string {
+  return join(vaultDir(), 'drafts');
 }
 
 /** `learnings/` — what `user` asked to keep beyond one task. */

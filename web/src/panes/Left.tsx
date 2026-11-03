@@ -173,6 +173,7 @@ export function Left() {
   const onLatest = r.view === 'latest';
   const shown = useUI((s) => s.prefs.left);
   const creating = useUI((s) => s.newTask);
+  const drafting = useUI((s) => s.drafts);
   const { data: terminals } = useTerminals();
   const unseen = index && seen ? tasksWithNews(index, seen, allNews(terminals, seen)) : 0;
   const top = (
@@ -204,6 +205,11 @@ export function Left() {
         </a>
         <Bell />
       </div>
+      {/* The drafts are no task's: their box opens over whatever is shown. */}
+      <button type="button" className={cn(row(), 'font-bold', drafting && 'bg-card ring-1 ring-border hover:bg-card')} onClick={() => useUI.setState({ drafts: true })}>
+        <Icon name="note" size={17} />
+        <span className={GROW}>Drafts</span>
+      </button>
     </>
   );
   const body = !index || !seen ? null : (

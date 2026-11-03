@@ -67,6 +67,10 @@ interface UI {
   palette: boolean;
   /** The new task's box is open. */
   newTask: boolean;
+  /** The drafts' box is open. */
+  drafts: boolean;
+  /** A draft whose saving failed after its box was left, kept to be shown again, being written, in place of losing it. */
+  draftKept: KeptDraft | null;
   /** What each new task started from this page was given, by its launch, for the page to show while it is made. */
   launched: Readonly<Record<string, Launched>>;
   /** The tasks visited, the last first, kept in this browser: what ⌘K offers before anything is typed. */
@@ -96,6 +100,13 @@ interface UI {
   /** The box a task's menu opened over the page: renaming it, or having its agent close it. */
   taskAct: TaskAct | null;
   said: Readonly<Record<string, Said>>;
+}
+
+/** A draft written on the page and not saved: which it is, null for a new one, the sha it was begun from, and what was written. */
+export interface KeptDraft {
+  readonly id: string | null;
+  readonly sha: string;
+  readonly text: string;
 }
 
 /** A new task as the page asked for it: its title, and each repository with the packages it is about, `[]` for all. */
@@ -138,6 +149,8 @@ export const useUI = create<UI>(() => ({
   status: null,
   palette: false,
   newTask: false,
+  drafts: false,
+  draftKept: null,
   launched: {},
   recent: load<string[]>(RECENT_KEY, []),
   open: {},

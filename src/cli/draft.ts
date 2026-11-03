@@ -2,36 +2,44 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { Command } from 'commander';
-import { chosenTask } from './shared/task-id.js';
 import { isTty } from './shared/tty.js';
 import { action, out } from './shared/action.js';
+import { saveVault } from './shared/vault-push.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
-import { Task } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
 import { localStamp } from '../util/time.js';
+import { vaultDir } from '../util/vault.js';
 import { which } from '../util/which.js';
 
 /**
- * `yan draft` — `user`'s own notes about one task, kept in
- * `tasks/<id>/drafts/` in the format of cli-kit's `draft`.
+ * `yan draft` — `user`'s own notes, the vault's rather than one task's, so
+ * every agent on every task reads them; kept in `drafts/` in the format of
+ * cli-kit's `draft`, with those once kept per task read where they are.
  *
- *     yan draft [task-id] [--title <words>]   write one, in the editor
- *     yan draft ls [task-id]                  pick one to open; lists when there is no terminal
- *     yan draft cat <draft-id> [task-id]      print one
- *     yan draft search <words...> [task-id]   the ones containing a phrase
- *     yan draft dir [task-id]                 the folder
+ *     yan draft [--title <words>]   write one, in the editor
+ *     yan draft ls                  pick one to open; lists when there is no terminal
+ *     yan draft cat <draft-id>      print one
+ *     yan draft search <words...>   the ones containing a phrase
+ *     yan draft dir                 the folder
  *
  * Writing is `user`'s alone: a draft is what they thought outside the
  * conversation, and one written by an agent would be indistinguishable from
  * it. So the paths that open an editor refuse without a terminal, and the
- * reading paths work anywhere.
+ * reading paths work anywhere. A draft written or changed is committed and
+ * pushed at once, so the agents on other machines, and yan serve's page,
+ * which shows the vault as committed, have it.
  */
 
 /** The default number of rows a listing prints. */
 const LIST_LIMIT = 20;
 
-async function taskFor(command: string, given: string | undefined, question: string): Promise<string> {
-  return (await chosenTask(given, command, question)).id;
+/** Commit and push the vault with what the editor left; a push that fails leaves it committed here, and says so. */
+function save(message: string): void {
+  try {
+    saveVault(vaultDir(), message);
+  } catch (err) {
+    process.stderr.write(`kept here, but the vault was not pushed: ${(err as Error).message}\n`);
+  }
 }
 
 /**
@@ -116,9 +124,9 @@ interface DraftDeps {
  *
  * @returns the path when the draft was kept, `undefined` when it was discarded.
  */
-export function writeDraft(task: string, title: readonly string[], deps: DraftDeps = {}): string | undefined {
+export function writeDraft(title: readonly string[], deps: DraftDeps = {}): string | undefined {
   userOnly('writing a draft', deps.tty ?? isTty);
-  const drafts = new Drafts(task);
+  const drafts = new Drafts();
   drafts.ensureDir();
   const path = drafts.pathFor(newDraftId(title));
   const initial = titleTemplate(title);
@@ -130,16 +138,23 @@ export function writeDraft(task: string, title: readonly string[], deps: DraftDe
     return undefined;
   }
   out(`saved ${path}`);
+  save(`draft ${basename(path, '.md')} written`);
   return path;
 }
 
 /** Open a draft that already exists; one emptied in the editor is removed. */
 function editDraft(path: string): void {
   const before = mtimeOf(path);
+  const id = basename(path, '.md');
   openInEditor(path, false);
-  if (discardIfUntouched(path, '')) out(`emptied, so removed ${path}`);
-  else if (mtimeOf(path) === before) out(`unchanged ${path}`);
-  else out(`saved ${path}`);
+  if (discardIfUntouched(path, '')) {
+    out(`emptied, so removed ${path}`);
+    save(`draft ${id} removed`);
+  } else if (mtimeOf(path) === before) out(`unchanged ${path}`);
+  else {
+    out(`saved ${path}`);
+    save(`draft ${id} edited`);
+  }
 }
 
 // ---------------------------------------------------------------- listing --
@@ -171,20 +186,18 @@ interface LsOptions {
 
 const ls = new Command('ls')
   .description('pick a draft to open; with --plain or --json, or without a terminal, list them')
-  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .option('--plain', 'one line per draft: id, updated, title')
   .option('--json', 'the same as JSON, with a preview of each')
   .option('--limit <n>', `at most n drafts (default ${LIST_LIMIT} when listing)`)
   .option('--since <date>', 'only drafts updated at or after this date')
   .action(
-    action('yan draft ls', async (given: string | undefined, options: LsOptions) => {
+    action('yan draft ls', async (options: LsOptions) => {
       const listing = options.plain === true || options.json === true || !isTty();
       const limit = positiveInt('--limit', options.limit) ?? (listing ? LIST_LIMIT : undefined);
       const since = dateOf(options.since);
       if (!listing) userOnly('opening a draft', isTty);
 
-      const task = await taskFor('yan draft ls', given, 'Whose drafts do you want to see?');
-      const drafts = new Drafts(task);
+      const drafts = new Drafts();
       const rows = drafts.list({ ...(limit === undefined ? {} : { limit }), ...(since === undefined ? {} : { since }) });
 
       if (options.json === true) {
@@ -196,26 +209,24 @@ const ls = new Command('ls')
         return;
       }
       if (rows.length === 0) {
-        out(`no drafts yet in ${drafts.dir} - 'yan draft ${task}' writes one`);
+        out(`no drafts yet in ${drafts.dir} - 'yan draft' writes one`);
         return;
       }
       const { chooseDraft } = await import('../ui/prompts.js');
-      const id = await chooseDraft(rows.map((d) => ({ ...d, updated: localStamp(new Date(d.updated)) })), task);
-      editDraft(drafts.pathFor(id));
+      const id = await chooseDraft(rows.map((d) => ({ ...d, updated: localStamp(new Date(d.updated)) })));
+      editDraft(drafts.pathOf(id) ?? drafts.pathFor(id));
     }),
   );
 
 const cat = new Command('cat')
   .description('print one draft')
   .argument('<draft-id>', "as 'yan draft ls --plain' lists it")
-  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .action(
-    action('yan draft cat', async (id: string, given: string | undefined) => {
-      const task = await taskFor('yan draft cat <draft-id>', given, 'Whose draft is it?');
-      const drafts = new Drafts(task);
+    action('yan draft cat', async (id: string) => {
+      const drafts = new Drafts();
       const draft = drafts.get(id);
       if (draft === undefined) {
-        throw new YanError('draft_missing', `no draft ${id} in ${drafts.dir} - 'yan draft ls --plain ${task}' lists them`);
+        throw new YanError('draft_missing', `no draft ${id} in ${drafts.dir} - 'yan draft ls --plain' lists them`);
       }
       process.stdout.write(draft.body.endsWith('\n') ? draft.body : `${draft.body}\n`);
     }),
@@ -228,21 +239,15 @@ interface SearchOptions {
 
 const search = new Command('search')
   .description('the drafts containing a phrase, newest first, with a snippet')
-  .argument('<words...>', 'the phrase, matched ignoring case; a last word naming a task is the task')
+  .argument('<words...>', 'the phrase, matched ignoring case')
   .option('--json', 'the hits as JSON')
   .option('--limit <n>', `at most n hits (default ${LIST_LIMIT})`)
   .action(
     action('yan draft search', async (words: string[], options: SearchOptions) => {
-      // The task comes last so a session can leave it off; a last word is the
-      // task only when a task of that name exists, never by its spelling.
-      const last = words.at(-1);
-      const given = words.length > 1 && last !== undefined && Task.exists(last) ? last : undefined;
-      const phrase = (given === undefined ? words : words.slice(0, -1)).join(' ').trim();
+      const phrase = words.join(' ').trim();
       if (phrase === '') throw YanError.usage('draft_usage', 'search needs a word or a phrase');
       const limit = positiveInt('--limit', options.limit) ?? LIST_LIMIT;
-
-      const task = await taskFor('yan draft search <words...>', given, 'Whose drafts do you want to search?');
-      const hits = new Drafts(task).search(phrase, limit);
+      const hits = new Drafts().search(phrase, limit);
       if (options.json === true) {
         out(JSON.stringify(hits, null, 2));
         return;
@@ -256,42 +261,39 @@ const search = new Command('search')
 
 const dir = new Command('dir')
   .description('print the drafts folder')
-  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
   .action(
-    action('yan draft dir', async (given: string | undefined) => {
-      const task = await taskFor('yan draft dir', given, 'Whose drafts folder do you want?');
-      const drafts = new Drafts(task);
+    action('yan draft dir', async () => {
+      const drafts = new Drafts();
       out(drafts.dir);
       if (!existsSync(drafts.dir)) process.stderr.write('draft dir: not there yet - the first draft creates it\n');
     }),
   );
 
 export const command = new Command('draft')
-  .description("the user's own notes about a task: write, list, read and search them")
-  .argument('[task-id]', 'the task; defaults to $YAN_TASK, or asks when there is a terminal')
+  .description("the user's own notes, which every task shares: write, list, read and search them; an agent reads them, never writes one")
   .option('--title <words>', 'start the draft with this heading, and put it in the file name')
   .addHelpText(
     'after',
     `
-Drafts are the user's own notes about one task, written outside the
-conversation: ideas, scratch, what to raise next time. They live in
-tasks/<id>/drafts/<draft-id>.md, in the format of the 'draft' CLI, so a note
-moves between the two by moving the file. 'yan peek' lists the newest, and an
-agent reads one with 'yan draft cat' when it looks relevant. An agent never
-writes one, which is why writing refuses without a terminal.
+Drafts are the user's own notes, written outside the conversation: ideas,
+scratch, what to raise next time. They are the vault's, not one task's, so
+every agent on every task can read them: 'yan context' lists the newest, and
+an agent reads one with 'yan draft cat' when its title touches the work. An
+agent never writes one, which is why writing refuses without a terminal; the
+user writes them here or on yan serve's page.
 
-Every command takes the task last and defaults to $YAN_TASK, so inside a
-session 'yan draft cat 2026-09-16_051516' is enough. For search, a last word
-that names a task is the task: 'yan draft search parser ideas t127'.
+They live in drafts/<draft-id>.md at the top of the vault, in the format of
+the 'draft' CLI, so a note moves between the two by moving the file. Drafts
+once kept in a task's own drafts/ folder are read where they are. A draft
+written or changed here is committed and pushed at once.
 
 The editor is $DRAFT_EDITOR, else $EDITOR, else nvim. A draft left empty, or
 with nothing but its --title, is discarded when the editor exits.`,
   )
   .action(
-    action('yan draft', async (given: string | undefined, options: { title?: string }) => {
-      const task = await taskFor('yan draft', given, 'Which task is this draft about?');
+    action('yan draft', async (options: { title?: string }) => {
       const title = (options.title ?? '').split(/\s+/).filter((w) => w !== '');
-      writeDraft(task, title);
+      writeDraft(title);
     }),
   )
   .addCommand(ls)

@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import { asRecord, asString, recordOrNone } from '../../util/narrow.js';
 import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
+import { headline } from '../../records/drafts/index.js';
 import { BRANCH_MARKS, branchMark, type BranchMark } from '../../records/task/index.js';
 import { BlobReader, gitAsync } from './blobs.js';
-import type { ArtifactFile, Deliverable, LogEntry, Push, TaskDetail, TaskSummary } from './wire.js';
+import type { ArtifactFile, Deliverable, Draft, LogEntry, Push, TaskDetail, TaskSummary } from './wire.js';
 
 /**
  * The vault as `yan serve` shows it: every task at one commit, and when each
@@ -195,6 +196,10 @@ export function readTaskJson(raw: unknown): TaskJson {
   };
 }
 
+/** A draft at the top of the vault, and one kept in its task's own folder before, by the task: a name of the draft CLI's, a `.md` file directly in the folder. */
+const DRAFT_AT_TOP = /^drafts\/[A-Za-z0-9][A-Za-z0-9._-]*\.md$/;
+const DRAFT_IN_TASK = /^tasks\/([^/]+)\/drafts\/[A-Za-z0-9][A-Za-z0-9._-]*\.md$/;
+
 /** Commits in a row on one task, this close together, are one push. */
 const PUSH_GAP_S = 15 * 60;
 const MAX_PUSHES = 200;
@@ -219,6 +224,10 @@ export class VaultView {
   private byPath = new Map<string, TreeEntry>();
   private tasks = new Map<string, TaskFiles>();
   private parsed = new Map<string, TaskJson>();
+  /** The drafts' files, `drafts/<id>.md` and those kept per task before, `tasks/<id>/drafts/<id>.md`. */
+  private draftFiles: TreeEntry[] = [];
+  /** When a commit last changed each file under drafts/, by path. */
+  private draftTimes = new Map<string, number>();
   private loaded: string | undefined;
 
   public constructor(public readonly dir: string) {
@@ -248,8 +257,22 @@ export class VaultView {
       }
     }
 
+    // drafts/ is the vault's, not a task's: its history is read beside the tasks', so a push of the tasks' never counts it.
+    const drafted = await readHistory(this.dir, descends ? [`${this.loaded}..${commit}`] : [commit], 'drafts');
+    if (!descends) this.draftTimes = new Map();
+    for (const c of [...drafted].reverse()) {
+      for (const f of c.files) {
+        if (f.status === 'D') this.draftTimes.delete(f.path);
+        else this.draftTimes.set(f.path, c.at);
+      }
+    }
+
     const entries = await listTree(this.dir, commit, 'tasks');
     this.byPath = new Map(entries.map((e) => [e.path, e]));
+    this.draftFiles = [
+      ...(await listTree(this.dir, commit, 'drafts')).filter((e) => DRAFT_AT_TOP.test(e.path)),
+      ...entries.filter((e) => DRAFT_IN_TASK.test(e.path)),
+    ];
     this.tasks = new Map();
     for (const e of entries) {
       const [, id, name, ...rest] = e.path.split('/');
@@ -272,6 +295,26 @@ export class VaultView {
     if (this.loaded === undefined) return undefined;
     const r = await gitAsync(this.dir, ['rev-parse', '--verify', '--quiet', `${this.loaded}:${path}`]);
     return r.code === 0 ? this.blobs.read(r.stdout.trim()) : undefined;
+  }
+
+  /**
+   * `user`'s drafts at the commit loaded, newest first: those at the top of
+   * the vault, and those kept in a task's own folder before, one at the top
+   * winning an id both have.
+   */
+  public async drafts(): Promise<Draft[]> {
+    const seen = new Set<string>();
+    const out: Draft[] = [];
+    for (const e of this.draftFiles) {
+      const name = e.path.slice(e.path.lastIndexOf('/') + 1, -'.md'.length);
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const text = (await this.blobs.read(e.sha))?.toString('utf8') ?? '';
+      const task = DRAFT_IN_TASK.exec(e.path)?.[1] ?? null;
+      const changed = task === null ? this.draftTimes.get(e.path) ?? 0 : this.times.get(e.path)?.changed ?? 0;
+      out.push({ id: name, title: headline(text).title, text, sha: e.sha, changed, task });
+    }
+    return out.sort((a, b) => b.changed - a.changed || b.id.localeCompare(a.id));
   }
 
   public entry(path: string): TreeEntry | undefined {

@@ -66,8 +66,9 @@ function layDownSkeleton(dir: string, name: string): void {
     [
       `# ${name}`,
       '',
-      "A yan vault: one context's tasks — their problems, deliverables, logs,",
-      'drafts and artifacts — and the learnings worth keeping beyond one task.',
+      "A yan vault: one context's tasks — their problems, deliverables, logs",
+      'and artifacts — your drafts, which every task reads, and the learnings',
+      'worth keeping beyond one task.',
       '',
       'The code lives somewhere else entirely. To use this vault on another',
       'machine:',

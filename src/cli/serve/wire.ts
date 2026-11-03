@@ -242,6 +242,25 @@ export interface WriteResult {
   readonly status: Status;
 }
 
+/** One of `user`'s drafts as the commit shown has it: the vault's own notes, which every task reads. */
+export interface Draft {
+  readonly id: string;
+  /** Its first line, without the heading's marks; `(empty)` when there is none. */
+  readonly title: string;
+  readonly text: string;
+  /** Its blob, which an edit names as what it began from. */
+  readonly sha: string;
+  /** When a commit last changed it, Unix seconds. */
+  readonly changed: number;
+  /** The task whose own folder holds it, for one from when drafts were kept per task; null for the rest. */
+  readonly task: string | null;
+}
+
+/** A draft saved from the page: its id, which a new one is given then; null once it was written blank, and so removed. */
+export interface DraftWritten extends WriteResult {
+  readonly id: string | null;
+}
+
 /** What herdr says of a pane's agent: at work, waiting on `user`, finished and not looked at, or idle. */
 export type AgentStatus = 'idle' | 'working' | 'blocked' | 'done' | 'unknown';
 

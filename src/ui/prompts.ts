@@ -196,8 +196,8 @@ interface DraftChoice {
 }
 
 /** `yan draft ls` on a terminal: which draft to open. Returns its id. */
-export async function chooseDraft(drafts: readonly DraftChoice[], task: string): Promise<string> {
-  intro(`yan draft · ${task}`);
+export async function chooseDraft(drafts: readonly DraftChoice[]): Promise<string> {
+  intro('yan draft');
   const chosen = await autocomplete({
     message: 'Which draft do you want to open?',
     placeholder: PLACEHOLDER,

@@ -7,6 +7,7 @@ import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Palette } from './components/Palette';
+import { DraftsModal } from './components/drafts/DraftsModal';
 import { NewTaskModal } from './components/NewTask';
 import { TaskActModal } from './components/TaskMenu';
 import { AskModal } from './components/page';
@@ -181,6 +182,7 @@ export function App() {
       <AskModal />
       <Palette />
       <NewTaskModal />
+      <DraftsModal />
       <TaskActModal />
     </TooltipProvider>
   );

@@ -1,5 +1,5 @@
 import { QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WorktreeState, type WriteResult } from '../lib/api';
+import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Draft, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WorktreeState, type WriteResult } from '../lib/api';
 import { enc } from '../lib/files';
 import { langLoaded, langReady } from '../lib/highlight';
 import { parseRoute } from '../lib/route';
@@ -42,6 +42,9 @@ export const useTerminals = (): UseQueryResult<Readonly<Record<string, TerminalS
 /** Each task's worktree tabs on this machine, with how herdr has each split; asked every two seconds, as the terminals are. */
 export const useWorktrees = (): UseQueryResult<Readonly<Record<string, readonly WorktreeState[]>>> =>
   useQuery({ queryKey: ['worktrees'], queryFn: () => getJSON<Record<string, WorktreeState[]>>('/api/worktrees'), staleTime: 0, refetchInterval: 2000, retry: false });
+
+/** `user`'s drafts, the vault's, newest first, as the commit shown has them: fetched while their box is open, and again whenever the vault moves. */
+export const useDrafts = (): UseQueryResult<readonly Draft[]> => useQuery({ queryKey: ['drafts'], queryFn: () => getJSON<Draft[]>('/api/drafts') });
 
 export function useTask(id: string | undefined): UseQueryResult<TaskDetail> {
   return useQuery({ queryKey: ['task', id], queryFn: () => getJSON<TaskDetail>(`/api/task/${encodeURIComponent(id as string)}`), enabled: !!id });
@@ -135,6 +138,8 @@ async function refreshIndex(): Promise<void> {
     void queryClient.invalidateQueries({ queryKey: ['task', t.id] });
     void queryClient.invalidateQueries({ queryKey: ['report', t.id] });
   }
+  // The drafts are no task's: any move may be theirs. Fetched now only while their box is open, and once it opens otherwise.
+  void queryClient.invalidateQueries({ queryKey: ['drafts'] });
 }
 
 /**
