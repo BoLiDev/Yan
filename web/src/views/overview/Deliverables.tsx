@@ -32,7 +32,7 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
           const status = statusOf(x.status);
           return (
             // The rail runs from under one mark to the next; the last has none.
-            <div key={x.id} className="group/deliv relative grid grid-cols-[10px_minmax(0,1fr)_auto] gap-x-4 pb-5 text-[14.5px] leading-[22px] before:absolute before:top-5 before:-bottom-0.5 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-border last:before:hidden">
+            <div key={x.id} className="group/deliv relative grid grid-cols-[10px_minmax(0,1fr)_auto_22px] gap-x-4 pb-5 text-[14.5px] leading-[22px] before:absolute before:top-5 before:-bottom-0.5 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-border last:before:hidden">
               <span className={NODE[status]} title={x.status} />
               <span>
                 <span className={status === 'abandoned' ? 'text-ink-3' : undefined}>
@@ -41,10 +41,13 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                 </span>
                 {x.reason ? <Editable className="block w-fit max-w-full text-[13px] leading-5 text-ink-3" text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Saved why ${x.id} was given up`)} /> : null}
               </span>
-              {/* The date, and under it, a gap away, giving up and the bin that show on hover: laid over the row, so a row of one line keeps its height. */}
-              <span className="relative flex justify-end">
-                <span className="min-h-[22px] text-[13px] whitespace-nowrap text-ink-3 tabular-nums">{x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''}</span>
-                <span className="absolute top-6 -right-[5px] z-[1] flex gap-0.5">
+              <span className="min-h-[22px] text-[13px] whitespace-nowrap text-ink-3 tabular-nums">{x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''}</span>
+              {/*
+                Giving up and the bin, shown on hover, one over the other in a column of their own at the row's end,
+                so they are never over its text or its date; laid over the row, so a row of one line keeps its height.
+              */}
+              <span className="relative -ml-2">
+                <span className="absolute top-0 left-0 z-[1] flex flex-col gap-0.5">
                   {x.status === 'abandoned' ? null : (
                     <Button variant="ghost" size="icon-xs" className={DELIV_TOOL} title={`Give up ${x.id}`} aria-label={`Give up ${x.id}`}
                       onClick={() => ask({ title: `Give up ${x.id}?`, sub: x.text, action: 'Give up', reason: 'Why, in a line: it stays under the deliverable',
