@@ -117,6 +117,8 @@ the session). agy takes hooks only from files, so under agy the vault is
 pulled and pushed by hand. A push commits everything in the vault and
 rebases it onto the remote first; a conflict
 stops it, the commit kept here, and the hook says so.
+claude is always started with `--chrome`, its browser tools on, so an agent
+can check what it built in a browser without being restarted for it.
 `--cli codex` runs another agent this once; anything after `--` goes to the
 agent as it is. `--task <id>` goes on with an open task without asking
 which, and `--new "<title>"` starts a task with that title; `--repo <name>` names a repository it works in, as many times

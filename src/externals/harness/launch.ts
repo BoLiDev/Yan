@@ -77,13 +77,18 @@ function claudeHooks(hooks: Launch['hooks']): string[] {
   return ['--settings', JSON.stringify({ hooks: { UserPromptSubmit: on(hooks.prompt), Stop: on(hooks.stop) } })];
 }
 
+/**
+ * claude is started with Chrome, its browser tools, on every machine: an
+ * agent checking what it built in a browser, or reading a page `user` has
+ * open, should not first have to be restarted for it.
+ */
 const claude: Harness = {
   modelFlags: dashDashModel,
   launchArgs(launch) {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
     const plugins = (launch.plugins ?? []).flatMap((p) => ['--plugin-dir', p]);
     const first = launch.first === undefined ? [] : [launch.first];
-    return [...dashDashModel(launch.model, launch.effort), ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt, ...first];
+    return [...dashDashModel(launch.model, launch.effort), '--chrome', ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt, ...first];
   },
 };
 

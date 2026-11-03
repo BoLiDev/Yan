@@ -4,8 +4,8 @@ import { WAIT_LINE, cliKind, isKnownCli, launchArgs, takesPlugins } from './laun
 const plain = { model: '', effort: '', workdir: '/tree', addDirs: [], prompt: 'the prompt', skipPermissions: false };
 
 describe('launchArgs', () => {
-  it('gives claude the prompt as its system prompt, so nothing starts a turn', () => {
-    expect(launchArgs('claude', plain)).toEqual(['--append-system-prompt', 'the prompt']);
+  it('starts claude with Chrome, and gives it the prompt as its system prompt, so nothing starts a turn', () => {
+    expect(launchArgs('claude', plain)).toEqual(['--chrome', '--append-system-prompt', 'the prompt']);
   });
 
   it('gives codex the prompt as developer instructions, quoted as a TOML string', () => {
@@ -19,7 +19,7 @@ describe('launchArgs', () => {
 
   it("says what user says first as each CLI takes a first message: claude's and codex's prompt, and agy's in place of waiting", () => {
     const told = { ...plain, first: '/yan:done' };
-    expect(launchArgs('claude', told)).toEqual(['--append-system-prompt', 'the prompt', '/yan:done']);
+    expect(launchArgs('claude', told)).toEqual(['--chrome', '--append-system-prompt', 'the prompt', '/yan:done']);
     expect(launchArgs('codex', told)).toEqual(['-c', 'developer_instructions="the prompt"', '/yan:done']);
     expect(launchArgs('agy', told)).toEqual(['--add-dir', '/tree', '-i', 'the prompt\n/yan:done']);
   });
@@ -33,14 +33,14 @@ describe('launchArgs', () => {
 
   it("skips each CLI's approvals with its own flag, ahead of the prompt", () => {
     const skip = { ...plain, skipPermissions: true };
-    expect(launchArgs('claude', skip)).toEqual(['--dangerously-skip-permissions', '--append-system-prompt', 'the prompt']);
+    expect(launchArgs('claude', skip)).toEqual(['--chrome', '--dangerously-skip-permissions', '--append-system-prompt', 'the prompt']);
     expect(launchArgs('codex', skip)[0]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(launchArgs('agy', skip)[0]).toBe('--dangerously-skip-permissions');
   });
 
   it("hands every CLI the task's other trees as --add-dir", () => {
     const more = { ...plain, addDirs: ['/b', '/c'] };
-    expect(launchArgs('claude', more)).toEqual(['--add-dir', '/b', '--add-dir', '/c', '--append-system-prompt', 'the prompt']);
+    expect(launchArgs('claude', more)).toEqual(['--chrome', '--add-dir', '/b', '--add-dir', '/c', '--append-system-prompt', 'the prompt']);
     expect(launchArgs('codex', more).slice(0, 4)).toEqual(['--add-dir', '/b', '--add-dir', '/c']);
     expect(launchArgs('agy', more).slice(0, 6)).toEqual(['--add-dir', '/tree', '--add-dir', '/b', '--add-dir', '/c']);
   });
@@ -48,7 +48,7 @@ describe('launchArgs', () => {
   it('gives claude and codex hooks for the one session, and agy none', () => {
     const hooked = { ...plain, hooks: { prompt: 'pull "x"', stop: 'push' } };
     const claude = launchArgs('claude', hooked);
-    expect(claude.slice(0, 2)).toEqual(['--settings', JSON.stringify({
+    expect(claude.slice(1, 3)).toEqual(['--settings', JSON.stringify({
       hooks: {
         UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'pull "x"' }] }],
         Stop: [{ hooks: [{ type: 'command', command: 'push' }] }],
@@ -64,7 +64,7 @@ describe('launchArgs', () => {
 
   it('loads a plugin folder into claude for the one session, and only claude takes one', () => {
     const withPlugin = { ...plain, plugins: ['/yan/plugin'] };
-    expect(launchArgs('claude', withPlugin)).toEqual(['--plugin-dir', '/yan/plugin', '--append-system-prompt', 'the prompt']);
+    expect(launchArgs('claude', withPlugin)).toEqual(['--chrome', '--plugin-dir', '/yan/plugin', '--append-system-prompt', 'the prompt']);
     expect(['claude', 'C:/bin/claude.exe', 'codex', 'agy'].map(takesPlugins)).toEqual([true, true, false, false]);
   });
 

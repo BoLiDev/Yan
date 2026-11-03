@@ -132,12 +132,13 @@ function told(i: number): string {
  * What claude was started with, read by flag rather than by place: the order of its argv is launchArgs's, which
  * src/externals/harness/launch.test.ts checks.
  */
-function claudeOf(i: number): { skips: boolean; plugins: string[]; dirs: string[]; prompt: string; rest: string[] } {
+function claudeOf(i: number): { skips: boolean; chrome: boolean; plugins: string[]; dirs: string[]; prompt: string; rest: string[] } {
   const argv = started[i]?.argv ?? [];
-  const c = { skips: false, plugins: [] as string[], dirs: [] as string[], prompt: '', rest: [] as string[] };
+  const c = { skips: false, chrome: false, plugins: [] as string[], dirs: [] as string[], prompt: '', rest: [] as string[] };
   for (let at = 0; at < argv.length; at += 1) {
     const word = argv[at] as string;
     if (word === '--dangerously-skip-permissions') c.skips = true;
+    else if (word === '--chrome') c.chrome = true;
     else if (word === '--plugin-dir') c.plugins.push(argv[(at += 1)] as string);
     else if (word === '--add-dir') c.dirs.push(argv[(at += 1)] as string);
     else if (word === '--append-system-prompt') c.prompt = argv[(at += 1)] as string;
@@ -172,7 +173,7 @@ describe('a new task', () => {
     expect(started).toHaveLength(1);
     expect(started[0]).toMatchObject({ cli: 'claude', cwd: here });
     const claude = claudeOf(0);
-    expect(claude, 'approvals skipped, no other tree, nothing else').toMatchObject({ skips: true, dirs: [], rest: [] });
+    expect(claude, 'approvals skipped, Chrome on, no other tree, nothing else').toMatchObject({ skips: true, chrome: true, dirs: [], rest: [] });
     expect(claude.plugins).toHaveLength(1);
     expectYanSkills(claude.plugins[0], claude.prompt);
     expect(started[0]?.env.YAN_TASK).toBe('t001');
