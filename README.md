@@ -200,7 +200,8 @@ waiting on you is news, an
 amber dot, until it is answered. Drafts, under Latest, opens your drafts
 in a large box over the page: the list down its side, newest first, those
 kept with a task before saying which, with New above it, and the one
-picked beside it, its Markdown drawn. There is no edit mode: a click on the
+picked beside it, its Markdown drawn. A right click on a draft in the list
+opens its own menu, whose Delete removes it once asked. There is no edit mode: a click on the
 draft writes it there, where the click fell, in the same place, and
 clicking away, Escape or ⌘↩ saves what changed, committed and pushed, a
 draft left blank removed; Escape again closes the box. A draft changed

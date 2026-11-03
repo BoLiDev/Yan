@@ -49,6 +49,22 @@ describe("the drafts' box", () => {
     await expect.poll(() => posted(asked)).toEqual([{ id: null, sha: 's1', text: '# mine\n\nwritten before it went' }]);
   });
 
+  it('deletes a draft from its menu in the list once asked, as it was listed, and goes on to the newest', async () => {
+    const asked = serve({ '/api/drafts': Response.json([ideas, old]), 'POST /api/draft': Response.json({ ok: true, warning: null, status: status(), id: null }) });
+    useUI.setState({ drafts: true });
+    const screen = await draw(<DraftsModal />);
+    await screen.getByRole('button', { name: /Old note/ }).click();
+    await expect.element(screen.getByRole('document').getByText('kept with its task')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Delete/ }).query(), 'no delete of its own beside the draft').toBeNull();
+    await screen.getByRole('button', { name: /Old note/ }).click({ button: 'right' });
+    await screen.getByRole('menuitem', { name: 'Delete' }).click();
+    await expect.element(screen.getByRole('alertdialog')).toBeVisible();
+    expect(posted(asked), 'not before it is answered').toEqual([]);
+    await screen.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+    await expect.poll(() => posted(asked)).toEqual([{ id: old.id, sha: 's2', text: '' }]);
+    await expect.element(screen.getByRole('document').getByText('back off twice')).toBeVisible();
+  });
+
   it('with none yet, is a new one, ready to write, sent with no id and kept only once something is in it', async () => {
     const asked = serve({ '/api/drafts': Response.json([]), 'POST /api/draft': Response.json({ ok: true, warning: null, status: status(), id: '2026-11-03_090000-pricing' }) });
     useUI.setState({ drafts: true });

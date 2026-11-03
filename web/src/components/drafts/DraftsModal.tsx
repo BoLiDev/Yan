@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Draft } from '../../lib/api';
 import { when } from '../../lib/format';
 import { cn } from '../../lib/utils';
@@ -6,27 +6,66 @@ import { useDrafts } from '../../state/server';
 import { useUI } from '../../state/ui';
 import { Icon } from '../Icon';
 import { Button } from '../ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../ui/context-menu';
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { Spinner } from '../ui/spinner';
 import { DraftPage } from './DraftPage';
-import { NEW } from './save';
+import { NEW, removeDraft } from './save';
 
 const NONE: readonly Draft[] = [];
 
-/** A draft's line in the list: its title, and when it was last edited. */
-function Row({ title, meta, on, onPick }: { title: string; meta: string; on: boolean; onPick: () => void }) {
-  return (
-    <button type="button" aria-current={on || undefined} onClick={onPick}
-      className={cn('flex w-full cursor-pointer flex-col items-start rounded-[10px] px-3 py-2 text-left', on ? 'bg-card ring-1 ring-border' : 'hover:bg-hover')}>
+/**
+ * A draft's line in the list: its title, and when it was last edited. A
+ * right click on one saved opens its own menu in place of the browser's,
+ * which deletes it, once asked.
+ */
+function Row({ title, meta, on, onPick, onDelete }: { title: string; meta: string; on: boolean; onPick: () => void; onDelete?: () => void }) {
+  const row = {
+    type: 'button' as const,
+    'aria-current': on || undefined,
+    onClick: onPick,
+    className: cn('flex w-full cursor-pointer flex-col items-start rounded-[10px] px-3 py-2 text-left', on ? 'bg-card ring-1 ring-border' : 'hover:bg-hover'),
+  };
+  const lines: ReactNode = (
+    <>
       <span className="w-full truncate text-[13.5px] font-medium text-foreground">{title}</span>
       <span className="w-full truncate text-[12px] text-ink-3">{meta}</span>
-    </button>
+    </>
+  );
+  if (onDelete === undefined) return <button {...row}>{lines}</button>;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={<button {...row} />}>{lines}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-36">
+        <ContextMenuItem variant="destructive" onClick={onDelete}>Delete</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** Asked before a draft goes: what it is called, and that the vault's history keeps it. */
+function DeleteAsk({ draft, open, onOpenChange, onDelete }: { draft: Draft | null; open: boolean; onOpenChange: (open: boolean) => void; onDelete: () => void }) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete “{draft?.title}”?</AlertDialogTitle>
+          <AlertDialogDescription>It goes from the vault, for every task's agent too, committed and pushed; the vault's history keeps it.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onDelete}>Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
 /**
  * The drafts, in their box: the list down the side, newest first, with New
- * above it, and the one picked beside it, read and written in one place.
+ * above it, each deleted from its own menu, and the one picked beside it,
+ * read and written in one place.
  * The newest is shown first; with none at all, a new one, ready to write.
  * One whose saving failed is shown again, being written.
  */
@@ -42,6 +81,15 @@ function DraftsBox() {
   const shown = picked === NEW || list.some((d) => d.id === picked) ? (picked as string) : drafts.isSuccess ? list[0]?.id ?? NEW : null;
   const draft = list.find((d) => d.id === shown);
   const onSaved = (id: string | null): void => setPicked((p) => (p === NEW ? id : p === shown && id === null ? null : p));
+  // The draft its menu asked to delete, kept while the question closes.
+  const [doomed, setDoomed] = useState<Draft | null>(null);
+  const [asking, setAsking] = useState(false);
+  const remove = (d: Draft): void => {
+    setAsking(false);
+    void removeDraft(d).then((gone) => {
+      if (gone) setPicked((p) => (p === d.id ? null : p));
+    });
+  };
   return (
     <>
       <aside className="flex min-h-0 flex-col gap-2 border-r border-sunken bg-sunken p-3" aria-label="Drafts">
@@ -52,7 +100,8 @@ function DraftsBox() {
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
           {shown === NEW ? <Row title="New draft" meta="not saved yet" on onPick={() => undefined} /> : null}
           {list.map((d) => (
-            <Row key={d.id} title={d.title} meta={`${when(d.changed)}${d.task ? ` · ${d.task}` : ''}`} on={d.id === shown} onPick={() => setPicked(d.id)} />
+            <Row key={d.id} title={d.title} meta={`${when(d.changed)}${d.task ? ` · ${d.task}` : ''}`} on={d.id === shown} onPick={() => setPicked(d.id)}
+              onDelete={() => { setDoomed(d); setAsking(true); }} />
           ))}
           {drafts.isSuccess && list.length === 0 && shown !== NEW ? <span className="px-2 text-[13px] text-ink-3">No drafts yet.</span> : null}
           {drafts.isError ? <span className="px-2 text-[13px] text-destructive">Could not read the drafts: {drafts.error.message}</span> : null}
@@ -63,6 +112,7 @@ function DraftsBox() {
       ) : (
         <DraftPage key={shown} draft={draft} fresh={shown === NEW} kept={keptAt === shown ? kept : null} onSaved={onSaved} />
       )}
+      <DeleteAsk draft={doomed} open={asking} onOpenChange={setAsking} onDelete={() => { if (doomed !== null) remove(doomed); }} />
     </>
   );
 }

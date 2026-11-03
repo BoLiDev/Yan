@@ -13,25 +13,6 @@ import { offsetAt, saveDraft } from './save';
 const ROOM = 'min-h-0 flex-1 px-10 pt-7 pb-16';
 
 /**
- * Deleting a draft, asked twice, as closing a terminal's tab is: the first
- * click only turns it to say so, which goes back after a few seconds untouched.
- */
-function Delete({ onDelete }: { onDelete: () => void }) {
-  const [sure, setSure] = useState(false);
-  useEffect(() => {
-    if (!sure) return;
-    const back = window.setTimeout(() => setSure(false), 3000);
-    return () => window.clearTimeout(back);
-  }, [sure]);
-  return (
-    <Button variant={sure ? 'destructive' : 'ghost'} size="sm" className={cn('font-normal', !sure && 'text-ink-3')} aria-label={sure ? 'Really delete this draft' : 'Delete this draft'}
-      onClick={() => { if (sure) onDelete(); else setSure(true); }}>
-      <Icon name="trash" size={14} />{sure ? 'Delete' : null}
-    </Button>
-  );
-}
-
-/**
  * One draft, as it reads, which a click turns into its Markdown being
  * written, where the click fell, in the same place: there is no mode to go
  * to. Leaving it, by a click elsewhere, Escape or ⌘↩, saves what changed,
@@ -76,9 +57,9 @@ export function DraftPage({ draft, fresh, kept, onSaved }: { draft: Draft | unde
     return () => removeEventListener('beforeunload', hold);
   }, [unsaved]);
 
-  const save = (next: string, sha: string): void => {
+  const save = (next: string): void => {
     setSaving(next);
-    void saveDraft({ id: fresh ? null : (draft as Draft).id, sha, text: next }).then((out) => {
+    void saveDraft({ id: fresh ? null : (draft as Draft).id, sha: from, text: next }).then((out) => {
       if (!live.current) return;
       setSaving(null);
       if (out !== undefined) return onSaved(out.id);
@@ -98,7 +79,7 @@ export function DraftPage({ draft, fresh, kept, onSaved }: { draft: Draft | unde
   const leave = (): void => {
     setEditing(false);
     if (value === shown || (fresh && value.trim() === '')) return;
-    save(value, from);
+    save(value);
   };
 
   const meta = saving !== null ? 'Saving…'
@@ -108,7 +89,6 @@ export function DraftPage({ draft, fresh, kept, onSaved }: { draft: Draft | unde
     <section className="flex min-w-0 flex-col" aria-label={fresh ? 'New draft' : draft?.title ?? 'Draft'}>
       <div className="flex h-12 flex-none items-center gap-1 border-b border-sunken pr-2 pl-10 text-[12.5px] text-ink-3">
         <span className="min-w-0 flex-1 truncate">{meta}</span>
-        {draft && !fresh && saving === null ? <Delete onDelete={() => save('', draft.sha)} /> : null}
         <DialogClose render={<Button variant="ghost" size="icon-sm" className="text-ink-3" aria-label="Close" />}><Icon name="close" size={16} /></DialogClose>
       </div>
       {editing ? (

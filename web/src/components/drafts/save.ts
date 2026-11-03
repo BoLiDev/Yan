@@ -1,4 +1,4 @@
-import { postJSON, type DraftWritten } from '../../lib/api';
+import { postJSON, type Draft, type DraftWritten } from '../../lib/api';
 import { onStatus, queryClient } from '../../state/server';
 import { toast, useUI, type KeptDraft } from '../../state/ui';
 
@@ -33,14 +33,34 @@ export function offsetAt(x: number, y: number, source: string): number {
  */
 export async function saveDraft(draft: KeptDraft): Promise<DraftWritten | undefined> {
   try {
-    const out = await postJSON<DraftWritten>('/api/draft', draft);
-    if (out.warning) toast(`Saved the draft, but the push failed: ${out.warning}`);
-    await queryClient.invalidateQueries({ queryKey: ['drafts'] });
-    void onStatus(out.status);
-    return out;
+    return await post(draft, 'Saved the draft');
   } catch (err) {
     toast(`The draft was not saved: ${(err as Error).message}`, true);
     useUI.setState({ drafts: true, draftKept: draft });
     return undefined;
+  }
+}
+
+/** A draft written, then the drafts fetched again; a push that failed is said. */
+async function post(draft: KeptDraft, did: string): Promise<DraftWritten> {
+  const out = await postJSON<DraftWritten>('/api/draft', draft);
+  if (out.warning) toast(`${did}, but the push failed: ${out.warning}`);
+  await queryClient.invalidateQueries({ queryKey: ['drafts'] });
+  void onStatus(out.status);
+  return out;
+}
+
+/**
+ * A draft deleted from its menu in the list: written blank, which removes
+ * it, as it was when it was asked for. True once it is gone; one refused
+ * says why, and nothing is kept, as there was nothing written to keep.
+ */
+export async function removeDraft(draft: Draft): Promise<boolean> {
+  try {
+    await post({ id: draft.id, sha: draft.sha, text: '' }, 'Deleted the draft');
+    return true;
+  } catch (err) {
+    toast(`The draft was not deleted: ${(err as Error).message}`, true);
+    return false;
   }
 }

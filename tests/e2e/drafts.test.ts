@@ -66,7 +66,7 @@ describe('the drafts', () => {
     expect(errors).toEqual([]);
   });
 
-  it('take a new one, named for its first line, and delete one only when asked twice', async () => {
+  it('take a new one, named for its first line, and delete one from its menu in the list, once asked', async () => {
     const { page, errors } = await open(served.url('/'));
     await page.getByRole('navigation', { name: 'Tasks' }).getByRole('button', { name: 'Drafts' }).click();
     const box = page.getByRole('dialog');
@@ -79,10 +79,13 @@ describe('the drafts', () => {
     const files = async (): Promise<string> => (await fxGit(['ls-tree', '--name-only', 'main', 'drafts/'], origin)).stdout;
     await expect.poll(files, { timeout: 15_000 }).toMatch(/drafts\/\d{4}-\d{2}-\d{2}_\d{6}-pricing-questions\.md/);
 
-    await list.getByText('Pricing questions').click();
-    await box.getByRole('button', { name: 'Delete this draft' }).click();
-    expect(await files(), 'not on the first click').toMatch(/pricing-questions/);
-    await box.getByRole('button', { name: 'Really delete this draft' }).click();
+    // Its own menu, on a right click in the list, deletes it once asked.
+    await list.getByText('Pricing questions').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    const asked = page.getByRole('alertdialog');
+    await asked.getByText('Delete “Pricing questions”?').waitFor();
+    expect(await files(), 'not before it is answered').toMatch(/pricing-questions/);
+    await asked.getByRole('button', { name: 'Delete' }).click();
     await list.getByText('Pricing questions').waitFor({ state: 'detached' });
     await expect.poll(files, { timeout: 15_000 }).not.toMatch(/pricing-questions/);
     expect(errors).toEqual([]);
