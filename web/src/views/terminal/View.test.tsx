@@ -51,7 +51,8 @@ describe("a task's terminal tabs", () => {
     expect(posted(asked, '/api/worktree/close'), 'not on the first click').toEqual([]);
     await screen.getByRole('button', { name: 'Really close web' }).click();
     await expect.poll(() => posted(asked, '/api/worktree/close')).toEqual([{ task: 't1', tab: 'w1:t4' }]);
-    expect(useUI.getState().termTab.t1, 'the agent shown again').toBe('agent');
+    // Once serve has answered, not as soon as it is asked: the agent's tab is shown again after the close goes through.
+    await expect.poll(() => useUI.getState().termTab.t1).toBe('agent');
   });
 
   it('has only Agent, with Continue and nothing to close, while no agent runs and no worktree is open', async () => {
