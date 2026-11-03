@@ -56,7 +56,7 @@ export function DraftPage({ draft, kept, onCreated, onAskDelete, onGone }: {
 }) {
   const writer = useWriter(draft, kept, onCreated);
   const [editing, setEditing] = useState(draft === null || kept !== null);
-  const push = useUI((s) => s.status?.drafts);
+  const push = useUI((s) => s.status?.push);
   const caret = useRef<number | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const down = useRef<{ x: number; y: number } | null>(null);

@@ -5,8 +5,8 @@
 import type { KnownDeliverableStatus, KnownTaskState } from '../../../src/cli/serve/wire';
 
 export type {
-  AgentChange, AgentStatus, ArtifactFile, BranchBlob, BranchCommit, BranchFile, BranchView, CommitPatch, Deliverable, Draft, DraftConflict, DraftSaved, DraftsSync, FileLink, Index, PictureSaved,
-  LaunchRepo, Layout, LogEntry, Push, PushFile, RepoSummary, Report, Status, TaskDetail, TaskSummary, TerminalState, UatFile,
+  AgentChange, AgentStatus, ArtifactFile, BranchBlob, BranchCommit, BranchFile, BranchView, CommitPatch, Deliverable, Draft, DraftConflict, DraftSaved, FileLink, Index, PictureSaved,
+  LaunchRepo, Layout, LogEntry, PushState, Push, PushFile, RepoSummary, Report, Status, TaskDetail, TaskSummary, TerminalState, UatFile,
   UpdateState, Behind, WriteResult, WorktreeState,
 } from '../../../src/cli/serve/wire';
 

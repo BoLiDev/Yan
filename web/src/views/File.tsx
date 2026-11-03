@@ -10,6 +10,7 @@ import { MarkdownDoc } from './Markdown';
 import { useKeyNav } from './nav';
 import { FileCard, Shot, Stage } from './file/Stage';
 import { FontStage } from './file/FontStage';
+import { MarkdownSource } from './file/MarkdownSource';
 import { Foot, Pair } from './file/Foot';
 import { PageFrame } from './file/PageFrame';
 import { VideoStage } from './file/VideoStage';
@@ -28,14 +29,17 @@ export interface FileContext {
   readonly taskTitle?: string;
 }
 
+/** A Markdown file drawn; edited in its source and not saved, drawn as edited, which its line says. */
 function MarkdownScroll({ task, file, onMeta }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void }) {
-  const text = useText(`/blob/${file.sha}`);
+  const loaded = useText(`/blob/${file.sha}`);
+  const edit = useUI((s) => s.edits[vaultPath(task, file.path)]);
+  const text = edit?.text ?? loaded.data;
   useEffect(() => {
-    if (text.data !== undefined) onMeta(`Markdown · ${plural(text.data.split('\n').length, 'line')} · ${bytes(file.size)}`);
-  }, [text.data, file.size, onMeta]);
-  if (text.isError) return <Scroll><Empty><span className="text-destructive">{String(text.error.message)}</span></Empty></Scroll>;
-  if (text.data === undefined) return <Scroll><Empty>Loading…</Empty></Scroll>;
-  return <Scroll><MarkdownDoc text={text.data} task={task} dir={dirName(`artifacts/${file.path}`)} outline /></Scroll>;
+    if (text !== undefined) onMeta(`Markdown · ${plural(text.split('\n').length, 'line')} · ${bytes(file.size)}${edit ? ' · edited in its source, not saved' : ''}`);
+  }, [text, edit, file.size, onMeta]);
+  if (text === undefined && loaded.isError) return <Scroll><Empty><span className="text-destructive">{String(loaded.error.message)}</span></Empty></Scroll>;
+  if (text === undefined) return <Scroll><Empty>Loading…</Empty></Scroll>;
+  return <Scroll><MarkdownDoc text={text} task={task} dir={dirName(`artifacts/${file.path}`)} outline /></Scroll>;
 }
 
 /** One file of a task, shown as what it is, with the tools for it and a line about it at its foot. */
@@ -89,8 +93,9 @@ export function FileView(ctx: FileContext) {
       : <Stage at="page"><PageFrame src={fileUrl(path)} width={prefs.width} /></Stage>;
   } else if (viewer === 'markdown') {
     tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdSource ? 'src' : 'doc'} onPick={(v) => useUI.setState({ mdSource: v === 'src' })} />);
+    // Its source is written in where it is shown.
     body = mdSource
-      ? <CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} onMeta={setMeta} />
+      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} />
       : <MarkdownScroll task={task} file={file} onMeta={setMeta} />;
   } else if (viewer === 'text') {
     const e = ext(name);

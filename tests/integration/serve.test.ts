@@ -405,6 +405,37 @@ describe('a report on yan serve', () => {
   });
 });
 
+describe('a Markdown artifact edited on yan serve', () => {
+  const here = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], home)).stdout.trim();
+  const pushed = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
+  type Detail = { files: { path: string; sha: string }[] };
+  const notes = async (): Promise<{ path: string; sha: string } | undefined> =>
+    ((await (await fetch(page('/api/task/t006'))).json()) as Detail).files.find((f) => f.path === 'docs/notes.md');
+
+  it('is written and committed here at once, shown as soon as it is saved, refused over an agent\'s change, and pushed later', async () => {
+    await commit('t006', { 'task.json': task('t006', 'noted'), 'artifacts/docs/notes.md': '# Notes\n\nfirst\n', 'artifacts/shot.png': 'png' }, 'notes to edit');
+    const was = await until(notes, 20_000);
+    const edit = (value: Record<string, unknown>, origin?: string): Promise<Response> => post('/api/artifact/edit', { task: 't006', path: 'docs/notes.md', sha: was.sha, ...value }, origin);
+    expect((await edit({ text: 'x' }, 'http://evil.example')).status).toBe(403);
+    expect((await edit({ path: 'shot.png', text: 'x' })).status).toBe(400);
+    expect((await edit({ path: '../task.json', text: 'x' })).status).toBe(400);
+    expect((await edit({ path: 'docs/none.md', text: 'x' })).status).toBe(404);
+
+    const ok = await edit({ text: '# Notes\n\nfirst, and said better\n' });
+    expect(ok.status).toBe(200);
+    expect(readFileSync(join(home, 'tasks/t006/artifacts/docs/notes.md'), 'utf8')).toBe('# Notes\n\nfirst, and said better\n');
+    expect(await here(), 'committed here').toBe('t006: docs/notes.md edited in yan serve');
+    expect(await pushed(), 'not pushed yet').not.toBe('t006: docs/notes.md edited in yan serve');
+    // Shown at once: the page's next read has it, no tick waited for.
+    expect((await notes())?.sha).not.toBe(was.sha);
+    expect((await edit({ text: 'laid over the other' })).status).toBe(409);
+    expect(readFileSync(join(home, 'tasks/t006/artifacts/docs/notes.md'), 'utf8')).toBe('# Notes\n\nfirst, and said better\n');
+
+    await post('/api/push', {});
+    expect(await pushed()).toBe('t006: docs/notes.md edited in yan serve');
+  });
+});
+
 describe("user's drafts on yan serve", () => {
   const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
   type Listed = { id: string; title: string; text: string; sha: string; task: string | null };
@@ -465,9 +496,9 @@ describe("user's drafts on yan serve", () => {
   it('commits and pushes what was written once asked, the box closing, in one commit', async () => {
     const made = await saved(await post('/api/draft', { id: null, sha: '', text: '# to push' }));
     await saved(await post('/api/draft', { id: made.id, sha: made.sha, text: '# to push\n\nand more' }));
-    expect((await post('/api/drafts/push', {}, 'http://evil.example')).status).toBe(403);
-    const status = (await (await post('/api/drafts/push', {})).json()) as { drafts: { pending: boolean; error: string | null } };
-    expect(status.drafts).toEqual({ pending: false, error: null });
+    expect((await post('/api/push', {}, 'http://evil.example')).status).toBe(403);
+    const status = (await (await post('/api/push', {})).json()) as { push: { pending: boolean; error: string | null } };
+    expect(status.push).toEqual({ pending: false, error: null });
     expect(await subject()).toBe('drafts written in yan serve');
     expect((await fxGit(['show', `main:drafts/${made.id}.md`], bare)).stdout).toBe('# to push\n\nand more\n');
   });

@@ -26,12 +26,12 @@ export interface Status {
   readonly local: boolean;
   /** Which yan is serving: a page loaded from another reloads itself. */
   readonly build: string;
-  /** How the drafts written on the page stand with origin. */
-  readonly drafts: DraftsSync;
+  /** How what the page wrote, drafts and edits, stands with origin. */
+  readonly push: PushState;
 }
 
-/** Drafts written on the page and not pushed yet, waiting or tried and failed, and what went wrong the last time. */
-export interface DraftsSync {
+/** What the page wrote and has not pushed yet, waiting or tried and failed, and what went wrong the last time. */
+export interface PushState {
   readonly pending: boolean;
   readonly error: string | null;
 }

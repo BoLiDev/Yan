@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DraftSync, fingerprint } from './drafts.js';
+import { fingerprint } from './drafts.js';
+import { LaterPush } from './later-push.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-describe("the drafts' push", () => {
+describe('what the page wrote, pushed later', () => {
   it('waits for the writing to stop, then pushes it all at once', async () => {
     const pushes: number[] = [];
-    const sync = new DraftSync(async () => {
+    const sync = new LaterPush(async () => {
       pushes.push(Date.now());
       return null;
     }, () => undefined, 60);
@@ -25,7 +26,7 @@ describe("the drafts' push", () => {
   it('pushes at once when asked, and what is written while it runs after it', async () => {
     let release = (): void => undefined;
     const pushes: string[] = [];
-    const sync = new DraftSync(async () => {
+    const sync = new LaterPush(async () => {
       pushes.push('push');
       if (pushes.length === 1) await new Promise<void>((resolve) => (release = resolve));
       return null;
@@ -44,7 +45,7 @@ describe("the drafts' push", () => {
 
   it('keeps one that failed, says why, and tries it again on a tick', async () => {
     const answers: (string | null)[] = ['origin cannot be reached', null];
-    const sync = new DraftSync(async () => answers.shift() ?? null, () => undefined, 10_000);
+    const sync = new LaterPush(async () => answers.shift() ?? null, () => undefined, 10_000);
     sync.touched();
     await sync.now();
     expect(sync.state).toEqual({ pending: true, error: 'origin cannot be reached' });

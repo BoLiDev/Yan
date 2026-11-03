@@ -81,6 +81,19 @@ export function pushVault(dir: string, message: string | undefined): string[] {
 }
 
 /**
+ * Commit what `user` just changed here, and nothing more: no fetch, no push,
+ * so it is done before the network would have answered. Under the lock.
+ */
+export function commitVault(dir: string, message: string): string[] {
+  return withVaultLock(dir, () => {
+    if (changedPaths(dir).length === 0) return [];
+    gitOrThrow(dir, ['add', '-A'], 'staging the vault');
+    gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
+    return ['vault push: committed here, to push later'];
+  });
+}
+
+/**
  * Commit what `user` just changed, and push it when the vault has an origin,
  * so the page shows it and the other machines get it. Under the lock.
  */

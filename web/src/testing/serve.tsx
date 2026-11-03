@@ -44,7 +44,7 @@ export function serve(routes: Readonly<Record<string, Answer>>): Asked[] {
   return asked;
 }
 
-export const status = (version = 1): Status => ({ version, commit: 'c1', checkedAt: 1, pulledAt: 1, ok: true, error: null, everyS: 30, local: false, build: 'b1', drafts: { pending: false, error: null } });
+export const status = (version = 1): Status => ({ version, commit: 'c1', checkedAt: 1, pulledAt: 1, ok: true, error: null, everyS: 30, local: false, build: 'b1', push: { pending: false, error: null } });
 
 export function task(id: string, title: string, more: Partial<TaskSummary> = {}): TaskSummary {
   return { id, title, state: 'open', createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], touched: 0, rev: id, ...more };

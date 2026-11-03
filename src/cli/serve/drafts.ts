@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto';
 import { Drafts, PICTURE_TYPES, type DraftFile } from '../../records/drafts/index.js';
 import { isYanError } from '../../util/error.js';
-import type { Draft, DraftSaved, DraftsSync, PictureSaved } from './wire.js';
+import type { Draft, DraftSaved, PictureSaved } from './wire.js';
 
 /**
  * `user`'s drafts as yan serve's page reads and writes them: on this
  * machine's disk, where a write is done the moment it is made, and not as a
  * commit shows them. They are `user`'s alone, so nothing has to pass through
- * git to count; committing and pushing them is `DraftSync`'s, a while after
+ * git to count; committing and pushing them is `LaterPush`'s, a while after
  * the writing stops, so the page never waits on the network.
  */
 
@@ -109,65 +109,5 @@ export function addPicture(draft: string | null, type: string, bytes: Buffer, to
     return { status: 200, json: { path, draft: wire(drafts.get(id) as DraftFile) } satisfies PictureSaved };
   } catch (err) {
     return refused(err);
-  }
-}
-
-/**
- * The drafts written on the page, committed and pushed `waitMs` after the
- * last of them, or at once when asked, the box closing: one commit for a
- * spell of writing rather than one for each pause in it. A push that fails
- * is tried again on each tick, the drafts being written here meanwhile all
- * the same. What it says goes to the page with serve's status.
- */
-export class DraftSync {
-  private timer: NodeJS.Timeout | undefined;
-  private running: Promise<void> | undefined;
-  private pending = false;
-  private error: string | null = null;
-
-  /** `push` commits and pushes, answering what went wrong, or null; `said` is called whenever the state changes. */
-  public constructor(private readonly push: () => Promise<string | null>, private readonly said: () => void, private readonly waitMs = 10_000) {}
-
-  public get state(): DraftsSync {
-    return { pending: this.pending || this.running !== undefined, error: this.error };
-  }
-
-  /** A draft written here: the push waits for the writing to stop. */
-  public touched(): void {
-    const was = this.state.pending;
-    this.pending = true;
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.now(), this.waitMs);
-    this.timer.unref();
-    if (!was) this.said();
-  }
-
-  /** What is waiting pushed now; one running already is waited for, and what was written during it goes after. */
-  public async now(): Promise<void> {
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    this.timer = undefined;
-    if (this.running !== undefined) await this.running;
-    if (!this.pending) return;
-    this.pending = false;
-    this.running = this.push().then((warning) => {
-      this.error = warning;
-      if (warning !== null) this.pending = true;
-    });
-    try {
-      await this.running;
-    } finally {
-      this.running = undefined;
-      this.said();
-    }
-  }
-
-  /** On each tick: a push that failed is tried again, unless more writing is being waited for. */
-  public retry(): void {
-    if (this.pending && this.error !== null && this.timer === undefined && this.running === undefined) void this.now();
-  }
-
-  public stop(): void {
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    this.timer = undefined;
   }
 }

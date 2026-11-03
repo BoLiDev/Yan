@@ -23,7 +23,8 @@ import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
 import type { BranchBlob, CommitPatch, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
-import { DraftSync, PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type Answer } from './drafts.js';
+import { PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type Answer } from './drafts.js';
+import { LaterPush } from './later-push.js';
 import { buildLoads, buildPrint } from './build.js';
 
 /**
@@ -71,6 +72,8 @@ interface Post {
   readonly does: string;
   /** Whether it takes the request's JSON body; without one, it is given nothing, and reads the request itself if it takes anything. */
   readonly json: boolean;
+  /** How large its JSON body may be, when not `BODY_LIMIT`. */
+  readonly limit?: number;
   readonly run: (res: ServerResponse, given: Record<string, unknown>, req: IncomingMessage) => Promise<void>;
 }
 
@@ -185,15 +188,15 @@ const BODY_LIMIT = 65_536;
  * the loop early destroys the request, its socket with it, and the page would
  * see the connection fail rather than be told why.
  */
-async function body(req: IncomingMessage): Promise<Record<string, unknown> | 'too large' | undefined> {
+async function body(req: IncomingMessage, limit = BODY_LIMIT): Promise<Record<string, unknown> | 'too large' | undefined> {
   if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return undefined;
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size <= BODY_LIMIT) chunks.push(chunk as Buffer);
+    if (size <= limit) chunks.push(chunk as Buffer);
   }
-  if (size > BODY_LIMIT) return 'too large';
+  if (size > limit) return 'too large';
   try {
     const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
     return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
@@ -219,13 +222,16 @@ function answer(res: ServerResponse, a: Answer): void {
   res.writeHead(a.status, { 'Content-Type': 'application/json' }).end(JSON.stringify(a.json));
 }
 
+/** A Markdown artifact edited on the page is at most this large. */
+const ARTIFACT_LIMIT = 4 * 1024 * 1024;
+
 /** A picture in a draft's own folder, `drafts/<id>/<name>` or one kept with a task before, which serve gives from disk. */
 const DRAFT_PICTURE = /^(?:drafts|tasks\/[^/.][^/]*\/drafts)\/[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-/** `saveVault` in a worker (save-worker.ts): the warning the page is shown, or null. */
-function saveOffThread(dir: string, message: string): Promise<string | null> {
+/** `saveVault` in a worker (save-worker.ts), or with `push` false only `commitVault`: the warning the page is shown, or null. */
+function saveOffThread(dir: string, message: string, push = true): Promise<string | null> {
   return new Promise((resolve) => {
-    const worker = new Worker(new URL('./save-worker.js', import.meta.url), { workerData: { dir, message } });
+    const worker = new Worker(new URL('./save-worker.js', import.meta.url), { workerData: { dir, message, push } });
     worker.once('message', (said: { warning: string | null }) => resolve(said.warning));
     worker.once('error', (err) => resolve(err.message));
     // Ended without a word: a resolve after the message is a no-op.
@@ -264,9 +270,9 @@ export class YanServer {
   private nextBuild: string | undefined;
   /** A newer build that did not start, not tried again until it changes. */
   private brokenBuild: string | undefined;
-  /** The drafts written on the page, pushed once the writing stops. */
-  private readonly draftSync = new DraftSync(() => this.pushDrafts(), () => {
-    this.status.drafts = this.draftSync.state;
+  /** What the page wrote, drafts and edits, pushed once the writing stops. */
+  private readonly later = new LaterPush(() => this.pushLater(), () => {
+    this.status.push = this.later.state;
     this.broadcast();
   });
 
@@ -278,7 +284,7 @@ export class YanServer {
     this.updater = new Updater(options.home, () => this.restartOnBuild());
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
-    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home), drafts: { pending: false, error: null } };
+    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home), push: { pending: false, error: null } };
   }
 
   public get filesOrigin(): string {
@@ -296,7 +302,7 @@ export class YanServer {
     this.status.local = (await gitAsync(this.options.vaultDir, ['remote', 'get-url', 'origin'])).code !== 0;
     await this.tick();
     // Drafts written here before serve last stopped, and not committed since, go out as if just written.
-    if ((await gitAsync(this.options.vaultDir, ['status', '--porcelain', '--', 'drafts'])).stdout.trim() !== '') this.draftSync.touched();
+    if ((await gitAsync(this.options.vaultDir, ['status', '--porcelain', '--', 'drafts'])).stdout.trim() !== '') this.later.touched();
 
     this.port = this.options.port;
     try {
@@ -313,7 +319,7 @@ export class YanServer {
   /** Stop ticking and listening; resolves once both ports are free. */
   public stop(): Promise<void> {
     if (this.timer !== undefined) clearTimeout(this.timer);
-    this.draftSync.stop();
+    this.later.stop();
     for (const c of this.clients) c.end();
     this.terminals.close();
     const closed = Promise.all(this.servers.map((s) => new Promise<void>((resolve) => {
@@ -411,12 +417,7 @@ export class YanServer {
       }
 
       try {
-        const commit = await this.newest([`${OWN_REF}${this.branch}`, `refs/remotes/origin/${this.branch}`, 'HEAD']);
-        if (commit !== undefined && commit !== this.view.commit) {
-          await this.view.load(commit);
-          this.status.commit = commit;
-          this.status.version += 1;
-        }
+        await this.show();
       } catch (err) {
         // The first read failing is the command failing; a later one leaves
         // the page on the commit it has, and says why.
@@ -426,7 +427,7 @@ export class YanServer {
       }
       await this.terminals.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
       await this.worktrees.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
-      this.draftSync.retry();
+      this.later.retry();
       this.broadcast();
     })().finally(() => {
       this.ticking = undefined;
@@ -455,6 +456,24 @@ export class YanServer {
       }
     }
     return false;
+  }
+
+  /**
+   * The page shown the newest of what origin and this vault have, with no
+   * fetch first: a tick's, or a change just committed here. One at a time,
+   * so two never load the view at once.
+   */
+  private showing: Promise<void> = Promise.resolve();
+  private show(): Promise<void> {
+    const next = this.showing.then(async () => {
+      const commit = await this.newest([`${OWN_REF}${this.branch}`, `refs/remotes/origin/${this.branch}`, 'HEAD']);
+      if (commit === undefined || commit === this.view.commit) return;
+      await this.view.load(commit);
+      this.status.commit = commit;
+      this.status.version += 1;
+    });
+    this.showing = next.catch(() => undefined);
+    return next;
   }
 
   /** The newest of `refs`: one that descends from all the others before it. */
@@ -488,8 +507,8 @@ export class YanServer {
     if (post !== undefined) {
       if (!originOk(req, this.port)) return send(res, 403, `only yan serve's own page may ${post.does}`);
       if (!post.json) return post.run(res, {}, req);
-      const given = await body(req);
-      if (given === 'too large') return send(res, 413, `a body is at most ${BODY_LIMIT / 1024} KB`);
+      const given = await body(req, post.limit);
+      if (given === 'too large') return send(res, 413, `a body is at most ${(post.limit ?? BODY_LIMIT) / 1024} KB`);
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
       return post.run(res, given, req);
     }
@@ -643,8 +662,8 @@ export class YanServer {
     json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
   }
 
-  /** The drafts written on the page committed and pushed, in turn with the page's other changes: what went wrong, or null. */
-  private async pushDrafts(): Promise<string | null> {
+  /** What the page wrote committed, what is not yet, and pushed, in turn with the page's other changes: what went wrong, or null. */
+  private async pushLater(): Promise<string | null> {
     let warning: string | null = null;
     await this.inTurn(async () => {
       warning = await saveOffThread(this.options.vaultDir, 'drafts written in yan serve');
@@ -699,19 +718,21 @@ export class YanServer {
     '/api/resource': this.change((res, given) => this.setResource(res, given)),
     '/api/agents': this.change((res, given) => this.orderAgents(res, given)),
     '/api/report/edit': this.change((res, given) => this.editReport(res, given)),
-    // A draft's writing is done on disk at once, nothing waiting on git: DraftSync commits and pushes later.
-    '/api/draft': { does: 'write a draft', json: true, run: async (res, given) => answer(res, writeDraft(given, () => this.draftSync.touched())) },
-    '/api/draft/delete': { does: 'delete a draft', json: true, run: async (res, given) => answer(res, deleteDraft(given, () => this.draftSync.touched())) },
+    // A draft's writing is done on disk at once, nothing waiting on git: LaterPush commits and pushes later.
+    '/api/draft': { does: 'write a draft', json: true, run: async (res, given) => answer(res, writeDraft(given, () => this.later.touched())) },
+    '/api/draft/delete': { does: 'delete a draft', json: true, run: async (res, given) => answer(res, deleteDraft(given, () => this.later.touched())) },
     '/api/draft/picture': { does: 'keep a picture in a draft', json: false, run: async (res, _given, req) => {
       const bytes = await bytesOf(req, PICTURE_LIMIT);
       if (bytes === 'too large') return send(res, 413, `a picture is at most ${PICTURE_LIMIT / 1024 / 1024} MB`);
       const draft = new URL(req.url ?? '/', 'http://localhost').searchParams.get('draft');
-      answer(res, addPicture(draft || null, req.headers['content-type'] ?? '', bytes, () => this.draftSync.touched()));
+      answer(res, addPicture(draft || null, req.headers['content-type'] ?? '', bytes, () => this.later.touched()));
     } },
-    '/api/drafts/push': { does: 'push the drafts', json: false, run: async (res) => {
-      await this.draftSync.now();
+    '/api/push': { does: 'push what the page wrote', json: false, run: async (res) => {
+      await this.later.now();
       json(res, this.status);
     } },
+    // Committed here at once, so the page shows it the moment it is saved, and pushed later.
+    '/api/artifact/edit': { does: 'edit an artifact', json: true, limit: ARTIFACT_LIMIT, run: async (res, given) => this.editArtifact(res, given) },
   };
 
   /** A change to the vault from the page, which waits its turn. */
@@ -894,6 +915,32 @@ export class YanServer {
       return send(res, 400, (err as Error).message);
     }
     return this.save(res, `${id}: report edited in yan serve`);
+  }
+
+  /**
+   * `{ task, path, sha, text }`: a Markdown artifact, `artifacts/<path>`,
+   * rewritten whole from its source on the page. `sha` is the file the edit
+   * began from: when it is no longer that, an agent having written it
+   * meanwhile, the edit is refused rather than laid over it. It is committed
+   * here at once, and the page shown it, without waiting on origin; the
+   * push follows on its own.
+   */
+  private async editArtifact(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, path, sha, text] = [given.task, given.path, given.sha, given.text];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof path !== 'string' || typeof sha !== 'string' || typeof text !== 'string') {
+      return send(res, 400, 'task, path, sha and text are needed');
+    }
+    if (!/\.(md|markdown)$/i.test(path) || path.split('/').some((part) => part === '' || part.startsWith('.'))) return send(res, 400, 'only a Markdown artifact is edited here');
+    const file = join(this.options.vaultDir, 'tasks', id, 'artifacts', path);
+    if (!existsSync(file)) return send(res, 404, `${id} has no artifact ${path}`);
+    const now = (await gitAsync(this.options.vaultDir, ['hash-object', '--', file])).stdout.trim();
+    if (now !== sha) return send(res, 409, `${path} changed since this page loaded it - copy what you wrote, reload it and edit again`);
+    writeFileSync(file, text);
+    const warning = await saveOffThread(this.options.vaultDir, `${id}: ${path} edited in yan serve`, false);
+    await this.show();
+    this.later.touched();
+    this.broadcast();
+    json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
   }
 
   private events(req: IncomingMessage, res: ServerResponse): void {

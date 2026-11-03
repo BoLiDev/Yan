@@ -106,11 +106,11 @@ export function addPicture(id: string | null, file: File): Promise<PictureSaved>
   })());
 }
 
-/** The drafts written here pushed now, the box being closed: once the writes on their way are done. */
+/** What was written here pushed now, the drafts' box being closed: once the writes on their way are done. */
 export async function pushDrafts(): Promise<void> {
   await Promise.allSettled([...writing]);
   try {
-    await onStatus(await postJSON<Status>('/api/drafts/push', {}));
+    await onStatus(await postJSON<Status>('/api/push', {}));
   } catch {
     // serve tries again on its own on the next tick; the drafts are written here all the same.
   }

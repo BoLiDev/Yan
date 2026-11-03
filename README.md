@@ -249,7 +249,13 @@ origin), so the agent's turn and the push at its end are over, and the agent is 
 waiting on you, serve closes its herdr tab as the Agent tab's × does, the shells beside
 it with it, and a page showing it goes on to the task's overview. Each box's button waits for serve's answer; one refused says why
 in the box, which stays open to try again. Images, pages, Markdown, code, logs, audio, video and fonts
-open in place, and prev and next walk a folder. Markdown and the report
+open in place, and prev and next walk a folder. A Markdown file's Source
+is its editor: what is typed there is kept while the page is open, drawn
+as edited in Rendered, and saved with ⌘S or Save, which serve commits
+here at once, so it is shown saved straight away, and pushes on its own a
+while later, as it does the drafts. A file an agent changed since it was
+opened is not written over: the save is refused and what was typed
+stays. Markdown and the report
 an agent wrote are shown without anything in them that runs, and load
 nothing from the page's own address; a page an agent wrote runs as itself
 on the files port. A picture shown small, in a
