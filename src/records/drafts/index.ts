@@ -6,5 +6,5 @@
  * reads them; only `user` writes them, at a keyboard or on yan serve's page.
  */
 
-export { Drafts, discardIfUntouched, headline, newDraftId, titleTemplate } from './drafts.js';
-export type { DraftSummary } from './drafts.js';
+export { Drafts, PICTURE_TYPES, discardIfUntouched, headline, newDraftId, picturesFrom, picturesOf, titleTemplate } from './drafts.js';
+export type { DraftFile, DraftSummary } from './drafts.js';

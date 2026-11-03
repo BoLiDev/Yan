@@ -4,7 +4,6 @@ import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream';
 import { Worker } from 'node:worker_threads';
 import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
-import { Drafts } from '../../records/drafts/index.js';
 import { Task, parseUat } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
 import { cloneOf } from '../../util/machine.js';
@@ -23,7 +22,8 @@ import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
-import type { BranchBlob, CommitPatch, DraftWritten, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
+import type { BranchBlob, CommitPatch, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
+import { DraftSync, PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type Answer } from './drafts.js';
 import { buildLoads, buildPrint } from './build.js';
 
 /**
@@ -69,9 +69,9 @@ type Status = { -readonly [K in keyof WireStatus]: WireStatus[K] };
 interface Post {
   /** What it does, for the refusal any other page gets. */
   readonly does: string;
-  /** Whether it takes the request's JSON body; without one, it is given nothing. */
+  /** Whether it takes the request's JSON body; without one, it is given nothing, and reads the request itself if it takes anything. */
   readonly json: boolean;
-  readonly run: (res: ServerResponse, given: Record<string, unknown>) => Promise<void>;
+  readonly run: (res: ServerResponse, given: Record<string, unknown>, req: IncomingMessage) => Promise<void>;
 }
 
 const OWN_REF = 'refs/yan/serve/heads/';
@@ -202,6 +202,26 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown> | 'to
   }
 }
 
+/** A request's body as its bytes, up to `limit`; past it, 'too large'. */
+async function bytesOf(req: IncomingMessage, limit: number): Promise<Buffer | 'too large'> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size <= limit) chunks.push(chunk as Buffer);
+  }
+  return size > limit ? 'too large' : Buffer.concat(chunks);
+}
+
+/** What the drafts' handlers answer, sent. */
+function answer(res: ServerResponse, a: Answer): void {
+  if (a.json === undefined) return send(res, a.status, a.text ?? '');
+  res.writeHead(a.status, { 'Content-Type': 'application/json' }).end(JSON.stringify(a.json));
+}
+
+/** A picture in a draft's own folder, `drafts/<id>/<name>` or one kept with a task before, which serve gives from disk. */
+const DRAFT_PICTURE = /^(?:drafts|tasks\/[^/.][^/]*\/drafts)\/[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 /** `saveVault` in a worker (save-worker.ts): the warning the page is shown, or null. */
 function saveOffThread(dir: string, message: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -244,6 +264,11 @@ export class YanServer {
   private nextBuild: string | undefined;
   /** A newer build that did not start, not tried again until it changes. */
   private brokenBuild: string | undefined;
+  /** The drafts written on the page, pushed once the writing stops. */
+  private readonly draftSync = new DraftSync(() => this.pushDrafts(), () => {
+    this.status.drafts = this.draftSync.state;
+    this.broadcast();
+  });
 
   public constructor(private readonly options: ServeOptions) {
     this.view = new VaultView(options.vaultDir);
@@ -253,7 +278,7 @@ export class YanServer {
     this.updater = new Updater(options.home, () => this.restartOnBuild());
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
-    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home) };
+    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home), drafts: { pending: false, error: null } };
   }
 
   public get filesOrigin(): string {
@@ -270,6 +295,8 @@ export class YanServer {
     if (this.branch === 'HEAD') this.branch = 'main';
     this.status.local = (await gitAsync(this.options.vaultDir, ['remote', 'get-url', 'origin'])).code !== 0;
     await this.tick();
+    // Drafts written here before serve last stopped, and not committed since, go out as if just written.
+    if ((await gitAsync(this.options.vaultDir, ['status', '--porcelain', '--', 'drafts'])).stdout.trim() !== '') this.draftSync.touched();
 
     this.port = this.options.port;
     try {
@@ -286,6 +313,7 @@ export class YanServer {
   /** Stop ticking and listening; resolves once both ports are free. */
   public stop(): Promise<void> {
     if (this.timer !== undefined) clearTimeout(this.timer);
+    this.draftSync.stop();
     for (const c of this.clients) c.end();
     this.terminals.close();
     const closed = Promise.all(this.servers.map((s) => new Promise<void>((resolve) => {
@@ -398,6 +426,7 @@ export class YanServer {
       }
       await this.terminals.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
       await this.worktrees.endSetAside((id) => this.setAsideUpstream(id)).catch(() => undefined);
+      this.draftSync.retry();
       this.broadcast();
     })().finally(() => {
       this.ticking = undefined;
@@ -458,11 +487,11 @@ export class YanServer {
     const post = req.method === 'POST' ? this.posts[p] : undefined;
     if (post !== undefined) {
       if (!originOk(req, this.port)) return send(res, 403, `only yan serve's own page may ${post.does}`);
-      if (!post.json) return post.run(res, {});
+      if (!post.json) return post.run(res, {}, req);
       const given = await body(req);
       if (given === 'too large') return send(res, 413, `a body is at most ${BODY_LIMIT / 1024} KB`);
       if (given === undefined) return send(res, 400, 'a JSON body is needed');
-      return post.run(res, given);
+      return post.run(res, given, req);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'GET only');
 
@@ -485,7 +514,7 @@ export class YanServer {
     if (p === '/api/events') return this.events(req, res);
     if (p === '/api/terminals') return json(res, await this.terminals.states());
     if (p === '/api/worktrees') return json(res, await this.worktrees.states());
-    if (p === '/api/drafts') return json(res, await this.view.drafts());
+    if (p === '/api/drafts') return json(res, listDrafts());
     if (p === '/api/launch/repos') return json(res, this.launches.repos());
     if (p === '/api/yan/updates') return json(res, await this.updater.behind());
     if (p === '/api/yan/update') return json(res, this.updater.now);
@@ -608,10 +637,20 @@ export class YanServer {
    * fails leaves the change committed here. The git of it runs on a thread
    * of its own, so terminals and every other request go on meanwhile.
    */
-  private async save(res: ServerResponse, message: string, more: Partial<DraftWritten> = {}): Promise<void> {
+  private async save(res: ServerResponse, message: string): Promise<void> {
     const warning = await saveOffThread(this.options.vaultDir, message);
     await this.tick();
-    json(res, { ok: true, warning, status: this.status, ...more } satisfies WriteResult);
+    json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
+  }
+
+  /** The drafts written on the page committed and pushed, in turn with the page's other changes: what went wrong, or null. */
+  private async pushDrafts(): Promise<string | null> {
+    let warning: string | null = null;
+    await this.inTurn(async () => {
+      warning = await saveOffThread(this.options.vaultDir, 'drafts written in yan serve');
+      await this.tick();
+    });
+    return warning;
   }
 
   /**
@@ -660,7 +699,19 @@ export class YanServer {
     '/api/resource': this.change((res, given) => this.setResource(res, given)),
     '/api/agents': this.change((res, given) => this.orderAgents(res, given)),
     '/api/report/edit': this.change((res, given) => this.editReport(res, given)),
-    '/api/draft': this.change((res, given) => this.editDraft(res, given)),
+    // A draft's writing is done on disk at once, nothing waiting on git: DraftSync commits and pushes later.
+    '/api/draft': { does: 'write a draft', json: true, run: async (res, given) => answer(res, writeDraft(given, () => this.draftSync.touched())) },
+    '/api/draft/delete': { does: 'delete a draft', json: true, run: async (res, given) => answer(res, deleteDraft(given, () => this.draftSync.touched())) },
+    '/api/draft/picture': { does: 'keep a picture in a draft', json: false, run: async (res, _given, req) => {
+      const bytes = await bytesOf(req, PICTURE_LIMIT);
+      if (bytes === 'too large') return send(res, 413, `a picture is at most ${PICTURE_LIMIT / 1024 / 1024} MB`);
+      const draft = new URL(req.url ?? '/', 'http://localhost').searchParams.get('draft');
+      answer(res, addPicture(draft || null, req.headers['content-type'] ?? '', bytes, () => this.draftSync.touched()));
+    } },
+    '/api/drafts/push': { does: 'push the drafts', json: false, run: async (res) => {
+      await this.draftSync.now();
+      json(res, this.status);
+    } },
   };
 
   /** A change to the vault from the page, which waits its turn. */
@@ -845,38 +896,6 @@ export class YanServer {
     return this.save(res, `${id}: report edited in yan serve`);
   }
 
-  /**
-   * `{ id, sha, text }`: one of `user`'s drafts written whole on the page,
-   * `id` null for a new one, which is named for its first line; written
-   * blank, it is removed. `sha` is the draft the edit began from: when the
-   * file is no longer that, the edit is refused rather than laid over what
-   * was written meanwhile. Answers its id, null once removed.
-   */
-  private async editDraft(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
-    const [id, sha, text] = [given.id, given.sha, given.text];
-    if ((id !== null && typeof id !== 'string') || (id !== null && typeof sha !== 'string') || typeof text !== 'string') {
-      return send(res, 400, 'id (null for a new draft), sha and text are needed');
-    }
-    const drafts = new Drafts();
-    let kept: string | undefined;
-    try {
-      if (id === null) {
-        if (text.trim() === '') return send(res, 400, 'a new draft needs something written in it');
-        kept = drafts.write(undefined, text);
-      } else {
-        const file = drafts.pathOf(id);
-        if (file === undefined) return send(res, 409, 'that draft is not there any more - it was removed since this page loaded it');
-        const now = (await gitAsync(this.options.vaultDir, ['hash-object', '--', file])).stdout.trim();
-        if (now !== sha) return send(res, 409, 'that draft changed since this page loaded it - copy what you wrote, reload it and edit again');
-        kept = drafts.write(id, text);
-      }
-    } catch (err) {
-      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
-    }
-    const did = id === null ? 'written' : kept === undefined ? 'removed' : 'edited';
-    return this.save(res, `draft ${kept ?? (id as string)} ${did} in yan serve`, { id: kept ?? null });
-  }
-
   private events(req: IncomingMessage, res: ServerResponse): void {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     res.write(`retry: 3000\nevent: status\ndata: ${JSON.stringify(this.status)}\n\n`);
@@ -1028,6 +1047,12 @@ export class YanServer {
       const bytes = copy ?? (await this.view.blobs.read(sha));
       if (bytes === undefined) return send(res, 404, 'no such blob');
       return sendBytes(req, res, bytes, copy === undefined ? typeOf(small[3] as string) : 'image/webp', { 'Cache-Control': 'private, max-age=31536000, immutable' });
+    }
+    // A draft's picture is given from disk, where the page put it a moment ago, not from a commit.
+    if (DRAFT_PICTURE.test(path)) {
+      const file = join(this.options.vaultDir, path);
+      if (!existsSync(file) || !statSync(file).isFile()) return send(res, 404, `${path} is not in the vault`);
+      return sendBytes(req, res, readFileSync(file), typeOf(path), { 'Cache-Control': 'no-cache' });
     }
     let entry = this.view.entry(path);
     // A folder's page, as a static server would give it.

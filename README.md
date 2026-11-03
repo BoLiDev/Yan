@@ -139,7 +139,7 @@ For you:
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
 - `yan pause [id]` — put an open task aside, so nothing of it takes room here: its worktrees go back to the pool, refused while one holds work nowhere else (`--force` throws it away), and it keeps its state, open or in review, for later; no agent is started on it until it is resumed
 - `yan resume [id]` — take a paused task up again, as it was; its worktrees come back the next time `yan` starts its agent, on the branch it kept last
-- `yan draft` — your own notes, in your editor: the vault's rather than one task's, so every task's agent can read them, and committed and pushed as soon as one is written; `ls`, `cat <id>`, `search <words>` and `dir` read them
+- `yan draft` — your own notes, in your editor: the vault's rather than one task's, so every task's agent can read them, and committed and pushed as soon as one is written; `ls`, `cat <id>`, `search <words>` and `dir` read them, `cat` naming a draft's pictures by where they are here, for an agent to open
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
@@ -200,14 +200,25 @@ waiting on you is news, an
 amber dot, until it is answered. Drafts, under Latest, opens your drafts
 in a large box over the page: the list down its side, newest first, those
 kept with a task before saying which, with New above it, and the one
-picked beside it, its Markdown drawn. A right click on a draft in the list
-opens its own menu, whose Delete removes it once asked. There is no edit mode: a click on the
-draft writes it there, where the click fell, in the same place, and
-clicking away, Escape or ⌘↩ saves what changed, committed and pushed, a
-draft left blank removed; Escape again closes the box. A draft changed
-since the page read it is not written over: the save is refused and what
-was written stays, being written. With no drafts, the box opens on a new
-one, ready to write. Hidden, the task list folds to a rail:
+picked beside it, its Markdown drawn. There is no edit mode and nothing to
+wait for: a click on the draft writes it there at once, where the click
+fell, in the same place, and clicking away, Escape or ⌘↩ stops writing;
+Escape again closes the box. What is typed is written to this machine's
+disk as the typing pauses, which serve does without git, so the list and
+every agent here have it at once; serve commits and pushes the drafts
+written on the page ten seconds after the writing stops, or when the box
+closes, in one commit, trying a push that failed again on its next tick,
+and the box's header says when one is waiting or failed. A draft changed
+elsewhere since it was read, with `yan draft` or on another machine, is
+not written over: the writing stops, what was written stays, and a line
+over it asks whether to keep yours, take theirs, or keep both, yours as a
+new draft. A right click on a draft in the list opens its own menu, whose
+Delete, once asked, takes it from the list at once, putting it back if
+serve refuses; a draft left blank asks the same, and stays as it was when
+that is cancelled. A picture pasted into a draft, or dropped on it, is
+kept in a folder beside it named as it is, and named in it where the caret
+is; pasted into none, a new draft is made for it. With no drafts, the box
+opens on a new one, ready to write. Hidden, the task list folds to a rail:
 finding a task, starting one, Latest, and a square for each task in review
 or in progress, not paused, the one being read framed and each one's agent marked as
 on the list. A right click on a task's row in the list, or its square on
@@ -450,6 +461,7 @@ what it was written from), its bar says legacy and what changed.
   repos.json                   { version: 1, repos: { <name>: { url } } }: what yan repo registered
   learnings/<topic>.md         front matter (name, description) and the text
   drafts/<draft-id>.md         yours, every task's, in the format of the `draft` CLI: <stamp>[-<slug of its title>]
+  drafts/<draft-id>/<n>.png    the pictures pasted into it on yan serve's page, which go when it does
   tasks/<id>/
     task.json                  title, state (open, uat, done, abandoned), pausedAt while an open task is paused, repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)

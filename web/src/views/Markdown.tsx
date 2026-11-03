@@ -11,17 +11,17 @@ import { DOC } from './doc';
  * place whole: React leaves it alone until the text changes, so a push that
  * changes nothing in it changes nothing on screen.
  */
-export function MarkdownDoc({ text, task, dir, before, dropTitle, outline, bare }: Omit<MarkdownContext, 'files' | 'filesOrigin'> & { text: string; outline?: boolean; bare?: boolean }) {
+export function MarkdownDoc({ text, task, base, dir, before, dropTitle, outline, bare }: Omit<MarkdownContext, 'files' | 'filesOrigin'> & { text: string; outline?: boolean; bare?: boolean }) {
   const { data: d } = useTask(task);
   const files = d?.files;
   // Colouring waits for a fenced block's language: once it is loaded, the text is made again.
   const [loaded, setLoaded] = useState(0);
   const rendered = useMemo(
-    () => renderMarkdown(text, { task, dir, files, filesOrigin: filesOrigin(), before, dropTitle }),
+    () => renderMarkdown(text, { task, base, dir, files, filesOrigin: filesOrigin(), before, dropTitle }),
     // `loaded` stands for what renderMarkdown reads besides its arguments, the languages highlight.js has loaded:
     // one arriving makes it again.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [text, task, dir, files, before, dropTitle, loaded],
+    [text, task, base, dir, files, before, dropTitle, loaded],
   );
   useEffect(() => {
     if (!rendered.waiting.length) return;

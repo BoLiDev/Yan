@@ -163,6 +163,13 @@ describe('reading drafts works anywhere, in any task or none', () => {
     expect(r.stdout).toBe('# Old idea\n\nparse the header once\n');
   });
 
+  it('cat names its pictures by where they are on this machine, for an agent to open', async () => {
+    draft('2026-09-17_080000', '# Shot\n\n![the bug](2026-09-17_080000/1.png)\n', 17);
+    const r = await yan(['draft', 'cat', '2026-09-17_080000']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toBe(`# Shot\n\n![the bug](${home.replace(/\\/g, '/')}/drafts/2026-09-17_080000/1.png)\n`);
+  });
+
   it('cat refuses a draft that is not there, or an id that leaves the folder', async () => {
     const missing = await yan(['draft', 'cat', '2026-01-01_000000']);
     expect(missing.code).toBe(1);

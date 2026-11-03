@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { YanError } from '../../util/error.js';
 import { normalizePath } from '../../util/paths.js';
 import { localDay, localTime } from '../../util/time.js';
@@ -19,6 +19,14 @@ import { draftsDir, tasksDir } from '../../util/vault.js';
  * shared with machines whose yan still looks for them in their task, so
  * none is moved. A draft at the top wins an id one of those also has.
  *
+ * A draft's pictures are in a folder beside it named as it is, and its
+ * Markdown names them from there:
+ *
+ *   drafts/2026-09-16_051516-parser-ideas/1.png  ![](2026-09-16_051516-parser-ideas/1.png)
+ *
+ * so the folder goes when the draft does, and the draft CLI, which knows
+ * only the `.md` files, passes over it.
+ *
  * The title is the first non-blank line with any leading `#` stripped;
  * `updated` is the file's mtime; every list is newest first. Reading never
  * creates the folder, and writing creates it on the first draft.
@@ -37,9 +45,12 @@ export interface DraftSummary {
   readonly preview: string;
 }
 
-interface Draft extends DraftSummary {
+/** A draft whole, as its file has it. */
+export interface DraftFile extends DraftSummary {
   readonly path: string;
   readonly body: string;
+  /** The file's modification time, in milliseconds. */
+  readonly mtimeMs: number;
 }
 
 interface SearchHit extends DraftSummary {
@@ -78,12 +89,12 @@ export function headline(body: string): { title: string; preview: string } {
   return { title, preview };
 }
 
-function load(e: Entry): Draft {
+function load(e: Entry): DraftFile {
   const body = readFileSync(e.path, 'utf8');
-  return { id: e.id, path: e.path, body, updated: new Date(e.mtimeMs).toISOString(), ...headline(body), ...(e.task === undefined ? {} : { task: e.task }) };
+  return { id: e.id, path: e.path, body, mtimeMs: e.mtimeMs, updated: new Date(e.mtimeMs).toISOString(), ...headline(body), ...(e.task === undefined ? {} : { task: e.task }) };
 }
 
-function summary(d: Draft): DraftSummary {
+function summary(d: DraftFile): DraftSummary {
   return { id: d.id, title: d.title, updated: d.updated, preview: d.preview, ...(d.task === undefined ? {} : { task: d.task }) };
 }
 
@@ -105,6 +116,23 @@ function filesIn(dir: string, task?: string): Entry[] {
     found.push({ id, path, mtimeMs: st.mtimeMs, ...(task === undefined ? {} : { task }) });
   }
   return found;
+}
+
+/** The folder of a draft's pictures, beside its file and named as it is. */
+export function picturesOf(path: string): string {
+  return path.slice(0, -EXT.length);
+}
+
+/** The kinds of picture a draft takes, by their type, and what each is saved as. */
+export const PICTURE_TYPES: Readonly<Record<string, string>> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+
+/**
+ * A draft's Markdown with each picture it names from beside it named by
+ * where it is on this machine, for one reading it outside the vault, an
+ * agent opening the picture to look at it.
+ */
+export function picturesFrom(body: string, path: string): string {
+  return body.replace(/(!\[[^\]]*\]\()(?![a-z][a-z0-9+.-]*:|\/|#)([^)\s]+)(\))/gi, (_, open: string, rel: string, close: string) => `${open}${normalizePath(join(dirname(path), rel))}${close}`);
 }
 
 /** The drafts from when they were kept per task, each in its task's folder. */
@@ -147,7 +175,8 @@ export class Drafts {
     const top = filesIn(this.dir);
     const ids = new Set(top.map((e) => e.id));
     const found = [...top, ...perTask().filter((e) => !ids.has(e.id))];
-    found.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    // Written in the same moment, as a checkout writes them all, the later id, the later begun, first.
+    found.sort((a, b) => b.mtimeMs - a.mtimeMs || b.id.localeCompare(a.id));
     return found;
   }
 
@@ -160,7 +189,7 @@ export class Drafts {
     const path = id === undefined ? undefined : this.pathOf(id);
     if (id !== undefined && path === undefined) throw new YanError('draft_missing', `no draft ${id} in ${this.dir} - 'yan draft ls --plain' lists them`);
     if (body.trim() === '') {
-      if (path !== undefined) unlinkSync(path);
+      if (id !== undefined) this.remove(id);
       return undefined;
     }
     const text = body.endsWith('\n') ? body : `${body}\n`;
@@ -175,6 +204,35 @@ export class Drafts {
     this.ensureDir();
     writeFileSync(this.pathFor(made), text, 'utf8');
     return made;
+  }
+
+  /** Draft `id` gone, its pictures with it. False when there was none. */
+  public remove(id: string): boolean {
+    const path = this.pathOf(id);
+    if (path === undefined) return false;
+    unlinkSync(path);
+    rmSync(picturesOf(path), { recursive: true, force: true });
+    return true;
+  }
+
+  /**
+   * A picture kept beside draft `id`, in its folder, the next number there;
+   * returns how its Markdown names it, from the draft's own folder.
+   */
+  public addPicture(id: string, bytes: Buffer, ext: string): string {
+    const path = this.pathOf(id);
+    if (path === undefined) throw new YanError('draft_missing', `no draft ${id} in ${this.dir} - 'yan draft ls --plain' lists them`);
+    const folder = picturesOf(path);
+    mkdirSync(folder, { recursive: true });
+    let n = 1;
+    while (readdirSync(folder).some((f) => f.replace(/\.[^.]*$/, '') === String(n))) n++;
+    writeFileSync(join(folder, `${n}.${ext}`), bytes);
+    return `${id}/${n}.${ext}`;
+  }
+
+  /** Every draft whole, newest first. */
+  public all(): DraftFile[] {
+    return this.entries().map(load);
   }
 
   /** How many there are, without reading any. */
@@ -193,7 +251,7 @@ export class Drafts {
     return found.map((e) => summary(load(e)));
   }
 
-  public get(id: string): Draft | undefined {
+  public get(id: string): DraftFile | undefined {
     if (!isValidId(id)) return undefined;
     const e = this.entries().find((x) => x.id === id);
     return e === undefined ? undefined : load(e);
@@ -241,12 +299,13 @@ export function titleTemplate(words: readonly string[]): string {
 
 /**
  * After the editor exits: delete the file if it is missing, blank, or still
- * what it started as. True when nothing was kept.
+ * what it started as, and its pictures with it. True when nothing was kept.
  */
 export function discardIfUntouched(path: string, initial: string): boolean {
   if (!existsSync(path)) return true;
   const content = readFileSync(path, 'utf8');
   if (content.trim() !== initial.trim()) return false;
   unlinkSync(path);
+  rmSync(picturesOf(path), { recursive: true, force: true });
   return true;
 }

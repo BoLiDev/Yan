@@ -1,15 +1,13 @@
-import { postJSON, type Draft, type DraftWritten } from '../../lib/api';
+import { ApiError, postJSON, type Draft, type DraftConflict, type DraftSaved, type PictureSaved, type Status } from '../../lib/api';
 import { onStatus, queryClient } from '../../state/server';
-import { toast, useUI, type KeptDraft } from '../../state/ui';
+import { toast } from '../../state/ui';
 
 /** The draft begun on the page and not saved yet, shown under this in place of an id: no draft's file is named so. */
 export const NEW = '+new';
 
-/** A draft's title as serve says it: its first line with something in it, without a heading's marks. */
-export function titleOf(text: string): string {
-  const first = text.split(/\r?\n/).map((l) => l.trim()).find((l) => l !== '') ?? '';
-  return first.replace(/^#+\s*/, '') || '(empty)';
-}
+/** The kinds of picture a draft takes, as serve keeps them. */
+const PICTURES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+export const isPicture = (f: File): boolean => PICTURES.includes(f.type);
 
 /**
  * Where in a draft's Markdown a click on it as drawn fell: the text under
@@ -24,43 +22,96 @@ export function offsetAt(x: number, y: number, source: string): number {
   return found < 0 ? source.length : found + at.offset;
 }
 
-/**
- * A draft written on the page, saved: serve writes, commits and pushes it,
- * and the drafts are fetched again before it is said done, so what is shown
- * next begins from what was saved. One that fails is kept, and its box
- * opened on it again, being written, so nothing typed is lost, the box
- * having been left meanwhile or not.
- */
-export async function saveDraft(draft: KeptDraft): Promise<DraftWritten | undefined> {
-  try {
-    return await post(draft, 'Saved the draft');
-  } catch (err) {
-    toast(`The draft was not saved: ${(err as Error).message}`, true);
-    useUI.setState({ drafts: true, draftKept: draft });
-    return undefined;
+// The drafts as the page has them are changed the moment serve says a write is done, newest first, so nothing waits on fetching them again.
+const newest = (a: Draft, b: Draft): number => b.changed - a.changed || b.id.localeCompare(a.id);
+function upsert(d: Draft): void {
+  queryClient.setQueryData<readonly Draft[]>(['drafts'], (list = []) => [d, ...list.filter((x) => x.id !== d.id)].sort(newest));
+}
+function drop(id: string): void {
+  queryClient.setQueryData<readonly Draft[]>(['drafts'], (list = []) => list.filter((x) => x.id !== id));
+}
+
+/** A write refused, the draft not being what it began from: what it is now, null once deleted. */
+export class Conflicted extends Error {
+  constructor(readonly theirs: Draft | null) {
+    super(theirs === null ? 'that draft was deleted elsewhere' : 'that draft changed elsewhere');
   }
 }
 
-/** A draft written, then the drafts fetched again; a push that failed is said. */
-async function post(draft: KeptDraft, did: string): Promise<DraftWritten> {
-  const out = await postJSON<DraftWritten>('/api/draft', draft);
-  if (out.warning) toast(`${did}, but the push failed: ${out.warning}`);
-  await queryClient.invalidateQueries({ queryKey: ['drafts'] });
-  void onStatus(out.status);
-  return out;
+/** The drafts deleted from this page, which a write still on its way is not to bring back. */
+const deleted = new Set<string>();
+export const wasDeleted = (id: string | null): boolean => id !== null && deleted.has(id);
+
+/** Writes on their way, which asking for the push waits for, so it takes them. */
+const writing = new Set<Promise<unknown>>();
+function tracked<T>(p: Promise<T>): Promise<T> {
+  writing.add(p);
+  void p.then(() => writing.delete(p), () => writing.delete(p));
+  return p;
 }
 
 /**
- * A draft deleted from its menu in the list: written blank, which removes
- * it, as it was when it was asked for. True once it is gone; one refused
- * says why, and nothing is kept, as there was nothing written to keep.
+ * A draft written whole on this machine through serve, which is done at
+ * once: `id` null for a new one, `sha` the draft as the writing began.
+ * Refused as changed elsewhere, it throws `Conflicted` with what it is now.
  */
-export async function removeDraft(draft: Draft): Promise<boolean> {
+export function writeDraft(id: string | null, sha: string, text: string): Promise<Draft> {
+  return tracked((async () => {
+    try {
+      const { draft } = await postJSON<DraftSaved>('/api/draft', { id, sha, text });
+      if (draft !== null) upsert(draft);
+      return draft as Draft;
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 409) throw err;
+      const { theirs } = JSON.parse(err.message) as DraftConflict;
+      if (theirs !== null) upsert(theirs);
+      else if (id !== null) drop(id);
+      throw new Conflicted(theirs);
+    }
+  })());
+}
+
+/**
+ * A draft deleted, once asked: gone from the list at once, and put back,
+ * saying why, if serve refuses it, as when it changed elsewhere meanwhile.
+ */
+export async function deleteDraft(d: Draft): Promise<boolean> {
+  deleted.add(d.id);
+  drop(d.id);
   try {
-    await post({ id: draft.id, sha: draft.sha, text: '' }, 'Deleted the draft');
+    await tracked(postJSON<DraftSaved>('/api/draft/delete', { id: d.id, sha: d.sha }));
     return true;
   } catch (err) {
-    toast(`The draft was not deleted: ${(err as Error).message}`, true);
+    deleted.delete(d.id);
+    if (err instanceof ApiError && err.status === 409) {
+      const { theirs } = JSON.parse(err.message) as DraftConflict;
+      if (theirs !== null) upsert(theirs);
+      toast('Not deleted: it changed elsewhere since you opened it', true);
+    } else {
+      upsert(d);
+      toast(`The draft was not deleted: ${(err as Error).message}`, true);
+    }
     return false;
+  }
+}
+
+/** A picture kept beside draft `id`, a new draft made for it when there is none; how its Markdown names it, and the draft. */
+export function addPicture(id: string | null, file: File): Promise<PictureSaved> {
+  return tracked((async () => {
+    const r = await fetch(`/api/draft/picture${id === null ? '' : `?draft=${encodeURIComponent(id)}`}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+    if (!r.ok) throw new ApiError(r.status, await r.text());
+    const out = (await r.json()) as PictureSaved;
+    upsert(out.draft);
+    return out;
+  })());
+}
+
+/** The drafts written here pushed now, the box being closed: once the writes on their way are done. */
+export async function pushDrafts(): Promise<void> {
+  await Promise.allSettled([...writing]);
+  try {
+    await onStatus(await postJSON<Status>('/api/drafts/push', {}));
+  } catch {
+    // serve tries again on its own on the next tick; the drafts are written here all the same.
   }
 }

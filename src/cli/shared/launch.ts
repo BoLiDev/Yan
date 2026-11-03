@@ -93,7 +93,7 @@ export const OPENING_PROMPT = [
     'preview (a link that opens the version with this work for the user to check the result on), run (a sub-task started elsewhere), or general.',
   '`yan context` sums up the task from its folder and its worktrees: the problem, the deliverables, the resources, the artifacts and where each branch stands. ' +
     'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
-  'It also lists the user\'s newest drafts, their own notes, shared by every task, so most are about other work: read one with `yan draft cat <id>` when its title touches this task, ' +
+  'It also lists the user\'s newest drafts, their own notes, shared by every task, so most are about other work: read one with `yan draft cat <id>` when its title touches this task, opening the pictures it names by their path, ' +
     'and take it as the user\'s thinking, not a decision made. Never write, change or remove one: they are the user\'s alone.',
 ].join('\n');
 

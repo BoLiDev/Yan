@@ -407,34 +407,69 @@ describe('a report on yan serve', () => {
 
 describe("user's drafts on yan serve", () => {
   const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
-  type Listed = { id: string; title: string; text: string; sha: string; task: string | null }[];
-  const drafts = async (): Promise<Listed> => (await (await fetch(page('/api/drafts'))).json()) as Listed;
+  type Listed = { id: string; title: string; text: string; sha: string; task: string | null };
+  const drafts = async (): Promise<Listed[]> => (await (await fetch(page('/api/drafts'))).json()) as Listed[];
+  const saved = async (r: Response): Promise<Listed> => ((await r.json()) as { draft: Listed }).draft;
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const picture = (draft: string | null, body: Buffer, type = 'image/png', origin = page('')): Promise<Response> =>
+    fetch(page(`/api/draft/picture${draft === null ? '' : `?draft=${draft}`}`), { method: 'POST', headers: { 'Content-Type': type, Origin: origin }, body: new Uint8Array(body) });
 
-  it("lists the vault's and those kept with a task before, writes each where it is, and refuses one laid over a change", async () => {
+  it("reads and writes them on disk at once, those kept with a task before where they are, and refuses one laid over a change with what it is now", async () => {
     await commit('t005', { 'task.json': task('t005', 'drafted'), 'drafts/2026-09-01_080000.md': '# kept with t005\n' }, 'a task with an old draft');
-    const old = await until(async () => (await drafts()).find((d) => d.id === '2026-09-01_080000'), 20_000);
+    const before = await subject();
+    const old = (await drafts()).find((d) => d.id === '2026-09-01_080000') as Listed;
     expect(old).toMatchObject({ title: 'kept with t005', task: 't005' });
 
     expect((await post('/api/draft', { id: null, sha: '', text: 'x' }, 'http://evil.example')).status).toBe(403);
     expect((await post('/api/draft', { id: null, sha: '', text: '  ' })).status).toBe(400);
-    const made = await post('/api/draft', { id: null, sha: '', text: '# Retry ideas\n\nback off twice' });
-    expect(made.status).toBe(200);
-    const id = ((await made.json()) as { id: string }).id;
-    expect(id).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}-retry-ideas$/);
-    expect(readFileSync(join(home, 'drafts', `${id}.md`), 'utf8')).toBe('# Retry ideas\n\nback off twice\n');
-    expect(await subject()).toBe(`draft ${id} written in yan serve`);
+    const made = await saved(await post('/api/draft', { id: null, sha: '', text: '# Retry ideas\n\nback off twice' }));
+    expect(made.id).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}-retry-ideas$/);
+    expect(readFileSync(join(home, 'drafts', `${made.id}.md`), 'utf8')).toBe('# Retry ideas\n\nback off twice\n');
+    expect((await drafts()).find((d) => d.id === made.id), 'listed at once, from disk').toMatchObject({ title: 'Retry ideas', sha: made.sha });
+    expect(await subject(), 'nothing committed while it is written').toBe(before);
 
     // The one kept with its task is written there, as it began, and not once more over a change since.
-    expect((await post('/api/draft', { id: old.id, sha: old.sha, text: 'kept, and said better' })).status).toBe(200);
+    const better = await saved(await post('/api/draft', { id: old.id, sha: old.sha, text: 'kept, and said better' }));
     expect(readFileSync(join(home, 'tasks/t005/drafts/2026-09-01_080000.md'), 'utf8')).toBe('kept, and said better\n');
-    expect((await post('/api/draft', { id: old.id, sha: old.sha, text: 'laid over the other' })).status).toBe(409);
+    const over = await post('/api/draft', { id: old.id, sha: old.sha, text: 'laid over the other' });
+    expect(over.status).toBe(409);
+    expect(((await over.json()) as { theirs: Listed }).theirs).toMatchObject({ text: 'kept, and said better\n', sha: better.sha });
 
-    // Written blank, it is removed; then it is not there to write.
-    const listed = await until(async () => (await drafts()).find((d) => d.id === id), 20_000);
-    expect((await post('/api/draft', { id, sha: listed.sha, text: '' })).status).toBe(200);
-    expect(existsSync(join(home, 'drafts', `${id}.md`))).toBe(false);
-    expect(await subject()).toBe(`draft ${id} removed in yan serve`);
-    expect((await post('/api/draft', { id, sha: listed.sha, text: 'again' })).status).toBe(409);
+    // Deleted as it was read, its pictures with it; refused once changed, and then gone, said so.
+    const pic = await picture(made.id, PNG);
+    expect(((await pic.json()) as { path: string }).path).toBe(`${made.id}/1.png`);
+    expect((await post('/api/draft/delete', { id: made.id, sha: 'not it' })).status).toBe(409);
+    expect((await post('/api/draft/delete', { id: made.id, sha: made.sha })).status).toBe(200);
+    expect(existsSync(join(home, 'drafts', `${made.id}.md`))).toBe(false);
+    expect(existsSync(join(home, 'drafts', made.id)), 'its pictures gone with it').toBe(false);
+    const gone = await post('/api/draft', { id: made.id, sha: made.sha, text: 'again' });
+    expect(gone.status).toBe(409);
+    expect(((await gone.json()) as { theirs: Listed | null }).theirs).toBeNull();
+  });
+
+  it('keeps a picture beside its draft, a new draft made for one pasted into none, and gives it from disk', async () => {
+    expect((await picture(null, PNG, 'image/png', 'http://evil.example')).status).toBe(403);
+    expect((await picture(null, Buffer.from('<svg/>'), 'image/svg+xml')).status).toBe(415);
+    const out = (await (await picture(null, PNG)).json()) as { path: string; draft: Listed };
+    expect(out.path).toBe(`${out.draft.id}/1.png`);
+    expect(out.draft.text).toBe(`![](${out.draft.id}/1.png)\n`);
+    expect(out.draft.id).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}$/);
+    const second = (await (await picture(out.draft.id, PNG, 'image/jpeg')).json()) as { path: string };
+    expect(second.path).toBe(`${out.draft.id}/2.jpg`);
+    const given = await fetch(files(`/drafts/${out.path}`));
+    expect(given.headers.get('content-type')).toBe('image/png');
+    expect(Buffer.from(await given.arrayBuffer()).equals(PNG)).toBe(true);
+    expect((await fetch(files('/drafts/../vault.json'))).status).toBe(404);
+  });
+
+  it('commits and pushes what was written once asked, the box closing, in one commit', async () => {
+    const made = await saved(await post('/api/draft', { id: null, sha: '', text: '# to push' }));
+    await saved(await post('/api/draft', { id: made.id, sha: made.sha, text: '# to push\n\nand more' }));
+    expect((await post('/api/drafts/push', {}, 'http://evil.example')).status).toBe(403);
+    const status = (await (await post('/api/drafts/push', {})).json()) as { drafts: { pending: boolean; error: string | null } };
+    expect(status.drafts).toEqual({ pending: false, error: null });
+    expect(await subject()).toBe('drafts written in yan serve');
+    expect((await fxGit(['show', `main:drafts/${made.id}.md`], bare)).stdout).toBe('# to push\n\nand more\n');
   });
 });
 

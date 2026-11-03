@@ -15,6 +15,8 @@ import { link } from './route';
 export interface MarkdownContext {
   /** The task the text is in, for its relative links; none for text outside a task. */
   readonly task?: string;
+  /** For text outside a task, the vault's folder its relative links are from, as a draft's pictures are: `drafts`. */
+  readonly base?: string;
   /** The folder the text is in, from the task's own (`artifacts/c4`, or '' for problem.md). */
   readonly dir?: string;
   /** The task's artifacts, by path from artifacts/: a link to one opens it here. */
@@ -98,7 +100,8 @@ const encPath = (p: string): string => p.split('/').map(encodeURIComponent).join
  */
 function fixLinks(root: Element, ctx: MarkdownContext): void {
   const task = ctx.task;
-  if (!task) return;
+  const folder = task ? `tasks/${task}` : ctx.base;
+  if (!folder) return;
   const files = ctx.files ?? [];
   const fileUrl = (path: string): string => `${ctx.filesOrigin ?? ''}/${encPath(path)}`;
   const resolve = (url: string): string | null => {
@@ -113,7 +116,7 @@ function fixLinks(root: Element, ctx: MarkdownContext): void {
     if (/^[a-z]+:|^\/\/|^\//i.test(src)) continue;
     const rel = resolve(src);
     if (rel === null) continue;
-    img.setAttribute('src', fileUrl(`tasks/${task}/${rel}`));
+    img.setAttribute('src', fileUrl(`${folder}/${rel}`));
     img.setAttribute('loading', 'lazy');
   }
   for (const a of root.querySelectorAll('a[href]')) {
@@ -126,11 +129,11 @@ function fixLinks(root: Element, ctx: MarkdownContext): void {
     }
     const rel = resolve(href);
     if (rel === null) continue;
-    const art = rel.startsWith('artifacts/') ? rel.slice('artifacts/'.length) : null;
-    if (art !== null && files.some((f) => f.path === art)) a.setAttribute('href', link.file(task, art));
-    else if (art !== null && files.some((f) => f.path.startsWith(art + '/'))) a.setAttribute('href', link.folder(task, art));
+    const art = task && rel.startsWith('artifacts/') ? rel.slice('artifacts/'.length) : null;
+    if (task && art !== null && files.some((f) => f.path === art)) a.setAttribute('href', link.file(task, art));
+    else if (task && art !== null && files.some((f) => f.path.startsWith(art + '/'))) a.setAttribute('href', link.folder(task, art));
     else {
-      a.setAttribute('href', fileUrl(`tasks/${task}/${rel}`));
+      a.setAttribute('href', fileUrl(`${folder}/${rel}`));
       a.setAttribute('target', '_blank');
     }
   }

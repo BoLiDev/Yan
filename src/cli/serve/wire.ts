@@ -26,6 +26,14 @@ export interface Status {
   readonly local: boolean;
   /** Which yan is serving: a page loaded from another reloads itself. */
   readonly build: string;
+  /** How the drafts written on the page stand with origin. */
+  readonly drafts: DraftsSync;
+}
+
+/** Drafts written on the page and not pushed yet, waiting or tried and failed, and what went wrong the last time. */
+export interface DraftsSync {
+  readonly pending: boolean;
+  readonly error: string | null;
 }
 
 export interface RepoSummary {
@@ -242,23 +250,35 @@ export interface WriteResult {
   readonly status: Status;
 }
 
-/** One of `user`'s drafts as the commit shown has it: the vault's own notes, which every task reads. */
+/** One of `user`'s drafts as it is on this machine's disk: the vault's own notes, which every task reads. */
 export interface Draft {
   readonly id: string;
   /** Its first line, without the heading's marks; `(empty)` when there is none. */
   readonly title: string;
   readonly text: string;
-  /** Its blob, which an edit names as what it began from. */
+  /** A fingerprint of its text, which a write names as what it began from. */
   readonly sha: string;
-  /** When a commit last changed it, Unix seconds. */
+  /** When its file was last written, Unix seconds. */
   readonly changed: number;
   /** The task whose own folder holds it, for one from when drafts were kept per task; null for the rest. */
   readonly task: string | null;
 }
 
-/** A draft saved from the page: its id, which a new one is given then; null once it was written blank, and so removed. */
-export interface DraftWritten extends WriteResult {
-  readonly id: string | null;
+/** A draft written or deleted from the page: as it is now, null once gone. A write refused is a 409 of `DraftConflict`. */
+export interface DraftSaved {
+  readonly draft: Draft | null;
+}
+
+/** A write refused, the draft not being what it began from: what it is now, null once deleted. */
+export interface DraftConflict {
+  readonly error: string;
+  readonly theirs: Draft | null;
+}
+
+/** A picture kept beside a draft: how its Markdown names it, and the draft, a new one when it was pasted into none. */
+export interface PictureSaved {
+  readonly path: string;
+  readonly draft: Draft;
 }
 
 /** What herdr says of a pane's agent: at work, waiting on `user`, finished and not looked at, or idle. */

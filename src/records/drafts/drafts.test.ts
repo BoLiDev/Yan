@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
 import { Drafts, discardIfUntouched, newDraftId, titleTemplate } from './index.js';
-import { isValidId, slugify } from './drafts.js';
+import { isValidId, picturesFrom, slugify } from './drafts.js';
 
 /**
  * The store keeps cli-kit's `draft` format, so what its own suite guarantees
@@ -148,6 +148,24 @@ describe('writing whole', () => {
     expect(drafts.write(a, '  \n')).toBeUndefined();
     expect(drafts.list().map((d) => d.id)).toEqual([b]);
     expect(() => drafts.write('never-was', 'x')).toThrow(/no draft never-was/);
+  });
+});
+
+describe('pictures', () => {
+  it('are kept numbered in a folder beside their draft, and go with it', () => {
+    const id = drafts.write(undefined, '# With pictures') as string;
+    expect(drafts.addPicture(id, Buffer.from('a'), 'png')).toBe(`${id}/1.png`);
+    expect(drafts.addPicture(id, Buffer.from('b'), 'jpg')).toBe(`${id}/2.jpg`);
+    expect(readdirSync(join(drafts.dir, id)).sort()).toEqual(['1.png', '2.jpg']);
+    expect(drafts.list().map((d) => d.id), 'the folder is no draft').toEqual([id]);
+    expect(drafts.remove(id)).toBe(true);
+    expect(existsSync(join(drafts.dir, id))).toBe(false);
+    expect(drafts.remove(id)).toBe(false);
+  });
+
+  it('are named by where they are for a reader outside the vault, and the rest of the Markdown left as it is', () => {
+    const body = '# x\n\n![shot](x/1.png) and ![web](https://example.com/a.png) and ![](/abs/b.png) and [a link](x/1.png)\n';
+    expect(picturesFrom(body, '/vault/drafts/x.md')).toBe('# x\n\n![shot](/vault/drafts/x/1.png) and ![web](https://example.com/a.png) and ![](/abs/b.png) and [a link](x/1.png)\n');
   });
 });
 

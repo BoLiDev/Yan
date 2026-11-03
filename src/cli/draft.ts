@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import { isTty } from './shared/tty.js';
 import { action, out } from './shared/action.js';
 import { saveVault } from './shared/vault-push.js';
-import { Drafts, discardIfUntouched, newDraftId, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
+import { Drafts, discardIfUntouched, newDraftId, picturesFrom, titleTemplate, type DraftSummary } from '../records/drafts/index.js';
 import { YanError } from '../util/error.js';
 import { localStamp } from '../util/time.js';
 import { vaultDir } from '../util/vault.js';
@@ -219,7 +219,7 @@ const ls = new Command('ls')
   );
 
 const cat = new Command('cat')
-  .description('print one draft')
+  .description('print one draft, its pictures named by where they are on this machine')
   .argument('<draft-id>', "as 'yan draft ls --plain' lists it")
   .action(
     action('yan draft cat', async (id: string) => {
@@ -228,7 +228,9 @@ const cat = new Command('cat')
       if (draft === undefined) {
         throw new YanError('draft_missing', `no draft ${id} in ${drafts.dir} - 'yan draft ls --plain' lists them`);
       }
-      process.stdout.write(draft.body.endsWith('\n') ? draft.body : `${draft.body}\n`);
+      // Its pictures named by where they are here, so a reader outside the vault, an agent, can open them.
+      const body = picturesFrom(draft.body, draft.path);
+      process.stdout.write(body.endsWith('\n') ? body : `${body}\n`);
     }),
   );
 
@@ -283,9 +285,10 @@ agent never writes one, which is why writing refuses without a terminal; the
 user writes them here or on yan serve's page.
 
 They live in drafts/<draft-id>.md at the top of the vault, in the format of
-the 'draft' CLI, so a note moves between the two by moving the file. Drafts
-once kept in a task's own drafts/ folder are read where they are. A draft
-written or changed here is committed and pushed at once.
+the 'draft' CLI, so a note moves between the two by moving the file, and
+the pictures pasted into one on the page in drafts/<draft-id>/, which goes
+with it. Drafts once kept in a task's own drafts/ folder are read where
+they are. A draft written or changed here is committed and pushed at once.
 
 The editor is $DRAFT_EDITOR, else $EDITOR, else nvim. A draft left empty, or
 with nothing but its --title, is discarded when the editor exits.`,

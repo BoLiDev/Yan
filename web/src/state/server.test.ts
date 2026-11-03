@@ -3,7 +3,7 @@ import type { Index, Status } from '../lib/api';
 import { pullNow, queryClient } from './server';
 import { useUI } from './ui';
 
-const status = (version: number): Status => ({ version, commit: 'c1', checkedAt: 1, pulledAt: 1, ok: true, error: null, everyS: 30, local: false, build: 'b1' });
+const status = (version: number): Status => ({ version, commit: 'c1', checkedAt: 1, pulledAt: 1, ok: true, error: null, everyS: 30, local: false, build: 'b1', drafts: { pending: false, error: null } });
 
 /** serve as the page's requests find it: each path answered by `routes`, anything else 404. */
 function serve(routes: Record<string, () => Response>): void {
