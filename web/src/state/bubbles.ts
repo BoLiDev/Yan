@@ -27,7 +27,27 @@ export interface Bubble {
   readonly v: number;
 }
 
-export const useBubbles = create<{ bubbles: Readonly<Record<string, Bubble>> }>(() => ({ bubbles: {} }));
+interface Bubbles {
+  readonly bubbles: Readonly<Record<string, Bubble>>;
+  /**
+   * The tasks whose squares have spoken, in the order they began: first on
+   * the rail, in that order, while any bubble is up. A square that speaks
+   * goes there at once, as its bubble pops, so it does not move later when
+   * the push its words came with reorders the rail; one that begins while
+   * others speak goes under them, so theirs stay where they are; and none
+   * moves again until every bubble has gone.
+   */
+  readonly pinned: readonly string[];
+  /**
+   * The room opened above each such square, in pixels, so that every
+   * bubble stands level with its own square, none covering another: a
+   * bubble is taller than the room between two squares. It only grows
+   * while any bubble is up, so no bubble moves when another goes.
+   */
+  readonly room: Readonly<Record<string, number>>;
+}
+
+export const useBubbles = create<Bubbles>(() => ({ bubbles: {}, pinned: [], room: {} }));
 
 let popped = 0;
 
@@ -38,7 +58,8 @@ let popped = 0;
 export function popBubble(task: string, b: Omit<Bubble, 'n' | 'v'>): void {
   useBubbles.setState((s) => {
     const was = s.bubbles[task];
-    if (was === undefined) return { bubbles: { ...s.bubbles, [task]: { ...b, n: ++popped, v: 0 } } };
+    const pinned = s.pinned.includes(task) ? s.pinned : [...s.pinned, task];
+    if (was === undefined) return { bubbles: { ...s.bubbles, [task]: { ...b, n: ++popped, v: 0 } }, pinned };
     return { bubbles: { ...s.bubbles, [task]: { ...b, n: was.n, v: was.text === b.text ? was.v : was.v + 1 } } };
   });
 }
@@ -58,11 +79,21 @@ export function dropBubble(task: string, n?: number, v?: number): void {
     const was = s.bubbles[task];
     if (was === undefined || (n !== undefined && was.n !== n) || (v !== undefined && was.v !== v)) return s;
     const { [task]: _gone, ...rest } = s.bubbles;
-    return { bubbles: rest };
+    // The rail goes back to its own order once nothing is said on it.
+    return Object.keys(rest).length === 0 ? { bubbles: rest, pinned: [], room: {} } : { bubbles: rest };
   });
+}
+
+/** At least `need` room above the squares it names: false when they have it already. */
+export function makeRoom(need: Readonly<Record<string, number>>): boolean {
+  const { room } = useBubbles.getState();
+  const more = Object.entries(need).filter(([task, px]) => px > (room[task] ?? 0));
+  if (more.length === 0) return false;
+  useBubbles.setState({ room: { ...room, ...Object.fromEntries(more) } });
+  return true;
 }
 
 /** Every bubble gone: the rail is, the task list shown. */
 export function dropAllBubbles(): void {
-  useBubbles.setState({ bubbles: {} });
+  useBubbles.setState({ bubbles: {}, pinned: [], room: {} });
 }

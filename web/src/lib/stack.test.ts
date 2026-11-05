@@ -1,26 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { stackBubbles, tailOf, type Speaker } from './stack';
+import { roomFor, tailOf, type Speaker } from './stack';
 
-const at = (key: string, y: number, h = 70, order = 0): Speaker => ({ key, y, h, order });
+const at = (key: string, y: number, h = 70): Speaker => ({ key, y, h });
 
 describe('the bubbles beside the rail', () => {
-  it('centres one on its square, and leaves ones far apart where they are', () => {
-    expect(Object.fromEntries(stackBubbles([at('a', 200), at('b', 400)], 6, 6, 800))).toEqual({ a: 165, b: 365 });
+  it('opens room above a square whose bubble would cover the one above, and none where there is room', () => {
+    expect(roomFor([at('a', 200), at('b', 240)], 6, {}), 'two squares together').toEqual({ b: 36 });
+    expect(roomFor([at('b', 276), at('a', 200)], 6, { b: 36 }), 'room enough once opened').toEqual({});
+    expect(roomFor([at('a', 200), at('b', 400)], 6, {}), 'far apart').toEqual({});
   });
 
-  it('stands ones that would cover each other one under another, shared out above and below their squares', () => {
-    const tops = stackBubbles([at('p', 280), at('s', 240), at('x', 200)], 6, 6, 800);
-    expect([tops.get('x'), tops.get('s'), tops.get('p')]).toEqual([129, 205, 281]);
-    // The middle one is centred on its square, the others moved alike, one up and one down.
-    expect((tops.get('s') ?? 0) + 35).toBe(240);
-    expect(200 - ((tops.get('x') ?? 0) + 35)).toBe((tops.get('p') ?? 0) + 35 - 280);
-  });
-
-  it('joins a group to the one above it when they would meet, and keeps them on screen', () => {
-    const tops = stackBubbles([at('a', 40), at('b', 80), at('c', 150)], 6, 6, 800);
-    expect(tops.get('a')).toBe(6);
-    expect(tops.get('b')).toBe(82);
-    expect(tops.get('c')).toBe(158);
+  it('opens what a square lacks on top of what it has, when the bubble above grows', () => {
+    expect(roomFor([at('a', 200, 90), at('b', 276)], 6, { b: 36 })).toEqual({ b: 46 });
   });
 
   it('points each tail into its own square, meeting the bubble on the straight of its edge, as level as it can', () => {

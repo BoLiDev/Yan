@@ -1,54 +1,30 @@
 // Where the bubbles stand beside the squares on the rail that speak them,
-// and where each one's tail meets it: worked out for all of them at once,
-// since a bubble is taller than the room between two squares.
+// and where each one's tail meets it. A bubble is taller than the room
+// between two squares, so the rail opens room between the squares that
+// speak at once, and each bubble stands level with its own.
 
-/** A bubble to place: its square's middle, on screen, its height, and its place among those of one square's height. */
+/** A bubble up: its square's middle, on screen, and its height. */
 export interface Speaker {
   readonly key: string;
   readonly y: number;
   readonly h: number;
-  readonly order: number;
 }
 
 /**
- * Each bubble's top. A bubble alone is centred on its square; bubbles that
- * would cover one another stand one under another, `gap` apart, the group
- * as near as it can be to centred on its squares, so the room it needs is
- * shared out above and below them rather than all pushed down; and none
- * goes above `least` or, while it fits, below `most`.
+ * The room each square needs above it, in all, for every bubble to stand
+ * level with its square, `gap` under the one above: the room it has,
+ * `room`, and what it lacks, for each square whose bubble would cover the
+ * one above it; squares with room enough are left out.
  */
-export function stackBubbles(speakers: readonly Speaker[], gap: number, least: number, most: number): Map<string, number> {
-  const groups: { members: Speaker[]; top: number; height: number }[] = [];
-  const centre = (g: (typeof groups)[number]): void => {
-    let offset = 0;
-    let sum = 0;
-    for (const s of g.members) {
-      sum += s.y - s.h / 2 - offset;
-      offset += s.h + gap;
-    }
-    g.height = offset - gap;
-    g.top = Math.min(Math.max(sum / g.members.length, least), Math.max(least, most - g.height));
-  };
-  for (const s of [...speakers].sort((a, b) => a.y - b.y || a.order - b.order)) {
-    const g = { members: [s], top: 0, height: 0 };
-    centre(g);
-    groups.push(g);
-    // A group that now reaches the one above joins it, which may then reach the one above that.
-    for (let last = groups.at(-1), above = groups.at(-2); last && above && last.top < above.top + above.height + gap; last = groups.at(-1), above = groups.at(-2)) {
-      groups.pop();
-      above.members.push(...last.members);
-      centre(above);
-    }
+export function roomFor(speakers: readonly Speaker[], gap: number, room: Readonly<Record<string, number>>): Record<string, number> {
+  const need: Record<string, number> = {};
+  const down = [...speakers].sort((a, b) => a.y - b.y);
+  for (let i = 1; i < down.length; i++) {
+    const [above, below] = [down[i - 1]!, down[i]!];
+    const lacks = Math.ceil(above.h / 2 + gap + below.h / 2 - (below.y - above.y));
+    if (lacks > 0) need[below.key] = (room[below.key] ?? 0) + lacks;
   }
-  const tops = new Map<string, number>();
-  for (const g of groups) {
-    let top = g.top;
-    for (const s of g.members) {
-      tops.set(s.key, top);
-      top += s.h + gap;
-    }
-  }
-  return tops;
+  return need;
 }
 
 /**

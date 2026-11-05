@@ -107,7 +107,7 @@ describe('bubbles on the rail at once', () => {
     expect(page.getByRole('status').elements()).toHaveLength(1);
   });
 
-  it('stand one under another, each tail pointing at its own square', async () => {
+  it('stand level with their squares, the rail opening room between them, each tail straight at its own', async () => {
     const { screen, says, saysAs } = await open({});
     says('Retries are in and tested; the PR waits on your review.', 300);
     saysAs('t2', 'Orders export to CSV now, and the old job is gone.', 301);
@@ -121,11 +121,29 @@ describe('bubbles on the rail at once', () => {
     expect(a.bottom <= b.top || b.bottom <= a.top, 'neither covers the other').toBe(true);
     for (const [bubble, name] of [[one, 'pay retries'], [two, 'export orders']] as const) {
       const square = rail.getByRole('link', { name }).element().getBoundingClientRect();
-      const tail = bubble.element().querySelector('svg')?.getBoundingClientRect();
-      const tip = (tail?.top ?? 0) + (tail?.height ?? 0) / 2;
-      expect(tail, name).toBeDefined();
-      expect(tip > square.top - (tail?.height ?? 0) / 2 && tip < square.bottom + (tail?.height ?? 0) / 2, `${name}'s tail at its square`).toBe(true);
+      const box = bubble.element().getBoundingClientRect();
+      expect(Math.abs(box.top + box.height / 2 - (square.top + square.height / 2)), `${name}'s bubble level with its square`).toBeLessThan(2);
     }
+  });
+
+  it('put a square that speaks first on the rail as its bubble pops, and one that begins after under it, neither bubble moving', async () => {
+    const { screen, says, saysAs } = await open({});
+    const rail = screen.getByRole('navigation', { name: 'Tasks' });
+    const order = (): string[] => rail.getByRole('link').elements().map((e) => e.getAttribute('aria-label') ?? '').filter((l) => l === 'pay retries' || l === 'export orders');
+    expect(order()).toEqual(['pay retries', 'export orders']);
+
+    saysAs('t2', 'Orders export to CSV now.', 300);
+    const first = page.getByRole('status', { name: 'export orders' });
+    await expect.element(first).toMatchTextContent(/Orders export/);
+    expect(order(), 'first as it speaks').toEqual(['export orders', 'pay retries']);
+    await new Promise((r) => setTimeout(r, 700));
+    const before = first.element().getBoundingClientRect().top;
+
+    says('Retries are in and tested; the PR waits on your review.', 301);
+    await expect.element(page.getByRole('status', { name: 'pay retries' })).toMatchTextContent(/Retries are in/);
+    await new Promise((r) => setTimeout(r, 700));
+    expect(order(), 'the second under the first').toEqual(['export orders', 'pay retries']);
+    expect(first.element().getBoundingClientRect().top, 'the first bubble where it was').toBe(before);
   });
 });
 

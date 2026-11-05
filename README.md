@@ -220,11 +220,15 @@ task's title over the words. A task that speaks again while its bubble
 is up says it in the same bubble, its new words rolling in from below as
 they push the old ones out at the top, the bubble easing to their height
 and width. It is white in either theme as a
-toast is; bubbles that would cover one another stand one under another,
-as near their squares as they can, each tail pointing into its own
-square; a click on one goes where the toast's button would, and one goes
-a while after its words are in, held while the pointer is over it or the
-page is out of sight, or by its ×. A task on no square, paused
+toast is. A square that speaks goes first on the rail as its bubble
+pops, typing or not, so it does not move when the push its words came
+with reorders the rail; one that begins while others speak goes under
+them, and the rail opens room between the squares that speak, so every
+bubble stands level with its own square, none covering another; and no
+square or bubble moves until every bubble has gone, when the rail goes
+back to its own order. A click on one goes where the toast's button
+would, and one goes a while after its words are in, held while the
+pointer is over it or the page is out of sight, or by its ×. A task on no square, paused
 or closed, is told in a toast. A finish is news, in Latest, in its count, and as a green dot on the
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an

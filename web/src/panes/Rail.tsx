@@ -45,6 +45,8 @@ function RailButton({ icon, label, onClick, href, on, mark }: { icon: IconName; 
 
 function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: string; news: AgentNews | undefined; on: boolean; squares: RefObject<Map<string, HTMLElement>> }) {
   const last = useUI((s) => s.last[t.id]);
+  // Opened above the square while it and the one above it speak, so the two bubbles stand level with their squares.
+  const room = useBubbles((s) => s.room[t.id] ?? 0);
   const speaking = useBubbles((s) => { const b = s.bubbles[t.id]; return b === undefined ? undefined : `${b.n}.${b.v}`; });
   const name = t.title || t.id;
   const label = news ? `${name} · ${agentWords(news)}` : name;
@@ -55,7 +57,7 @@ function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: 
   }, [on, t.id]);
   useEffect(() => () => dropBubble(t.id), [t.id]);
   // The square is the tooltip's trigger and the task's menu's at once; while it speaks, its bubble says more than the tooltip would.
-  const square = <a ref={(el) => { if (el === null) squares.current.delete(t.id); else squares.current.set(t.id, el); }} className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
+  const square = <a ref={(el) => { if (el === null) squares.current.delete(t.id); else squares.current.set(t.id, el); }} style={room > 0 ? { marginTop: room } : undefined} className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
     href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined} />;
   return (
     <>
@@ -79,7 +81,8 @@ function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: 
  * the one being read framed, so any of them is a click away, and what each
  * one's agent is up to shows at a glance: a light over the character of one
  * at work, a mark at the corner of one waiting or finished, and a bubble
- * from one whose agent has something to say.
+ * from one whose agent has something to say, which stands first on the rail
+ * while it speaks.
  */
 export function Rail() {
   const { data: index } = useIndex();
@@ -89,11 +92,14 @@ export function Rail() {
   const news = allNews(terminals, seen);
   const fresh = index && seen ? tasksWithNews(index, seen, news) : 0;
   const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
-  // In review, then in progress; a paused task is put aside, and the rail is for what is being worked on.
-  const tasks = index ? [
+  // In review, then in progress; a paused task is put aside, and the rail is for what is being worked on. Those whose squares
+  // speak stand first, in the order they began, while any does: one goes there as its bubble pops, and stays.
+  const pinned = useBubbles((s) => s.pinned);
+  const usual = index ? [
     ...index.tasks.filter((t) => t.state === 'uat' && goesOn(t)).sort(byTouched),
     ...index.tasks.filter((t) => t.state !== 'uat' && goesOn(t)).sort(byTouched),
   ] : [];
+  const tasks = [...pinned.flatMap((id) => usual.filter((t) => t.id === id)), ...usual.filter((t) => !pinned.includes(t.id))];
   const letters = initialsOf(tasks);
   // What the squares were saying goes with them, and is told in toasts while the list is shown.
   useEffect(() => dropAllBubbles, []);

@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
-import { stackBubbles, tailOf, type Speaker } from '../lib/stack';
+import { roomFor, tailOf, type Speaker } from '../lib/stack';
 import { cn } from '../lib/utils';
-import { dropBubble, stopWaiting, useBubbles, type Bubble } from '../state/bubbles';
+import { dropBubble, makeRoom, stopWaiting, useBubbles, type Bubble } from '../state/bubbles';
 
 /** How long the words stay once they are in and the page is in sight, the pointer over them holding them there. */
 const SHOWN_MS = 12_000;
 /** How long it takes to go. */
 const LEAVING_MS = 200;
-/** Room kept between bubbles one under another, and from the window's edges. */
+/** Room kept between bubbles one over another, and from the window's edges. */
 const GAP = 6;
 /** How far right of its square a bubble stands, the tail reaching back across it. */
 const OFF = 11;
@@ -52,28 +52,25 @@ function useAway(): boolean {
  * lines while it eases and it shows them as it widens. Asked for less
  * motion, it goes there at once.
  */
-function useEasedWidth(bubble: RefObject<HTMLElement | null>): void {
-  useEffect(() => {
+function useEasedWidth(bubble: RefObject<HTMLElement | null>, v: number): void {
+  const last = useRef<number | null>(null);
+  const easing = useRef<Animation | null>(null);
+  // Once the new words are laid out and before they are drawn, from the width on screen to theirs.
+  useLayoutEffect(() => {
     const el = bubble.current;
     if (el === null) return;
-    let last: number | null = null;
-    let easing: Animation | null = null;
-    const watch = new ResizeObserver(() => {
-      // While it eases, its width is the easing's, not its words'.
-      if (easing !== null) return;
-      const now = el.offsetWidth;
-      if (last !== null && Math.abs(now - last) > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        easing = el.animate([{ width: `${last}px` }, { width: `${now}px` }], { duration: 340, easing: 'cubic-bezier(.3, .7, .2, 1)' });
-        easing.onfinish = easing.oncancel = () => {
-          easing = null;
-          last = el.offsetWidth;
-        };
-      }
-      last = now;
-    });
-    watch.observe(el);
-    return () => watch.disconnect();
-  }, [bubble]);
+    const from = easing.current === null ? last.current : el.getBoundingClientRect().width;
+    easing.current?.cancel();
+    easing.current = null;
+    const to = el.getBoundingClientRect().width;
+    last.current = to;
+    if (from === null || Math.abs(to - from) < 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const eased = el.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 340, easing: 'cubic-bezier(.3, .7, .2, 1)' });
+    eased.onfinish = () => {
+      if (easing.current === eased) easing.current = null;
+    };
+    easing.current = eased;
+  }, [bubble, v]);
 }
 
 /** Three dots rising in turn: the agent's words are on their way. */
@@ -138,7 +135,7 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
   const away = useAway();
   const waiting = b.text === null;
   const bubble = useRef<HTMLDivElement>(null);
-  useEasedWidth(bubble);
+  useEasedWidth(bubble, b.v);
 
   useEffect(() => {
     if (!waiting) return;
@@ -162,7 +159,7 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
   };
   // Drawn unseen until it is placed, so its height is known to place it by.
   return (
-    <div ref={(el) => { if (el === null) boxes.current.delete(task); else boxes.current.set(task, el); }} data-n={b.n}
+    <div ref={(el) => { if (el === null) boxes.current.delete(task); else boxes.current.set(task, el); }}
       style={{ left: place?.left ?? 0, top: place?.top ?? 0 }}
       className={cn('pointer-events-none fixed z-40', place === undefined && 'invisible', place !== undefined && !place.first && 'transition-[top] duration-200 ease-out')}>
       <div ref={bubble} role="status" aria-label={b.title} onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
@@ -186,12 +183,12 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
 
 /**
  * What the squares on the rail say, when their agents have something to
- * tell `user`: a bubble at a square's right, its tail pointing back at it,
- * popping out with a bounce as the square hops. They are placed together,
- * frame by frame while any is up, since the rail scrolls and its squares
- * move as their tasks are worked on: bubbles that would cover one another
- * stand one under another, as near their squares as they can, and each
- * tail points at its own square. They are light whatever the theme, as a
+ * tell `user`: a bubble at a square's right, level with it, its tail
+ * pointing back at it, popping out with a bounce as the square hops. They
+ * follow their squares frame by frame while any is up, since the rail
+ * scrolls; the squares that speak stand first on the rail, and room opens
+ * between them where one bubble would cover the next, so each stays level
+ * with its own. They are light whatever the theme, as a
  * toast is, so they stand off a dark page; a click on one goes where the
  * toast's button would, and one goes by itself a while after its words
  * are in, or by its ×.
@@ -209,14 +206,18 @@ export function RailBubbles({ squares }: { squares: RefObject<Map<string, HTMLEl
       const speakers: (Speaker & { readonly right: number })[] = [];
       for (const [key, box] of boxes.current) {
         const r = squares.current.get(key)?.getBoundingClientRect();
-        if (r !== undefined && box.offsetHeight > 0) speakers.push({ key, y: r.top + r.height / 2, h: box.offsetHeight, order: Number(box.dataset.n), right: r.right });
+        if (r !== undefined && box.offsetHeight > 0) speakers.push({ key, y: r.top + r.height / 2, h: box.offsetHeight, right: r.right });
       }
-      const tops = stackBubbles(speakers, GAP, GAP, window.innerHeight - GAP);
+      // The squares make room first, and the bubbles are placed once they have moved: none is placed where it would cover another.
+      if (makeRoom(roomFor(speakers, GAP, useBubbles.getState().room))) {
+        frame = requestAnimationFrame(follow);
+        return;
+      }
       setPlaces((was) => {
         const next = new Map<string, Place>();
         let changed = was.size !== speakers.length;
         for (const s of speakers) {
-          const top = Math.round(tops.get(s.key) ?? 0);
+          const top = Math.round(Math.min(Math.max(s.y - s.h / 2, GAP), window.innerHeight - GAP - s.h));
           const { meet, tip } = tailOf(Math.round(s.y), top, s.h, KEEP, SPAN);
           const old = was.get(s.key);
           const place = { left: Math.round(s.right + OFF), top, meet, tip, first: old === undefined };
