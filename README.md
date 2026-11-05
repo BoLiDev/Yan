@@ -223,7 +223,12 @@ is; pasted into none, a new draft is made for it. With no drafts, the box
 opens on a new one, ready to write. Hidden, the task list folds to a rail:
 finding a task, starting one, Latest, and a square for each task in review
 or in progress, not paused, the one being read framed and each one's agent marked as
-on the list. A right click on a task's row in the list, or its square on
+on the list. A square is one character of its task's title: its first
+word's first letter, capitalised, or its first Chinese character, never
+two run together. The tasks pick in the order they were made, so a task
+keeps its character while newer ones come and go; one whose first is an
+older task's takes its next word's letter, or its next character, and
+shares its first when it has no other. A right click on a task's row in the list, or its square on
 the rail, opens the page's own menu in place of the browser's: Rename;
 while the task is open, Pause, Done and Abandon; and while it is paused,
 Resume, which asks nothing and takes it up again as it was, its Terminal

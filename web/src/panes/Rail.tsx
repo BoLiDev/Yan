@@ -41,18 +41,18 @@ function RailButton({ icon, label, onClick, href, on, mark }: { icon: IconName; 
   );
 }
 
-function TaskSquare({ t, letters, news, on }: { t: TaskSummary; letters: string; news: AgentNews | undefined; on: boolean }) {
+function TaskSquare({ t, letter, news, on }: { t: TaskSummary; letter: string; news: AgentNews | undefined; on: boolean }) {
   const last = useUI((s) => s.last[t.id]);
   const name = t.title || t.id;
   const label = news ? `${name} · ${agentWords(news)}` : name;
   const working = news?.kind === 'working';
   // The square is the tooltip's trigger and the task's menu's at once.
-  const square = <a className={cn(SQUARE, 'text-[12.5px] font-bold tracking-tight text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
+  const square = <a className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
     href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined} />;
   return (
     <Tooltip>
       <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
-        <span className={cn(working && WORKING)}>{letters}</span>
+        <span className={cn(working && WORKING)}>{letter}</span>
         <Mark news={news} />
       </TaskMenu>
       <TooltipContent side="right">{label}</TooltipContent>
@@ -62,10 +62,10 @@ function TaskSquare({ t, letters, news, on }: { t: TaskSummary; letters: string;
 
 /**
  * The task list folded to a rail: its tools as icons, and a square for each
- * task in review or in progress, told apart by its title's letters, the one
- * being read framed, so any of them is a click away, and what each one's
- * agent is up to shows at a glance: a light over the letters of one at
- * work, a mark at the corner of one waiting or finished.
+ * task in review or in progress, told apart by a character of its title,
+ * the one being read framed, so any of them is a click away, and what each
+ * one's agent is up to shows at a glance: a light over the character of one
+ * at work, a mark at the corner of one waiting or finished.
  */
 export function Rail() {
   const { data: index } = useIndex();
@@ -89,7 +89,7 @@ export function Rail() {
       <RailButton icon="latest" label="Latest" href="#/latest" on={r.view === 'latest'}
         mark={fresh > 0 ? <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-sunken" /> : null} />
       <span className="my-2 h-px w-7 flex-none bg-border" />
-      {tasks.map((t) => <TaskSquare key={t.id} t={t} letters={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} />)}
+      {tasks.map((t) => <TaskSquare key={t.id} t={t} letter={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} />)}
     </nav>
   );
 }
