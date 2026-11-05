@@ -46,8 +46,15 @@ describe('task.json', () => {
       deliverables: [{ id: 'd1', text: 't', status: 'done', doneAt: '2026-10-15', reason: null }],
       resources: [['a', 'b'], ['n', '3']],
       resourceKinds: { a: 'run' },
+      said: null,
     });
     expect(readTaskJson('not an object').title).toBe('');
+  });
+
+  it('reads what the agent last said with when, in seconds, and nothing of words without a time it can read', () => {
+    expect(readTaskJson({ said: { text: 'Retries are in.', at: '2026-11-05T06:00:00Z' } }).said).toEqual({ text: 'Retries are in.', at: Date.UTC(2026, 10, 5, 6) / 1000 });
+    expect(readTaskJson({ said: { text: 'Retries are in.', at: 'soon' } }).said).toBeNull();
+    expect(readTaskJson({ said: 'Retries are in.' }).said).toBeNull();
   });
 
   it('reads an open task paused, and a closed one as closed whatever was left of a pause', () => {

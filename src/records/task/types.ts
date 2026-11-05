@@ -79,6 +79,19 @@ export interface TaskData {
    * still reads every resource as a line of text.
    */
   readonly resourceKinds: Readonly<Record<string, ResourceKind>>;
+  /**
+   * What the agent last told `user` with `yan say`, a sentence or two on
+   * where the work stands as a turn ends, for yan serve's page to show
+   * them wherever they are. Only the last is kept, written over by the
+   * next; the vault's history has the rest. Absent until the first.
+   */
+  readonly said?: Said;
+}
+
+/** Something the agent said to `user`, and when: ISO 8601 UTC to the second. */
+export interface Said {
+  readonly text: string;
+  readonly at: string;
 }
 
 /** One repository a task works in. */

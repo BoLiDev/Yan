@@ -1,0 +1,107 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
+import type { Index, TerminalState } from '../lib/api';
+import { Toaster } from '../components/ui/sonner';
+import { AGENT_TOASTER, useAgentToasts } from '../state/agentToasts';
+import { queryClient } from '../state/server';
+import { useUI } from '../state/ui';
+import { draw, have, index, reset, serve, status, task } from '../testing/serve';
+import { Left } from './Left';
+
+const agent = (now: TerminalState['status'], at: number, from: TerminalState['status'] = 'working'): TerminalState =>
+  ({ status: now, change: { from, to: now, at }, agent: 'claude', cli: 'claude', pane: 'w1:p2', since: '2026-11-01T09:00:00Z', herdr: '0.9.5', streams: true, layout: { pane: 'w1:p2' } });
+
+/** The task list, shown or folded as `user` left it, and the toasts its agents are told in, as the page has them. */
+function Page() {
+  useAgentToasts();
+  return <><Left /><Toaster id={AGENT_TOASTER} position="top-right" /></>;
+}
+
+/**
+ * The page over a vault of `pay retries`, its agent in a herdr pane here
+ * when `here` says how it is, the task list folded unless `shown`. What the
+ * vault and herdr say next is moved with the two it returns.
+ */
+async function open({ here, shown = false, everyS = 10 }: { here?: TerminalState; shown?: boolean; everyS?: number }) {
+  useUI.setState((s) => ({ prefs: { ...s.prefs, left: shown } }));
+  let ix: Index = index([task('t1', 'pay retries'), task('t2', 'export orders')], { status: { ...status(), everyS } });
+  let agents: Record<string, TerminalState> = here === undefined ? {} : { t1: here };
+  serve({ '/api/index': () => Response.json(ix), '/api/terminals': () => Response.json(agents) });
+  have(ix);
+  const screen = await draw(<Page />);
+  // The page has read what herdr says as it opened, which is no news, and drawn it.
+  await expect.poll(() => queryClient.getQueryData(['terminals'])).toBeDefined();
+  await new Promise((r) => setTimeout(r, 250));
+  return {
+    screen,
+    herdr: async (now: TerminalState) => {
+      agents = { t1: now };
+      await queryClient.invalidateQueries({ queryKey: ['terminals'] });
+    },
+    says: (text: string, at: number) => {
+      ix = { ...ix, tasks: ix.tasks.map((t) => (t.id === 't1' ? { ...t, said: { text, at } } : t)) };
+      queryClient.setQueryData(['index'], ix);
+    },
+  };
+}
+
+describe('a task folded to its square on the rail', () => {
+  afterEach(reset);
+
+  it('is one character of its title', async () => {
+    const { screen } = await open({});
+    const rail = screen.getByRole('navigation', { name: 'Tasks' });
+    expect(rail.getByRole('link', { name: 'pay retries' }).element().textContent).toBe('P');
+    expect(rail.getByRole('link', { name: 'export orders' }).element().textContent).toBe('E');
+  });
+
+  it('speaks in a bubble as its agent finishes, typing until the words it said come, and opens its terminal when clicked', async () => {
+    const { herdr, says } = await open({ here: agent('working', 100, 'idle') });
+
+    await herdr(agent('done', 200));
+    const bubble = page.getByRole('status', { name: 'pay retries' });
+    await expect.element(bubble.getByLabelText('typing')).toBeVisible();
+
+    says('Retries are in; the PR waits on your review.', 201);
+    await expect.element(bubble).toMatchTextContent(/Retries are in; the PR waits on your review\./);
+    expect(page.getByText('Its agent has finished.').query(), 'no toast while the list is folded').toBeNull();
+
+    await bubble.getByRole('button', { name: /Retries are in/ }).click();
+    expect(location.hash).toBe('#/t/t1/terminal');
+    await expect.element(bubble).not.toBeInTheDocument();
+  });
+
+  it('says what an agent elsewhere said as it comes, and opens the task', async () => {
+    const { says } = await open({});
+    says('Stuck: staging refuses our key.', 300);
+    const bubble = page.getByRole('status', { name: 'pay retries' });
+    await expect.element(bubble).toMatchTextContent(/Stuck: staging refuses our key\./);
+    await bubble.getByRole('button', { name: /Stuck/ }).click();
+    expect(location.hash).toBe('#/t/t1');
+  });
+
+  it('says the agent finished in its own words when none come', async () => {
+    const { herdr } = await open({ here: agent('working', 100, 'idle'), everyS: 0 });
+    await herdr(agent('done', 200));
+    const bubble = page.getByRole('status', { name: 'pay retries' });
+    await expect.element(bubble.getByLabelText('typing')).toBeVisible();
+    await expect.element(bubble, { timeout: 8000 }).toMatchTextContent(/I'm done for now\./);
+  });
+});
+
+describe('what an agent said, with the task list shown', () => {
+  afterEach(reset);
+
+  it('takes the place of the toast\'s words once they come', async () => {
+    const { herdr, says } = await open({ here: agent('working', 100, 'idle'), shown: true });
+    await herdr(agent('done', 200));
+    await expect.element(page.getByText('Its agent has finished.')).toBeVisible();
+
+    says('Retries are in.', 201);
+    await expect.element(page.getByText('Retries are in.')).toBeVisible();
+    expect(page.getByText('Its agent has finished.').query()).toBeNull();
+    expect(page.getByRole('status', { name: 'pay retries' }).query(), 'no bubble with the list shown').toBeNull();
+    await page.getByRole('button', { name: 'Open terminal' }).click();
+    expect(location.hash).toBe('#/t/t1/terminal');
+  });
+});

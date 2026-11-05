@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { stateOf, type TaskSummary } from '../lib/api';
+import { useEffect, useRef, type ReactNode } from 'react';
+import type { TaskSummary } from '../lib/api';
 import { agentWords, allNews, tasksWithNews, type AgentNews } from '../lib/agents';
 import { MOD } from '../lib/format';
 import { initialsOf } from '../lib/letters';
@@ -9,9 +9,11 @@ import { Icon, type IconName } from '../components/Icon';
 import { WORKING } from '../components/page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { TaskMenu } from '../components/TaskMenu';
-import { isPaused } from '../lib/stops';
+import { goesOn } from '../lib/stops';
+import { dropAllBubbles, dropBubble, useBubbles } from '../state/bubbles';
 import { useIndex, useTerminals } from '../state/server';
 import { setPref, useUI } from '../state/ui';
+import { RailBubble } from './RailBubble';
 
 /** The corner mark of a task's agent: amber while it waits on `user`, green once it has finished and nobody has looked. */
 function Mark({ news }: { news: AgentNews | undefined }) {
@@ -43,20 +45,33 @@ function RailButton({ icon, label, onClick, href, on, mark }: { icon: IconName; 
 
 function TaskSquare({ t, letter, news, on }: { t: TaskSummary; letter: string; news: AgentNews | undefined; on: boolean }) {
   const last = useUI((s) => s.last[t.id]);
+  const speaking = useBubbles((s) => s.bubbles[t.id]?.n);
+  const anchor = useRef<HTMLAnchorElement>(null);
   const name = t.title || t.id;
   const label = news ? `${name} · ${agentWords(news)}` : name;
   const working = news?.kind === 'working';
-  // The square is the tooltip's trigger and the task's menu's at once.
-  const square = <a className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
+  // What the task's agent says is no news on the task itself, which the page shows; and it goes with the square.
+  useEffect(() => {
+    if (on) dropBubble(t.id);
+  }, [on, t.id]);
+  useEffect(() => () => dropBubble(t.id), [t.id]);
+  // The square is the tooltip's trigger and the task's menu's at once; while it speaks, its bubble says more than the tooltip would.
+  const square = <a ref={anchor} className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
     href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined} />;
   return (
-    <Tooltip>
-      <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
-        <span className={cn(working && WORKING)}>{letter}</span>
-        <Mark news={news} />
-      </TaskMenu>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
+    <>
+      <Tooltip disabled={speaking !== undefined}>
+        <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
+          {/* Hops each time it speaks anew. */}
+          <span key={speaking ?? 0} className={cn('inline-block', speaking !== undefined && 'animate-hop')}>
+            <span className={cn(working && WORKING)}>{letter}</span>
+          </span>
+          <Mark news={news} />
+        </TaskMenu>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+      <RailBubble task={t.id} anchor={anchor} />
+    </>
   );
 }
 
@@ -65,7 +80,8 @@ function TaskSquare({ t, letter, news, on }: { t: TaskSummary; letter: string; n
  * task in review or in progress, told apart by a character of its title,
  * the one being read framed, so any of them is a click away, and what each
  * one's agent is up to shows at a glance: a light over the character of one
- * at work, a mark at the corner of one waiting or finished.
+ * at work, a mark at the corner of one waiting or finished, and a bubble
+ * from one whose agent has something to say.
  */
 export function Rail() {
   const { data: index } = useIndex();
@@ -75,12 +91,14 @@ export function Rail() {
   const news = allNews(terminals, seen);
   const fresh = index && seen ? tasksWithNews(index, seen, news) : 0;
   const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
+  // In review, then in progress; a paused task is put aside, and the rail is for what is being worked on.
   const tasks = index ? [
-    // A paused task is put aside: the rail is for what is being worked on.
-    ...index.tasks.filter((t) => t.state === 'uat' && !isPaused(t)).sort(byTouched),
-    ...index.tasks.filter((t) => t.state !== 'uat' && stateOf(t.state) === 'open' && !isPaused(t)).sort(byTouched),
+    ...index.tasks.filter((t) => t.state === 'uat' && goesOn(t)).sort(byTouched),
+    ...index.tasks.filter((t) => t.state !== 'uat' && goesOn(t)).sort(byTouched),
   ] : [];
   const letters = initialsOf(tasks);
+  // What the squares were saying goes with them, and is told in toasts while the list is shown.
+  useEffect(() => dropAllBubbles, []);
   return (
     <nav className="flex h-screen w-14 flex-none flex-col items-center gap-1 overflow-y-auto bg-sunken py-3.5" aria-label="Tasks">
       <RailButton icon="panel" label="Show the task list" onClick={() => setPref('left', true)} />

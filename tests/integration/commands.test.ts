@@ -73,6 +73,31 @@ describe('yan log', () => {
   });
 });
 
+describe('yan say', () => {
+  it('keeps the last thing said to the user, its lines run into one, and reads it back', async () => {
+    const env = { YAN_TASK: 't001' };
+    expect(JSON.parse((await yan(['say', '--json'], env)).stdout), 'nothing said yet').toBeNull();
+    expect((await yan(['say', 'Retries are in.\n  The PR waits on your review.'], env)).code).toBe(0);
+    expect(JSON.parse((await yan(['say', '--json'], env)).stdout)).toEqual({ text: 'Retries are in. The PR waits on your review.', at: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/) });
+
+    expect((await yan(['say', '卡住了：staging', '拒绝了我们的 key。'], env)).code).toBe(0);
+    const said = JSON.parse((await yan(['say', '--json'], env)).stdout) as unknown;
+    expect(said, 'in place of the one before').toMatchObject({ text: '卡住了：staging 拒绝了我们的 key。' });
+    expect(JSON.parse(readFileSync(join(home, 'tasks', 't001', 'task.json'), 'utf8')).said).toEqual(said);
+    expect((await yan(['say'], env)).stdout).toContain('卡住了：staging 拒绝了我们的 key。');
+  });
+
+  it('refuses nothing to say, and more than a sentence or two, a Chinese character taking two columns', async () => {
+    const env = { YAN_TASK: 't001' };
+    expectUsage(await yan(['say', '   '], env), 'say something');
+    expect((await yan(['say', 'a'.repeat(200)], env)).code).toBe(0);
+    expectUsage(await yan(['say', 'a'.repeat(201)], env), 'a sentence or two');
+    expect((await yan(['say', '好'.repeat(100)], env)).code).toBe(0);
+    expectUsage(await yan(['say', '好'.repeat(101)], env), 'a sentence or two');
+    expect(JSON.parse((await yan(['say', '--json'], env)).stdout)).toMatchObject({ text: '好'.repeat(100) });
+  });
+});
+
 describe('yan deliverable', () => {
   it('adds, edits, marks done and abandons, and context shows the list as it stands', async () => {
     const env = { YAN_TASK: 't001' };

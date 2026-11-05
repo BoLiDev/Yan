@@ -3,7 +3,7 @@ import type { TaskSummary } from './api';
 import { findTasks } from './find';
 
 const task = (id: string, title: string, state = 'open', touched = 0): TaskSummary =>
-  ({ id, title, state, touched, createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], rev: '' }) as TaskSummary;
+  ({ id, title, state, touched, createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [], artifacts: 0, added: [], said: null, rev: '' }) as TaskSummary;
 
 const ids = (tasks: readonly TaskSummary[], query: string, recent: string[] = [], current: string | null = null): string[] =>
   findTasks(tasks, query, recent, current).map((f) => f.task.id);

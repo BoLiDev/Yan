@@ -67,7 +67,7 @@ added beside it.
 How to work in a task is in yan's skills, a plugin in `plugin/`:
 `yan:recap`, which the agent uses at the start of a session to read the task
 and which holds the rules for keeping its notes, its files, its resources and
-its branches; `yan:define`, to work out the problem and the solution with
+its branches, and for saying where things stand as each turn ends; `yan:define`, to work out the problem and the solution with
 you; `yan:uat`, once an implementation is done and its result can be
 verified interactively; `yan:done`, which only you start, to close a
 task, done, or given up with the reason you give it (`/yan:done --abandon
@@ -85,8 +85,8 @@ named by its `.claude-plugin/plugin.json` or else by its folder, or a folder
 of plugins. A `skillDir` that is not a folder stops bare `yan` before it
 asks anything. Codex and Agy take no plugin, so their
 prompt says it all: which tree is which and what in them the task is about,
-where the task's own files are, how the branches are kept, and how the
-evidence is gathered.
+where the task's own files are, how the branches are kept, how the
+evidence is gathered, and that a turn ends with `yan say`.
 
 `yan:uat` gathers what you check the result by in artifacts/uat/,
 deliverable by deliverable, in one pass after the implementation: the before
@@ -158,6 +158,7 @@ For the agent:
 - `yan branch [name]` — keep a branch as the task's, as soon as it is cut: only the agent keeps them, one in progress for each app or package the task changes; keeping one names the others in progress in that repository, and each stays in progress until it is merged or marked given up
 - `yan branch abandon <name>` — mark a branch given up, as soon as its work moves to another or stops; nothing is deleted, and keeping it again opens it again
 - `yan learn add|ls` — a learning, written only when you ask for one
+- `yan say "<words>"` — where things stand as the agent ends a turn, a sentence or two in your language: done, stuck, or what it needs from you. Only the last is kept, in task.json, and `yan serve` shows it to you wherever you are on the page; at most 200 columns, a Chinese character taking two. Bare, what was said last
 
 `yan <command> --help` says the rest. Every command that takes a task reads
 `$YAN_TASK` when none is given, which is what `yan` sets for the agent it
@@ -196,7 +197,20 @@ page is open; a line opens the task's terminal. An agent that
 finishes, or comes to wait on you, is also told at the page's top right,
 with a button to its terminal, unless the page is showing that task; it
 is white with its button black in either theme, so it stands off a dark
-page, and its × closes it. A finish is news, in Latest, in its count, and as a green dot on the
+page, and its × closes it. What an agent said with `yan say`, which
+reaches the page with the push at the end of its turn, is told the same
+way in its own words, taking the place of the toast's once they come,
+and an agent running elsewhere is told of as its words come, the button
+opening its task. With the task list folded to the rail, what would be a
+toast is a bubble instead, popping out of the task's square with a hop
+and a wobble, its tail pointing back at it: a finish makes it type,
+three dots rising, until the agent's words fill it, or, when none have
+come by the time serve has fetched again, says the agent is done; the
+task's title over the words. It is white in either theme as a toast is,
+two at once stack one under the other, a click on it goes where the
+toast's button would, and it goes a while after its words are in, held
+while the pointer is over it, or by its ×. A task on no square, paused
+or closed, is told in a toast. A finish is news, in Latest, in its count, and as a green dot on the
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an
 amber dot, until it is answered. Drafts, under Latest, opens your drafts

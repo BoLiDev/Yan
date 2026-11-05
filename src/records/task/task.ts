@@ -9,13 +9,28 @@ import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
 import { Uat, type Renumbered } from './uat.js';
-import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
+import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type Said, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /** A title as a task keeps it: trimmed, and refused when blank or on more than one line. */
 function titleOf(title: string): string {
   const name = title.trim();
   if (name === '' || /[\r\n]/.test(name)) throw YanError.usage('task_usage', 'a task needs a title, on one line');
   return name;
+}
+
+/**
+ * The most a thing said with `yan say` may take, in columns: a sentence or
+ * two, which is what the bubble yan serve pops beside the task has room
+ * for. A Chinese or Japanese character takes two, as it does on screen,
+ * so about a hundred of them fit, or two hundred letters.
+ */
+export const SAY_MOST = 200;
+
+/** How many columns `text` takes: two for a wide character, one for any other. */
+function sayWidth(text: string): number {
+  let width = 0;
+  for (const c of text) width += /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff01-\uff60\uffe0-\uffe6]/u.test(c) ? 2 : 1;
+  return width;
 }
 
 /**
@@ -121,6 +136,25 @@ export class Task {
       if (state === 'abandoned' && reason.trim() !== '') doc.reason = reason.trim();
       else delete doc.reason;
     });
+  }
+
+  /**
+   * Keep what the agent tells `user` as a turn ends, in place of what it
+   * said last: a sentence or two, its lines run into one.
+   *
+   * @throws YanError `say_usage` when it is blank or longer than
+   *   `SAY_MOST`.
+   */
+  public say(text: string): Said {
+    const words = text.replace(/\s+/g, ' ').trim();
+    if (words === '') throw YanError.usage('say_usage', 'say something: a sentence or two on where things stand');
+    const width = sayWidth(words);
+    if (width > SAY_MOST) throw YanError.usage('say_usage', `that takes ${width} columns and a bubble has room for ${SAY_MOST} - say it in a sentence or two`);
+    const said = { text: words, at: isoSecond() };
+    this.edit((doc) => {
+      doc.said = said;
+    });
+    return said;
   }
 
   /**
@@ -535,6 +569,8 @@ function validate(raw: unknown, task: Task): TaskData {
   // A closed task is closed, whatever was left of a pause.
   const pausedAt = isClosed(state as TaskState) ? undefined : text(doc.pausedAt);
   const reason = text(doc.reason);
+  const saidText = text(recordOrNone(doc.said)?.text);
+  const saidAt = text(recordOrNone(doc.said)?.at);
   // Before a task could have several, it had one `repo` and its `scope`.
   const repos = Array.isArray(doc.repos) ? readRepos(doc.repos) : readRepos([{ url: doc.repo, scope: doc.scope }]);
   const resources = readResources(doc.resources);
@@ -555,6 +591,7 @@ function validate(raw: unknown, task: Task): TaskData {
     deliverables,
     resources,
     resourceKinds: readResourceKinds(doc.resourceKinds, resources),
+    ...(saidText === undefined || saidAt === undefined ? {} : { said: { text: saidText, at: saidAt } }),
   };
 }
 

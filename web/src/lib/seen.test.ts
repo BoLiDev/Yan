@@ -4,7 +4,7 @@ import { feedFiles, initSeen, latestUnseen, markAllSeen, markLooked, markTaskRea
 
 const task = (id: string, touched: number): TaskSummary => ({
   id, title: id, state: 'open', createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [],
-  artifacts: 0, added: [], touched, rev: id,
+  artifacts: 0, added: [], touched, said: null, rev: id,
 });
 
 const push = (task: string, at: number, files: [string, 'A' | 'M' | 'D', number?][]): Push => ({

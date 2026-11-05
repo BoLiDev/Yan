@@ -95,6 +95,8 @@ export const OPENING_PROMPT = [
     'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
   'It also lists the user\'s newest drafts, their own notes, shared by every task, so most are about other work: read one with `yan draft cat <id>` when its title touches this task, opening the pictures it names by their path, ' +
     'and take it as the user\'s thinking, not a decision made. Never write, change or remove one: they are the user\'s alone.',
+  'As you end a turn, say where things stand in a sentence or two, in the user\'s language, with `yan say "<words>"`: done, stuck, or what you need from them. ' +
+    'They are often elsewhere while you work, and yan shows it to them there, so make it the last thing you run.',
 ].join('\n');
 
 /**

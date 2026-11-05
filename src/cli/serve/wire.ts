@@ -61,6 +61,8 @@ export interface TaskSummary {
   readonly added: readonly number[];
   /** The newest commit that touched anything of the task's. */
   readonly touched: number;
+  /** What its agent last told `user` with `yan say`, and when, in seconds as an agent's change is; null when it has said nothing. */
+  readonly said: { readonly text: string; readonly at: number } | null;
   /**
    * Its files as they are now, every path and sha hashed: what the page
    * reloads a task by, so a push to one task leaves the others as they are.
