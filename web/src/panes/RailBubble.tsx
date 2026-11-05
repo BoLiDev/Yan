@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
+import { stackBubbles, tailOf, type Speaker } from '../lib/stack';
 import { cn } from '../lib/utils';
 import { dropBubble, stopWaiting, useBubbles, type Bubble } from '../state/bubbles';
 
@@ -8,56 +9,30 @@ import { dropBubble, stopWaiting, useBubbles, type Bubble } from '../state/bubbl
 const SHOWN_MS = 12_000;
 /** How long it takes to go. */
 const LEAVING_MS = 200;
-
-/** Room kept between bubbles stacked one under another, and from the window's top. */
+/** Room kept between bubbles one under another, and from the window's edges. */
 const GAP = 6;
+/** How far right of its square a bubble stands, the tail reaching back across it. */
+const OFF = 11;
+/** How far the tail reaches out of the bubble, and half its width where it meets it. */
+const REACH = 9;
+const HALF = 6;
+/** How far from the bubble's top and bottom the tail keeps, on the straight of the edge, off its rounded corners. */
+const KEEP = 16 + HALF;
+/** How far off its square's middle the tail's tip may point, still into the square, to keep it as level as it can. */
+const SPAN = 12;
 
+/** Where a bubble is drawn, and its tail: where it meets the bubble and where its tip points, from the bubble's top. */
 interface Place {
   readonly left: number;
   readonly top: number;
-  /** How far down the bubble its tail is, at the square's middle. */
-  readonly tail: number;
-  /** The square's middle, on screen, by which the bubbles stack. */
-  readonly y: number;
+  readonly meet: number;
+  readonly tip: number;
   /** Placed for the first time: it pops there, rather than sliding there. */
   readonly first: boolean;
 }
 
-/**
- * Where the bubble goes: at the right of its square, its middle level with
- * the square's, followed frame by frame while it is up, since the rail
- * scrolls and its squares move as their tasks are worked on, neither of
- * which a resize says. A bubble keeps below those of the squares above its
- * own, so two that speak at once are both read, its tail still pointing
- * at its own square.
- */
-function usePlace(anchor: RefObject<HTMLElement | null>, box: RefObject<HTMLElement | null>, n: number): Place | null {
-  const [place, setPlace] = useState<Place | null>(null);
-  useEffect(() => {
-    let frame = 0;
-    const follow = (): void => {
-      const a = anchor.current?.getBoundingClientRect();
-      const height = box.current?.offsetHeight ?? 0;
-      if (a !== undefined && height > 0) {
-        const y = Math.round(a.top + a.height / 2);
-        let top = y - height / 2;
-        // Only the bubbles already placed count: one not yet placed has nowhere to be kept clear of.
-        for (const other of document.querySelectorAll<HTMLElement>('[data-bubble]:not([data-y=""])')) {
-          const [oy, on] = [Number(other.dataset.y), Number(other.dataset.bubble)];
-          if (other !== box.current && (oy < y || (oy === y && on < n))) top = Math.max(top, other.getBoundingClientRect().bottom + GAP);
-        }
-        top = Math.round(Math.max(GAP, top));
-        const tail = Math.round(Math.min(Math.max(y - top, 14), height - 14));
-        const left = Math.round(a.right + 11);
-        setPlace((was) => (was !== null && was.left === left && was.top === top && was.tail === tail && was.y === y ? was : { left, top, tail, y, first: was === null }));
-      }
-      frame = requestAnimationFrame(follow);
-    };
-    follow();
-    return () => cancelAnimationFrame(frame);
-  }, [anchor, box, n]);
-  return place;
-}
+const samePlace = (a: Place | undefined, b: Place): boolean =>
+  a !== undefined && a.left === b.left && a.top === b.top && a.meet === b.meet && a.tip === b.tip;
 
 /** Whether the page is out of sight: what a bubble says waits there for `user` to come back to it, as a toast does. */
 function useAway(): boolean {
@@ -79,67 +54,151 @@ function Typing() {
   );
 }
 
-/** One saying: popped, typing until its words are in, held while pointed at, and gone a while after. */
-function Said({ task, b, anchor }: { task: string; b: Bubble; anchor: RefObject<HTMLElement | null> }) {
-  const box = useRef<HTMLDivElement>(null);
-  const place = usePlace(anchor, box, b.n);
-  const [leaving, setLeaving] = useState(false);
+/**
+ * What the bubble says, saying by saying: a new one rolls in from below as
+ * it pushes the one before out at the top, and the bubble's height follows
+ * it there rather than jumping.
+ */
+function Words({ v, children }: { v: number; children: ReactNode }) {
+  const [shown, setShown] = useState<{ v: number; node: ReactNode }>({ v, node: children });
+  const [leaving, setLeaving] = useState<{ v: number; node: ReactNode } | null>(null);
+  if (shown.v !== v) {
+    setLeaving(shown);
+    setShown({ v, node: children });
+  }
+  const now = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = now.current;
+    if (el === null) return;
+    const watch = new ResizeObserver(() => setHeight(el.offsetHeight));
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [v]);
+  return (
+    <div className="relative overflow-hidden transition-[height] duration-300 ease-out" style={{ height: height ?? undefined }}>
+      {leaving === null ? null : (
+        <div key={leaving.v} className="absolute inset-x-0 top-0 animate-words-out" onAnimationEnd={(e) => e.target === e.currentTarget && setLeaving(null)}>{leaving.node}</div>
+      )}
+      <div key={v} ref={now} className={cn(leaving !== null && 'animate-words-in')}>{children}</div>
+    </div>
+  );
+}
+
+/** The tail, from where it meets the bubble's edge to its tip at the square's middle, drawn over the edge's border so the two are one line. */
+function Tail({ meet, tip }: { meet: number; tip: number }) {
+  const top = Math.min(meet - HALF, tip) - 1;
+  const height = Math.max(meet + HALF, tip) + 1 - top;
+  const [a, b, t] = [meet - HALF - top, meet + HALF - top, tip - top];
+  return (
+    <svg aria-hidden className="pointer-events-none absolute overflow-visible" style={{ left: -REACH - 1, top, width: REACH + 2, height }}>
+      <polygon points={`${REACH + 1.5},${a} 1,${t} ${REACH + 1.5},${b}`} fill="var(--toast-bg)" />
+      <polyline points={`${REACH + 0.5},${a} 1,${t} ${REACH + 0.5},${b}`} fill="none" stroke="var(--toast-line)" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** One bubble: popped, typing until its words are in, held while pointed at or while the page is out of sight, and gone a while after. */
+function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place | undefined; boxes: RefObject<Map<string, HTMLElement>> }) {
+  // Which saying it was asked to go at: one said after that keeps it.
+  const [goneAt, setGoneAt] = useState<number | null>(null);
+  const leaving = goneAt === b.v;
   const [held, setHeld] = useState(false);
   const away = useAway();
   const waiting = b.text === null;
 
   useEffect(() => {
     if (!waiting) return;
-    const id = setTimeout(() => stopWaiting(task, b.n), Math.max(0, b.until - Date.now()));
+    const id = setTimeout(() => stopWaiting(task, b.n, b.v), Math.max(0, b.until - Date.now()));
     return () => clearTimeout(id);
-  }, [waiting, task, b.n, b.until]);
+  }, [waiting, task, b.n, b.v, b.until]);
   useEffect(() => {
     if (waiting || held || away || leaving) return;
-    const id = setTimeout(() => setLeaving(true), SHOWN_MS);
+    const id = setTimeout(() => setGoneAt(b.v), SHOWN_MS);
     return () => clearTimeout(id);
-  }, [waiting, held, away, leaving]);
+  }, [waiting, held, away, leaving, b.v]);
   useEffect(() => {
     if (!leaving) return;
-    const id = setTimeout(() => dropBubble(task, b.n), LEAVING_MS);
+    const id = setTimeout(() => dropBubble(task, b.n, b.v), LEAVING_MS);
     return () => clearTimeout(id);
-  }, [leaving, task, b.n]);
+  }, [leaving, task, b.n, b.v]);
 
   const open = (): void => {
     location.hash = b.to;
     dropBubble(task, b.n);
   };
   // Drawn unseen until it is placed, so its height is known to place it by.
-  return createPortal(
-    <div ref={box} data-bubble={b.n} data-y={place?.y ?? ''} style={{ left: place?.left ?? 0, top: place?.top ?? 0 }}
-      className={cn('pointer-events-none fixed z-40', place === null && 'invisible', place !== null && !place.first && 'transition-[top] duration-200 ease-out')}>
-      <div role="status" aria-label={b.title} onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)} style={{ transformOrigin: `0 ${place?.tail ?? 0}px` }}
-        className={cn('group pointer-events-auto relative w-max max-w-[280px] min-w-[120px] rounded-2xl border border-(--toast-line) bg-(--toast-bg) text-(--toast-ink) shadow-[0_6px_24px_rgba(0,0,0,.16)]',
-          leaving ? 'animate-bubble-out' : 'animate-bubble-pop')}>
-        {/* The tail, pointing back at the square that speaks. */}
-        <span style={{ top: place?.tail ?? 0 }} className="absolute -left-[6px] size-[11px] -translate-y-1/2 rotate-45 rounded-bl-[3px] border-b border-l border-(--toast-line) bg-(--toast-bg)" />
+  return (
+    <div ref={(el) => { if (el === null) boxes.current.delete(task); else boxes.current.set(task, el); }} data-n={b.n}
+      style={{ left: place?.left ?? 0, top: place?.top ?? 0 }}
+      className={cn('pointer-events-none fixed z-40', place === undefined && 'invisible', place !== undefined && !place.first && 'transition-[top] duration-200 ease-out')}>
+      <div role="status" aria-label={b.title} onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
+        style={{ transformOrigin: `${-REACH}px ${place?.tip ?? 0}px` }}
+        className={cn('group pointer-events-auto relative w-max max-w-[280px] min-w-[120px] rounded-2xl border border-(--toast-line) bg-(--toast-bg) text-(--toast-ink)',
+          '[filter:drop-shadow(0_6px_12px_rgba(0,0,0,.12))_drop-shadow(0_1px_2px_rgba(0,0,0,.06))]', leaving ? 'animate-bubble-out' : 'animate-bubble-pop')}>
+        {place === undefined ? null : <Tail meet={place.meet} tip={place.tip} />}
         <button type="button" onClick={open} className="relative block w-full cursor-pointer py-2 pr-6 pl-3 text-left">
           <span className="block truncate text-[11.5px] leading-4 font-semibold opacity-55">{b.title}</span>
-          {waiting ? <Typing /> : <span className="block text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5 animate-in fade-in slide-in-from-bottom-1 duration-300">{b.text}</span>}
+          <Words v={b.v}>{waiting ? <Typing /> : <span className="block text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span>}</Words>
         </button>
-        <button type="button" aria-label="Close" onClick={() => setLeaving(true)}
+        <button type="button" aria-label="Close" onClick={() => setGoneAt(b.v)}
           className="absolute top-1.5 right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-60 hover:bg-black/5 hover:opacity-100 focus-visible:opacity-100">
           <Icon name="close" size={12} />
         </button>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }
 
 /**
- * What `task`'s square on the rail says, when its agent has something to
- * tell `user`: a bubble at its right, its tail pointing back at it, popping
- * out with a bounce as the square hops. It is light whatever the theme, as
- * a toast is, so it stands off a dark page; a click on it goes where the
- * toast's button would, and it goes by itself a while after its words are
- * in, or by its ×.
+ * What the squares on the rail say, when their agents have something to
+ * tell `user`: a bubble at a square's right, its tail pointing back at it,
+ * popping out with a bounce as the square hops. They are placed together,
+ * frame by frame while any is up, since the rail scrolls and its squares
+ * move as their tasks are worked on: bubbles that would cover one another
+ * stand one under another, as near their squares as they can, and each
+ * tail points at its own square. They are light whatever the theme, as a
+ * toast is, so they stand off a dark page; a click on one goes where the
+ * toast's button would, and one goes by itself a while after its words
+ * are in, or by its ×.
  */
-export function RailBubble({ task, anchor }: { task: string; anchor: RefObject<HTMLElement | null> }) {
-  const b = useBubbles((s) => s.bubbles[task]);
-  return b === undefined ? null : <Said key={b.n} task={task} b={b} anchor={anchor} />;
+export function RailBubbles({ squares }: { squares: RefObject<Map<string, HTMLElement>> }) {
+  const bubbles = useBubbles((s) => s.bubbles);
+  const boxes = useRef(new Map<string, HTMLElement>());
+  const [places, setPlaces] = useState<ReadonlyMap<string, Place>>(new Map());
+  const up = Object.keys(bubbles).length > 0;
+
+  useEffect(() => {
+    if (!up) return;
+    let frame = 0;
+    const follow = (): void => {
+      const speakers: (Speaker & { readonly right: number })[] = [];
+      for (const [key, box] of boxes.current) {
+        const r = squares.current.get(key)?.getBoundingClientRect();
+        if (r !== undefined && box.offsetHeight > 0) speakers.push({ key, y: r.top + r.height / 2, h: box.offsetHeight, order: Number(box.dataset.n), right: r.right });
+      }
+      const tops = stackBubbles(speakers, GAP, GAP, window.innerHeight - GAP);
+      setPlaces((was) => {
+        const next = new Map<string, Place>();
+        let changed = was.size !== speakers.length;
+        for (const s of speakers) {
+          const top = Math.round(tops.get(s.key) ?? 0);
+          const { meet, tip } = tailOf(Math.round(s.y), top, s.h, KEEP, SPAN);
+          const old = was.get(s.key);
+          const place = { left: Math.round(s.right + OFF), top, meet, tip, first: old === undefined };
+          next.set(s.key, old !== undefined && samePlace(old, place) ? old : place);
+          changed ||= next.get(s.key) !== old;
+        }
+        return changed ? next : was;
+      });
+      frame = requestAnimationFrame(follow);
+    };
+    follow();
+    return () => cancelAnimationFrame(frame);
+  }, [up, squares]);
+
+  return createPortal(
+    Object.entries(bubbles).map(([task, b]) => <Said key={`${task}:${b.n}`} task={task} b={b} place={places.get(task)} boxes={boxes} />),
+    document.body,
+  );
 }

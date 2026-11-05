@@ -216,10 +216,14 @@ toast is a bubble instead, popping out of the task's square with a hop
 and a wobble, its tail pointing back at it: a finish makes it type,
 three dots rising, until the agent's words fill it, or, when none have
 come by the time serve has fetched again, says the agent is done; the
-task's title over the words. It is white in either theme as a toast is,
-two at once stack one under the other, a click on it goes where the
-toast's button would, and it goes a while after its words are in, held
-while the pointer is over it, or by its ×. A task on no square, paused
+task's title over the words. A task that speaks again while its bubble
+is up says it in the same bubble, its new words rolling in from below as
+they push the old ones out at the top. It is white in either theme as a
+toast is; bubbles that would cover one another stand one under another,
+as near their squares as they can, each tail pointing into its own
+square; a click on one goes where the toast's button would, and one goes
+a while after its words are in, held while the pointer is over it or the
+page is out of sight, or by its ×. A task on no square, paused
 or closed, is told in a toast. A finish is news, in Latest, in its count, and as a green dot on the
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an

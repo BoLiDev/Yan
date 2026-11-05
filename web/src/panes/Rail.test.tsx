@@ -42,6 +42,10 @@ async function open({ here, shown = false, everyS = 10 }: { here?: TerminalState
       ix = { ...ix, tasks: ix.tasks.map((t) => (t.id === 't1' ? { ...t, said: { text, at } } : t)) };
       queryClient.setQueryData(['index'], ix);
     },
+    saysAs: (id: string, text: string, at: number) => {
+      ix = { ...ix, tasks: ix.tasks.map((t) => (t.id === id ? { ...t, said: { text, at } } : t)) };
+      queryClient.setQueryData(['index'], ix);
+    },
   };
 }
 
@@ -86,6 +90,42 @@ describe('a task folded to its square on the rail', () => {
     const bubble = page.getByRole('status', { name: 'pay retries' });
     await expect.element(bubble.getByLabelText('typing')).toBeVisible();
     await expect.element(bubble, { timeout: 8000 }).toMatchTextContent(/I'm done for now\./);
+  });
+});
+
+describe('bubbles on the rail at once', () => {
+  afterEach(reset);
+
+  it('roll the words a task says again into its bubble, pushing out the ones before', async () => {
+    const { says } = await open({});
+    says('Retries are in.', 300);
+    const bubble = page.getByRole('status', { name: 'pay retries' });
+    await expect.element(bubble).toMatchTextContent(/Retries are in\./);
+    says('And the PR is open.', 310);
+    await expect.element(bubble).toMatchTextContent(/And the PR is open\./);
+    await expect.poll(() => bubble.element().textContent, { message: 'the old words pushed out' }).not.toMatch(/Retries are in/);
+    expect(page.getByRole('status').elements()).toHaveLength(1);
+  });
+
+  it('stand one under another, each tail pointing at its own square', async () => {
+    const { screen, says, saysAs } = await open({});
+    says('Retries are in and tested; the PR waits on your review.', 300);
+    saysAs('t2', 'Orders export to CSV now, and the old job is gone.', 301);
+    const rail = screen.getByRole('navigation', { name: 'Tasks' });
+    const one = page.getByRole('status', { name: 'pay retries' });
+    const two = page.getByRole('status', { name: 'export orders' });
+    await expect.element(two).toMatchTextContent(/Orders export/);
+    // Placed, popped and settled.
+    await new Promise((r) => setTimeout(r, 700));
+    const [a, b] = [one.element().getBoundingClientRect(), two.element().getBoundingClientRect()];
+    expect(a.bottom <= b.top || b.bottom <= a.top, 'neither covers the other').toBe(true);
+    for (const [bubble, name] of [[one, 'pay retries'], [two, 'export orders']] as const) {
+      const square = rail.getByRole('link', { name }).element().getBoundingClientRect();
+      const tail = bubble.element().querySelector('svg')?.getBoundingClientRect();
+      const tip = (tail?.top ?? 0) + (tail?.height ?? 0) / 2;
+      expect(tail, name).toBeDefined();
+      expect(tip > square.top - (tail?.height ?? 0) / 2 && tip < square.bottom + (tail?.height ?? 0) / 2, `${name}'s tail at its square`).toBe(true);
+    }
   });
 });
 

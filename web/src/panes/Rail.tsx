@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import type { TaskSummary } from '../lib/api';
 import { agentWords, allNews, tasksWithNews, type AgentNews } from '../lib/agents';
 import { MOD } from '../lib/format';
@@ -13,7 +13,7 @@ import { goesOn } from '../lib/stops';
 import { dropAllBubbles, dropBubble, useBubbles } from '../state/bubbles';
 import { useIndex, useTerminals } from '../state/server';
 import { setPref, useUI } from '../state/ui';
-import { RailBubble } from './RailBubble';
+import { RailBubbles } from './RailBubble';
 
 /** The corner mark of a task's agent: amber while it waits on `user`, green once it has finished and nobody has looked. */
 function Mark({ news }: { news: AgentNews | undefined }) {
@@ -43,10 +43,9 @@ function RailButton({ icon, label, onClick, href, on, mark }: { icon: IconName; 
   );
 }
 
-function TaskSquare({ t, letter, news, on }: { t: TaskSummary; letter: string; news: AgentNews | undefined; on: boolean }) {
+function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: string; news: AgentNews | undefined; on: boolean; squares: RefObject<Map<string, HTMLElement>> }) {
   const last = useUI((s) => s.last[t.id]);
-  const speaking = useBubbles((s) => s.bubbles[t.id]?.n);
-  const anchor = useRef<HTMLAnchorElement>(null);
+  const speaking = useBubbles((s) => { const b = s.bubbles[t.id]; return b === undefined ? undefined : `${b.n}.${b.v}`; });
   const name = t.title || t.id;
   const label = news ? `${name} · ${agentWords(news)}` : name;
   const working = news?.kind === 'working';
@@ -56,21 +55,20 @@ function TaskSquare({ t, letter, news, on }: { t: TaskSummary; letter: string; n
   }, [on, t.id]);
   useEffect(() => () => dropBubble(t.id), [t.id]);
   // The square is the tooltip's trigger and the task's menu's at once; while it speaks, its bubble says more than the tooltip would.
-  const square = <a ref={anchor} className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
+  const square = <a ref={(el) => { if (el === null) squares.current.delete(t.id); else squares.current.set(t.id, el); }} className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
     href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined} />;
   return (
     <>
       <Tooltip disabled={speaking !== undefined}>
         <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
-          {/* Hops each time it speaks anew. */}
-          <span key={speaking ?? 0} className={cn('inline-block', speaking !== undefined && 'animate-hop')}>
+          {/* Hops each time it says something. */}
+          <span key={speaking ?? ''} className={cn('inline-block', speaking !== undefined && 'animate-hop')}>
             <span className={cn(working && WORKING)}>{letter}</span>
           </span>
           <Mark news={news} />
         </TaskMenu>
         <TooltipContent side="right">{label}</TooltipContent>
       </Tooltip>
-      <RailBubble task={t.id} anchor={anchor} />
     </>
   );
 }
@@ -99,6 +97,7 @@ export function Rail() {
   const letters = initialsOf(tasks);
   // What the squares were saying goes with them, and is told in toasts while the list is shown.
   useEffect(() => dropAllBubbles, []);
+  const squares = useRef(new Map<string, HTMLElement>());
   return (
     <nav className="flex h-screen w-14 flex-none flex-col items-center gap-1 overflow-y-auto bg-sunken py-3.5" aria-label="Tasks">
       <RailButton icon="panel" label="Show the task list" onClick={() => setPref('left', true)} />
@@ -107,7 +106,8 @@ export function Rail() {
       <RailButton icon="latest" label="Latest" href="#/latest" on={r.view === 'latest'}
         mark={fresh > 0 ? <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-sunken" /> : null} />
       <span className="my-2 h-px w-7 flex-none bg-border" />
-      {tasks.map((t) => <TaskSquare key={t.id} t={t} letter={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} />)}
+      {tasks.map((t) => <TaskSquare key={t.id} t={t} letter={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} squares={squares} />)}
+      <RailBubbles squares={squares} />
     </nav>
   );
 }
