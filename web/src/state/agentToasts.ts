@@ -45,14 +45,16 @@ const SAID = { finished: 'I\'m done for now.', blocked: 'I need you: a question 
  * its own words; a finish whose words are not in yet makes the bubble type
  * until they are, for about as long as serve takes to fetch them, and the
  * toast says it finished until they replace that. Its button, or a click on
- * the bubble, opens the task's terminal when its agent runs here, or else
- * the task.
+ * the bubble, opens the task's terminal when its agent runs here; else its
+ * agents elsewhere, in the cloud, when it keeps any, which is where words
+ * from no terminal here come from; else the task.
  */
 function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string | undefined, terminal: boolean): void {
   const { prefs, last, status } = useUI.getState();
   const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === task);
   const title = t?.title || task;
-  const to = terminal ? link.terminal(task) : (last[task] ?? link.task(task));
+  const away = !terminal && (t?.agents.length ?? 0) > 0;
+  const to = terminal ? link.terminal(task) : away ? link.agent(task) : (last[task] ?? link.task(task));
   const plain = kind === 'said' ? 'finished' : kind;
   if (!prefs.left && t !== undefined && goesOn(t)) {
     // serve fetches every `everyS`, and the hook commits the words as the turn ends: by then they are in, or are not coming.
@@ -64,15 +66,22 @@ function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string
     id: `agent:${task}`,
     toasterId: AGENT_TOASTER,
     description: words ?? TOLD[plain],
-    action: { label: terminal ? 'Open terminal' : 'Open task', onClick: () => { location.hash = to; } },
+    action: { label: terminal ? 'Open terminal' : away ? 'Open agent' : 'Open task', onClick: () => { location.hash = to; } },
     duration: 10_000,
   });
 }
 
-/** What has been told of each task's agent: its last change, in seconds as serve saw it, and the time of the last words it said. */
+/**
+ * Words said, as told apart: by what they are and when, not by which is
+ * later, since they may come from an agent on another machine, in the
+ * cloud, whose clock is not this one's, and only the last is kept.
+ */
+const saying = (said: { readonly text: string; readonly at: number }): string => `${said.at}\n${said.text}`;
+
+/** What has been told of each task's agent: its last change, in seconds as serve saw it, and the last words it said. */
 interface Told {
   readonly changes: Map<string, number>;
-  readonly said: Map<string, number>;
+  readonly said: Map<string, string>;
   /** When the page opened, in seconds: the turn of an agent first seen to change after it began no earlier. */
   readonly opened: number;
 }
@@ -100,7 +109,7 @@ export function useAgentToasts(): void {
     if (told.current === null) {
       told.current = {
         changes: new Map(changes.map(([task, s]) => [task, s.change?.at ?? 0])),
-        said: new Map(ix.tasks.flatMap((t) => (t.said ? [[t.id, t.said.at] as const] : []))),
+        said: new Map(ix.tasks.flatMap((t) => (t.said ? [[t.id, saying(t.said)] as const] : []))),
         opened: Math.floor(Date.now() / 1000),
       };
       return;
@@ -124,14 +133,14 @@ export function useAgentToasts(): void {
       const words = said && said.at >= before ? said.text : undefined;
       if (said && words !== undefined) {
         // Told as they came, which said all this would.
-        if (toldSaid.get(task) === said.at) continue;
-        toldSaid.set(task, said.at);
+        if (toldSaid.get(task) === saying(said)) continue;
+        toldSaid.set(task, saying(said));
       }
       tell(task, news.kind, words, true);
     }
     for (const t of ix.tasks) {
-      if (!t.said || t.said.at <= (toldSaid.get(t.id) ?? -1)) continue;
-      toldSaid.set(t.id, t.said.at);
+      if (!t.said || toldSaid.get(t.id) === saying(t.said)) continue;
+      toldSaid.set(t.id, saying(t.said));
       if (lookingAt(t.id) !== null) continue;
       const here = states[t.id];
       tell(t.id, here?.status === 'blocked' ? 'blocked' : 'said', t.said.text, here !== undefined && here.title === undefined);

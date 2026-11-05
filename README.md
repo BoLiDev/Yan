@@ -158,11 +158,19 @@ For the agent:
 - `yan branch [name]` — keep a branch as the task's, as soon as it is cut: only the agent keeps them, one in progress for each app or package the task changes; keeping one names the others in progress in that repository, and each stays in progress until it is merged or marked given up
 - `yan branch abandon <name>` — mark a branch given up, as soon as its work moves to another or stops; nothing is deleted, and keeping it again opens it again
 - `yan learn add|ls` — a learning, written only when you ask for one
-- `yan say "<words>"` — where things stand as the agent ends a turn, a sentence or two in your language: done, stuck, or what it needs from you. Only the last is kept, in task.json, and `yan serve` shows it to you wherever you are on the page; at most 200 columns, a Chinese character taking two. Bare, what was said last
+- `yan say "<words>"` — where things stand as the agent ends a turn, a sentence or two in your language: done, stuck, or what it needs from you. Only the last is kept, in task.json, committed and pushed at once, so `yan serve` on any machine shows it to you wherever you are on the page, from an agent in the cloud as from one here; at most 200 columns, a Chinese character taking two. Bare, what was said last
 
 `yan <command> --help` says the rest. Every command that takes a task reads
 `$YAN_TASK` when none is given, which is what `yan` sets for the agent it
 starts.
+
+An agent yan did not start, as one in a cloud container is, works with
+these the same way once yan is installed where it runs and the vault is
+cloned there (`yan vault clone <url>`, by a URL that machine can push to),
+its task given it by `$YAN_TASK` or `--task`. No hook pulls or pushes for
+it, so it pushes the vault itself with `yan vault push` before it stops;
+`yan say` pushes as it says, so what it says reaches your page by serve's
+next fetch, in a toast or a bubble as from an agent here.
 
 `yan serve` runs until stopped, at `http://localhost:4747` (`--port`). At a
 terminal it takes a screen of its own, as `less` does, with no history to
@@ -198,10 +206,12 @@ finishes, or comes to wait on you, is also told at the page's top right,
 with a button to its terminal, unless the page is showing that task; it
 is white with its button black in either theme, so it stands off a dark
 page, and its × closes it. What an agent said with `yan say`, which
-reaches the page with the push at the end of its turn, is told the same
-way in its own words, taking the place of the toast's once they come,
-and an agent running elsewhere is told of as its words come, the button
-opening its task. With the task list folded to the rail, what would be a
+is pushed as it is said, is told the same way in its own words, taking
+the place of the toast's once they come, and an agent running elsewhere,
+on another machine or in the cloud, is told of as its words come, the
+button opening the task's agents elsewhere when it keeps any, or else the
+task. Words are told as they change, not by which is later, since a
+cloud machine's clock is not this one's. With the task list folded to the rail, what would be a
 toast is a bubble instead, popping out of the task's square with a hop
 and a wobble, its tail pointing back at it: a finish makes it type,
 three dots rising, until the agent's words fill it, or, when none have

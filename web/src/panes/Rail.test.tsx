@@ -104,4 +104,28 @@ describe('what an agent said, with the task list shown', () => {
     await page.getByRole('button', { name: 'Open terminal' }).click();
     expect(location.hash).toBe('#/t/t1/terminal');
   });
+
+  it('opens the task\'s agents elsewhere when no terminal here said it', async () => {
+    useUI.setState((s) => ({ prefs: { ...s.prefs, left: true } }));
+    let ix: Index = index([task('t1', 'pay retries', { agents: [['cloud', 'https://claude.ai/code/session_x']] })]);
+    serve({ '/api/index': () => Response.json(ix), '/api/terminals': Response.json({}) });
+    have(ix);
+    await draw(<Page />);
+    await expect.poll(() => queryClient.getQueryData(['terminals'])).toBeDefined();
+    await new Promise((r) => setTimeout(r, 250));
+
+    ix = { ...ix, tasks: [{ ...ix.tasks[0]!, said: { text: 'PR #42 is open.', at: 300 } }] };
+    queryClient.setQueryData(['index'], ix);
+    await expect.element(page.getByText('PR #42 is open.')).toBeVisible();
+    await page.getByRole('button', { name: 'Open agent' }).click();
+    expect(location.hash).toBe('#/t/t1/agent');
+  });
+
+  it('tells words said again, though the clock of the machine they came from is behind', async () => {
+    const { says } = await open({ shown: true });
+    says('PR #42 is open.', 300);
+    await expect.element(page.getByText('PR #42 is open.')).toBeVisible();
+    says('CI is green too.', 250);
+    await expect.element(page.getByText('CI is green too.')).toBeVisible();
+  });
 });

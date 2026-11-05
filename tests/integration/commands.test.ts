@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, mkBareRemote, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -85,6 +85,17 @@ describe('yan say', () => {
     expect(said, 'in place of the one before').toMatchObject({ text: '卡住了：staging 拒绝了我们的 key。' });
     expect(JSON.parse(readFileSync(join(home, 'tasks', 't001', 'task.json'), 'utf8')).said).toEqual(said);
     expect((await yan(['say'], env)).stdout).toContain('卡住了：staging 拒绝了我们的 key。');
+  });
+
+  it('commits and pushes the vault at once, so it reaches a yan serve anywhere with no hook to push it', async () => {
+    const remote = await mkBareRemote(join(mkTempDir(), 'vault.git'));
+    for (const args of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'yan tests'], ['config', 'user.email', 'yan-tests@localhost'], ['remote', 'add', 'origin', remote], ['fetch', '-q', 'origin'], ['reset', '-q', 'origin/main']]) {
+      await fxGit(args, home);
+    }
+    const said = await yan(['say', 'Retries are in.'], { YAN_TASK: 't001' });
+    expect(said.stdout).toContain('pushed');
+    const there = JSON.parse((await fxGit(['show', 'main:tasks/t001/task.json'], remote)).stdout) as { said?: unknown };
+    expect(there.said).toMatchObject({ text: 'Retries are in.' });
   });
 
   it('refuses nothing to say, and more than a sentence or two, a Chinese character taking two columns', async () => {

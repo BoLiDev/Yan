@@ -18,14 +18,17 @@ import { closeBrowser, open, serve, taskJson, vault, write, type Served } from '
 let served: Served;
 let h: FakeHerdr;
 let home = '';
+let elsewhere = '';
 
 beforeAll(async () => {
   h = await startFakeHerdr({ version: '0.9.5' });
   const v = await vault((dir) => {
     write(dir, 'tasks/t001/task.json', taskJson('t001', 'pay retries'));
     write(dir, 'tasks/t002/task.json', taskJson('t002', 'export orders'));
+    write(dir, 'tasks/t003/task.json', taskJson('t003', 'sync invoices', { resources: { cloud: 'https://claude.ai/code/session_x' }, resourceKinds: { cloud: 'run' } }));
   });
   home = v.home;
+  elsewhere = v.elsewhere;
   mkdirSync(join(v.home, '.machine'), { recursive: true });
   writeFileSync(join(v.home, '.machine', 'config.json'), JSON.stringify({ version: 1, vaults: {}, clones: {}, terminals: [h.terminal(v.home, 't001')] }));
   served = await serve(v.home, { HERDR_BIN_PATH: h.bin });
@@ -117,6 +120,24 @@ describe('a task\'s agent, at a glance', () => {
 
     await bubble.getByRole('button', { name: /Retries are in/ }).click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/t/t001/terminal');
+    await rail.getByRole('button', { name: 'Show the task list' }).click();
+  });
+
+  it('says what an agent in the cloud said, pushed from where it runs, and opens the task\'s agents', async () => {
+    const { page } = await open(served.url('/#/latest'));
+    await page.getByRole('button', { name: 'Hide the task list' }).click();
+    const rail = tasks(page);
+    await rail.getByRole('link', { name: 'sync invoices' }).waitFor({ timeout: 20_000 });
+
+    // Its own clone of the vault, as a cloud container has: no herdr here, and no hook of yan's to push for it.
+    const said = await runYan(home, ['say', 'PR #42 is open and CI is green.'], { YAN_VAULT: elsewhere, YAN_TASK: 't003' });
+    expect(said.code).toBe(0);
+    expect(said.stdout).toContain('pushed');
+    const bubble = page.getByRole('status', { name: 'sync invoices' });
+    await bubble.getByText('PR #42 is open and CI is green.').waitFor({ timeout: 20_000 });
+
+    await bubble.getByRole('button', { name: /PR #42/ }).click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/t/t003/agent');
     await rail.getByRole('button', { name: 'Show the task list' }).click();
   });
 });
