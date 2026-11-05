@@ -218,7 +218,8 @@ three dots rising, until the agent's words fill it, or, when none have
 come by the time serve has fetched again, says the agent is done; the
 task's title over the words. A task that speaks again while its bubble
 is up says it in the same bubble, its new words rolling in from below as
-they push the old ones out at the top. It is white in either theme as a
+they push the old ones out at the top, the bubble easing to their height
+and width. It is white in either theme as a
 toast is; bubbles that would cover one another stand one under another,
 as near their squares as they can, each tail pointing into its own
 square; a click on one goes where the toast's button would, and one goes

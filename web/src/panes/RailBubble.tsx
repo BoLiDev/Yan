@@ -45,6 +45,37 @@ function useAway(): boolean {
   return away;
 }
 
+/**
+ * The bubble easing to the width of what it says now rather than jumping
+ * there, when a saying is wider or narrower than the one before. The words
+ * are laid out at their own width, not the bubble's, so they keep their
+ * lines while it eases and it shows them as it widens. Asked for less
+ * motion, it goes there at once.
+ */
+function useEasedWidth(bubble: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const el = bubble.current;
+    if (el === null) return;
+    let last: number | null = null;
+    let easing: Animation | null = null;
+    const watch = new ResizeObserver(() => {
+      // While it eases, its width is the easing's, not its words'.
+      if (easing !== null) return;
+      const now = el.offsetWidth;
+      if (last !== null && Math.abs(now - last) > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        easing = el.animate([{ width: `${last}px` }, { width: `${now}px` }], { duration: 340, easing: 'cubic-bezier(.3, .7, .2, 1)' });
+        easing.onfinish = easing.oncancel = () => {
+          easing = null;
+          last = el.offsetWidth;
+        };
+      }
+      last = now;
+    });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [bubble]);
+}
+
 /** Three dots rising in turn: the agent's words are on their way. */
 function Typing() {
   return (
@@ -106,6 +137,8 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
   const [held, setHeld] = useState(false);
   const away = useAway();
   const waiting = b.text === null;
+  const bubble = useRef<HTMLDivElement>(null);
+  useEasedWidth(bubble);
 
   useEffect(() => {
     if (!waiting) return;
@@ -132,14 +165,15 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
     <div ref={(el) => { if (el === null) boxes.current.delete(task); else boxes.current.set(task, el); }} data-n={b.n}
       style={{ left: place?.left ?? 0, top: place?.top ?? 0 }}
       className={cn('pointer-events-none fixed z-40', place === undefined && 'invisible', place !== undefined && !place.first && 'transition-[top] duration-200 ease-out')}>
-      <div role="status" aria-label={b.title} onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
+      <div ref={bubble} role="status" aria-label={b.title} onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
         style={{ transformOrigin: `${-REACH}px ${place?.tip ?? 0}px` }}
         className={cn('group pointer-events-auto relative w-max max-w-[280px] min-w-[120px] rounded-2xl border border-(--toast-line) bg-(--toast-bg) text-(--toast-ink)',
           '[filter:drop-shadow(0_6px_12px_rgba(0,0,0,.12))_drop-shadow(0_1px_2px_rgba(0,0,0,.06))]', leaving ? 'animate-bubble-out' : 'animate-bubble-pop')}>
         {place === undefined ? null : <Tail meet={place.meet} tip={place.tip} />}
-        <button type="button" onClick={open} className="relative block w-full cursor-pointer py-2 pr-6 pl-3 text-left">
-          <span className="block truncate text-[11.5px] leading-4 font-semibold opacity-55">{b.title}</span>
-          <Words v={b.v}>{waiting ? <Typing /> : <span className="block text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span>}</Words>
+        {/* Each line at its own width, up to the bubble's widest, so the words keep their lines while the bubble eases to them. */}
+        <button type="button" onClick={open} className="relative block w-full cursor-pointer overflow-hidden rounded-2xl py-2 pr-6 pl-3 text-left">
+          <span className="block w-max max-w-[244px] truncate text-[11.5px] leading-4 font-semibold opacity-55">{b.title}</span>
+          <Words v={b.v}>{waiting ? <Typing /> : <span className="block w-max max-w-[244px] text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span>}</Words>
         </button>
         <button type="button" aria-label="Close" onClick={() => setGoneAt(b.v)}
           className="absolute top-1.5 right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-60 hover:bg-black/5 hover:opacity-100 focus-visible:opacity-100">
