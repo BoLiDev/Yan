@@ -26,6 +26,8 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const node = process.execPath;
+/** A word for sh, whatever is in it: a sandbox under a path with spaces, quotes or `$` is still one word. */
+const q = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
 const args = process.argv.slice(2);
 const empty = args.includes('--empty');
@@ -59,6 +61,9 @@ const built = newest(join(repoRoot, 'dist'));
 const edited = Math.max(newest(join(repoRoot, 'src')), newest(join(repoRoot, 'web', 'src')), newest(join(repoRoot, 'plugin')));
 if (edited > built) fail("dist/ is older than the source: run 'npm run build' first");
 if (existsSync(root) && readdirSync(root).length > 0) fail(`${root} is not empty`);
+// yan hands claude its hooks as one sh command line with each path in double quotes, so a `$`, `"`, `\` or
+// backtick in the sandbox's path would be read by sh, not by yan; spaces and single quotes are fine.
+if (/[$"`\\]/.test(root)) fail(`${root} has a $, ", \\ or backtick in it, which the agent's hooks cannot carry: pick another path`);
 {
   let up = dirname(root);
   while (!existsSync(up)) up = dirname(up);
@@ -121,7 +126,7 @@ if (todo) {
 }
 record.stopHook = hook('Stop');
 appendFileSync(${JSON.stringify(p.calls)}, JSON.stringify(record) + '\\n');
-process.stdout.write('[fake ${cli}] started in ' + process.cwd() + '; recorded in ${p.calls}\\n');
+process.stdout.write('[fake ${cli}] started in ' + process.cwd() + '; recorded in ' + ${JSON.stringify(p.calls)} + '\\n');
 process.exit(Number(process.env.MONKEY_AGENT_EXIT ?? 0));
 `;
 for (const cli of ['claude', 'codex', 'agy']) script(join(p.fakeBin, cli), fakeAgent(cli));
@@ -130,7 +135,7 @@ for (const cli of ['claude', 'codex', 'agy']) script(join(p.fakeBin, cli), fakeA
 script(join(p.fakeBin, 'herdr'), '#!/bin/sh\necho "herdr: not in this sandbox (start .claude/skills/monkey/herdr.mjs for a fake one)" >&2\nexit 127\n');
 
 // $EDITOR for `yan draft`: appends $MONKEY_EDITOR_TEXT to the file it is given, or a line saying when.
-script(join(p.fakeBin, 'editor'), `#!${node}
+script(join(p.fakeBin, 'monkey-editor'), `#!${node}
 const { appendFileSync } = require('node:fs');
 const file = process.argv.at(-1);
 appendFileSync(file, (process.env.MONKEY_EDITOR_TEXT ?? 'written by the sandbox editor at ' + new Date().toISOString()) + '\\n');
@@ -164,37 +169,37 @@ for (const m of ['a', 'b']) {
   // The machine itself: its home, its ~/.yan, and a PATH that finds this
   // machine's yan and the fakes first. Sourced by everything below.
   const machine = join(p.machine(m), 'machine.sh');
-  writeFileSync(machine, `export SANDBOX=${JSON.stringify(root)}
+  writeFileSync(machine, `export SANDBOX=${q(root)}
 export MONKEY_MACHINE=${m}
-export HOME=${JSON.stringify(p.home(m))}
-export YAN_HOME=${JSON.stringify(p.code)}
-export YAN_MACHINE_DIR=${JSON.stringify(join(p.home(m), '.yan'))}
+export HOME=${q(p.home(m))}
+export YAN_HOME=${q(p.code)}
+export YAN_MACHINE_DIR=${q(join(p.home(m), '.yan'))}
 export YAN_OPENER=''
 export GIT_CONFIG_NOSYSTEM=1
-export EDITOR=${JSON.stringify(join(p.fakeBin, 'editor'))}
+export EDITOR=monkey-editor
 export VISUAL="$EDITOR"
 export NO_COLOR=1
-case ":$PATH:" in *:${p.bin(m)}:*) ;; *) export PATH=${JSON.stringify(`${p.bin(m)}:${p.fakeBin}`)}:"$PATH" ;; esac
+case ":$PATH:" in *:${q(p.bin(m))}:*) ;; *) export PATH=${q(`${p.bin(m)}:${p.fakeBin}`)}:"$PATH" ;; esac
 `);
   // What the walker's own shell may have handed down that names a task, a
   // vault, a pool or a herdr pane: a Claude Code started through bare yan has
   // $YAN_VAULT set to the user's real vault, which would win over ~/.yan.
   const forget = `for v in $(env | sed -n 's/^\\(YAN_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(HERDR_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset "$v"; done`;
-  const yanJs = `exec ${JSON.stringify(node)} ${JSON.stringify(join(p.code, 'bin', 'yan.mjs'))} "$@"`;
-  const intoWork = `case "$PWD/" in ${JSON.stringify(`${root}/`)}*) ;; *) cd ${JSON.stringify(p.work(m))} ;; esac`;
-  writeFileSync(p.env(m), `# Machine ${m.toUpperCase()} of the sandbox in ${root}. Source it: . ${p.env(m)}\n${forget}\n. ${JSON.stringify(machine)}\n${intoWork}\n`);
+  const yanJs = `exec ${q(node)} ${q(join(p.code, 'bin', 'yan.mjs'))} "$@"`;
+  const intoWork = `case "$PWD/" in ${q(`${root}/`)}*) ;; *) cd ${q(p.work(m))} ;; esac`;
+  writeFileSync(p.env(m), `# Machine ${m.toUpperCase()} of the sandbox in ${root}. Source it: . ${p.env(m)}\n${forget}\n. ${q(machine)}\n${intoWork}\n`);
   // The yan an agent started in the sandbox finds on its PATH: it keeps the
   // $YAN_TASK and $YAN_VAULT yan gave it, and the directory it is run in.
-  script(join(p.bin(m), 'yan'), `#!/bin/sh\n. ${JSON.stringify(machine)}\n${yanJs}\n`);
+  script(join(p.bin(m), 'yan'), `#!/bin/sh\n. ${q(machine)}\n${yanJs}\n`);
   // The walker's: nothing inherited, and run in the machine's work folder unless already somewhere in the sandbox.
-  script(join(root, `yan-${m}`), `#!/bin/sh\n${forget}\n. ${JSON.stringify(machine)}\n${intoWork}\n${yanJs}\n`);
+  script(join(root, `yan-${m}`), `#!/bin/sh\n${forget}\n. ${q(machine)}\n${intoWork}\n${yanJs}\n`);
   mkdirSync(p.work(m), { recursive: true });
 }
 
 // --- run things in it ----------------------------------------------------------
 
 function sh(m, command, { cwd, env = {}, ok = true } = {}) {
-  const r = spawnSync('/bin/sh', ['-c', `. ${JSON.stringify(p.env(m))} && ${cwd === undefined ? '' : `cd ${JSON.stringify(cwd)} && `}${command}`], {
+  const r = spawnSync('/bin/sh', ['-c', `. ${q(p.env(m))} && ${cwd === undefined ? '' : `cd ${q(cwd)} && `}${command}`], {
     encoding: 'utf8',
     env: { ...process.env, ...env },
   });
@@ -202,24 +207,29 @@ function sh(m, command, { cwd, env = {}, ok = true } = {}) {
   return r;
 }
 
-/** A command at a terminal, as bare yan needs: script(1) gives it one. */
-function atTerminal(m, command, options) {
+/**
+ * A command at a terminal, as bare yan needs: script(1) gives it one, 120
+ * columns wide, since its pty starts with none. Only for a command that asks
+ * nothing: with stdin at its end, a question waits for ever.
+ */
+function atTerminal(m, bare, options) {
+  const command = `stty cols 120 rows 40 2>/dev/null; ${bare}`;
   const wrapped = process.platform === 'darwin'
-    ? `script -q /dev/null /bin/sh -c ${JSON.stringify(command)} </dev/null`
-    : `script -qec ${JSON.stringify(command)} /dev/null </dev/null`;
+    ? `script -q /dev/null /bin/sh -c ${q(command)} </dev/null`
+    : `script -qec ${q(command)} /dev/null </dev/null`;
   return sh(m, wrapped, options);
 }
 
 function seedRepo(name, files) {
   const bare = join(p.origin, `${name}.git`);
   const seed = join(root, '.seed', name);
-  sh('a', `git init -q --bare ${JSON.stringify(bare)}`);
+  sh('a', `git init -q --bare ${q(bare)}`);
   mkdirSync(seed, { recursive: true });
   for (const [rel, body] of Object.entries(files)) {
     mkdirSync(dirname(join(seed, rel)), { recursive: true });
     writeFileSync(join(seed, rel), body);
   }
-  sh('a', `git init -q && git add -A && git commit -qm 'initial commit' && git remote add origin ${JSON.stringify(bare)} && git push -q -u origin main`, { cwd: seed });
+  sh('a', `git init -q && git add -A && git commit -qm 'initial commit' && git remote add origin ${q(bare)} && git push -q -u origin main`, { cwd: seed });
   return bare;
 }
 
@@ -239,16 +249,16 @@ const mono = seedRepo('mono', {
   'apps/site/index.html': '<!doctype html><title>site</title>\n',
 });
 const vaultOrigin = join(p.origin, 'vault.git');
-sh('a', `git init -q --bare ${JSON.stringify(vaultOrigin)}`);
+sh('a', `git init -q --bare ${q(vaultOrigin)}`);
 
 for (const m of ['a', 'b']) {
-  sh(m, `git clone -q ${JSON.stringify(web)} web && git clone -q ${JSON.stringify(mono)} mono`, { cwd: p.work(m) });
+  sh(m, `git clone -q ${q(web)} web && git clone -q ${q(mono)} mono`, { cwd: p.work(m) });
 }
 
-sh('a', `yan vault init monkey --remote ${JSON.stringify(vaultOrigin)} --path ${JSON.stringify(p.vault('a'))}`);
+sh('a', `yan vault init monkey --remote ${q(vaultOrigin)} --path ${q(p.vault('a'))}`);
 sh('a', 'yan repo add web && yan repo add mono && yan vault push', { cwd: p.work('a') });
-sh('b', `yan vault clone ${JSON.stringify(vaultOrigin)} --path ${JSON.stringify(p.vault('b'))}`);
-sh('b', `yan repo link web ${JSON.stringify(join(p.work('b'), 'web'))} && yan repo link mono ${JSON.stringify(join(p.work('b'), 'mono'))}`);
+sh('b', `yan vault clone ${q(vaultOrigin)} --path ${q(p.vault('b'))}`);
+sh('b', `yan repo link web ${q(join(p.work('b'), 'web'))} && yan repo link mono ${q(join(p.work('b'), 'mono'))}`);
 
 // --- a few tasks to find, unless asked for none ---------------------------------
 
@@ -313,12 +323,17 @@ ${p.calls}: its argv, cwd, the YAN_* variables it was given, and
 what its hooks and $MONKEY_AGENT_DO did. To have the "agent" do something
 during its turn, set MONKEY_AGENT_DO to a shell snippet (it runs in the
 worktree, with the agent's environment, so \`yan say hi\` there acts on the task);
-MONKEY_AGENT_EXIT sets its exit status. Bare \`yan\` needs a terminal: give it
-one with tmux (interactive) or script(1) (flags only):
+MONKEY_AGENT_EXIT sets its exit status. Bare \`yan\` needs a terminal. Give it
+tmux whenever it may ask anything (after a resume it may ask whether to open
+a worktree):
 
-  tmux new-session -d -s m1 -x 120 -y 40 "${join(root, 'yan-a')}"
+  tmux new-session -d -s m1 -x 120 -y 40 ${q(join(root, 'yan-a'))}
   tmux send-keys -t m1 Down Enter; tmux capture-pane -pt m1
-  script -qec "${join(root, 'yan-a')} --new 'title' --no-repo" /dev/null </dev/null
+
+script(1) only when the flags answer everything: with its stdin closed, a
+question waits for ever. Its pty has no width until stty gives it one:
+
+  script -qec "stty cols 120 rows 40; ${q(join(root, 'yan-a'))} --new 'title' --no-repo" /dev/null </dev/null
 
 \`yan draft\` writes through $EDITOR, here a fake that appends
 $MONKEY_EDITOR_TEXT. \`dice a b c\` (or \`dice 6\`) picks at random.
