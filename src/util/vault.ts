@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { isAbsolute, join, resolve } from 'node:path';
 import { YanError } from './error.js';
 import { readJsonIfPresent } from './json.js';
 import { asRecord, asString, recordOrNone } from './narrow.js';
@@ -84,6 +84,52 @@ function checkVersion(dir: string): void {
       `${dir} is a version ${version} vault, and this build reads only version ${VAULT_VERSION}`,
     );
   }
+}
+
+/** The vault's git directory: `.git`, or where a `.git` file points; undefined when it has none. */
+function gitDirOf(dir: string): string | undefined {
+  const dotGit = join(dir, '.git');
+  try {
+    if (statSync(dotGit).isDirectory()) return dotGit;
+    const pointed = /^gitdir:\s*(.+)$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]?.trim();
+    return pointed === undefined ? undefined : isAbsolute(pointed) ? pointed : join(dir, pointed);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * What git was left in the middle of in the vault at `dir`, said as what to
+ * do about it, or undefined: a rebase, a merge or a cherry-pick not
+ * finished, by a pull stopped half-way or by `user` sorting out a conflict
+ * by hand. Read from the files git keeps while it is, so no git is run.
+ */
+export function vaultUnfinished(dir: string): string | undefined {
+  const at = gitDirOf(dir);
+  if (at === undefined) return undefined;
+  const has = (name: string): boolean => existsSync(join(at, name));
+  const how = (what: string, done: string): string =>
+    `the vault is in the middle of a ${what} - finish it ('git -C ${dir} ${done}') or give it up ('git -C ${dir} ${what} --abort'), then try again; nothing was changed`;
+  if (has('rebase-merge') || has('rebase-apply')) return how('rebase', 'rebase --continue');
+  if (has('MERGE_HEAD')) return how('merge', 'commit');
+  if (has('CHERRY_PICK_HEAD')) return how('cherry-pick', 'cherry-pick --continue');
+  return undefined;
+}
+
+/**
+ * Refuse to write the active vault while git is in the middle of something
+ * there. A file written then is in no commit, and in none of the ways out:
+ * `git rebase --abort` takes it away without a word, and `--continue` is
+ * refused over it. Every writer of the vault's records asks this first, so
+ * nothing is written, and the refusal says how to finish.
+ *
+ * @throws YanError `vault_unfinished`
+ */
+export function refuseWhileUnfinished(): void {
+  const dir = vaultDirIfAny();
+  if (dir === undefined) return;
+  const said = vaultUnfinished(dir);
+  if (said !== undefined) throw new YanError('vault_unfinished', said);
 }
 
 /**

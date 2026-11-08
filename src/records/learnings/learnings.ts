@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { learningsDir } from '../../util/vault.js';
+import { learningsDir, refuseWhileUnfinished } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 import { byCodePoint } from '../../util/names.js';
@@ -80,6 +80,7 @@ export function addLearning(name: string, description: string): string {
   if (existsSync(path)) {
     throw new YanError('learn_exists', `${path} is already there - edit that file instead`);
   }
+  refuseWhileUnfinished();
   mkdirSync(dir, { recursive: true });
   writeFileSync(path, `---\nname: ${title}\ndescription: ${said}\n---\n\n`);
   return path;

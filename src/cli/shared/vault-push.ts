@@ -28,6 +28,25 @@ export function withVaultLock<T>(dir: string, body: () => T): T {
   return withLock(join(dir, '.git', 'yan-sync.lock'), 60, body);
 }
 
+/**
+ * Everything in the vault staged and committed. yan's lock holds off yan, but
+ * not the git `user` runs by hand: a `git pull --rebase` begun after a look
+ * at the vault would have this commit land on its detached HEAD, a file with
+ * its conflict markers and all. So the vault is looked at again just before
+ * staging and just before committing, and a HEAD on no branch, as a rebase
+ * leaves it, is refused, which leaves a gap of a few milliseconds and not
+ * the length of a push.
+ */
+function commitAll(dir: string, message: string): void {
+  refuseUnfinished(dir);
+  gitOrThrow(dir, ['add', '-A'], 'staging the vault');
+  refuseUnfinished(dir);
+  if (!gitOk(dir, ['symbolic-ref', '-q', 'HEAD'])) {
+    throw new YanError('vault_unfinished', `the vault is on no branch, as a rebase leaves it - put it back on its branch ('git -C ${dir} status' says how), then try again; nothing was committed`);
+  }
+  gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
+}
+
 /** A commit message naming the task ids that changed, for when nobody supplied one. */
 function pushMessage(changed: readonly string[]): string {
   const tasks = [...new Set(changed.map((p) => /^tasks\/([^/]+)\//.exec(p)?.[1]).filter((id): id is string => id !== undefined))].sort();
@@ -61,8 +80,7 @@ export function pushVault(dir: string, message: string | undefined): string[] {
 
   const branch = currentBranch(dir);
   if (changed.length > 0) {
-    gitOrThrow(dir, ['add', '-A'], 'staging the vault');
-    gitOrThrow(dir, ['commit', '-m', message ?? pushMessage(changed)], 'committing the vault');
+    commitAll(dir, message ?? pushMessage(changed));
     said.push(`vault push: committed ${changed.length} change(s)`);
   } else if (gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`]) && revParse(dir, ['HEAD']) === revParse(dir, [`origin/${branch}`])) {
     return ['vault push: nothing to push'];
@@ -95,14 +113,15 @@ export function pushVault(dir: string, message: string | undefined): string[] {
 export function levelWith(dir: string, target: string): void {
   // Most often there is nothing to do, and the lock, which an agent's hook may hold for a push, is not waited for.
   const level = (): boolean => gitOk(dir, ['merge-base', '--is-ancestor', target, 'HEAD']);
+  // Asked before anything else: a vault in the middle of a rebase can look level, its detached HEAD past target.
+  refuseUnfinished(dir);
   if (level()) return;
   withVaultLock(dir, () => {
     refuseUnfinished(dir);
     if (level()) return;
     const changed = changedPaths(dir);
     if (changed.length > 0) {
-      gitOrThrow(dir, ['add', '-A'], 'staging the vault');
-      gitOrThrow(dir, ['commit', '-m', pushMessage(changed)], 'committing the vault');
+      commitAll(dir, pushMessage(changed));
     }
     const caught = rebaseOnto(dir, target);
     if (!caught.ok) throw new YanError('vault_behind', `this vault has commits of its own that conflict with what origin has - ${caught.message}`);
@@ -116,9 +135,7 @@ export function levelWith(dir: string, target: string): void {
 export function commitVault(dir: string, message: string): string[] {
   return withVaultLock(dir, () => {
     if (changedPaths(dir).length === 0) return [];
-    refuseUnfinished(dir);
-    gitOrThrow(dir, ['add', '-A'], 'staging the vault');
-    gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
+    commitAll(dir, message);
     return ['vault push: committed here, to push later'];
   });
 }
@@ -151,9 +168,7 @@ export function saveVault(dir: string, message: string): string[] {
   return withVaultLock(dir, () => {
     if (remoteUrl(dir) !== undefined) return pushVault(dir, message);
     if (changedPaths(dir).length === 0) return [];
-    refuseUnfinished(dir);
-    gitOrThrow(dir, ['add', '-A'], 'staging the vault');
-    gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
+    commitAll(dir, message);
     return ['vault push: committed, no origin to push to'];
   });
 }

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { taskDir, tasksDir } from '../../util/vault.js';
+import { refuseWhileUnfinished, taskDir, tasksDir } from '../../util/vault.js';
 import { editJson, initJson, readJson } from '../../util/json.js';
 import { recordOrNone } from '../../util/narrow.js';
 import { normalizePath } from '../../util/paths.js';
@@ -435,6 +435,7 @@ export class Task {
    * validated one, to read from; anything it throws leaves the file untouched.
    */
   private edit(edit: (doc: Record<string, unknown>, data: TaskData) => void): void {
+    refuseWhileUnfinished();
     editJson(this.require(), (current) => {
       const doc = { ...(recordOrNone(current) ?? {}) };
       edit(doc, validate(current, this));
@@ -473,6 +474,7 @@ export class Task {
    */
   public static create(title: string, repos: readonly TaskRepo[] = [], taken: readonly string[] = []): Task {
     const name = titleOf(title);
+    refuseWhileUnfinished();
     const task = new Task(nextNumbered([...Task.list(), ...taken], 't', 3));
     mkdirSync(task.dir, { recursive: true });
     initJson(task.file, {

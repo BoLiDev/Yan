@@ -315,6 +315,34 @@ describe('pull and push', () => {
     expect(readFileSync(join(a, 'tasks', 'same.md'), 'utf8')).toBe('a and b\n');
   });
 
+  it('writes nothing while the vault is in the middle of a rebase, so the way out of it loses nothing', async () => {
+    const { a, b, env } = await twoMachines('no-writes');
+    const onA = { ...isolated('no-writes'), ...identity, YAN_VAULT: a };
+    const onB = { ...env, YAN_VAULT: b };
+    mkdirSync(join(a, 'tasks', 't001'), { recursive: true });
+    writeFileSync(join(a, 'tasks', 't001', 'task.json'), '{"version":2,"id":"t001","title":"x","state":"open","nextDeliverable":1,"deliverables":[]}\n');
+    writeFileSync(join(a, 'tasks', 'same.md'), 'a\n');
+    expect((await runYan(home, ['vault', 'push'], onA)).code).toBe(0);
+    expect((await runYan(home, ['vault', 'pull'], onB)).code).toBe(0);
+    writeFileSync(join(a, 'tasks', 'same.md'), 'a again\n');
+    expect((await runYan(home, ['vault', 'push'], onA)).code).toBe(0);
+    writeFileSync(join(b, 'tasks', 'same.md'), 'b\n');
+    await fxGit(['-C', b, 'commit', '-q', '-am', 'b']);
+    await fxGit(['-C', b, 'fetch', '-q', 'origin']);
+    expect((await fxGit(['-C', b, 'rebase', 'origin/main'])).code, 'it conflicts').not.toBe(0);
+    const before = readFileSync(join(b, 'tasks', 't001', 'task.json'), 'utf8');
+
+    for (const args of [['say', '--task', 't001', 'Stuck on the rebase.'], ['deliverable', 'add', '--task', 't001', 'it works'], ['pause', 't001']]) {
+      const r = await runYan(home, args, onB);
+      expect(r.code, args.join(' ')).toBe(1);
+      expect(r.stderr, args.join(' ')).toContain('in the middle of a rebase');
+    }
+    expect(readFileSync(join(b, 'tasks', 't001', 'task.json'), 'utf8'), 'nothing written').toBe(before);
+
+    expect((await fxGit(['-C', b, 'rebase', '--abort'])).code).toBe(0);
+    expect((await runYan(home, ['say', '--task', 't001', 'Past the rebase.'], onB)).code).toBe(0);
+  });
+
   it('a pull stopped with Ctrl-C half-way through its rebase leaves the vault as it was, not half rebased', async () => {
     const { a, b, env } = await twoMachines('interrupted');
     const onA = { ...isolated('interrupted'), ...identity, YAN_VAULT: a };

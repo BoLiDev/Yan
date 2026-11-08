@@ -644,6 +644,28 @@ describe('the overview on yan serve', () => {
     await until(async () => ((await fxGit(['show', 'main:tasks/t004/task.json'], bare)).stdout.includes('written while origin was away') ? true : undefined), 20_000);
   });
 
+  it('changes nothing while the vault is in the middle of a rebase, and says so', async () => {
+    const elsewhere = await mkClone(bare, join(mkTempDir('yan-serve-other-'), 'vault'));
+    write(elsewhere, 'tasks/t004/artifacts/both.md', 'theirs\n');
+    for (const args of [['add', '-A'], ['commit', '-q', '-m', 'theirs'], ['push', '-q', 'origin', 'main']]) await fxGit(args, elsewhere);
+    write(home, 'tasks/t004/artifacts/both.md', 'ours\n');
+    for (const args of [['add', '-A'], ['commit', '-q', '-m', 'ours'], ['fetch', '-q', 'origin']]) await fxGit(args, home);
+    expect((await fxGit(['rebase', 'origin/main'], home)).code, 'it conflicts').not.toBe(0);
+    try {
+      const problem = readFileSync(at('problem.md'), 'utf8');
+      const doc = readFileSync(at('task.json'), 'utf8');
+      const saved = await post('/api/problem', { task: 't004', sha: '', text: 'written mid-rebase' });
+      expect(saved.status).toBe(409);
+      expect(await saved.text()).toContain('in the middle of a rebase');
+      expect((await post('/api/deliverable', { task: 't004', id: 'd1', to: 'abandoned', reason: 'mid-rebase' })).status).toBe(409);
+      expect(readFileSync(at('problem.md'), 'utf8')).toBe(problem);
+      expect(readFileSync(at('task.json'), 'utf8')).toBe(doc);
+    } finally {
+      await fxGit(['rebase', '--abort'], home);
+      await fxGit(['reset', '-q', '--hard', 'origin/main'], home);
+    }
+  });
+
   it('changes where a resource points, keeping its kind, and forgets one', async () => {
     await runYan(home, ['resource', 'add', 'spec', 'design', 'https://example.com/a', '--task', 't004']);
     await runYan(home, ['resource', 'add', 'general', 'notes', '/tmp/notes', '--task', 't004']);

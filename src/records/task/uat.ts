@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { editJson, initJson, readJsonIfPresent } from '../../util/json.js';
+import { refuseWhileUnfinished } from '../../util/vault.js';
 import { asString, recordOrNone } from '../../util/narrow.js';
 import { isInside, normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
@@ -252,6 +253,7 @@ export class Uat {
 
   private edit(change: (doc: Record<string, unknown>) => void): void {
     this.read();
+    refuseWhileUnfinished();
     initJson(this.file, { version: 1, files: {}, notes: {} });
     editJson(this.file, (current) => {
       const doc = { ...(recordOrNone(current) ?? {}) };

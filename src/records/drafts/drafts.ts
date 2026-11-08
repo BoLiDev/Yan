@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { YanError } from '../../util/error.js';
 import { normalizePath, staysInside } from '../../util/paths.js';
 import { localDay, localTime } from '../../util/time.js';
-import { draftsDir, tasksDir } from '../../util/vault.js';
+import { draftsDir, refuseWhileUnfinished, tasksDir } from '../../util/vault.js';
 
 /**
  * The vault's drafts folder: `user`'s own notes, one folder for every task,
@@ -207,6 +207,7 @@ export class Drafts {
    * editor's is. Returns its id, or undefined when nothing is kept.
    */
   public write(id: string | undefined, body: string): string | undefined {
+    refuseWhileUnfinished();
     const path = id === undefined ? undefined : this.pathOf(id);
     if (id !== undefined && path === undefined) throw new YanError('draft_missing', `no draft ${id} in ${this.dir} - 'yan draft ls --plain' lists them`);
     if (body.trim() === '') {
@@ -229,6 +230,7 @@ export class Drafts {
 
   /** Draft `id` gone, its pictures with it. False when there was none. */
   public remove(id: string): boolean {
+    refuseWhileUnfinished();
     const path = this.pathOf(id);
     if (path === undefined) return false;
     unlinkSync(path);
@@ -241,6 +243,7 @@ export class Drafts {
    * returns how its Markdown names it, from the draft's own folder.
    */
   public addPicture(id: string, bytes: Buffer, ext: string): string {
+    refuseWhileUnfinished();
     const path = this.pathOf(id);
     if (path === undefined) throw new YanError('draft_missing', `no draft ${id} in ${this.dir} - 'yan draft ls --plain' lists them`);
     const folder = picturesOf(path);

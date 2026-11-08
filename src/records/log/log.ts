@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { taskDir } from '../../util/vault.js';
+import { refuseWhileUnfinished, taskDir } from '../../util/vault.js';
 import { normalizePath } from '../../util/paths.js';
 import { YanError } from '../../util/error.js';
 import { localMonthDay } from '../../util/time.js';
@@ -53,6 +53,7 @@ export class Log {
     }
     if (!text || text.trim() === '') throw YanError.usage('log_usage', 'the entry is required - say it in one line');
     if (/[\r\n]/.test(text)) throw YanError.usage('log_usage', 'an entry is one line - write several entries instead');
+    refuseWhileUnfinished();
     try {
       mkdirSync(dirname(this.file), { recursive: true });
       appendFileSync(this.file, `- ${monthDay === '' ? localMonthDay() : monthDay}  ${type.padEnd(TYPE_WIDTH)}  ${text.trim()}\n`);

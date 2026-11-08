@@ -5,7 +5,7 @@ import { asRecord, asString } from '../../util/narrow.js';
 import { isRecordId } from '../../util/names.js';
 import { isDirectory } from '../../util/paths.js';
 import { repoKey } from '../../util/repo-key.js';
-import { vaultDir } from '../../util/vault.js';
+import { refuseWhileUnfinished, vaultDir } from '../../util/vault.js';
 import { YanError } from '../../util/error.js';
 
 /**
@@ -87,6 +87,7 @@ export function register(name: string, url: string, clone?: string): string {
     throw new YanError('repo_conflict', `'${name}' is already registered as ${taken} - pass --name to register ${url} under another name`);
   }
   const file = reposPath();
+  refuseWhileUnfinished();
   initJson(file, { version: 1, repos: {} });
   editJson(file, (raw) => {
     const doc = asRecord(raw);
@@ -103,6 +104,7 @@ export function link(entry: RepoEntry, clone: string): void {
 
 /** Take `name` out of the vault's half. This machine's clone, and where it is, are left alone. */
 export function unregister(name: string): void {
+  refuseWhileUnfinished();
   editJson(reposPath(), (raw) => {
     const doc = asRecord(raw);
     const repos = { ...asRecord(doc.repos) };

@@ -118,8 +118,9 @@ pulled and pushed by hand. A push commits everything in the vault and
 rebases it onto the remote first; a conflict
 stops it, the commit kept here, and the hook says so. While the vault is in
 the middle of a rebase or a merge, the one you are sorting out a conflict in
-by hand, neither a pull nor a push touches it, and each says how to finish
-it; a pull stopped with Ctrl-C undoes its own rebase rather than leave it
+by hand, neither a pull nor a push touches it, and no command and nothing on
+`yan serve`'s page writes to it, each saying how to finish it, since a file
+written then would be in no commit and lost to the abort; a pull stopped with Ctrl-C undoes its own rebase rather than leave it
 half-way.
 claude is always started with `--chrome`, its browser tools on, so an agent
 can check what it built in a browser without being restarted for it.

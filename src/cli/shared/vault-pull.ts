@@ -1,8 +1,6 @@
-import { existsSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
 import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError, isYanError } from '../../util/error.js';
-import { vaultDir } from '../../util/vault.js';
+import { vaultDir, vaultUnfinished } from '../../util/vault.js';
 
 /**
  * Catching the vault up with its origin: all of `yan vault pull`, and what
@@ -26,16 +24,7 @@ export interface PullResult {
  * runs takes it away again, with whatever `user` had resolved.
  */
 export function unfinished(dir: string): string | undefined {
-  const gitDir = git(dir, ['rev-parse', '--git-dir']);
-  if (gitDir.code !== 0) return undefined;
-  const at = gitDir.stdout.trim();
-  const inGit = (name: string): boolean => existsSync(join(isAbsolute(at) ? at : join(dir, at), name));
-  const how = (what: string, done: string): string =>
-    `the vault is in the middle of a ${what} - finish it ('git -C ${dir} ${done}') or give it up ('git -C ${dir} ${what} --abort'), then try again; nothing was changed`;
-  if (inGit('rebase-merge') || inGit('rebase-apply')) return how('rebase', 'rebase --continue');
-  if (inGit('MERGE_HEAD')) return how('merge', 'commit');
-  if (inGit('CHERRY_PICK_HEAD')) return how('cherry-pick', 'cherry-pick --continue');
-  return undefined;
+  return vaultUnfinished(dir);
 }
 
 /** `unfinished`, as the refusal of a command that would commit. */
