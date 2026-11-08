@@ -134,8 +134,11 @@ the skill by its name to claude, what the skill says to codex and agy, which
 take none; `--pause` asks it to put the task aside, as `yan:pause` does. A
 paused task is not offered, and `--task` with one says to resume it first.
 What is not given is asked as before. A new task is
-pushed as soon as it is made, before the agent starts, so `yan serve` and
-your other machines have it at once; a push that fails is said, and the
+numbered after the tasks origin has, fetched first, so it never takes the
+number of one made on another machine since this one last pulled; out of
+reach of origin, it is numbered from what is here, and the chain says so.
+It is pushed as soon as it is made, before the agent starts, so `yan serve`
+and your other machines have it at once; a push that fails is said, and the
 agent starts anyway, its first turn pushing it.
 
 For you:

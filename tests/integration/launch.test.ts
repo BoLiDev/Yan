@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, giveOrigin, mkBareRemote, mkClone, mkTempDir, mkYanHome, onOrigin } from '../helpers/fixtures.js';
 import { CREATE_NEW, enter, openingPromptNow, type EntryChain, type EntryPrompts, type NewTask, type Said } from '../../src/cli/shared/launch.js';
 import { WAIT_LINE } from '../../src/externals/harness/index.js';
 import { leasesHeldBy, returnTrees } from '../../src/externals/worktree/index.js';
@@ -182,6 +182,34 @@ describe('a new task', () => {
     await run(answers({ entry: 't001' }), here, { cli: 'agy' });
     expect(told(1), 'an agent with no plugin is told where its files are, absolute, since it starts outside the vault')
       .toContain(`This task's files are in ${new Task('t001').dir}: problem.md, and artifacts/`);
+  });
+
+  it('is numbered after the tasks origin has, made on another machine since this one pulled, and pushed beside them', async () => {
+    Task.create('made here');
+    const origin = await giveOrigin(home);
+    const elsewhere = await mkClone(origin, join(mkTempDir(), 'elsewhere'));
+    mkdirSync(join(elsewhere, 'tasks', 't002'), { recursive: true });
+    writeFileSync(join(elsewhere, 'tasks', 't002', 'task.json'), JSON.stringify({ version: 2, id: 't002', title: 'made elsewhere', state: 'open', nextDeliverable: 1, deliverables: [] }));
+    for (const args of [['add', '-A'], ['commit', '-q', '-m', 't002: new task'], ['push', '-q', 'origin', 'main']]) await fxGit(args, elsewhere);
+    // Work of this machine's own, not committed yet, so a pull would have been refused.
+    writeFileSync(join(home, 'tasks', 't001', 'problem.md'), 'half written\n');
+
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: CREATE_NEW, title: 'made here too' }), here);
+
+    expect(started[0]?.env.YAN_TASK).toBe('t003');
+    expect(await onOrigin(origin, 'tasks/t003/task.json')).toContain('made here too');
+    expect(await onOrigin(origin, 'tasks/t002/task.json'), "the other machine's, as it made it").toContain('made elsewhere');
+    expect(said).toContain("done vault: up to date with origin's tasks");
+  });
+
+  it('out of reach of origin, is numbered from what this machine has, and says so', async () => {
+    Task.create('made here');
+    const origin = await giveOrigin(home);
+    renameSync(origin, `${origin}.away`);
+    await run(answers({ entry: CREATE_NEW, title: 'offline' }), normalizePath(realpathSync(mkTempDir())));
+    expect(started[0]?.env.YAN_TASK).toBe('t002');
+    expect(said).toContain('warn vault: could not fetch origin, so the task is numbered from what is here');
   });
 
   it('in an unregistered clone, offers it picked, registers it, and leases a tree on a detached HEAD at origin, making no branch', async () => {

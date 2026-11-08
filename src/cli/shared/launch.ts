@@ -20,7 +20,7 @@ import { Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
 import { holdTerminal, letTerminalGo, machineConfigPath, skillDirs } from '../../util/machine.js';
-import { branchOf, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
+import { branchOf, currentBranch, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
 import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../../util/vault.js';
@@ -486,6 +486,26 @@ export function newTaskRepos(cwd: string): { name: string; packages: string[] }[
 }
 
 /**
+ * The task ids origin has, fetched just now, as a step on the chain: one
+ * made on another machine since this one last pulled is numbered there
+ * already, and a new task here that took its number would conflict with it
+ * on every push from then on. Fetched rather than pulled, so a vault with
+ * work of its own not yet committed is numbered right as well. A vault with
+ * no origin has nothing to fetch; one out of reach numbers from what is here,
+ * and says so.
+ */
+async function takenOnOrigin(vault: string, chain: EntryChain): Promise<string[]> {
+  if (!gitOk(vault, ['rev-parse', '--is-inside-work-tree']) || remoteUrl(vault) === undefined) return [];
+  const step = chain.working('vault: fetching origin, to number the task after its tasks');
+  const fetched = await fetchAsync(vault);
+  const listed = git(vault, ['ls-tree', '--name-only', `refs/remotes/origin/${currentBranch(vault)}`, 'tasks/']);
+  const ids = listed.code === 0 ? listed.stdout.split(/\r?\n/).map((l) => l.trim().replace(/^tasks\//, '')).filter((id) => id !== '') : [];
+  if (fetched.code === 0) step.finish({ kind: 'done', line: 'vault: up to date with origin\'s tasks' });
+  else step.finish({ kind: 'warn', line: 'vault: could not fetch origin, so the task is numbered from what is here', detail: [firstLine(fetched.stderr)] });
+  return ids;
+}
+
+/**
  * Start a task: its title, the repositories it works in, picked from the
  * registry wherever `yan` was typed, and for each one that has several
  * packages, the ones it is about. Asked once; every later start reads them
@@ -496,7 +516,7 @@ async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): P
   const offered = candidates(cwd);
   if (offered.length === 0) {
     chain.say({ kind: 'info', line: "no repository is registered and cloned here, so the task has no tree - 'yan repo add' registers one" });
-    return { task: Task.create(title), trees: [] };
+    return { task: Task.create(title, [], await takenOnOrigin(vaultDir(), chain)), trees: [] };
   }
 
   // The clone `yan` was typed in comes first, so it is where the agent starts when picked.
@@ -517,7 +537,7 @@ async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): P
     const scope = packages.length === 0 ? [] : await prompts.chooseScope(c.name, packages);
     repos.push({ url: c.url, scope, candidate: c });
   }
-  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })));
+  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })), await takenOnOrigin(vaultDir(), chain));
   const trees: Tree[] = [];
   for (const r of repos) {
     const scope = r.scope ?? [];

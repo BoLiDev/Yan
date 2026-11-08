@@ -466,9 +466,14 @@ export class Task {
    * @param repos the repositories its trees are cut from, the agent's first;
    *   none for a task with no tree.
    */
-  public static create(title: string, repos: readonly TaskRepo[] = []): Task {
+  /**
+   * A new task, numbered after the last one here and every one in `taken`:
+   * the ids origin has, made on another machine since this one last pulled,
+   * so a task made here never takes the number of one made there.
+   */
+  public static create(title: string, repos: readonly TaskRepo[] = [], taken: readonly string[] = []): Task {
     const name = titleOf(title);
-    const task = new Task(nextNumbered(Task.list(), 't', 3));
+    const task = new Task(nextNumbered([...Task.list(), ...taken], 't', 3));
     mkdirSync(task.dir, { recursive: true });
     initJson(task.file, {
       version: 2,
