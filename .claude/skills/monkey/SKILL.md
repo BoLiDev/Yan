@@ -81,28 +81,39 @@ more.
 
 ## 4. Verify
 
-When every walker is back, read each `findings.md`. Merge entries that are
-one behaviour seen twice, keeping both ids. Then send verifiers, in the
-background, one per 12 findings, each with fresh sandboxes of its own
-(`<run>/v<N>`, `<run>/v<N>-2`, ...):
+When every walker is back, list the findings by their headings
+(`grep -h '^### ' <run>/w*/findings.md`), which is all you need of them:
+the verifiers read the entries themselves. Merge headings that are one
+behaviour seen more than once, keeping every id. Then send verifiers, in
+the background, one per 12 findings, each a group that belongs together
+(the page's, the vault's across machines, one command family's), with its
+own ports and fresh sandboxes (`<run>/v<N>-<k>`):
 
 ```
 You are verifier v<N> of a monkey test of yan, whose checkout is <repo
 root>. Read <repo root>/.claude/skills/monkey/walker.md for the sandbox
 rules ("Never" holds for you too); you are not walking, you are checking
-these findings, which other agents wrote:
+findings that other agents wrote. Run folder: <run> (below, RUN). The
+findings are in RUN/w<k>/findings.md, each with its steps; their evidence
+is in RUN/w<k>/evidence/. Yours are these ids; ids on one line are one
+behaviour reported more than once, verified once:
 
-<the findings, whole, as written>
+- <id>
+- <id> = <id>
 
 For each: build a fresh sandbox (node <repo root>/.claude/skills/monkey/
-sandbox.mjs <run>/v<N>-<k>), follow its steps exactly, and say:
+sandbox.mjs RUN/v<N>-<k>; findings that cannot disturb each other may
+share one), follow its steps exactly, and say:
 - reproduced, reproduced differently (say how), or not reproduced (say
   what happened instead);
 - whether README.md or --help says this is what yan should do, quoting
   the line either way;
 - the severity you would give it, by walker.md's scale.
-Fix nothing. Write to <run>/v<N>/verdicts.md and return the verdicts, one
-line each, as your last message.
+
+Ports for yan serve: <from> to <to>. Fix nothing. Stop everything you
+start. Write RUN/v<N>/verdicts.md, one section per id: verdict, the spec
+line, severity, what you saw, evidence paths. Your last message: the
+verdicts, one line each.
 ```
 
 ## 5. Report

@@ -344,8 +344,12 @@ $MONKEY_EDITOR_TEXT. \`dice a b c\` (or \`dice 6\`) picks at random.
 
 yan serve: \`${join(root, 'yan-a')} serve --no-open --port <p> --every 2\`, left
 running in the background, then Chromium through Playwright (require('playwright')
-from ${repoRoot}). herdr's features need the fake one:
-\`node ${join(repoRoot, '.claude', 'skills', 'monkey', 'herdr.mjs')} ${root} <task-id>\`.
+from ${repoRoot}). Stop it with SIGTERM: the wrapper does not pass SIGINT on.
+herdr's features need the fake one, started in the background, and serve and
+bare yan started with its variables, which yan-a would drop:
+
+  node ${join(repoRoot, '.claude', 'skills', 'monkey', 'herdr.mjs')} ${q(root)} &
+  . ${q(p.env('a'))} && . ${q(join(root, 'herdr', 'env.sh'))} && yan serve --no-open --port <p> --every 2
 `;
 writeFileSync(join(root, 'SANDBOX.md'), readme);
 process.stdout.write(readme);
