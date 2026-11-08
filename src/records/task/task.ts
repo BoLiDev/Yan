@@ -7,7 +7,7 @@ import { normalizePath } from '../../util/paths.js';
 import { repoKey } from '../../util/repo-key.js';
 import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
-import { byCodePoint, isRecordId, nextNumbered } from '../../util/names.js';
+import { bySeries, isRecordId, nextNumbered } from '../../util/names.js';
 import { Uat, type Renumbered } from './uat.js';
 import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type Said, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
@@ -502,7 +502,7 @@ export class Task {
     }
     return entries
       .filter((id) => Task.isId(id) && existsSync(join(dir, id, 'task.json')))
-      .sort(byCodePoint);
+      .sort(bySeries('t'));
   }
 }
 

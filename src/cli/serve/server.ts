@@ -689,7 +689,10 @@ export class YanServer {
   private async pushLater(): Promise<string | null> {
     let warning: string | null = null;
     await this.inTurn(async () => {
-      warning = await saveOffThread(this.options.vaultDir, 'drafts written in yan serve');
+      // Named for the drafts when they are all it holds; anything else uncommitted here, an agent's say, is named for its task.
+      const left = (await gitAsync(this.options.vaultDir, ['status', '--porcelain', '--untracked-files=all'])).stdout.split('\n').map((l) => l.slice(3)).filter((l) => l !== '');
+      const onlyDrafts = left.every((p) => p.startsWith('drafts/') || /^tasks\/[^/]+\/drafts\//.test(p));
+      warning = await saveOffThread(this.options.vaultDir, onlyDrafts ? 'drafts written in yan serve' : '');
       await this.tick();
     });
     return warning;

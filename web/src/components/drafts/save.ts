@@ -23,7 +23,7 @@ export function offsetAt(x: number, y: number, source: string): number {
 }
 
 // The drafts as the page has them are changed the moment serve says a write is done, newest first, so nothing waits on fetching them again.
-const newest = (a: Draft, b: Draft): number => b.changed - a.changed || b.id.localeCompare(a.id);
+const newest = (a: Draft, b: Draft): number => b.begun - a.begun || b.id.localeCompare(a.id);
 function upsert(d: Draft): void {
   queryClient.setQueryData<readonly Draft[]>(['drafts'], (list = []) => [d, ...list.filter((x) => x.id !== d.id)].sort(newest));
 }

@@ -54,7 +54,8 @@ function Sync() {
     // What the page changed is committed here and tried again on each pull; until then it is nowhere else.
     tone = 'warn';
     head = 'Not pushed yet';
-    sub = 'changes made here are tried again on each pull';
+    // One that conflicts never goes through on its own, however often it is tried.
+    sub = /conflict/.test(st.push.error) ? 'it conflicts with origin - sort it out in the vault' : 'changes made here are tried again on each pull';
   }
   const every = st ? `Pulls every ${st.everyS} s by itself${st.checkedAt ? `, last at ${clock(st.checkedAt, true)}` : ''}. ` : '';
   return (

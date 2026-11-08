@@ -188,6 +188,14 @@ describe('pictures', () => {
     const body = '# x\n\n![shot](x/1.png) and ![web](https://example.com/a.png) and ![](/abs/b.png) and [a link](x/1.png)\n';
     expect(picturesFrom(body, '/vault/drafts/x.md')).toBe('# x\n\n![shot](/vault/drafts/x/1.png) and ![web](https://example.com/a.png) and ![](/abs/b.png) and [a link](x/1.png)\n');
   });
+
+  it('are named only where they really are in the drafts folder: one that climbs out, or goes through a link, is left as written', () => {
+    const outside = mkTempDir('yan-outside-');
+    const id = drafts.write(undefined, '# Linked') as string;
+    symlinkSync(outside, join(drafts.dir, id));
+    const body = `![up](../../secret.png) and ![linked](${id}/1.png)\n`;
+    expect(picturesFrom(body, join(drafts.dir, `${id}.md`))).toBe(body);
+  });
 });
 
 describe('discarding', () => {

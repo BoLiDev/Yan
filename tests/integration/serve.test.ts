@@ -507,6 +507,19 @@ describe("user's drafts on yan serve", () => {
     expect(await subject()).toBe('drafts written in yan serve');
     expect((await fxGit(['show', `main:drafts/${made.id}.md`], bare)).stdout).toBe('# to push\n\nand more\n');
   });
+
+  it('names the later push for its drafts only when they are all it holds', async () => {
+    await saved(await post('/api/draft', { id: null, sha: '', text: '# beside a say' }));
+    write(home, 'tasks/t001/left-here.md', 'written by an agent here\n');
+    await post('/api/push', {});
+    expect(await subject()).toBe('t001, and 1 other file(s)');
+  });
+
+  it('dates a draft by when it was begun, as its id says, whatever time its file has', async () => {
+    write(home, 'drafts/2026-09-01_080000-old-idea.md', '# An old idea\n');
+    const listed = (await (await fetch(page('/api/drafts'))).json()) as { id: string; begun: number }[];
+    expect(listed.find((d) => d.id === '2026-09-01_080000-old-idea')?.begun).toBe(new Date(2026, 8, 1, 8, 0, 0).getTime() / 1000);
+  });
 });
 
 describe('the overview on yan serve', () => {

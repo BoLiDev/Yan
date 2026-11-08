@@ -260,8 +260,8 @@ export interface Draft {
   readonly text: string;
   /** A fingerprint of its text, which a write names as what it began from. */
   readonly sha: string;
-  /** When its file was last written, Unix seconds. */
-  readonly changed: number;
+  /** When it was begun, Unix seconds: its id's time, the same on every machine, unlike its file's, which a checkout moves. */
+  readonly begun: number;
   /** The task whose own folder holds it, for one from when drafts were kept per task; null for the rest. */
   readonly task: string | null;
 }

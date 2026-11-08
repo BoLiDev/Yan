@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFile
 import { join, sep } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task, Uat, branchMark, type TaskRepo } from './index.js';
+import { tasksDir } from '../../util/vault.js';
 
 beforeEach(() => {
   mkYanHome(mkTempDir());
@@ -121,6 +122,16 @@ describe('read', () => {
 
     const owners = (raw(task).deliverables as Record<string, unknown>[]).map((d) => [d.id, d.text, d.owner]);
     expect(owners).toEqual([['d1', 'three', 'of three'], ['d2', 'two', 'of two'], ['d3', 'four', undefined]]);
+  });
+});
+
+describe('the list of tasks', () => {
+  it('is in the order they were made, t999 before t1000', () => {
+    for (const id of ['t1000', 't999', 't002']) {
+      mkdirSync(join(tasksDir(), id), { recursive: true });
+      writeFileSync(join(tasksDir(), id, 'task.json'), JSON.stringify({ version: 2, id, title: id, state: 'open', nextDeliverable: 1, deliverables: [] }));
+    }
+    expect(Task.list()).toEqual(['t002', 't999', 't1000']);
   });
 });
 

@@ -77,30 +77,33 @@ export function isInside(parent: string, child: string): boolean {
 }
 
 /**
- * True when `path`, its links followed, is inside `root`, its own followed
- * too: a name that reads as inside but is, or passes through, a symbolic link
- * to elsewhere is not. A path not there yet is judged by the nearest folder
- * above it that is, which is where writing it would land.
+ * Where `path` really is, its links followed: a path not there yet is taken
+ * where the nearest folder above it that is really is, which is where
+ * writing it would land.
  */
-export function staysInside(root: string, path: string): boolean {
-  let real: string;
-  try {
-    real = realpathSync(root);
-  } catch {
-    return false;
-  }
+function realOf(path: string): string | undefined {
   let at = resolve(path);
   let rest = '';
   for (;;) {
     try {
-      return isInside(real, join(realpathSync(at), rest));
+      return join(realpathSync(at), rest);
     } catch {
       const up = dirname(at);
-      if (up === at) return false;
+      if (up === at) return undefined;
       rest = join(basename(at), rest);
       at = up;
     }
   }
+}
+
+/**
+ * True when `path`, its links followed, is inside `root`, its own followed
+ * too: a name that reads as inside but is, or passes through, a symbolic link
+ * to elsewhere is not, nor is one that climbs out with `..`.
+ */
+export function staysInside(root: string, path: string): boolean {
+  const [r, p] = [realOf(root), realOf(path)];
+  return r !== undefined && p !== undefined && isInside(r, p);
 }
 
 /** The platform's own spelling — backslashes on Windows. */

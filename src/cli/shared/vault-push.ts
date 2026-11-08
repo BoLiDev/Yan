@@ -162,13 +162,15 @@ export function shareChange(what: string, message: string): 'pushed' | 'committe
 
 /**
  * Commit what `user` just changed, and push it when the vault has an origin,
- * so the page shows it and the other machines get it. Under the lock.
+ * so the page shows it and the other machines get it; with no message, one
+ * made of the task ids that changed. Under the lock.
  */
-export function saveVault(dir: string, message: string): string[] {
+export function saveVault(dir: string, message: string | undefined): string[] {
   return withVaultLock(dir, () => {
     if (remoteUrl(dir) !== undefined) return pushVault(dir, message);
-    if (changedPaths(dir).length === 0) return [];
-    commitAll(dir, message);
+    const changed = changedPaths(dir);
+    if (changed.length === 0) return [];
+    commitAll(dir, message ?? pushMessage(changed));
     return ['vault push: committed, no origin to push to'];
   });
 }

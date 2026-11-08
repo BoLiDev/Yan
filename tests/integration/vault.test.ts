@@ -359,15 +359,18 @@ describe('pull and push', () => {
     const child = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'vault', 'pull'], {
       env: { ...process.env, YAN_HOME: home, ...env, YAN_VAULT: b },
       detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+    let said = '';
+    child.stdout?.on('data', (chunk: Buffer) => (said += chunk.toString()));
+    const exited = new Promise<number | null>((resolve) => child.once('close', (code) => resolve(code)));
     for (let i = 0; i < 200 && !existsSync(marker); i += 1) await new Promise((r) => setTimeout(r, 50));
     expect(existsSync(marker), 'the rebase reached the slow hook').toBe(true);
     process.kill(-(child.pid ?? 0), 'SIGINT');
     await exited;
 
     expect(existsSync(join(b, '.git', 'rebase-merge')), 'no rebase left half-way').toBe(false);
+    expect(said, 'nothing to sort out, so it says it stopped, not that it conflicts').toContain('stopped before it was done');
     expect((await fxGit(['-C', b, 'rev-parse', 'HEAD'])).stdout.trim()).toBe(before);
     expect((await fxGit(['-C', b, 'status', '--porcelain'])).stdout.trim()).toBe('');
   });

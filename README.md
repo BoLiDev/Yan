@@ -246,7 +246,7 @@ or closed, is told in a toast. A finish is news, in Latest, in its count, and as
 task's row, until you type in its terminal or mark all seen in Latest;
 waiting on you is news, an
 amber dot, until it is answered. Drafts, under Latest, opens your drafts
-in a large box over the page: the list down its side, newest first, those
+in a large box over the page: the list down its side, newest first by when each was begun, as `yan draft ls` lists them, those
 kept with a task before saying which, with New above it, and the one
 picked beside it, its Markdown drawn. There is no edit mode and nothing to
 wait for: a click on the draft writes it there at once, where the click
@@ -502,7 +502,7 @@ edit is checked against the file another machine pushed, and a deliverable
 is changed only while it still reads as the page showed it at its number,
 a change refused otherwise with what was typed said back. A push that
 fails leaves the change committed here, and the card at the top of the
-task list says Not pushed yet until a later pull pushes it. Its API is the page's alone: a page anywhere else,
+task list says Not pushed yet until a later pull pushes it, or, when it conflicts with origin, which no pull gets past, that it needs sorting out in the vault. Its API is the page's alone: a page anywhere else,
 an agent's page on the files port among them, is refused it.
 report.html carries its pictures inside it, so it can be dragged into a
 document whole; the page is sent it with them taken out, and loads each

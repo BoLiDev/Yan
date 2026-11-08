@@ -153,7 +153,11 @@ export const PICTURE_TYPES: Readonly<Record<string, string>> = { 'image/png': 'p
  * agent opening the picture to look at it.
  */
 export function picturesFrom(body: string, path: string): string {
-  return body.replace(/(!\[[^\]]*\]\()(?![a-z][a-z0-9+.-]*:|\/|#)([^)\s]+)(\))/gi, (_, open: string, rel: string, close: string) => `${open}${normalizePath(join(dirname(path), rel))}${close}`);
+  return body.replace(/(!\[[^\]]*\]\()(?![a-z][a-z0-9+.-]*:|\/|#)([^)\s]+)(\))/gi, (whole: string, open: string, rel: string, close: string) => {
+    const at = join(dirname(path), rel);
+    // One that leads out of the drafts' folder, by `..` or through a link, is left as written, never named for an agent to open.
+    return staysInside(dirname(path), at) ? `${open}${normalizePath(at)}${close}` : whole;
+  });
 }
 
 /** The drafts from when they were kept per task, each in its task's folder. */

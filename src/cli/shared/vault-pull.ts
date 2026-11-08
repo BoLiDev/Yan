@@ -106,6 +106,10 @@ export function rebaseOnto(dir: string, upstream: string): PullResult {
       return { ok: false, message: `could not rebase onto ${upstream}: ${(rebased.stderr || rebased.stdout).trim()}` };
     }
     git(dir, ['rebase', '--abort']);
+    // git says when a commit did not apply; a rebase stopped before then, by Ctrl-C, had nothing to sort out.
+    if (!/CONFLICT|could not apply/.test(`${rebased.stdout}${rebased.stderr}`)) {
+      return { ok: false, message: `the rebase onto ${upstream} was stopped before it was done, and is undone - nothing was changed` };
+    }
     return { ok: false, message: `rebasing onto ${upstream} conflicts - open ${dir} and sort it out; nothing was changed` };
   }
   const after = revParse(dir, ['HEAD']);

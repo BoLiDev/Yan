@@ -28,7 +28,7 @@ export function fingerprint(text: string): string {
 }
 
 function wire(d: DraftFile): Draft {
-  return { id: d.id, title: d.title, text: d.body, sha: fingerprint(d.body), changed: Math.floor(d.mtimeMs / 1000), task: d.task ?? null };
+  return { id: d.id, title: d.title, text: d.body, sha: fingerprint(d.body), begun: Math.floor(Date.parse(d.updated) / 1000), task: d.task ?? null };
 }
 
 /** Every draft as it is on disk, newest first. */

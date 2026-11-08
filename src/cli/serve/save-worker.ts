@@ -15,7 +15,7 @@ const { dir, message, push, level } = workerData as { readonly dir: string; read
 let warning: string | null = null;
 try {
   if (level !== undefined) levelWith(dir, level);
-  else if (push) saveVault(dir, message);
+  else if (push) saveVault(dir, message === '' ? undefined : message);
   else commitVault(dir, message);
 } catch (err) {
   warning = isYanError(err) ? err.message : String(err);

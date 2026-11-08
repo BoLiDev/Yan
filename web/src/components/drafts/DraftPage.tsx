@@ -129,7 +129,7 @@ export function DraftPage({ draft, kept, onCreated, onAskDelete, onGone }: {
     return () => document.removeEventListener('paste', on);
   }, [editing]);
 
-  const meta = `${draft === null ? 'A new draft' : `Edited ${when(draft.changed)}`}${draft?.task ? ` · kept with ${draft.task}` : ''}${editing ? '' : ' · click it to write'}`;
+  const meta = `${draft === null ? 'A new draft' : `Begun ${when(draft.begun)}`}${draft?.task ? ` · kept with ${draft.task}` : ''}${editing ? '' : ' · click it to write'}`;
   const state = said(writer.saving, editing, push);
   return (
     <section className="flex min-w-0 flex-col" aria-label={draft?.title ?? 'New draft'}

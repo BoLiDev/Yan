@@ -15,6 +15,13 @@ describe('the card that says how the vault stands with origin', () => {
     useUI.setState({ status: status(2) });
     await expect.element(screen.getByText('Synced')).toBeVisible();
   });
+
+  it('says when one will never go through by itself, conflicting with origin', async () => {
+    serve({});
+    have({ ...index([task('t1', 'pay retries')]), status: { ...status(), push: { pending: true, error: 'rebasing onto origin/main conflicts - open /v and sort it out' } } });
+    const screen = await draw(<Left />);
+    await expect.element(screen.getByText(/conflicts with origin/)).toBeVisible();
+  });
 });
 
 describe('the theme the page is drawn in', () => {

@@ -16,6 +16,24 @@ export function byCodePoint(a: string, b: string): number {
 }
 
 /**
+ * Order ids of one `<prefix><n>` series by their number, the rest by code
+ * point after them: `t999` before `t1000`, which code point alone puts first.
+ */
+export function bySeries(prefix: string): (a: string, b: string) => number {
+  const n = (id: string): number | undefined => {
+    const digits = id.slice(prefix.length);
+    return id.startsWith(prefix) && /^\d+$/.test(digits) ? Number.parseInt(digits, 10) : undefined;
+  };
+  return (a, b) => {
+    const [x, y] = [n(a), n(b)];
+    if (x !== undefined && y !== undefined && x !== y) return x - y;
+    if (x !== undefined && y === undefined) return -1;
+    if (x === undefined && y !== undefined) return 1;
+    return byCodePoint(a, b);
+  };
+}
+
+/**
  * The next id in a `<prefix><n>` series: one past the highest `n` among `ids`,
  * zero-padded to `pad` digits. Ids that are not in the series are ignored, and
  * `n` is read in base 10, so `t008` is eight rather than an invalid octal.

@@ -106,7 +106,7 @@ function DraftsBox() {
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
           {shown === NEW ? <Row title="New draft" meta="not saved yet" on onPick={() => undefined} /> : null}
           {list.map((d) => (
-            <Row key={d.id} title={d.title} meta={`${when(d.changed)}${d.task ? ` · ${d.task}` : ''}`} on={d.id === shown} onPick={() => setPicked(d.id)} onDelete={() => askDelete(d)} />
+            <Row key={d.id} title={d.title} meta={`${when(d.begun)}${d.task ? ` · ${d.task}` : ''}`} on={d.id === shown} onPick={() => setPicked(d.id)} onDelete={() => askDelete(d)} />
           ))}
           {drafts.isSuccess && list.length === 0 && shown !== NEW ? <span className="px-2 text-[13px] text-ink-3">No drafts yet.</span> : null}
           {drafts.isError ? <span className="px-2 text-[13px] text-destructive">Could not read the drafts: {drafts.error.message}</span> : null}

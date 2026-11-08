@@ -6,13 +6,13 @@ import { useUI } from '../../state/ui';
 import { Toaster } from '../ui/sonner';
 import { DraftsModal } from './DraftsModal';
 
-const ideas: Draft = { id: '2026-11-02_213000-retry-ideas', title: 'Retry ideas', text: '# Retry ideas\n\nback off twice\n', sha: 's1', changed: 1_762_000_000, task: null };
-const old: Draft = { id: '2026-09-01_080000', title: 'Old note', text: '# Old note\n\nkept with its task\n', sha: 's2', changed: 1_756_000_000, task: 't001' };
+const ideas: Draft = { id: '2026-11-02_213000-retry-ideas', title: 'Retry ideas', text: '# Retry ideas\n\nback off twice\n', sha: 's1', begun: 1_762_000_000, task: null };
+const old: Draft = { id: '2026-09-01_080000', title: 'Old note', text: '# Old note\n\nkept with its task\n', sha: 's2', begun: 1_756_000_000, task: 't001' };
 const writes = (asked: readonly Asked[], path = '/api/draft'): unknown[] => asked.filter((a) => a.method === 'POST' && a.path === path).map((a) => a.body);
 /** serve writing a draft as asked: done, under the id it was given or a new one, its fingerprint the text's length. */
 const written = (made = '2026-11-03_090000-new') => ({ body }: Asked): Response => {
   const { id, text } = body as { id: string | null; text: string };
-  return Response.json({ draft: { id: id ?? made, title: text.split('\n')[0]?.replace(/^#+\s*/, '') ?? '', text, sha: `w${text.length}`, changed: 1_763_000_000, task: null } });
+  return Response.json({ draft: { id: id ?? made, title: text.split('\n')[0]?.replace(/^#+\s*/, '') ?? '', text, sha: `w${text.length}`, begun: 1_763_000_000, task: null } });
 };
 
 describe("the drafts' box", () => {
