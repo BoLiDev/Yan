@@ -18,7 +18,7 @@
  *
  * Its first tab, w1:t1, holds the agent's pane w1:p2 and a shell, w1:p3.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -63,9 +63,12 @@ const tick = setInterval(() => {
 }, 1000);
 
 process.stdout.write(`fake herdr on ${h.socket}; . ${join(dir, 'env.sh')} before bare yan to run it in pane ${AGENT_PANE}\n`);
+// The fake keeps its socket and its command in a folder of its own under the system's temp directory, since a
+// socket's path has to be short; it is this process's to take away.
 const stop = async () => {
   clearInterval(tick);
   await h.close();
+  rmSync(dirname(h.socket), { recursive: true, force: true });
   process.exit(0);
 };
 process.on('SIGTERM', stop);
