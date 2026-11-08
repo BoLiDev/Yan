@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { YanError } from '../../util/error.js';
-import { normalizePath } from '../../util/paths.js';
+import { normalizePath, staysInside } from '../../util/paths.js';
 import { localDay, localTime } from '../../util/time.js';
 import { draftsDir, tasksDir } from '../../util/vault.js';
 
@@ -28,7 +28,16 @@ import { draftsDir, tasksDir } from '../../util/vault.js';
  * only the `.md` files, passes over it.
  *
  * The title is the first non-blank line with any leading `#` stripped;
- * `updated` is the file's mtime; every list is newest first. Reading never
+ * `updated` is when the draft was begun, which its id says, and every list
+ * is newest first by it. Not the file's mtime: a vault is shared through
+ * git, and a checkout writes every file it brings at the moment it brings
+ * them, so on any machine but the one a draft was written on its mtime is
+ * the last pull, and on a fresh clone the newest are whichever came last.
+ * A draft whose id says no time, one renamed by hand, goes by its mtime.
+ *
+ * A draft's file, and the folder of its pictures, are read and written only
+ * where they are: one that is a symbolic link, which git carries from any
+ * machine, is passed over rather than followed out of the vault. Reading never
  * creates the folder, and writing creates it on the first draft.
  */
 
@@ -39,7 +48,7 @@ export interface DraftSummary {
   readonly title: string;
   /** The task whose folder holds it, for a draft from when drafts were kept per task; absent for the rest. */
   readonly task?: string;
-  /** ISO 8601, from the file's modification time. */
+  /** ISO 8601: when it was begun, as its id says. */
   readonly updated: string;
   /** Body after the title, whitespace-collapsed, at most 120 characters. */
   readonly preview: string;
@@ -68,7 +77,18 @@ interface Entry {
   readonly id: string;
   readonly path: string;
   readonly mtimeMs: number;
+  /** When it was begun, in milliseconds: its id's stamp, or its mtime when the id has none. */
+  readonly at: number;
   readonly task?: string;
+}
+
+/** The local time a draft id begins with, `2026-09-16_051516`, in milliseconds; undefined for one without. */
+function stampOf(id: string): number | undefined {
+  const m = /^(\d{4})-(\d\d)-(\d\d)_(\d\d)(\d\d)(\d\d)/.exec(id);
+  if (m === null) return undefined;
+  const [y, mo, d, h, mi, s] = m.slice(1).map(Number) as [number, number, number, number, number, number];
+  const when = new Date(y, mo - 1, d, h, mi, s).getTime();
+  return Number.isNaN(when) ? undefined : when;
 }
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -91,7 +111,7 @@ export function headline(body: string): { title: string; preview: string } {
 
 function load(e: Entry): DraftFile {
   const body = readFileSync(e.path, 'utf8');
-  return { id: e.id, path: e.path, body, mtimeMs: e.mtimeMs, updated: new Date(e.mtimeMs).toISOString(), ...headline(body), ...(e.task === undefined ? {} : { task: e.task }) };
+  return { id: e.id, path: e.path, body, mtimeMs: e.mtimeMs, updated: new Date(e.at).toISOString(), ...headline(body), ...(e.task === undefined ? {} : { task: e.task }) };
 }
 
 function summary(d: DraftFile): DraftSummary {
@@ -111,9 +131,10 @@ function filesIn(dir: string, task?: string): Entry[] {
     if (!name.endsWith(EXT)) continue;
     const id = name.slice(0, -EXT.length);
     const path = normalizePath(join(dir, name));
-    const st = statSync(path);
+    // lstat, so a link is passed over rather than read through.
+    const st = lstatSync(path);
     if (!st.isFile() || !isValidId(id)) continue;
-    found.push({ id, path, mtimeMs: st.mtimeMs, ...(task === undefined ? {} : { task }) });
+    found.push({ id, path, mtimeMs: st.mtimeMs, at: stampOf(id) ?? st.mtimeMs, ...(task === undefined ? {} : { task }) });
   }
   return found;
 }
@@ -175,8 +196,8 @@ export class Drafts {
     const top = filesIn(this.dir);
     const ids = new Set(top.map((e) => e.id));
     const found = [...top, ...perTask().filter((e) => !ids.has(e.id))];
-    // Written in the same moment, as a checkout writes them all, the later id, the later begun, first.
-    found.sort((a, b) => b.mtimeMs - a.mtimeMs || b.id.localeCompare(a.id));
+    // Begun in the same second, the later id first.
+    found.sort((a, b) => b.at - a.at || b.id.localeCompare(a.id));
     return found;
   }
 
@@ -223,6 +244,7 @@ export class Drafts {
     const path = this.pathOf(id);
     if (path === undefined) throw new YanError('draft_missing', `no draft ${id} in ${this.dir} - 'yan draft ls --plain' lists them`);
     const folder = picturesOf(path);
+    if (!staysInside(dirname(path), folder)) throw new YanError('draft_outside', `${folder} is a link out of the drafts' folder, so nothing is written there`);
     mkdirSync(folder, { recursive: true });
     let n = 1;
     while (readdirSync(folder).some((f) => f.replace(/\.[^.]*$/, '') === String(n))) n++;
@@ -245,7 +267,7 @@ export class Drafts {
     let found = this.entries();
     if (opts.since !== undefined) {
       const cutoff = opts.since.getTime();
-      found = found.filter((e) => e.mtimeMs >= cutoff);
+      found = found.filter((e) => e.at >= cutoff);
     }
     if (opts.limit !== undefined) found = found.slice(0, opts.limit);
     return found.map((e) => summary(load(e)));

@@ -25,6 +25,7 @@ function yan(args: readonly string[], env: Record<string, string> = {}) {
   return runYan(home, args, env);
 }
 
+/** A draft written on `day`, as its file's time says; what is listed of it goes by its id, which a checkout does not move. */
 function draft(id: string, body: string, day: number): void {
   mkdirSync(drafts, { recursive: true });
   const file = join(drafts, `${id}.md`);
@@ -120,7 +121,7 @@ describe('reading drafts works anywhere, in any task or none', () => {
     const r = await yan(['draft', 'ls']);
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toBe(
-      '2026-09-16_051516-q4\t2026-09-16 09:30\tQ4 plan\n2026-09-14_093000\t2026-09-14 09:30\tOld idea\n',
+      '2026-09-16_051516-q4\t2026-09-16 05:15\tQ4 plan\n2026-09-14_093000\t2026-09-14 09:30\tOld idea\n',
     );
     expect((await yan(['draft', 'ls', '--plain'])).stdout).toBe(r.stdout);
     expect((await yan(['draft', 'ls'], { YAN_TASK: 't002' })).stdout).toBe(r.stdout);
@@ -141,7 +142,7 @@ describe('reading drafts works anywhere, in any task or none', () => {
   it('ls --limit takes the newest', async () => {
     const r = await yan(['draft', 'ls', '--limit', '1']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toBe('2026-09-16_051516-q4\t2026-09-16 09:30\tQ4 plan\n');
+    expect(r.stdout).toBe('2026-09-16_051516-q4\t2026-09-16 05:15\tQ4 plan\n');
   });
 
   it('ls --json carries the preview', async () => {
@@ -180,7 +181,7 @@ describe('reading drafts works anywhere, in any task or none', () => {
   it('search finds a phrase, every word of it', async () => {
     const r = await yan(['draft', 'search', 'q4', 'plan']);
     expect(r.code, r.out).toBe(0);
-    expect(r.stdout).toContain('2026-09-16_051516-q4\t2026-09-16 09:30\tQ4 plan');
+    expect(r.stdout).toContain('2026-09-16_051516-q4\t2026-09-16 05:15\tQ4 plan');
     expect(r.stdout).toContain('Q4 Plan at length');
     expect(r.stdout).not.toContain('Old idea');
     const json = await yan(['draft', 'search', 'nothing', 'like', 'this', '--json']);
@@ -197,7 +198,7 @@ describe('reading drafts works anywhere, in any task or none', () => {
     const r = await yan(['context'], { YAN_TASK: 't002' });
     expect(r.code, r.out).toBe(0);
     expect(r.stdout).toContain("drafts  the user's own notes, shared by every task");
-    expect(r.stdout).toMatch(/2026-09-16_051516-q4 +2026-09-16 09:30 +Q4 plan\n +2026-09-14_093000 +2026-09-14 09:30 +Old idea/);
+    expect(r.stdout).toMatch(/2026-09-16_051516-q4 +2026-09-16 05:15 +Q4 plan\n +2026-09-14_093000 +2026-09-14 09:30 +Old idea/);
     const json = JSON.parse((await yan(['context', '--json'], { YAN_TASK: 't002' })).stdout) as { drafts: { id: string }[] };
     expect(json.drafts.map((d) => d.id)).toEqual(['2026-09-16_051516-q4', '2026-09-14_093000']);
   });

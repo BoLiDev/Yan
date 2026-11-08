@@ -1,5 +1,5 @@
-import { statSync } from 'node:fs';
-import { sep } from 'node:path';
+import { realpathSync, statSync } from 'node:fs';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 
 /**
  * Path normalisation. The normal form is forward slashes, an upper-case drive
@@ -74,6 +74,33 @@ export function isInside(parent: string, child: string): boolean {
   const c = pathKey(child);
   if (p === c) return true;
   return c.startsWith(p.endsWith('/') ? p : `${p}/`);
+}
+
+/**
+ * True when `path`, its links followed, is inside `root`, its own followed
+ * too: a name that reads as inside but is, or passes through, a symbolic link
+ * to elsewhere is not. A path not there yet is judged by the nearest folder
+ * above it that is, which is where writing it would land.
+ */
+export function staysInside(root: string, path: string): boolean {
+  let real: string;
+  try {
+    real = realpathSync(root);
+  } catch {
+    return false;
+  }
+  let at = resolve(path);
+  let rest = '';
+  for (;;) {
+    try {
+      return isInside(real, join(realpathSync(at), rest));
+    } catch {
+      const up = dirname(at);
+      if (up === at) return false;
+      rest = join(basename(at), rest);
+      at = up;
+    }
+  }
 }
 
 /** The platform's own spelling — backslashes on Windows. */

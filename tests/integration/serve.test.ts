@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -491,6 +491,11 @@ describe("user's drafts on yan serve", () => {
     expect(given.headers.get('content-type')).toBe('image/png');
     expect(Buffer.from(await given.arrayBuffer()).equals(PNG)).toBe(true);
     expect((await fetch(files('/drafts/../vault.json'))).status).toBe(404);
+    // A link git brought from another machine, to a file of this one's: not followed.
+    const outside = mkTempDir('yan-outside-');
+    writeFileSync(join(outside, 'secret.txt'), 'not the vault\'s');
+    symlinkSync(join(outside, 'secret.txt'), join(home, 'drafts', out.path.split('/')[0] ?? '', 'linked.png'));
+    expect((await fetch(files(`/drafts/${out.path.split('/')[0] ?? ''}/linked.png`))).status).toBe(404);
   });
 
   it('commits and pushes what was written once asked, the box closing, in one commit', async () => {

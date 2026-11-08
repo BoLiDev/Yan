@@ -6,6 +6,7 @@ import { Worker } from 'node:worker_threads';
 import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifacts.js';
 import { Task, parseUat } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
+import { staysInside } from '../../util/paths.js';
 import { cloneOf } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
@@ -1156,7 +1157,8 @@ export class YanServer {
     // A draft's picture is given from disk, where the page put it a moment ago, not from a commit.
     if (DRAFT_PICTURE.test(path)) {
       const file = join(this.options.vaultDir, path);
-      if (!existsSync(file) || !statSync(file).isFile()) return send(res, 404, `${path} is not in the vault`);
+      // Given from disk, so a link, which git brings from any machine, is not followed out of the vault.
+      if (!existsSync(file) || !staysInside(this.options.vaultDir, file) || !statSync(file).isFile()) return send(res, 404, `${path} is not in the vault`);
       return sendBytes(req, res, readFileSync(file), typeOf(path), { 'Cache-Control': 'no-cache' });
     }
     let entry = this.view.entry(path);

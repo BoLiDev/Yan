@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome } from '../../../tests/helpers/fixtures.js';
 import { Task } from '../task/index.js';
@@ -95,6 +95,14 @@ describe('listing', () => {
     expect(drafts.count()).toBe(2);
   });
 
+  it('is newest by when each was begun, as its id says, whatever times a checkout gave the files', () => {
+    // Pulled on another machine: the older draft's file was written last.
+    write('2026-11-08_100000-newer', 'newer', 3000);
+    write('2026-10-01_090000-older', 'older', 1);
+    expect(drafts.list().map((r) => r.id)).toEqual(['2026-11-08_100000-newer', '2026-10-01_090000-older']);
+    expect(drafts.get('2026-10-01_090000-older')?.updated).toBe(new Date(2026, 9, 1, 9, 0, 0).toISOString());
+  });
+
   it('honours limit and since', () => {
     write('a', 'a', 1000);
     write('b', 'b', 100);
@@ -161,6 +169,19 @@ describe('pictures', () => {
     expect(drafts.remove(id)).toBe(true);
     expect(existsSync(join(drafts.dir, id))).toBe(false);
     expect(drafts.remove(id)).toBe(false);
+  });
+
+  it('are never written out of the vault through a link, nor is a draft that is one read', () => {
+    const outside = mkTempDir('yan-outside-');
+    writeFileSync(join(outside, 'secret.md'), '# not a draft\n');
+    const id = drafts.write(undefined, '# With a linked folder') as string;
+    symlinkSync(outside, join(drafts.dir, id));
+    expect(() => drafts.addPicture(id, Buffer.from('a'), 'png')).toThrow(/link/);
+    expect(readdirSync(outside)).toEqual(['secret.md']);
+
+    symlinkSync(join(outside, 'secret.md'), join(drafts.dir, '2026-11-08_120000-linked.md'));
+    expect(drafts.list().map((d) => d.id)).toEqual([id]);
+    expect(drafts.get('2026-11-08_120000-linked')).toBeUndefined();
   });
 
   it('are named by where they are for a reader outside the vault, and the rest of the Markdown left as it is', () => {
