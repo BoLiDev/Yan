@@ -192,7 +192,8 @@ case ":$PATH:" in *:${q(p.bin(m))}:*) ;; *) export PATH=${q(`${p.bin(m)}:${p.fak
   // $YAN_TASK and $YAN_VAULT yan gave it, and the directory it is run in.
   script(join(p.bin(m), 'yan'), `#!/bin/sh\n. ${q(machine)}\n${yanJs}\n`);
   // The walker's: nothing inherited, and run in the machine's work folder unless already somewhere in the sandbox.
-  script(join(root, `yan-${m}`), `#!/bin/sh\n${forget}\n. ${q(machine)}\n${intoWork}\n${yanJs}\n`);
+  // $MONKEY_TASK is the walker's way to hand it a task by variable, since an inherited $YAN_TASK may be the user's.
+  script(join(root, `yan-${m}`), `#!/bin/sh\n${forget}\n[ -n "$MONKEY_TASK" ] && export YAN_TASK="$MONKEY_TASK"\n. ${q(machine)}\n${intoWork}\n${yanJs}\n`);
   mkdirSync(p.work(m), { recursive: true });
 }
 
@@ -313,6 +314,9 @@ through these and never through the \`yan\` on the PATH outside.
 
 Each shell command starts afresh, so source the env file in every command
 that needs more than yan: \`. ${p.env('a')} && git -C web log --oneline\`.
+git run without it commits as the user's own identity. yan-a and yan-b drop
+every YAN_* variable they are handed, so \`YAN_TASK=t001 yan-a ...\` is
+\`MONKEY_TASK=t001 yan-a ...\`; after sourcing the env file, export YAN_TASK.
 
 Machine A: vault ${p.vault('a')}, clones ${p.work('a')}/{web,mono}, ~/.yan ${join(p.home('a'), '.yan')}
 Machine B: vault ${p.vault('b')}, clones ${p.work('b')}/{web,mono}, ~/.yan ${join(p.home('b'), '.yan')}
