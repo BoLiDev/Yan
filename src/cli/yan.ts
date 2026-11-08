@@ -211,6 +211,15 @@ async function main(argv: readonly string[]): Promise<number> {
 
 const invokedDirectly = process.argv[1] !== undefined && /[\\/]yan\.js$/.test(process.argv[1]);
 if (invokedDirectly) {
+  // A reader that stops early, as `yan ls | head` does, closes the pipe under
+  // the writes still to come. What is left to print is dropped, and the
+  // command goes on to the end of its work and its own exit status, as if
+  // nobody had been listening, rather than dying half-way on EPIPE with a
+  // stack trace, a vault write it was in the middle of included.
+  process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') return;
+    throw err;
+  });
   main(process.argv.slice(2))
     .then((code) => {
       process.exitCode = code;

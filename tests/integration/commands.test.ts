@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { spawn } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, giveOrigin, mkTempDir, mkYanHome, onOrigin, repoRoot, runYan } from '../helpers/fixtures.js';
@@ -49,6 +50,28 @@ describe('the surface', () => {
     expectUsage(await yan(['--new', 'x', '--pause']), 'not one --new starts');
     expectUsage(await yan(['--task', 't001', '--done', '--pause']), 'give one');
     expectUsage(await yan(['--task', 't001', '--abandon', ' ']), 'the reason');
+  });
+
+  it('stops printing, quietly, when what reads it stops reading, as `| head` does, and still does its work', async () => {
+    /** yan with its stdout's reader gone before the first line: its exit status and what it said on stderr. */
+    const cutShort = (args: readonly string[]): Promise<{ code: number | null; stderr: string }> =>
+      new Promise((settle) => {
+        const child = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), ...args], {
+          env: { ...process.env, YAN_HOME: home, YAN_VAULT: home, YAN_MACHINE_DIR: join(home, '.machine') },
+        });
+        child.stdout.destroy();
+        let stderr = '';
+        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+        child.on('close', (code) => settle({ code, stderr }));
+      });
+
+    for (const args of [['ls'], ['--help'], ['context', '--task', 't001'], ['peek', 't001']]) {
+      const r = await cutShort(args);
+      expect(r.stderr, args.join(' ')).toBe('');
+      expect(r.code, args.join(' ')).toBe(0);
+    }
+    expect((await cutShort(['say', '--task', 't001', 'Retries are in.'])).code).toBe(0);
+    expect(new Task('t001').read().said?.text, 'said all the same').toBe('Retries are in.');
   });
 });
 
