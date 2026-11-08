@@ -8,12 +8,15 @@ const FRAME = 'cursor-text rounded-[4px] outline-1 outline-offset-3 outline-tran
  * A text edited where it stands: Enter or leaving it keeps what was typed,
  * on one line, and Escape puts it back. A blank is never kept. While it is
  * being edited, a new text from the server waits: what is typed is never
- * overwritten under the typist.
+ * overwritten under the typist. A save that `onSave` says was refused puts
+ * back the text the server has, which has not changed and so would not
+ * redraw it: left, the refused words would stand there as if kept, under
+ * whatever now holds the place. What was typed is in the refusal's toast.
  */
 export function Editable({ text, onSave, onLeft, className, as = 'span', autoFocus }: {
   text: string;
-  /** Given what was typed, and the text it was typed over, as it stood when the editing began. */
-  onSave: (text: string, was: string) => void;
+  /** Given what was typed, and the text it was typed over, as it stood when the editing began; false, in time, when it was refused. */
+  onSave: (text: string, was: string) => void | Promise<boolean>;
   onLeft?: (changed: boolean) => void;
   className?: string;
   as?: 'span' | 'div';
@@ -21,7 +24,10 @@ export function Editable({ text, onSave, onLeft, className, as = 'span', autoFoc
 }) {
   const ref = useRef<HTMLElement>(null);
   const was = useRef(text);
+  /** The text the server has, as last drawn: what a refused save puts back. */
+  const shown = useRef(text);
   useLayoutEffect(() => {
+    shown.current = text;
     const el = ref.current;
     if (el && document.activeElement !== el) el.textContent = text;
   }, [text]);
@@ -53,7 +59,11 @@ export function Editable({ text, onSave, onLeft, className, as = 'span', autoFoc
         if (changed) {
           const over = was.current;
           was.current = typed;
-          onSave(typed, over);
+          void Promise.resolve(onSave(typed, over)).then((kept) => {
+            if (kept !== false || document.activeElement === el) return;
+            el.textContent = shown.current;
+            was.current = shown.current;
+          });
         }
         onLeft?.(changed);
       }} />

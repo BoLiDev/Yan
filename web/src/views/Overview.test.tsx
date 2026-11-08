@@ -47,6 +47,16 @@ describe("a task's overview", () => {
     await expect.element(screen.getByRole('textbox', { name: 'problem.md' })).toHaveValue('half written');
   });
 
+  it('puts a deliverable back as the vault has it when its new words are refused, and says what was typed', async () => {
+    serve({ 'POST /api/deliverable/text': new Response('the deliverables changed since the page showed them - nothing was changed; what you typed: my new words', { status: 409 }) });
+    const screen = await draw(<><Overview t={t} d={d} /><Toaster /></>);
+    const words = screen.getByText('retries are paid');
+    await words.click();
+    await userEvent.keyboard('{Control>}a{/Control}my new words{Enter}');
+    await expect.element(screen.getByText(/what you typed: my new words/)).toBeVisible();
+    await expect.element(words).toHaveTextContent('retries are paid');
+  });
+
   it('asks before deleting a deliverable, and deletes it once asked', async () => {
     const asked = serve({ 'POST /api/deliverable/remove': Response.json({ ok: true, warning: null, status: status() }) });
     const screen = await draw(<><Overview t={t} d={d} /><Toaster /></>);

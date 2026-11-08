@@ -30,7 +30,7 @@ export function ResourceCard({ task, r, picked, onPick }: { task: string; r: Lis
   const edit = editing ? (
     <span className="relative z-10 flex min-w-0 flex-auto flex-col gap-0.5">
       <b className="truncate">{r.name}</b>
-      <Editable className={EDITING} text={r.where} autoFocus onSave={(to) => void writeTask('/api/resource', { task, name: r.name, where: to }, `Saved ${r.name}`)}
+      <Editable className={EDITING} text={r.where} autoFocus onSave={(to) => writeTask('/api/resource', { task, name: r.name, where: to }, `Saved ${r.name}`)}
         onLeft={(changed) => { if (!changed) setEditing(false); }} />
     </span>
   ) : undefined;
