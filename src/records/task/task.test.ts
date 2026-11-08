@@ -103,6 +103,25 @@ describe('read', () => {
     task.addDeliverables(['it works']);
     expect(raw(task).extra).toBe(42);
   });
+
+  it('keeps the fields a newer yan wrote on each deliverable through every change to the list, each with its own deliverable', () => {
+    const task = Task.create('x');
+    task.addDeliverables(['one', 'two', 'three']);
+    const doc = raw(task);
+    const tagged = (doc.deliverables as Record<string, unknown>[]).map((d) => ({ ...d, owner: `of ${String(d.text)}` }));
+    writeFileSync(task.file, JSON.stringify({ ...doc, deliverables: tagged }));
+
+    task.editDeliverable('d1', 'one, reworded');
+    task.deliverableDone('d2');
+    task.abandonDeliverable('d3', 'not needed');
+    task.reopenDeliverable('d3');
+    task.addDeliverables(['four']);
+    task.moveDeliverable('d3', 1);
+    task.removeDeliverable('d2');
+
+    const owners = (raw(task).deliverables as Record<string, unknown>[]).map((d) => [d.id, d.text, d.owner]);
+    expect(owners).toEqual([['d1', 'three', 'of three'], ['d2', 'two', 'of two'], ['d3', 'four', undefined]]);
+  });
 });
 
 describe('deliverables', () => {

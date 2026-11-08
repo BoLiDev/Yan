@@ -200,18 +200,18 @@ export class Task {
 
   /** Mark one delivered today. */
   public deliverableDone(id: string): Deliverable {
-    return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'done', doneAt: localDay() }));
+    return this.replaceDeliverable(id, (d) => ({ ...unknownFields(d), id: d.id, text: d.text, status: 'done', doneAt: localDay() }));
   }
 
   /** Back to be done, from done or given up: `user` unticking it in `yan serve`. */
   public reopenDeliverable(id: string): Deliverable {
-    return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'todo' }));
+    return this.replaceDeliverable(id, (d) => ({ ...unknownFields(d), id: d.id, text: d.text, status: 'todo' }));
   }
 
   /** Give one up, with the reason it is not being done. */
   public abandonDeliverable(id: string, reason: string): Deliverable {
     const why = oneLine('abandon', reason);
-    return this.replaceDeliverable(id, (d) => ({ id: d.id, text: d.text, status: 'abandoned', reason: why }));
+    return this.replaceDeliverable(id, (d) => ({ ...unknownFields(d), id: d.id, text: d.text, status: 'abandoned', reason: why }));
   }
 
   /**
@@ -695,6 +695,19 @@ function keptKinds(raw: unknown, resources: Readonly<Record<string, string>>): R
   return Object.fromEntries(Object.entries(recordOrNone(raw) ?? {}).filter(([name]) => name in resources));
 }
 
+/** The fields of a deliverable this build reads and writes. */
+const DELIVERABLE_FIELDS = new Set(['id', 'text', 'status', 'doneAt', 'refs', 'reason']);
+
+/**
+ * The fields of a deliverable this build does not know: a newer yan's, on a
+ * vault the machines share while they update at different times. They go
+ * wherever the deliverable goes, through a rewording, a change of status and
+ * a new number, so no write of this build's takes them away.
+ */
+function unknownFields(d: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(d).filter(([k]) => !DELIVERABLE_FIELDS.has(k)));
+}
+
 function validateDeliverables(raw: unknown, refuse: (why: string) => never): Deliverable[] {
   if (!Array.isArray(raw)) return refuse('"deliverables" is not an array');
   const seen = new Set<string>();
@@ -708,16 +721,17 @@ function validateDeliverables(raw: unknown, refuse: (why: string) => never): Del
     seen.add(id);
     if (typeof text !== 'string' || text.trim() === '') return refuse(`${id} has no text`);
 
+    const rest = unknownFields(d);
     if (status === 'todo') {
-      out.push({ id, text, status });
+      out.push({ ...rest, id, text, status });
     } else if (status === 'done') {
       if (typeof d.doneAt !== 'string' || !isDate(d.doneAt)) return refuse(`${id} is done but its doneAt is not a YYYY-MM-DD`);
       // Refs come from deliverables marked before v4; nothing writes them now.
       const refs = Array.isArray(d.refs) ? d.refs.filter((r): r is string => typeof r === 'string' && r !== '') : [];
-      out.push({ id, text, status, doneAt: d.doneAt, ...(refs.length > 0 ? { refs } : {}) });
+      out.push({ ...rest, id, text, status, doneAt: d.doneAt, ...(refs.length > 0 ? { refs } : {}) });
     } else if (status === 'abandoned') {
       if (typeof d.reason !== 'string' || d.reason.trim() === '') return refuse(`${id} is abandoned and gives no reason`);
-      out.push({ id, text, status, reason: d.reason });
+      out.push({ ...rest, id, text, status, reason: d.reason });
     } else {
       return refuse(`${id} has status ${JSON.stringify(status)} - one of: todo done abandoned`);
     }
