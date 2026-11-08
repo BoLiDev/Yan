@@ -50,6 +50,11 @@ function Sync() {
     tone = 'warn';
     head = "Can't reach origin";
     sub = st.pulledAt ? `last pulled ${clock(st.pulledAt)}` : 'not pulled yet';
+  } else if (st?.push.error) {
+    // What the page changed is committed here and tried again on each pull; until then it is nowhere else.
+    tone = 'warn';
+    head = 'Not pushed yet';
+    sub = 'changes made here are tried again on each pull';
   }
   const every = st ? `Pulls every ${st.everyS} s by itself${st.checkedAt ? `, last at ${clock(st.checkedAt, true)}` : ''}. ` : '';
   return (

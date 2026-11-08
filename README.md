@@ -495,7 +495,13 @@ up with a reason or edit the reason it was given up for, and task.json
 changes; click a text of the page and edit it, and report.html changes. Every change made on the overview or the report, and a task renamed from its menu, is committed and pushed as
 `yan vault push` would, one after another and without holding up the
 rest of the page; those are the only writes `yan serve` makes, and only
-from its own page. Its API is the page's alone: a page anywhere else,
+from its own page. Each is made on the vault as the page shows it, the
+vault here first brought up to what serve last fetched from origin, so an
+edit is checked against the file another machine pushed, and a deliverable
+is changed only while it still reads as the page showed it at its number,
+a change refused otherwise with what was typed said back. A push that
+fails leaves the change committed here, and the card at the top of the
+task list says Not pushed yet until a later pull pushes it. Its API is the page's alone: a page anywhere else,
 an agent's page on the files port among them, is refused it.
 report.html carries its pictures inside it, so it can be dragged into a
 document whole; the page is sent it with them taken out, and loads each

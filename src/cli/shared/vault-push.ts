@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { noteBranchBases } from './branches.js';
-import { catchUp, refuseUnfinished } from './vault-pull.js';
+import { catchUp, rebaseOnto, refuseUnfinished } from './vault-pull.js';
 import { currentBranch, git, gitOk, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError } from '../../util/error.js';
 import { withLock } from '../../util/lock.js';
@@ -80,6 +80,33 @@ export function pushVault(dir: string, message: string | undefined): string[] {
   gitOrThrow(dir, ['push', '-u', 'origin', branch], 'pushing the vault');
   said.push(`vault push: ${branch} → ${remoteUrl(dir) ?? 'origin'}`);
   return said;
+}
+
+/**
+ * Bring the vault's branch up to `target`, origin as `yan serve` last
+ * fetched it, which is what its page shows, so a change made on the page is
+ * made to that rather than to an older copy here: an edit checked against
+ * the file it began from, a deliverable named by its number, an artifact
+ * another machine pushed. What is uncommitted here is committed first, as a
+ * save would commit it, and what is here and not there is rebased onto it.
+ * No network, under the lock. Throws, leaving the vault as it was, when it is
+ * in the middle of something or what is here conflicts with `target`.
+ */
+export function levelWith(dir: string, target: string): void {
+  // Most often there is nothing to do, and the lock, which an agent's hook may hold for a push, is not waited for.
+  const level = (): boolean => gitOk(dir, ['merge-base', '--is-ancestor', target, 'HEAD']);
+  if (level()) return;
+  withVaultLock(dir, () => {
+    refuseUnfinished(dir);
+    if (level()) return;
+    const changed = changedPaths(dir);
+    if (changed.length > 0) {
+      gitOrThrow(dir, ['add', '-A'], 'staging the vault');
+      gitOrThrow(dir, ['commit', '-m', pushMessage(changed)], 'committing the vault');
+    }
+    const caught = rebaseOnto(dir, target);
+    if (!caught.ok) throw new YanError('vault_behind', `this vault has commits of its own that conflict with what origin has - ${caught.message}`);
+  });
 }
 
 /**

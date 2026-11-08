@@ -88,7 +88,15 @@ export function catchUp(dir: string): PullResult {
   if (!gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) {
     return { ok: false, unpublished: true, message: `origin has no ${branch} yet - 'yan vault push' publishes it` };
   }
+  return rebaseOnto(dir, `origin/${branch}`);
+}
 
+/**
+ * Rebase the vault's branch onto `upstream`, a commit of origin's this
+ * machine has already fetched. A rebase that conflicts is aborted, leaving
+ * the vault as it was.
+ */
+export function rebaseOnto(dir: string, upstream: string): PullResult {
   const before = revParse(dir, ['HEAD']);
   // Ctrl-C reaches git as well as yan: yan lives on through it, so the rebase
   // git was stopped in is undone below rather than left half-way, where the
@@ -97,7 +105,7 @@ export function catchUp(dir: string): PullResult {
   process.on('SIGINT', stay);
   let rebased: ReturnType<typeof rebase>;
   try {
-    rebased = rebase(dir, [`origin/${branch}`]);
+    rebased = rebase(dir, [upstream]);
   } finally {
     process.off('SIGINT', stay);
   }
@@ -106,14 +114,14 @@ export function catchUp(dir: string): PullResult {
     // git refused to start, over a file written meanwhile say, left nothing to
     // undo, and is said as git said it rather than as a conflict.
     if (unfinished(dir) === undefined) {
-      return { ok: false, message: `could not rebase onto origin/${branch}: ${(rebased.stderr || rebased.stdout).trim()}` };
+      return { ok: false, message: `could not rebase onto ${upstream}: ${(rebased.stderr || rebased.stdout).trim()}` };
     }
     git(dir, ['rebase', '--abort']);
-    return { ok: false, message: `rebasing onto origin/${branch} conflicts - open ${dir} and sort it out; nothing was changed` };
+    return { ok: false, message: `rebasing onto ${upstream} conflicts - open ${dir} and sort it out; nothing was changed` };
   }
   const after = revParse(dir, ['HEAD']);
   return {
     ok: true,
-    message: before === after ? `already up to date with origin/${branch}` : `caught up with origin/${branch}`,
+    message: before === after ? `already up to date with ${upstream}` : `caught up with ${upstream}`,
   };
 }

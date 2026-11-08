@@ -37,9 +37,9 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
               <span>
                 <span className={status === 'abandoned' ? 'text-ink-3' : undefined}>
                   <span className="mr-2 font-mono text-[12px] leading-normal text-ink-3">{x.id}</span>
-                  <Editable text={x.text} onSave={(text) => void writeTask('/api/deliverable/text', { task: t.id, id: x.id, text }, `Saved ${x.id}`)} />
+                  <Editable text={x.text} onSave={(text, was) => void writeTask('/api/deliverable/text', { task: t.id, id: x.id, was, text }, `Saved ${x.id}`)} />
                 </span>
-                {x.reason ? <Editable className="block w-fit max-w-full text-[13px] leading-5 text-ink-3" text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Saved why ${x.id} was given up`)} /> : null}
+                {x.reason ? <Editable className="block w-fit max-w-full text-[13px] leading-5 text-ink-3" text={x.reason} onSave={(reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, was: x.text, to: 'abandoned', reason }, `Saved why ${x.id} was given up`)} /> : null}
               </span>
               <span className="min-h-[22px] text-[13px] whitespace-nowrap text-ink-3 tabular-nums">{x.doneAt ? x.doneAt.slice(5).replace('-', '.') : ''}</span>
               {/*
@@ -51,12 +51,12 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
                   {x.status === 'abandoned' ? null : (
                     <Button variant="ghost" size="icon-xs" className={DELIV_TOOL} title={`Give up ${x.id}`} aria-label={`Give up ${x.id}`}
                       onClick={() => ask({ title: `Give up ${x.id}?`, sub: x.text, action: 'Give up', reason: 'Why, in a line: it stays under the deliverable',
-                        then: (reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, to: 'abandoned', reason }, `Gave up ${x.id}`) })}>
+                        then: (reason) => void writeTask('/api/deliverable', { task: t.id, id: x.id, was: x.text, to: 'abandoned', reason }, `Gave up ${x.id}`) })}>
                       <Icon name="ban" size={15} />
                     </Button>
                   )}
                   <Button variant="ghost" size="icon-xs" className={cn(DELIV_TOOL, 'hover:text-destructive')} title={`Delete ${x.id}`} aria-label={`Delete ${x.id}`}
-                    onClick={() => ask({ title: `Delete ${x.id}?`, sub: x.text, action: 'Delete', then: () => void writeTask('/api/deliverable/remove', { task: t.id, id: x.id }, `Deleted ${x.id}`) })}>
+                    onClick={() => ask({ title: `Delete ${x.id}?`, sub: x.text, action: 'Delete', then: () => void writeTask('/api/deliverable/remove', { task: t.id, id: x.id, was: x.text }, `Deleted ${x.id}`) })}>
                     <Icon name="trash" size={15} />
                   </Button>
                 </span>

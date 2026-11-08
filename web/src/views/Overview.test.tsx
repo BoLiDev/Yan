@@ -54,7 +54,8 @@ describe("a task's overview", () => {
     expect(asked.filter((a) => a.method === 'POST')).toEqual([]);
     expect(useUI.getState().ask?.title).toMatch(/d1/);
     useUI.getState().ask?.then('');
-    await expect.poll(() => asked.find((a) => a.method === 'POST')?.body).toEqual({ task: 't1', id: 'd1' });
+    // With the text it was shown with, so a list renumbered since does not lose another deliverable to it.
+    await expect.poll(() => asked.find((a) => a.method === 'POST')?.body).toEqual({ task: 't1', id: 'd1', was: 'retries are paid' });
     await expect.element(screen.getByText('Deleted d1')).toBeVisible();
   });
 });

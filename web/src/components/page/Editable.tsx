@@ -12,7 +12,8 @@ const FRAME = 'cursor-text rounded-[4px] outline-1 outline-offset-3 outline-tran
  */
 export function Editable({ text, onSave, onLeft, className, as = 'span', autoFocus }: {
   text: string;
-  onSave: (text: string) => void;
+  /** Given what was typed, and the text it was typed over, as it stood when the editing began. */
+  onSave: (text: string, was: string) => void;
   onLeft?: (changed: boolean) => void;
   className?: string;
   as?: 'span' | 'div';
@@ -50,8 +51,9 @@ export function Editable({ text, onSave, onLeft, className, as = 'span', autoFoc
         const changed = typed !== was.current.trim() && typed !== '';
         if (typed === '') el.textContent = was.current;
         if (changed) {
+          const over = was.current;
           was.current = typed;
-          onSave(typed);
+          onSave(typed, over);
         }
         onLeft?.(changed);
       }} />

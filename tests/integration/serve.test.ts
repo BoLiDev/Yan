@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -587,6 +587,56 @@ describe('the overview on yan serve', () => {
     expect(await subject()).toBe('t004: d1 removed in yan serve');
     expect((await post('/api/deliverable/remove', { task: 't004', id: 'd9' })).status).toBe(400);
     expect((await post('/api/deliverable/remove', { task: 't004' })).status).toBe(400);
+  });
+
+  it('refuses a change to a deliverable that is not the one the page showed at its number, saying back what was typed', async () => {
+    const before = readFileSync(at('task.json'), 'utf8');
+    const reworded = await post('/api/deliverable/text', { task: 't004', id: 'd1', was: 'one', text: 'my new words' });
+    expect(reworded.status).toBe(409);
+    expect(await reworded.text()).toContain('my new words');
+    expect((await post('/api/deliverable/remove', { task: 't004', id: 'd1', was: 'one' })).status).toBe(409);
+    expect((await post('/api/deliverable', { task: 't004', id: 'd1', was: 'one', to: 'done' })).status).toBe(409);
+    expect(readFileSync(at('task.json'), 'utf8'), 'nothing written').toBe(before);
+    expect((await post('/api/deliverable/text', { task: 't004', id: 'd1', was: 'two', text: 'two, reworded' })).status).toBe(200);
+  });
+
+  it('makes a change on what another machine pushed since, as the page shows it, not on an older copy here', async () => {
+    const elsewhere = await mkClone(bare, join(mkTempDir('yan-serve-other-'), 'vault'));
+    const theirs = readJson(join(elsewhere, 'tasks/t004/task.json')) as { deliverables: object[]; nextDeliverable: number };
+    write(elsewhere, 'tasks/t004/task.json', JSON.stringify({ ...theirs, deliverables: [...theirs.deliverables, { id: 'd2', text: 'from elsewhere', status: 'todo' }], nextDeliverable: 3 }));
+    write(elsewhere, 'tasks/t004/problem.md', 'written elsewhere\n');
+    write(elsewhere, 'tasks/t004/artifacts/notes.md', '# notes\n\nfrom elsewhere\n');
+    for (const args of [['add', '-A'], ['commit', '-q', '-m', 'from elsewhere'], ['push', '-q', 'origin', 'main']]) await fxGit(args, elsewhere);
+    const shown = await until(async () => {
+      const problem = (await detail()).problem;
+      return problem?.text.includes('written elsewhere') ? problem : undefined;
+    }, 20_000);
+
+    expect((await post('/api/problem', { task: 't004', sha: shown.sha, text: 'over what was written elsewhere' })).status).toBe(200);
+    expect((await post('/api/deliverable/text', { task: 't004', id: 'd2', was: 'from elsewhere', text: 'from elsewhere, reworded' })).status).toBe(200);
+    const notes = '# notes\n\nfrom elsewhere\n';
+    const sha = createHash('sha1').update(`blob ${Buffer.byteLength(notes)}\0${notes}`).digest('hex');
+    expect((await post('/api/artifact/edit', { task: 't004', path: 'notes.md', sha, text: '# notes\n\nedited here\n' })).status).toBe(200);
+
+    const there = async (rel: string): Promise<string> => (await fxGit(['show', `main:tasks/t004/${rel}`], bare)).stdout;
+    await until(async () => ((await there('artifacts/notes.md')).includes('edited here') ? true : undefined), 20_000);
+    expect(await there('problem.md')).toBe('over what was written elsewhere\n');
+    expect((JSON.parse(await there('task.json')) as { deliverables: { text: string }[] }).deliverables.map((d) => d.text)).toEqual(['two, reworded', 'from elsewhere, reworded']);
+  });
+
+  it('says a change it could not push, and pushes it on a later tick', async () => {
+    renameSync(bare, `${bare}.away`);
+    try {
+      const saved = await post('/api/deliverable/text', { task: 't004', id: 'd1', text: 'written while origin was away' });
+      expect(saved.status).toBe(200);
+      expect(((await saved.json()) as { warning: string | null }).warning).not.toBeNull();
+      const status = ((await (await fetch(page('/api/index'))).json()) as { status: { push: { pending: boolean; error: string | null } } }).status;
+      expect(status.push.pending).toBe(true);
+      expect(status.push.error).not.toBeNull();
+    } finally {
+      renameSync(`${bare}.away`, bare);
+    }
+    await until(async () => ((await fxGit(['show', 'main:tasks/t004/task.json'], bare)).stdout.includes('written while origin was away') ? true : undefined), 20_000);
   });
 
   it('changes where a resource points, keeping its kind, and forgets one', async () => {

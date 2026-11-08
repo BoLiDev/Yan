@@ -51,6 +51,13 @@ export class LaterPush {
     }
   }
 
+  /** A push made elsewhere that failed, a change's from the page: it is tried again on each tick, and said meanwhile. */
+  public failed(warning: string): void {
+    this.pending = true;
+    this.error = warning;
+    this.said();
+  }
+
   /** On each tick: a push that failed is tried again, unless more writing is being waited for. */
   public retry(): void {
     if (this.pending && this.error !== null && this.timer === undefined && this.running === undefined) void this.now();

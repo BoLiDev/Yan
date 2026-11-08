@@ -228,15 +228,35 @@ const ARTIFACT_LIMIT = 4 * 1024 * 1024;
 /** A picture in a draft's own folder, `drafts/<id>/<name>` or one kept with a task before, which serve gives from disk. */
 const DRAFT_PICTURE = /^(?:drafts|tasks\/[^/.][^/]*\/drafts)\/[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-/** `saveVault` in a worker (save-worker.ts), or with `push` false only `commitVault`: the warning the page is shown, or null. */
-function saveOffThread(dir: string, message: string, push = true): Promise<string | null> {
+/**
+ * `saveVault` in a worker (save-worker.ts), or with `push` false only
+ * `commitVault`, or with `level` the vault brought up to that commit first,
+ * `levelWith`: the warning the page is shown, or null.
+ */
+function saveOffThread(dir: string, message: string, push = true, level?: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const worker = new Worker(new URL('./save-worker.js', import.meta.url), { workerData: { dir, message, push } });
+    const worker = new Worker(new URL('./save-worker.js', import.meta.url), { workerData: { dir, message, push, ...(level === undefined ? {} : { level }) } });
     worker.once('message', (said: { warning: string | null }) => resolve(said.warning));
     worker.once('error', (err) => resolve(err.message));
     // Ended without a word: a resolve after the message is a no-op.
     worker.once('exit', (code) => resolve(`the save stopped before it said how it went (exit ${code})`));
   });
+}
+
+/**
+ * Why a change to deliverable `d` is refused, or null: it no longer reads
+ * `was`, the text the page showed it with when the change began. A number
+ * names a place in the list, and a push from elsewhere may have put another
+ * deliverable there since, which the change would then fall on. What was
+ * typed, `typed`, is said back, so nothing typed is lost. A page from before
+ * this sends no `was`, and is let through as it was.
+ */
+function moved(task: Task, d: string, was: unknown, typed?: string): string | null {
+  if (typeof was !== 'string') return null;
+  const now = task.read().deliverables.find((x) => x.id === d)?.text;
+  if (now === was) return null;
+  const said = now === undefined ? `there is no ${d} now` : `${d} now reads "${now}"`;
+  return `the deliverables changed since the page showed them: ${said} - nothing was changed${typed === undefined ? '' : `; what you typed: ${typed}`}`;
 }
 
 /** A request whose Host is not this machine by name is refused: a page elsewhere that rebinds its name to 127.0.0.1 gets nothing. */
@@ -658,6 +678,8 @@ export class YanServer {
    */
   private async save(res: ServerResponse, message: string): Promise<void> {
     const warning = await saveOffThread(this.options.vaultDir, message);
+    // The commit is here whatever became of the push, which is tried again on each tick, and said meanwhile.
+    if (warning !== null) this.later.failed(warning);
     await this.tick();
     json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
   }
@@ -737,7 +759,26 @@ export class YanServer {
 
   /** A change to the vault from the page, which waits its turn. */
   private change(run: (res: ServerResponse, given: Record<string, unknown>) => Promise<void>): Post {
-    return { does: 'change the vault', json: true, run: (res, given) => this.inTurn(() => run(res, given)) };
+    return { does: 'change the vault', json: true, run: (res, given) => this.inTurn(async () => {
+      const stuck = await this.level();
+      if (stuck !== null) return send(res, 409, `nothing was changed: ${stuck}`);
+      return run(res, given);
+    }) };
+  }
+
+  /**
+   * The vault brought up to origin as this serve last fetched it, which is
+   * what the page shows, before the page changes it: the page reads what
+   * serve fetched and the vault's own copy is only pulled by an agent's
+   * hook, so a change made to that copy was checked against an older file,
+   * named a deliverable by a number that had moved, or found no artifact
+   * another machine had pushed. What stopped it, or null.
+   */
+  private async level(): Promise<string | null> {
+    if (this.status.local) return null;
+    const target = `${OWN_REF}${this.branch}`;
+    if ((await gitAsync(this.options.vaultDir, ['rev-parse', '--verify', '--quiet', target])).code !== 0) return null;
+    return saveOffThread(this.options.vaultDir, '', false, target);
   }
 
   /**
@@ -796,7 +837,10 @@ export class YanServer {
     const [id, d] = [given.task, given.id];
     if (typeof id !== 'string' || !Task.isId(id) || typeof d !== 'string') return send(res, 400, 'task and id are needed');
     try {
-      new Task(id).removeDeliverable(d);
+      const task = new Task(id);
+      const stop = moved(task, d, given.was);
+      if (stop !== null) return send(res, 409, stop);
+      task.removeDeliverable(d);
     } catch (err) {
       return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
     }
@@ -808,7 +852,10 @@ export class YanServer {
     const [id, d, text] = [given.task, given.id, given.text];
     if (typeof id !== 'string' || !Task.isId(id) || typeof d !== 'string' || typeof text !== 'string') return send(res, 400, 'task, id and text are needed');
     try {
-      new Task(id).editDeliverable(d, text);
+      const task = new Task(id);
+      const stop = moved(task, d, given.was, text);
+      if (stop !== null) return send(res, 409, stop);
+      task.editDeliverable(d, text);
     } catch (err) {
       return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
     }
@@ -882,6 +929,8 @@ export class YanServer {
     let reworded = false;
     try {
       const task = new Task(id);
+      const stop = moved(task, d, given.was, typeof reason === 'string' && reason !== '' ? reason : undefined);
+      if (stop !== null) return send(res, 409, stop);
       // Given up again, it is only its reason that changes: the page edits that in place.
       reworded = to === 'abandoned' && task.read().deliverables.some((x) => x.id === d && x.status === 'abandoned');
       if (to === 'done') task.deliverableDone(d);
@@ -931,6 +980,15 @@ export class YanServer {
       return send(res, 400, 'task, path, sha and text are needed');
     }
     if (!/\.(md|markdown)$/i.test(path) || path.split('/').some((part) => part === '' || part.startsWith('.'))) return send(res, 400, 'only a Markdown artifact is edited here');
+    return this.inTurn(async () => {
+      const stuck = await this.level();
+      if (stuck !== null) return send(res, 409, `nothing was changed: ${stuck}`);
+      return this.writeArtifact(res, id, path, sha, text);
+    });
+  }
+
+  /** The Markdown artifact written over, once the vault is level with what the page shows. */
+  private async writeArtifact(res: ServerResponse, id: string, path: string, sha: string, text: string): Promise<void> {
     const file = join(this.options.vaultDir, 'tasks', id, 'artifacts', path);
     if (!existsSync(file)) return send(res, 404, `${id} has no artifact ${path}`);
     const now = (await gitAsync(this.options.vaultDir, ['hash-object', '--', file])).stdout.trim();
