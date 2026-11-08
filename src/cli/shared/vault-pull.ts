@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
-import { isYanError } from '../../util/error.js';
+import { YanError, isYanError } from '../../util/error.js';
 import { vaultDir } from '../../util/vault.js';
 
 /**
@@ -13,6 +15,33 @@ export interface PullResult {
   readonly message: string;
   /** Origin has no branch of this name yet: nothing to catch up with, and a push publishes it. */
   readonly unpublished?: true;
+}
+
+/**
+ * What git was left in the middle of in the vault, said as what to do about
+ * it, or undefined: a rebase, a merge or a cherry-pick not finished, by a
+ * pull stopped half-way or by `user` sorting out a conflict by hand. Nothing
+ * yan does with the vault is safe then: a commit lands on the rebase's
+ * detached HEAD, a half-resolved file and all, and the abort a failed catch-up
+ * runs takes it away again, with whatever `user` had resolved.
+ */
+export function unfinished(dir: string): string | undefined {
+  const gitDir = git(dir, ['rev-parse', '--git-dir']);
+  if (gitDir.code !== 0) return undefined;
+  const at = gitDir.stdout.trim();
+  const inGit = (name: string): boolean => existsSync(join(isAbsolute(at) ? at : join(dir, at), name));
+  const how = (what: string, done: string): string =>
+    `the vault is in the middle of a ${what} - finish it ('git -C ${dir} ${done}') or give it up ('git -C ${dir} ${what} --abort'), then try again; nothing was changed`;
+  if (inGit('rebase-merge') || inGit('rebase-apply')) return how('rebase', 'rebase --continue');
+  if (inGit('MERGE_HEAD')) return how('merge', 'commit');
+  if (inGit('CHERRY_PICK_HEAD')) return how('cherry-pick', 'cherry-pick --continue');
+  return undefined;
+}
+
+/** `unfinished`, as the refusal of a command that would commit. */
+export function refuseUnfinished(dir: string): void {
+  const said = unfinished(dir);
+  if (said !== undefined) throw new YanError('vault_unfinished', said);
 }
 
 /**
@@ -30,6 +59,8 @@ export function pullVault(): PullResult {
   if (remoteUrl(dir) === undefined) {
     return { ok: false, message: 'this vault has no origin, so there is nothing to pull from' };
   }
+  const stuck = unfinished(dir);
+  if (stuck !== undefined) return { ok: false, message: stuck };
   const dirty = statusPorcelain(dir).trim();
   if (dirty !== '') {
     // Refused rather than attempted: a half-finished rebase in a directory the
@@ -45,7 +76,8 @@ export function pullVault(): PullResult {
 
 /**
  * Fetch origin and rebase the vault's branch onto it. The vault must be
- * clean. A rebase that conflicts is aborted, leaving the vault as it was.
+ * clean, and in the middle of nothing (`unfinished`). A rebase that
+ * conflicts is aborted, leaving the vault as it was.
  */
 export function catchUp(dir: string): PullResult {
   const fetched = fetch(dir);
@@ -58,8 +90,24 @@ export function catchUp(dir: string): PullResult {
   }
 
   const before = revParse(dir, ['HEAD']);
-  const rebased = rebase(dir, [`origin/${branch}`]);
+  // Ctrl-C reaches git as well as yan: yan lives on through it, so the rebase
+  // git was stopped in is undone below rather than left half-way, where the
+  // next commit would land on its detached HEAD.
+  const stay = (): void => {};
+  process.on('SIGINT', stay);
+  let rebased: ReturnType<typeof rebase>;
+  try {
+    rebased = rebase(dir, [`origin/${branch}`]);
+  } finally {
+    process.off('SIGINT', stay);
+  }
   if (rebased.code !== 0) {
+    // This rebase is this call's own, so undoing it is this call's to do; one
+    // git refused to start, over a file written meanwhile say, left nothing to
+    // undo, and is said as git said it rather than as a conflict.
+    if (unfinished(dir) === undefined) {
+      return { ok: false, message: `could not rebase onto origin/${branch}: ${(rebased.stderr || rebased.stdout).trim()}` };
+    }
     git(dir, ['rebase', '--abort']);
     return { ok: false, message: `rebasing onto origin/${branch} conflicts - open ${dir} and sort it out; nothing was changed` };
   }

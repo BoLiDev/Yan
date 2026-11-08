@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { noteBranchBases } from './branches.js';
-import { catchUp } from './vault-pull.js';
+import { catchUp, refuseUnfinished } from './vault-pull.js';
 import { currentBranch, git, gitOk, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError } from '../../util/error.js';
 import { withLock } from '../../util/lock.js';
@@ -54,6 +54,7 @@ function changedPaths(dir: string): string[] {
  * @returns what it did, a line each.
  */
 export function pushVault(dir: string, message: string | undefined): string[] {
+  refuseUnfinished(dir);
   noteBranchBases();
   const said: string[] = [];
   const changed = changedPaths(dir);
@@ -88,6 +89,7 @@ export function pushVault(dir: string, message: string | undefined): string[] {
 export function commitVault(dir: string, message: string): string[] {
   return withVaultLock(dir, () => {
     if (changedPaths(dir).length === 0) return [];
+    refuseUnfinished(dir);
     gitOrThrow(dir, ['add', '-A'], 'staging the vault');
     gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
     return ['vault push: committed here, to push later'];
@@ -122,6 +124,7 @@ export function saveVault(dir: string, message: string): string[] {
   return withVaultLock(dir, () => {
     if (remoteUrl(dir) !== undefined) return pushVault(dir, message);
     if (changedPaths(dir).length === 0) return [];
+    refuseUnfinished(dir);
     gitOrThrow(dir, ['add', '-A'], 'staging the vault');
     gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
     return ['vault push: committed, no origin to push to'];

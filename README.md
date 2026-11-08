@@ -116,7 +116,11 @@ each time the agent finishes a turn, by hooks given to that session alone
 the session). agy takes hooks only from files, so under agy the vault is
 pulled and pushed by hand. A push commits everything in the vault and
 rebases it onto the remote first; a conflict
-stops it, the commit kept here, and the hook says so.
+stops it, the commit kept here, and the hook says so. While the vault is in
+the middle of a rebase or a merge, the one you are sorting out a conflict in
+by hand, neither a pull nor a push touches it, and each says how to finish
+it; a pull stopped with Ctrl-C undoes its own rebase rather than leave it
+half-way.
 claude is always started with `--chrome`, its browser tools on, so an agent
 can check what it built in a browser without being restarted for it.
 `--cli codex` runs another agent this once; anything after `--` goes to the

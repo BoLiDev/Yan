@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -276,6 +277,71 @@ describe('pull and push', () => {
     expect(refused.code, 'a 2 would drop the message user just sent').toBe(1);
     expect(refused.stdout).toBe('');
     expect(refused.stderr).toContain('scratch.md');
+  });
+
+  it('leaves a rebase it did not start where it is: push, its hook and pull refuse while one is unfinished, keeping what was resolved', async () => {
+    const { a, b, env } = await twoMachines('mid-rebase');
+    const onA = { ...isolated('mid-rebase'), ...identity, YAN_VAULT: a };
+    const onB = { ...env, YAN_VAULT: b };
+    writeFileSync(join(a, 'tasks', 'same.md'), 'a\n');
+    expect((await runYan(home, ['vault', 'push'], onA)).code).toBe(0);
+
+    // B sorts out by hand the conflict yan told it to.
+    writeFileSync(join(b, 'tasks', 'same.md'), 'b\n');
+    await fxGit(['-C', b, 'add', '-A']);
+    await fxGit(['-C', b, 'commit', '-q', '-m', 'b']);
+    await fxGit(['-C', b, 'fetch', '-q', 'origin']);
+    expect((await fxGit(['-C', b, 'rebase', 'origin/main'])).code, 'it conflicts').not.toBe(0);
+    writeFileSync(join(b, 'tasks', 'same.md'), 'a and b\n');
+    await fxGit(['-C', b, 'add', 'tasks/same.md']);
+
+    const hook = await runYan(home, ['vault', 'push', '--hook'], { ...onB, YAN_TASK: 't001' });
+    expect(hook.code).toBe(1);
+    expect(hook.stderr).toContain('in the middle of a rebase');
+    const pushed = await runYan(home, ['vault', 'push'], onB);
+    expect(pushed.code).not.toBe(0);
+    expect(pushed.stderr).toContain('rebase --continue');
+    const pulled = await runYan(home, ['vault', 'pull'], onB);
+    expect(pulled.code).not.toBe(0);
+    expect(pulled.stdout).toContain('in the middle of a rebase');
+
+    expect(existsSync(join(b, '.git', 'rebase-merge')), 'still B\'s rebase, not aborted').toBe(true);
+    expect(readFileSync(join(b, 'tasks', 'same.md'), 'utf8')).toBe('a and b\n');
+    expect((await fxGit(['-C', b, 'diff', '--cached', '--name-only'])).stdout.trim(), 'still staged, as B left it').toBe('tasks/same.md');
+
+    await fxGit(['-C', b, '-c', 'core.editor=true', 'rebase', '--continue']);
+    expect((await runYan(home, ['vault', 'push'], onB)).code).toBe(0);
+    expect((await fxGit(['-C', a, 'pull', '-q'])).code).toBe(0);
+    expect(readFileSync(join(a, 'tasks', 'same.md'), 'utf8')).toBe('a and b\n');
+  });
+
+  it('a pull stopped with Ctrl-C half-way through its rebase leaves the vault as it was, not half rebased', async () => {
+    const { a, b, env } = await twoMachines('interrupted');
+    const onA = { ...isolated('interrupted'), ...identity, YAN_VAULT: a };
+    writeFileSync(join(a, 'tasks', 'from-a.md'), 'a\n');
+    expect((await runYan(home, ['vault', 'push'], onA)).code).toBe(0);
+    writeFileSync(join(b, 'tasks', 'from-b.md'), 'b\n');
+    await fxGit(['-C', b, 'add', '-A']);
+    await fxGit(['-C', b, 'commit', '-q', '-m', 'b']);
+    const before = (await fxGit(['-C', b, 'rev-parse', 'HEAD'])).stdout.trim();
+
+    // A slow ref update, once, while the rebase is under way: long enough to stop it there.
+    const marker = join(tmp, 'interrupted-stopped-here');
+    writeFileSync(join(b, '.git', 'hooks', 'reference-transaction'), `#!/bin/sh\n[ -d "$(git rev-parse --git-dir)/rebase-merge" ] && [ ! -e '${marker}' ] && touch '${marker}' && sleep 20\nexit 0\n`, { mode: 0o755 });
+    const child = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'vault', 'pull'], {
+      env: { ...process.env, YAN_HOME: home, ...env, YAN_VAULT: b },
+      detached: true,
+      stdio: 'ignore',
+    });
+    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+    for (let i = 0; i < 200 && !existsSync(marker); i += 1) await new Promise((r) => setTimeout(r, 50));
+    expect(existsSync(marker), 'the rebase reached the slow hook').toBe(true);
+    process.kill(-(child.pid ?? 0), 'SIGINT');
+    await exited;
+
+    expect(existsSync(join(b, '.git', 'rebase-merge')), 'no rebase left half-way').toBe(false);
+    expect((await fxGit(['-C', b, 'rev-parse', 'HEAD'])).stdout.trim()).toBe(before);
+    expect((await fxGit(['-C', b, 'status', '--porcelain'])).stdout.trim()).toBe('');
   });
 
   it('refuses to rebase a dirty vault, and names what is dirty', async () => {
