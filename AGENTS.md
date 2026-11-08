@@ -101,6 +101,12 @@ Not the markup, the wording, or which internal function ran; and not a test
 that only replays one bug's steps when the behaviour it broke can be tested
 instead.
 
+Beyond the tests, `/monkey` in Claude Code sends subagents to use yan as
+careless, curious or hostile people would, each in a sandbox of its own
+(`.claude/skills/monkey/`: two machines sharing a vault, a fake claude, the
+page in Chromium), and reports what they broke once another subagent has
+reproduced it. It fixes nothing.
+
 When a command, a file format or what the agent is told changes, update
 `README.md` in the same commit.
 
