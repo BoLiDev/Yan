@@ -4,7 +4,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../ui/input';
 
 /**
- * A question over the page, answered by its button or let go. With a
+ * A question over the page, answered by its button, once, or let go. With a
  * `reason`, it also asks for a line, which the button waits for and which
  * the answer is given. Its button has the keyboard, so Enter answers it as
  * the click that asked it would; with a reason, the line has it.
@@ -20,7 +20,10 @@ export function AskModal() {
   const close = (): void => useUI.setState({ ask: null });
   const ready = !held?.reason || given.trim() !== '';
   const answer = (): void => {
-    if (held === null || !ready) return;
+    // Answered once. The box is still drawn while it closes, and a second
+    // click on its button then would answer again: Delete clicked twice took
+    // out the deliverable asked about, then the one that took its number.
+    if (held === null || !ready || useUI.getState().ask !== held) return;
     close();
     held.then(given.trim());
   };

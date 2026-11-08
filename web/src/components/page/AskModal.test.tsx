@@ -22,6 +22,15 @@ describe('a question over the page', () => {
     expect(useUI.getState().ask).toBeNull();
   });
 
+  it('answers once, however many times its button is clicked as it closes', async () => {
+    const then = vi.fn();
+    ask({ title: 'Delete d3?', action: 'Delete', then });
+    const screen = await draw(<AskModal />);
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Delete' }));
+    await expect.poll(() => useUI.getState().ask).toBeNull();
+    expect(then).toHaveBeenCalledTimes(1);
+  });
+
   it('asking for a reason, waits for one, then gives it with Enter', async () => {
     const then = vi.fn();
     ask({ title: 'Give up d1?', action: 'Give up', reason: 'Why', then });
