@@ -4,6 +4,7 @@ import { catchUp } from './vault-pull.js';
 import { currentBranch, git, gitOk, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError } from '../../util/error.js';
 import { withLock } from '../../util/lock.js';
+import { vaultDir } from '../../util/vault.js';
 
 /**
  * Committing the vault and pushing it: `yan vault push`, the hook that runs
@@ -91,6 +92,26 @@ export function commitVault(dir: string, message: string): string[] {
     gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
     return ['vault push: committed here, to push later'];
   });
+}
+
+/**
+ * Commit and push what a command just changed, so the other machines and
+ * every `yan serve` have it now: `yan say`, and what `user` does at a
+ * terminal (`pause`, `done`, `resume`, `repo add` and `rm`). The hook that
+ * pushes at the end of an agent's turn runs only around an agent bare `yan`
+ * started, so without this a task paused at a terminal stays uncommitted
+ * here, the other machines still offer it, and the next pull is refused for
+ * the dirty vault. The command has done its work either way, so a push that
+ * fails is said on stderr, beginning with `what`, the commit kept here for
+ * the next push, and does not fail the command.
+ */
+export function shareChange(what: string, message: string): 'pushed' | 'committed here' | 'not pushed' {
+  try {
+    return saveVault(vaultDir(), message).some((line) => line.includes(' → ')) ? 'pushed' : 'committed here';
+  } catch (err) {
+    process.stderr.write(`${what}, but the vault was not pushed: ${(err as Error).message}\n'yan vault push' tries again\n`);
+    return 'not pushed';
+  }
 }
 
 /**

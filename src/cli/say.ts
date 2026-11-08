@@ -1,10 +1,9 @@
 import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { requiredTask } from './shared/task-id.js';
-import { saveVault } from './shared/vault-push.js';
-import { SAY_MOST, type Task } from '../records/task/index.js';
+import { shareChange } from './shared/vault-push.js';
+import { SAY_MOST } from '../records/task/index.js';
 import { localStamp } from '../util/time.js';
-import { vaultDir } from '../util/vault.js';
 
 /**
  * `yan say "<words>"` — what the agent tells `user` as it ends a turn, a
@@ -48,22 +47,8 @@ last is kept, each in place of the one before.
         return;
       }
       const said = task.say(words.join(' '));
-      const went = deliver(task);
+      const went = shareChange('said', `${task.id}: said`);
       if (options.json === true) out(JSON.stringify(said));
       else out(`said → ${task.id}, ${went}`);
     }),
   );
-
-/**
- * The vault committed and pushed with what was said, so serve fetches it
- * wherever it runs: what became of it, a push that failed leaving the
- * words kept here and saying so.
- */
-function deliver(task: Task): 'pushed' | 'committed here' | 'not pushed' {
-  try {
-    return saveVault(vaultDir(), `${task.id}: said`).some((line) => line.includes(' → ')) ? 'pushed' : 'committed here';
-  } catch (err) {
-    process.stderr.write(`said, but the vault was not pushed: ${(err as Error).message}\n'yan vault push' tries again\n`);
-    return 'not pushed';
-  }
-}

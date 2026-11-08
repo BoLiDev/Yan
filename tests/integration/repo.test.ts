@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, mkBareRemote, mkClone, mkTempDir, mkYanHome, restoreVault, runYan, useVault } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, giveOrigin, mkBareRemote, mkClone, mkTempDir, mkYanHome, onOrigin, restoreVault, runYan, useVault } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { registry } from '../../src/records/repos/index.js';
 import { Task } from '../../src/records/task/index.js';
@@ -31,6 +31,18 @@ beforeEach(() => {
 });
 
 afterEach(restoreVault);
+
+describe('the registry', () => {
+  it('is committed and pushed as soon as it changes, so the other machines offer the same repositories', async () => {
+    const origin = await giveOrigin(home);
+    const web = await aClone('web');
+    expect((await yan(['repo', 'add', web.clone])).code).toBe(0);
+    expect(await onOrigin(origin, 'repos.json')).toContain(web.bare);
+    expect((await yan(['repo', 'rm', 'web'])).code).toBe(0);
+    expect(await onOrigin(origin, 'repos.json')).not.toContain(web.bare);
+    expect((await fxGit(['status', '--porcelain'], home)).stdout).toBe('');
+  });
+});
 
 describe('yan repo add', () => {
   it('registers a clone by path, the clone it is typed in, and keeps where it is out of the vault', async () => {

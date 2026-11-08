@@ -186,6 +186,37 @@ export async function mkEmptyRemote(bare: string): Promise<string> {
   return bare;
 }
 
+/**
+ * Make a fixture home the vault `yan vault init` leaves: a git repository on
+ * `main`, everything in it pushed to a bare origin, with an identity of its
+ * own for the commits yan makes there. yan's own code in the home and the
+ * machine directory are ignored, being nobody's vault. Returns the origin.
+ */
+export async function giveOrigin(home: string): Promise<string> {
+  const origin = await mkEmptyRemote(join(mkTempDir(), 'vault.git'));
+  writeFileSync(join(home, '.gitignore'), 'bin/\ndist/\ntemplates/\nnode_modules\npackage.json\n.machine/\n');
+  for (const args of [
+    ['init', '-q', '--initial-branch=main'],
+    ['config', 'user.name', 'yan tests'],
+    ['config', 'user.email', 'yan-tests@localhost'],
+    ['config', 'commit.gpgsign', 'false'],
+    ['add', '-A'],
+    ['commit', '-q', '-m', 'vault'],
+    ['remote', 'add', 'origin', origin],
+    ['push', '-q', '-u', 'origin', 'main'],
+  ]) {
+    const r = await fxGit(args, home);
+    if (r.code !== 0) throw new Error(`git ${args.join(' ')} in ${home}: ${r.out}`);
+  }
+  return origin;
+}
+
+/** A file as origin's `main` has it, or undefined when it has none. */
+export async function onOrigin(origin: string, path: string): Promise<string | undefined> {
+  const r = await fxGit(['show', `main:${path}`], origin);
+  return r.code === 0 ? r.stdout : undefined;
+}
+
 /** A bare repo with one commit on `main`. */
 export async function mkBareRemote(bare: string): Promise<string> {
   mkdirSync(bare, { recursive: true });

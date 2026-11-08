@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
+import { cleanupTempDirs, fxGit, giveOrigin, mkBareRemote, mkClone, mkTempDir, mkYanHome, onOrigin, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { WorktreePool, leasesHeldBy } from '../../src/externals/worktree/index.js';
 import { Task } from '../../src/records/task/index.js';
@@ -104,6 +104,47 @@ describe('yan peek', () => {
     expect(r.stdout).toMatch(new RegExp(`│  \\S+ +\\S*${tree.split('/').slice(-3).join('/')}\\n│ +detached HEAD$`, 'm'));
     expect(r.stdout).toMatch(new RegExp(`│  web +\\S*${webTree.split('/').slice(-3).join('/')}\\n│ +detached HEAD\\n│ +about apps/site$`, 'm'));
     expect(r.stdout).toMatch(/│ {2}api +none on this machine$/m);
+  });
+});
+
+describe('a task closed, paused or resumed at a terminal', () => {
+  /** The task as origin has it. */
+  async function there(origin: string, id: string): Promise<Record<string, unknown>> {
+    return JSON.parse((await onOrigin(origin, `tasks/${id}/task.json`)) ?? '{}') as Record<string, unknown>;
+  }
+
+  it('is committed and pushed at once, so the other machines see it without an agent pushing it', async () => {
+    const origin = await giveOrigin(home);
+
+    expect((await yan(['pause', 't002'])).code).toBe(0);
+    expect(await there(origin, 't002')).toMatchObject({ pausedAt: expect.any(String) });
+    expect((await yan(['resume', 't002'])).code).toBe(0);
+    expect((await there(origin, 't002')).pausedAt).toBeUndefined();
+    expect((await yan(['done', 't002', '--abandon', 'the API was dropped'])).code).toBe(0);
+    expect(await there(origin, 't002')).toMatchObject({ state: 'abandoned', reason: 'the API was dropped' });
+
+    expect((await fxGit(['status', '--porcelain'], home)).stdout, 'nothing left uncommitted').toBe('');
+  });
+
+  it('is kept here, and said, when origin cannot be reached', async () => {
+    const origin = await giveOrigin(home);
+    await fxGit(['remote', 'set-url', 'origin', join(mkTempDir(), 'gone.git')], home);
+    const paused = await yan(['pause', 't002']);
+    expect(paused.code, 'paused all the same').toBe(0);
+    expect(paused.stderr).toContain('not pushed');
+    expect(new Task('t002').read().pausedAt).toBeDefined();
+    expect((await there(origin, 't002')).pausedAt).toBeUndefined();
+    expect((await fxGit(['status', '--porcelain'], home)).stdout, 'committed here for the next push').toBe('');
+  });
+
+  it('closed already, on another machine say, only has its tree here given back, and stays as it was closed', async () => {
+    new Task('t001').close('abandoned', 'the API was dropped');
+    const closed = new Task('t001').read();
+    const r = await yan(['done', 't001']);
+    expect(r.code, r.out).toBe(0);
+    expect(r.stdout).toContain('tree returned');
+    expect(leasesHeldBy('t001')).toEqual([]);
+    expect(new Task('t001').read()).toMatchObject({ state: 'abandoned', reason: 'the API was dropped', closedAt: closed.closedAt });
   });
 });
 

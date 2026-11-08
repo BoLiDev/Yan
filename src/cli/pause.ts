@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { requiredTask } from './shared/task-id.js';
 import { tildePath } from './shared/style.js';
+import { shareChange } from './shared/vault-push.js';
 import { returnTrees } from '../externals/worktree/index.js';
 import { isClosed } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
@@ -30,7 +31,10 @@ gives them back: reset and cleaned, keeping what git ignores, and refused
 while any has uncommitted changes, or commits no remote branch contains.
 So commit and push the work on the task's branch, kept with 'yan branch',
 before pausing: the tree opened for it once it is resumed, on any machine,
-is put on the branch it kept last. --force throws away what is left.`,
+is put on the branch it kept last. --force throws away what is left.
+
+The vault is committed and pushed at once, so the other machines and yan
+serve see the task paused without waiting for an agent's turn to push it.`,
   )
   .action(
     action('yan pause', (given: string | undefined, options: { force?: boolean }) => {
@@ -42,5 +46,6 @@ is put on the branch it kept last. --force throws away what is left.`,
       task.pause();
       out(`${task.id}  paused - 'yan resume ${task.id}' takes it up again`);
       for (const tree of trees) out(`  tree returned: ${tildePath(tree)}`);
+      shareChange('paused', `${task.id}: paused`);
     }),
   );

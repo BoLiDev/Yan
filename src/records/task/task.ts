@@ -127,9 +127,14 @@ export class Task {
   /**
    * Close the task: `done`, or `abandoned` with the reason it was given up.
    * Stamps `closedAt`; a paused task is no longer paused once closed.
+   *
+   * @throws YanError `task_closed` when it is closed already: closing it
+   *   again would move its closedAt, swap done and abandoned, and drop the
+   *   reason it was given up for.
    */
   public close(state: Exclude<TaskState, 'open' | 'uat'>, reason = ''): void {
-    this.edit((doc) => {
+    this.edit((doc, data) => {
+      if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} already`);
       doc.state = state;
       doc.closedAt = isoSecond();
       delete doc.pausedAt;

@@ -138,7 +138,7 @@ For you:
 
 - `yan ls` — every open task, one line each, those handed to you to accept as in review and those put aside as paused; `--status all` for the rest
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources, and your newest drafts
-- `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`
+- `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`. One closed already, on another machine say, only has its worktrees here given back, and stays as it was closed
 - `yan pause [id]` — put an open task aside, so nothing of it takes room here: its worktrees go back to the pool, refused while one holds work nowhere else (`--force` throws it away), and it keeps its state, open or in review, for later; no agent is started on it until it is resumed
 - `yan resume [id]` — take a paused task up again, as it was; its worktrees come back the next time `yan` starts its agent, on the branch it kept last
 - `yan draft` — your own notes, in your editor: the vault's rather than one task's, so every task's agent can read them, and committed and pushed as soon as one is written; `ls`, `cat <id>`, `search <words>` and `dir` read them, `cat` naming a draft's pictures by where they are here, for an agent to open
@@ -146,6 +146,11 @@ For you:
 - `yan vault …` — init, clone, use, pull, push, where, ls
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 - `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now; `--cli` for another CLI's
+
+`done`, `pause`, `resume` and `repo add` and `rm` commit and push the vault
+as they finish, as `yan draft` does, so your other machines and `yan serve`
+see the change at once rather than after some agent's turn pushes it; a push
+that fails is said, and the commit waits here for the next one.
 
 For the agent:
 

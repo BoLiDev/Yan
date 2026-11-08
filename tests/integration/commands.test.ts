@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, fxGit, mkBareRemote, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
+import { cleanupTempDirs, giveOrigin, mkTempDir, mkYanHome, onOrigin, repoRoot, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -88,13 +88,10 @@ describe('yan say', () => {
   });
 
   it('commits and pushes the vault at once, so it reaches a yan serve anywhere with no hook to push it', async () => {
-    const remote = await mkBareRemote(join(mkTempDir(), 'vault.git'));
-    for (const args of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'yan tests'], ['config', 'user.email', 'yan-tests@localhost'], ['remote', 'add', 'origin', remote], ['fetch', '-q', 'origin'], ['reset', '-q', 'origin/main']]) {
-      await fxGit(args, home);
-    }
+    const origin = await giveOrigin(home);
     const said = await yan(['say', 'Retries are in.'], { YAN_TASK: 't001' });
     expect(said.stdout).toContain('pushed');
-    const there = JSON.parse((await fxGit(['show', 'main:tasks/t001/task.json'], remote)).stdout) as { said?: unknown };
+    const there = JSON.parse((await onOrigin(origin, 'tasks/t001/task.json')) ?? '{}') as { said?: unknown };
     expect(there.said).toMatchObject({ text: 'Retries are in.' });
   });
 

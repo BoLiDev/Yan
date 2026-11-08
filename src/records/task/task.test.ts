@@ -395,9 +395,18 @@ describe('close', () => {
     task.close('abandoned', 'out of scope');
     expect(task.read()).toMatchObject({ state: 'abandoned', reason: 'out of scope' });
     expect(task.read().closedAt).toMatch(/Z$/);
-    task.close('done', 'ignored');
-    expect(task.read().state).toBe('done');
-    expect(task.read().reason).toBeUndefined();
+    const done = Task.create('y');
+    done.close('done', 'ignored');
+    expect(done.read().state).toBe('done');
+    expect(done.read().reason).toBeUndefined();
+  });
+
+  it('refuses a task closed already, leaving its state, time and reason as they were', () => {
+    const task = Task.create('x');
+    task.close('abandoned', 'out of scope');
+    const closed = task.read();
+    expect(() => task.close('done')).toThrow(/abandoned already/);
+    expect(task.read()).toMatchObject({ state: 'abandoned', reason: 'out of scope', closedAt: closed.closedAt });
   });
 
   it('closes a task waiting to be accepted', () => {

@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { action, out } from './shared/action.js';
 import { tildePath } from './shared/style.js';
 import { isTty } from './shared/tty.js';
+import { shareChange } from './shared/vault-push.js';
 import { link, register, registry, repoNamed, repoWithUrl, reposPath, unregister, type RepoEntry } from '../records/repos/index.js';
 import { Task, isClosed } from '../records/task/index.js';
 import { YanError } from '../util/error.js';
@@ -15,7 +16,9 @@ import type { RepoRow } from '../ui/prompts.js';
 /**
  * `yan repo add | link | ls | rm` — the repositories this context works in,
  * which bare `yan` offers a new task, and where each is cloned on this
- * machine. The only command that writes the registry.
+ * machine. The only command that writes the registry, which is committed and
+ * pushed as soon as it changes, so the other machines offer the same ones;
+ * where each is cloned is this machine's, and stays out of the vault.
  *
  * `add` reads its argument rather than demanding a URL:
  *
@@ -132,6 +135,7 @@ const add = new Command('add')
       } else {
         throw YanError.usage('repo_usage', `${target} is neither a clone URL nor a clone on this disk`);
       }
+      shareChange('registered', 'repos: registered');
     }),
   );
 
@@ -207,6 +211,7 @@ const rm = new Command('rm')
     action('yan repo rm', async (name: string | undefined) => {
       if (name !== undefined && name !== '') {
         rmOne(name);
+        shareChange('removed', `repos: ${name} removed`);
         return;
       }
       if (!isTty()) throw YanError.usage('repo_usage', "there is no terminal to pick in: pass the name - 'yan repo ls' lists them");
@@ -221,6 +226,7 @@ const rm = new Command('rm')
       });
       for (const n of chosen) rmOne(n);
       if (chosen.length === 0) out('repo rm: nothing picked');
+      else shareChange('removed', `repos: ${chosen.join(', ')} removed`);
     }),
   );
 
