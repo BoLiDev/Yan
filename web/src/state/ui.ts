@@ -94,6 +94,12 @@ interface UI {
   mdSource: boolean;
   /** A Markdown artifact's source edited and not saved, by its path in the vault, with the file it began from: kept while the page is open. */
   edits: Readonly<Record<string, { readonly sha: string; readonly text: string }>>;
+  /**
+   * A Markdown artifact's source as it was saved from the page, by its path
+   * in the vault, with the file it was saved over: shown as the file, in
+   * Source and Rendered alike, until the page has fetched the commit it made.
+   */
+  saved: Readonly<Record<string, { readonly sha: string; readonly text: string }>>;
   /** Where ← and → go from what the right pane shows. */
   keyNav: { readonly prev: string | null; readonly next: string | null };
   ask: Ask | null;
@@ -165,6 +171,7 @@ export const useUI = create<UI>(() => ({
   pageSource: false,
   mdSource: false,
   edits: {},
+  saved: {},
   keyNav: { prev: null, next: null },
   ask: null,
   termTab: {},

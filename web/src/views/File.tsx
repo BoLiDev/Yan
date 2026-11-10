@@ -88,7 +88,10 @@ export function FileView(ctx: FileContext) {
     }} />);
     // Its source is written in where it is shown.
     body = mdSource
-      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} sync={sync} />
+      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} sync={sync} onDone={() => {
+        sync.leave(path);
+        useUI.setState({ mdSource: false });
+      }} />
       : <MarkdownScroll key={path} task={task} file={file} onMeta={setMeta} sync={sync} />;
   } else if (viewer === 'text') {
     const e = ext(name);

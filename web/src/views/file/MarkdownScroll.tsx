@@ -3,9 +3,8 @@ import type { ArtifactFile } from '../../lib/api';
 import { dirName } from '../../lib/files';
 import { bytes, plural } from '../../lib/format';
 import { Empty, Scroll } from '../../components/page';
-import { useText, vaultPath } from '../../state/server';
-import { useUI } from '../../state/ui';
 import { MarkdownDoc } from '../Markdown';
+import { useMarkdownText } from './markdownText';
 import { holdRenderedAt, renderedLine, useKeepPlace, type Sync } from './place';
 
 /**
@@ -14,10 +13,7 @@ import { holdRenderedAt, renderedLine, useKeepPlace, type Sync } from './place';
  * source was being read, and says where it is when swapped back.
  */
 export function MarkdownScroll({ task, file, onMeta, sync }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; sync?: Sync }) {
-  const path = vaultPath(task, file.path);
-  const loaded = useText(`/blob/${file.sha}`);
-  const edit = useUI((s) => s.edits[path]);
-  const text = edit?.text ?? loaded.data;
+  const { key: path, loaded, edit, text } = useMarkdownText(task, file);
   const box = useRef<HTMLDivElement>(null);
   const lines = text === undefined ? 0 : text.split('\n').length;
   useEffect(() => {

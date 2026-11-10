@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, postJSON, type ArtifactFile, type WriteResult } from '../../lib/api';
-import { bytes, plural } from '../../lib/format';
+import { MOD, bytes, plural } from '../../lib/format';
 import { Empty, Scroll } from '../../components/page';
 import { Button } from '../../components/ui/button';
-import { onStatus, useText, vaultPath } from '../../state/server';
+import { onStatus } from '../../state/server';
 import { toast, useUI } from '../../state/ui';
+import { useMarkdownText } from './markdownText';
 import { scrollSourceTo, sourceLine, useKeepPlace, type Sync } from './place';
 
 /** One edit's place in the page's store: the file's path in the vault. */
@@ -18,22 +19,19 @@ const editOf = (key: string, text: string | undefined, sha: string): void =>
  * A Markdown artifact's source, written in where it is shown: there is
  * nothing to open to edit it. What is typed is kept for as long as the page
  * is open, the rendered view and other files visited between, and saved
- * with ⌘S or Save: serve commits it here at once, so it is shown the moment
- * it is saved, and pushes it on its own. Saving names the file the editing
- * began from, so one an agent wrote meanwhile is refused, not written over,
- * and what was typed stays. Swapped in for the rendered file, it opens where
- * that was being read, and says where it is when swapped back.
+ * with ⌘S, which goes on editing, or with Save or Escape, which go back to
+ * the rendered file once it is saved (`onDone`); Escape with nothing to
+ * save goes straight back. serve commits it here at once, so it is shown
+ * the moment it is saved, and pushes it on its own. Saving names the file
+ * the editing began from, so one an agent wrote meanwhile is refused, not
+ * written over, and what was typed stays, here, in Source. Swapped in for
+ * the rendered file, it opens where that was being read, and says where it
+ * is when swapped back.
  */
-export function MarkdownSource({ task, file, onMeta, sync }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; sync?: Sync }) {
-  const key = vaultPath(task, file.path);
-  const loaded = useText(`/blob/${file.sha}`);
-  const edit = useUI((s) => s.edits[key]);
+export function MarkdownSource({ task, file, onMeta, sync, onDone }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; sync?: Sync; onDone?: () => void }) {
+  const { key, loaded, edit, base, text: shown } = useMarkdownText(task, file);
+  const text = shown ?? '';
   const [saving, setSaving] = useState(false);
-  // What was saved last, shown as the file until the page has fetched the commit it made, not the file as it was.
-  const [saved, setSaved] = useState<{ readonly key: string; readonly sha: string; readonly text: string } | null>(null);
-  const mine = saved !== null && saved.key === key ? saved : null;
-  const base = mine !== null && (mine.sha === file.sha || loaded.data === undefined) ? mine.text : loaded.data;
-  const text = edit?.text ?? base ?? '';
   const dirty = edit !== undefined;
   const area = useRef<HTMLTextAreaElement>(null);
   useKeepPlace(sync, key, base !== undefined, {
@@ -53,21 +51,29 @@ export function MarkdownSource({ task, file, onMeta, sync }: { task: string; fil
     return () => removeEventListener('beforeunload', hold);
   }, [dirty]);
 
-  const save = async (): Promise<void> => {
-    if (edit === undefined || saving) return;
+  /** Save what is typed; whether it is saved, or there was nothing to save. */
+  const save = async (): Promise<boolean> => {
+    if (saving) return false;
+    if (edit === undefined) return true;
     setSaving(true);
     try {
       const out = await postJSON<WriteResult>('/api/artifact/edit', { task, path: file.path, sha: edit.sha, text: edit.text });
-      // Shown as saved before the page has fetched it again: it is what serve now has.
-      setSaved({ key, sha: file.sha, text: edit.text });
+      // Shown as saved before the page has fetched it again, here and rendered: it is what serve now has.
+      useUI.setState((s) => ({ saved: { ...s.saved, [key]: { sha: file.sha, text: edit.text } } }));
       editOf(key, undefined, edit.sha);
       if (out.warning) toast(`Saved here, but not committed: ${out.warning}`, true);
       void onStatus(out.status);
+      return true;
     } catch (err) {
       toast(`Not saved: ${err instanceof ApiError ? err.message : (err as Error).message}`, true);
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+  /** Saved, back to the rendered file; refused, still here, with what was typed. */
+  const saveAndGo = async (): Promise<void> => {
+    if (await save()) onDone?.();
   };
 
   if (base === undefined && loaded.isError) return <Scroll><Empty><span className="text-destructive">{String(loaded.error.message)}</span></Empty></Scroll>;
@@ -75,11 +81,11 @@ export function MarkdownSource({ task, file, onMeta, sync }: { task: string; fil
   return (
     <div className="flex min-h-0 flex-auto flex-col">
       <div className="flex h-11 flex-none items-center gap-2 border-b border-sunken px-5 text-[12.5px] text-ink-3">
-        <span className="mr-auto" role="status">{saving ? 'Saving…' : dirty ? 'Edited, not saved · ⌘S saves' : 'Type to edit · ⌘S saves'}</span>
+        <span className="mr-auto" role="status">{saving ? 'Saving…' : dirty ? `Edited, not saved · ${MOD}S saves · Esc saves and shows it` : `Type to edit · ${MOD}S saves · Esc shows it`}</span>
         {dirty ? (
           <>
             <Button size="sm" variant="ghost" disabled={saving} onClick={() => editOf(key, undefined, edit.sha)}>Discard</Button>
-            <Button size="sm" disabled={saving} onClick={() => void save()}>Save</Button>
+            <Button size="sm" disabled={saving} onClick={() => void saveAndGo()}>Save</Button>
           </>
         ) : null}
       </div>
@@ -90,6 +96,11 @@ export function MarkdownSource({ task, file, onMeta, sync }: { task: string; fil
           if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'Enter')) {
             e.preventDefault();
             void save();
+          }
+          // Escape that an input method takes to cancel what it is composing is the input method's.
+          if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            void saveAndGo();
           }
         }} />
     </div>

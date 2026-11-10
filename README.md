@@ -306,7 +306,10 @@ window is wide enough for both. A Markdown file's Source
 is its editor, and swapping between it and Rendered keeps the place being
 read: the one swapped in opens at the line the other had at its top. What
 is typed there is kept while the page is open, drawn
-as edited in Rendered, and saved with ⌘S or Save, which serve commits
+as edited in Rendered, and saved with ⌘S, which goes on editing, or
+with Save or Escape, which go back to Rendered once it is saved, Escape
+with nothing typed going straight back; a save refused stays in Source,
+with what was typed. serve commits a save
 here at once, so it is shown saved straight away, and pushes on its own a
 while later, as it does the drafts. A file an agent changed since it was
 opened is not written over: the save is refused and what was typed
