@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
 import { roomFor, tailOf, type Speaker } from '../lib/stack';
 import { cn } from '../lib/utils';
-import { dropBubble, makeRoom, stopWaiting, useBubbles, type Bubble } from '../state/bubbles';
+import { dropBubble, makeRoom, useBubbles, type Bubble } from '../state/bubbles';
 
 /** How long the words stay once they are in and the page is in sight, the pointer over them holding them there. */
 const SHOWN_MS = 12_000;
@@ -73,15 +73,6 @@ function useEasedWidth(bubble: RefObject<HTMLElement | null>, v: number): void {
   }, [bubble, v]);
 }
 
-/** Three dots rising in turn: the agent's words are on their way. */
-function Typing() {
-  return (
-    <span className="flex h-[19px] items-center gap-1" aria-label="typing">
-      {[0, 160, 320].map((delay) => <span key={delay} className="size-1.5 rounded-full bg-current opacity-40 animate-typing" style={{ animationDelay: `${delay}ms` }} />)}
-    </span>
-  );
-}
-
 /**
  * What the bubble says, saying by saying: a new one rolls in from below as
  * it pushes the one before out at the top, and the bubble's height follows
@@ -126,27 +117,21 @@ function Tail({ meet, tip }: { meet: number; tip: number }) {
   );
 }
 
-/** One bubble: popped, typing until its words are in, held while pointed at or while the page is out of sight, and gone a while after. */
+/** One bubble: popped with its words, held while pointed at or while the page is out of sight, and gone a while after. */
 function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place | undefined; boxes: RefObject<Map<string, HTMLElement>> }) {
   // Which saying it was asked to go at: one said after that keeps it.
   const [goneAt, setGoneAt] = useState<number | null>(null);
   const leaving = goneAt === b.v;
   const [held, setHeld] = useState(false);
   const away = useAway();
-  const waiting = b.text === null;
   const bubble = useRef<HTMLDivElement>(null);
   useEasedWidth(bubble, b.v);
 
   useEffect(() => {
-    if (!waiting) return;
-    const id = setTimeout(() => stopWaiting(task, b.n, b.v), Math.max(0, b.until - Date.now()));
-    return () => clearTimeout(id);
-  }, [waiting, task, b.n, b.v, b.until]);
-  useEffect(() => {
-    if (waiting || held || away || leaving) return;
+    if (held || away || leaving) return;
     const id = setTimeout(() => setGoneAt(b.v), SHOWN_MS);
     return () => clearTimeout(id);
-  }, [waiting, held, away, leaving, b.v]);
+  }, [held, away, leaving, b.v]);
   useEffect(() => {
     if (!leaving) return;
     const id = setTimeout(() => dropBubble(task, b.n, b.v), LEAVING_MS);
@@ -170,7 +155,7 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
         {/* Each line at its own width, up to the bubble's widest, so the words keep their lines while the bubble eases to them. */}
         <button type="button" onClick={open} className="relative block w-full cursor-pointer overflow-hidden rounded-2xl py-2 pr-6 pl-3 text-left">
           <span className="block w-max max-w-[244px] truncate text-[11.5px] leading-4 font-semibold opacity-55">{b.title}</span>
-          <Words v={b.v}>{waiting ? <Typing /> : <span className="block w-max max-w-[244px] text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span>}</Words>
+          <Words v={b.v}><span className="block w-max max-w-[244px] text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span></Words>
         </button>
         <button type="button" aria-label="Close" onClick={() => setGoneAt(b.v)}
           className="absolute top-1.5 right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-60 hover:bg-black/5 hover:opacity-100 focus-visible:opacity-100">

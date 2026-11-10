@@ -111,7 +111,9 @@ describe('a task\'s agent, at a glance', () => {
 
     h.agentIs(AGENT_PANE, 'done');
     const bubble = page.getByRole('status', { name: 'pay retries' });
-    await bubble.getByLabel('typing').waitFor({ timeout: 20_000 });
+    // Seen to finish, and nothing on the rail while its words are on their way.
+    await rail.getByRole('link', { name: 'pay retries · agent finished' }).waitFor({ timeout: 20_000 });
+    expect(await bubble.count(), 'no bubble before there is something to say').toBe(0);
     // Said, then committed here as the hook commits the vault at the turn's end; serve reads this vault's HEAD.
     expect((await runYan(home, ['say', 'Retries are in; the PR waits on your review.'], { YAN_TASK: 't001' })).code).toBe(0);
     await fxGit(['commit', '-q', '-am', 't001'], home);

@@ -59,12 +59,13 @@ describe('a task folded to its square on the rail', () => {
     expect(rail.getByRole('link', { name: 'export orders' }).element().textContent).toBe('E');
   });
 
-  it('speaks in a bubble as its agent finishes, typing until the words it said come, and opens its terminal when clicked', async () => {
+  it('speaks in a bubble once its agent has finished and its words come, nothing on the rail while they are on their way, and opens its terminal when clicked', async () => {
     const { herdr, says } = await open({ here: agent('working', 100, 'idle') });
 
     await herdr(agent('done', 200));
     const bubble = page.getByRole('status', { name: 'pay retries' });
-    await expect.element(bubble.getByLabelText('typing')).toBeVisible();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(bubble.query(), 'no bubble before there is something to say').toBeNull();
 
     says('Retries are in; the PR waits on your review.', 201);
     await expect.element(bubble).toMatchTextContent(/Retries are in; the PR waits on your review\./);
@@ -84,11 +85,12 @@ describe('a task folded to its square on the rail', () => {
     expect(location.hash).toBe('#/t/t1');
   });
 
-  it('says the agent finished in its own words when none come', async () => {
+  it('says the agent finished in its own words when none come, and only then', async () => {
     const { herdr } = await open({ here: agent('working', 100, 'idle'), everyS: 0 });
     await herdr(agent('done', 200));
     const bubble = page.getByRole('status', { name: 'pay retries' });
-    await expect.element(bubble.getByLabelText('typing')).toBeVisible();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(bubble.query(), 'nothing while the words may yet come').toBeNull();
     await expect.element(bubble, { timeout: 8000 }).toMatchTextContent(/I'm done for now\./);
   });
 });

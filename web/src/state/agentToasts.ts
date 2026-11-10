@@ -38,18 +38,31 @@ export function sawAllAgents(): void {
 const TOLD = { finished: 'Its agent has finished.', blocked: 'Its agent needs you: a question or a permission.' } as const;
 const SAID = { finished: 'I\'m done for now.', blocked: 'I need you: a question or a permission.' } as const;
 
+/** Finishes told on the rail whose words are not in yet: each waited for, without a sign, until they come or time is up. */
+const awaited = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Nothing waited for any more: a test's page starts with none. */
+export function forgetAwaited(): void {
+  for (const id of awaited.values()) clearTimeout(id);
+  awaited.clear();
+}
+
 /**
  * Tell `user` of `task`'s agent: in a toast at the top right while the task
  * list is shown, and with it folded, in a bubble from the task's square on
  * the rail, unless the task has none there. What the agent said is told in
- * its own words; a finish whose words are not in yet makes the bubble type
- * until they are, for about as long as serve takes to fetch them, and the
- * toast says it finished until they replace that. Its button, or a click on
- * the bubble, opens the task's terminal when its agent runs here; else its
- * agents elsewhere, in the cloud, when it keeps any, which is where words
- * from no terminal here come from; else the task.
+ * its own words. A finish whose words are not in yet waits for them on the
+ * rail, with nothing on it, for about as long as serve takes to fetch them,
+ * and its bubble pops with them as they come, or with the page's own when
+ * they do not, since three dots moving there while nothing is said only take
+ * the eye; the toast says it finished until the words replace that. Its
+ * button, or a click on the bubble, opens the task's terminal when its agent
+ * runs here; else its agents elsewhere, in the cloud, when it keeps any,
+ * which is where words from no terminal here come from; else the task.
  */
-function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string | undefined, terminal: boolean): void {
+function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string | undefined, terminal: boolean, waited = false): void {
+  clearTimeout(awaited.get(task));
+  awaited.delete(task);
   const { prefs, last, status } = useUI.getState();
   const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === task);
   const title = t?.title || task;
@@ -57,9 +70,16 @@ function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string
   const to = terminal ? link.terminal(task) : away ? link.agent(task) : (last[task] ?? link.task(task));
   const plain = kind === 'said' ? 'finished' : kind;
   if (!prefs.left && t !== undefined && goesOn(t)) {
-    // serve fetches every `everyS`, and the hook commits the words as the turn ends: by then they are in, or are not coming.
-    const until = Date.now() + Math.min(20, (status?.everyS ?? 10) + 4) * 1000;
-    popBubble(task, { title, text: words ?? (kind === 'finished' ? null : SAID[plain]), fallback: SAID[plain], until, to });
+    if (kind === 'finished' && words === undefined && !waited) {
+      // serve fetches every `everyS`, and the hook commits the words as the turn ends: by then they are in, or are not coming.
+      const wait = Math.min(20, (status?.everyS ?? 10) + 4) * 1000;
+      awaited.set(task, setTimeout(() => {
+        awaited.delete(task);
+        if (lookingAt(task) === null) tell(task, 'finished', undefined, terminal, true);
+      }, wait));
+      return;
+    }
+    popBubble(task, { title, text: words ?? SAID[plain], to });
     return;
   }
   toast(title, {

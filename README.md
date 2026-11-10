@@ -226,15 +226,16 @@ button opening the task's agents elsewhere when it keeps any, or else the
 task. Words are told as they change, not by which is later, since a
 cloud machine's clock is not this one's. With the task list folded to the rail, what would be a
 toast is a bubble instead, popping out of the task's square with a hop
-and a wobble, its tail pointing back at it: a finish makes it type,
-three dots rising, until the agent's words fill it, or, when none have
-come by the time serve has fetched again, says the agent is done; the
-task's title over the words. A task that speaks again while its bubble
+and a wobble, its tail pointing back at it, and only with something to
+say: after a finish the page waits for the agent's words, with nothing on
+the rail meanwhile, and pops the bubble with them as they come, or, when
+none have come by the time serve has fetched again, says the agent is
+done; the task's title over the words. A task that speaks again while its bubble
 is up says it in the same bubble, its new words rolling in from below as
 they push the old ones out at the top, the bubble easing to their height
 and width. It is white in either theme as a
 toast is. A square that speaks goes first on the rail as its bubble
-pops, typing or not, so it does not move when the push its words came
+pops, so it does not move when the push its words came
 with reorders the rail; one that begins while others speak goes under
 them, and the rail opens room between the squares that speak, so every
 bubble stands level with its own square, none covering another; and no

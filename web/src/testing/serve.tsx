@@ -11,6 +11,7 @@ import type { Index, Status, TaskDetail, TaskSummary } from '../lib/api';
 import { initSeen } from '../lib/seen';
 import { queryClient } from '../state/server';
 import { useUI } from '../state/ui';
+import { forgetAwaited } from '../state/agentToasts';
 import { forgetSpots } from '../views/file/reading';
 // Drawn with the page's own styles, so what is on top and what can be clicked is as on the page.
 import '../index.css';
@@ -77,6 +78,7 @@ export async function reset(): Promise<void> {
   queryClient.clear();
   useUI.setState(fresh, true);
   forgetSpots();
+  forgetAwaited();
   history.replaceState(null, '', '#/latest');
 }
 
