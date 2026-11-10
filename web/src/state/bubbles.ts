@@ -15,6 +15,8 @@ export interface Bubble {
   readonly title: string;
   /** The words: the agent's, or the page's own when the agent's did not come. */
   readonly text: string;
+  /** The words are the page's, not the agent's: drawn apart from words an agent said. */
+  readonly own?: boolean;
   /** Where a click on it goes: the task's terminal, its agents elsewhere, or the task. */
   readonly to: string;
   /** Which bubble this is: a bubble popped anew, after the task's last one went, is another. */

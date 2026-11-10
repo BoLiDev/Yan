@@ -169,7 +169,7 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
         {/* Each line at its own width, up to the bubble's widest, so the words keep their lines while the bubble eases to them. */}
         <button type="button" onClick={open} className="relative block w-full cursor-pointer overflow-hidden rounded-[18px] pt-2.5 pr-7 pb-[11px] pl-3.5 text-left">
           <span className="mb-0.5 block w-max max-w-[244px] truncate text-[11.5px] leading-4 font-medium opacity-50">{b.title}</span>
-          <Words v={b.v}><span className="block w-max max-w-[244px] text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span></Words>
+          <Words v={b.v}><span className={cn('block w-max max-w-[244px] text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5', b.own && 'italic opacity-55')}>{b.text}</span></Words>
         </button>
         <button type="button" aria-label="Close" onClick={() => setGoneAt(b.v)}
           className="absolute top-1.5 right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-60 hover:bg-black/5 hover:opacity-100 focus-visible:opacity-100">

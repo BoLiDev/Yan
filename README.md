@@ -12,8 +12,8 @@ nothing else.
 An agent knows about them when you start it through `yan`. Type `yan`, pick
 a task or start one, and Claude, Codex or Agy starts in the task's worktree.
 Claude is given yan's skills, which say how to work in a task, and is told
-in four lines that the task is yan's, where its files go and which skills
-there are; Codex and
+in a few lines that the task is yan's, where its files go, which skills
+there are, and to say where things stand as each turn ends; Codex and
 Agy take no skills that way, so they are told it all in their opening
 prompt. Start the same agent directly and it hears of yan only if it has the
 skills.
@@ -75,7 +75,7 @@ task, done, or given up with the reason you give it (`/yan:done --abandon
 work committed and pushed on its branch, a line in the log on where it
 stands, then `yan pause`. Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
-which skills there are, and that an implementation ends with `yan:uat`. A skill can be carried where yan does not start the
+which skills there are, that an implementation ends with `yan:uat`, and that every turn ends with `yan say`. A skill can be carried where yan does not start the
 agent and so cannot give it a prompt. A machine can give claude skills of
 its own besides, such as the ones a workplace keeps: `skillDir` in
 `~/.yan/config.json`, a folder or a list of them, `~` for the home

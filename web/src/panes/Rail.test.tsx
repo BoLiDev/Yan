@@ -85,13 +85,13 @@ describe('a task folded to its square on the rail', () => {
     expect(location.hash).toBe('#/t/t1');
   });
 
-  it('says the agent finished in its own words when none come, and only then', async () => {
+  it("says the agent finished in the page's own words when none come, and only then", async () => {
     const { herdr } = await open({ here: agent('working', 100, 'idle'), everyS: 0 });
     await herdr(agent('done', 200));
     const bubble = page.getByRole('status', { name: 'pay retries' });
     await new Promise((r) => setTimeout(r, 500));
     expect(bubble.query(), 'nothing while the words may yet come').toBeNull();
-    await expect.element(bubble, { timeout: 8000 }).toMatchTextContent(/I'm done for now\./);
+    await expect.element(bubble, { timeout: 8000 }).toMatchTextContent(/Finished, without saying where things stand\./);
   });
 });
 

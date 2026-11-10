@@ -34,8 +34,11 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * started with yan's plugin, whose skills say how to work in a task: what to
  * read, how to keep the notes, when to gather the evidence. Its prompt says
  * only that the task is yan's, where its files are and which folder takes
- * what, which skills there are, and when yan:uat is due, the one moment the
- * agent would not think to look for a skill. Where the files go is said
+ * what, which skills there are, and the two moments the agent would not
+ * think to look for a skill: when yan:uat is due, and the end of every turn,
+ * when it says where things stand with `yan say`. A rule for every turn read
+ * once in yan:recap as the session began is soon lost among the turns, and
+ * the page then had nothing to tell `user` but its own words. Where the files go is said
  * there as well as in yan:recap, since an agent writes files whether or not
  * it ran recap first. The skills travel where yan cannot start the agent and
  * so cannot give it a prompt, as a cloud platform that runs agents on its own.
@@ -60,6 +63,8 @@ export function skillsPrompt(taskDir: string): string {
     'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
       'yan:define works out the problem and the solution with the user; yan:done and yan:pause are the user\'s, to close the task or put it aside.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
+    'As you end every turn, say where things stand in a sentence or two, in the user\'s language, with `yan say "<words>"`, the last thing you run: done, stuck, or what you need from them. ' +
+      'The user is often elsewhere while you work, and yan\'s page shows it to them there.',
   ].join('\n');
 }
 

@@ -147,11 +147,13 @@ function claudeOf(i: number): { skips: boolean; chrome: boolean; plugins: string
   return c;
 }
 
-/** That `plugin` is yan's own, and `prompt` names the folder of t001's files and every skill the plugin has. */
+/** That `plugin` is yan's own, and `prompt` names the folder of t001's files, every skill the plugin has, and how a turn ends. */
 function expectYanSkills(plugin: string | undefined, prompt: string): void {
   expect((readJson(join(plugin ?? '', '.claude-plugin', 'plugin.json')) as { name?: string }).name, "yan's plugin").toBe('yan');
   expect(prompt, "where the task's files are").toContain(new Task('t001').dir);
   for (const skill of readdirSync(join(plugin ?? '', 'skills'))) expect(prompt, 'each skill it has').toContain(`yan:${skill}`);
+  // A rule for every turn, said where it stays in sight, not only in a skill read as the session began.
+  expect(prompt, 'that every turn ends saying where things stand').toContain('yan say');
 }
 
 /** The one tree t001 holds; anything else fails the test here, before git is run in a path that is not there. */

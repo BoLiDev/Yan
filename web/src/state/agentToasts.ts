@@ -34,9 +34,13 @@ export function sawAllAgents(): void {
   for (const task of Object.keys(queryClient.getQueryData<Readonly<Record<string, TerminalState>>>(['terminals']) ?? {})) sawAgent(task);
 }
 
-/** What the page says of an agent when it says nothing itself, in a toast, and in its square's bubble, as the agent. */
+/**
+ * What the page says of an agent when it says nothing itself, in a toast,
+ * and in its square's bubble: in the page's own voice, never as the agent,
+ * so words the agent did not say are not taken for its.
+ */
 const TOLD = { finished: 'Its agent has finished.', blocked: 'Its agent needs you: a question or a permission.' } as const;
-const SAID = { finished: 'I\'m done for now.', blocked: 'I need you: a question or a permission.' } as const;
+const SAID = { finished: 'Finished, without saying where things stand.', blocked: 'Needs you: a question or a permission.' } as const;
 
 /** Finishes told on the rail whose words are not in yet: each waited for, without a sign, until they come or time is up. */
 const awaited = new Map<string, ReturnType<typeof setTimeout>>();
@@ -79,7 +83,7 @@ function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string
       }, wait));
       return;
     }
-    popBubble(task, { title, text: words ?? SAID[plain], to });
+    popBubble(task, { title, text: words ?? SAID[plain], own: words === undefined, to });
     return;
   }
   toast(title, {
