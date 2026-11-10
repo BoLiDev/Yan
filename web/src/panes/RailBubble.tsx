@@ -15,9 +15,11 @@ const GAP = 6;
 const OFF = 11;
 /** How far the tail reaches out of the bubble, and half its width where it meets it. */
 const REACH = 9;
-const HALF = 6;
+const HALF = 7;
+/** How round the bubble's corners are. */
+const ROUND = 18;
 /** How far from the bubble's top and bottom the tail keeps, on the straight of the edge, off its rounded corners. */
-const KEEP = 16 + HALF;
+const KEEP = ROUND + HALF;
 /** How far off its square's middle the tail's tip may point, still into the square, to keep it as level as it can. */
 const SPAN = 12;
 
@@ -104,15 +106,25 @@ function Words({ v, children }: { v: number; children: ReactNode }) {
   );
 }
 
-/** The tail, from where it meets the bubble's edge to its tip at the square's middle, drawn over the edge's border so the two are one line. */
+/**
+ * The tail, from where it meets the bubble's edge to its tip at the square's
+ * middle: its sides drawn in toward each other, so it narrows out of the
+ * bubble as one shape with it rather than standing off it as a triangle, and
+ * its tip rounded. It reaches a little under the bubble's edge, the two the
+ * same white, so no seam shows; the bubble's shadow is the tail's too.
+ */
 function Tail({ meet, tip }: { meet: number; tip: number }) {
-  const top = Math.min(meet - HALF, tip) - 1;
-  const height = Math.max(meet + HALF, tip) + 1 - top;
-  const [a, b, t] = [meet - HALF - top, meet + HALF - top, tip - top];
+  const top = Math.min(meet - HALF, tip) - 2;
+  const height = Math.max(meet + HALF, tip) + 2 - top;
+  const [a, b, t, mid] = [meet - HALF - top, meet + HALF - top, tip - top, meet - top];
+  const edge = REACH + 4;
+  // Each side bends toward the tail's middle line, more than halfway from straight.
+  const bend = (y: number): number => y + (mid - y) * 0.6;
+  const x = REACH * 0.55;
   return (
-    <svg aria-hidden className="pointer-events-none absolute overflow-visible" style={{ left: -REACH - 1, top, width: REACH + 2, height }}>
-      <polygon points={`${REACH + 1.5},${a} 1,${t} ${REACH + 1.5},${b}`} fill="var(--toast-bg)" />
-      <polyline points={`${REACH + 0.5},${a} 1,${t} ${REACH + 0.5},${b}`} fill="none" stroke="var(--toast-line)" strokeLinejoin="round" />
+    <svg aria-hidden className="pointer-events-none absolute overflow-visible" style={{ left: -REACH, top, width: edge, height }}>
+      <path d={`M${edge},${a} Q${x},${bend((a + t) / 2)} 1.5,${t} Q${x},${bend((b + t) / 2)} ${edge},${b} Z`}
+        fill="var(--toast-bg)" stroke="var(--toast-bg)" strokeWidth={2} strokeLinejoin="round" />
     </svg>
   );
 }
@@ -149,12 +161,14 @@ function Said({ task, b, place, boxes }: { task: string; b: Bubble; place: Place
       className={cn('pointer-events-none fixed z-40', place === undefined && 'invisible', place !== undefined && !place.first && 'transition-[top] duration-200 ease-out')}>
       <div ref={bubble} role="status" aria-label={b.title} onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
         style={{ transformOrigin: `${-REACH}px ${place?.tip ?? 0}px` }}
-        className={cn('group pointer-events-auto relative w-max max-w-[280px] min-w-[120px] rounded-2xl border border-(--toast-line) bg-(--toast-bg) text-(--toast-ink)',
-          '[filter:drop-shadow(0_6px_12px_rgba(0,0,0,.12))_drop-shadow(0_1px_2px_rgba(0,0,0,.06))]', leaving ? 'animate-bubble-out' : 'animate-bubble-pop')}>
+        // No border: a line round it reads as a frame, hard on a dark page above all. Its edge is a hairline of
+        // shadow, under a near one and a wide soft one, all drop shadows so the tail has them as the bubble does.
+        className={cn('group pointer-events-auto relative w-max max-w-[280px] min-w-[120px] rounded-[18px] bg-(--toast-bg) text-(--toast-ink)',
+          '[filter:drop-shadow(0_0_0.5px_rgba(0,0,0,.22))_drop-shadow(0_2px_4px_rgba(0,0,0,.06))_drop-shadow(0_10px_24px_rgba(0,0,0,.10))]', leaving ? 'animate-bubble-out' : 'animate-bubble-pop')}>
         {place === undefined ? null : <Tail meet={place.meet} tip={place.tip} />}
         {/* Each line at its own width, up to the bubble's widest, so the words keep their lines while the bubble eases to them. */}
-        <button type="button" onClick={open} className="relative block w-full cursor-pointer overflow-hidden rounded-2xl py-2 pr-6 pl-3 text-left">
-          <span className="block w-max max-w-[244px] truncate text-[11.5px] leading-4 font-semibold opacity-55">{b.title}</span>
+        <button type="button" onClick={open} className="relative block w-full cursor-pointer overflow-hidden rounded-[18px] pt-2.5 pr-7 pb-[11px] pl-3.5 text-left">
+          <span className="mb-0.5 block w-max max-w-[244px] truncate text-[11.5px] leading-4 font-medium opacity-50">{b.title}</span>
           <Words v={b.v}><span className="block w-max max-w-[244px] text-[13px] leading-[19px] [overflow-wrap:anywhere] line-clamp-5">{b.text}</span></Words>
         </button>
         <button type="button" aria-label="Close" onClick={() => setGoneAt(b.v)}
