@@ -1,0 +1,43 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import type { ArtifactFile } from '../../lib/api';
+import { detail, draw, have, index, reset, serve, task } from '../../testing/serve';
+import { FileView } from '../File';
+
+/** Forty parts, each a heading and a paragraph of short lines, so a line of the source is one row of its box. */
+const text = Array.from({ length: 40 }, (_, i) => `## Part ${i + 1}\n\n${Array.from({ length: 6 }, (_, j) => `Line ${j + 1} of part ${i + 1}.`).join('\n')}\n`).join('\n');
+const lineOf = (heading: string): number => text.slice(0, text.indexOf(heading)).split('\n').length - 1;
+const file: ArtifactFile = { path: 'notes.md', sha: 'm1', size: text.length, added: 1, changed: 1, commit: 'c1' };
+/** The source's box sets a line 21 pixels tall, below 16 of padding. */
+const ROW = 21;
+
+describe('a Markdown file swapped between Rendered and Source', () => {
+  afterEach(reset);
+
+  it('opens each at the place the other was being read', async () => {
+    serve({ '/blob/m1': new Response(text) });
+    have(index([task('t1', 'notes')]), [detail('t1')]);
+    const screen = await draw(
+      <div style={{ height: 600, display: 'flex', flexDirection: 'column' }}>
+        <FileView task="t1" file={file} prev={null} next={null} pos={1} total={1} folderFiles={[file]} fileHref={(p) => `#${p}`} />
+      </div>,
+    );
+
+    // Read down to part 30, then swap to the source: it opens on part 30's heading.
+    const thirty = screen.getByRole('heading', { name: 'Part 30' });
+    await expect.element(thirty).toBeInTheDocument();
+    thirty.element().scrollIntoView({ block: 'start' });
+    await screen.getByText('Source').click();
+    const area = screen.getByRole('textbox', { name: /notes\.md/ });
+    await expect.element(area).toBeVisible();
+    const box = area.element() as HTMLTextAreaElement;
+    await expect.poll(() => Math.abs(box.scrollTop / ROW - lineOf('## Part 30'))).toBeLessThan(2);
+
+    // Scrolled in the source up to part 10, and swapped back: the rendered text opens on part 10.
+    box.scrollTop = lineOf('## Part 10') * ROW;
+    await screen.getByText('Rendered').click();
+    const ten = screen.getByRole('heading', { name: 'Part 10' });
+    await expect.element(ten).toBeInTheDocument();
+    const scroller = ten.element().closest('.overflow-auto') as HTMLElement;
+    await expect.poll(() => Math.abs(ten.element().getBoundingClientRect().top - scroller.getBoundingClientRect().top)).toBeLessThan(40);
+  });
+});

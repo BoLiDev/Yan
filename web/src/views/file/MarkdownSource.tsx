@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, postJSON, type ArtifactFile, type WriteResult } from '../../lib/api';
 import { bytes, plural } from '../../lib/format';
 import { Empty, Scroll } from '../../components/page';
 import { Button } from '../../components/ui/button';
 import { onStatus, useText, vaultPath } from '../../state/server';
 import { toast, useUI } from '../../state/ui';
+import { scrollSourceTo, sourceLine, useKeepPlace, type Sync } from './place';
 
 /** One edit's place in the page's store: the file's path in the vault. */
 const editOf = (key: string, text: string | undefined, sha: string): void =>
@@ -20,9 +21,10 @@ const editOf = (key: string, text: string | undefined, sha: string): void =>
  * with ⌘S or Save: serve commits it here at once, so it is shown the moment
  * it is saved, and pushes it on its own. Saving names the file the editing
  * began from, so one an agent wrote meanwhile is refused, not written over,
- * and what was typed stays.
+ * and what was typed stays. Swapped in for the rendered file, it opens where
+ * that was being read, and says where it is when swapped back.
  */
-export function MarkdownSource({ task, file, onMeta }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void }) {
+export function MarkdownSource({ task, file, onMeta, sync }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; sync?: Sync }) {
   const key = vaultPath(task, file.path);
   const loaded = useText(`/blob/${file.sha}`);
   const edit = useUI((s) => s.edits[key]);
@@ -33,6 +35,13 @@ export function MarkdownSource({ task, file, onMeta }: { task: string; file: Art
   const base = mine !== null && (mine.sha === file.sha || loaded.data === undefined) ? mine.text : loaded.data;
   const text = edit?.text ?? base ?? '';
   const dirty = edit !== undefined;
+  const area = useRef<HTMLTextAreaElement>(null);
+  useKeepPlace(sync, key, base !== undefined, {
+    read: () => (area.current === null ? null : sourceLine(area.current)),
+    go: (line) => {
+      if (area.current !== null) scrollSourceTo(area.current, line);
+    },
+  });
   useEffect(() => {
     if (base !== undefined) onMeta(`Markdown source · ${plural(text.split('\n').length, 'line')} · ${bytes(file.size)}`);
   }, [base, text, file.size, onMeta]);
@@ -74,7 +83,7 @@ export function MarkdownSource({ task, file, onMeta }: { task: string; file: Art
           </>
         ) : null}
       </div>
-      <textarea aria-label={`${file.path}, Markdown source`} spellCheck={false} value={text}
+      <textarea ref={area} aria-label={`${file.path}, Markdown source`} spellCheck={false} value={text}
         className="min-h-0 flex-auto resize-none bg-transparent px-5 py-4 font-mono text-[13px] leading-[21px] whitespace-pre-wrap text-ink outline-none"
         onChange={(e) => editOf(key, e.target.value === base ? undefined : e.target.value, edit?.sha ?? file.sha)}
         onKeyDown={(e) => {

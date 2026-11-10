@@ -7,11 +7,14 @@
  */
 export const DOC = [
   'min-w-0 flex-auto text-[15px] leading-[27px] text-[color:var(--doc-ink)]',
-  '[&_:is(h1,h2,h3,h4)]:scroll-mt-4 [&_:is(h1,h2,h3,h4)]:leading-[1.35] [&_:is(h1,h2,h3,h4)]:tracking-[-0.01em] [&_:is(h1,h2,h3,h4)]:text-ink',
+  '[&_:is(h1,h2,h3,h4,h5,h6)]:scroll-mt-4 [&_:is(h1,h2,h3,h4,h5,h6)]:leading-[1.35] [&_:is(h1,h2,h3,h4,h5,h6)]:tracking-[-0.01em] [&_:is(h1,h2,h3,h4,h5,h6)]:text-ink',
   '[&_h1]:mb-[18px] [&_h1]:text-[26px]',
   '[&_h2]:mt-[34px] [&_h2]:mb-3 [&_h2]:border-b [&_h2]:border-sunken [&_h2]:pb-1.5 [&_h2]:text-[20px]',
   '[&_h3]:mt-[26px] [&_h3]:mb-2 [&_h3]:text-[16.5px]',
   '[&_h4]:mt-[18px] [&_h4]:mb-1.5 [&_h4]:text-[15px]',
+  // The fifth and sixth at the text's own size, told from it by their weight and a little air.
+  '[&_:is(h5,h6)]:mt-4 [&_:is(h5,h6)]:mb-1 [&_:is(h5,h6)]:text-[14px]',
+  '[&_h6]:text-ink-2',
   '[&_p]:mb-3.5',
   '[&_:is(ul,ol)]:mb-3.5 [&_:is(ul,ol)]:pl-6',
   '[&_ul]:list-disc',

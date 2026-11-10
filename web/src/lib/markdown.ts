@@ -27,12 +27,20 @@ export interface MarkdownContext {
   readonly before?: ReadonlySet<string> | null;
   /** Leave out a first-level heading that opens the text: the page already has its title. */
   readonly dropTitle?: boolean;
+  /**
+   * Mark where each top-level block begins in the text, as an empty
+   * `<span data-line>` before it, its line counted from 0: what keeps the
+   * rendered view and the source at the same place when one is swapped for
+   * the other.
+   */
+  readonly lines?: boolean;
 }
 
 export interface Heading {
   readonly id: string;
   readonly text: string;
-  readonly level: 1 | 2 | 3;
+  /** Down to the fifth: a sixth is a label more than a part of the text's shape. */
+  readonly level: 1 | 2 | 3 | 4 | 5;
 }
 
 export interface RenderedMarkdown {
@@ -161,8 +169,19 @@ function slug(text: string, used: Set<string>): string {
   return n;
 }
 
+/** An empty element before a block, saying the line of the text it begins on. */
+const marker = (line: number): string => `<span data-line="${line}"></span>`;
+
 export function renderMarkdown(text: string, ctx: MarkdownContext = {}): RenderedMarkdown {
   const tokens: TokensList = marked.lexer(text, { gfm: true });
+  // Where each top-level block begins: their sources run end to end, the blank lines between them blocks of their own.
+  const lineOf = new Map<Token, number>();
+  let at = 0;
+  for (const tok of tokens) {
+    lineOf.set(tok, at);
+    at += tok.raw.split('\n').length - 1;
+  }
+  const marks = (tok: Token): boolean => ctx.lines === true && tok.type !== 'space' && tok.type !== 'def';
   // A title line repeats the heading the page already has.
   if (ctx.dropTitle) {
     const first = tokens.findIndex((x) => x.type !== 'space');
@@ -174,6 +193,7 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
     // Each block read on its own, so one left open cannot take in the next; one new since `before` in a tinted holder.
     doc = document.implementation.createHTMLDocument('').body;
     for (const tok of tokens) {
+      if (marks(tok)) doc.insertAdjacentHTML('beforeend', marker(lineOf.get(tok) ?? 0));
       const one = cleaned(marked.parser(Object.assign([tok], { links: tokens.links }) as TokensList, { gfm: true }));
       if (tok.type !== 'space' && !ctx.before.has(tok.raw.trim())) {
         const holder = doc.ownerDocument.createElement('div');
@@ -183,7 +203,12 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
       } else doc.append(...one.childNodes);
     }
   } else {
-    doc = cleaned(marked.parser(tokens, { gfm: true }));
+    // The marks go in as blocks of raw HTML of their own, so the text is still read whole: a <details> left open in
+    // one block still takes in the ones after it.
+    const blocks = ctx.lines === true
+      ? tokens.flatMap((tok): Token[] => (marks(tok) ? [{ type: 'html', block: true, pre: false, raw: '', text: marker(lineOf.get(tok) ?? 0) }, tok] : [tok]))
+      : [...tokens];
+    doc = cleaned(marked.parser(Object.assign(blocks, { links: tokens.links }) as TokensList, { gfm: true }));
   }
   const waiting = new Set<string>();
   colourBlocks(doc, waiting);
@@ -191,9 +216,9 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
   fixLinks(doc, ctx);
   const used = new Set<string>();
   const heads: Heading[] = [];
-  for (const el of doc.querySelectorAll('h1, h2, h3')) {
+  for (const el of doc.querySelectorAll('h1, h2, h3, h4, h5')) {
     el.id = slug(el.textContent ?? '', used);
-    heads.push({ id: el.id, text: el.textContent ?? '', level: Number(el.tagName.slice(1)) as 1 | 2 | 3 });
+    heads.push({ id: el.id, text: el.textContent ?? '', level: Number(el.tagName.slice(1)) as Heading['level'] });
   }
   return { html: doc.innerHTML, heads, waiting: [...waiting] };
 }

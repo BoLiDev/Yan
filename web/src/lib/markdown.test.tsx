@@ -49,6 +49,30 @@ describe('Markdown an agent wrote', () => {
     expect(doc.querySelector('a')?.getAttribute('href')).toBe('#/t/t1/a/c5/notes.md');
   });
 
+  it('lists its headings for the outline down to the fifth level, each with an id to go to', () => {
+    const { heads, html } = renderMarkdown('# One\n\n## Two\n\n### Three\n\n#### Four\n\n##### Five\n\n###### Six\n');
+    expect(heads.map((h) => [h.text, h.level])).toEqual([['One', 1], ['Two', 2], ['Three', 3], ['Four', 4], ['Five', 5]]);
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    for (const h of heads) expect(box.querySelector(`#${h.id}`)?.textContent).toBe(h.text);
+  });
+
+  it('marks, when asked, the line of its source each block begins on, reading the text whole all the same', () => {
+    const text = '# Title\n\nA paragraph\nover two lines.\n\n<details>\n<summary>more</summary>\n\n- one\n- two\n\n</details>\n\n```ts\nconst x = 1;\n```\n';
+    const doc = shown(text, { lines: true });
+    const at = (el: Element | null): number | undefined => {
+      let m = el?.previousElementSibling;
+      while (m && !m.hasAttribute('data-line')) m = m.previousElementSibling;
+      return m ? Number(m.getAttribute('data-line')) : undefined;
+    };
+    expect(at(doc.querySelector('h1'))).toBe(0);
+    expect(at(doc.querySelector('p'))).toBe(2);
+    expect(at(doc.querySelector('ul'))).toBe(8);
+    expect(at(doc.querySelector('pre'))).toBe(13);
+    expect(doc.querySelector('details ul'), 'the list still inside what was left open').not.toBeNull();
+    expect(shown(text).querySelector('[data-line]'), 'and none unless asked').toBeNull();
+  });
+
   it('tints the blocks new since the last look, each block read on its own', () => {
     const before = new Set(['# Title', 'Old paragraph.']);
     const doc = shown('Old paragraph.\n\nNew paragraph.\n\n<div>left open', { before });

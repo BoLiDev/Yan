@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { ArtifactFile } from '../lib/api';
-import { KIND_LABEL, WRAPPED, baseName, dirName, enc, ext, kindOf, variantsOf, viewerOf } from '../lib/files';
-import { bytes, plural } from '../lib/format';
-import { Bar, BarSep, BarTools, Crumb, Empty, Scroll, Seg, Stepper, Tool } from '../components/page';
-import { fileUrl, shaUrl, useIndex, useText, vaultPath } from '../state/server';
+import { KIND_LABEL, WRAPPED, baseName, enc, ext, kindOf, variantsOf, viewerOf } from '../lib/files';
+import { bytes } from '../lib/format';
+import { Bar, BarSep, BarTools, Crumb, Seg, Stepper, Tool } from '../components/page';
+import { fileUrl, shaUrl, useIndex, vaultPath } from '../state/server';
 import { setPref, useUI } from '../state/ui';
 import { CodeStage } from './Code';
-import { MarkdownDoc } from './Markdown';
 import { useKeyNav } from './nav';
 import { FileCard, Shot, Stage } from './file/Stage';
 import { FontStage } from './file/FontStage';
+import { MarkdownScroll } from './file/MarkdownScroll';
 import { MarkdownSource } from './file/MarkdownSource';
+import { useSync } from './file/place';
 import { Foot, Pair } from './file/Foot';
 import { PageFrame } from './file/PageFrame';
 import { VideoStage } from './file/VideoStage';
@@ -29,19 +30,6 @@ export interface FileContext {
   readonly taskTitle?: string;
 }
 
-/** A Markdown file drawn; edited in its source and not saved, drawn as edited, which its line says. */
-function MarkdownScroll({ task, file, onMeta }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void }) {
-  const loaded = useText(`/blob/${file.sha}`);
-  const edit = useUI((s) => s.edits[vaultPath(task, file.path)]);
-  const text = edit?.text ?? loaded.data;
-  useEffect(() => {
-    if (text !== undefined) onMeta(`Markdown · ${plural(text.split('\n').length, 'line')} · ${bytes(file.size)}${edit ? ' · edited in its source, not saved' : ''}`);
-  }, [text, edit, file.size, onMeta]);
-  if (text === undefined && loaded.isError) return <Scroll><Empty><span className="text-destructive">{String(loaded.error.message)}</span></Empty></Scroll>;
-  if (text === undefined) return <Scroll><Empty>Loading…</Empty></Scroll>;
-  return <Scroll><MarkdownDoc text={text} task={task} dir={dirName(`artifacts/${file.path}`)} outline /></Scroll>;
-}
-
 /** One file of a task, shown as what it is, with the tools for it and a line about it at its foot. */
 export function FileView(ctx: FileContext) {
   const { task, file } = ctx;
@@ -54,6 +42,8 @@ export function FileView(ctx: FileContext) {
   const { data: index } = useIndex();
   const [meta, setMeta] = useState(`${KIND_LABEL[kindOf(name)].replace(/s$/, '')} · ${bytes(file.size)}`);
   const stage = useRef<HTMLDivElement>(null);
+  // Where a Markdown file was being read, for Rendered and Source to open at the same place when swapped.
+  const sync = useSync();
   useKeyNav(ctx.prev, ctx.next);
 
   const tools: ReactNode[] = [];
@@ -92,11 +82,14 @@ export function FileView(ctx: FileContext) {
       ? <CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} onMeta={setMeta} />
       : <Stage at="page"><PageFrame src={fileUrl(path)} width={prefs.width} /></Stage>;
   } else if (viewer === 'markdown') {
-    tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdSource ? 'src' : 'doc'} onPick={(v) => useUI.setState({ mdSource: v === 'src' })} />);
+    tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdSource ? 'src' : 'doc'} onPick={(v) => {
+      sync.leave(path);
+      useUI.setState({ mdSource: v === 'src' });
+    }} />);
     // Its source is written in where it is shown.
     body = mdSource
-      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} />
-      : <MarkdownScroll task={task} file={file} onMeta={setMeta} />;
+      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} sync={sync} />
+      : <MarkdownScroll key={path} task={task} file={file} onMeta={setMeta} sync={sync} />;
   } else if (viewer === 'text') {
     const e = ext(name);
     const wrap = prefs.wrap[e] ?? WRAPPED.has(e);
