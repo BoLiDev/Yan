@@ -5,21 +5,24 @@ import { bytes, plural } from '../../lib/format';
 import { Empty, Scroll } from '../../components/page';
 import { MarkdownDoc } from '../Markdown';
 import { useMarkdownText } from './markdownText';
-import { holdRenderedAt, renderedLine, useKeepPlace, type Sync } from './place';
+import { holdRenderedAt, renderedLine, useReadingPlace } from './place';
 
 /**
  * A Markdown file drawn; edited in its source and not saved, drawn as
- * edited, which its line says. Swapped in for its source, it opens where the
- * source was being read, and says where it is when swapped back.
+ * edited, which its line says. It opens where the file was being read, in
+ * its source or here, and stays at what is being read when an agent changes
+ * the file.
  */
-export function MarkdownScroll({ task, file, onMeta, sync }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; sync?: Sync }) {
+export function MarkdownScroll({ task, file, onMeta }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void }) {
   const { key: path, loaded, edit, text } = useMarkdownText(task, file);
   const box = useRef<HTMLDivElement>(null);
   const lines = text === undefined ? 0 : text.split('\n').length;
   useEffect(() => {
     if (text !== undefined) onMeta(`Markdown · ${plural(lines, 'line')} · ${bytes(file.size)}${edit ? ' · edited in its source, not saved' : ''}`);
   }, [text, lines, edit, file.size, onMeta]);
-  useKeepPlace(sync, path, text !== undefined, {
+  useReadingPlace(path, text !== undefined, text, {
+    el: () => box.current,
+    text: () => text,
     read: () => (box.current === null ? null : renderedLine(box.current, lines)),
     go: (line) => (box.current === null ? undefined : holdRenderedAt(box.current, line, lines)),
   });

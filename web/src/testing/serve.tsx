@@ -11,6 +11,7 @@ import type { Index, Status, TaskDetail, TaskSummary } from '../lib/api';
 import { initSeen } from '../lib/seen';
 import { queryClient } from '../state/server';
 import { useUI } from '../state/ui';
+import { forgetSpots } from '../views/file/reading';
 // Drawn with the page's own styles, so what is on top and what can be clicked is as on the page.
 import '../index.css';
 
@@ -75,6 +76,7 @@ export async function reset(): Promise<void> {
   vi.unstubAllGlobals();
   queryClient.clear();
   useUI.setState(fresh, true);
+  forgetSpots();
   history.replaceState(null, '', '#/latest');
 }
 

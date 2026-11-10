@@ -1,4 +1,4 @@
-import { QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { keepPreviousData, QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Draft, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WorktreeState, type WriteResult } from '../lib/api';
 import { enc } from '../lib/files';
 import { langLoaded, langReady } from '../lib/highlight';
@@ -89,9 +89,14 @@ export function useCommit(id: string, repo: number, sha: string | undefined): Us
   });
 }
 
-/** A text once per URL: a blob or a diff named by its shas is the same bytes forever. */
-export function useText(url: string | null): UseQueryResult<string> {
-  return useQuery({ queryKey: ['text', url], queryFn: () => getText(url as string), enabled: !!url });
+/**
+ * A text once per URL: a blob or a diff named by its shas is the same bytes
+ * forever. With `keep`, the text asked for before goes on being given while
+ * a new URL's loads, as `isPlaceholderData`: one file changed under a view,
+ * which then has nothing to clear while it waits.
+ */
+export function useText(url: string | null, options: { readonly keep?: boolean } = {}): UseQueryResult<string> {
+  return useQuery({ queryKey: ['text', url], queryFn: () => getText(url as string), enabled: !!url, ...(options.keep === true ? { placeholderData: keepPreviousData } : {}) });
 }
 
 /** Whether highlight.js can colour `lang` yet, loading it the first time it is asked for. */

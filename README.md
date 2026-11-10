@@ -303,8 +303,12 @@ in the box, which stays open to try again. Images, pages, Markdown, code, logs, 
 open in place, and prev and next walk a folder. A Markdown file drawn has
 an outline beside it, its headings down to the fifth level, when the
 window is wide enough for both. A Markdown file's Source
-is its editor, and swapping between it and Rendered keeps the place being
-read: the one swapped in opens at the line the other had at its top. What
+is its editor. Each Markdown file keeps the place it is being read at, in
+this browser: swapped between Source and Rendered, opened again after
+another file or a reload, or changed under it by an agent's push, it opens
+at the line it was read at, found again by its words when the agent wrote
+above it, and the page goes on showing the file as it was while the
+changed one loads. What
 is typed there is kept while the page is open, drawn
 as edited in Rendered, and saved with ⌘S, which goes on editing, or
 with Save or Escape, which go back to Rendered once it is saved, Escape

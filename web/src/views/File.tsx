@@ -11,7 +11,6 @@ import { FileCard, Shot, Stage } from './file/Stage';
 import { FontStage } from './file/FontStage';
 import { MarkdownScroll } from './file/MarkdownScroll';
 import { MarkdownSource } from './file/MarkdownSource';
-import { useSync } from './file/place';
 import { Foot, Pair } from './file/Foot';
 import { PageFrame } from './file/PageFrame';
 import { VideoStage } from './file/VideoStage';
@@ -42,8 +41,6 @@ export function FileView(ctx: FileContext) {
   const { data: index } = useIndex();
   const [meta, setMeta] = useState(`${KIND_LABEL[kindOf(name)].replace(/s$/, '')} · ${bytes(file.size)}`);
   const stage = useRef<HTMLDivElement>(null);
-  // Where a Markdown file was being read, for Rendered and Source to open at the same place when swapped.
-  const sync = useSync();
   useKeyNav(ctx.prev, ctx.next);
 
   const tools: ReactNode[] = [];
@@ -83,16 +80,12 @@ export function FileView(ctx: FileContext) {
       : <Stage at="page"><PageFrame src={fileUrl(path)} width={prefs.width} /></Stage>;
   } else if (viewer === 'markdown') {
     tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdSource ? 'src' : 'doc'} onPick={(v) => {
-      sync.leave(path);
       useUI.setState({ mdSource: v === 'src' });
     }} />);
     // Its source is written in where it is shown.
     body = mdSource
-      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} sync={sync} onDone={() => {
-        sync.leave(path);
-        useUI.setState({ mdSource: false });
-      }} />
-      : <MarkdownScroll key={path} task={task} file={file} onMeta={setMeta} sync={sync} />;
+      ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} onDone={() => useUI.setState({ mdSource: false })} />
+      : <MarkdownScroll key={path} task={task} file={file} onMeta={setMeta} />;
   } else if (viewer === 'text') {
     const e = ext(name);
     const wrap = prefs.wrap[e] ?? WRAPPED.has(e);

@@ -1,53 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { keepSpot, spotIn } from './reading';
 
 /**
- * Where a Markdown file was being read, so the view swapped in for it,
- * Rendered for Source or Source for Rendered, opens at the same place: the
- * line of its source at the top of the view, with how far into that line,
- * as a fraction. The rendered text carries a mark before each of its blocks
+ * Where a Markdown file is being read, and putting it there: the line of its
+ * source at the top of the view, with how far into that line, as a
+ * fraction. The rendered text carries a mark before each of its blocks
  * saying the line the block begins on (`renderMarkdown`'s `lines`), and a
  * place inside a block is reckoned in proportion, between its mark and the
  * next; the source is measured by laying its text out as its box lays it
- * out, lines wrapped as they wrap there.
+ * out, lines wrapped as they wrap there. Where each file was read is kept
+ * by `reading.ts`.
  */
-
-export interface Place {
-  /** The file, by its path in the vault: a place is kept for the one it was read in. */
-  readonly path: string;
-  readonly line: number;
-}
-
-/** What the views of one file share: where the one left off, and how to ask the one on show where it is. */
-export interface Sync {
-  /** Note where the view on show of the file at `path` is, as it is about to be swapped for the other. */
-  readonly leave: (path: string) => void;
-  /** Where the file at `path` was left, or null when it was not, or another file was. */
-  readonly at: (path: string) => number | null;
-  /** The view on show says how to ask it where it is; what this returns lets that go. */
-  readonly show: (read: () => number | null) => () => void;
-}
-
-/** A `Sync` for a file view, the same for as long as it is shown. */
-export function useSync(): Sync {
-  const [sync] = useState<Sync>(() => {
-    let place: Place | null = null;
-    let reader: (() => number | null) | null = null;
-    return {
-      leave: (path) => {
-        const line = reader?.() ?? null;
-        place = line === null ? null : { path, line };
-      },
-      at: (path) => (place !== null && place.path === path ? place.line : null),
-      show: (read) => {
-        reader = read;
-        return () => {
-          if (reader === read) reader = null;
-        };
-      },
-    };
-  });
-  return sync;
-}
 
 /** The marks in a rendered text, with where each is from the top of what scrolls: content coordinates. */
 function marksIn(scroller: HTMLElement): { line: number; top: number }[] {
@@ -172,20 +135,48 @@ export function scrollSourceTo(area: HTMLTextAreaElement, line: number): void {
 }
 
 /**
- * A view of the file at `path` taking part in `sync`: once it is `ready`, it
- * is put where the last one left off, by `go`; until it goes, `read` is how
- * it says where it is, asked as it is swapped for the other.
+ * A view of the Markdown file at `path`, Rendered or Source, keeping its
+ * place: as it is read, where it is (`read`) is noted for the file; once it
+ * is `ready`, and whenever `anchor`, the text it shows, is changed under it,
+ * by an agent's push, it is put back where the file was being read (`go`),
+ * in whichever view, before another file was opened, before the page was
+ * reloaded, or before the change. An `anchor` of undefined holds it where it
+ * is: what is typed in it moves nothing.
  */
-export function useKeepPlace(sync: Sync | undefined, path: string, ready: boolean, view: { read: () => number | null; go: (line: number) => (() => void) | void }): void {
-  const latest = useRef({ view, path });
+export function useReadingPlace(path: string, ready: boolean, anchor: string | undefined, view: { el: () => HTMLElement | null; text: () => string | undefined; read: () => number | null; go: (line: number) => (() => void) | void }): void {
+  const latest = useRef(view);
   useLayoutEffect(() => {
-    latest.current = { view, path };
+    latest.current = view;
   });
   useLayoutEffect(() => {
-    if (!ready || sync === undefined) return;
-    const line = sync.at(latest.current.path);
+    if (anchor === undefined) return;
+    const line = spotIn(path, anchor);
     if (line === null) return;
-    return latest.current.view.go(line) ?? undefined;
-  }, [ready, sync]);
-  useEffect(() => sync?.show(() => latest.current.view.read()), [sync]);
+    return latest.current.go(line) ?? undefined;
+  }, [path, anchor]);
+  useEffect(() => {
+    const el = latest.current.el();
+    if (!ready || el === null) return;
+    const note = (): void => {
+      const [line, text] = [latest.current.read(), latest.current.text()];
+      if (line !== null && text !== undefined) keepSpot(path, text, line);
+    };
+    // Once a frame at most, however fast it is scrolled.
+    let frame = 0;
+    const scrolled = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(() => {
+        frame = 0;
+        note();
+      });
+    };
+    el.addEventListener('scroll', scrolled, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', scrolled);
+      // A scroll not yet noted, as the view is swapped or left: noted while the view is still there to say where it is.
+      if (frame !== 0) {
+        cancelAnimationFrame(frame);
+        if (el.isConnected) note();
+      }
+    };
+  }, [path, ready]);
 }

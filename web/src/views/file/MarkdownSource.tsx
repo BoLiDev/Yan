@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { onStatus } from '../../state/server';
 import { toast, useUI } from '../../state/ui';
 import { useMarkdownText } from './markdownText';
-import { scrollSourceTo, sourceLine, useKeepPlace, type Sync } from './place';
+import { scrollSourceTo, sourceLine, useReadingPlace } from './place';
 
 /** One edit's place in the page's store: the file's path in the vault. */
 const editOf = (key: string, text: string | undefined, sha: string): void =>
@@ -24,17 +24,19 @@ const editOf = (key: string, text: string | undefined, sha: string): void =>
  * save goes straight back. serve commits it here at once, so it is shown
  * the moment it is saved, and pushes it on its own. Saving names the file
  * the editing began from, so one an agent wrote meanwhile is refused, not
- * written over, and what was typed stays, here, in Source. Swapped in for
- * the rendered file, it opens where that was being read, and says where it
- * is when swapped back.
+ * written over, and what was typed stays, here, in Source. It opens where
+ * the file was being read, rendered or here, and stays at what is being read
+ * when an agent changes the file while nothing is typed in it.
  */
-export function MarkdownSource({ task, file, onMeta, sync, onDone }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; sync?: Sync; onDone?: () => void }) {
+export function MarkdownSource({ task, file, onMeta, onDone }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void; onDone?: () => void }) {
   const { key, loaded, edit, base, text: shown } = useMarkdownText(task, file);
   const text = shown ?? '';
   const [saving, setSaving] = useState(false);
   const dirty = edit !== undefined;
   const area = useRef<HTMLTextAreaElement>(null);
-  useKeepPlace(sync, key, base !== undefined, {
+  useReadingPlace(key, base !== undefined, edit === undefined ? base : undefined, {
+    el: () => area.current,
+    text: () => area.current?.value,
     read: () => (area.current === null ? null : sourceLine(area.current)),
     go: (line) => {
       if (area.current !== null) scrollSourceTo(area.current, line);
