@@ -5,7 +5,7 @@ import { bytes } from '../lib/format';
 import { link } from '../lib/route';
 import { Bar, BarSep, BarTools, Crumb, Seg, Stepper, Tool } from '../components/page';
 import { fileUrl, shaUrl, useIndex, vaultPath } from '../state/server';
-import { setPref, useUI } from '../state/ui';
+import { setPref, showVersion, useUI } from '../state/ui';
 import { FrameReview } from '../components/review/FrameReview';
 import { ReviewMenu } from '../components/review/ReviewMenu';
 import { inCode } from '../components/review/locate';
@@ -44,7 +44,7 @@ export function FileView(ctx: FileContext) {
   const prefs = useUI((s) => s.prefs);
   const pageSource = useUI((s) => s.pageSource);
   const mdSource = useUI((s) => s.mdSource);
-  const mdVersion = useUI((s) => s.mdVersion);
+  const mdVersion = useUI((s) => s.mdVersions[path] ?? null);
   const { data: index } = useIndex();
   const [meta, setMeta] = useState(`${KIND_LABEL[kindOf(name)].replace(/s$/, '')} · ${bytes(file.size)}`);
   const stage = useRef<HTMLDivElement>(null);
@@ -89,7 +89,8 @@ export function FileView(ctx: FileContext) {
     // Neither is picked while a change is shown in the file's place, and picking either goes back to the file.
     tools.push(
       <Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdVersion !== null ? null : mdSource ? 'src' : 'doc'} onPick={(v) => {
-        useUI.setState({ mdVersion: null, mdSource: v === 'src' });
+        showVersion(path, null);
+        useUI.setState({ mdSource: v === 'src' });
       }} />,
       <HistoryMenu key="history" task={task} file={file} />,
     );

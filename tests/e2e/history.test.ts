@@ -95,6 +95,12 @@ describe("a Markdown artifact's history", () => {
     if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h4-split.png') });
     await right.getByRole('button', { name: 'Inline' }).click();
 
+    // Looked away from, at the task's log, and come back to: the change is still what the file shows.
+    await page.goto(served.url('/#/t/t001/log'));
+    await page.getByRole('main').getByText('No log yet.').waitFor();
+    await page.goto(served.url('/#/t/t001/a/docs/design.md'));
+    await right.locator('del', { hasText: '会无限次' }).waitFor();
+
     // On to the change after it, user's own, and back to the file.
     await right.getByRole('button', { name: 'The change after' }).click();
     await right.locator('ins', { hasText: '毫秒，之后每次翻倍' }).waitFor();

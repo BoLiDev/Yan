@@ -358,9 +358,10 @@ which way it is drawn is kept in this browser. It opens at the first place
 changed, and the arrows over it, or J and K, go to the next and the
 one before, round from the last to the first, with how many there are; a line over it says which change it is, with the ways to the one
 before and the one after, and Back to the file, as Rendered and Source go
-back too. What is selected in a change is commented on from a right click,
+back too. A change being read stays shown for its file while other files
+and other tasks are looked at, until the page is closed. What is selected in a change is commented on from a right click,
 as in the file; the comment names the change it was read in, by its commit
-and its time, and says so when the words are ones the change took out. Opening another file leaves it.
+and its time, and says so when the words are ones the change took out.
 
 What you read on the page you can review as you go, without stopping to
 tell an agent each thing. Select some of a Markdown file as it is rendered

@@ -5,7 +5,8 @@ import { cn } from '../../lib/utils';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
-import { useUI } from '../../state/ui';
+import { vaultPath } from '../../state/server';
+import { showVersion, useUI } from '../../state/ui';
 import { saidOf, useHistory } from './history';
 
 /** The versions a menu lists: the recent ones are what is looked for. */
@@ -16,12 +17,14 @@ const LISTED = 12;
  * last changes, the newest first, each with when it was, how it came
  * about and how many lines it added and took out. Picking one shows what
  * it changed, in place of the file (`MarkdownHistory`); the file is shown
- * as itself until one is picked. The versions are asked for when the menu
+ * as itself until one is picked, and the change picked stays shown for that
+ * file while other files and other tasks are looked at. The versions are asked for when the menu
  * first opens.
  */
 export function HistoryMenu({ task, file }: { task: string; file: ArtifactFile }) {
   const [open, setOpen] = useState(false);
-  const picked = useUI((s) => s.mdVersion);
+  const path = vaultPath(task, file.path);
+  const picked = useUI((s) => s.mdVersions[path] ?? null);
   const history = useHistory(task, file, open || picked !== null);
   const list = history.data;
   return (
@@ -32,7 +35,7 @@ export function HistoryMenu({ task, file }: { task: string; file: ArtifactFile }
       <DropdownMenuContent align="end" className="w-[340px]">
         <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">{list === undefined ? (history.isError ? String(history.error.message) : 'Loading…') : list.length === 0 ? 'No history yet' : 'What changed, newest first'}</div>
         {list?.slice(0, LISTED).map((v, i) => (
-          <DropdownMenuItem key={v.commit} className={cn('flex-col items-stretch gap-0.5 py-1.5', v.commit === picked && 'bg-muted')} onClick={() => useUI.setState({ mdVersion: v.commit })}>
+          <DropdownMenuItem key={v.commit} className={cn('flex-col items-stretch gap-0.5 py-1.5', v.commit === picked && 'bg-muted')} onClick={() => showVersion(path, v.commit)}>
             <span className="flex items-baseline gap-2 text-[13px] font-medium">
               {when(v.at)}
               {i === 0 ? <span className="text-[11.5px] font-normal text-brand">latest</span> : null}

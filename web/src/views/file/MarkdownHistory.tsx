@@ -11,8 +11,8 @@ import { Empty, Scroll, Seg } from '../../components/page';
 import { ReviewMenu } from '../../components/review/ReviewMenu';
 import { inChange } from '../../components/review/locate';
 import { Button } from '../../components/ui/button';
-import { filesOrigin, useTask, useText } from '../../state/server';
-import { setPref, useUI } from '../../state/ui';
+import { filesOrigin, useTask, useText, vaultPath } from '../../state/server';
+import { setPref, showVersion, useUI } from '../../state/ui';
 import { DOC } from '../doc';
 import { saidOf, useHistory } from './history';
 import { useSpots } from './spots';
@@ -98,7 +98,7 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
   // Side by side a place is a row, the old and the new of it together.
   const spots = useSpots(doc, split ? '[data-row]:has([data-diff])' : '[data-diff]', html);
 
-  const go = (to: string | null): void => useUI.setState({ mdVersion: to });
+  const go = (to: string | null): void => showVersion(vaultPath(task, file.path), to);
   if (history.isError) return <Scroll><Empty><span className="text-destructive">{String(history.error.message)}</span></Empty></Scroll>;
   if (list === undefined) return <Scroll><Empty>Loading…</Empty></Scroll>;
   if (v === undefined) return <Scroll><Empty title="Not a version of this file"><Button variant="outline" onClick={() => go(null)}>Back to the file</Button></Empty></Scroll>;

@@ -94,8 +94,13 @@ interface UI {
   /** A page or a Markdown file shown as its source. */
   pageSource: boolean;
   mdSource: boolean;
-  /** The version of the Markdown file open whose changes are shown in place of it, by its commit; another file opens as itself. */
-  mdVersion: string | null;
+  /**
+   * The version of a Markdown file whose changes are shown in place of the
+   * file, by the file's path in the vault and the version's commit. Each file
+   * keeps its own for as long as the page is open, so a change being read is
+   * still there after a look at another task; a file with none is shown as itself.
+   */
+  mdVersions: Readonly<Record<string, string>>;
   /** What to select in a Markdown file's source as it next opens, by the file's path in the vault: the lines, counted from 0, and in them the words, when they are written as they read. */
   mdSelect: { readonly key: string; readonly from: number; readonly to: number; readonly quote: string } | null;
   /** A Markdown artifact's source edited and not saved, by its path in the vault, with the file it began from: kept while the page is open. */
@@ -176,7 +181,7 @@ export const useUI = create<UI>(() => ({
   logBase: {},
   pageSource: false,
   mdSource: false,
-  mdVersion: null,
+  mdVersions: {},
   mdSelect: null,
   edits: {},
   saved: {},
@@ -192,6 +197,14 @@ useUI.subscribe((s, before) => {
   if (s.seen !== before.seen && s.seen) save(SEEN_KEY, s.seen);
   if (s.recent !== before.recent) save(RECENT_KEY, s.recent);
 });
+
+/** Show the change `commit` made to the Markdown file at `path`, in the vault, in the file's place; null shows the file as itself. */
+export function showVersion(path: string, commit: string | null): void {
+  useUI.setState((s) => {
+    const { [path]: _gone, ...rest } = s.mdVersions;
+    return { mdVersions: commit === null ? rest : { ...rest, [path]: commit } };
+  });
+}
 
 export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]): void {
   useUI.setState((s) => ({ prefs: { ...s.prefs, [key]: value } }));

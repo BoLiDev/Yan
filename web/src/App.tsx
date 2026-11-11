@@ -39,7 +39,7 @@ function useRouteEffects(): void {
   const moved = useEffectEvent(() => {
     const was = before.current;
     before.current = r;
-    useUI.setState({ pageSource: false, mdVersion: null });
+    useUI.setState({ pageSource: false });
     // A new task is asked for in a box over the page: #/new alone opens it, over Latest.
     if (r.view === 'new' && r.launch === undefined) {
       useUI.setState({ newTask: true });
