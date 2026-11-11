@@ -12,6 +12,7 @@ import { useText } from '../../state/server';
 import { useUI } from '../../state/ui';
 import { DIFF, DiffBody } from '../branch/Diff';
 import { DiffScroll } from '../branch/Later';
+import { LayoutTools } from '../branch/tools';
 import { MarkdownDoc } from '../Markdown';
 
 /** What changed inside a line, as `markWords` wraps it: deeper than the line's own tint, and not struck through or underlined, which a diff's colours already say. */
@@ -82,8 +83,10 @@ export function MarkdownHistory({ task, file, onMeta }: { task: string; file: Ar
     <div className="flex min-h-0 flex-auto">
       {as === 'changes' ? <Changes key={v.commit} v={v} /> : <Document key={v.commit} task={task} file={file} v={v} />}
       <aside className="flex w-[280px] flex-none flex-col border-l border-sunken" aria-label="Versions">
-        <div className="flex h-11 flex-none items-center border-b border-sunken px-3">
+        <div className="flex flex-none flex-col gap-2 border-b border-sunken p-3">
           <Seg options={[['changes', 'Changes'], ['doc', 'Document']] as const} current={as} onPick={setAs} wide />
+          {/* How the changes are laid out, as a branch's are; the document has one way to be drawn. */}
+          {as === 'changes' ? <LayoutTools /> : null}
         </div>
         <ol className="min-h-0 flex-auto overflow-y-auto p-2">
           {list.map((x, i) => (
