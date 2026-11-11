@@ -347,8 +347,9 @@ versions beside each other instead, block against block at the same height:
 the one before on the left with what was taken out of it marked, this one
 on the right with what was put in, a block put in another's place facing
 it, and a block only one has facing nothing;
-which way it is drawn is kept in this browser. It opens at the first thing
-changed; a line over it says which change it is, with the ways to the one
+which way it is drawn is kept in this browser. It opens at the first place
+changed, ringed, and the arrows over it, or J and K, go to the next and the
+one before, round from the last to the first, with how many there are; a line over it says which change it is, with the ways to the one
 before and the one after, and Back to the file, as Rendered and Source go
 back too. What is selected in a change is commented on from a right click,
 as in the file; the comment names the change it was read in, by its commit

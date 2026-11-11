@@ -65,6 +65,19 @@ describe("a Markdown artifact's history", () => {
     expect(await right.getByText('毫秒').count(), 'as that version had it, not as it is now').toBe(0);
     if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h2-agent.png') });
 
+    // From one place changed to the next: the reworded paragraph, then the part added, and round again.
+    const places = right.getByRole('group', { name: 'Places changed' });
+    const current = (): Promise<string> => right.locator('[data-current]').first().innerText();
+    await places.getByText('1 / 2').waitFor();
+    expect(await current()).toContain('最多');
+    await places.getByRole('button', { name: 'The next place changed' }).click();
+    await places.getByText('2 / 2').waitFor();
+    expect(await right.locator('[data-current]').allInnerTexts(), 'a part added is one place, its heading and its paragraph').toEqual([expect.stringContaining('风险'), expect.stringContaining('重试期间用户可能已经换了一张卡')]);
+    await page.keyboard.press('j');
+    await places.getByText('1 / 2').waitFor();
+    await page.keyboard.press('k');
+    await places.getByText('2 / 2').waitFor();
+
     // What the change took out is commented on where it is drawn, the comment saying which change, and that it is gone.
     await right.locator('del', { hasText: '会无限次' }).dblclick();
     await right.locator('del', { hasText: '会无限次' }).click({ button: 'right' });

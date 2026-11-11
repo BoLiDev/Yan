@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ArtifactFile } from '../../lib/api';
 import { dirName } from '../../lib/files';
 import { plural, when } from '../../lib/format';
@@ -14,6 +14,7 @@ import { filesOrigin, useTask, useText } from '../../state/server';
 import { setPref, useUI } from '../../state/ui';
 import { DOC } from '../doc';
 import { saidOf, useHistory } from './history';
+import { useSpots } from './spots';
 
 /**
  * What became of each block, as `renderMarkdownDiff` holds it: one added
@@ -27,6 +28,8 @@ const DIFFED = [
   '[&_[data-diff=del]]:bg-[var(--diff-del)] [&_[data-diff=del]]:line-through [&_[data-diff=del]]:decoration-[color:var(--red)]/50 [&_[data-diff=del]_*]:text-ink-3',
   // A heading's own space above it is the holder's.
   '[&_[data-diff]>:first-child]:mt-0',
+  // The place being looked at, of those the change touched (`useSpots`): ringed, a row side by side as one.
+  '[&_[data-current]]:rounded-[10px] [&_[data-current]]:outline-2 [&_[data-current]]:outline-offset-4 [&_[data-current]]:outline-brand/45',
   '[&_ins]:rounded-[3px] [&_ins]:bg-[var(--diff-add-word)] [&_ins]:no-underline',
   '[&_del]:rounded-[3px] [&_del]:bg-[var(--diff-del-word)] [&_del]:text-ink-3 [&_del]:decoration-[color:var(--red)]/60',
 ].join(' ');
@@ -45,7 +48,8 @@ const SPLIT = [
 /**
  * What one version of a Markdown file changed of the one before it, drawn
  * as the document: the text as that version had it, with what it added,
- * took out and reworded marked in it, opened at the first of them; or, side
+ * took out and reworded marked in it, opened at the first of them, the
+ * others a step away each, by the arrows over it or J and K; or, side
  * by side, the version before on the left and this one on the right. Over it,
  * which version it is, the ways to the one before and the one after, and
  * the way back to the file as it is. What is selected in it is commented
@@ -87,9 +91,8 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
   // Opened at the first thing changed, which may be far down a long file.
   const doc = useRef<HTMLDivElement>(null);
   const html = rendered?.html;
-  useLayoutEffect(() => {
-    if (html !== undefined) doc.current?.querySelector('[data-diff], ins, del')?.scrollIntoView({ block: 'center' });
-  }, [html, commit]);
+  // Side by side a place is a row, the old and the new of it together.
+  const spots = useSpots(doc, split ? '[data-row]:has([data-diff])' : '[data-diff]', html);
 
   const go = (to: string | null): void => useUI.setState({ mdVersion: to });
   if (history.isError) return <Scroll><Empty><span className="text-destructive">{String(history.error.message)}</span></Empty></Scroll>;
@@ -108,6 +111,13 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
           {at === 0 ? ' · the latest' : ` · ${at} ${at === 1 ? 'change' : 'changes'} ago`}
         </span>
         <span className="ml-auto flex flex-none items-center gap-1">
+          {spots.total > 0 ? (
+            <span className="mr-1 flex items-center" role="group" aria-label="Places changed">
+              <Button variant="ghost" size="icon-sm" aria-label="The place changed before this one" title="The place changed before (K)" onClick={() => spots.step(-1)}><Icon name="up" size={15} /></Button>
+              <span className="min-w-[44px] text-center tabular-nums" aria-live="polite">{`${spots.at + 1} / ${spots.total}`}</span>
+              <Button variant="ghost" size="icon-sm" aria-label="The next place changed" title="The next place changed (J)" onClick={() => spots.step(1)}><Icon name="down" size={15} /></Button>
+            </span>
+          ) : null}
           <Seg options={[['inline', 'Inline'], ['split', 'Side by side']] as const} current={split ? 'split' : 'inline'} onPick={(how) => setPref('history', how)} />
           <Button variant="ghost" size="sm" onClick={() => go(null)}>Back to the file</Button>
         </span>
