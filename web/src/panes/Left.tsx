@@ -202,20 +202,23 @@ export function Left() {
         </button>
         <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', creating && 'bg-foreground/10 text-foreground')} aria-label="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></Button>
       </div>
-      {/* The Latest line is the card, so the bell sits inside it: a button cannot sit inside the row's link. */}
-      <div className={cn('flex items-center gap-0.5 rounded-[10px] pr-1', onLatest ? 'bg-card ring-1 ring-border' : 'has-[>a:hover]:bg-hover')}>
-        <a className={cn(row(), 'min-w-0 flex-1 font-bold hover:bg-transparent')} aria-current={onLatest ? 'page' : undefined} href="#/latest">
-          <Icon name="latest" size={17} />
-          <span className={GROW}>Latest</span>
-          {unseen > 0 ? <Badge className="min-w-5 bg-success px-1.5 font-bold text-white tabular-nums dark:text-sunken" title={`${plural(unseen, 'task')} with something new`}>{unseen}</Badge> : null}
-        </a>
-        <Bell />
+      {/* Latest and Drafts are of a kind, what is yours to read and what is yours to write, neither a task: one after the other, as a group's tasks are. */}
+      <div className="flex flex-col gap-px">
+        {/* The Latest line is the card, so the bell sits inside it: a button cannot sit inside the row's link. */}
+        <div className={cn('flex items-center gap-0.5 rounded-[10px] pr-1', onLatest ? 'bg-card ring-1 ring-border' : 'has-[>a:hover]:bg-hover')}>
+          <a className={cn(row(), 'min-w-0 flex-1 font-bold hover:bg-transparent')} aria-current={onLatest ? 'page' : undefined} href="#/latest">
+            <Icon name="latest" size={17} />
+            <span className={GROW}>Latest</span>
+            {unseen > 0 ? <Badge className="min-w-5 bg-success px-1.5 font-bold text-white tabular-nums dark:text-sunken" title={`${plural(unseen, 'task')} with something new`}>{unseen}</Badge> : null}
+          </a>
+          <Bell />
+        </div>
+        {/* The drafts are no task's: their box opens over whatever is shown. */}
+        <button type="button" className={cn(row(), 'font-bold', drafting && 'bg-card ring-1 ring-border hover:bg-card')} onClick={() => useUI.setState({ drafts: true })}>
+          <Icon name="note" size={17} />
+          <span className={GROW}>Drafts</span>
+        </button>
       </div>
-      {/* The drafts are no task's: their box opens over whatever is shown. */}
-      <button type="button" className={cn(row(), 'font-bold', drafting && 'bg-card ring-1 ring-border hover:bg-card')} onClick={() => useUI.setState({ drafts: true })}>
-        <Icon name="note" size={17} />
-        <span className={GROW}>Drafts</span>
-      </button>
     </>
   );
   const body = !index || !seen ? null : (
