@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { postJSON, type ReviewAsked, type ReviewSaved } from '../../lib/api';
 import { plural } from '../../lib/format';
-import { go, link, useRoute } from '../../lib/route';
+import { fullPageOf, go, link, useHash, useRoute } from '../../lib/route';
 import { goesOn } from '../../lib/stops';
 import { dropComment, reviewWritten, rewordComment, setSummary, useComments, useReview, type Kept } from '../../state/review';
 import { onStatus, queryClient, useIndex } from '../../state/server';
@@ -88,7 +88,8 @@ async function sendToAgent(task: string): Promise<boolean> {
  */
 export function ReviewPanel() {
   const r = useRoute();
-  const task = r.view === 'task' || (r.view === 'latest' && r.id) ? r.id : undefined;
+  const full = fullPageOf(useHash());
+  const task = full ? full.id : r.view === 'task' || (r.view === 'latest' && r.id) ? r.id : undefined;
   const comments = useComments(task);
   const open = useReview((s) => s.open);
   const summary = useReview((s) => (task ? s.summary[task] ?? '' : ''));

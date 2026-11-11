@@ -65,6 +65,20 @@ export function parseRoute(hash: string): Route {
 }
 
 /**
+ * A page an agent wrote shown with the whole window to itself, `#/page/<task>/<path>`:
+ * no part of the task's own views, so no route of theirs. Null for any other address.
+ */
+export function fullPageOf(hash: string): { readonly id: string; readonly path: string } | null {
+  const m = /^#\/page\/([^/]+)\/(.+)$/.exec(hash);
+  if (m === null) return null;
+  try {
+    return { id: decodeURIComponent(m[1] as string), path: (m[2] as string).split('/').map(decodeURIComponent).join('/') };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The tab every task's agents open in. A link given this target opens it once and loads into it after,
  * from any task, so looking at another agent takes the tab rather than adding one; `noopener` would cut
  * the tab off from this page and open a new one each time, so these links go without it.
@@ -85,6 +99,7 @@ export const link = {
     `#/t/${id}/b/${repo}${name ? '/' + encodeURIComponent(name) : ''}/${tab || 'changes'}${item ? '/' + enc(item) : ''}`,
   latest: (id?: string, p?: string): string => (id ? `#/latest/${id}/${enc(p ?? '')}` : '#/latest'),
   new: (launch?: string): string => (launch ? `#/new/${launch}` : '#/new'),
+  page: (id: string, p: string): string => `#/page/${id}/${enc(p)}`,
 };
 
 /** A link inside the branch being looked at. */

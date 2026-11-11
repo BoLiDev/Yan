@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { link, parseRoute, viewKey } from './route';
+import { link, parseRoute, viewKey, fullPageOf } from './route';
 
 describe('routes', () => {
   it('reads every view from the hash, and each link back to it', () => {
@@ -25,4 +25,12 @@ describe('routes', () => {
     expect(viewKey(parseRoute(link.file('t1', 'a.png')))).not.toBe(viewKey(parseRoute(link.file('t1', 'b.png'))));
     expect(viewKey(parseRoute(link.task('t1')))).not.toBe(viewKey(parseRoute(link.log('t1'))));
   });
+
+describe('a page given the window', () => {
+  it('is told by its own address, the task and the path of the page, and no other address is one', () => {
+    expect(fullPageOf(link.page('t012', 'design/pay later.html'))).toEqual({ id: 't012', path: 'design/pay later.html' });
+    expect(fullPageOf(link.file('t012', 'design/card.html'))).toBeNull();
+    expect(fullPageOf('#/page/t012')).toBeNull();
+  });
+});
 });

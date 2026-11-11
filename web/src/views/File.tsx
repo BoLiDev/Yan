@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { ArtifactFile } from '../lib/api';
 import { KIND_LABEL, WRAPPED, baseName, enc, ext, kindOf, variantsOf, viewerOf } from '../lib/files';
 import { bytes } from '../lib/format';
+import { link } from '../lib/route';
 import { Bar, BarSep, BarTools, Crumb, Seg, Stepper, Tool } from '../components/page';
 import { fileUrl, shaUrl, useIndex, vaultPath } from '../state/server';
 import { setPref, useUI } from '../state/ui';
@@ -116,7 +117,8 @@ export function FileView(ctx: FileContext) {
   // This machine's copy in a tab of its own, the whole window given to it; then the file on the vault's
   // forge, where its link can be passed on, when yan can tell the forge.
   const web = index?.vault.fileLink;
-  tools.push(<Tool key="tab" name="expand" label="Open in a new tab, full size" href={fileUrl(path)} />);
+  // A page is given the window by yan's own page, so it is still commented on there; any other file opens as itself.
+  tools.push(<Tool key="tab" name="expand" label="Open in a new tab, full size" href={viewer === 'page' ? link.page(task, file.path) : fileUrl(path)} />);
   if (web) tools.push(<Tool key="web" name="external" label={web.forge ? `Open on ${web.forge}` : "Open in the vault's repository"} href={web.template.replaceAll('{path}', enc(path))} />);
   tools.push(<Tool key="download" name="download" label="Download" href={fileUrl(path) + '?download'} newTab={false} />);
 

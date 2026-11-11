@@ -3,7 +3,7 @@ import type { Index, TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
 import { usePageKeys } from './lib/modal';
-import { link, parseRoute, useHash, useRoute, type Route } from './lib/route';
+import { fullPageOf, link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Palette } from './components/Palette';
@@ -18,6 +18,7 @@ import { AGENT_TOASTER, useAgentToasts } from './state/agentToasts';
 import { Left } from './panes/Left';
 import { Middle } from './panes/Middle';
 import { Right, lookAt } from './panes/Right';
+import { FullPage } from './views/FullPage';
 import { followAgent, noAgent, useAgentTab } from './state/agentTab';
 import { connect, queryClient, useIndex, useTask } from './state/server';
 import { useUI } from './state/ui';
@@ -171,13 +172,17 @@ export function App() {
   useAgentFollow();
   useAgentToasts();
   useKeys();
+  // A page an agent wrote, given the window: nothing of the task list or the task is drawn round it.
+  const full = fullPageOf(useHash());
   return (
     <TooltipProvider delay={400}>
-      <div className="flex h-screen" id="app">
-        <Left />
-        <Middle />
-        <Right />
-      </div>
+      {full ? <div className="h-screen w-screen bg-card" id="app"><FullPage task={full.id} path={full.path} /></div> : (
+        <div className="flex h-screen" id="app">
+          <Left />
+          <Middle />
+          <Right />
+        </div>
+      )}
       <Toaster position="bottom-center" />
       <Toaster id={AGENT_TOASTER} position="top-right" />
       <Messages />
