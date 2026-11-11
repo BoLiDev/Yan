@@ -28,8 +28,6 @@ const DIFFED = [
   '[&_[data-diff=del]]:bg-[var(--diff-del)] [&_[data-diff=del]]:line-through [&_[data-diff=del]]:decoration-[color:var(--red)]/50 [&_[data-diff=del]_*]:text-ink-3',
   // A heading's own space above it is the holder's.
   '[&_[data-diff]>:first-child]:mt-0',
-  // The place being looked at, of those the change touched (`useSpots`): ringed, a row side by side as one.
-  '[&_[data-current]]:rounded-[10px] [&_[data-current]]:outline-2 [&_[data-current]]:outline-offset-4 [&_[data-current]]:outline-brand/45',
   '[&_ins]:rounded-[3px] [&_ins]:bg-[var(--diff-add-word)] [&_ins]:no-underline',
   '[&_del]:rounded-[3px] [&_del]:bg-[var(--diff-del-word)] [&_del]:text-ink-3 [&_del]:decoration-[color:var(--red)]/60',
 ].join(' ');

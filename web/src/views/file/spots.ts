@@ -7,8 +7,9 @@ import { usePageKeys } from '../../lib/modal';
  * down it for the tints is slow. Each block the change added, took out or
  * reworded is a place (`selector`), those that follow one another one
  * place together; the one being looked at is brought to
- * the middle of the view and marked (`data-current`), the first to start
- * with, and the next and the one before are a key away, J and K, round from
+ * the middle of the view, the first to start with, and nothing is drawn
+ * round it, its own tint being mark enough (`data-current` says which it
+ * is to whoever asks), and the next and the one before are a key away, J and K, round from
  * the last to the first. Counted afresh whenever what is drawn (`drawn`)
  * changes.
  */
