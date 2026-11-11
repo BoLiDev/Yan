@@ -32,6 +32,8 @@ export interface Prefs {
    * starts with source code alone too.
    */
   readonly allFiles: boolean;
+  /** A change of a Markdown file's history is drawn as one document, or the old beside the new. */
+  readonly history: 'inline' | 'split';
 }
 
 export interface Ask {
@@ -148,7 +150,7 @@ function save(key: string, value: unknown): void {
   }
 }
 
-const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false };
+const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, history: 'inline' };
 
 /** What this browser kept of the marks, read once: the first index decides what a first visit starts from. */
 export const storedSeen: unknown = load(SEEN_KEY, null);

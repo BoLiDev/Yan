@@ -39,6 +39,16 @@ describe('a version of a Markdown text against the one before', () => {
     expect(box.querySelector('ins, del')).toBeNull();
   });
 
+  it('side by side, puts each block beside what became of it: the old with what was taken out marked, the new with what was put in', () => {
+    const box = document.createElement('div');
+    box.innerHTML = renderMarkdownDiff('# Plan\n\nRetries are unbounded for now.\n\nDropped later.\n', '# Plan\n\nRetries are capped for now.\n\n## Risks\n', {}, true).html;
+    const rows = [...box.querySelectorAll('[data-row]')].map((row) => [row.querySelector('[data-side=old]')?.textContent?.trim(), row.querySelector('[data-side=new]')?.textContent?.trim()]);
+    expect(rows).toEqual([['Plan', 'Plan'], ['Retries are unbounded for now.', 'Retries are capped for now.'], ['Dropped later.', ''], ['', 'Risks']]);
+    expect(texts(box, '[data-side=old] del')).toEqual(['unbounded']);
+    expect(texts(box, '[data-side=new] ins')).toEqual(['capped']);
+    expect(box.querySelector('[data-side=old] ins, [data-side=new] del')).toBeNull();
+  });
+
   it('is all added for a first version, and nothing marked for one that draws the same', () => {
     expect(texts(drawn(null, '# Plan\n\nFirst.\n'), '[data-diff=add]')).toEqual(['Plan', 'First.']);
     expect(renderMarkdownDiff('# Plan\n\nFirst.\n', '# Plan\n\n\nFirst.\n').changed).toBe(0);

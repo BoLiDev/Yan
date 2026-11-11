@@ -6,10 +6,10 @@ import { langReady } from '../../lib/highlight';
 import { renderMarkdownDiff } from '../../lib/markdownDiff';
 import { cn } from '../../lib/utils';
 import { Icon } from '../../components/Icon';
-import { Empty, Scroll } from '../../components/page';
+import { Empty, Scroll, Seg } from '../../components/page';
 import { Button } from '../../components/ui/button';
 import { filesOrigin, useTask, useText } from '../../state/server';
-import { useUI } from '../../state/ui';
+import { setPref, useUI } from '../../state/ui';
 import { DOC } from '../doc';
 import { saidOf, useHistory } from './history';
 
@@ -30,9 +30,21 @@ const DIFFED = [
 ].join(' ');
 
 /**
+ * The two versions side by side, as `renderMarkdownDiff` lays them out
+ * with `split`: a row to a block, the old in the left half and the new in
+ * the right, a line down the middle, each half narrow enough that what is
+ * wide in it, a table or a fence, scrolls on its own.
+ */
+const SPLIT = [
+  '[&_[data-row]]:grid [&_[data-row]]:grid-cols-2',
+  '[&_[data-side]]:min-w-0 [&_[data-side=old]]:pr-8 [&_[data-side=new]]:border-l [&_[data-side=new]]:border-sunken [&_[data-side=new]]:pl-8',
+].join(' ');
+
+/**
  * What one version of a Markdown file changed of the one before it, drawn
  * as the document: the text as that version had it, with what it added,
- * took out and reworded marked in it, opened at the first of them. Over it,
+ * took out and reworded marked in it, opened at the first of them; or, side
+ * by side, the version before on the left and this one on the right. Over it,
  * which version it is, the ways to the one before and the one after, and
  * the way back to the file as it is. An agent and `user` both write these
  * files, and this is where each sees what the other did.
@@ -48,12 +60,13 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
   const files = d?.files;
   // Colouring waits for a fenced block's language: once it is loaded, the text is made again.
   const [loaded, setLoaded] = useState(0);
+  const split = useUI((s) => s.prefs.history === 'split');
   const ready = v !== undefined && now.data !== undefined && (v.before === null || was.data !== undefined);
   const rendered = useMemo(
-    () => (ready ? renderMarkdownDiff(v.before === null ? null : was.data ?? '', now.data ?? '', { task, dir: dirName(`artifacts/${file.path}`), files, filesOrigin: filesOrigin() }) : null),
+    () => (ready ? renderMarkdownDiff(v.before === null ? null : was.data ?? '', now.data ?? '', { task, dir: dirName(`artifacts/${file.path}`), files, filesOrigin: filesOrigin() }, split) : null),
     // `loaded` stands for the languages highlight.js has loaded, which the rendering reads: one arriving makes it again.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [ready, v, was.data, now.data, task, file.path, files, loaded],
+    [ready, v, was.data, now.data, task, file.path, files, split, loaded],
   );
   useEffect(() => {
     if (!rendered?.waiting.length) return;
@@ -91,15 +104,24 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
           {v.add === null ? null : <>{' · '}<span className="text-success">{`+${v.add}`}</span>{' '}<span className="text-destructive">{`−${v.del}`}</span></>}
           {at === 0 ? ' · the latest' : ` · ${at} ${at === 1 ? 'change' : 'changes'} ago`}
         </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => go(null)}>Back to the file</Button>
+        <span className="ml-auto flex flex-none items-center gap-1">
+          <Seg options={[['inline', 'Inline'], ['split', 'Side by side']] as const} current={split ? 'split' : 'inline'} onPick={(how) => setPref('history', how)} />
+          <Button variant="ghost" size="sm" onClick={() => go(null)}>Back to the file</Button>
+        </span>
       </div>
       <Scroll>
         {v.sha === null ? <Empty title="Deleted here">This change took the file out of the task.</Empty>
           : rendered === null ? <Empty>{now.isError ? <span className="text-destructive">{String(now.error.message)}</span> : 'Loading…'}</Empty>
           : (
-            <div className="mx-auto max-w-[840px] px-10 pt-8 pb-20">
+            <div className={cn('mx-auto px-10 pt-8 pb-20', split ? 'max-w-[1360px]' : 'max-w-[840px]')}>
               {rendered.changed === 0 ? <p className="mb-6 text-[13px] text-ink-3">Nothing in how it reads changed here: only its spacing, or how its source is written.</p> : null}
-              <div ref={doc} className={cn(DOC, DIFFED)} dangerouslySetInnerHTML={{ __html: rendered.html }} />
+              {split ? (
+                <div className="mb-4 grid grid-cols-2 text-[12px] font-bold text-ink-3">
+                  <span>Before</span>
+                  <span className="pl-8">After</span>
+                </div>
+              ) : null}
+              <div ref={doc} className={cn(DOC, DIFFED, split && SPLIT)} dangerouslySetInnerHTML={{ __html: rendered.html }} />
             </div>
           )}
       </Scroll>

@@ -65,6 +65,14 @@ describe("a Markdown artifact's history", () => {
     expect(await right.getByText('毫秒').count(), 'as that version had it, not as it is now').toBe(0);
     if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h2-agent.png') });
 
+    // Side by side: the version before on the left with what was taken out, this one on the right with what was put in.
+    await right.getByRole('button', { name: 'Side by side' }).click();
+    await right.locator('[data-side=old] del', { hasText: '会无限次' }).waitFor();
+    await right.locator('[data-side=new] ins', { hasText: '最多' }).waitFor();
+    expect(await right.locator('[data-side=old] ins, [data-side=new] del').count()).toBe(0);
+    if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h4-split.png') });
+    await right.getByRole('button', { name: 'Inline' }).click();
+
     // On to the change after it, user's own, and back to the file.
     await right.getByRole('button', { name: 'The change after' }).click();
     await right.locator('ins', { hasText: '毫秒，之后每次翻倍' }).waitFor();

@@ -339,7 +339,11 @@ version had it, a block it added tinted green, one it took out kept where
 it was, red and struck through, and a paragraph, a heading or a list it
 reworded drawn once with the words taken out and put in marked inside it, a
 character at a time in Chinese. A fence or a table that changed is shown
-as the old one gone and the new one added. It opens at the first thing
+as the old one gone and the new one added. Side by side draws the two
+versions beside each other instead, block against block at the same height:
+the one before on the left with what was taken out of it marked, this one
+on the right with what was put in, a block only one has facing nothing;
+which way it is drawn is kept in this browser. It opens at the first thing
 changed; a line over it says which change it is, with the ways to the one
 before and the one after, and Back to the file, as Rendered and Source go
 back too. Opening another file leaves it.
