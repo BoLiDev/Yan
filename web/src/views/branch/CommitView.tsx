@@ -5,6 +5,8 @@ import { langOf } from '../../lib/highlight';
 import { colourPatch, parsePatch, type PatchFile } from '../../lib/patch';
 import { inBranch, type BranchRoute } from '../../lib/route';
 import { Bar, BarSep, Empty, Notice, Stepper } from '../../components/page';
+import { ReviewMenu } from '../../components/review/ReviewMenu';
+import { inCode } from '../../components/review/locate';
 import { useCommit, useLangs } from '../../state/server';
 import { useUI } from '../../state/ui';
 import { useKeyNav } from '../nav';
@@ -15,7 +17,7 @@ import { LayoutTools, forgeTools } from './tools';
 /** One file of a commit: its head at once, its lines, coloured, once they come near. */
 function CommitFile({ f, r, layout, eager }: { f: PatchFile; r: BranchRoute; layout: 'unified' | 'split'; eager: boolean }) {
   return (
-    <div className={DIFF}>
+    <div className={DIFF} data-path={f.path ?? ''}>
       <div className="flex items-center gap-2.5 border-b bg-[var(--raised)] px-3.5 py-2 font-sans text-[13px]">
         <a className="truncate font-bold text-ink hover:text-brand" href={inBranch(r, 'changes', f.path ?? '')}>{f.path}</a>
         {f.note.length ? <span className="text-ink-3">{f.note.join(', ')}</span> : null}
@@ -56,7 +58,9 @@ export function CommitView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Bra
       <>
         {full.data.body ? <div className="mb-[18px] rounded-[10px] bg-card px-4 py-3 text-[13.5px]/[22px] whitespace-pre-wrap ring-1 ring-border">{full.data.body}</div> : null}
         {full.data.truncated ? <Notice>This commit is too big to show whole; it is cut short.</Notice> : null}
-        {files.map((f, i) => <CommitFile key={`${f.path}:${i}`} f={f} r={r} layout={layout} eager={i < 2} />)}
+        <ReviewMenu task={t.id} locate={(range) => inCode(`${b.repo}, branch ${b.branch}, commit ${short(sha)}`, range)}>
+          {files.map((f, i) => <CommitFile key={`${f.path}:${i}`} f={f} r={r} layout={layout} eager={i < 2} />)}
+        </ReviewMenu>
       </>
     );
   }

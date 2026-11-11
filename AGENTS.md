@@ -37,7 +37,7 @@ one that grows past that is split by what its parts are, in a folder named
 for the view.
 
 `src/records/` owns the vault's files: `task` (task.json and problem.md),
-`log`, `drafts`, `learnings`, `repos` (repos.json, and where each is cloned).
+`log`, `drafts`, `reviews`, `learnings`, `repos` (repos.json, and where each is cloned).
 `src/externals/` wraps outside things: `worktree` (the pool) and `harness`
 (how claude, codex and agy are started). `src/util/` is below all of them.
 `src/ui/prompts.ts` is the only place that prompts, and `src/ui/chain.ts`

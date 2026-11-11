@@ -7,6 +7,8 @@ import { colourPatch, parsePatch } from '../../lib/patch';
 import { inBranch, type BranchRoute } from '../../lib/route';
 import { sourceView } from '../../lib/source';
 import { Bar, BarSep, Crumb, Empty, Stepper } from '../../components/page';
+import { ReviewMenu } from '../../components/review/ReviewMenu';
+import { inCode } from '../../components/review/locate';
 import { Toggle } from '../../components/ui/toggle';
 import { useIndex, useLang, useText } from '../../state/server';
 import { setPref, useUI } from '../../state/ui';
@@ -53,7 +55,11 @@ export function ChangesView({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Br
   );
   let body: ReactNode = <Empty>Loading…</Empty>;
   if (patch.isError) body = <Empty><span className="text-destructive">{String(patch.error.message)}</span></Empty>;
-  else if (one && (ready || !lang)) body = <div className={DIFF}><DiffBody f={one} layout={prefs.layout} /></div>;
+  else if (one && (ready || !lang)) body = (
+    <ReviewMenu task={t.id} locate={(range) => inCode(`${b.repo}, branch ${b.branch}`, range, f.path)}>
+      <div className={DIFF}><DiffBody f={one} layout={prefs.layout} /></div>
+    </ReviewMenu>
+  );
   return (
     <>
       <Bar title={<Crumb path={f.path} />} meta={meta} tools={

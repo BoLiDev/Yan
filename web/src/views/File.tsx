@@ -5,6 +5,8 @@ import { bytes } from '../lib/format';
 import { Bar, BarSep, BarTools, Crumb, Seg, Stepper, Tool } from '../components/page';
 import { fileUrl, shaUrl, useIndex, vaultPath } from '../state/server';
 import { setPref, useUI } from '../state/ui';
+import { ReviewMenu } from '../components/review/ReviewMenu';
+import { inCode } from '../components/review/locate';
 import { CodeStage } from './Code';
 import { useKeyNav } from './nav';
 import { FileCard, Shot, Stage } from './file/Stage';
@@ -76,7 +78,7 @@ export function FileView(ctx: FileContext) {
       <Tool key="source" name="log" label={pageSource ? 'Show the page' : 'Show the source'} onClick={() => useUI.setState({ pageSource: !pageSource })} pressed={pageSource} />,
     );
     body = pageSource
-      ? <CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} onMeta={setMeta} />
+      ? <ReviewMenu task={task} className="contents" locate={(range) => inCode('', range, `artifacts/${file.path}`)}><CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} onMeta={setMeta} /></ReviewMenu>
       : <Stage at="page"><PageFrame src={fileUrl(path)} width={prefs.width} /></Stage>;
   } else if (viewer === 'markdown') {
     tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdSource ? 'src' : 'doc'} onPick={(v) => {
@@ -90,7 +92,7 @@ export function FileView(ctx: FileContext) {
     const e = ext(name);
     const wrap = prefs.wrap[e] ?? WRAPPED.has(e);
     tools.push(<Tool key="wrap" name="wrap" label={wrap ? 'Stop wrapping lines' : 'Wrap long lines'} onClick={() => setPref('wrap', { ...prefs.wrap, [e]: !wrap })} pressed={wrap} />);
-    body = <CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} wrap={wrap} onMeta={setMeta} />;
+    body = <ReviewMenu task={task} className="contents" locate={(range) => inCode('', range, `artifacts/${file.path}`)}><CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} wrap={wrap} onMeta={setMeta} /></ReviewMenu>;
   } else if (viewer === 'audio') {
     body = <Stage><FileCard name={name}><audio className="w-[min(560px,100%)]" controls preload="metadata" src={fileUrl(path)} /></FileCard></Stage>;
   } else if (viewer === 'video') {

@@ -26,7 +26,7 @@ const TEXT = 'min-w-0 flex-auto whitespace-pre-wrap wrap-anywhere';
 /** A line of the unified diff: its number on each side, + or −, and its text. */
 function Line({ k, a, b, children }: { k: Kind; a?: number; b?: number; children: ReactNode }) {
   return (
-    <div className={cn('flex', GROUND[k])}>
+    <div className={cn('flex', GROUND[k])} data-a={a} data-b={b}>
       <span className={cn(NUMBER, GUTTER[k])}>{a ?? ''}</span>
       <span className={cn(NUMBER, GUTTER[k])}>{b ?? ''}</span>
       <span className={cn('w-[18px] flex-none text-center select-none', SIGN[k])}>{k === 'add' ? '+' : k === 'del' ? '−' : ''}</span>
@@ -47,7 +47,8 @@ function Half({ l, side }: { l: PatchLine | null; side: 'a' | 'b' }) {
   const text = cn(TEXT, 'pr-3 pl-2');
   if (!l) return <div className={half}><span className={number} /><span className={text} /></div>;
   return (
-    <div className={half}>
+    // Its number as its side's: a comment on the left half is on the old file's line.
+    <div className={half} {...(side === 'a' ? { 'data-a': l.a } : { 'data-b': l.b })}>
       <span className={number}>{side === 'a' ? l.a ?? '' : l.b ?? ''}</span>
       <CodeText className={text} text={l.t} html={l.h} />
     </div>

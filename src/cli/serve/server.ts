@@ -16,14 +16,15 @@ import { noAgentPage } from './no-agent.js';
 import { Terminals } from './terminal.js';
 import { Launches } from './launch.js';
 import { Worktrees } from './worktrees.js';
-import { askToClose, askToPause } from './closing.js';
+import { askToClose, askToPause, askToReview } from './closing.js';
+import { writeReview, type ReviewComment } from '../../records/reviews/index.js';
 import { taskProgress } from '../shared/progress.js';
 import { returnTrees } from '../../externals/worktree/index.js';
 import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
 import { VaultView } from './vault-view.js';
-import type { BranchBlob, CommitPatch, Index, Report, Status as WireStatus, WriteResult } from './wire.js';
+import type { BranchBlob, CommitPatch, Index, Report, ReviewSaved, Status as WireStatus, WriteResult } from './wire.js';
 import { PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type Answer } from './drafts.js';
 import { LaterPush } from './later-push.js';
 import { buildLoads, buildPrint } from './build.js';
@@ -735,6 +736,9 @@ export class YanServer {
     // The agent asked to close the task, which it does with yan done: nothing of the vault's is written here.
     '/api/task/close': { does: 'ask an agent to close a task', json: true, run: async (res, given) => askToClose(res, given, this.options.vaultDir, this.launches) },
     '/api/task/pause': { does: 'pause a task', json: true, run: async (res, given) => askToPause(res, given, this.options.vaultDir, this.launches, (r, id) => this.pauseHere(r, id)) },
+    // The review is in the vault by then, written by /api/review: the agent is only told to read it.
+    '/api/task/review': { does: 'ask an agent to take up a review', json: true, run: async (res, given) => askToReview(res, given, this.options.vaultDir, this.launches) },
+    '/api/review': this.change((res, given) => this.keepReview(res, given)),
     '/api/task/resume': this.change((res, given) => this.resumeTask(res, given)),
     '/api/task/title': this.change((res, given) => this.renameTask(res, given)),
     '/api/deliverable': this.change((res, given) => this.setDeliverable(res, given)),
@@ -819,6 +823,34 @@ export class YanServer {
       return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
     }
     return this.save(res, `${id}: resumed in yan serve`);
+  }
+
+  /**
+   * `{ task, summary, comments: [{ where, quote, text, code? }] }`: what
+   * `user` said of the task's files and branches as they read them, written
+   * as one review in the task's reviews/, committed and pushed. Answers
+   * where it is, with why the push failed when it did: it is kept here
+   * either way, and pushed later as any change is.
+   */
+  private async keepReview(res: ServerResponse, given: Record<string, unknown>): Promise<void> {
+    const [id, summary, raw] = [given.task, given.summary ?? '', given.comments ?? []];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof summary !== 'string' || !Array.isArray(raw)) return send(res, 400, 'task, summary and comments are needed');
+    const comments: ReviewComment[] = [];
+    for (const c of raw as Record<string, unknown>[]) {
+      if (typeof c?.where !== 'string' || typeof c.text !== 'string' || (c.quote !== undefined && typeof c.quote !== 'string')) return send(res, 400, 'a comment has where, quote and text');
+      comments.push({ where: c.where, quote: (c.quote as string | undefined) ?? '', text: c.text, ...(c.code === true ? { code: true } : {}) });
+    }
+    if (!existsSync(join(this.options.vaultDir, 'tasks', id, 'task.json'))) return send(res, 404, `there is no ${id} in this vault`);
+    let kept: { name: string; path: string };
+    try {
+      kept = writeReview(id, { summary, comments });
+    } catch (err) {
+      return send(res, isYanError(err) ? 400 : 500, isYanError(err) ? err.message : String(err));
+    }
+    const warning = await saveOffThread(this.options.vaultDir, `${id}: reviewed in yan serve`);
+    if (warning !== null) this.later.failed(warning);
+    await this.tick();
+    json(res, { ok: true, warning, status: this.status, name: kept.name, path: kept.path } satisfies ReviewSaved);
   }
 
   /** `{ task, title }`: the task called something else, from its row in the task list. */

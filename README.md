@@ -71,9 +71,11 @@ its branches, and for saying where things stand as each turn ends; `yan:define`,
 you; `yan:uat`, once an implementation is done and its result can be
 verified interactively; `yan:done`, which only you start, to close a
 task, done, or given up with the reason you give it (`/yan:done --abandon
-<why>`); and `yan:pause`, which only you start too, to put it aside: its
+<why>`); `yan:pause`, which only you start too, to put it aside: its
 work committed and pushed on its branch, a line in the log on where it
-stands, then `yan pause`. Claude is started with them (`--plugin-dir`), and its prompt says only
+stands, then `yan pause`; and `yan:review`, to take up a review you wrote on
+`yan serve`'s page: it reads the newest with `yan review`, acts on every
+comment, and answers each by its number. Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
 which skills there are, that an implementation ends with `yan:uat`, and that every turn ends with `yan say`. A skill can be carried where yan does not start the
 agent and so cannot give it a prompt. A machine can give claude skills of
@@ -132,7 +134,8 @@ as it has, with the packages it is about after a colon
 and `--no-repo` none. `--done`, or `--abandon "<why>"`, starts the agent on
 the task asking it to close it, as `yan:done` does, as your first message:
 the skill by its name to claude, what the skill says to codex and agy, which
-take none; `--pause` asks it to put the task aside, as `yan:pause` does. A
+take none; `--pause` asks it to put the task aside, as `yan:pause` does, and
+`--review` to take up the review you last wrote, as `yan:review` does. A
 paused task is not offered, and `--task` with one says to resume it first.
 What is not given is asked as before. A new task is
 numbered after the tasks origin has, fetched first, so it never takes the
@@ -171,6 +174,7 @@ For the agent:
 - `yan branch [name]` — keep a branch as the task's, as soon as it is cut: only the agent keeps them, one in progress for each app or package the task changes; keeping one names the others in progress in that repository, and each stays in progress until it is merged or marked given up
 - `yan branch abandon <name>` — mark a branch given up, as soon as its work moves to another or stops; nothing is deleted, and keeping it again opens it again
 - `yan learn add|ls` — a learning, written only when you ask for one
+- `yan review [name]` — your last review of the task, as you wrote it on `yan serve`'s page: a word on it all, then each comment, numbered, under where it is, with what you had selected; `--list` names them all. Reviews are yours: an agent reads them and never writes one
 - `yan say "<words>"` — where things stand as the agent ends a turn, a sentence or two in your language: done, stuck, or what it needs from you. Only the last is kept, in task.json, committed and pushed at once, so `yan serve` on any machine shows it to you wherever you are on the page, from an agent in the cloud as from one here; at most 200 columns, a Chinese character taking two. Bare, what was said last
 
 `yan <command> --help` says the rest. Every command that takes a task reads
@@ -322,7 +326,33 @@ with what was typed. serve commits a save
 here at once, so it is shown saved straight away, and pushes on its own a
 while later, as it does the drafts. A file an agent changed since it was
 opened is not written over: the save is refused and what was typed
-stays. Markdown and the report
+stays.
+
+What you read on the page you can review as you go, without stopping to
+tell an agent each thing. Select some of a Markdown file as it is rendered
+and right click: the page's own menu, in place of the browser's, comments on
+what is selected, copies it, or edits it, which opens its Source with the
+same words selected, or the lines they are on where the source writes them
+otherwise. The same menu, Comment and Copy, opens over what is selected in a
+branch's diff, in one of its commits, in a file at its head, and in an
+artifact shown as text; with nothing selected, the browser's menu opens as
+ever. A comment is written in a box over the page, Enter keeping it, and
+joins the task's review, which nothing sends anywhere yet: it is kept in
+this browser, a reload or a day between, what is commented on marked in the
+text, and a button at the foot of the page says how many it holds. That
+button opens the review: each comment under where it is, a link back there,
+to be reworded or deleted, and a word on it all under them. Finish writes
+it to the vault as one file, `tasks/<id>/reviews/<when>.md`, committed and
+pushed at once, a push that failed said and tried again later; an agent
+anywhere, in the cloud too, reads it with `yan review`. Send to agent does
+the same and then asks the task's agent on this machine to take it up, as
+Done asks it to close the task: `/yan:review` typed into the agent running
+in a herdr pane here, refused while it is at work or waiting on you, the
+review written all the same and the box offering to ask again, or an agent
+started on it with it (`yan --task <id> --review`). A comment says where it
+is as a reader would find it, a file and its lines, or a repository, a
+branch, a file and its lines, the old file's for lines taken out, with what
+was selected under it, so the agent needs nothing more said. Markdown and the report
 an agent wrote are shown without anything in them that runs, and load
 nothing from the page's own address; a page an agent wrote runs as itself
 on the files port. A picture shown small, in a
@@ -548,6 +578,7 @@ what it was written from), its bar says legacy and what changed.
     problem.md                 prose: the background, and what the problem is (brief.md before)
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, from when drafts were kept per task: still read, and written, where they are
+    reviews/<when>.md          yours: a review written on yan serve's page, one file each, named for the moment in UTC (20261111-140312.md), never edited after
     artifacts/                 whatever the work produced worth keeping, as it stands now
       report.html              the report yan:uat writes, report.json beside it: the only files loose here
       design/                  what you will see: pages, canvases, mockups, palettes, icons, and the scripts that build them

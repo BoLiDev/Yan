@@ -29,6 +29,8 @@
   --brand-ink: #085a69;
   --brand-soft: #d9eaed;
   --brand-wash: #f2f8f9;
+  /* what a review's comment is about, marked in its text (components/review/marks.ts) */
+  --review-mark: rgba(245, 190, 60, 0.38);
   --green: #1f7a3d;
   --green-soft: #e3efe6;
   --red: #b42318;
@@ -128,6 +130,7 @@
     --brand-ink: #82d2e0;
     --brand-soft: rgba(69, 184, 204, 0.16);
     --brand-wash: rgba(69, 184, 204, 0.07);
+    --review-mark: rgba(245, 190, 60, 0.3);
     --brand-glint: #c3eef5;
     --green: #5bbd7b;
     --green-soft: rgba(91, 189, 123, 0.16);
@@ -184,6 +187,7 @@
     --brand-ink: #82d2e0;
     --brand-soft: rgba(69, 184, 204, 0.16);
     --brand-wash: rgba(69, 184, 204, 0.07);
+    --review-mark: rgba(245, 190, 60, 0.3);
     --brand-glint: #c3eef5;
     --green: #5bbd7b;
     --green-soft: rgba(91, 189, 123, 0.16);

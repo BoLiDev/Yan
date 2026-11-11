@@ -5,6 +5,7 @@ import { Empty, Scroll } from '../../components/page';
 import { Button } from '../../components/ui/button';
 import { onStatus } from '../../state/server';
 import { toast, useUI } from '../../state/ui';
+import { spanInSource } from '../../components/review/locate';
 import { useMarkdownText } from './markdownText';
 import { scrollSourceTo, sourceLine, useReadingPlace } from './place';
 
@@ -45,6 +46,16 @@ export function MarkdownSource({ task, file, onMeta, onDone }: { task: string; f
   useEffect(() => {
     if (base !== undefined) onMeta(`Markdown source · ${plural(text.split('\n').length, 'line')} · ${bytes(file.size)}`);
   }, [base, text, file.size, onMeta]);
+  // Opened by Edit on what was selected in the rendered file: the same words selected here, ready to be typed over.
+  const select = useUI((s) => s.mdSelect);
+  useEffect(() => {
+    const el = area.current;
+    if (base === undefined || el === null || select === null) return;
+    useUI.setState({ mdSelect: null });
+    if (select.key !== key) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(...spanInSource(el.value, select, select.quote));
+  }, [base, select, key]);
   // Leaving the page with what is typed not saved: the browser asks first.
   useEffect(() => {
     if (!dirty) return;

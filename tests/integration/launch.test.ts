@@ -90,8 +90,8 @@ function splitHooks(argv: readonly string[]): { argv: string[]; hooks: string[] 
   return { argv: rest, hooks };
 }
 
-function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean } = {}): Promise<number> {
-  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }), ...(options.close === undefined ? {} : { close: options.close }), ...(options.pause === undefined ? {} : { pause: options.pause }) }, {
+function run(prompts: EntryPrompts, cwd: string, options: { cli?: string; extra?: string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean; review?: boolean } = {}): Promise<number> {
+  return enter({ ...(options.cli === undefined ? {} : { cli: options.cli }), extra: options.extra ?? [], ...(options.new === undefined ? {} : { new: options.new }), ...(options.task === undefined ? {} : { task: options.task }), ...(options.close === undefined ? {} : { close: options.close }), ...(options.pause === undefined ? {} : { pause: options.pause }), ...(options.review === undefined ? {} : { review: options.review }) }, {
     prompts,
     chain,
     cwd,
@@ -385,6 +385,15 @@ describe('an existing task', () => {
 
     new Task('t001').pause();
     await expect(run(answers({ entry: 'never chosen' }), here, { task: 't001' })).rejects.toThrow(/t001 is paused - 'yan resume t001'/);
+  });
+
+  it('asked to take up a review, starts the agent with yan:review as what user says first', async () => {
+    Task.create('the one');
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', review: true });
+    expect(claudeOf(0).rest).toEqual(['/yan:review']);
+    await run(answers({ entry: 'never chosen' }), here, { task: 't001', cli: 'codex', review: true });
+    expect(started[1]?.argv.at(-1), 'codex is told what yan:review says').toContain('`yan review`');
   });
 
   it('starts in the tree it holds, asking nothing, and names the branch the agent cut in it', async () => {

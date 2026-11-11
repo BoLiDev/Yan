@@ -61,7 +61,8 @@ export function skillsPrompt(taskDir: string): string {
       'Which task it is travels in $YAN_TASK.',
     filesLine(taskDir),
     'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
-      'yan:define works out the problem and the solution with the user; yan:done and yan:pause are the user\'s, to close the task or put it aside.',
+      'yan:define works out the problem and the solution with the user; yan:review takes up a review the user left on yan\'s page; ' +
+      'yan:done and yan:pause are the user\'s, to close the task or put it aside.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
     'As you end every turn, say where things stand in a sentence or two, in the user\'s language, with `yan say "<words>"`, the last thing you run: done, stuck, or what you need from them. ' +
       'The user is often elsewhere while you work, and yan\'s page shows it to them there.',
@@ -100,6 +101,8 @@ export const OPENING_PROMPT = [
     'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
   'It also lists the user\'s newest drafts, their own notes, shared by every task, so most are about other work: read one with `yan draft cat <id>` when its title touches this task, opening the pictures it names by their path, ' +
     'and take it as the user\'s thinking, not a decision made. Never write, change or remove one: they are the user\'s alone.',
+  'When the user says they reviewed the work or left comments, `yan review` prints their last review: a word on it all, then each comment, numbered, under where it is. ' +
+    'Act on every one, a question answered, a change made where it says, and say what came of each by its number; the review itself is theirs, never edited.',
   'As you end a turn, say where things stand in a sentence or two, in the user\'s language, with `yan say "<words>"`: done, stuck, or what you need from them. ' +
     'They are often elsewhere while you work, and yan shows it to them there, so make it the last thing you run.',
 ].join('\n');
@@ -145,6 +148,23 @@ export function pausingRequest(cli: string): string {
     'If `yan pause` refuses because a worktree still has uncommitted changes or commits no remote branch has, look at what they are. ' +
       'Work the task means to keep is committed and pushed; when it cannot be, list it for me and stop. ' +
       'Anything else (build output, debug leftovers, a lockfile touched by an install, scratch files) is thrown away by running it again with `--force`.',
+  ].join('\n');
+}
+
+/**
+ * What `user` says to have the agent take up the review they just wrote on
+ * yan serve's page, as yan:review does. claude is asked by the skill's own
+ * name; an agent with no plugin is told what the skill says, kept in step
+ * with `plugin/skills/review/SKILL.md`. Nothing of the review is repeated
+ * here: it says it all, and the agent reads it with `yan review`.
+ */
+export function reviewRequest(cli: string): string {
+  if (takesPlugins(cli)) return '/yan:review';
+  return [
+    'I reviewed this task\'s work and wrote it down: `yan review` prints it, a word on it all first, then each comment, numbered, under where it is, with what I had selected.',
+    'Act on every comment: one about a document changes the document, one about code changes the code on the branch it names, committed and pushed as the rest of the work is, and a question is answered, not acted on. ' +
+      'Where you disagree or a comment can be read two ways, say so and leave it rather than guess.',
+    'Then answer by number, a line each: what you did, where, or why not. The review itself is mine: never write, change or remove anything in reviews/.',
   ].join('\n');
 }
 
@@ -656,8 +676,10 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  *   message asks it to: done, or given up with `abandon`'s reason.
  * @param pause the agent started to put the task aside, as `user`'s first
  *   message asks it to.
+ * @param review the agent started to take up `user`'s last review, as
+ *   their first message asks it to.
  */
-export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean }, deps: EntryDeps = {}): Promise<number> {
+export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean; review?: boolean }, deps: EntryDeps = {}): Promise<number> {
   const vault = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
@@ -689,7 +711,7 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
   const prompt = promptFor(harness.cli, task.dir, told(task, trees));
-  const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : undefined;
+  const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : options.review === true ? reviewRequest(harness.cli) : undefined;
   const first = said === undefined ? {} : { first: said };
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // Started in a herdr pane, it is kept on this machine while it runs, so `yan serve` can show the pane and type into it.

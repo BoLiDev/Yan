@@ -2,13 +2,14 @@ import type { ServerResponse } from 'node:http';
 import { paneOf, sendInput } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
-import { closingRequest, pausingRequest } from '../shared/launch.js';
+import { closingRequest, pausingRequest, reviewRequest } from '../shared/launch.js';
 import { openTasks } from '../shared/task-id.js';
 import type { Launches } from './launch.js';
 
 /**
  * Done, Abandon and Pause on the page: the task's agent asked to close it,
- * as `user` asks with yan:done, or to put it aside, as with yan:pause. Each
+ * as `user` asks with yan:done, or to put it aside, as with yan:pause; and a
+ * review sent to it, at the end of this file. Each of the first three
  * returns the task's worktrees, which wipes them, and whether one holds
  * work the task means to keep is for the agent to judge, as it does when
  * asked in its terminal: a closing throws away what is only build output
@@ -93,4 +94,16 @@ export async function askToPause(res: ServerResponse, given: Record<string, unkn
   if (typeof task !== 'string') return void res.writeHead(400).end('task is needed');
   if (!openTasks().some((t) => t.id === task)) return void res.writeHead(404).end(`${task} is not an open task in this vault, or is paused already`);
   return askAgent(res, task, vault, launches, pausingRequest, ['--pause'], (r) => here(r, task));
+}
+
+/**
+ * `{ task }`: the task's agent asked to take up the review `user` just
+ * wrote on the page, as they ask with yan:review. The review is in the
+ * vault already, which the agent reads it from, so nothing of it is typed.
+ */
+export async function askToReview(res: ServerResponse, given: Record<string, unknown>, vault: string, launches: Launches): Promise<void> {
+  const task = given.task;
+  if (typeof task !== 'string') return void res.writeHead(400).end('task is needed');
+  if (!openTasks().some((t) => t.id === task)) return void res.writeHead(404).end(`${task} is not an open task in this vault`);
+  return askAgent(res, task, vault, launches, reviewRequest, ['--review']);
 }

@@ -4,6 +4,8 @@ import { baseName, ext, kindOf, viewerOf } from '../../lib/files';
 import { bytes, short } from '../../lib/format';
 import type { BranchRoute } from '../../lib/route';
 import { Bar, Crumb, Empty } from '../../components/page';
+import { ReviewMenu } from '../../components/review/ReviewMenu';
+import { inCode, inMarkdown } from '../../components/review/locate';
 import { useBranchTree, useText } from '../../state/server';
 import { useUI } from '../../state/ui';
 import { CodeStage } from '../Code';
@@ -32,12 +34,15 @@ export function BranchFile({ t, r, b }: { t: TaskSummary; r: BranchRoute; b: Bra
     stage = (
       <Stage at="top">
         {text.data !== undefined ? (
-          <div className="w-full max-w-[1000px] rounded-xl bg-card ring-1 ring-border"><MarkdownDoc text={text.data} /></div>
+          <ReviewMenu task={t.id} className="w-full max-w-[1000px] rounded-xl bg-card ring-1 ring-border"
+            locate={(range, el) => inMarkdown(`${b.repo}, branch ${b.branch}, ${entry.path}`, el, range, text.data ?? '')}>
+            <MarkdownDoc text={text.data} lines />
+          </ReviewMenu>
         ) : null}
       </Stage>
     );
   } else {
-    stage = <CodeStage url={url} name={name} size={entry.size} />;
+    stage = <ReviewMenu task={t.id} className="contents" locate={(range) => inCode(`${b.repo}, branch ${b.branch}`, range, entry.path)}><CodeStage url={url} name={name} size={entry.size} /></ReviewMenu>;
   }
   return (
     <>

@@ -436,6 +436,29 @@ describe('a Markdown artifact edited on yan serve', () => {
   });
 });
 
+describe('a review written on yan serve', () => {
+  it('is a file in the task\'s reviews, committed and pushed at once, which yan review prints to an agent', async () => {
+    await commit('t008', { 'task.json': task('t008', 'reviewed') }, 'a task to review');
+    const review = { task: 't008', summary: 'Nearly there.', comments: [{ where: 'artifacts/docs/notes.md, line 3', quote: 'first', text: 'Say which first.' }] };
+    expect((await post('/api/review', review, 'http://evil.example')).status).toBe(403);
+    expect((await post('/api/review', { task: 't008', summary: '', comments: [] })).status, 'one that says nothing').toBe(400);
+    expect((await post('/api/review', { ...review, task: 't404' })).status).toBe(404);
+    expect((await runYan(home, ['review', '--task', 't008'])).stdout).toContain('no review yet');
+
+    const saved = await post('/api/review', review);
+    expect(saved.status).toBe(200);
+    const { path, name, warning } = (await saved.json()) as { path: string; name: string; warning: string | null };
+    expect(warning).toBeNull();
+    expect(path).toBe(`tasks/t008/reviews/${name}`);
+    expect((await fxGit(['show', `main:${path}`], bare)).stdout, 'pushed').toContain('## 1. artifacts/docs/notes.md, line 3\n\n> first\n\nSay which first.');
+
+    const printed = (await runYan(home, ['review', '--task', 't008'])).stdout;
+    expect(printed).toContain('Nearly there.');
+    expect(printed).toContain('Say which first.');
+    expect(JSON.parse((await runYan(home, ['review', '--list', '--json', '--task', 't008'])).stdout)).toEqual([name]);
+  });
+});
+
 describe("user's drafts on yan serve", () => {
   const subject = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
   type Listed = { id: string; title: string; text: string; sha: string; task: string | null };
@@ -962,6 +985,23 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
     expect(await (await post('/api/task/pause', { task: 't001' })).json()).toEqual({ typed: true });
     expect(h.received(AGENT_PANE)).toEqual([{ paste: '/yan:pause', keys: ['enter'] }]);
     expect(readJson(join(home, 'tasks/t001/task.json')), 'the agent pauses it, saving its work first').not.toHaveProperty('pausedAt');
+  });
+
+  it("asks the task's agent to take up a review, typing yan:review into it, or starts one on it", async () => {
+    const h = await aHerdr('0.9.5');
+    h.agentIs(AGENT_PANE, 'working');
+    expect((await post('/api/task/review', { task: 't001' })).status).toBe(409);
+    h.agentIs(AGENT_PANE, 'idle');
+    expect(await (await post('/api/task/review', { task: 't001' })).json()).toEqual({ typed: true });
+    expect(h.received(AGENT_PANE)).toEqual([{ paste: '/yan:review', keys: ['enter'] }]);
+    write(home, 'tasks/t009/task.json', task('t009', 'to review'));
+    try {
+      expect(await (await post('/api/task/review', { task: 't009' })).json()).toEqual({ launch: 't009' });
+      const pane = h.tabs().find((t) => t.label === 'to review')?.panes[0] ?? '';
+      expect(h.received(pane)).toEqual([{ text: expect.stringMatching(/yan\.mjs --task t009 --review\r$/) }]);
+    } finally {
+      rmSync(join(home, 'tasks', 't009'), { recursive: true, force: true });
+    }
   });
 
   it("closes a paused task's tab once the pause has reached origin and its agent has finished", async () => {

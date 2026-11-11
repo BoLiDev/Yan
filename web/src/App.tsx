@@ -10,6 +10,8 @@ import { Palette } from './components/Palette';
 import { DraftsModal } from './components/drafts/DraftsModal';
 import { NewTaskModal } from './components/NewTask';
 import { TaskActModal } from './components/TaskMenu';
+import { CommentBox } from './components/review/CommentBox';
+import { ReviewPanel } from './components/review/ReviewPanel';
 import { AskModal, Messages } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -185,6 +187,8 @@ export function App() {
       <NewTaskModal />
       <DraftsModal />
       <TaskActModal />
+      <ReviewPanel />
+      <CommentBox />
     </TooltipProvider>
   );
 }

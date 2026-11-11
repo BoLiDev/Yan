@@ -25,7 +25,7 @@ export function CodeLines({ lines, wrap, coloured }: { lines: readonly string[];
   const rows = [];
   for (let i = 0; i < shown; i++) {
     rows.push(
-      <div className="flex gap-4 pr-[18px] hover:bg-[var(--raised)]" key={i}>
+      <div className="flex gap-4 pr-[18px] hover:bg-[var(--raised)]" key={i} data-b={i + 1}>
         {/* The number out of a selection, so what is copied is the code alone. */}
         <span className="w-12 flex-none text-right text-ink-4 select-none">{i + 1}</span>
         <CodeText className={text} text={lines[i] as string} html={coloured ? coloured[i] : null} />

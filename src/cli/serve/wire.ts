@@ -252,6 +252,31 @@ export interface WriteResult {
   readonly status: Status;
 }
 
+/**
+ * One thing `user` says of what they read on the page: of where, as a
+ * reader would find it (`artifacts/docs/design.md, line 12`), about what
+ * they had selected, as it read, kept as code when it is code.
+ */
+export interface ReviewComment {
+  readonly where: string;
+  readonly quote: string;
+  readonly text: string;
+  readonly code?: boolean;
+}
+
+/** `POST /api/review`: the comments gathered on a task, with a word on it all, written as one review in its reviews/. */
+export interface ReviewAsked {
+  readonly task: string;
+  readonly summary: string;
+  readonly comments: readonly ReviewComment[];
+}
+
+/** A review written: its name, and its path from the vault's root, which an agent anywhere is pointed to. */
+export interface ReviewSaved extends WriteResult {
+  readonly name: string;
+  readonly path: string;
+}
+
 /** One of `user`'s drafts as it is on this machine's disk: the vault's own notes, which every task reads. */
 export interface Draft {
   readonly id: string;
