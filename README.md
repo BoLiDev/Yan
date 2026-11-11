@@ -346,7 +346,9 @@ on the right with what was put in, a block only one has facing nothing;
 which way it is drawn is kept in this browser. It opens at the first thing
 changed; a line over it says which change it is, with the ways to the one
 before and the one after, and Back to the file, as Rendered and Source go
-back too. Opening another file leaves it.
+back too. What is selected in a change is commented on from a right click,
+as in the file; the comment names the change it was read in, by its commit
+and its time, and says so when the words are ones the change took out. Opening another file leaves it.
 
 What you read on the page you can review as you go, without stopping to
 tell an agent each thing. Select some of a Markdown file as it is rendered

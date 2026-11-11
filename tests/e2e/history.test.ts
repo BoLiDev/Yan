@@ -65,6 +65,15 @@ describe("a Markdown artifact's history", () => {
     expect(await right.getByText('毫秒').count(), 'as that version had it, not as it is now').toBe(0);
     if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h2-agent.png') });
 
+    // What the change took out is commented on where it is drawn, the comment saying which change, and that it is gone.
+    await right.locator('del', { hasText: '会无限次' }).dblclick();
+    await right.locator('del', { hasText: '会无限次' }).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Comment' }).click();
+    await page.getByText(/artifacts\/docs\/design\.md, the change [0-9a-f]{7} of \d{4}-\d\d-\d\d \d\d:\d\d, text it removed/).waitFor();
+    await page.getByRole('textbox', { name: 'Comment' }).fill('为什么改掉？');
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /Review · 1 comment/ }).waitFor();
+
     // Side by side: the version before on the left with what was taken out, this one on the right with what was put in.
     await right.getByRole('button', { name: 'Side by side' }).click();
     await right.locator('[data-side=old] del', { hasText: '会无限次' }).waitFor();

@@ -1,7 +1,8 @@
 /**
  * Where a selection is, as a reader would find it and an agent is told it:
  * the lines of a Markdown file its rendered text came from, or the lines of
- * a file of code, a diff's among them, by the numbers drawn beside them.
+ * a file of code, a diff's among them, by the numbers drawn beside them; or
+ * the change of a Markdown file's history it was read in.
  */
 
 /** What a comment says of where it is: the words for it, and whether what was selected is code. */
@@ -75,4 +76,22 @@ export function inCode(prefix: string, range: Range, path?: string): Located {
   if (a1 > 0 && a2 > 0) return { where: `${head}, removed ${span(a1, Math.max(a1, a2))} of the old file`, code: true };
   const one = b1 > 0 ? `line ${b1}` : a1 > 0 ? `removed line ${a1} of the old file` : '';
   return { where: [head, one && `from ${one}`].filter(Boolean).join(', '), code: true };
+}
+
+const two = (n: number): string => String(n).padStart(2, '0');
+
+/**
+ * A selection in a change of a Markdown file's history, drawn as the
+ * document: the file, `path` from the task's folder, and the change, by
+ * its commit in the vault and when it was, on this machine's clock. No
+ * lines: what is drawn is two versions as one, and its lines are neither's.
+ * Words the change took out are said to be so, since they are no longer in
+ * the file to be found, and so are words read in the version before.
+ */
+export function inChange(path: string, commit: string, at: number, range: Range): Located {
+  const el = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+  const d = new Date(at * 1000);
+  const when = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+  const gone = el?.closest('del, [data-diff=del]') ? ', text it removed' : el?.closest('[data-side=old]') ? ', as it read before the change' : '';
+  return { where: `${path}, the change ${commit.slice(0, 7)} of ${when}${gone}`, code: false };
 }

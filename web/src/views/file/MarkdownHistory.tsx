@@ -7,6 +7,8 @@ import { renderMarkdownDiff } from '../../lib/markdownDiff';
 import { cn } from '../../lib/utils';
 import { Icon } from '../../components/Icon';
 import { Empty, Scroll, Seg } from '../../components/page';
+import { ReviewMenu } from '../../components/review/ReviewMenu';
+import { inChange } from '../../components/review/locate';
 import { Button } from '../../components/ui/button';
 import { filesOrigin, useTask, useText } from '../../state/server';
 import { setPref, useUI } from '../../state/ui';
@@ -46,7 +48,8 @@ const SPLIT = [
  * took out and reworded marked in it, opened at the first of them; or, side
  * by side, the version before on the left and this one on the right. Over it,
  * which version it is, the ways to the one before and the one after, and
- * the way back to the file as it is. An agent and `user` both write these
+ * the way back to the file as it is. What is selected in it is commented
+ * on from a right click, as in the file, into the task's review. An agent and `user` both write these
  * files, and this is where each sees what the other did.
  */
 export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; file: ArtifactFile; commit: string; onMeta: (meta: string) => void }) {
@@ -121,7 +124,10 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
                   <span className="pl-8">After</span>
                 </div>
               ) : null}
-              <div ref={doc} className={cn(DOC, DIFFED, split && SPLIT)} dangerouslySetInnerHTML={{ __html: rendered.html }} />
+              {/* Commented on as the file is, the comment saying which change it was read in. */}
+              <ReviewMenu task={task} locate={(range) => inChange(`artifacts/${file.path}`, v.commit, v.at, range)}>
+                <div ref={doc} className={cn(DOC, DIFFED, split && SPLIT)} dangerouslySetInnerHTML={{ __html: rendered.html }} />
+              </ReviewMenu>
             </div>
           )}
       </Scroll>
