@@ -342,7 +342,9 @@ character at a time in Chinese. A table that changed is drawn once too,
 still a table, the cells that changed marked in it, a row told by its first
 cell, and a row put in or taken out marked whole. A fence that changed, or
 a list or a quote that holds one, is shown as the old one gone and the new
-one added, since a mark written into code would be read as code. Side by side draws the two
+one added, since a mark written into code would be read as code. A
+table written in HTML, with `<tr>` and `<td>`, is one table too, blank lines
+inside it or not, and marked in the words between its tags. Side by side draws the two
 versions beside each other instead, block against block at the same height:
 the one before on the left with what was taken out of it marked, this one
 on the right with what was put in, a block put in another's place facing

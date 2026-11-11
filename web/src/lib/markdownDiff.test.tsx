@@ -64,6 +64,20 @@ describe('a version of a Markdown text against the one before', () => {
     }
   });
 
+  it('draws a table written in HTML as a table, blank lines inside it or not, a cell that changed marked in it and a row put in marked whole', () => {
+    const table = (rows: string): string => `intro\n\n<table>\n  <tr>\n    <th>Name</th>\n    <th>Value</th>\n  </tr>\n\n${rows}</table>\n\nafter\n`;
+    const row = (a: string, b: string): string => `  <tr>\n    <td>${a}</td>\n    <td>${b}</td>\n  </tr>\n`;
+    const same = drawn(table(row('tries', '3')), table(row('tries', '3')));
+    expect(texts(same, 'table td')).toEqual(['tries', '3']);
+    expect(same.querySelector('[data-diff]')).toBeNull();
+
+    const box = drawn(table(row('tries', '3 times')), table(row('tries', '5 times') + row('wait', '250')));
+    expect(box.querySelectorAll('table')).toHaveLength(1);
+    expect([...box.querySelectorAll('tr')].map((tr) => texts(tr as HTMLElement, 'th, td'))).toEqual([['Name', 'Value'], ['tries', '35 times'], ['wait', '250']]);
+    expect(texts(box, 'td del')).toEqual(['3']);
+    expect(texts(box, 'td ins')).toEqual(['5', 'wait', '250']);
+  });
+
   it('shows a table whose columns changed as the old one gone and the new one added', () => {
     const box = drawn('| a | b |\n| --- | --- |\n| 1 | 2 |\n', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n');
     expect(box.querySelectorAll('[data-diff=del] table, [data-diff=add] table')).toHaveLength(2);

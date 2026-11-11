@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown } from './markdown';
+import { blocksOf, renderMarkdown } from './markdown';
 
 /** The rendered HTML as the page will hold it, to look into. */
 function shown(text: string, ctx: Parameters<typeof renderMarkdown>[1] = {}): HTMLElement {
@@ -79,5 +79,14 @@ describe('Markdown an agent wrote', () => {
     const fresh = [...doc.querySelectorAll('[data-fresh]')].map((el) => el.textContent?.trim());
     expect(fresh).toEqual(['New paragraph.', 'left open']);
     expect(doc.querySelector('[data-fresh]')?.previousElementSibling?.textContent).toBe('Old paragraph.');
+  });
+
+  it('keeps a table written in HTML one table where what is new is tinted, blank lines inside it or not', () => {
+    const text = 'intro\n\n<table>\n  <tr><td>one</td></tr>\n\n  <tr><td>two</td></tr>\n</table>\n\nafter\n';
+    const box = document.createElement('div');
+    box.innerHTML = renderMarkdown(text, { before: blocksOf(text.replace('two', 'was two')) }).html;
+    expect([...box.querySelectorAll('table td')].map((td) => td.textContent)).toEqual(['one', 'two']);
+    expect(box.querySelector('[data-fresh] table'), 'the table changed, whole').not.toBeNull();
+    expect([...box.querySelectorAll('[data-fresh]')]).toHaveLength(1);
   });
 });

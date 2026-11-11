@@ -169,6 +169,46 @@ function slug(text: string, used: Set<string>): string {
   return n;
 }
 
+/** The tags that close themselves: one opened is not one left open. */
+const VOID = /^(?:area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
+
+/** How many elements a piece of source opens and does not close. */
+export function leftOpen(html: string): number {
+  let depth = 0;
+  for (const m of html.matchAll(/<(\/)?([a-zA-Z][\w-]*)\b[^>]*?(\/)?>/g)) {
+    if (!VOID.test(m[2] as string) && !m[3]) depth += m[1] ? -1 : 1;
+  }
+  return depth;
+}
+
+/**
+ * A text's top-level blocks, as they must be read when each is read on its
+ * own: one to a block, but for HTML written into the text, a `<table>` or a
+ * `<details>`, which marked ends at each blank line inside it. Its pieces
+ * are one block together, up to where what it opened is closed; read
+ * apart, a row is no longer in its table and is drawn as its words.
+ */
+export function blocksIn(tokens: readonly Token[]): Token[][] {
+  const out: Token[][] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i] as Token;
+    const group = [tok];
+    if (tok.type === 'html') {
+      let depth = leftOpen(tok.raw);
+      while (depth > 0 && i + 1 < tokens.length) {
+        const next = tokens[++i] as Token;
+        group.push(next);
+        depth += leftOpen(next.raw);
+      }
+    }
+    out.push(group);
+  }
+  return out;
+}
+
+/** A block's source, its pieces end to end. */
+export const rawOf = (block: readonly Token[]): string => block.map((t) => t.raw).join('');
+
 /** An empty element before a block, saying the line of the text it begins on. */
 const marker = (line: number): string => `<span data-line="${line}"></span>`;
 
@@ -192,10 +232,11 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
   if (ctx.before) {
     // Each block read on its own, so one left open cannot take in the next; one new since `before` in a tinted holder.
     doc = document.implementation.createHTMLDocument('').body;
-    for (const tok of tokens) {
+    for (const block of blocksIn(tokens)) {
+      const tok = block[0] as Token;
       if (marks(tok)) doc.insertAdjacentHTML('beforeend', marker(lineOf.get(tok) ?? 0));
-      const one = cleaned(marked.parser(Object.assign([tok], { links: tokens.links }) as TokensList, { gfm: true }));
-      if (tok.type !== 'space' && !ctx.before.has(tok.raw.trim())) {
+      const one = cleaned(marked.parser(Object.assign([...block], { links: tokens.links }) as TokensList, { gfm: true }));
+      if (tok.type !== 'space' && !ctx.before.has(rawOf(block).trim())) {
         const holder = doc.ownerDocument.createElement('div');
         holder.dataset.fresh = '';
         holder.append(...one.childNodes);
@@ -230,5 +271,5 @@ export function finished(doc: HTMLElement, ctx: MarkdownContext): RenderedMarkdo
 
 /** The top-level blocks of a text, by their source: what `before` is made of. */
 export function blocksOf(text: string): Set<string> {
-  return new Set(marked.lexer(text, { gfm: true }).map((x) => x.raw.trim()));
+  return new Set(blocksIn(marked.lexer(text, { gfm: true })).map((block) => rawOf(block).trim()));
 }
