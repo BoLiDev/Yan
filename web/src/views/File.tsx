@@ -5,6 +5,7 @@ import { bytes } from '../lib/format';
 import { Bar, BarSep, BarTools, Crumb, Seg, Stepper, Tool } from '../components/page';
 import { fileUrl, shaUrl, useIndex, vaultPath } from '../state/server';
 import { setPref, useUI } from '../state/ui';
+import { FrameReview } from '../components/review/FrameReview';
 import { ReviewMenu } from '../components/review/ReviewMenu';
 import { inCode } from '../components/review/locate';
 import { CodeStage } from './Code';
@@ -79,7 +80,7 @@ export function FileView(ctx: FileContext) {
     );
     body = pageSource
       ? <ReviewMenu task={task} className="contents" locate={(range) => inCode('', range, `artifacts/${file.path}`)}><CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} onMeta={setMeta} /></ReviewMenu>
-      : <Stage at="page"><PageFrame src={fileUrl(path)} width={prefs.width} /></Stage>;
+      : <Stage at="page"><FrameReview task={task} path={`artifacts/${file.path}`}><PageFrame src={`${fileUrl(path)}?review`} width={prefs.width} /></FrameReview></Stage>;
   } else if (viewer === 'markdown') {
     tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdSource ? 'src' : 'doc'} onPick={(v) => {
       useUI.setState({ mdSource: v === 'src' });
@@ -114,7 +115,7 @@ export function FileView(ctx: FileContext) {
     <>
       <Bar
         title={<>{ctx.taskTitle ? <span className="font-normal text-ink-3">{`${ctx.taskTitle} · `}</span> : null}<Crumb path={file.path} /></>}
-        meta={viewer === 'page' && !pageSource ? `Page · ${bytes(file.size)} · runs on its own origin, away from yan` : meta}
+        meta={viewer === 'page' && !pageSource ? `Page · ${bytes(file.size)} · runs on its own origin, away from yan · right click in it to comment` : meta}
         tools={
           <>
             <Stepper prev={ctx.prev} next={ctx.next} pos={ctx.pos} total={ctx.total} what="file" />

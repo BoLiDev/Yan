@@ -16,6 +16,8 @@ export interface Kept extends ReviewComment {
   readonly href: string;
   /** What was selected as the document holds it, text nodes end to end: what it is found again by, to be marked. */
   readonly exact: string;
+  /** In a page an agent wrote, the selector of the element it is on or in: what the page marks it by. */
+  readonly mark?: string;
 }
 
 /** A comment being written: all of one but its words. */

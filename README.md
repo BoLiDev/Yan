@@ -352,7 +352,17 @@ review written all the same and the box offering to ask again, or an agent
 started on it with it (`yan --task <id> --review`). A comment says where it
 is as a reader would find it, a file and its lines, or a repository, a
 branch, a file and its lines, the old file's for lines taken out, with what
-was selected under it, so the agent needs nothing more said. Markdown and the report
+was selected under it, so the agent needs nothing more said.
+
+A page an agent wrote is reviewed the same way, in its frame. It runs on
+the files port, where the page around it sees nothing of it, so serve
+gives the frame the page with one script of yan's added (`?review`; the
+file is not changed, and in a tab of its own it is as the agent wrote it):
+a right click in it opens the same menu over it, to comment on the words
+selected or, with nothing selected, on the element under the pointer, which
+the comment names by a CSS selector an agent can find it by, with what it
+says. Words commented on are marked in the page and an element is outlined.
+Shift with the right click leaves the browser's own menu. Markdown and the report
 an agent wrote are shown without anything in them that runs, and load
 nothing from the page's own address; a page an agent wrote runs as itself
 on the files port. A picture shown small, in a

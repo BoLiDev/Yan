@@ -28,6 +28,7 @@ import type { BranchBlob, CommitPatch, Index, Report, ReviewSaved, Status as Wir
 import { PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type Answer } from './drafts.js';
 import { LaterPush } from './later-push.js';
 import { buildLoads, buildPrint } from './build.js';
+import { REVIEW_SCRIPT, REVIEW_SCRIPT_PATH, withReview } from './review-frame.js';
 
 /**
  * `yan serve`'s two HTTP servers, both on 127.0.0.1.
@@ -1189,6 +1190,8 @@ export class YanServer {
       if (bytes === undefined) return send(res, 404, 'no such blob');
       return sendBytes(req, res, bytes, copy === undefined ? typeOf(small[3] as string) : 'image/webp', { 'Cache-Control': 'private, max-age=31536000, immutable' });
     }
+    // What makes a page an agent wrote reviewable in its frame: yan's own, the same for every page.
+    if (path === REVIEW_SCRIPT_PATH) return sendBytes(req, res, Buffer.from(REVIEW_SCRIPT), 'text/javascript; charset=utf-8', { 'Cache-Control': 'no-cache' });
     // A draft's picture is given from disk, where the page put it a moment ago, not from a commit.
     if (DRAFT_PICTURE.test(path)) {
       const file = join(this.options.vaultDir, path);
@@ -1201,15 +1204,18 @@ export class YanServer {
     if (entry === undefined && (path === '' || path.endsWith('/'))) entry = this.view.entry(`${path}index.html`);
     if (entry === undefined) return send(res, 404, `${path} is not in the vault`);
 
-    const etag = `"${entry.sha}"`;
+    // `?review` on a page: as it is, with the script that lets yan's page comment on it added.
+    const review = new URL(req.url ?? '/', 'http://localhost').searchParams.has('review') && /\.html?$/i.test(path);
+    const etag = review ? `"${entry.sha}-review"` : `"${entry.sha}"`;
     const headers = { ETag: etag, 'Cache-Control': 'no-cache' };
     if (req.headers['if-none-match'] === etag) {
       res.writeHead(304, headers);
       res.end();
       return;
     }
-    const bytes = await this.view.blobs.read(entry.sha);
-    if (bytes === undefined) return send(res, 404, `${path} cannot be read`);
+    const read = await this.view.blobs.read(entry.sha);
+    if (read === undefined) return send(res, 404, `${path} cannot be read`);
+    const bytes = review ? withReview(read) : read;
     const download = new URL(req.url ?? '/', 'http://localhost').searchParams.has('download');
     const name = path.split('/').pop() ?? 'file';
     sendBytes(req, res, bytes, typeOf(path), download ? { ...headers, 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}` } : headers);

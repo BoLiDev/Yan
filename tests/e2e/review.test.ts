@@ -39,6 +39,7 @@ beforeAll(async () => {
   const v = await vault((dir) => {
     write(dir, 'tasks/t001/task.json', taskJson('t001', 'pay retries', { repos: [{ url, branch: 'feat/retry' }] }));
     write(dir, 'tasks/t001/artifacts/docs/design.md', '# Design\n\nA payment is retried forever.\n\nEach try waits a little longer.\n');
+    write(dir, 'tasks/t001/artifacts/design/card.html', '<!doctype html><html><head><title>Card</title></head><body><h1 id="title">Pay later</h1><p>Split it in three.</p><button>Confirm</button></body></html>');
     write(dir, '.machine/config.json', JSON.stringify({ version: 1, vaults: {}, clones: { [repoKey(url)]: clone } }));
   });
   home = v.home;
@@ -99,6 +100,33 @@ describe('a review', () => {
     expect(printed).toMatch(/## 2\. web, branch feat\/retry, retry\.ts, line 2\n\n```\nbackoff\n```\n\nIn what unit\?/);
     const name = /reviews\/(\S+\.md)/.exec(printed)?.[1] ?? '';
     expect((await fxGit(['show', `main:tasks/t001/reviews/${name}`], origin)).stdout, 'pushed').toContain('Five times at most.');
+    expect(errors).toEqual([]);
+  }, 60_000);
+
+  it('takes a comment on a page an agent wrote, on the words selected in it or on an element of it, and marks them there', async () => {
+    const { page, errors } = await open(served.url('/#/t/t001/a/design/card.html'));
+    const frame = page.frameLocator('iframe[title="Page"]');
+    const menuComment = async (text: string): Promise<void> => {
+      await page.getByRole('menuitem', { name: 'Comment' }).click();
+      await page.getByRole('textbox', { name: 'Comment' }).fill(text);
+      await page.keyboard.press('Enter');
+    };
+    await frame.getByRole('button', { name: 'Confirm' }).click({ button: 'right' });
+    await menuComment('Say what it confirms.');
+    await frame.getByText('Split it in three.').selectText();
+    await frame.getByText('Split it in three.').click({ button: 'right' });
+    await menuComment('Three what?');
+    await expect.poll(() => frame.locator('[data-yan-review]').count(), { timeout: 10_000 }).toBe(1);
+    await shot(page, '4-page-commented');
+
+    await page.getByRole('button', { name: /Review · 2 comments/ }).click();
+    await page.getByRole('button', { name: 'Finish' }).click();
+    await page.getByText(/tasks\/t001\/reviews\/.+\.md/).waitFor({ timeout: 20_000 });
+    const printed = (await runYan(home, ['review', '--task', 't001'])).stdout;
+    expect(printed).toContain('artifacts/design/card.html, body > button\n\n> Confirm\n\nSay what it confirms.');
+    expect(printed).toContain('artifacts/design/card.html, body > p\n\n> Split it in three.\n\nThree what?');
+    // As the agent wrote it, anywhere but in the frame the page reviews it in.
+    expect(await (await fetch(served.url('/').replace(/:(\d+)\/$/, (_m, p: string) => `:${Number(p) + 1}/tasks/t001/artifacts/design/card.html`))).text()).not.toContain('_review.js');
     expect(errors).toEqual([]);
   }, 60_000);
 });
