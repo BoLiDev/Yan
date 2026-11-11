@@ -78,6 +78,21 @@ describe('a version of a Markdown text against the one before', () => {
     expect(texts(box, 'td ins')).toEqual(['5', 'wait', '250']);
   });
 
+  it('leaves a Mermaid diagram that changed to be drawn as it was and as it is, each named and neither marked, its source compared under it', () => {
+    const fence = (to: string): string => `# Flow\n\n\`\`\`mermaid\ngraph TD\n  A --> ${to}\n\`\`\`\n`;
+    const box = drawn(fence('B'), fence('C'));
+    const holders = [...box.querySelectorAll<HTMLElement>('[data-diff=drawn]')];
+    expect(holders.map((h) => h.dataset.label)).toEqual(['Before', 'After']);
+    expect(holders.map((h) => h.querySelector('code.language-mermaid')?.textContent?.trim())).toEqual(['graph TD\n  A --> B', 'graph TD\n  A --> C']);
+    expect(box.querySelector('[data-diff=del], [data-diff=add]')).toBeNull();
+    expect(texts(box, 'details del')).toEqual(['A --> B']);
+    expect(texts(box, 'details ins')).toEqual(['A --> C']);
+    expect(holders[0]?.querySelector('details'), 'under the one after').toBeNull();
+
+    expect([...drawn('# Flow\n', fence('B')).querySelectorAll<HTMLElement>('[data-diff=drawn]')].map((h) => h.dataset.label)).toEqual(['Added']);
+    expect([...drawn(fence('B'), '# Flow\n').querySelectorAll<HTMLElement>('[data-diff=drawn]')].map((h) => h.dataset.label)).toEqual(['Removed']);
+  });
+
   it('shows a table whose columns changed as the old one gone and the new one added', () => {
     const box = drawn('| a | b |\n| --- | --- |\n| 1 | 2 |\n', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n');
     expect(box.querySelectorAll('[data-diff=del] table, [data-diff=add] table')).toHaveLength(2);

@@ -343,6 +343,11 @@ still a table, the cells that changed marked in it, a row told by its first
 cell, and a row put in or taken out marked whole. A fence that changed, or
 a list or a quote that holds one, is shown as the old one gone and the new
 one added, since a mark written into code would be read as code. A
+Mermaid diagram that changed is neither tinted nor marked, a colour laid
+over a drawing saying nothing of what moved in it: it is drawn as it was
+and as it is, named Before and After, or Added or Removed when it has no
+other, one over the other or side by side, and under it, folded away, its
+source compared line by line, which says the change exactly. A
 table written in HTML, with `<tr>` and `<td>`, is one table too, blank lines
 inside it or not, and marked in the words between its tags. Side by side draws the two
 versions beside each other instead, block against block at the same height:
@@ -414,6 +419,12 @@ which Enter keeps. Leaving a text keeps it too, Escape puts it back, and a
 line under the text being edited says which keys do what. The lines are
 kept in report.html as they were typed, and drawn as lines there and in
 the copy downloaded.
+
+A fence that names `mermaid`, in any Markdown the page draws, a file, the
+problem, a file of a branch, is drawn as the diagram it describes, in the
+page's theme, by a library loaded when the first one is met; one that
+cannot be drawn stays as its source, with why said over it. The source is
+an agent's, so it is drawn with nothing in it to click or run.
 
 Markdown and the report
 an agent wrote are shown without anything in them that runs, and load

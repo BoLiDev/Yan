@@ -8,7 +8,9 @@ import { alike, kept, mergeWords } from './words';
  * a block only the new has marked as added, one only the old has kept in
  * its place and marked as taken out, and a block that was changed drawn
  * once, the words taken out of it and put into it marked where they are,
- * a table's in its cells. Or the two side by side, block beside block: the old on the left with
+ * a table's in its cells. A Mermaid diagram that changed is neither tinted
+ * nor marked: it is left to be drawn as it was and as it is, each named, with
+ * its source compared under it. Or the two side by side, block beside block: the old on the left with
  * what was taken out of it marked, the new on the right with what was put
  * in, a block only one has facing nothing.
  */
@@ -20,12 +22,27 @@ interface Block {
   readonly toks: readonly Token[];
 }
 
+/**
+ * A diagram that was put in, taken out or changed: what it is called over
+ * its drawing, and, for one that took another's place, the source of the
+ * one before, to compare the two by.
+ */
+interface Drawn {
+  readonly label: string;
+  readonly was?: string;
+}
+
+/** Whether a block is a Mermaid fence, which the page draws as a diagram. */
+const isDiagram = (b: Block | undefined): boolean =>
+  b !== undefined && b.toks.length === 1 && b.type === 'code' && /^mermaid\b/i.test(((b.toks[0] as Token & { lang?: string }).lang ?? '').trim());
+const sourceOf = (b: Block): string => (b.toks[0] as Token & { text?: string }).text ?? '';
+
 /** How a changed block's lines are marked: prose after what each begins with, a table's row a cell at a time, HTML between its tags. */
 type Kind = 'prose' | 'table' | 'html';
 
 /** A block of the text as it is drawn: one of a version's own, or a changed one, as the old had it and as the new has it. */
 type Piece =
-  | { readonly mark: null | 'add' | 'del'; readonly block: Block; readonly from: 'old' | 'new'; readonly facing?: boolean }
+  | { readonly mark: null | 'add' | 'del'; readonly block: Block; readonly from: 'old' | 'new'; readonly facing?: boolean; readonly drawn?: Drawn }
   | { readonly mark: 'mod'; readonly old: string; readonly now: string; readonly kind: Kind };
 
 /** Which of a changed block is written: the new with what the old had written in, or either alone with its own marks. */
@@ -177,8 +194,10 @@ function piecesOf(old: readonly Token[], now: readonly Token[]): Piece[] {
         out.push({ mark: 'mod', old: g.raw, now: c.raw, kind: kindOf(c) });
       } else {
         // One put in another's place: side by side, the new faces the old it took the place of.
-        if (g !== undefined) out.push({ mark: 'del', block: g, from: 'old' });
-        if (c !== undefined) out.push({ mark: 'add', block: c, from: 'new', facing: g !== undefined });
+        // A diagram is not tinted or struck through: it is drawn, and named for what became of it.
+        const both = isDiagram(g) && isDiagram(c);
+        if (g !== undefined) out.push({ mark: 'del', block: g, from: 'old', ...(isDiagram(g) ? { drawn: { label: both ? 'Before' : 'Removed' } } : {}) });
+        if (c !== undefined) out.push({ mark: 'add', block: c, from: 'new', facing: g !== undefined, ...(isDiagram(c) ? { drawn: { label: both ? 'After' : 'Added', ...(both ? { was: sourceOf(g as Block) } : {}) } } : {}) });
       }
     }
     [i, j] = [x, y];
@@ -189,6 +208,35 @@ function piecesOf(old: readonly Token[], now: readonly Token[]): Piece[] {
     }
   }
   return out;
+}
+
+/**
+ * A changed diagram's source, the old against the new line by line, folded
+ * away under the two drawings: what changed in a drawing is hard to find by
+ * looking from one to the other, and the lines that changed say it exactly.
+ */
+function sourceDiff(document: Document, old: string, now: string): HTMLElement {
+  const [a, b] = [old.replace(/\n+$/, '').split('\n'), now.replace(/\n+$/, '').split('\n')];
+  const [inA, inB] = kept(a, b);
+  const pre = document.createElement('pre');
+  const line = (tag: 'ins' | 'del' | 'span', text: string): void => {
+    const node = document.createElement(tag);
+    node.textContent = `${text}\n`;
+    pre.append(node);
+  };
+  for (let i = 0, j = 0; i < a.length || j < b.length;) {
+    if (i < a.length && !inA[i]) line('del', a[i++] as string);
+    else if (j < b.length && !inB[j]) line('ins', b[j++] as string);
+    else {
+      line('span', b[j++] as string);
+      i++;
+    }
+  }
+  const fold = document.createElement('details');
+  const summary = document.createElement('summary');
+  summary.textContent = 'What changed in its source';
+  fold.append(summary, pre);
+  return fold;
 }
 
 /**
@@ -214,8 +262,12 @@ export function renderMarkdownDiff(old: string | null, now: string, ctx: Markdow
     const toks = p.mark === 'mod' ? marked.lexer(mergedSource(p.old, p.now, side, p.kind), { gfm: true }) : (Object.assign([...p.block.toks], { links: (p.from === 'old' ? was : is).links }) as TokensList);
     const one = cleaned(marked.parser(toks, { gfm: true }));
     if (p.mark === null) return [...one.childNodes];
-    const holder = el({ diff: p.mark });
+    const drawn = p.mark === 'mod' ? undefined : p.drawn;
+    // Side by side, the columns already say which is the one before and which the one after.
+    const named = drawn !== undefined && !(split && (drawn.label === 'Before' || drawn.label === 'After'));
+    const holder = el(drawn === undefined ? { diff: p.mark } : { diff: 'drawn', ...(named ? { label: drawn.label } : {}) });
     holder.append(...one.childNodes);
+    if (p.mark !== 'mod' && drawn?.was !== undefined) holder.append(sourceDiff(doc.ownerDocument, drawn.was, sourceOf(p.block)));
     return [holder];
   };
   for (const p of all) {

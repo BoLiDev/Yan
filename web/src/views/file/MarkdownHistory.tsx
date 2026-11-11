@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ArtifactFile } from '../../lib/api';
 import { dirName } from '../../lib/files';
 import { plural, when } from '../../lib/format';
+import { useDiagrams } from '../../lib/diagrams';
 import { langReady } from '../../lib/highlight';
 import { renderMarkdownDiff } from '../../lib/markdownDiff';
 import { cn } from '../../lib/utils';
@@ -28,6 +29,10 @@ const DIFFED = [
   '[&_[data-diff=del]]:bg-[var(--diff-del)] [&_[data-diff=del]]:line-through [&_[data-diff=del]]:decoration-[color:var(--red)]/50 [&_[data-diff=del]_*]:text-ink-3',
   // A heading's own space above it is the holder's.
   '[&_[data-diff]>:first-child]:mt-0',
+  // A diagram that changed is drawn as it was and as it is, each named over it (`data-label`) and neither tinted: what
+  // moved in a drawing is not to be seen in a colour laid over it. Its source, compared line by line, folds away under it.
+  '[&_[data-diff=drawn]]:ring-1 [&_[data-diff=drawn]]:ring-border [&_[data-diff=drawn][data-label]]:before:mb-2 [&_[data-diff=drawn][data-label]]:before:block [&_[data-diff=drawn][data-label]]:before:text-[12px] [&_[data-diff=drawn][data-label]]:before:font-bold [&_[data-diff=drawn][data-label]]:before:text-ink-3 [&_[data-diff=drawn][data-label]]:before:content-[attr(data-label)]',
+  '[&_summary]:mb-2 [&_summary]:cursor-pointer [&_summary]:text-[12.5px] [&_summary]:text-ink-3 [&_details_:is(ins,del)]:block',
   '[&_ins]:rounded-[3px] [&_ins]:bg-[var(--diff-add-word)] [&_ins]:no-underline',
   '[&_del]:rounded-[3px] [&_del]:bg-[var(--diff-del-word)] [&_del]:text-ink-3 [&_del]:decoration-[color:var(--red)]/60',
 ].join(' ');
@@ -89,6 +94,7 @@ export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; 
   // Opened at the first thing changed, which may be far down a long file.
   const doc = useRef<HTMLDivElement>(null);
   const html = rendered?.html;
+  useDiagrams(doc, html);
   // Side by side a place is a row, the old and the new of it together.
   const spots = useSpots(doc, split ? '[data-row]:has([data-diff])' : '[data-diff]', html);
 

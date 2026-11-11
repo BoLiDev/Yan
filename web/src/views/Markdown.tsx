@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDiagrams } from '../lib/diagrams';
 import { langReady } from '../lib/highlight';
 import { renderMarkdown, type Heading, type MarkdownContext } from '../lib/markdown';
 import { cn } from '../lib/utils';
@@ -19,7 +20,8 @@ function depthOf(level: number, heads: readonly Heading[]): number {
  * Markdown as a document, with an outline beside it, down to the fifth
  * level of heading, when asked for and it has three headings or more, or bare, the text alone. The HTML is made once per text and put in
  * place whole: React leaves it alone until the text changes, so a push that
- * changes nothing in it changes nothing on screen.
+ * changes nothing in it changes nothing on screen. Its Mermaid fences are
+ * drawn once it is in place.
  */
 export function MarkdownDoc({ text, task, base, dir, before, dropTitle, lines, outline, bare }: Omit<MarkdownContext, 'files' | 'filesOrigin'> & { text: string; outline?: boolean; bare?: boolean }) {
   const { data: d } = useTask(task);
@@ -44,6 +46,7 @@ export function MarkdownDoc({ text, task, base, dir, before, dropTitle, lines, o
     };
   }, [rendered.waiting]);
   const doc = useRef<HTMLDivElement>(null);
+  useDiagrams(doc, rendered.html);
   const heads = rendered.heads;
   // Bare, the text alone, for a page that has its own margins, and its width: the overview.
   if (bare) return <div className={DOC} ref={doc} dangerouslySetInnerHTML={{ __html: rendered.html }} />;

@@ -32,6 +32,9 @@ export const DOC = [
   '[&_th]:bg-[var(--raised)]',
   '[&_img]:max-w-full [&_img]:rounded-[8px] [&_img]:ring-1 [&_img]:ring-border',
   '[&_hr]:my-6 [&_hr]:border-t [&_hr]:border-border',
+  // A Mermaid fence drawn (lib/diagrams.ts): in the middle, no wider than the text, scrolling on its own when it is; one that could not be drawn says why over its source.
+  '[&_[data-diagram]]:mb-4 [&_[data-diagram]]:flex [&_[data-diagram]]:justify-center [&_[data-diagram]]:overflow-x-auto [&_[data-diagram]_svg]:h-auto [&_[data-diagram]_svg]:max-w-full',
+  '[&_[data-diagram-error]]:mb-1 [&_[data-diagram-error]]:text-[12.5px] [&_[data-diagram-error]]:text-destructive',
   // A block new since the last look, tinted out to a little past the text on either side.
   '[&_[data-fresh]]:-mx-3.5 [&_[data-fresh]]:mb-3 [&_[data-fresh]]:rounded-[10px] [&_[data-fresh]]:bg-brand-wash [&_[data-fresh]]:px-3.5 [&_[data-fresh]]:pt-2 [&_[data-fresh]]:pb-px',
 ].join(' ');

@@ -43,9 +43,11 @@ export default defineConfig(({ command }) => {
     build: {
       outDir: '../dist/web',
       emptyOutDir: true,
-      // The page in one file but for the terminal (xterm.js) and highlight.js's languages, which load when first
-      // wanted: React, Base UI, marked, DOMPurify and the page come to some 950 kB, read from this machine.
-      chunkSizeWarningLimit: 1000,
+      // The page in one file but for what loads when first wanted: the terminal (xterm.js), highlight.js's languages,
+      // a review's boxes, a file's history, and Mermaid, which comes in parts of its own. The largest of those, a
+      // layout Mermaid loads only for a diagram that asks for it, is some 1.5 MB, and is what this is set over; the
+      // page's own first script is under half of it, read from this machine.
+      chunkSizeWarningLimit: 1600,
     },
     server: {
       proxy: Object.fromEntries(['/api', '/blob', '/fonts'].map((path): [string, ProxyOptions] => [path, {
