@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { postJSON, type ReviewAsked, type ReviewSaved } from '../../lib/api';
+import type { ReviewAsked } from '../../lib/api';
 import { plural } from '../../lib/format';
 import { fullPageOf, go, link, useHash, useRoute } from '../../lib/route';
 import { goesOn } from '../../lib/stops';
 import { dropComment, reviewWritten, rewordComment, setSummary, useComments, useReview, type Kept } from '../../state/review';
-import { onStatus, queryClient, useIndex } from '../../state/server';
-import { copyText, message, toast } from '../../state/ui';
+import { useIndex } from '../../state/server';
+import { copyText, message } from '../../state/ui';
 import { Icon } from '../Icon';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Spinner } from '../ui/spinner';
 import { Textarea } from '../ui/textarea';
 import { Quote } from './CommentBox';
+import { askAgent, writeReview } from './send';
 
 /** A review's box down the right of the page, the page behind it still there to be read around. */
 const SHEET = 'top-0 right-0 left-auto flex h-full max-h-screen w-[460px] translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 sm:max-w-[calc(100%-2rem)]';
@@ -49,30 +50,17 @@ async function finish(task: string, send: boolean): Promise<boolean> {
     summary: (summary[task] ?? '').trim(),
     comments: (comments[task] ?? []).filter((c) => c.text.trim() !== '').map((c) => ({ where: c.where, quote: c.quote, text: c.text.trim(), ...(c.code ? { code: true } : {}) })),
   };
-  let saved: ReviewSaved;
-  try {
-    saved = await postJSON<ReviewSaved>('/api/review', asked);
-  } catch (err) {
-    toast(`The review was not saved: ${(err as Error).message}`, true);
-    return false;
-  }
+  const saved = await writeReview(asked);
+  if (saved === null) return false;
   reviewWritten(task, { path: saved.path, comments: asked.comments.length });
-  void onStatus(saved.status);
-  if (saved.warning) toast(`The review is saved here, but the push failed: ${saved.warning}`, true);
-  else message.success('Review saved and pushed');
+  if (!saved.warning) message.success('Review saved and pushed');
   if (!send) return false;
   return sendToAgent(task);
 }
 
-/** The agent on this machine asked to take up the review last written; whether it was. */
+/** The agent on this machine asked to take up the review last written, the page going to its terminal to watch it; whether it was. */
 async function sendToAgent(task: string): Promise<boolean> {
-  try {
-    await postJSON('/api/task/review', { task });
-  } catch (err) {
-    toast(`The review is saved, but its agent was not asked: ${(err as Error).message}`, true);
-    return false;
-  }
-  await queryClient.invalidateQueries({ queryKey: ['terminals'] });
+  if (!(await askAgent(task))) return false;
   go(link.terminal(task));
   return true;
 }

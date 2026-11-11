@@ -1,11 +1,15 @@
 import { useRef, useState } from 'react';
-import { plural } from '../../lib/format';
+import { MOD, plural } from '../../lib/format';
+import { goesOn } from '../../lib/stops';
 import { cn } from '../../lib/utils';
 import { addComment, useReview, type Drafted } from '../../state/review';
+import { useIndex } from '../../state/server';
 import { message } from '../../state/ui';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Spinner } from '../ui/spinner';
 import { Textarea } from '../ui/textarea';
+import { askAgent, writeReview } from './send';
 
 /** What a comment is about, as it was selected: a few lines of it, code in code's face. */
 export function Quote({ c, className }: { c: { quote: string; code?: boolean }; className?: string }) {
@@ -20,8 +24,14 @@ export function Quote({ c, className }: { c: { quote: string; code?: boolean }; 
 /**
  * The box a comment is written in, over the page, opened from what was
  * selected: Enter keeps it in the task's review and goes back to the
- * reading, Shift+Enter starts a new line, Escape drops it. Nothing is sent
- * anywhere yet: a review goes to the vault whole, from its own box.
+ * reading, Shift+Enter starts a new line, Escape drops it. Kept, nothing is
+ * sent anywhere yet: a review goes to the vault whole, from its own box.
+ *
+ * Or the comment goes to the task's agent on this machine at once, by
+ * itself, with ⌘Enter or its button: one thing to say now, not worth
+ * gathering a review for. It is written to the vault as a review of one
+ * comment, as any review is, and the agent asked to take it up; what has
+ * been gathered meanwhile stays gathered, and the reading stays where it is.
  */
 export function CommentBox() {
   const drafting = useReview((s) => s.drafting);
@@ -33,7 +43,25 @@ export function CommentBox() {
     setText('');
   }
   const field = useRef<HTMLTextAreaElement>(null);
+  const [sending, setSending] = useState(false);
+  const { data: index } = useIndex();
+  const t = index?.tasks.find((x) => x.id === held?.task);
+  // An agent can be asked for a task that goes on: one closed or paused has none to ask, and none is started on it.
+  const local = t !== undefined && goesOn(t);
   const close = (): void => useReview.setState({ drafting: null });
+  const send = async (): Promise<void> => {
+    if (held === null || text.trim() === '' || sending || !local) return;
+    setSending(true);
+    try {
+      const saved = await writeReview({ task: held.task, summary: '', comments: [{ where: held.where, quote: held.quote, text: text.trim(), ...(held.code ? { code: true } : {}) }] });
+      // Not written, it stays here to be sent again or kept; written, it is the agent's to read whether or not it could be asked now.
+      if (saved === null) return;
+      if (await askAgent(held.task)) message.success('Sent to the agent');
+      close();
+    } finally {
+      setSending(false);
+    }
+  };
   const keep = (): void => {
     if (held === null || text.trim() === '') return;
     const n = addComment(held, text.trim());
@@ -41,8 +69,8 @@ export function CommentBox() {
     close();
   };
   return (
-    <Dialog open={drafting !== null} onOpenChange={(open) => { if (!open) close(); }}>
-      <DialogContent className="sm:max-w-[520px]" initialFocus={field}>
+    <Dialog open={drafting !== null} onOpenChange={(open) => { if (!open && !sending) close(); }}>
+      <DialogContent className="sm:max-w-[580px]" initialFocus={field}>
         <DialogHeader>
           <DialogTitle>Comment</DialogTitle>
           <DialogDescription className="wrap-anywhere">{held?.where}</DialogDescription>
@@ -53,12 +81,18 @@ export function CommentBox() {
           onKeyDown={(e) => {
             if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
             e.preventDefault();
-            keep();
+            if (e.metaKey || e.ctrlKey) void send();
+            else keep();
           }} />
         <DialogFooter>
-          <span className="mr-auto self-center text-[12px] text-ink-3">Enter keeps it · Shift+Enter for a new line</span>
-          <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button disabled={text.trim() === ''} onClick={keep}>Add to review</Button>
+          <span className="mr-auto self-center text-[12px] text-ink-3">{`Enter adds it${local ? ` · ${MOD}Enter sends it now` : ''} · Shift+Enter for a new line`}</span>
+          <Button variant="ghost" disabled={sending} onClick={close}>Cancel</Button>
+          {local ? (
+            <Button variant="outline" disabled={text.trim() === '' || sending} aria-busy={sending} title="Send this comment alone to the task's agent on this machine, now" onClick={() => void send()}>
+              {sending ? <Spinner aria-hidden /> : null}Send to agent
+            </Button>
+          ) : null}
+          <Button disabled={text.trim() === '' || sending} onClick={keep}>Add to review</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

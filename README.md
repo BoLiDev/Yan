@@ -374,7 +374,12 @@ artifact shown as text; with nothing selected, the browser's menu opens as
 ever. A comment is written in a box over the page, Enter keeping it, and
 joins the task's review, which nothing sends anywhere yet: it is kept in
 this browser, a reload or a day between, what is commented on marked in the
-text, and a button at the foot of the page says how many it holds. That
+text, and a button at the foot of the page says how many it holds. A
+comment can also go to the task's agent on this machine at once, by itself,
+with ⌘Enter or Send to agent in its box, when it is one thing to say now
+and not worth gathering a review for: it is written to the vault as a
+review of that one comment and the agent asked to take it up, what has been
+gathered staying gathered and the page staying where it is. That
 button opens the review: each comment under where it is, a link back there,
 to be reworded or deleted, and a word on it all under them. Finish writes
 it to the vault as one file, `tasks/<id>/reviews/<when>.md`, committed and

@@ -121,6 +121,20 @@ describe('a review of what is read on the page', () => {
     await expect.element(screen.getByRole('button', { name: 'Send to agent' })).toBeVisible();
   });
 
+  it('sends one comment to the agent at once, by itself, and leaves what is gathered gathered', async () => {
+    const { asked, screen } = await reading({ 'POST /api/review': saved(), 'POST /api/task/review': Response.json({ typed: true }), '/api/terminals': Response.json({}) });
+    await commentOn(screen, 'unbounded', 'Cap them at five.');
+    await pick('never cleared');
+    await screen.getByRole('menuitem', { name: 'Comment' }).click();
+    await screen.getByRole('textbox', { name: 'Comment' }).fill('Clear it now.');
+    await screen.getByRole('button', { name: 'Send to agent' }).click();
+    await expect.poll(() => posts(asked, '/api/task/review')).toEqual([{ task: 't1' }]);
+    expect(posts(asked, '/api/review')).toEqual([{ task: 't1', summary: '', comments: [{ where: 'artifacts/docs/notes.md, line 5', quote: 'never cleared', text: 'Clear it now.' }] }]);
+    await expect.element(screen.getByRole('button', { name: /Review · 1 comment/ })).toBeVisible();
+    expect(useReview.getState().comments.t1?.map((c) => c.text)).toEqual(['Cap them at five.']);
+    expect(location.hash, 'the reading stays where it is').toBe('#/t/t1/a/docs/notes.md');
+  });
+
   it('copies what is selected, and opens its source with the same words selected to edit them', async () => {
     const { screen } = await reading();
     await pick('never cleared');
