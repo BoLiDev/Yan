@@ -6,8 +6,8 @@ import type { FileVersion } from './wire.js';
  * that changed it, the newest first, with the file as that commit left it
  * and as it found it. The vault's history is the record: an agent's push
  * and an edit on the page are both commits, so nothing more is kept. The
- * page shows one version against the one before by the two blobs, which
- * is the change whatever commits lie between and however they were joined.
+ * page shows one version against the one before by reading the two blobs
+ * and drawing them, which is the change whatever commits lie between.
  */
 
 /** The most versions listed: the recent ones are what is looked for. */
@@ -42,10 +42,4 @@ export async function fileHistory(dir: string, commit: string, path: string, mos
     });
   }
   return versions;
-}
-
-/** What turns the blob `a` into the blob `b`, as `git diff` says it, with `context` lines around each change; undefined when git cannot say. */
-export async function blobDiff(dir: string, a: string, b: string, whole: boolean, limit: number): Promise<string | undefined> {
-  const r = await gitAsync(dir, ['diff', '--no-color', '--no-ext-diff', whole ? '-U100000' : '-U3', a, b], 60_000, limit);
-  return r.code === 0 || r.code === 1 ? r.stdout : undefined;
 }

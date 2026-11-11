@@ -69,9 +69,14 @@ async function comment(page: Page, word: string, text: string): Promise<void> {
     }
     throw new Error(`${w} is not there`);
   }, word);
-  await page.mouse.dblclick(box.x, box.y);
-  await page.mouse.click(box.x, box.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Comment' }).click();
+  // A diff is drawn again once its colours arrive, which lets go of a selection made just before: selected again then.
+  const item = page.getByRole('menuitem', { name: 'Comment' });
+  for (let tries = 0; tries < 5 && !(await item.isVisible()); tries++) {
+    await page.mouse.dblclick(box.x, box.y);
+    await page.mouse.click(box.x, box.y, { button: 'right' });
+    await item.waitFor({ timeout: 2000 }).catch(() => undefined);
+  }
+  await item.click();
   await page.getByRole('textbox', { name: 'Comment' }).fill(text);
   await page.keyboard.press('Enter');
 }

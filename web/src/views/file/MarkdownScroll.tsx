@@ -38,7 +38,7 @@ export function MarkdownScroll({ task, file, onMeta }: { task: string; file: Art
       <ReviewMenu task={task} locate={(range, el) => inMarkdown(`artifacts/${file.path}`, el, range, text)}
         onEdit={(range, quote, el) => {
           const at = sourceLines(el, range, lines);
-          useUI.setState({ mdSource: true, mdSelect: at === null ? null : { key: path, ...at, quote } });
+          useUI.setState({ mdSource: true, mdVersion: null, mdSelect: at === null ? null : { key: path, ...at, quote } });
         }}>
         <MarkdownDoc text={text} task={task} dir={dirName(`artifacts/${file.path}`)} outline lines />
       </ReviewMenu>

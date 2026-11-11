@@ -10,8 +10,7 @@ import { Palette } from './components/Palette';
 import { DraftsModal } from './components/drafts/DraftsModal';
 import { NewTaskModal } from './components/NewTask';
 import { TaskActModal } from './components/TaskMenu';
-import { CommentBox } from './components/review/CommentBox';
-import { ReviewPanel } from './components/review/ReviewPanel';
+import { Review } from './components/review/ReviewLazy';
 import { AskModal, Messages } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -39,7 +38,7 @@ function useRouteEffects(): void {
   const moved = useEffectEvent(() => {
     const was = before.current;
     before.current = r;
-    useUI.setState({ pageSource: false, mdHistory: false });
+    useUI.setState({ pageSource: false, mdVersion: null });
     // A new task is asked for in a box over the page: #/new alone opens it, over Latest.
     if (r.view === 'new' && r.launch === undefined) {
       useUI.setState({ newTask: true });
@@ -187,8 +186,7 @@ export function App() {
       <NewTaskModal />
       <DraftsModal />
       <TaskActModal />
-      <ReviewPanel />
-      <CommentBox />
+      <Review />
     </TooltipProvider>
   );
 }

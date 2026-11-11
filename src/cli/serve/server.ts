@@ -28,7 +28,7 @@ import type { BranchBlob, CommitPatch, Index, Report, ReviewSaved, Status as Wir
 import { PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type Answer } from './drafts.js';
 import { LaterPush } from './later-push.js';
 import { buildLoads, buildPrint } from './build.js';
-import { blobDiff, fileHistory } from './history.js';
+import { fileHistory } from './history.js';
 import { REVIEW_SCRIPT, REVIEW_SCRIPT_PATH, withReview } from './review-frame.js';
 
 /**
@@ -596,18 +596,12 @@ export class YanServer {
       });
     }
     if (p.startsWith('/api/branch')) return this.branchApi(req, res, p, q);
-    // An artifact as it has been: the vault's commits that changed it, and what one version changed of the one before.
+    // An artifact as it has been: the vault's commits that changed it, each with the file's blob after it and before.
     if (p === '/api/artifact/history') {
       const [id, path] = [q.get('task') ?? '', q.get('path') ?? ''];
       if (!Task.isId(id) || path === '' || path.split('/').some((part) => part === '' || part === '..')) return send(res, 400, 'task and path are needed');
       const commit = this.view.commit;
       return json(res, commit === undefined ? [] : await fileHistory(this.options.vaultDir, commit, `tasks/${id}/artifacts/${path}`));
-    }
-    if (p === '/api/artifact/diff') {
-      const [a, b] = [q.get('a') ?? '', q.get('b') ?? ''];
-      if (!SHA.test(a) || !SHA.test(b)) return send(res, 400, 'a and b are needed, each a blob');
-      const patch = await blobDiff(this.options.vaultDir, a, b, q.get('context') === 'all', PATCH_LIMIT);
-      return patch === undefined ? send(res, 404, 'those are not two versions in this vault') : send(res, 200, patch, 'text/plain; charset=utf-8', { 'Cache-Control': 'private, max-age=31536000, immutable' });
     }
     return send(res, 404, 'not found');
   }

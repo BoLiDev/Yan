@@ -328,17 +328,21 @@ while later, as it does the drafts. A file an agent changed since it was
 opened is not written over: the save is refused and what was typed
 stays.
 
-A Markdown file has a third view beside Rendered and Source, History: you
-and an agent both write these files, and it is where each change is seen.
-Down the right are the versions, every commit of the vault that changed the
-file, an agent's push or an edit on the page, which is named as one, the
-newest first, the last fifty, each with when it was, who committed it and
-how many lines it added and took out. The one picked, the newest to start
-with, is shown against the one before it: as Changes, a diff of the source,
-unified or side by side as a branch's is, in which a paragraph that changed
-has the words taken out and put in marked inside it, a character at a time
-in Chinese; or as Document, the version itself drawn, what is new in it
-since the one before tinted. Opening another file leaves History.
+A Markdown file is shown as itself, Rendered or Source, and beside those
+two is History: you and an agent both write these files, and it is where
+each sees what the other did. It opens a menu of the file's last changes,
+the commits of the vault that changed it, an agent's push or an edit on the
+page, which is named as one, the newest first, each with when it was and
+how many lines it added and took out. Picking one draws that change in the
+file's place, as the document and not as its source: the text as that
+version had it, a block it added tinted green, one it took out kept where
+it was, red and struck through, and a paragraph, a heading or a list it
+reworded drawn once with the words taken out and put in marked inside it, a
+character at a time in Chinese. A fence or a table that changed is shown
+as the old one gone and the new one added. It opens at the first thing
+changed; a line over it says which change it is, with the ways to the one
+before and the one after, and Back to the file, as Rendered and Source go
+back too. Opening another file leaves it.
 
 What you read on the page you can review as you go, without stopping to
 tell an agent each thing. Select some of a Markdown file as it is rendered

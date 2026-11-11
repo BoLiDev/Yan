@@ -12,6 +12,7 @@ import { CodeStage } from './Code';
 import { useKeyNav } from './nav';
 import { FileCard, Shot, Stage } from './file/Stage';
 import { FontStage } from './file/FontStage';
+import { HistoryMenu } from './file/HistoryMenu';
 import { MarkdownHistory } from './file/MarkdownHistoryLazy';
 import { MarkdownScroll } from './file/MarkdownScroll';
 import { MarkdownSource } from './file/MarkdownSource';
@@ -42,7 +43,7 @@ export function FileView(ctx: FileContext) {
   const prefs = useUI((s) => s.prefs);
   const pageSource = useUI((s) => s.pageSource);
   const mdSource = useUI((s) => s.mdSource);
-  const mdHistory = useUI((s) => s.mdHistory);
+  const mdVersion = useUI((s) => s.mdVersion);
   const { data: index } = useIndex();
   const [meta, setMeta] = useState(`${KIND_LABEL[kindOf(name)].replace(/s$/, '')} · ${bytes(file.size)}`);
   const stage = useRef<HTMLDivElement>(null);
@@ -84,12 +85,16 @@ export function FileView(ctx: FileContext) {
       ? <ReviewMenu task={task} className="contents" locate={(range) => inCode('', range, `artifacts/${file.path}`)}><CodeStage url={`/blob/${file.sha}`} name={name} size={file.size} onMeta={setMeta} /></ReviewMenu>
       : <Stage at="page"><FrameReview task={task} path={`artifacts/${file.path}`}><PageFrame src={`${fileUrl(path)}?review`} width={prefs.width} /></FrameReview></Stage>;
   } else if (viewer === 'markdown') {
-    tools.push(<Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source'], ['history', 'History']] as const} current={mdHistory ? 'history' : mdSource ? 'src' : 'doc'} onPick={(v) => {
-      useUI.setState(v === 'history' ? { mdHistory: true } : { mdHistory: false, mdSource: v === 'src' });
-    }} />);
-    // Its source is written in where it is shown; its history is the vault's commits that changed it.
-    body = mdHistory
-      ? <MarkdownHistory key={path} task={task} file={file} onMeta={setMeta} />
+    // Neither is picked while a change is shown in the file's place, and picking either goes back to the file.
+    tools.push(
+      <Seg key="md" options={[['doc', 'Rendered'], ['src', 'Source']] as const} current={mdVersion !== null ? null : mdSource ? 'src' : 'doc'} onPick={(v) => {
+        useUI.setState({ mdVersion: null, mdSource: v === 'src' });
+      }} />,
+      <HistoryMenu key="history" task={task} file={file} />,
+    );
+    // Its source is written in where it is shown; a change of its history is drawn in its place.
+    body = mdVersion !== null
+      ? <MarkdownHistory key={path} task={task} file={file} commit={mdVersion} onMeta={setMeta} />
       : mdSource
       ? <MarkdownSource key={path} task={task} file={file} onMeta={setMeta} onDone={() => useUI.setState({ mdSource: false })} />
       : <MarkdownScroll key={path} task={task} file={file} onMeta={setMeta} />;

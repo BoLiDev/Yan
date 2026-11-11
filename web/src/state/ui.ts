@@ -92,8 +92,8 @@ interface UI {
   /** A page or a Markdown file shown as its source. */
   pageSource: boolean;
   mdSource: boolean;
-  /** The Markdown file open is shown as its history; another file opens as itself. */
-  mdHistory: boolean;
+  /** The version of the Markdown file open whose changes are shown in place of it, by its commit; another file opens as itself. */
+  mdVersion: string | null;
   /** What to select in a Markdown file's source as it next opens, by the file's path in the vault: the lines, counted from 0, and in them the words, when they are written as they read. */
   mdSelect: { readonly key: string; readonly from: number; readonly to: number; readonly quote: string } | null;
   /** A Markdown artifact's source edited and not saved, by its path in the vault, with the file it began from: kept while the page is open. */
@@ -174,7 +174,7 @@ export const useUI = create<UI>(() => ({
   logBase: {},
   pageSource: false,
   mdSource: false,
-  mdHistory: false,
+  mdVersion: null,
   mdSelect: null,
   edits: {},
   saved: {},

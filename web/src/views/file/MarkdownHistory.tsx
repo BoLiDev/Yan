@@ -1,112 +1,108 @@
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getJSON, type ArtifactFile, type FileVersion } from '../../lib/api';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ArtifactFile } from '../../lib/api';
 import { dirName } from '../../lib/files';
-import { plural, short, when } from '../../lib/format';
-import { blocksOf } from '../../lib/markdown';
-import { parsePatch, type PatchFile } from '../../lib/patch';
+import { plural, when } from '../../lib/format';
+import { langReady } from '../../lib/highlight';
+import { renderMarkdownDiff } from '../../lib/markdownDiff';
 import { cn } from '../../lib/utils';
-import { markWords } from '../../lib/words';
-import { Empty, Scroll, Seg } from '../../components/page';
-import { useText } from '../../state/server';
+import { Icon } from '../../components/Icon';
+import { Empty, Scroll } from '../../components/page';
+import { Button } from '../../components/ui/button';
+import { filesOrigin, useTask, useText } from '../../state/server';
 import { useUI } from '../../state/ui';
-import { DIFF, DiffBody } from '../branch/Diff';
-import { DiffScroll } from '../branch/Later';
-import { LayoutTools } from '../branch/tools';
-import { MarkdownDoc } from '../Markdown';
-
-/** What changed inside a line, as `markWords` wraps it: deeper than the line's own tint, and not struck through or underlined, which a diff's colours already say. */
-const WORDS = '[&_:is(ins,del)]:rounded-[3px] [&_:is(ins,del)]:no-underline [&_ins]:bg-[var(--diff-add-word)] [&_del]:bg-[var(--diff-del-word)]';
-
-/** How a version came about, as its commit says: an edit on this page is named as one, anything else by the commit's own words. */
-const saidOf = (v: FileVersion): string => (/ edited in yan serve$/.test(v.subject) ? 'Edited on the page' : v.subject);
-
-/** A version's lines against the one before: what `git diff` says of the two, the words changed inside a line marked. */
-function Changes({ v }: { v: FileVersion }) {
-  const layout = useUI((s) => s.prefs.layout);
-  // The first version is all new: there is nothing to compare it with, so its text is shown as added.
-  const first = v.before === null;
-  const patch = useText(!first && v.sha !== null ? `/api/artifact/diff?a=${v.before}&b=${v.sha}` : null);
-  const whole = useText(first && v.sha !== null ? `/blob/${v.sha}` : null);
-  const f = useMemo((): PatchFile | null => {
-    if (whole.data !== undefined) {
-      const lines = whole.data.replace(/\n$/, '').split('\n').map((t, i) => ({ k: 'add' as const, b: i + 1, t }));
-      return { from: null, to: null, path: null, binary: false, note: [], hunks: [{ head: `@@ -0,0 +1,${lines.length} @@`, lines }] };
-    }
-    if (patch.data === undefined) return null;
-    const parsed = parsePatch(patch.data)[0] ?? null;
-    if (parsed !== null) markWords(parsed);
-    return parsed;
-  }, [patch.data, whole.data]);
-  const error = patch.error ?? whole.error;
-  let body: ReactNode = <Empty>Loading…</Empty>;
-  if (v.sha === null) body = <Empty title="Deleted here">This version took the file out of the task.</Empty>;
-  else if (error) body = <Empty><span className="text-destructive">{String(error.message)}</span></Empty>;
-  else if (f !== null) body = <div className={cn(DIFF, WORDS)}><DiffBody f={f} layout={layout} /></div>;
-  else if (patch.data !== undefined) body = <Empty>Nothing in its text changed.</Empty>;
-  return <DiffScroll className="min-w-0">{body}</DiffScroll>;
-}
-
-/** A version drawn as the document it was, what is new in it since the one before tinted. */
-function Document({ task, file, v }: { task: string; file: ArtifactFile; v: FileVersion }) {
-  const text = useText(v.sha === null ? null : `/blob/${v.sha}`);
-  const was = useText(v.before === null ? null : `/blob/${v.before}`);
-  const before = useMemo(() => (was.data === undefined ? null : blocksOf(was.data)), [was.data]);
-  if (v.sha === null) return <Scroll className="min-w-0"><Empty title="Deleted here">This version took the file out of the task.</Empty></Scroll>;
-  if (text.data === undefined || (v.before !== null && was.data === undefined)) return <Scroll className="min-w-0"><Empty>Loading…</Empty></Scroll>;
-  return <Scroll className="min-w-0"><MarkdownDoc text={text.data} task={task} dir={dirName(`artifacts/${file.path}`)} before={before} /></Scroll>;
-}
+import { DOC } from '../doc';
+import { saidOf, useHistory } from './history';
 
 /**
- * A Markdown file as it has been: every commit of the vault that changed
- * it, an agent's push or an edit on this page, the newest first, down the
- * right, and beside them what the one picked changed of the one before
- * it, the newest to start with. Changes shows it as a diff of the source,
- * the words changed inside a paragraph marked; Document draws the version
- * itself, what is new in it tinted. An agent and `user` both write these
+ * What became of each block, as `renderMarkdownDiff` holds it: one added
+ * tinted green, one taken out red and struck through, one changed left as
+ * it is with the words put in and taken out marked inside it. Out to a
+ * little past the text on either side, as what is new since a visit is.
+ */
+const DIFFED = [
+  '[&_[data-diff]]:-mx-3.5 [&_[data-diff]]:mb-3 [&_[data-diff]]:rounded-[10px] [&_[data-diff]]:px-3.5 [&_[data-diff]]:pt-2 [&_[data-diff]]:pb-px',
+  '[&_[data-diff=add]]:bg-[var(--diff-add)]',
+  '[&_[data-diff=del]]:bg-[var(--diff-del)] [&_[data-diff=del]]:line-through [&_[data-diff=del]]:decoration-[color:var(--red)]/50 [&_[data-diff=del]_*]:text-ink-3',
+  // A heading's own space above it is the holder's.
+  '[&_[data-diff]>:first-child]:mt-0',
+  '[&_ins]:rounded-[3px] [&_ins]:bg-[var(--diff-add-word)] [&_ins]:no-underline',
+  '[&_del]:rounded-[3px] [&_del]:bg-[var(--diff-del-word)] [&_del]:text-ink-3 [&_del]:decoration-[color:var(--red)]/60',
+].join(' ');
+
+/**
+ * What one version of a Markdown file changed of the one before it, drawn
+ * as the document: the text as that version had it, with what it added,
+ * took out and reworded marked in it, opened at the first of them. Over it,
+ * which version it is, the ways to the one before and the one after, and
+ * the way back to the file as it is. An agent and `user` both write these
  * files, and this is where each sees what the other did.
  */
-export function MarkdownHistory({ task, file, onMeta }: { task: string; file: ArtifactFile; onMeta: (meta: string) => void }) {
-  // Asked for again when the file changes: there is a version more.
-  const history = useQuery({ queryKey: ['history', task, file.path, file.sha], queryFn: () => getJSON<FileVersion[]>(`/api/artifact/history?task=${encodeURIComponent(task)}&path=${encodeURIComponent(file.path)}`) });
-  const [picked, setPicked] = useState<string | null>(null);
-  const [as, setAs] = useState<'changes' | 'doc'>('changes');
+export function MarkdownHistory({ task, file, commit, onMeta }: { task: string; file: ArtifactFile; commit: string; onMeta: (meta: string) => void }) {
+  const history = useHistory(task, file, true);
   const list = history.data;
+  const at = list?.findIndex((x) => x.commit === commit) ?? -1;
+  const v = list?.[at];
+  const now = useText(v?.sha ? `/blob/${v.sha}` : null);
+  const was = useText(v?.before ? `/blob/${v.before}` : null);
+  const { data: d } = useTask(task);
+  const files = d?.files;
+  // Colouring waits for a fenced block's language: once it is loaded, the text is made again.
+  const [loaded, setLoaded] = useState(0);
+  const ready = v !== undefined && now.data !== undefined && (v.before === null || was.data !== undefined);
+  const rendered = useMemo(
+    () => (ready ? renderMarkdownDiff(v.before === null ? null : was.data ?? '', now.data ?? '', { task, dir: dirName(`artifacts/${file.path}`), files, filesOrigin: filesOrigin() }) : null),
+    // `loaded` stands for the languages highlight.js has loaded, which the rendering reads: one arriving makes it again.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [ready, v, was.data, now.data, task, file.path, files, loaded],
+  );
   useEffect(() => {
-    if (list !== undefined) onMeta(`Markdown history · ${plural(list.length, 'version')}`);
-  }, [list, onMeta]);
+    if (!rendered?.waiting.length) return;
+    let live = true;
+    void Promise.all(rendered.waiting.map(langReady)).then(() => {
+      if (live) setLoaded((n) => n + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [rendered?.waiting]);
+  useEffect(() => {
+    if (list !== undefined) onMeta(`Markdown · ${plural(list.length, 'version')}${rendered ? ` · ${plural(rendered.changed, 'block')} changed here` : ''}`);
+  }, [list, rendered, onMeta]);
+  // Opened at the first thing changed, which may be far down a long file.
+  const doc = useRef<HTMLDivElement>(null);
+  const html = rendered?.html;
+  useLayoutEffect(() => {
+    if (html !== undefined) doc.current?.querySelector('[data-diff], ins, del')?.scrollIntoView({ block: 'center' });
+  }, [html, commit]);
+
+  const go = (to: string | null): void => useUI.setState({ mdVersion: to });
   if (history.isError) return <Scroll><Empty><span className="text-destructive">{String(history.error.message)}</span></Empty></Scroll>;
   if (list === undefined) return <Scroll><Empty>Loading…</Empty></Scroll>;
-  const v = list.find((x) => x.commit === picked) ?? list[0];
-  if (v === undefined) return <Scroll><Empty title="No history yet">This file is in no commit of the vault yet.</Empty></Scroll>;
+  if (v === undefined) return <Scroll><Empty title="Not a version of this file"><Button variant="outline" onClick={() => go(null)}>Back to the file</Button></Empty></Scroll>;
+  const [older, newer] = [list[at + 1], list[at - 1]];
   return (
-    <div className="flex min-h-0 flex-auto">
-      {as === 'changes' ? <Changes key={v.commit} v={v} /> : <Document key={v.commit} task={task} file={file} v={v} />}
-      <aside className="flex w-[280px] flex-none flex-col border-l border-sunken" aria-label="Versions">
-        <div className="flex flex-none flex-col gap-2 border-b border-sunken p-3">
-          <Seg options={[['changes', 'Changes'], ['doc', 'Document']] as const} current={as} onPick={setAs} wide />
-          {/* How the changes are laid out, as a branch's are; the document has one way to be drawn. */}
-          {as === 'changes' ? <LayoutTools /> : null}
-        </div>
-        <ol className="min-h-0 flex-auto overflow-y-auto p-2">
-          {list.map((x, i) => (
-            <li key={x.commit}>
-              <button type="button" aria-current={x === v ? 'true' : undefined} onClick={() => setPicked(x.commit)}
-                className={cn('flex w-full flex-col gap-0.5 rounded-[8px] px-2.5 py-2 text-left hover:bg-sunken', x === v && 'bg-sunken')}>
-                <span className="flex items-baseline gap-2 text-[13px] font-bold text-ink">
-                  {when(x.at)}
-                  {i === 0 ? <span className="text-[11.5px] font-normal text-brand">current</span> : null}
-                  <span className="ml-auto font-mono text-[11.5px] font-normal">
-                    {x.add === null ? null : <><span className="text-success">{`+${x.add}`}</span>{' '}<span className="text-destructive">{`−${x.del}`}</span></>}
-                  </span>
-                </span>
-                <span className="line-clamp-2 text-[12.5px] leading-[18px] text-ink-2 wrap-anywhere">{saidOf(x)}</span>
-                <span className="truncate text-[11.5px] text-ink-3">{`${x.author} · ${short(x.commit)}`}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </aside>
+    <div className="flex min-h-0 flex-auto flex-col">
+      <div className="flex h-11 flex-none items-center gap-1 border-b border-sunken px-3 text-[12.5px] text-ink-3" role="status">
+        <Button variant="ghost" size="icon-sm" aria-label="The change before" title="The change before" disabled={older === undefined} onClick={() => go(older?.commit ?? null)}><Icon name="prev" size={15} /></Button>
+        <Button variant="ghost" size="icon-sm" aria-label="The change after" title="The change after" disabled={newer === undefined} onClick={() => go(newer?.commit ?? null)}><Icon name="next" size={15} /></Button>
+        <span className="ml-1.5 min-w-0 truncate">
+          <b className="font-bold text-ink">{`Changed ${when(v.at)}`}</b>
+          {` · ${saidOf(v)} · ${v.author}`}
+          {v.add === null ? null : <>{' · '}<span className="text-success">{`+${v.add}`}</span>{' '}<span className="text-destructive">{`−${v.del}`}</span></>}
+          {at === 0 ? ' · the latest' : ` · ${at} ${at === 1 ? 'change' : 'changes'} ago`}
+        </span>
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => go(null)}>Back to the file</Button>
+      </div>
+      <Scroll>
+        {v.sha === null ? <Empty title="Deleted here">This change took the file out of the task.</Empty>
+          : rendered === null ? <Empty>{now.isError ? <span className="text-destructive">{String(now.error.message)}</span> : 'Loading…'}</Empty>
+          : (
+            <div className="mx-auto max-w-[840px] px-10 pt-8 pb-20">
+              {rendered.changed === 0 ? <p className="mb-6 text-[13px] text-ink-3">Nothing in how it reads changed here: only its spacing, or how its source is written.</p> : null}
+              <div ref={doc} className={cn(DOC, DIFFED)} dangerouslySetInnerHTML={{ __html: rendered.html }} />
+            </div>
+          )}
+      </Scroll>
     </div>
   );
 }

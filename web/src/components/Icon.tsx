@@ -1,6 +1,6 @@
 import {
   ArrowRight, ArrowUp, Ban, Bell, BellOff, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsDownUp,
-  ChevronsUpDown, Cloud, Contrast, Copy, Download, ExternalLink, FileText, Folder, GitBranch, GripVertical, Inbox, LayoutGrid,
+  ChevronsUpDown, Cloud, Contrast, Copy, Download, ExternalLink, FileText, Folder, GitBranch, History, GripVertical, Inbox, LayoutGrid,
   Link, List, Maximize, Maximize2, Monitor, Moon, PanelLeft, Sun, Pencil, Plus, RefreshCw, RotateCw, Search, SquareCheck, SquareTerminal,
   StickyNote, Trash2, WrapText, X, type LucideIcon,
 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 /** The page's icons, all of them lucide's, by what each is for. */
 const ICONS = {
   latest: Inbox,
+  history: History,
   panel: PanelLeft,
   refresh: RefreshCw,
   reload: RotateCw,

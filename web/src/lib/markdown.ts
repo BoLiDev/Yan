@@ -71,7 +71,7 @@ const PURIFY: Config = {
  * Markdown's HTML, clean, in a document of its own that loads nothing:
  * what is done to it after is done before any of it is shown.
  */
-function cleaned(html: string): HTMLElement {
+export function cleaned(html: string): HTMLElement {
   // RETURN_DOM gives the body of DOMPurify's own document.
   return purify.sanitize(html, { ...PURIFY, RETURN_DOM: true }) as HTMLElement;
 }
@@ -210,6 +210,11 @@ export function renderMarkdown(text: string, ctx: MarkdownContext = {}): Rendere
       : [...tokens];
     doc = cleaned(marked.parser(Object.assign(blocks, { links: tokens.links }) as TokensList, { gfm: true }));
   }
+  return finished(doc, ctx);
+}
+
+/** A cleaned document made the page's own: its code coloured, its links pointed where they go, its headings named. */
+export function finished(doc: HTMLElement, ctx: MarkdownContext): RenderedMarkdown {
   const waiting = new Set<string>();
   colourBlocks(doc, waiting);
   trimAutolinks(doc);

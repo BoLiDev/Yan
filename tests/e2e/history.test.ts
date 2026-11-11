@@ -6,8 +6,8 @@ import { closeBrowser, open, push, serve, taskJson, vault, write, type Served } 
 
 /**
  * A Markdown artifact's history: the versions an agent pushed and the one
- * `user` wrote on the page, the newest first, each shown against the one
- * before it.
+ * `user` wrote on the page, the newest first in History's menu, each drawn
+ * as the document with what it changed of the one before marked in it.
  */
 
 let served: Served;
@@ -33,7 +33,7 @@ afterAll(async () => {
 });
 
 describe("a Markdown artifact's history", () => {
-  it('lists its versions, newest first, an edit on the page among them, and shows what each changed of the one before', async () => {
+  it('lists its last changes in a menu, an edit on the page among them, and draws the one picked as the document with what it changed marked', async () => {
     const { page, errors } = await open(served.url('/#/t/t001/a/docs/design.md'));
     const right = page.locator('#right');
     await right.getByText('最多重试五次').waitFor({ timeout: 20_000 });
@@ -45,33 +45,34 @@ describe("a Markdown artifact's history", () => {
     await page.keyboard.press('Control+s');
     await right.getByText('Type to edit').waitFor();
 
+    // The file is shown as itself until a change is picked from History's menu.
+    await right.getByRole('button', { name: 'Rendered' }).click();
+    await right.getByRole('heading', { name: '风险' }).waitFor();
+    expect(await right.locator('ins, del, [data-diff]').count()).toBe(0);
     await right.getByRole('button', { name: 'History' }).click();
-    const versions = right.getByRole('complementary', { name: 'Versions' }).getByRole('list').getByRole('button');
+    const versions = page.getByRole('menuitem');
     await expect.poll(() => versions.count(), { timeout: 20_000 }).toBe(3);
-    expect(await versions.nth(0).innerText()).toMatch(/current[\s\S]*Edited on the page/);
+    expect(await versions.nth(0).innerText()).toMatch(/latest[\s\S]*Edited on the page/);
     expect(await versions.nth(1).innerText()).toContain('t001: turn ended');
     expect(await versions.nth(2).innerText()).toContain('seed');
+    if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h1-menu.png') });
 
-    // The newest is shown to start with: what the edit changed, and inside the line, only the words.
-    await right.locator('ins', { hasText: '毫秒，之后每次翻倍' }).waitFor();
-    expect(await right.getByText('支付重试方案').count(), 'what the edit left alone, away from it, is not shown').toBe(0);
-    if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h1-changes.png') });
-
+    // The agent's change, drawn as the document: a paragraph reworded, with its words marked, and a part added.
     await versions.nth(1).click();
     await right.locator('del', { hasText: '会无限次' }).waitFor();
-    await right.getByText('重试期间用户可能已经换了一张卡。').waitFor();
+    await right.locator('ins', { hasText: '最多' }).waitFor();
+    expect(await right.locator('[data-diff=add]').getByRole('heading', { name: '风险' }).count()).toBe(1);
+    expect(await right.getByText('毫秒').count(), 'as that version had it, not as it is now').toBe(0);
     if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h2-agent.png') });
 
-    // As the document it was, what is new since the version before tinted.
-    await right.getByRole('button', { name: 'Document' }).click();
-    await right.getByRole('heading', { name: '风险' }).waitFor();
-    expect(await right.locator('[data-fresh]').count()).toBeGreaterThan(0);
-    expect(await right.getByText('毫秒').count(), 'the version picked, not the newest').toBe(0);
-    if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h3-document.png') });
-
-    await versions.nth(2).click();
-    await right.getByRole('button', { name: 'Changes' }).click();
-    await right.getByText('会无限次重试').waitFor();
+    // On to the change after it, user's own, and back to the file.
+    await right.getByRole('button', { name: 'The change after' }).click();
+    await right.locator('ins', { hasText: '毫秒，之后每次翻倍' }).waitFor();
+    await right.getByText(/Edited on the page/).waitFor();
+    if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'h3-mine.png') });
+    await right.getByRole('button', { name: 'Back to the file' }).click();
+    await right.getByText('毫秒，之后每次翻倍').waitFor();
+    expect(await right.locator('ins, del, [data-diff]').count()).toBe(0);
     expect(errors).toEqual([]);
   }, 60_000);
 });
