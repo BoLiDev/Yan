@@ -10,7 +10,7 @@ import { Palette } from './components/Palette';
 import { DraftsModal } from './components/drafts/DraftsModal';
 import { NewTaskModal } from './components/NewTask';
 import { TaskActModal } from './components/TaskMenu';
-import { AskModal } from './components/page';
+import { AskModal, Messages } from './components/page';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AGENT_TOASTER, useAgentToasts } from './state/agentToasts';
@@ -179,6 +179,7 @@ export function App() {
       </div>
       <Toaster position="bottom-center" />
       <Toaster id={AGENT_TOASTER} position="top-right" />
+      <Messages />
       <AskModal />
       <Palette />
       <NewTaskModal />

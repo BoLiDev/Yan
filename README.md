@@ -347,7 +347,9 @@ has an MR row: its page lists every branch the task kept, under its
 repository, those in progress first, the one its tree
 was last on leading them, then those merged with the pull request they
 came in by, then those abandoned. On hover, a card's copy button copies the
-branch's whole name without opening it; a branch opened shows its changes
+branch's whole name without opening it, and says so, as everything the
+page copies does, in a word in a small pill at the top of the page, gone
+in a moment; a branch opened shows its changes
 in the column under its name, MR's row lit. For an open task, a card's
 folder, beside its copy button, opens the worktree of the branch's
 repository, the one tree the task has of it on this machine, in a tab of

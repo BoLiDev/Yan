@@ -209,9 +209,17 @@ export function ask(question: Ask): void {
   useUI.setState({ ask: question });
 }
 
-/** Put `text` on the clipboard and say `said`; where the browser will not, show it to be copied by hand. */
+/** The toaster at the top of the page that says what was just done, `Messages`. */
+export const MESSAGES = 'messages';
+
+/** What was just done, said in a word in the small pill at the top of the page (`Messages`), gone in a moment. */
+export function flash(text: string): void {
+  sonner.success(text, { toasterId: MESSAGES });
+}
+
+/** Put `text` on the clipboard and say `said` at the top of the page; where the browser will not, show it to be copied by hand. */
 export function copyText(text: string, said: string, what: string): void {
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => toast(said), () => prompt(what, text));
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => flash(said), () => prompt(what, text));
   else prompt(what, text);
 }
 

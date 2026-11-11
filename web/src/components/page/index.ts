@@ -2,6 +2,7 @@
 export { AskModal } from './AskModal';
 export { Bar, BarSep, BarTools, Crumb, Stepper } from './Bar';
 export { Dot } from './Dot';
+export { Messages } from './Messages';
 export { Editable } from './Editable';
 export { Empty } from './Empty';
 export { Notice } from './Notice';

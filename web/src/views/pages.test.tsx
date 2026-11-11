@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import type { WriteResult } from '../lib/api';
 import { detail, draw, have, index, reset, serve, status, task, type Asked } from '../testing/serve';
-import { AskModal } from '../components/page';
+import { AskModal, Messages } from '../components/page';
 import { AgentView } from './Agent';
 import { MrView } from './Mr';
 import { useUI } from '../state/ui';
@@ -84,11 +84,14 @@ describe("a task's branches, on MR's page", () => {
     const t = task('t1', 'pay retries', { repos: [{ name: 'web', branch: 'feat/retry', earlier: ['feat/old-try'], abandoned: ['feat/old-try'] }] });
     have(index([t]));
     history.replaceState(null, '', '#/t/t1/mr');
-    const screen = await draw(<MrView t={t} />);
+    const screen = await draw(<><MrView t={t} /><Messages /></>);
 
     await screen.getByText('feat/old-try').hover();
     await screen.getByRole('button', { name: 'Copy the branch feat/old-try' }).click();
     expect(copied.mock.calls.map(([text]) => text)).toEqual(['feat/old-try']);
+    // Said in a word at the top of the page, and gone in a moment.
+    await expect.element(screen.getByText('Copied the branch feat/old-try')).toBeVisible();
+    await expect.element(screen.getByText('Copied the branch feat/old-try'), { timeout: 4000 }).not.toBeInTheDocument();
     expect(location.hash, 'nothing opened').toBe('#/t/t1/mr');
 
     // The card under the pointer is the one picked, and Enter opens it.
