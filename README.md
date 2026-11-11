@@ -300,7 +300,11 @@ pause, however it was made, is on origin (in the vault, for one with no
 origin), so the agent's turn and the push at its end are over, and the agent is neither at work nor
 waiting on you, serve closes its herdr tab as the Agent tab's × does, the shells beside
 it with it, and a page showing it goes on to the task's overview. Each box's button waits for serve's answer; one refused says why
-in the box, which stays open to try again. Images, pages, Markdown, code, logs, audio, video and fonts
+in the box, which stays open to try again. What the page has just done,
+a copy, a save, a rename, or why a click did nothing, a field left blank,
+is said in a word in a small pill at the top of the page, gone in a
+moment, as a phone or a web framework says it; a toast at the foot is
+for what needs reading, a change that did not go through and why. Images, pages, Markdown, code, logs, audio, video and fonts
 open in place, and prev and next walk a folder. A Markdown file drawn has
 an outline beside it, its headings down to the fifth level, when the
 window is wide enough for both. A Markdown file's Source
@@ -347,9 +351,7 @@ has an MR row: its page lists every branch the task kept, under its
 repository, those in progress first, the one its tree
 was last on leading them, then those merged with the pull request they
 came in by, then those abandoned. On hover, a card's copy button copies the
-branch's whole name without opening it, and says so, as everything the
-page copies does, in a word in a small pill at the top of the page, gone
-in a moment; a branch opened shows its changes
+branch's whole name without opening it; a branch opened shows its changes
 in the column under its name, MR's row lit. For an open task, a card's
 folder, beside its copy button, opens the worktree of the branch's
 repository, the one tree the task has of it on this machine, in a tab of

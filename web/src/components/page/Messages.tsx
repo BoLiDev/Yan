@@ -1,18 +1,23 @@
-import { CheckIcon } from 'lucide-react';
+import { CheckIcon, InfoIcon, TriangleAlertIcon } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { MESSAGES } from '../../state/ui';
 
 /**
- * What was just done, said in a word: a copy above all. A small pill at the
- * top of the page, as a phone or a web framework says it, gone in a moment;
- * not a toast at the foot, which is for what needs reading, an error or an
+ * What was just done, said in a word (`message`): a copy, a save, a
+ * rename, or why a click did nothing. A small pill at the top of the page,
+ * as a phone or a web framework says it, gone in a moment; not a toast at
+ * the foot, which is for what needs reading, an error with its reason or an
  * agent's words. White whatever the theme, as a toast is, so it stands off a
  * dark page; one at a time, a new one in the old one's place.
  */
 export function Messages() {
   return (
     <Toaster id={MESSAGES} position="top-center" offset={14} visibleToasts={1} theme="light"
-      icons={{ success: <CheckIcon className="size-3.5 text-success" strokeWidth={2.5} /> }}
+      icons={{
+        success: <CheckIcon className="size-3.5 text-success" strokeWidth={2.5} />,
+        info: <InfoIcon className="size-3.5 text-brand" strokeWidth={2.25} />,
+        warning: <TriangleAlertIcon className="size-3.5 text-warning" strokeWidth={2.25} />,
+      }}
       toastOptions={{
         unstyled: true,
         duration: 1600,

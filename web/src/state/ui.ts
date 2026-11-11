@@ -199,7 +199,11 @@ export function setSeen(change: (seen: Seen) => Seen | null): boolean {
   return true;
 }
 
-/** A line at the foot of the page saying what came of something; `bad` when it did not go through. */
+/**
+ * A toast at the foot of the page: what needs reading, and may need
+ * something done about it, a change that did not go through above all, said
+ * with why (`bad`). What only confirms what was just done is a `message`.
+ */
 export function toast(text: string, bad = false): void {
   if (bad) sonner.error(text);
   else sonner(text);
@@ -212,14 +216,23 @@ export function ask(question: Ask): void {
 /** The toaster at the top of the page that says what was just done, `Messages`. */
 export const MESSAGES = 'messages';
 
-/** What was just done, said in a word in the small pill at the top of the page (`Messages`), gone in a moment. */
-export function flash(text: string): void {
-  sonner.success(text, { toasterId: MESSAGES });
-}
+/**
+ * A word on what was just done, in the small pill at the top of the page
+ * (`Messages`), gone in a moment, as a phone or a web framework says it:
+ * `success` that it went through, `info` what came of it, `warning` why it
+ * was not done, a field left blank, say, in a line. What needs reading, an
+ * error with its reason, or anything said to `user` unasked, an agent's
+ * words, is a `toast`.
+ */
+export const message = {
+  success: (text: string): void => void sonner.success(text, { toasterId: MESSAGES, duration: 1600 }),
+  info: (text: string): void => void sonner.info(text, { toasterId: MESSAGES, duration: 2200 }),
+  warning: (text: string): void => void sonner.warning(text, { toasterId: MESSAGES, duration: 3000 }),
+};
 
 /** Put `text` on the clipboard and say `said` at the top of the page; where the browser will not, show it to be copied by hand. */
 export function copyText(text: string, said: string, what: string): void {
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => flash(said), () => prompt(what, text));
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => message.success(said), () => prompt(what, text));
   else prompt(what, text);
 }
 

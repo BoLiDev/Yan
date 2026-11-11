@@ -5,7 +5,7 @@ import type { Tile } from '../../lib/tiles';
 import { cn } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../../components/ui/context-menu';
-import { toast } from '../../state/ui';
+import { message } from '../../state/ui';
 import { XTERM } from './look';
 import { usePaneTerm, type Panes } from './usePaneTerm';
 
@@ -71,7 +71,7 @@ export function PaneTerm({ task, tile, agent, panes: shared, split, paste, close
           // Reading the clipboard is the browser's to allow; refused, the keys still paste.
           void navigator.clipboard?.readText().then((text) => {
             if (text !== '') paste(text);
-          }, () => toast(`The browser did not allow reading the clipboard: paste with ${MOD}V`));
+          }, () => message.warning(`The browser did not allow reading the clipboard: paste with ${MOD}V`));
         }}>Paste</ContextMenuItem>
         {/* The agent's own pane is never closed from here: that would end the agent. */}
         {agent ? null : (

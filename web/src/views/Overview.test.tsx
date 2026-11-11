@@ -4,6 +4,7 @@ import type { TaskDetail } from '../lib/api';
 import { detail, draw, have, index, reset, serve, status, task } from '../testing/serve';
 import { useUI } from '../state/ui';
 import { Toaster } from '../components/ui/sonner';
+import { Messages } from '../components/page';
 import { Overview } from './Overview';
 
 const t = task('t1', 'pay retries');
@@ -59,7 +60,7 @@ describe("a task's overview", () => {
 
   it('asks before deleting a deliverable, and deletes it once asked', async () => {
     const asked = serve({ 'POST /api/deliverable/remove': Response.json({ ok: true, warning: null, status: status() }) });
-    const screen = await draw(<><Overview t={t} d={d} /><Toaster /></>);
+    const screen = await draw(<><Overview t={t} d={d} /><Toaster /><Messages /></>);
     await screen.getByRole('button', { name: 'Delete d1' }).click();
     expect(asked.filter((a) => a.method === 'POST')).toEqual([]);
     expect(useUI.getState().ask?.title).toMatch(/d1/);

@@ -1,6 +1,6 @@
 import type { Index, Push } from '../lib/api';
 import { parseRoute } from '../lib/route';
-import { setPref, toast, useUI } from './ui';
+import { message, setPref, toast, useUI } from './ui';
 
 /**
  * A notification when a push arrives. Latest's count is only in the page,
@@ -94,5 +94,5 @@ export async function toggleNotify(): Promise<void> {
   }
   const got = await Notification.requestPermission();
   setPref('notify', got === 'granted');
-  if (got === 'granted') toast('Chrome will say when a push arrives');
+  if (got === 'granted') message.success('Chrome will say when a push arrives');
 }

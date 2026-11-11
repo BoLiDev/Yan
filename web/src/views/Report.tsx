@@ -2,7 +2,7 @@ import { useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { postJSON, type DeliverableStatus, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
 import { Empty, Scroll } from '../components/page';
 import { fileUrl, onStatus, queryClient, useReport, vaultPath } from '../state/server';
-import { flash, useUI } from '../state/ui';
+import { message, useUI } from '../state/ui';
 import { useKeyNav } from './nav';
 import { buildIsland, type Island } from './reportIsland';
 
@@ -61,7 +61,7 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
           (err: Error) => say(`Not saved: ${err.message}`, true),
         );
       },
-      copied: (url) => void navigator.clipboard.writeText(url).then(() => flash('Link copied')),
+      copied: (url) => void navigator.clipboard.writeText(url).then(() => message.success('Link copied')),
       uatUrl: (path) => fileUrl(vaultPath(t.id, `uat/${path}`)),
       downloadUrl: `/api/report/download?task=${encodeURIComponent(t.id)}`,
     }, said && Date.now() - said.at < SAID_FOR_MS ? said : null);

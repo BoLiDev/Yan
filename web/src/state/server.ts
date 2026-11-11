@@ -5,7 +5,7 @@ import { langLoaded, langReady } from '../lib/highlight';
 import { parseRoute } from '../lib/route';
 import { initSeen } from '../lib/seen';
 import { tellOfPushes } from './notify';
-import { storedSeen, toast, useUI } from './ui';
+import { message, storedSeen, toast, useUI } from './ui';
 
 /**
  * What the server sends, held by TanStack Query, one query per thing the page
@@ -217,7 +217,8 @@ export async function pullNow(): Promise<void> {
 /** One change to a task's files from the page, said in a toast; the page shows it once the vault has it. */
 export function writeTask(url: string, value: { readonly task: string } & Record<string, unknown>, said: string): Promise<boolean> {
   return postJSON<WriteResult>(url, value).then((out) => {
-    toast(out.warning ? `${said}, but the push failed: ${out.warning}` : said, !!out.warning);
+    if (out.warning) toast(`${said}, but the push failed: ${out.warning}`, true);
+    else message.success(said);
     void onStatus(out.status);
     return true;
   }, (err: Error) => {

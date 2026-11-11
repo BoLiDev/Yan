@@ -5,7 +5,7 @@ import { blocksOf } from '../../lib/markdown';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/ui/button';
 import { onStatus, useText } from '../../state/server';
-import { setSeen, toast, useUI } from '../../state/ui';
+import { message, setSeen, toast, useUI } from '../../state/ui';
 import { MarkdownDoc } from '../Markdown';
 import { Section } from './Section';
 
@@ -30,11 +30,12 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
   }, [value]);
   useEffect(() => area.current?.focus(), []);
   const save = (): void => {
-    if (value.trim() === '') return toast('problem.md cannot be blank');
+    if (value.trim() === '') return message.warning('problem.md cannot be blank');
     if (value === text) return onClose();
     setBusy(true);
     postJSON<WriteResult>('/api/problem', { task: t.id, sha: from, text: value }).then((out) => {
-      toast(out.warning ? `Saved problem.md, but the push failed: ${out.warning}` : 'Saved problem.md');
+      if (out.warning) toast(`Saved problem.md, but the push failed: ${out.warning}`, true);
+      else message.success('Saved problem.md');
       onClose();
       void onStatus(out.status);
     }, (err: Error) => {
@@ -55,7 +56,7 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
           }
           if (e.key === 'Escape') {
             if (value === text) onClose();
-            else toast('There are changes not saved: Cancel throws them away');
+            else message.warning('There are changes not saved: Cancel throws them away');
           }
         }} />
       <div className="mt-2.5 flex items-center justify-end gap-2">

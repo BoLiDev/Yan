@@ -3,7 +3,7 @@ import { postJSON, type TaskSummary, type WriteResult } from '../lib/api';
 import { go, link } from '../lib/route';
 import { goesOn, isPaused } from '../lib/stops';
 import { onStatus, queryClient, useIndex, useTerminals, writeTask } from '../state/server';
-import { toast, useUI, type TaskAct } from '../state/ui';
+import { message, toast, useUI, type TaskAct } from '../state/ui';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu';
@@ -61,9 +61,10 @@ function wordsOf(act: TaskAct, title: string, running: boolean): { title: string
   return { title: `Give up ${act.id}?`, sub: `${who} closes “${title}” as given up, with your reason, ${how}`, action: 'Give up', field: 'Why it is given up' };
 }
 
-/** A change serve made itself, said in a toast, and shown once the vault has it. */
+/** A change serve made itself, said in a word at the top, or in a toast when its push failed, and shown once the vault has it. */
 function said(out: WriteResult, what: string): void {
-  toast(out.warning ? `${what}, but the push failed: ${out.warning}` : what, !!out.warning);
+  if (out.warning) toast(`${what}, but the push failed: ${out.warning}`, true);
+  else message.success(what);
   void onStatus(out.status);
 }
 
