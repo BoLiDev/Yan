@@ -88,7 +88,7 @@ export function CommentBox() {
           <span className="mr-auto self-center text-[12px] text-ink-3">{`Enter adds it${local ? ` · ${MOD}Enter sends it now` : ''} · Shift+Enter for a new line`}</span>
           <Button variant="ghost" disabled={sending} onClick={close}>Cancel</Button>
           {local ? (
-            <Button variant="outline" disabled={text.trim() === '' || sending} aria-busy={sending} title="Send this comment alone to the task's agent on this machine, now" onClick={() => void send()}>
+            <Button variant="ghost" className="bg-card hover:bg-card/60" disabled={text.trim() === '' || sending} aria-busy={sending} title="Send this comment alone to the task's agent on this machine, now" onClick={() => void send()}>
               {sending ? <Spinner aria-hidden /> : null}Send to agent
             </Button>
           ) : null}
