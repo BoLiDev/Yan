@@ -397,11 +397,12 @@ a right click in it opens the same menu over it, to comment on the words
 selected or, with nothing selected, on the element under the pointer, which
 the comment names by a CSS selector an agent can find it by, with what it
 says. Words commented on are marked in the page and an element is outlined.
-Shift with the right click leaves the browser's own menu. Open in a new
-tab gives such a page the whole window, still shown by yan's own page with
-nothing else of yan's drawn round it, so a design is looked at at its full
-size and commented on the same, into the same review; the file itself, on
-the files port, is out of the review's reach.
+Shift with the right click leaves the browser's own menu. Full size
+gives such a page the whole window, in the same tab, still shown by yan's
+own page with nothing else of yan's drawn but a button at its corner, so a
+design is looked at at its full size and commented on the same, into the
+same review; that button, or Escape, goes back to where it was opened
+from. The file itself, on the files port, is out of the review's reach.
 
 A task's own notes are reviewed the same way. On the overview, what is
 selected in the problem is commented on, copied or edited, as in a Markdown

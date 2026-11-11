@@ -1,7 +1,7 @@
 import {
   ArrowRight, ArrowUp, Ban, Bell, BellOff, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsDownUp,
   ChevronsUpDown, Cloud, Contrast, Copy, Download, ExternalLink, FileText, Folder, GitBranch, History, GripVertical, Inbox, LayoutGrid,
-  Link, List, Maximize, Maximize2, Monitor, Moon, PanelLeft, Sun, Pencil, Plus, RefreshCw, RotateCw, Search, SquareCheck, SquareTerminal,
+  Link, List, Maximize, Maximize2, Minimize2, Monitor, Moon, PanelLeft, Sun, Pencil, Plus, RefreshCw, RotateCw, Search, SquareCheck, SquareTerminal,
   StickyNote, Trash2, WrapText, X, type LucideIcon,
 } from 'lucide-react';
 import { stateOf, type TaskSummary } from '../lib/api';
@@ -39,6 +39,7 @@ const ICONS = {
   unfold: ChevronsUpDown,
   fold: ChevronsDownUp,
   expand: Maximize2,
+  shrink: Minimize2,
   close: X,
   trash: Trash2,
   ban: Ban,

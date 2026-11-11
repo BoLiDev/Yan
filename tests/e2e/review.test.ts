@@ -130,16 +130,28 @@ describe('a review', () => {
     const printed = (await runYan(home, ['review', '--task', 't001'])).stdout;
     expect(printed).toContain('artifacts/design/card.html, body > button\n\n> Confirm\n\nSay what it confirms.');
     expect(printed).toContain('artifacts/design/card.html, body > p\n\n> Split it in three.\n\nThree what?');
-    // Given the window, from Open in a new tab, it is commented on the same, into the same review.
-    const whole = await open(served.url('/#/page/t001/design/card.html'));
-    await whole.page.frameLocator('iframe[title="Page"]').getByRole('heading', { name: 'Pay later' }).click({ button: 'right' });
-    await whole.page.getByRole('menuitem', { name: 'Comment' }).click();
-    await whole.page.getByText('artifacts/design/card.html, h1#title').waitFor();
-    await whole.page.getByRole('textbox', { name: 'Comment' }).fill('Later than what?');
-    await whole.page.keyboard.press('Enter');
-    await whole.page.getByRole('button', { name: /Review · 1 comment/ }).waitFor();
-    expect(await whole.page.getByRole('complementary').count(), 'nothing of the task list round it').toBe(0);
-    expect(whole.errors).toEqual([]);
+    // Given the window, in the same tab, it is commented on the same, into the same review, and Escape comes back.
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    await page.goto(served.url('/#/t/t001/a/design/card.html'));
+    await page.locator('a[aria-label="Full size"]').click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/page/t001/design/card.html');
+    expect(await page.getByRole('complementary').count(), 'nothing of the task list round it').toBe(0);
+    await frame.getByRole('heading', { name: 'Pay later' }).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Comment' }).click();
+    await page.getByText('artifacts/design/card.html, h1#title').waitFor();
+    await page.getByRole('textbox', { name: 'Comment' }).fill('Later than what?');
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /Review · 1 comment/ }).waitFor();
+    // The keys are the frame's once it is clicked in: Escape there still closes the full size.
+    await frame.getByText('Split it in three.').click();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/t/t001/a/design/card.html');
+    await page.getByRole('complementary', { name: 'Task' }).waitFor();
+    // And its button does, from a full size opened by its own address.
+    await page.goto(served.url('/#/page/t001/design/card.html'));
+    await page.getByRole('button', { name: 'Back to the task' }).click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/t/t001/a/design/card.html');
 
     // As the agent wrote it, anywhere but in the frame the page reviews it in.
     expect(await (await fetch(served.url('/').replace(/:(\d+)\/$/, (_m, p: string) => `:${Number(p) + 1}/tasks/t001/artifacts/design/card.html`))).text()).not.toContain('_review.js');

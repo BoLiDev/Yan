@@ -101,6 +101,8 @@ interface UI {
    * still there after a look at another task; a file with none is shown as itself.
    */
   mdVersions: Readonly<Record<string, string>>;
+  /** Where the page was when a page an agent wrote was given the window, to go back to as it is closed; null when it was opened by its own address. */
+  fullFrom: string | null;
   /** What to select in a Markdown file's source as it next opens, by the file's path in the vault: the lines, counted from 0, and in them the words, when they are written as they read. */
   mdSelect: { readonly key: string; readonly from: number; readonly to: number; readonly quote: string } | null;
   /** A Markdown artifact's source edited and not saved, by its path in the vault, with the file it began from: kept while the page is open. */
@@ -182,6 +184,7 @@ export const useUI = create<UI>(() => ({
   pageSource: false,
   mdSource: false,
   mdVersions: {},
+  fullFrom: null,
   mdSelect: null,
   edits: {},
   saved: {},

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useHash } from '../../lib/route';
 import { useComments, useReview } from '../../state/review';
 import { filesOrigin } from '../../state/server';
@@ -22,11 +22,14 @@ const text = (v: unknown): string => (typeof v === 'string' ? v.slice(0, 20_000)
  * src/cli/serve/review-frame.ts) says what a right click picked and where,
  * and the menu opens here, over the frame at that point, to comment on it
  * or copy it; a press in the frame closes it, as one outside a menu does.
- * The script is told back what has been commented on, to mark it. What it
+ * The script is told back what has been commented on, to mark it, and
+ * passes on an Escape pressed in the frame that the page there left alone
+ * (`onEscape`). What it
  * says is taken only from the frame itself, and is only ever words to put
  * in a comment `user` then writes: a page that made them up gains nothing.
  */
-export function FrameReview({ task, path, children }: { task: string; path: string; children: ReactNode }) {
+export function FrameReview({ task, path, onEscape, children }: { task: string; path: string; onEscape?: () => void; children: ReactNode }) {
+  const escaped = useEffectEvent(() => onEscape?.());
   const box = useRef<HTMLDivElement>(null);
   const menu = useRef<PickMenuApi>(null);
   const [picked, setPicked] = useState<Picked | null>(null);
@@ -43,6 +46,7 @@ export function FrameReview({ task, path, children }: { task: string; path: stri
       if (f === null || e.source !== f.contentWindow || e.origin !== filesOrigin() || d?.yanReview !== 1) return;
       if (d.kind === 'ready') tell();
       else if (d.kind === 'down') menu.current?.close();
+      else if (d.kind === 'escape') escaped();
       else if (d.kind === 'pick' && typeof d.x === 'number' && typeof d.y === 'number') {
         // Where the pointer was, in this page: the frame may be drawn smaller than it is laid out.
         const r = f.getBoundingClientRect();

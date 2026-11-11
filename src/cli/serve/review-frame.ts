@@ -12,6 +12,9 @@
  * tab of its own, without `?review`, it is as the agent wrote it.
  *
  * Shift with the right click leaves the browser's own menu, to inspect.
+ * Escape the page does not take for itself is passed on, since the keys
+ * are the frame's while it is clicked in, and Escape is how the page given
+ * the whole window is left.
  */
 
 /** Where the script is, on the files' origin. */
@@ -45,6 +48,8 @@ export const REVIEW_SCRIPT = `(() => {
     say({ kind: 'pick', x: e.clientX, y: e.clientY, selector: selectorOf(el), quote: said, exact: picked ? range.toString() : '' });
   }, true);
   addEventListener('pointerdown', () => say({ kind: 'down' }), true);
+  // Escape the page did not take for itself, to close a box of its own, is the page's round it: it closes the full size.
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) say({ kind: 'escape' }); });
 
   const NAME = 'yan-review';
   const style = document.createElement('style');
