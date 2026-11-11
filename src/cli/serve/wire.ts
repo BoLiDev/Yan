@@ -277,6 +277,24 @@ export interface ReviewSaved extends WriteResult {
   readonly path: string;
 }
 
+/**
+ * `/api/artifact/history`: one version of an artifact, a commit of the
+ * vault that changed it: when, by whom, the commit's subject, which says
+ * how it came about (an edit on the page says so), the file as the commit
+ * left it and as it found it, by their blobs, null for none, and how many
+ * lines it added and took out, null for a file that is not text.
+ */
+export interface FileVersion {
+  readonly commit: string;
+  readonly at: number;
+  readonly author: string;
+  readonly subject: string;
+  readonly sha: string | null;
+  readonly before: string | null;
+  readonly add: number | null;
+  readonly del: number | null;
+}
+
 /** One of `user`'s drafts as it is on this machine's disk: the vault's own notes, which every task reads. */
 export interface Draft {
   readonly id: string;

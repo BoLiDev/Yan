@@ -328,6 +328,18 @@ while later, as it does the drafts. A file an agent changed since it was
 opened is not written over: the save is refused and what was typed
 stays.
 
+A Markdown file has a third view beside Rendered and Source, History: you
+and an agent both write these files, and it is where each change is seen.
+Down the right are the versions, every commit of the vault that changed the
+file, an agent's push or an edit on the page, which is named as one, the
+newest first, the last fifty, each with when it was, who committed it and
+how many lines it added and took out. The one picked, the newest to start
+with, is shown against the one before it: as Changes, a diff of the source,
+unified or side by side as a branch's is, in which a paragraph that changed
+has the words taken out and put in marked inside it, a character at a time
+in Chinese; or as Document, the version itself drawn, what is new in it
+since the one before tinted. Opening another file leaves History.
+
 What you read on the page you can review as you go, without stopping to
 tell an agent each thing. Select some of a Markdown file as it is rendered
 and right click: the page's own menu, in place of the browser's, comments on

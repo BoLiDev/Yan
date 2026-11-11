@@ -7,7 +7,7 @@ import type { KnownDeliverableStatus, KnownTaskState } from '../../../src/cli/se
 export type {
   AgentChange, AgentStatus, ArtifactFile, BranchBlob, BranchCommit, BranchFile, BranchView, CommitPatch, Deliverable, Draft, DraftConflict, DraftSaved, FileLink, Index, PictureSaved,
   LaunchRepo, Layout, LogEntry, PushState, Push, PushFile, RepoSummary, Report, Status, TaskDetail, TaskSummary, TerminalState, UatFile,
-  UpdateState, Behind, WriteResult, WorktreeState, ReviewAsked, ReviewComment, ReviewSaved,
+  UpdateState, Behind, WriteResult, WorktreeState, FileVersion, ReviewAsked, ReviewComment, ReviewSaved,
 } from '../../../src/cli/serve/wire';
 
 export type TaskState = KnownTaskState;

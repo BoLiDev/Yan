@@ -70,6 +70,8 @@
   --diff-del-gutter: #fbe2de;
   --diff-add: #eaf5ed;
   --diff-add-gutter: #d9eedf;
+  --diff-add-word: #b9e4c4;
+  --diff-del-word: #f8c8c0;
   /* a terminal is dark whatever the page is */
   --term-bg: #1b1b19;
   --term-fg: #e3e1d9;
@@ -162,6 +164,8 @@
     --diff-del-gutter: rgba(240, 122, 106, 0.18);
     --diff-add: rgba(91, 189, 123, 0.1);
     --diff-add-gutter: rgba(91, 189, 123, 0.18);
+    --diff-add-word: rgba(91, 189, 123, 0.34);
+    --diff-del-word: rgba(240, 122, 106, 0.34);
     --term-bg: #121210;
     --term-line: #2e2e2a;
     --code-comment: #8f8e85;
@@ -219,6 +223,8 @@
     --diff-del-gutter: rgba(240, 122, 106, 0.18);
     --diff-add: rgba(91, 189, 123, 0.1);
     --diff-add-gutter: rgba(91, 189, 123, 0.18);
+    --diff-add-word: rgba(91, 189, 123, 0.34);
+    --diff-del-word: rgba(240, 122, 106, 0.34);
     --term-bg: #121210;
     --term-line: #2e2e2a;
     --code-comment: #8f8e85;
