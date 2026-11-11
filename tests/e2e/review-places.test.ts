@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Locator, Page } from 'playwright';
@@ -121,4 +122,36 @@ describe("a review of a task's notes", () => {
     expect(await text.evaluate((el) => el.getClientRects().length), 'it does run over several lines').toBeGreaterThan(1);
     if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'report-edit.png') });
   }, 60_000);
+
+  it("edits a paragraph of the report over several lines, its keys said under it, and a heading in one", async () => {
+    const { page, errors } = await open(served.url('/#/t/t001/report'));
+    const onDisk = (): string => readFileSync(join(home, 'tasks/t001/artifacts/report.html'), 'utf8');
+    const text = page.locator('[data-yan-d="d1"] [data-yan-edit="text"]');
+    await text.click();
+    await page.locator('.yan-keys').getByText('new line').waitFor();
+    if (process.env.YAN_SHOTS) await page.screenshot({ path: join(process.env.YAN_SHOTS, 'report-keys.png') });
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('and the customer is told');
+    expect(onDisk(), 'Enter is a new line, and keeps nothing yet').not.toContain('and the customer is told');
+    // The file the edit makes is fetched again, and the report drawn again for it.
+    const again = page.waitForResponse((r) => r.url().includes('/api/report?') && r.request().method() === 'GET', { timeout: 20_000 });
+    await page.keyboard.press('Control+Enter');
+    await expect.poll(onDisk, { timeout: 20_000 }).toContain('data-yan-edit="text">retries are capped at five\nand the customer is told</p>');
+    expect(await page.locator('.yan-keys').count(), 'the keys are said only while a text is edited').toBe(0);
+    expect(await text.evaluate((el) => el.getClientRects().length > 0 && getComputedStyle(el).whiteSpace)).toBe('pre-wrap');
+
+    // Its title is one line, which Enter keeps.
+    const title = page.locator('[data-yan-edit="title"]');
+    await again;
+    await page.waitForTimeout(300);
+    await title.click();
+    await page.locator('.yan-keys').getByText('saves').waitFor();
+    expect(await page.locator('.yan-keys').innerText()).not.toContain('new line');
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type(', capped');
+    await page.keyboard.press('Enter');
+    await expect.poll(onDisk, { timeout: 20_000 }).toContain('data-yan-edit="title">Pay retries, capped</h1>');
+    expect(errors).toEqual([]);
+  }, 90_000);
 });

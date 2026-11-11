@@ -2,6 +2,7 @@ import DOMPurify from 'dompurify';
 import { statusOf, type Deliverable, type DeliverableStatus, type Report } from '../lib/api';
 import { VIDEO, ext } from '../lib/files';
 import { clock, dayOf, fromIso } from '../lib/format';
+import { REPORT_EDIT_CSS, editInPlace } from './reportEdit';
 import { REPORT_REVIEW_CSS, reportMarks, watchPicks, type ReportPick } from './reportReview';
 
 /**
@@ -128,40 +129,6 @@ function cleanReport(html: string): HTMLElement {
 }
 
 /**
- * A text of the report edited where it stands: Enter or leaving it keeps
- * what was typed, on one line, and Escape puts it back. A blank is never
- * kept. What it said is taken when it is entered, since the page can change
- * it in between, as a deliverable given up again does its reason.
- */
-function editInPlace(node: HTMLElement, save: (text: string) => void): void {
-  node.setAttribute('contenteditable', 'plaintext-only');
-  node.setAttribute('spellcheck', 'false');
-  let was = node.textContent ?? '';
-  node.addEventListener('focus', () => {
-    was = node.textContent ?? '';
-  });
-  node.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      node.blur();
-    }
-    if (e.key === 'Escape') {
-      node.textContent = was;
-      node.blur();
-    }
-  });
-  node.addEventListener('blur', () => {
-    const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const changed = text !== was.trim() && text !== '';
-    if (text === '') node.textContent = was;
-    if (changed) {
-      was = text;
-      save(text);
-    }
-  });
-}
-
-/**
  * A picture of the report large, in a modal over the page: fitted to the
  * window with a margin round it, the page dimmed behind. ← and → go through
  * the report's other pictures; Esc, ✕ or a click beside the picture closes it.
@@ -263,7 +230,7 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
     el('div', { class: 'yan-bar-in' }, facts, el('div', { class: 'yan-actions' }, uatButton, el('a', { class: 'yan-btn main', href: hooks.downloadUrl }, 'Download HTML'))),
     uatList);
   const shell = el('div', { class: 'yan-report' }, bar, ...[...body.childNodes].map((n) => document.importNode(n, true)));
-  root.replaceChildren(el('style', null, `${style}\n${REPORT_PANEL_CSS}\n${REPORT_REVIEW_CSS}`), shell);
+  root.replaceChildren(el('style', null, `${style}\n${REPORT_PANEL_CSS}\n${REPORT_REVIEW_CSS}\n${REPORT_EDIT_CSS}`), shell);
 
   // The deliverables: ticked, unticked and given up here, shown as task.json has them now.
   // A click shows its result at once, counts included: the page is told again only once the
@@ -312,11 +279,11 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
       onclick: () => (node.dataset.yanStatus === 'abandoned' ? send(id, 'todo') : askReason(shell, id, name, (reason) => send(id, 'abandoned', reason))) }));
     // Its reason for being given up is edited like a text, but kept in task.json, which the page shows it from.
     const why = node.querySelector<HTMLElement>('[data-yan-reason]');
-    if (why) editInPlace(why, (reason) => hooks.reason(id, reason));
+    if (why) editInPlace(shell, why, (reason) => hooks.reason(id, reason));
   }
 
-  // The texts: edited in place, saved to report.html when left.
-  shell.querySelectorAll<HTMLElement>('[data-yan-edit]').forEach((node, index) => editInPlace(node, (text) => hooks.edit(index, text)));
+  // The texts: edited in place, a paragraph over as many lines as it takes, saved to report.html when kept.
+  shell.querySelectorAll<HTMLElement>('[data-yan-edit]').forEach((node, index) => editInPlace(shell, node, (text) => hooks.edit(index, text)));
 
   // What is selected in it, and its pictures, are commented on from a right click.
   watchPicks(root, shell, hooks.pick);

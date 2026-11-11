@@ -407,7 +407,13 @@ is drawn apart from the page, so it watches for the right click itself, and
 anything else right clicked in it is the browser's. A text of the report
 that is edited where it stands has one frame round the line or the
 paragraph it is in, under the pointer and while it is typed in, however
-many lines it runs over.
+many lines it runs over. A paragraph of it, the problem, a step of the
+approach or a deliverable's text, takes lines: Enter starts a new one and
+⌘Enter keeps what was typed; a title or a deliverable's heading is one line,
+which Enter keeps. Leaving a text keeps it too, Escape puts it back, and a
+line under the text being edited says which keys do what. The lines are
+kept in report.html as they were typed, and drawn as lines there and in
+the copy downloaded.
 
 Markdown and the report
 an agent wrote are shown without anything in them that runs, and load

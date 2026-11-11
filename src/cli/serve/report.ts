@@ -21,6 +21,9 @@ import type { Deliverable } from './vault-view.js';
 
 const esc = (text: string): string => text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
+/** The texts that are one line, by their kind in the tag that opens them: a title, a deliverable's heading. */
+const ONE_LINE = /\bdata-yan-edit="(?:title|summary)"/;
+
 /** An element holding only text: `<span data-yan-edit="summary">…</span>`. */
 const EDITABLE = /(<([a-z][a-z0-9]*)\b[^>]*\bdata-yan-edit="[a-z]+"[^>]*>)([^<]*)(<\/\2>)/g;
 
@@ -57,6 +60,14 @@ export function withoutSubtasks(html: string): string {
   return html.replace(/<dt>子任务<\/dt><dd>[\s\S]*?<\/dd>/g, '');
 }
 
+/** How a paragraph's lines are drawn as lines: the rule a report written before paragraphs took lines does not have. */
+const LINES_CSS = '[data-yan-edit="text"],[data-yan-edit="problem"],[data-yan-edit="approach"]{white-space:pre-wrap}';
+
+/** The page drawing a paragraph's lines as they were typed on yan serve, where its own style does not already. */
+function withLines(html: string): string {
+  return html.includes(LINES_CSS) || !html.includes('</head>') ? html : html.replace('</head>', `<style>${LINES_CSS}</style></head>`);
+}
+
 /**
  * The copy of the page that is downloaded, which is handed to others as a
  * report of what was delivered: each deliverable in the state it has now,
@@ -70,7 +81,7 @@ export function withoutSubtasks(html: string): string {
  * its numbers.
  */
 export function handout(html: string, deliverables: readonly Deliverable[]): string {
-  let out = withoutSubtasks(html);
+  let out = withLines(withoutSubtasks(html));
   for (const d of deliverables) {
     const id = d.id.replace(/[^\w-]/g, '');
     if (d.status === 'abandoned') {
@@ -118,7 +129,9 @@ export function editableCount(html: string): number {
 
 /**
  * The page with its `index`th editable text, in page order, replaced by
- * `text`, which goes in as text.
+ * `text`, which goes in as text. A paragraph keeps the lines it was typed
+ * in, which the page draws as lines; a title or a deliverable's heading is
+ * one line, whatever was sent.
  *
  * @throws RangeError when the page has no such text.
  */
@@ -129,7 +142,8 @@ export function editText(html: string, index: number, text: string): string {
     at += 1;
     if (at !== index) return whole;
     found = true;
-    return `${open}${esc(text.replace(/[\r\n]+/g, ' ').trim())}${close}`;
+    const lines = text.replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    return `${open}${esc(ONE_LINE.test(open) ? lines.replace(/\s*\n\s*/g, ' ') : lines)}${close}`;
   });
   if (!found) throw new RangeError(`the report has no editable text ${index}`);
   return out;

@@ -298,6 +298,7 @@ li.head .why{grid-column:2}
 h3{margin:0;font-size:22px;line-height:1.4;font-weight:700;font-family:${BOLD_FACE}}
 .id{font-weight:400;font-family:${FACE};color:#909090}
 .text{margin:0;font-size:15px;line-height:1.75;color:#BDBDBD}
+[data-yan-edit="text"],[data-yan-edit="problem"],[data-yan-edit="approach"]{white-space:pre-wrap}
 [data-yan-status="abandoned"] h3,[data-yan-status="abandoned"] .text,[data-yan-status="abandoned"] .item{color:#6C6C6C;text-decoration:line-through}
 .why{margin:2px 0 0;font-size:14px;line-height:1.7;color:#BDBDBD}
 .why{display:none}

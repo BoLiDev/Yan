@@ -122,6 +122,12 @@ describe('editText', () => {
     expect(out.replace('横屏 &lt;b&gt;大了&lt;/b&gt; 一倍', '横屏画面放大')).toBe(PAGE);
     expect(() => editText(PAGE, 4, 'x')).toThrow(RangeError);
   });
+
+  it('keeps the lines a paragraph was typed in, and a heading as one line', () => {
+    const page = '<h1 data-yan-edit="title">t</h1><p class="text" data-yan-edit="text">p</p>';
+    expect(editText(page, 1, 'first  \r\nsecond\n\n\n\nthird\n')).toContain('<p class="text" data-yan-edit="text">first\nsecond\n\nthird</p>');
+    expect(editText(page, 0, 'one\ntwo')).toContain('<h1 data-yan-edit="title">one two</h1>');
+  });
 });
 
 describe('imagesOut', () => {
