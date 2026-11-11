@@ -2,6 +2,7 @@ import DOMPurify from 'dompurify';
 import { statusOf, type Deliverable, type DeliverableStatus, type Report } from '../lib/api';
 import { VIDEO, ext } from '../lib/files';
 import { clock, dayOf, fromIso } from '../lib/format';
+import { REPORT_REVIEW_CSS, reportMarks, watchPicks, type ReportPick } from './reportReview';
 
 /**
  * artifacts/report.html, which the yan:uat skill writes, shown inside a
@@ -226,6 +227,8 @@ export interface IslandHooks {
   /** A text of report.html, the `index`th that can be edited, changed. */
   readonly edit: (index: number, text: string) => void;
   readonly copied: (url: string) => void;
+  /** Words selected in the report, or one of its pictures, right clicked: the page opens its menu on them. */
+  readonly pick: (picked: ReportPick) => void;
   /** Where a file of the task's uat/ opens, and downloads. */
   readonly uatUrl: (path: string) => string;
   readonly downloadUrl: string;
@@ -238,6 +241,8 @@ export interface Island {
   setDeliverables(ds: readonly Deliverable[]): void;
   /** Last words said: what a change from the page came to. */
   say(text: string, bad: boolean): void;
+  /** The words commented on, as the report holds them: marked where they are. */
+  mark(exacts: readonly string[]): void;
 }
 
 /** Build the report in `root`, replacing what was there. */
@@ -258,7 +263,7 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
     el('div', { class: 'yan-bar-in' }, facts, el('div', { class: 'yan-actions' }, uatButton, el('a', { class: 'yan-btn main', href: hooks.downloadUrl }, 'Download HTML'))),
     uatList);
   const shell = el('div', { class: 'yan-report' }, bar, ...[...body.childNodes].map((n) => document.importNode(n, true)));
-  root.replaceChildren(el('style', null, `${style}\n${REPORT_PANEL_CSS}`), shell);
+  root.replaceChildren(el('style', null, `${style}\n${REPORT_PANEL_CSS}\n${REPORT_REVIEW_CSS}`), shell);
 
   // The deliverables: ticked, unticked and given up here, shown as task.json has them now.
   // A click shows its result at once, counts included: the page is told again only once the
@@ -313,6 +318,10 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
   // The texts: edited in place, saved to report.html when left.
   shell.querySelectorAll<HTMLElement>('[data-yan-edit]').forEach((node, index) => editInPlace(node, (text) => hooks.edit(index, text)));
 
+  // What is selected in it, and its pictures, are commented on from a right click.
+  watchPicks(root, shell, hooks.pick);
+  const mark = reportMarks(shell);
+
   // The pictures: one clicked fills the screen.
   const shots = [...shell.querySelectorAll<HTMLImageElement>('figure img')];
   shots.forEach((img, i) => img.addEventListener('click', () => zoomShot(shell, shots, i)));
@@ -355,6 +364,7 @@ export function buildIsland(root: ShadowRoot, rep: Report, ds: readonly Delivera
       saidEl.textContent = text;
       saidEl.classList.toggle('bad', bad);
     },
+    mark,
   };
   island.setFacts(rep);
   island.setDeliverables(ds);

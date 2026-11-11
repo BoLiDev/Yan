@@ -389,7 +389,25 @@ a right click in it opens the same menu over it, to comment on the words
 selected or, with nothing selected, on the element under the pointer, which
 the comment names by a CSS selector an agent can find it by, with what it
 says. Words commented on are marked in the page and an element is outlined.
-Shift with the right click leaves the browser's own menu. Markdown and the report
+Shift with the right click leaves the browser's own menu.
+
+A task's own notes are reviewed the same way. On the overview, what is
+selected in the problem is commented on, copied or edited, as in a Markdown
+file: Edit opens problem.md to edit with the same words selected, and the
+comment names its line. What is selected in a deliverable is commented on
+as that deliverable, by its id, and Edit puts the keyboard in its text,
+which is edited where it stands. In the log, an entry is never edited, so
+what is selected in one is commented on or copied, the comment naming the
+entry by its type and its day. In the report, words selected, and a picture
+right clicked with nothing selected, are commented on, the comment naming
+the deliverable they are under and the picture by what it shows; the report
+is drawn apart from the page, so it watches for the right click itself, and
+anything else right clicked in it is the browser's. A text of the report
+that is edited where it stands has one frame round the line or the
+paragraph it is in, under the pointer and while it is typed in, however
+many lines it runs over.
+
+Markdown and the report
 an agent wrote are shown without anything in them that runs, and load
 nothing from the page's own address; a page an agent wrote runs as itself
 on the files port. A picture shown small, in a

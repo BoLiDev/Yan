@@ -3,7 +3,8 @@ import { useHash } from '../../lib/route';
 import { useComments, useReview } from '../../state/review';
 import { filesOrigin } from '../../state/server';
 import { copyText } from '../../state/ui';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../ui/context-menu';
+import { ContextMenuItem } from '../ui/context-menu';
+import { PickMenu, type PickMenuApi } from './PickMenu';
 
 /** What a right click in the page picked, as its script says it: the words selected, or the element under the pointer. */
 interface Picked {
@@ -27,8 +28,8 @@ const text = (v: unknown): string => (typeof v === 'string' ? v.slice(0, 20_000)
  */
 export function FrameReview({ task, path, children }: { task: string; path: string; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
+  const menu = useRef<PickMenuApi>(null);
   const [picked, setPicked] = useState<Picked | null>(null);
-  const [open, setOpen] = useState(false);
   const hash = useHash();
   const all = useComments(task);
   const marks = useMemo(() => all.filter((c) => c.href === hash).map((c) => ({ exact: c.exact, selector: c.mark ?? '' })), [all, hash]);
@@ -41,13 +42,13 @@ export function FrameReview({ task, path, children }: { task: string; path: stri
       const d = e.data as { yanReview?: unknown; kind?: unknown; x?: unknown; y?: unknown; quote?: unknown; exact?: unknown; selector?: unknown } | null;
       if (f === null || e.source !== f.contentWindow || e.origin !== filesOrigin() || d?.yanReview !== 1) return;
       if (d.kind === 'ready') tell();
-      else if (d.kind === 'down') setOpen(false);
+      else if (d.kind === 'down') menu.current?.close();
       else if (d.kind === 'pick' && typeof d.x === 'number' && typeof d.y === 'number') {
         // Where the pointer was, in this page: the frame may be drawn smaller than it is laid out.
         const r = f.getBoundingClientRect();
         const scale = f.offsetWidth ? r.width / f.offsetWidth : 1;
         setPicked({ quote: text(d.quote), exact: text(d.exact), selector: text(d.selector) });
-        box.current?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + d.x * scale, clientY: r.top + d.y * scale }));
+        menu.current?.open(r.left + d.x * scale, r.top + d.y * scale);
       }
     };
     addEventListener('message', heard);
@@ -62,15 +63,13 @@ export function FrameReview({ task, path, children }: { task: string; path: stri
   };
 
   return (
-    <ContextMenu open={open} onOpenChange={setOpen}>
-      <ContextMenuTrigger render={<div ref={box} />} className="size-full" onContextMenu={(e) => {
-        // Only what the frame's script picked opens the menu: a right click on the stage around it is the browser's.
-        if (e.isTrusted) (e as typeof e & { preventBaseUIHandler: () => void }).preventBaseUIHandler();
-      }}>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="min-w-40">
+    <PickMenu api={menu} className="size-full" menu={
+      <>
         <ContextMenuItem onClick={comment}>Comment</ContextMenuItem>
         {picked?.quote ? <ContextMenuItem onClick={() => copyText(picked.quote, 'Copied', 'Copy what was picked')}>Copy</ContextMenuItem> : null}
-      </ContextMenuContent>
-    </ContextMenu>
+      </>
+    }>
+      <div ref={box} className="size-full">{children}</div>
+    </PickMenu>
   );
 }

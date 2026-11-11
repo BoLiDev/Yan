@@ -1,10 +1,15 @@
-import { useEffectEvent, useLayoutEffect, useRef } from 'react';
+import { useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { postJSON, type DeliverableStatus, type TaskDetail, type TaskSummary, type WriteResult } from '../lib/api';
+import { useHash } from '../lib/route';
 import { Empty, Scroll } from '../components/page';
+import { PickMenu, type PickMenuApi } from '../components/review/PickMenu';
+import { ContextMenuItem } from '../components/ui/context-menu';
+import { useComments, useReview } from '../state/review';
 import { fileUrl, onStatus, queryClient, useReport, vaultPath } from '../state/server';
-import { message, useUI } from '../state/ui';
+import { copyText, message, useUI } from '../state/ui';
 import { useKeyNav } from './nav';
 import { buildIsland, type Island } from './reportIsland';
+import type { ReportPick } from './reportReview';
 
 /** How long a word said on a report outlives the redraw its change causes. */
 const SAID_FOR_MS = 5000;
@@ -13,12 +18,20 @@ const SAID_FOR_MS = 5000;
  * A task's report, with checking, giving up and editing on top of it. The
  * report is built in its shadow root once for each report.html; after that
  * it is only told what moved, so a push never takes the reader back to the top.
+ * Words selected in it, and its pictures, are commented on from a right
+ * click, into the task's review, as anything else read on the page is.
  */
 export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
   const rep = useReport(t.id);
   const host = useRef<HTMLDivElement>(null);
   const island = useRef<Island | null>(null);
+  const menu = useRef<PickMenuApi>(null);
+  const [picked, setPicked] = useState<ReportPick | null>(null);
+  const picking = useEffectEvent((p: ReportPick): void => {
+    setPicked(p);
+    menu.current?.open(p.x, p.y);
+  });
 
   // What the island, built once, calls later: these read the task as it is when they are called.
   const say = useEffectEvent((text: string, bad: boolean): void => {
@@ -62,6 +75,7 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
         );
       },
       copied: (url) => void navigator.clipboard.writeText(url).then(() => message.success('Link copied')),
+      pick: picking,
       uatUrl: (path) => fileUrl(vaultPath(t.id, `uat/${path}`)),
       downloadUrl: `/api/report/download?task=${encodeURIComponent(t.id)}`,
     }, said && Date.now() - said.at < SAID_FOR_MS ? said : null);
@@ -75,7 +89,29 @@ export function ReportView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
     island.current?.setDeliverables(d.deliverables);
   }, [d.deliverables]);
 
+  // What has been commented on here is marked, and again once the report is built anew.
+  const hash = useHash();
+  const all = useComments(t.id);
+  const exacts = useMemo(() => all.filter((c) => c.href === hash && c.exact !== '').map((c) => c.exact), [all, hash]);
+  useLayoutEffect(() => {
+    island.current?.mark(exacts);
+    return () => island.current?.mark([]);
+  }, [exacts, html, sha]);
+
   if (rep.isError && !rep.data) return <Empty title="No report">{String(rep.error.message)}</Empty>;
   if (!rep.data) return <Empty>Loading…</Empty>;
-  return <Scroll className="bg-black"><div ref={host} data-task={t.id} /></Scroll>;
+  return (
+    <Scroll className="bg-black">
+      <PickMenu api={menu} menu={
+        <>
+          <ContextMenuItem onClick={() => {
+            if (picked) useReview.setState({ drafting: { task: t.id, where: picked.where, quote: picked.quote, exact: picked.exact, href: location.hash } });
+          }}>Comment</ContextMenuItem>
+          {picked?.quote ? <ContextMenuItem onClick={() => copyText(picked.quote, 'Copied', 'Copy what was picked')}>Copy</ContextMenuItem> : null}
+        </>
+      }>
+        <div ref={host} data-task={t.id} />
+      </PickMenu>
+    </Scroll>
+  );
 }

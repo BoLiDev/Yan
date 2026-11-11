@@ -3,6 +3,7 @@ import type { LogEntry, TaskDetail, TaskSummary } from '../lib/api';
 import { fromIso, monthName, nowS, plural, sameDay, when } from '../lib/format';
 import { cn } from '../lib/utils';
 import { Bar, Empty, Paper, Scroll } from '../components/page';
+import { ReviewMenu } from '../components/review/ReviewMenu';
 import { setSeen, useUI } from '../state/ui';
 import { useKeyNav } from './nav';
 import { Linkified } from './Overview';
@@ -17,6 +18,7 @@ function typeLook(type: string): string {
 /**
  * The log, newest first, a day at a time. What was new as the visit began
  * stays tinted until it ends; reading it marks it read, so its dot goes.
+ * What is selected in an entry is commented on from a right click.
  */
 export function LogView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   useKeyNav(null, null);
@@ -48,7 +50,7 @@ export function LogView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
       rows.push(<div className="mt-[22px] mb-2 text-[12.5px] font-bold text-ink-3 first:mt-0" key={`day:${e.day}:${i}`}>{today ? `Today · ${label}` : label}</div>);
     }
     rows.push(
-      <div className={cn('-mx-3 grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-[10px] px-3 py-2 text-[14.5px] leading-6', i >= before && 'bg-brand-wash')} key={i}>
+      <div className={cn('-mx-3 grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-[10px] px-3 py-2 text-[14.5px] leading-6', i >= before && 'bg-brand-wash')} key={i} data-entry={`the ${e.type} entry of ${e.day}`}>
         <span className={cn('mt-0.5 h-5 self-start rounded-full px-2 text-center text-[12px] leading-5', typeLook(e.type))}>{e.type}</span>
         <span className="whitespace-pre-wrap wrap-anywhere"><Linkified text={e.text} /></span>
       </div>,
@@ -57,7 +59,17 @@ export function LogView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   return (
     <>
       <Bar title="Log" meta={`${plural(n, 'entry', 'entries')}, newest first · log.md${d.log?.changed ? ` · written ${when(d.log.changed)}` : ''}`} />
-      <Scroll><Paper>{n ? rows : <Empty>No log yet.</Empty>}</Paper></Scroll>
+      <Scroll>
+        <Paper>
+          {/* An entry is never edited, so what is selected in one is commented on or copied: the comment names the entry. */}
+          {n ? (
+            <ReviewMenu task={t.id} locate={(range) => {
+              const entry = (range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement)?.closest<HTMLElement>('[data-entry]')?.dataset.entry;
+              return { where: ['log.md', entry].filter(Boolean).join(', '), code: false };
+            }}>{rows}</ReviewMenu>
+          ) : <Empty>No log yet.</Empty>}
+        </Paper>
+      </Scroll>
     </>
   );
 }

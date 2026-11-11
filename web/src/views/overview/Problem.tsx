@@ -3,19 +3,29 @@ import { postJSON, type TaskDetail, type TaskSummary, type WriteResult } from '.
 import { when } from '../../lib/format';
 import { blocksOf } from '../../lib/markdown';
 import { Icon } from '../../components/Icon';
+import { ReviewMenu } from '../../components/review/ReviewMenu';
+import { inMarkdown, sourceLines, spanInSource } from '../../components/review/locate';
 import { Button } from '../../components/ui/button';
 import { onStatus, useText } from '../../state/server';
 import { message, setSeen, toast, useUI } from '../../state/ui';
 import { MarkdownDoc } from '../Markdown';
 import { Section } from './Section';
 
+/** The lines of problem.md, counted from 0, and the words in them, that its editor opens on. */
+interface Selected {
+  readonly from: number;
+  readonly to: number;
+  readonly quote: string;
+}
+
 /**
  * problem.md opened to edit, whole, as the Markdown it is. Saving is refused
  * when an agent changed the file since this page read it, so neither
  * overwrites the other; while it is open, what is typed stays, whatever
- * arrives.
+ * arrives. Opened from words selected in the problem as it is drawn
+ * (`select`), it opens with them selected, or the lines they are on.
  */
-function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClose: () => void }) {
+function ProblemEditor({ t, d, select, onClose }: { t: TaskSummary; d: TaskDetail; select?: Selected | null; onClose: () => void }) {
   const text = d.problem?.text ?? '';
   // The sha the edit started from, so a save after an agent's change is refused.
   const [from] = useState(d.problem?.sha ?? '');
@@ -28,7 +38,14 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight + 2}px`;
   }, [value]);
-  useEffect(() => area.current?.focus(), []);
+  useEffect(() => {
+    const el = area.current;
+    if (el === null) return;
+    el.focus();
+    if (select) el.setSelectionRange(...spanInSource(el.value, select, select.quote));
+    // Only as it opens: what it opened on is not asked for again.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const save = (): void => {
     if (value.trim() === '') return message.warning('problem.md cannot be blank');
     if (value === text) return onClose();
@@ -71,10 +88,13 @@ function ProblemEditor({ t, d, onClose }: { t: TaskSummary; d: TaskDetail; onClo
 /**
  * problem.md, with what changed since the last look tinted. The visit's
  * starting point is kept for as long as the task is open, so the tint stays
- * while it is read, and the file counts as seen once shown.
+ * while it is read, and the file counts as seen once shown. What is
+ * selected in it is commented on, copied or edited from a right click, as
+ * in any Markdown file: Edit opens it to edit with the same words selected.
  */
 export function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<boolean | Selected>(false);
+  const select = typeof editing === 'object' ? editing : null;
   const problem = d.problem;
   // Where this visit started from: kept once the problem is shown, and until then what was last seen.
   const was = useUI((s) => (t.id in s.problemBase ? s.problemBase[t.id] : s.seen?.problems[t.id]) ?? null);
@@ -100,8 +120,14 @@ export function Problem({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const name = problem.path.slice(problem.path.lastIndexOf('/') + 1);
   return (
     <Section title="Problem" meta={`${name}${problem.changed ? ` · written ${when(problem.changed)}` : ''}`} tools={edit}>
-      {editing ? <ProblemEditor t={t} d={d} onClose={() => setEditing(false)} /> : (
-        <div>{waiting ? null : <MarkdownDoc text={problem.text} task={t.id} dir="" before={before} dropTitle bare />}</div>
+      {editing ? <ProblemEditor t={t} d={d} select={select} onClose={() => setEditing(false)} /> : (
+        <ReviewMenu task={t.id} locate={(range, el) => inMarkdown(name, el, range, problem.text)}
+          onEdit={(range, quote, el) => {
+            const at = sourceLines(el, range, problem.text.split('\n').length);
+            setEditing(at === null ? true : { ...at, quote });
+          }}>
+          {waiting ? null : <MarkdownDoc text={problem.text} task={t.id} dir="" before={before} dropTitle bare lines />}
+        </ReviewMenu>
       )}
       {!editing && fresh ? <span className="text-[12.5px] text-ink-3">The tinted parts are new since you last looked.</span> : null}
     </Section>

@@ -1,6 +1,7 @@
 import { statusOf, type DeliverableStatus, type TaskDetail, type TaskSummary } from '../../lib/api';
 import { Icon } from '../../components/Icon';
 import { Editable } from '../../components/page';
+import { ReviewMenu } from '../../components/review/ReviewMenu';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
 import { writeTask } from '../../state/server';
@@ -19,7 +20,8 @@ const DELIV_TOOL = 'size-[22px] text-ink-3 opacity-0 group-hover/deliv:opacity-1
 /**
  * A task's deliverables on a rail, each joined to the next. A text clicked
  * is edited; one given up keeps its reason on its line, and one deleted with
- * the bin goes as if never added, the ones after it taking its number.
+ * the bin goes as if never added, the ones after it taking its number. What
+ * is selected in one is commented on, copied or edited from a right click.
  */
 export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const ds = d.deliverables;
@@ -27,12 +29,22 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
   const counts = [n('done') ? `${n('done')} done` : null, n('todo') ? `${n('todo')} to do` : null, n('abandoned') ? `${n('abandoned')} dropped` : null].filter(Boolean).join(' · ');
   return (
     <Section title="Deliverables" meta={counts}>
-      <div className="flex flex-col">
+      <ReviewMenu task={t.id} className="flex flex-col"
+        locate={(range) => {
+          const id = (range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement)?.closest<HTMLElement>('[data-deliverable]')?.dataset.deliverable;
+          return { where: id ? `deliverable ${id}` : 'the deliverables', code: false };
+        }}
+        // A deliverable's text is edited where it stands: Edit puts the keyboard in it, what was selected still selected.
+        onEdit={(range) => {
+          (range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement)?.closest<HTMLElement>('[contenteditable]')?.focus();
+          getSelection()?.removeAllRanges();
+          getSelection()?.addRange(range);
+        }}>
         {ds.map((x) => {
           const status = statusOf(x.status);
           return (
             // The rail runs from under one mark to the next; the last has none.
-            <div key={x.id} className="group/deliv relative grid grid-cols-[10px_minmax(0,1fr)_auto_22px] gap-x-4 pb-5 text-[14.5px] leading-[22px] before:absolute before:top-5 before:-bottom-0.5 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-border last:before:hidden">
+            <div key={x.id} data-deliverable={x.id} className="group/deliv relative grid grid-cols-[10px_minmax(0,1fr)_auto_22px] gap-x-4 pb-5 text-[14.5px] leading-[22px] before:absolute before:top-5 before:-bottom-0.5 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-border last:before:hidden">
               <span className={NODE[status]} title={x.status} />
               <span>
                 <span className={status === 'abandoned' ? 'text-ink-3' : undefined}>
@@ -64,7 +76,7 @@ export function Deliverables({ t, d }: { t: TaskSummary; d: TaskDetail }) {
             </div>
           );
         })}
-      </div>
+      </ReviewMenu>
     </Section>
   );
 }

@@ -26,7 +26,7 @@ function style(): void {
 }
 
 /** `exact` where it is in `box`'s text, its text nodes end to end as a Range reads them. */
-function find(box: Element, exacts: readonly string[]): Range[] {
+export function find(box: Element | ShadowRoot, exacts: readonly string[]): Range[] {
   const nodes: Text[] = [];
   const starts: number[] = [];
   let all = '';
@@ -57,24 +57,28 @@ function find(box: Element, exacts: readonly string[]): Range[] {
   return out;
 }
 
+/** The marks `mine` holds, of all the page's, replaced by `ranges`: each part of the page that marks keeps its own, and they are drawn as one. */
+export function remark(mine: Set<Range>, ranges: readonly Range[]): void {
+  if (typeof Highlight === 'undefined' || !CSS.highlights) return;
+  style();
+  const all = CSS.highlights.get(NAME) ?? new Highlight();
+  for (const r of mine) all.delete(r);
+  mine.clear();
+  for (const r of ranges) {
+    mine.add(r);
+    all.add(r);
+  }
+  CSS.highlights.set(NAME, all);
+}
+
 /** Mark, in `box`, what each of `comments` is about, and again whenever what `box` holds is drawn anew. */
 export function useReviewMarks(box: RefObject<Element | null>, comments: readonly Kept[]): void {
   useEffect(() => {
     const el = box.current;
     if (el === null || typeof Highlight === 'undefined' || !CSS.highlights) return;
-    style();
     const exacts = comments.map((c) => c.exact);
     const mine = new Set<Range>();
-    const mark = (): void => {
-      const all = CSS.highlights.get(NAME) ?? new Highlight();
-      for (const r of mine) all.delete(r);
-      mine.clear();
-      for (const r of exacts.length ? find(el, exacts) : []) {
-        mine.add(r);
-        all.add(r);
-      }
-      CSS.highlights.set(NAME, all);
-    };
+    const mark = (): void => remark(mine, exacts.length ? find(el, exacts) : []);
     mark();
     if (exacts.length === 0) return;
     // A diff draws its lines as they come near, and a Markdown file is put in place again when it changes.
@@ -87,8 +91,7 @@ export function useReviewMarks(box: RefObject<Element | null>, comments: readonl
     return () => {
       watch.disconnect();
       clearTimeout(timer);
-      const all = CSS.highlights.get(NAME);
-      for (const r of mine) all?.delete(r);
+      remark(mine, []);
     };
   }, [box, comments]);
 }
