@@ -338,11 +338,15 @@ file's place, as the document and not as its source: the text as that
 version had it, a block it added tinted green, one it took out kept where
 it was, red and struck through, and a paragraph, a heading or a list it
 reworded drawn once with the words taken out and put in marked inside it, a
-character at a time in Chinese. A fence or a table that changed is shown
-as the old one gone and the new one added. Side by side draws the two
+character at a time in Chinese. A table that changed is drawn once too,
+still a table, the cells that changed marked in it, a row told by its first
+cell, and a row put in or taken out marked whole. A fence that changed, or
+a list or a quote that holds one, is shown as the old one gone and the new
+one added, since a mark written into code would be read as code. Side by side draws the two
 versions beside each other instead, block against block at the same height:
 the one before on the left with what was taken out of it marked, this one
-on the right with what was put in, a block only one has facing nothing;
+on the right with what was put in, a block put in another's place facing
+it, and a block only one has facing nothing;
 which way it is drawn is kept in this browser. It opens at the first thing
 changed; a line over it says which change it is, with the ways to the one
 before and the one after, and Back to the file, as Rendered and Source go

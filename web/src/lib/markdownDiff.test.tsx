@@ -32,21 +32,58 @@ describe('a version of a Markdown text against the one before', () => {
     expect(texts(box, 'li ins')).toEqual(['fast', 'four']);
   });
 
-  it('shows a fence or a table that changed as the old one gone and the new one added, not word by word', () => {
-    const box = drawn('```js\nconst n = 1;\n```\n', '```js\nconst n = 5;\n```\n');
-    expect(texts(box, '[data-diff=del] pre')).toEqual(['const n = 1;']);
-    expect(texts(box, '[data-diff=add] pre')).toEqual(['const n = 5;']);
-    expect(box.querySelector('ins, del')).toBeNull();
+  it('draws a table that changed once, still a table, the cells and the rows that changed marked in it', () => {
+    const table = '| Name | Value |\n| --- | --- |\n| tries | 3 |\n| wait | 250 |\n| old | gone |\n';
+    const box = drawn(table, table.replace('| 3 |', '| 5 |').replace('| 250 |', '| 250 ms |').replace('| old | gone |', '| new | here |'));
+    expect(box.querySelectorAll('table')).toHaveLength(1);
+    expect(texts(box, 'th')).toEqual(['Name', 'Value']);
+    expect([...box.querySelectorAll('tbody tr')].map((tr) => texts(tr as HTMLElement, 'td'))).toEqual([['tries', '35'], ['wait', '250 ms'], ['old', 'gone'], ['new', 'here']]);
+    expect(texts(box, 'td del')).toEqual(['3', 'old', 'gone']);
+    expect(texts(box, 'td ins')).toEqual(['5', 'ms', 'new', 'here']);
+  });
+
+  it('takes a row for the row it was by its first cell, however much of the rest changed', () => {
+    const table = '| Env | Note |\n| --- | --- |\n| live | unbounded for now |\n';
+    const box = drawn(table, table.replace('unbounded for now', 'eight seconds at most'));
+    expect([...box.querySelectorAll('tbody tr')].map((tr) => texts(tr as HTMLElement, 'td'))).toEqual([['live', 'unbounded for noweight seconds at most']]);
+  });
+
+  it('keeps a table inside a quote a table when a row of it changed', () => {
+    const quote = '> | Name | Value |\n> | --- | --- |\n> | tries | 3 |\n';
+    const box = drawn(quote, quote.replace('| 3 |', '| 5 |'));
+    expect(texts(box, 'blockquote td')).toEqual(['tries', '35']);
+  });
+
+  it('shows a fence that changed, alone or inside a list, as the old one gone and the new one added, with no mark written into its code', () => {
+    for (const lead of ['', '- step\n\n  ']) {
+      const fence = (n: number): string => `${lead}\`\`\`js\n${lead ? '  ' : ''}const n = ${n};\n${lead ? '  ' : ''}\`\`\`\n`;
+      const box = drawn(fence(1), fence(5));
+      expect(texts(box, '[data-diff=del] pre')).toEqual(['const n = 1;']);
+      expect(texts(box, '[data-diff=add] pre')).toEqual(['const n = 5;']);
+      expect(box.querySelector('ins, del')).toBeNull();
+    }
+  });
+
+  it('shows a table whose columns changed as the old one gone and the new one added', () => {
+    const box = drawn('| a | b |\n| --- | --- |\n| 1 | 2 |\n', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n');
+    expect(box.querySelectorAll('[data-diff=del] table, [data-diff=add] table')).toHaveLength(2);
   });
 
   it('side by side, puts each block beside what became of it: the old with what was taken out marked, the new with what was put in', () => {
     const box = document.createElement('div');
     box.innerHTML = renderMarkdownDiff('# Plan\n\nRetries are unbounded for now.\n\nDropped later.\n', '# Plan\n\nRetries are capped for now.\n\n## Risks\n', {}, true).html;
     const rows = [...box.querySelectorAll('[data-row]')].map((row) => [row.querySelector('[data-side=old]')?.textContent?.trim(), row.querySelector('[data-side=new]')?.textContent?.trim()]);
-    expect(rows).toEqual([['Plan', 'Plan'], ['Retries are unbounded for now.', 'Retries are capped for now.'], ['Dropped later.', ''], ['', 'Risks']]);
+    expect(rows, 'a block put in another\'s place faces it').toEqual([['Plan', 'Plan'], ['Retries are unbounded for now.', 'Retries are capped for now.'], ['Dropped later.', 'Risks']]);
     expect(texts(box, '[data-side=old] del')).toEqual(['unbounded']);
     expect(texts(box, '[data-side=new] ins')).toEqual(['capped']);
     expect(box.querySelector('[data-side=old] ins, [data-side=new] del')).toBeNull();
+  });
+
+  it('side by side, leaves the place beside a block only one version has empty', () => {
+    const box = document.createElement('div');
+    box.innerHTML = renderMarkdownDiff('# Plan\n\nFirst.\n\nLast.\n', '# Plan\n\nFirst.\n\n## Risks\n\nLast.\n', {}, true).html;
+    const rows = [...box.querySelectorAll('[data-row]')].map((row) => [row.querySelector('[data-side=old]')?.textContent?.trim(), row.querySelector('[data-side=new]')?.textContent?.trim()]);
+    expect(rows).toEqual([['Plan', 'Plan'], ['First.', 'First.'], ['', 'Risks'], ['Last.', 'Last.']]);
   });
 
   it('is all added for a first version, and nothing marked for one that draws the same', () => {
