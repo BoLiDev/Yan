@@ -6,7 +6,9 @@
  * top when the outline scrolls to one.
  */
 export const DOC = [
-  'min-w-0 flex-auto text-[15px] leading-[27px] text-[color:var(--doc-ink)]',
+  // A run with nowhere to break, a long name in code or an address, breaks where the line ends, so the text keeps to
+  // its column and off the outline beside it. A fence keeps its lines whole and scrolls, as a table does.
+  'min-w-0 flex-auto text-[15px] leading-[27px] wrap-break-word text-[color:var(--doc-ink)]',
   '[&_:is(h1,h2,h3,h4,h5,h6)]:scroll-mt-4 [&_:is(h1,h2,h3,h4,h5,h6)]:leading-[1.35] [&_:is(h1,h2,h3,h4,h5,h6)]:tracking-[-0.01em] [&_:is(h1,h2,h3,h4,h5,h6)]:text-ink',
   '[&_h1]:mb-[18px] [&_h1]:text-[26px]',
   '[&_h2]:mt-[34px] [&_h2]:mb-3 [&_h2]:border-b [&_h2]:border-sunken [&_h2]:pb-1.5 [&_h2]:text-[20px]',
