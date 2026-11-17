@@ -23,4 +23,8 @@ export const XTERM = [
   '[&_.xterm-viewport]:bg-transparent!',
   // xterm.js's own scrollbar has nothing to scroll, the pane being drawn whole, and would stick out below it.
   '[&_.xterm_.scrollbar]:hidden!',
+  // What an input method is composing is drawn by xterm.js over the cursor, on one line however long: it wraps, and is
+  // as wide as its words up to the room it is given (the box xterm.js keeps it in has no width to fill), and
+  // as tall as it then is, so words dictated at length stay in the pane (`takeComposing` gives it the room it has).
+  '[&_.composition-view]:h-auto! [&_.composition-view]:w-max [&_.composition-view]:overflow-y-auto [&_.composition-view]:whitespace-pre-wrap! [&_.composition-view]:wrap-anywhere',
 ].join(' ');

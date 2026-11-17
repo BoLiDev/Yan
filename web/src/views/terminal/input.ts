@@ -95,6 +95,32 @@ export function takeWheel(stage: HTMLElement, el: HTMLElement, term: Terminal, t
 }
 
 /**
+ * What an input method is composing in a pane, kept inside it. xterm.js
+ * draws it over the cursor and lets it run as wide as its words, which for
+ * a word or two is right, and for speech taken down as it is said runs it
+ * off the pane's edge and out of sight. It is given the room there is from
+ * the cursor to the pane's right edge and down to its foot, wraps in that
+ * (`XTERM`), and shows its last words when it holds more than fit.
+ */
+export function takeComposing(el: HTMLElement, term: Terminal): () => void {
+  const field = term.textarea;
+  const view = el.querySelector<HTMLElement>('.composition-view');
+  if (!field || !view) return () => undefined;
+  // After xterm.js has put it at the cursor, which it does as each of these comes.
+  const fit = (): void => {
+    view.style.maxWidth = `${Math.max(40, el.clientWidth - view.offsetLeft)}px`;
+    view.style.maxHeight = `${Math.max(20, el.clientHeight - view.offsetTop)}px`;
+    view.scrollTop = view.scrollHeight;
+  };
+  field.addEventListener('compositionstart', fit);
+  field.addEventListener('compositionupdate', fit);
+  return () => {
+    field.removeEventListener('compositionstart', fit);
+    field.removeEventListener('compositionupdate', fit);
+  };
+}
+
+/**
  * A paste goes as one, so the agent takes it as pasted and does not act on
  * each line of it: the words on the clipboard as the paste was made, not
  * as it is when they get there. A clipboard with no words on it, a picture

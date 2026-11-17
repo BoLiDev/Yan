@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { sawAgent } from '../../state/agentToasts';
 import { useTheme } from '../../state/theme';
-import { takePaste, takeTyping, takeWheel } from './input';
+import { takeComposing, takePaste, takeTyping, takeWheel } from './input';
 import { MONO, termTheme } from './look';
 import { follow } from './stream';
 
@@ -56,6 +56,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
     const typing = takeTyping(term, task, pane);
     const unwheel = takeWheel(stage, el, term, task, pane, typing.sendTyped);
     const unpaste = takePaste(el, task, pane, typing.sendTyped);
+    let uncompose = (): void => undefined;
     // Typing in the agent's pane is looking at it: what it last did, finishing or asking, is no longer news.
     const onFocus = (): void => {
       panes.last = pane;
@@ -73,6 +74,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
       term.open(el);
       panes.terms.set(pane, term);
       term.textarea?.addEventListener('focus', onFocus);
+      uncompose = takeComposing(el, term);
       // A shell just split off from here is where the next keys go.
       if (panes.next === pane) {
         panes.next = undefined;
@@ -89,6 +91,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
       if (panes.last === pane) panes.last = undefined;
       followed.dispose();
       unpaste();
+      uncompose();
       unwheel();
       term.textarea?.removeEventListener('focus', onFocus);
       typing.dispose();

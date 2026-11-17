@@ -81,6 +81,26 @@ describe.skipIf(process.platform === 'win32')("a task's terminal on the page", (
     await expect.poll(() => h.received(AGENT_PANE).slice(before), { timeout: 10_000 }).toEqual([{ keys: [...Array.from({ length: 39 }, () => 'backspace'), 'enter'] }]);
   });
 
+  it('keeps what an input method is composing inside the pane, wrapped, however long it is', async () => {
+    const page = await onTerminal();
+    await pane(page, 'Agent').click();
+    const drawn = await page.evaluate(() => {
+      const field = document.querySelector('.xterm-helper-textarea') as HTMLElement;
+      // As speech taken down as it is said: one composition, its words growing.
+      field.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      field.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: '说了很长很长的一段话，'.repeat(40) }));
+      const view = document.querySelector('.composition-view') as HTMLElement;
+      const host = view.closest('[data-term]') as HTMLElement;
+      const [v, hst] = [view.getBoundingClientRect(), host.getBoundingClientRect()];
+      const line = parseFloat(getComputedStyle(view).lineHeight);
+      return { wide: v.width > (hst.right - v.left) / 2, inside: v.right <= hst.right + 1 && v.bottom <= hst.bottom + 1, lines: Math.round(v.height / line), shown: getComputedStyle(view).display };
+    });
+    expect(drawn.shown).toBe('block');
+    expect(drawn.inside, 'not past the pane\'s edge').toBe(true);
+    expect(drawn.lines, 'on as many lines as it takes').toBeGreaterThan(1);
+    expect(drawn.wide, 'each line running to the pane\'s edge, not a word wide').toBe(true);
+  });
+
   it('leaves Ctrl+K to the agent while it is typed in a pane, and opens the task box with Shift', async () => {
     const page = await onTerminal();
     await pane(page, 'Agent').click();

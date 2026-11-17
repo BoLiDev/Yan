@@ -534,7 +534,7 @@ names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
 as one, the words on the clipboard as the paste is made, with ⌘V or, off a
 Mac, Ctrl+V, so a tool that types by pasting and then puts back what was on
 the clipboard is taken at its word; a clipboard with no words on it, a
-picture copied, gives the pane Ctrl+V, for the agent to read it itself; and what an IME is composing stays the IME's, so the Enter that
+picture copied, gives the pane Ctrl+V, for the agent to read it itself; and what an IME is composing stays the IME's, drawn over the cursor and wrapped inside the pane however long it grows, as speech taken down while it is said does, so the Enter that
 commits English letters typed in a Chinese IME commits them; ⌘ chords stay
 the page's, and in the terminal Ctrl+K is the agent's. Enter on the page
 puts the keys in the terminal typed in last, as a click on it does. The
