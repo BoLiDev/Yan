@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
+import { composing } from '../lib/keys';
 import { postJSON, type TaskSummary, type WriteResult } from '../lib/api';
 import { go, link } from '../lib/route';
 import { goesOn, isPaused } from '../lib/stops';
@@ -132,7 +133,7 @@ export function TaskActModal() {
     }
   };
   const onKey = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+    if (e.key !== 'Enter' || composing(e.nativeEvent)) return;
     e.preventDefault();
     void submit();
   };

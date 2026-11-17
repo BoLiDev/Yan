@@ -12,6 +12,16 @@ export interface Pressed {
   readonly keyCode?: number;
 }
 
+/**
+ * Whether a key is an input method's own, pressed while it composes: the
+ * Enter that takes what it offers, or the Escape that drops it, is not the
+ * page's to act on. The browser says so on the key, but not every one does
+ * in time: Safari ends the composition first and then gives the Enter that
+ * ended it, no longer composing, with only its key code, 229, to say an
+ * input method took it.
+ */
+export const composing = (e: { readonly isComposing?: boolean; readonly keyCode?: number }): boolean => e.isComposing === true || e.keyCode === 229;
+
 const NAMED: Readonly<Record<string, string>> = {
   Enter: 'enter', Escape: 'esc', Tab: 'tab', Backspace: 'backspace',
   ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
@@ -27,8 +37,7 @@ const NAMED: Readonly<Record<string, string>> = {
  * typed in a Chinese IME commits them rather than sending the message.
  */
 export function keyFor(e: Pressed): string | 'browser' | 'typed' {
-  // 229 is a key an IME took, as Safari says it.
-  if (e.isComposing === true || e.keyCode === 229) return 'typed';
+  if (composing(e)) return 'typed';
   if (e.metaKey) return 'browser';
   const mods = `${e.ctrlKey ? 'ctrl+' : ''}${e.altKey ? 'alt+' : ''}${e.shiftKey ? 'shift+' : ''}`;
   const named = NAMED[e.key];

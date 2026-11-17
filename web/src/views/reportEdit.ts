@@ -1,4 +1,5 @@
 import { MOD } from '../lib/format';
+import { composing } from '../lib/keys';
 
 /**
  * A text of the report edited where it stands. A paragraph, the problem, a
@@ -69,7 +70,7 @@ export function editInPlace(shell: HTMLElement, node: HTMLElement, save: (text: 
   });
   node.addEventListener('keydown', (e) => {
     // Enter that an input method takes to choose what it is composing is the input method's.
-    if (e.isComposing) return;
+    if (composing(e)) return;
     if (e.key === 'Enter' && (!lines || e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       node.blur();

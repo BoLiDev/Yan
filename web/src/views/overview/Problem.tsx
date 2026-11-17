@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { composing } from '../../lib/keys';
 import { postJSON, type TaskDetail, type TaskSummary, type WriteResult } from '../../lib/api';
 import { when } from '../../lib/format';
 import { blocksOf } from '../../lib/markdown';
@@ -71,7 +72,7 @@ function ProblemEditor({ t, d, select, onClose }: { t: TaskSummary; d: TaskDetai
             e.preventDefault();
             save();
           }
-          if (e.key === 'Escape') {
+          if (e.key === 'Escape' && !composing(e.nativeEvent)) {
             if (value === text) onClose();
             else message.warning('There are changes not saved: Cancel throws them away');
           }

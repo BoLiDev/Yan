@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { composing } from '../lib/keys';
 import { statusOf, type Deliverable, type DeliverableStatus, type Report } from '../lib/api';
 import { VIDEO, ext } from '../lib/files';
 import { clock, dayOf, fromIso } from '../lib/format';
@@ -173,6 +174,7 @@ function askReason(shell: HTMLElement, id: string, name: string, then: (reason: 
     ok.disabled = input.value.trim() === '';
   });
   input.addEventListener('keydown', (e) => {
+    if (composing(e)) return;
     if (e.key === 'Escape') close();
     if (e.key === 'Enter' && input.value.trim() !== '') ok.click();
   });

@@ -6,7 +6,6 @@ import { agentNews, agentWords } from '../lib/agents';
 import { unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Dot, GROW, LABEL, Pane, PushTags, SUBLABEL, Tool, WORKING, row } from '../components/page';
-import { Kbd } from '../components/ui/kbd';
 import { Rail } from './Rail';
 import { TaskMenu } from '../components/TaskMenu';
 import { pullNow, useIndex, useTerminals } from '../state/server';
@@ -160,12 +159,10 @@ export function Left() {
       {/* Beside finding a task, starting one: a box asking what bare yan would, run in a new herdr tab. */}
       <div className="flex gap-1.5">
         {/* The task list's way into ⌘K, drawn as the box it opens. */}
-        <button type="button" aria-label="Find a task" className="flex h-[34px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[10px] bg-hover pr-2 pl-2.5 text-[13.5px] text-ink-3 hover:text-ink-2"
+        <button type="button" title={`Find a task (${MOD}K)`} className="flex h-[34px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[10px] bg-hover pr-2 pl-2.5 text-[13.5px] text-ink-3 hover:text-ink-2"
           onClick={() => useUI.setState({ palette: true })}>
           <Icon name="search" size={15} />
-          {/* One word: with two buttons beside it, the box has no room for three. */}
-          <span className={cn(GROW, 'text-left')}>Find</span>
-          <Kbd>{`${MOD}K`}</Kbd>
+          <span className={cn(GROW, 'text-left')}>Find a task</span>
         </button>
         <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', creating && 'bg-foreground/10 text-foreground')} aria-label="New task" title="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></Button>
         {/* The drafts are no task's: their box opens over whatever is shown. Beside starting a task, as its like, one more thing begun from here. */}

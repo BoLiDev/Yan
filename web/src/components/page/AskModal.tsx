@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { composing } from '../../lib/keys';
 import { useUI, type Ask } from '../../state/ui';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
@@ -37,7 +38,7 @@ export function AskModal() {
         {held?.reason ? (
           <Input ref={line} aria-label={held.reason} placeholder={held.reason} value={given} onChange={(e) => setGiven(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+              if (e.key !== 'Enter' || composing(e.nativeEvent)) return;
               e.preventDefault();
               answer();
             }} />

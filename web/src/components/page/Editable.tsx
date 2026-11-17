@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import { composing } from '../../lib/keys';
 import { cn } from '../../lib/utils';
 
 /** A text edited where it stands: a dashed line round it under the pointer, a solid one while it is typed in, fading between. */
@@ -42,6 +43,8 @@ export function Editable({ text, onSave, onLeft, className, as = 'span', autoFoc
     <Tag ref={ref as never} className={cn(FRAME, className)} contentEditable="plaintext-only" spellCheck={false} suppressContentEditableWarning
       onFocus={(e) => { was.current = e.currentTarget.textContent ?? ''; }}
       onKeyDown={(e) => {
+        // A key an input method took, to choose or drop what it composes, is its own.
+        if (composing(e.nativeEvent)) return;
         if (e.key === 'Enter') {
           e.preventDefault();
           e.currentTarget.blur();

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { composing } from '../lib/keys';
 import { findTasks, type Found } from '../lib/find';
 import { MOD } from '../lib/format';
 import { link, useRoute } from '../lib/route';
@@ -95,7 +96,7 @@ function PaletteBox({ onGone }: { onGone: () => void }) {
             // Tab picks as it does in a task's nav, and keeps the keyboard in the box.
             if (e.key === 'ArrowDown' || (ctrl && e.key === 'n') || (e.key === 'Tab' && !e.shiftKey)) move(1);
             else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p') || (e.key === 'Tab' && e.shiftKey)) move(-1);
-            else if (e.key === 'Enter' && !e.nativeEvent.isComposing) go(found[at], e.metaKey || e.ctrlKey);
+            else if (e.key === 'Enter' && !composing(e.nativeEvent)) go(found[at], e.metaKey || e.ctrlKey);
             else return;
             e.preventDefault();
           }} />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { composing } from '../lib/keys';
 import { useQuery } from '@tanstack/react-query';
 import { getJSON, postJSON, type LaunchRepo as RepoOption } from '../lib/api';
 import { go as goTo, link } from '../lib/route';
@@ -106,7 +107,7 @@ function NewTaskBox() {
 
   // A select's list takes ↑, ↓, Enter and Escape while it is open; what it lets through is the box's.
   const onKey = (e: KeyboardEvent<HTMLDivElement>): void => {
-    if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.shiftKey || e.defaultPrevented) return;
+    if (e.key !== 'Enter' || composing(e.nativeEvent) || e.shiftKey || e.defaultPrevented) return;
     // Back and close do what they say; anywhere else Enter goes on, ⌘ or Ctrl with it creating at once.
     if (e.target instanceof HTMLButtonElement && !e.target.dataset.go) return;
     e.preventDefault();

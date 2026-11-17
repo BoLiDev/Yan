@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { composing } from '../../lib/keys';
 import { ApiError, postJSON, type ArtifactFile, type WriteResult } from '../../lib/api';
 import { MOD, bytes, plural } from '../../lib/format';
 import { Empty, Scroll } from '../../components/page';
@@ -111,7 +112,7 @@ export function MarkdownSource({ task, file, onMeta, onDone }: { task: string; f
             void save();
           }
           // Escape that an input method takes to cancel what it is composing is the input method's.
-          if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
+          if (e.key === 'Escape' && !composing(e.nativeEvent)) {
             e.preventDefault();
             void saveAndGo();
           }

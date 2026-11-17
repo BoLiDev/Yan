@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keyFor } from './keys';
+import { composing, keyFor } from './keys';
 
 const press = (key: string, mods: Partial<Record<'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey' | 'isComposing', boolean>> = {}) =>
   keyFor({ key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...mods });
@@ -29,5 +29,14 @@ describe('a key typed into a terminal', () => {
     expect(press('Home')).toBe('typed');
     expect(press('å', { altKey: true })).toBe('typed');
     expect(press('Process')).toBe('typed');
+  });
+});
+
+describe('a key an input method took', () => {
+  it('is its own while it composes, and when only its key code says so, as Safari gives the Enter that ended a composition', () => {
+    expect(composing({ isComposing: true, keyCode: 13 })).toBe(true);
+    expect(composing({ isComposing: false, keyCode: 229 })).toBe(true);
+    expect(composing({ isComposing: false, keyCode: 13 })).toBe(false);
+    expect(composing({})).toBe(false);
   });
 });

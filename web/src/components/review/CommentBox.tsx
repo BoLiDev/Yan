@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { MOD, plural } from '../../lib/format';
+import { composing } from '../../lib/keys';
+import { plural } from '../../lib/format';
 import { goesOn } from '../../lib/stops';
 import { cn } from '../../lib/utils';
 import { addComment, useReview, type Drafted } from '../../state/review';
@@ -79,13 +80,12 @@ export function CommentBox() {
         <Textarea ref={field} aria-label="Comment" placeholder="What do you make of it?" className="max-h-[40vh] min-h-24" value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+            if (e.key !== 'Enter' || e.shiftKey || composing(e.nativeEvent)) return;
             e.preventDefault();
             if (e.metaKey || e.ctrlKey) void send();
             else keep();
           }} />
         <DialogFooter>
-          <span className="mr-auto self-center text-[12px] text-ink-3">{`Enter adds it${local ? ` · ${MOD}Enter sends it now` : ''} · Shift+Enter for a new line`}</span>
           <Button variant="ghost" disabled={sending} onClick={close}>Cancel</Button>
           {local ? (
             <Button variant="ghost" className="bg-card hover:bg-card/60" disabled={text.trim() === '' || sending} aria-busy={sending} title="Send this comment alone to the task's agent on this machine, now" onClick={() => void send()}>
