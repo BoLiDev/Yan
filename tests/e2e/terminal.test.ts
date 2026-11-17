@@ -57,6 +57,18 @@ describe.skipIf(process.platform === 'win32')("a task's terminal on the page", (
     await expect.poll(() => typed(AGENT_PANE), { timeout: 10_000 }).toBe('yes please');
   });
 
+  it('takes what is on the clipboard as a paste is made, not as it is a moment later, when a tool that types by pasting has put the old back', async () => {
+    const { page } = await open(served.url('/#/t/t001/terminal'));
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.getByRole('group', { name: 'Agent', exact: true }).click();
+    const before = h.received(AGENT_PANE).length;
+    // As such a tool does: its words on the clipboard, the paste, and what was there before put back at once.
+    await page.evaluate(() => navigator.clipboard.writeText('what was just said'));
+    await page.keyboard.press('Control+V');
+    await page.evaluate(() => navigator.clipboard.writeText('what was copied an hour ago'));
+    await expect.poll(() => h.received(AGENT_PANE).slice(before), { timeout: 10_000 }).toEqual([{ paste: 'what was just said', keys: [] }]);
+  });
+
   it('leaves Ctrl+K to the agent while it is typed in a pane, and opens the task box with Shift', async () => {
     const page = await onTerminal();
     await pane(page, 'Agent').click();

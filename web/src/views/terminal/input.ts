@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
+import { MOD } from '../../lib/format';
 import { keyFor } from '../../lib/keys';
 import { send } from './transport';
 
@@ -25,6 +26,11 @@ export function takeTyping(term: Terminal, task: string, pane: string): { sendTy
     const key = keyFor(e);
     if (key === 'browser') return false;
     if (key === 'typed') return true;
+    // Off a Mac, Ctrl+V is the browser's paste, and is left to it, so what is on the clipboard is taken at once
+    // (`takePaste`). Sent on as a key, the program in the pane reads the clipboard for itself, a moment later, and
+    // by then it may hold something else: a tool that types by pasting, as one that takes dictation does, puts its
+    // words there, pastes, and puts back what was there before.
+    if (key === 'ctrl+v' && MOD !== '⌘') return false;
     // Ctrl+C with something selected copies it, as off a Mac it would anywhere else.
     if (key === 'ctrl+c' && term.hasSelection()) {
       if (e.type === 'keydown') void navigator.clipboard?.writeText(term.getSelection());
@@ -76,13 +82,23 @@ export function takeWheel(stage: HTMLElement, el: HTMLElement, term: Terminal, t
   };
 }
 
-/** A paste goes as one, so the agent takes it as pasted and does not act on each line of it. */
-export function takePaste(el: HTMLElement, task: string, pane: string): () => void {
+/**
+ * A paste goes as one, so the agent takes it as pasted and does not act on
+ * each line of it: the words on the clipboard as the paste was made, not
+ * as it is when they get there. A clipboard with no words on it, a picture
+ * copied, has nothing to send this way: the program in the pane is given
+ * Ctrl+V, which an agent takes to read the clipboard itself, picture and
+ * all, the clipboard being this machine's.
+ */
+export function takePaste(el: HTMLElement, task: string, pane: string, sendTyped: () => void): () => void {
   const onPaste = (e: ClipboardEvent): void => {
     const text = e.clipboardData?.getData('text/plain') ?? '';
     e.preventDefault();
     e.stopPropagation();
+    // What was typed before it goes first, so the paste lands after it.
+    sendTyped();
     if (text !== '') send(task, pane, { paste: text, enter: false });
+    else send(task, pane, { keys: ['ctrl+v'] });
   };
   el.addEventListener('paste', onPaste, true);
   return () => el.removeEventListener('paste', onPaste, true);

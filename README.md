@@ -531,7 +531,10 @@ Chinese in ChillRound, the page's own faces. The wheel anywhere over it goes to 
 its own window, a row at a time as a terminal reports it, so a fast wheel
 scrolls the agent as fast as it turns. What is typed in it goes to the pane as typed, keys herdr
 names (Enter, Esc, Shift+Tab, Ctrl+C and the like) by their names, a paste
-as one, and what an IME is composing stays the IME's, so the Enter that
+as one, the words on the clipboard as the paste is made, with ⌘V or, off a
+Mac, Ctrl+V, so a tool that types by pasting and then puts back what was on
+the clipboard is taken at its word; a clipboard with no words on it, a
+picture copied, gives the pane Ctrl+V, for the agent to read it itself; and what an IME is composing stays the IME's, so the Enter that
 commits English letters typed in a Chinese IME commits them; ⌘ chords stay
 the page's, and in the terminal Ctrl+K is the agent's. Enter on the page
 puts the keys in the terminal typed in last, as a click on it does. The

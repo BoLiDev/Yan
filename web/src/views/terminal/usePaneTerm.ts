@@ -55,7 +55,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
 
     const typing = takeTyping(term, task, pane);
     const unwheel = takeWheel(stage, el, term, task, pane, typing.sendTyped);
-    const unpaste = takePaste(el, task, pane);
+    const unpaste = takePaste(el, task, pane, typing.sendTyped);
     // Typing in the agent's pane is looking at it: what it last did, finishing or asking, is no longer news.
     const onFocus = (): void => {
       panes.last = pane;
