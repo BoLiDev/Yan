@@ -5,22 +5,32 @@ import { send } from './transport';
 
 /**
  * What is typed in a pane, sent to it as typed; a key herdr has a name for
- * goes by the name, so herdr encodes it as the program asked. Bytes typed in
- * a burst go together, so a word is one request and not one a letter; a key
- * sent by name sends them first, and so does `sendTyped`.
+ * goes by the name, so herdr encodes it as the program asked. What is typed
+ * in a burst goes together, in the order it was typed: letters as one run
+ * of bytes, keys one after another as one list, so a word is one request
+ * and not one a letter, and so is a run of Backspaces. A tool that takes
+ * dictation sends hundreds of those at once to take back what it typed
+ * before it pastes what was said, and a request for each kept the paste
+ * waiting behind them all. `sendTyped` sends what is waiting at once, for
+ * what must come after it.
  */
 export function takeTyping(term: Terminal, task: string, pane: string): { sendTyped: () => void; dispose: () => void } {
-  let typed = '';
+  let waiting: ({ text: string } | { keys: string[] })[] = [];
   let flush: number | undefined;
   const sendTyped = (): void => {
     window.clearTimeout(flush);
     flush = undefined;
-    if (typed !== '') send(task, pane, { text: typed });
-    typed = '';
+    for (const part of waiting) send(task, pane, part);
+    waiting = [];
+  };
+  const later = (): void => {
+    flush ??= window.setTimeout(sendTyped, 12);
   };
   term.onData((data) => {
-    typed += data;
-    flush ??= window.setTimeout(sendTyped, 12);
+    const last = waiting.at(-1);
+    if (last !== undefined && 'text' in last) last.text += data;
+    else waiting.push({ text: data });
+    later();
   });
   term.attachCustomKeyEventHandler((e) => {
     const key = keyFor(e);
@@ -38,8 +48,10 @@ export function takeTyping(term: Terminal, task: string, pane: string): { sendTy
     }
     if (e.type === 'keydown') {
       e.preventDefault();
-      sendTyped();
-      send(task, pane, { keys: [key] });
+      const last = waiting.at(-1);
+      if (last !== undefined && 'keys' in last) last.keys.push(key);
+      else waiting.push({ keys: [key] });
+      later();
     }
     return false;
   });

@@ -38,12 +38,18 @@ export function CommentBox() {
   const drafting = useReview((s) => s.drafting);
   // The last one stays drawn while the box closes, and each starts with nothing written.
   const [held, setHeld] = useState<Drafted | null>(drafting);
-  const [text, setText] = useState('');
+  // What is written stays in the field, and is read from it when it is kept: only whether there is anything is the
+  // box's to know, for its buttons. Drawn again at every key, the box made each key slow, and a burst of them, as
+  // a tool that takes dictation sends when it takes back what it typed, kept what came after them waiting.
+  const [written, setWritten] = useState(false);
+  const [round, setRound] = useState(0);
   if (drafting !== null && drafting !== held) {
     setHeld(drafting);
-    setText('');
+    setWritten(false);
+    setRound((n) => n + 1);
   }
   const field = useRef<HTMLTextAreaElement>(null);
+  const said = (): string => field.current?.value.trim() ?? '';
   const [sending, setSending] = useState(false);
   const { data: index } = useIndex();
   const t = index?.tasks.find((x) => x.id === held?.task);
@@ -51,10 +57,11 @@ export function CommentBox() {
   const local = t !== undefined && goesOn(t);
   const close = (): void => useReview.setState({ drafting: null });
   const send = async (): Promise<void> => {
-    if (held === null || text.trim() === '' || sending || !local) return;
+    const text = said();
+    if (held === null || text === '' || sending || !local) return;
     setSending(true);
     try {
-      const saved = await writeReview({ task: held.task, summary: '', comments: [{ where: held.where, quote: held.quote, text: text.trim(), ...(held.code ? { code: true } : {}) }] });
+      const saved = await writeReview({ task: held.task, summary: '', comments: [{ where: held.where, quote: held.quote, text, ...(held.code ? { code: true } : {}) }] });
       // Not written, it stays here to be sent again or kept; written, it is the agent's to read whether or not it could be asked now.
       if (saved === null) return;
       if (await askAgent(held.task)) message.success('Sent to the agent');
@@ -64,8 +71,9 @@ export function CommentBox() {
     }
   };
   const keep = (): void => {
-    if (held === null || text.trim() === '') return;
-    const n = addComment(held, text.trim());
+    const text = said();
+    if (held === null || text === '') return;
+    const n = addComment(held, text);
     message.success(`Comment kept · ${plural(n, 'comment')} in this review`);
     close();
   };
@@ -77,8 +85,8 @@ export function CommentBox() {
           <DialogDescription className="wrap-anywhere">{held?.where}</DialogDescription>
         </DialogHeader>
         {held ? <Quote c={held} /> : null}
-        <Textarea ref={field} aria-label="Comment" placeholder="What do you make of it?" className="max-h-[40vh] min-h-24" value={text}
-          onChange={(e) => setText(e.target.value)}
+        <Textarea ref={field} aria-label="Comment" placeholder="What do you make of it?" className="max-h-[40vh] min-h-24" key={round} defaultValue=""
+          onChange={(e) => setWritten(e.target.value.trim() !== '')}
           onKeyDown={(e) => {
             if (e.key !== 'Enter' || e.shiftKey || composing(e.nativeEvent)) return;
             e.preventDefault();
@@ -88,11 +96,11 @@ export function CommentBox() {
         <DialogFooter>
           <Button variant="ghost" disabled={sending} onClick={close}>Cancel</Button>
           {local ? (
-            <Button variant="ghost" className="bg-card hover:bg-card/60" disabled={text.trim() === '' || sending} aria-busy={sending} title="Send this comment alone to the task's agent on this machine, now" onClick={() => void send()}>
+            <Button variant="ghost" className="bg-card hover:bg-card/60" disabled={!written || sending} aria-busy={sending} title="Send this comment alone to the task's agent on this machine, now" onClick={() => void send()}>
               {sending ? <Spinner aria-hidden /> : null}Send to agent
             </Button>
           ) : null}
-          <Button disabled={text.trim() === '' || sending} onClick={keep}>Add to review</Button>
+          <Button disabled={!written || sending} onClick={keep}>Add to review</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

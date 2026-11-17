@@ -69,6 +69,18 @@ describe.skipIf(process.platform === 'win32')("a task's terminal on the page", (
     await expect.poll(() => h.received(AGENT_PANE).slice(before), { timeout: 10_000 }).toEqual([{ paste: 'what was just said', keys: [] }]);
   });
 
+  it('sends a burst of keys together, in the order they were pressed, not a request for each', async () => {
+    const page = await onTerminal();
+    await pane(page, 'Agent').click();
+    const before = h.received(AGENT_PANE).length;
+    // As a tool that takes dictation takes back what it typed: Backspace upon Backspace, faster than any hand.
+    await page.evaluate(() => {
+      const field = document.querySelector('.xterm-helper-textarea') as HTMLElement;
+      for (let i = 0; i < 40; i++) field.dispatchEvent(new KeyboardEvent('keydown', { key: i === 39 ? 'Enter' : 'Backspace', keyCode: i === 39 ? 13 : 8, bubbles: true, cancelable: true }));
+    });
+    await expect.poll(() => h.received(AGENT_PANE).slice(before), { timeout: 10_000 }).toEqual([{ keys: [...Array.from({ length: 39 }, () => 'backspace'), 'enter'] }]);
+  });
+
   it('leaves Ctrl+K to the agent while it is typed in a pane, and opens the task box with Shift', async () => {
     const page = await onTerminal();
     await pane(page, 'Agent').click();
