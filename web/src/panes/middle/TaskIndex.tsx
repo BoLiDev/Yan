@@ -3,7 +3,8 @@ import type { Index, TaskSummary } from '../../lib/api';
 import { agentNews, agentWords } from '../../lib/agents';
 import { listResources } from '../../lib/resources';
 import { link, type TaskRoute } from '../../lib/route';
-import { logFresh, unseenOf, type Seen } from '../../lib/seen';
+import { useUI } from '../../state/ui';
+import { NOTHING_UNSEEN, logFresh, unseenOf, type Seen } from '../../lib/seen';
 import { goesOn, hasMr } from '../../lib/stops';
 import { cn } from '../../lib/utils';
 import { Icon, StateIcon, type IconName } from '../../components/Icon';
@@ -35,10 +36,11 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
   const { data: d } = useTask(t.id);
   const terminal = useTerminals().data?.[t.id];
   const agent = terminal === undefined ? undefined : agentNews(t.id, terminal, seen);
-  const unseen = unseenOf(index, seen, t.id);
+  const marks = useUI((s) => s.prefs.badges);
+  const unseen = marks ? unseenOf(index, seen, t.id) : NOTHING_UNSEEN;
   const logCount = d?.log?.entries.length ?? 0;
   // Against what was last read, not what this visit started from: reading the log clears it.
-  const fresh = !!d?.log && logFresh(seen, t.id, logCount);
+  const fresh = marks && !!d?.log && logFresh(seen, t.id, logCount);
   const showing = useAgentTab((s) => s.showing);
   const artifacts = useArtifactsPart(t, d, r, index, seen);
   // Asked for on every route so the hooks run in the same order; off a branch, it reads none.

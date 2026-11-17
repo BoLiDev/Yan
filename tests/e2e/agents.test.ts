@@ -9,7 +9,7 @@ import { closeBrowser, open, serve, taskJson, vault, write, type Served } from '
 
 /**
  * What a task's agent is up to, at a glance: told at the page's top right
- * as it finishes or comes to wait on `user`, listed in Latest, marked on
+ * as it finishes or comes to wait on `user`, marked on
  * the task list and on the rail it folds to, where what it said with `yan
  * say` comes in a bubble, and no longer news once its terminal is typed in. herdr is the stand-in (tests/helpers/fake-herdr.ts),
  * whose agent a test moves from one status to the next.
@@ -46,13 +46,12 @@ const tasks = (page: Page) => page.getByRole('navigation', { name: 'Tasks' });
 describe('a task\'s agent, at a glance', () => {
   it('is told at the top right as it finishes, its terminal a click away, and is no longer news once that terminal is typed in', async () => {
     h.agentIs(AGENT_PANE, 'working');
-    const { page } = await open(served.url('/#/latest'));
-    const latest = page.getByRole('complementary', { name: 'Latest' });
-    await latest.getByTitle('pay retries · agent at work').waitFor({ timeout: 20_000 });
+    // Another task is being read: nothing is told of the one that is.
+    const { page } = await open(served.url('/#/t/t002'));
+    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
 
     h.agentIs(AGENT_PANE, 'done');
     await page.getByText('Its agent has finished.').waitFor({ timeout: 20_000 });
-    await latest.getByRole('link', { name: /pay retries.*now/ }).getByTitle('agent finished', { exact: true }).waitFor({ timeout: 10_000 });
     await expect.poll(() => tasks(page).getByTitle('agent finished', { exact: true }).count()).toBe(1);
 
     await page.getByRole('button', { name: 'Open terminal' }).click();
@@ -61,11 +60,27 @@ describe('a task\'s agent, at a glance', () => {
     await expect.poll(() => tasks(page).getByTitle('agent finished', { exact: true }).count()).toBe(0);
   });
 
+  it('tells it in a toast with no button to close it, which a swipe to the side sends off', async () => {
+    h.agentIs(AGENT_PANE, 'working');
+    const { page } = await open(served.url('/#/t/t002'));
+    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
+    h.agentIs(AGENT_PANE, 'done');
+    const told = page.getByText('Its agent has finished.');
+    await told.waitFor({ timeout: 20_000 });
+    expect(await page.getByRole('button', { name: 'Close toast' }).count()).toBe(0);
+    // Taken by its words, as a hand would take it: they are not selected by the drag, which would hold it where it is.
+    const at = (await told.boundingBox()) as { x: number; y: number; width: number; height: number };
+    await page.mouse.move(at.x + 20, at.y + at.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 240, at.y + at.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await told.waitFor({ state: 'detached', timeout: 5000 });
+  });
+
   it('is told when it comes to wait on the user, and stays marked until it is answered', async () => {
     h.agentIs(AGENT_PANE, 'working');
-    const { page } = await open(served.url('/#/latest'));
-    const latest = page.getByRole('complementary', { name: 'Latest' });
-    await latest.getByTitle('pay retries · agent at work').waitFor({ timeout: 20_000 });
+    const { page } = await open(served.url('/#/t/t002'));
+    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
 
     h.agentIs(AGENT_PANE, 'blocked');
     await page.getByText('Its agent needs you: a question or a permission.').waitFor({ timeout: 20_000 });
@@ -126,7 +141,7 @@ describe('a task\'s agent, at a glance', () => {
   });
 
   it('says what an agent in the cloud said, pushed from where it runs, and opens the task\'s agents', async () => {
-    const { page } = await open(served.url('/#/latest'));
+    const { page } = await open(served.url('/#/t/t002'));
     await page.getByRole('button', { name: 'Hide the task list' }).click();
     const rail = tasks(page);
     await rail.getByRole('link', { name: 'sync invoices' }).waitFor({ timeout: 20_000 });

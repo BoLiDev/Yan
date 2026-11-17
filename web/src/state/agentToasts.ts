@@ -29,11 +29,6 @@ export function sawAgent(task: string): void {
   setSeen((m) => markAgentSeen(m, task, at));
 }
 
-/** Every agent looked at, as Latest's Mark all seen says: what waits on `user` stays news until answered. */
-export function sawAllAgents(): void {
-  for (const task of Object.keys(queryClient.getQueryData<Readonly<Record<string, TerminalState>>>(['terminals']) ?? {})) sawAgent(task);
-}
-
 /**
  * What the page says of an agent when it says nothing itself, in a toast,
  * and in its square's bubble: in the page's own voice, never as the agent,
@@ -114,7 +109,7 @@ interface Told {
  * Tells `user` when a task's agent finishes, or comes to wait on them for a
  * question or a permission, and when it says something with `yan say`:
  * `user` works elsewhere while agents run, and the page is where they look
- * up. What the page found when it opened is Latest's to show, not a burst,
+ * up. What the page found when it opened is marked in it, not told in a burst,
  * and nothing is told of the task the page shows. One telling a task, a
  * later one taking its place.
  */

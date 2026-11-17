@@ -201,28 +201,33 @@ being reloaded, and changes only what moved: a push fetches again only the
 tasks it touched, and a page left half read stays where it was, with what
 is selected, typed or playing in it. Left running while yan is updated, it restarts on the newer
 build by itself once that build is complete and starts, in the same process
-and on the same port, and an open page reloads onto it. With the bell beside Latest on, Chrome shows a silent macOS
+and on the same port, and an open page reloads onto it. The cog beside the task list's name opens the settings,
+one box for what this browser is set to: the theme, light or dark as the
+browser asks or as picked there, a terminal being dark either way;
+notifications; the marks on what is new; and yan's own updates. With
+notifications on, Chrome shows a silent macOS
 notification when a push arrives, the task's name as its title and nothing
-else, and clicking it opens Latest on that push; the page has to be open for
+else, and clicking it opens the task; the page has to be open for
 it, in the background or minimised, and Chrome's permission is asked on the
-first click. The page is light or dark as the browser asks, or as picked
-from the moon or sun beside the task list's name, kept in that browser; a
-terminal is dark either way. Each push's line in Latest opens to the files it brought, and
-the arrow at its end opens the task's overview. A file a push added or
-changed carries a dot, in its task and in Latest, until it is opened, or,
+first click. Opened at no task, the page goes to one, the last read in this
+browser, or else the one worked on last: there is no page of what arrived,
+each task saying what it has that is new. A task's row in the list says
+what a push brought it, as counts added, changed and deleted. A file a push added or
+changed carries a dot, in its task, until it is opened, or,
 when the push changed it while it was open, until it is clicked in; it
 lights again when it changes again, and the page being open, in front or
-not, counts for nothing. A task stays in Latest and in its count until its
-last dot is gone, and Mark all read beside its Artifacts clears them all at once,
-as Log's dot goes when the log is opened. Above the pushes, Latest's Agents
-has a line for each task whose agent runs in a herdr pane on this machine,
-marked as on the task list and saying how long since it last changed (`3m`,
-`2h`), as serve saw it, which asks herdr every few seconds whether or not a
-page is open; a line opens the task's terminal. An agent that
+not, counts for nothing. Mark all read beside a task's Artifacts clears them all at once,
+as Log's dot goes when the log is opened. The marks, the counts and the
+dots alike, are turned off in the settings by themselves, apart from
+notifications, since being told and being shown are different wants; what
+was looked at is still kept meanwhile, so turned on again they mark only
+what is new then. serve asks herdr every few seconds what each task's agent
+is up to, whether or not a page is open. An agent that
 finishes, or comes to wait on you, is also told at the page's top right,
 with a button to its terminal, unless the page is showing that task; it
 is white with its button black in either theme, so it stands off a dark
-page, and its × closes it. What an agent said with `yan say`, which
+page, with no line drawn round it and no button to close it: it is swiped
+off, to either side or off the edge it came from, or left to go. What an agent said with `yan say`, which
 is pushed as it is said, is told the same way in its own words, taking
 the place of the toast's once they come, and an agent running elsewhere,
 on another machine or in the cloud, is told of as its words come, the
@@ -247,10 +252,10 @@ square or bubble moves until every bubble has gone, when the rail goes
 back to its own order. A click on one goes where the toast's button
 would, and one goes a while after its words are in, held while the
 pointer is over it or the page is out of sight, or by its ×. A task on no square, paused
-or closed, is told in a toast. A finish is news, in Latest, in its count, and as a green dot on the
-task's row, until you type in its terminal or mark all seen in Latest;
+or closed, is told in a toast. A finish is news, a green dot on the
+task's row, until you type in its terminal;
 waiting on you is news, an
-amber dot, until it is answered. Drafts, under Latest, opens your drafts
+amber dot, until it is answered. Drafts, over the tasks, opens your drafts
 in a large box over the page: the list down its side, newest first by when each was begun, as `yan draft ls` lists them, those
 kept with a task before saying which, with New above it, and the one
 picked beside it, its Markdown drawn. There is no edit mode and nothing to
@@ -272,7 +277,7 @@ that is cancelled. A picture pasted into a draft, or dropped on it, is
 kept in a folder beside it named as it is, and named in it where the caret
 is; pasted into none, a new draft is made for it. With no drafts, the box
 opens on a new one, ready to write. Hidden, the task list folds to a rail:
-finding a task, starting one, Latest, and a square for each task in review
+finding a task, starting one, and a square for each task in review
 or in progress, not paused, the one being read framed and each one's agent marked as
 on the list. A square is one character of its task's title: its first
 word's first letter, capitalised, or its first Chinese character, never
@@ -584,7 +589,7 @@ how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
-closing them all once any is open. A card at the foot of the task list
+closing them all once any is open. A card in the settings
 updates yan's own clone: its Check for updates fetches what the clone tracks, the card
 saying it is checking and then that there is nothing new, or that there is
 a new version with a button to take it, which pulls, runs `npm install` and

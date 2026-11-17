@@ -79,7 +79,7 @@ export async function reset(): Promise<void> {
   useUI.setState(fresh, true);
   forgetSpots();
   forgetAwaited();
-  history.replaceState(null, '', '#/latest');
+  history.replaceState(null, '', '#/');
 }
 
 const Page = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;

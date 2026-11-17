@@ -9,6 +9,7 @@ import { goesOn, nextStop, taskStops } from './lib/stops';
 import { Palette } from './components/Palette';
 import { DraftsModal } from './components/drafts/DraftsModal';
 import { NewTaskModal } from './components/NewTask';
+import { SettingsModal } from './components/Settings';
 import { TaskActModal } from './components/TaskMenu';
 import { Review } from './components/review/ReviewLazy';
 import { AskModal, Messages } from './components/page';
@@ -40,11 +41,21 @@ function useRouteEffects(): void {
     const was = before.current;
     before.current = r;
     useUI.setState({ pageSource: false });
-    // A new task is asked for in a box over the page: #/new alone opens it, over Latest.
+    // A new task is asked for in a box over the page: #/new alone opens it, over whatever task the page goes to.
     if (r.view === 'new' && r.launch === undefined) {
       useUI.setState({ newTask: true });
-      location.replace(link.latest());
+      location.replace(link.none());
       return;
+    }
+    // At no task, the page goes to one: the last read here, else the one worked on last. There is nothing else to land on.
+    if (r.view === 'none' && index && fullPageOf(hash) === null) {
+      const { recent } = useUI.getState();
+      const open = [...index.tasks].filter(goesOn).sort((a, b) => b.touched - a.touched);
+      const to = recent.find((id) => index.tasks.some((t) => t.id === id)) ?? open[0]?.id ?? index.tasks[0]?.id;
+      if (to !== undefined) {
+        location.replace(useUI.getState().last[to] ?? link.task(to));
+        return;
+      }
     }
     if (was?.view === 'task' && (r.view !== 'task' || r.id !== was.id)) {
       useUI.setState((s) => {
@@ -191,6 +202,7 @@ export function App() {
       <NewTaskModal />
       <DraftsModal />
       <TaskActModal />
+      <SettingsModal />
       <Review />
     </TooltipProvider>
   );

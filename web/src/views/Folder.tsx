@@ -60,12 +60,13 @@ function Well({ f, name }: { f: ArtifactFile; name: string }): ReactNode {
 /** A folder of a task's artifacts as a grid of cards: its folders first, each with a picture from inside when it has one. */
 export function FolderView({ t, d, path }: { t: { id: string }; d: TaskDetail; path: string }) {
   const seen = useUI((s) => s.seen);
+  const marks = useUI((s) => s.prefs.badges);
   const { data: index } = useIndex();
   useKeyNav(null, null);
   let node: TreeNode<ArtifactFile> | undefined = buildTree(d.files);
   for (const part of path ? path.split('/') : []) node = node?.dirs.get(part);
   if (!node) return <Empty title="Nothing here">{`${path}/ has no files.`}</Empty>;
-  const unseen = index && seen ? unseenOf(index, seen, t.id) : new Map();
+  const unseen = marks && index && seen ? unseenOf(index, seen, t.id) : new Map();
   return (
     <>
       <Bar

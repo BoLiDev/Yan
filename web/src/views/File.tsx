@@ -31,8 +31,6 @@ export interface FileContext {
   /** The files in the same folder: a picture's variants are looked for among them. */
   readonly folderFiles: readonly ArtifactFile[];
   readonly fileHref: (path: string) => string;
-  /** Named in the title, where the file is shown away from its task: in Latest. */
-  readonly taskTitle?: string;
 }
 
 /** One file of a task, shown as what it is, with the tools for it and a line about it at its foot. */
@@ -128,7 +126,7 @@ export function FileView(ctx: FileContext) {
   return (
     <>
       <Bar
-        title={<>{ctx.taskTitle ? <span className="font-normal text-ink-3">{`${ctx.taskTitle} · `}</span> : null}<Crumb path={file.path} /></>}
+        title={<Crumb path={file.path} />}
         meta={viewer === 'page' && !pageSource ? `Page · ${bytes(file.size)} · runs on its own origin, away from yan · right click in it to comment` : meta}
         tools={
           <>

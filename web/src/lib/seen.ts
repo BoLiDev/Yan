@@ -1,4 +1,4 @@
-import type { Index, Push, PushFile } from './api';
+import type { Index, PushFile } from './api';
 
 /**
  * What is new since the last look, kept in this browser only: one person,
@@ -53,6 +53,9 @@ export function newestOf(index: Index, id: string): number {
  * file looked at early in it stays seen as later ones join. A file deleted
  * since has nothing to look at.
  */
+/** No file with a dot: what a task has when the marks are turned off. */
+export const NOTHING_UNSEEN: Unseen = new Map();
+
 export function unseenOf(index: Index, seen: Seen, id: string): Unseen {
   const base = seenAt(seen, id);
   const looked = seen.files[id] ?? {};
@@ -96,53 +99,8 @@ export function markTaskRead(index: Index, seen: Seen, id: string, logEntries: n
   };
 }
 
-/** Every task seen up to its newest: Latest's "Mark all seen". */
-export function markAllSeen(index: Index, seen: Seen): Seen {
-  const tasks = { ...seen.tasks };
-  for (const t of index.tasks) tasks[t.id] = Math.max(seenAt(seen, t.id), newestOf(index, t.id));
-  return { ...seen, tasks, files: {} };
-}
-
 /** Whether a task's log has entries past those last read. */
 export function logFresh(seen: Seen, id: string, entries: number | undefined): boolean {
   return entries !== undefined && entries > (seen.logs[id] ?? entries);
 }
 
-/** How many tasks have something new: Latest's count, which falls as the last dot of each is cleared. */
-export function latestUnseen(index: Index, seen: Seen): number {
-  return index.tasks.filter((t) => unseenOf(index, seen, t.id).size > 0).length;
-}
-
-/**
- * The pushes Latest lists: every push of a task since its mark, for as long
- * as the task has a dot; its last dot cleared, all of them go.
- */
-export function unseenPushes(index: Index, seen: Seen): Push[] {
-  const dotted = new Map<string, boolean>();
-  const has = (id: string): boolean => {
-    if (!dotted.has(id)) dotted.set(id, unseenOf(index, seen, id).size > 0);
-    return dotted.get(id) as boolean;
-  };
-  return index.latest.filter((p) => p.at > seenAt(seen, p.task) && has(p.task));
-}
-
-export interface FeedFile {
-  readonly task: string;
-  readonly path: string;
-  readonly sha: string;
-  readonly status: 'A' | 'M' | 'D';
-  readonly at: number;
-}
-
-/** The files of Latest's pushes, each once, in the order prev and next walk them. */
-export function feedFiles(index: Index, seen: Seen): FeedFile[] {
-  const out: FeedFile[] = [];
-  for (const p of unseenPushes(index, seen)) for (const f of p.files) if (f.status !== 'D') out.push({ task: p.task, path: f.path, sha: f.sha, status: f.status, at: p.at });
-  const kept = new Set<string>();
-  return out.filter((f) => {
-    const k = `${f.task}/${f.path}`;
-    if (kept.has(k)) return false;
-    kept.add(k);
-    return true;
-  });
-}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import type { TaskSummary } from '../lib/api';
-import { agentWords, allNews, tasksWithNews, type AgentNews } from '../lib/agents';
+import { agentWords, allNews, type AgentNews } from '../lib/agents';
 import { MOD } from '../lib/format';
 import { initialsOf } from '../lib/letters';
 import { link, useRoute } from '../lib/route';
@@ -90,7 +90,6 @@ export function Rail() {
   const { data: terminals } = useTerminals();
   const r = useRoute();
   const news = allNews(terminals, seen);
-  const fresh = index && seen ? tasksWithNews(index, seen, news) : 0;
   const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
   // In review, then in progress; a paused task is put aside, and the rail is for what is being worked on. Those whose squares
   // speak stand first, in the order they began, while any does: one goes there as its bubble pops, and stays.
@@ -109,8 +108,6 @@ export function Rail() {
       <RailButton icon="panel" label="Show the task list" onClick={() => setPref('left', true)} />
       <RailButton icon="search" label={`Find a task (${MOD}K)`} onClick={() => useUI.setState({ palette: true })} />
       <RailButton icon="plus" label="New task" onClick={() => useUI.setState({ newTask: true })} />
-      <RailButton icon="latest" label="Latest" href="#/latest" on={r.view === 'latest'}
-        mark={fresh > 0 ? <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-sunken" /> : null} />
       <span className="my-2 h-px w-7 flex-none bg-border" />
       {tasks.map((t) => <TaskSquare key={t.id} t={t} letter={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} squares={squares} />)}
       <RailBubbles squares={squares} />

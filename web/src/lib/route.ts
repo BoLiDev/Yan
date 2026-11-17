@@ -20,7 +20,8 @@ export const BRANCH_TABS = ['changes', 'commits', 'files'] as const;
 export type BranchTab = (typeof BRANCH_TABS)[number];
 
 export type Route =
-  | { readonly view: 'latest'; readonly id?: string; readonly path?: string }
+  /** At no task: where the page is for a moment as it opens, before it goes to one, and where it stays in a vault with none. */
+  | { readonly view: 'none'; readonly id?: undefined }
   | { readonly view: 'new'; readonly id?: undefined; readonly launch?: string }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'terminal' | 'agent' | 'mr' | 'resources' }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'file' | 'folder'; readonly path: string }
@@ -60,8 +61,7 @@ export function parseRoute(hash: string): Route {
     return { view: 'task', id, sub: 'overview' };
   }
   if (parts[0] === 'new') return parts[1] ? { view: 'new', launch: parts[1] } : { view: 'new' };
-  if (parts[0] === 'latest' && parts[1]) return { view: 'latest', id: parts[1], path: parts.slice(2).join('/') };
-  return { view: 'latest' };
+  return { view: 'none' };
 }
 
 /**
@@ -97,7 +97,7 @@ export const link = {
   folder: (id: string, p: string): string => `#/t/${id}/a/${p ? enc(p) + '/' : ''}`,
   branch: (id: string, repo: number, tab?: BranchTab, item?: string, name?: string | null): string =>
     `#/t/${id}/b/${repo}${name ? '/' + encodeURIComponent(name) : ''}/${tab || 'changes'}${item ? '/' + enc(item) : ''}`,
-  latest: (id?: string, p?: string): string => (id ? `#/latest/${id}/${enc(p ?? '')}` : '#/latest'),
+  none: (): string => '#/',
   new: (launch?: string): string => (launch ? `#/new/${launch}` : '#/new'),
   page: (id: string, p: string): string => `#/page/${id}/${enc(p)}`,
 };
@@ -110,7 +110,7 @@ export const inBranch = (r: BranchRoute, tab: BranchTab, item?: string): string 
  * pane keeps its view, and so its scroll, while this stays the same.
  */
 export function viewKey(r: Route): string {
-  if (r.view === 'latest') return `latest|${r.id ?? ''}|${r.path ?? ''}`;
+  if (r.view === 'none') return 'none';
   if (r.view === 'new') return `new|${r.launch ?? ''}`;
   if (r.sub === 'file' || r.sub === 'folder') return `${r.id}|${r.sub}|${r.path}`;
   if (r.sub === 'branch') return `${r.id}|branch|${r.repo}|${r.name ?? ''}|${r.tab}|${r.item}`;

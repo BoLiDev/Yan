@@ -3,10 +3,10 @@ import type { Index, TaskDetail } from '../lib/api';
 import { buildTree, dirName, treeOrder } from '../lib/files';
 import { goesOn } from '../lib/stops';
 import { link, useRoute, viewKey, type Route } from '../lib/route';
-import { feedFiles, markLooked, unseenPushes } from '../lib/seen';
+import { markLooked } from '../lib/seen';
 import { Empty } from '../components/page';
 import { queryClient, useIndex, useTask, useTerminals } from '../state/server';
-import { setSeen, useUI } from '../state/ui';
+import { setSeen } from '../state/ui';
 import { AgentView } from '../views/Agent';
 import { MrView } from '../views/Mr';
 import { TerminalView } from '../views/TerminalLazy';
@@ -27,10 +27,7 @@ import { useKeyNav } from '../views/nav';
  */
 export function lookAt(r: Route, index: Index): void {
   if (r.view === 'new') return;
-  if (r.view === 'latest') {
-    if (r.id && r.path) setSeen((s) => markLooked(index, s, r.id as string, r.path));
-    return;
-  }
+  if (r.view === 'none') return;
   if (r.sub === 'file') setSeen((s) => markLooked(index, s, r.id, r.path));
   else if (r.sub === 'report') setSeen((s) => markLooked(index, s, r.id, 'report.html'));
   else if (r.sub === 'log') {
@@ -45,35 +42,13 @@ function Nothing({ title, children }: { title: string; children?: ReactNode }) {
 }
 
 function Shown({ r, index }: { r: Route; index: Index }) {
-  const seen = useUI((s) => s.seen);
   const known = r.id !== undefined && index.tasks.some((t) => t.id === r.id);
   const { data: d } = useTask(known ? r.id : undefined);
   const { data: terminals } = useTerminals();
 
   if (r.view === 'new') return <LaunchView launch={r.launch} state={r.launch === undefined ? undefined : terminals?.[r.launch]} index={index} />;
-  if (r.view === 'latest') {
-    if (!r.id) {
-      const any = seen ? unseenPushes(index, seen).length > 0 : false;
-      return <Nothing title="Latest">{any ? 'Open an update on the left, then one of its files, to see it here.' : 'When an agent pushes something new, it shows up here.'}</Nothing>;
-    }
-    if (!d) return <Nothing title="Loading…" />;
-    const file = d.files.find((f) => f.path === r.path);
-    if (!file) return <Nothing title="Not there any more">{`${r.path} is no longer in ${r.id}'s artifacts.`}</Nothing>;
-    const list = seen ? feedFiles(index, seen) : [];
-    const at = list.findIndex((f) => f.task === r.id && f.path === r.path);
-    const before = list[at - 1];
-    const after = list[at + 1];
-    return (
-      <FileView task={r.id} file={file}
-        prev={at > 0 && before ? link.latest(before.task, before.path) : null}
-        next={at >= 0 && after ? link.latest(after.task, after.path) : null}
-        pos={at + 1} total={list.length}
-        folderFiles={d.files.filter((f) => dirName(f.path) === dirName(file.path))}
-        fileHref={(p) => link.latest(r.id, p)}
-        taskTitle={index.tasks.find((t) => t.id === r.id)?.title} />
-    );
-  }
-
+  // At no task the page goes to one at once; only a vault with none stays here.
+  if (r.view === 'none') return <Nothing title={index.tasks.length ? 'Loading…' : 'No task yet'}>{index.tasks.length ? null : 'Start one with + over the task list, or with yan in a terminal.'}</Nothing>;
   const t = index.tasks.find((x) => x.id === r.id);
   if (!t) return <Nothing title="No such task">{`There is no ${r.id} in this vault.`}</Nothing>;
   // The terminal is herdr's, not the vault's: it is shown without waiting for the task's files.

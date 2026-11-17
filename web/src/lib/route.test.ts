@@ -3,8 +3,8 @@ import { link, parseRoute, viewKey, fullPageOf } from './route';
 
 describe('routes', () => {
   it('reads every view from the hash, and each link back to it', () => {
-    expect(parseRoute('')).toEqual({ view: 'latest' });
-    expect(parseRoute('#/latest/t1/c4/a b.png')).toEqual({ view: 'latest', id: 't1', path: 'c4/a b.png' });
+    expect(parseRoute('')).toEqual({ view: 'none' });
+    expect(parseRoute('#/nowhere/at/all')).toEqual({ view: 'none' });
     expect(parseRoute(link.task('t1'))).toEqual({ view: 'task', id: 't1', sub: 'overview' });
     expect(parseRoute(link.log('t1'))).toEqual({ view: 'task', id: 't1', sub: 'log' });
     expect(parseRoute(link.report('t1'))).toEqual({ view: 'task', id: 't1', sub: 'report' });

@@ -132,7 +132,7 @@ describe('pausing a task from its menu', () => {
     await screen.getByRole('alertdialog').getByRole('button', { name: 'Pause' }).click();
     await expect.element(screen.getByRole('alertdialog')).not.toBeInTheDocument();
     expect(posted(asked, '/api/task/pause')).toEqual([{ task: 't1' }]);
-    expect(location.hash, 'paused by serve: nothing to watch').toBe('#/latest');
+    expect(location.hash, 'paused by serve: nothing to watch').toBe('#/');
   });
 
   it('goes to the terminal when the agent is the one to save the work and pause it', async () => {

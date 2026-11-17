@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Index, Push, TaskSummary } from './api';
-import { feedFiles, initSeen, latestUnseen, markAllSeen, markLooked, markTaskRead, unseenOf, unseenPushes, type Seen } from './seen';
+import { initSeen, markLooked, markTaskRead, unseenOf, type Seen } from './seen';
 
 const task = (id: string, touched: number): TaskSummary => ({
   id, title: id, state: 'open', createdAt: null, closedAt: null, pausedAt: null, repos: [], deliverables: { done: 0, todo: 0, abandoned: 0 }, agents: [],
@@ -39,7 +39,6 @@ describe('what is new since the last look', () => {
     const t1 = unseenOf(index, seen, 't1');
     expect([...t1.keys()]).toEqual(['a.png', 'c.txt']);
     expect(t1.get('a.png')?.status).toBe('M');
-    expect(latestUnseen(index, seen)).toBe(2);
   });
 
   it('clears a file looked at, and moves the mark up once the task has no dot left', () => {
@@ -49,18 +48,13 @@ describe('what is new since the last look', () => {
     const both = markLooked(index, one, 't1', 'c.txt') as Seen;
     expect(both.tasks.t1).toBe(300);
     expect(both.files.t1).toBeUndefined();
-    expect(unseenPushes(index, both).map((p) => p.task)).toEqual(['t2']);
+    expect(unseenOf(index, both, 't2').size, 'another task keeps its own').toBe(1);
   });
 
-  it('lists in Latest every push of a task that still has a dot, and its files once each', () => {
-    expect(unseenPushes(index, seen).map((p) => `${p.task}@${p.at}`)).toEqual(['t1@300', 't2@200', 't1@150']);
-    expect(feedFiles(index, seen).map((f) => `${f.task}/${f.path}`)).toEqual(['t1/a.png', 't2/b.md', 't1/c.txt']);
-  });
-
-  it('reads a whole task at once, its log too, or everything', () => {
+  it('reads a whole task at once, its log too', () => {
     const read = markTaskRead(index, seen, 't1', 4);
     expect(unseenOf(index, read, 't1').size).toBe(0);
     expect(read.logs.t1).toBe(4);
-    expect(latestUnseen(index, markAllSeen(index, seen))).toBe(0);
+    expect(unseenOf(index, read, 't2').size, 'and no other task').toBe(1);
   });
 });

@@ -136,7 +136,8 @@ describe('a review', () => {
     await page.goto(served.url('/#/t/t001/a/design/card.html'));
     await page.locator('a[aria-label="Full size"]').click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/page/t001/design/card.html');
-    expect(await page.getByRole('complementary').count(), 'nothing of the task list round it').toBe(0);
+    // Nothing of the task list round it, once the page has drawn where it now is.
+    await expect.poll(() => page.getByRole('complementary').count()).toBe(0);
     await frame.getByRole('heading', { name: 'Pay later' }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Comment' }).click();
     await page.getByText('artifacts/design/card.html, h1#title').waitFor();

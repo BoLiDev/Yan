@@ -32,6 +32,13 @@ export interface Prefs {
    * starts with source code alone too.
    */
   readonly allFiles: boolean;
+  /**
+   * What is new since the last look is marked: the counts beside a task, the
+   * dots on its files, its report and its log. Off, nothing is marked, and
+   * what was looked at is still kept, so turning them on again marks only
+   * what is new then.
+   */
+  readonly badges: boolean;
   /** A change of a Markdown file's history is drawn as one document, or the old beside the new. */
   readonly history: 'inline' | 'split';
 }
@@ -69,6 +76,8 @@ interface UI {
   palette: boolean;
   /** The new task's box is open. */
   newTask: boolean;
+  /** The settings' box is open. */
+  settings: boolean;
   /** The drafts' box is open. */
   drafts: boolean;
   /** A draft whose saving failed after its box was left, kept to be shown again, being written, in place of losing it. */
@@ -83,8 +92,6 @@ interface UI {
   closed: Readonly<Record<string, readonly string[]>>;
   /** The months of done tasks unfolded in the task list; every other one is folded. */
   months: readonly string[];
-  /** Latest's pushes opened to their files, `<task>@<time>`. */
-  feedOpen: readonly string[];
   /** Where each task was last left, so its row in the task list goes back there. */
   last: Readonly<Record<string, string>>;
   /** problem.md's sha as the visit to a task began, for the tint of what is new since. */
@@ -157,7 +164,7 @@ function save(key: string, value: unknown): void {
   }
 }
 
-const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, history: 'inline' };
+const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, badges: true, history: 'inline' };
 
 /** What this browser kept of the marks, read once: the first index decides what a first visit starts from. */
 export const storedSeen: unknown = load(SEEN_KEY, null);
@@ -170,6 +177,7 @@ export const useUI = create<UI>(() => ({
   status: null,
   palette: false,
   newTask: false,
+  settings: false,
   drafts: false,
   draftKept: null,
   launched: {},
@@ -177,7 +185,6 @@ export const useUI = create<UI>(() => ({
   open: {},
   closed: {},
   months: [],
-  feedOpen: [],
   last: {},
   problemBase: {},
   logBase: {},

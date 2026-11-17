@@ -45,7 +45,7 @@ describe('⌘K', () => {
     await screen.getByRole('combobox', { name: 'Go to a task' }).fill('csv');
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
     expect(opened).toHaveBeenCalledWith('https://agent.example/t2', 'yan-agent');
-    expect(location.hash).toBe('#/latest');
+    expect(location.hash).toBe('#/');
   });
 
   it('offers, with nothing typed, the tasks visited last, then the open ones', async () => {

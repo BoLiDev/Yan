@@ -1,8 +1,8 @@
-// What a task's agent is up to, as the task list, its rail, Latest and the
+// What a task's agent is up to, as the task list, its rail and the
 // page's toasts all tell it: one reading of what herdr says, so they agree.
 
-import type { Index, TerminalState } from './api';
-import { unseenOf, type Seen } from './seen';
+import type { TerminalState } from './api';
+import type { Seen } from './seen';
 
 /**
  * At work; waiting on `user`, a question or a permission; finished, from
@@ -46,11 +46,4 @@ export function markAgentSeen(seen: Seen, task: string, at: number | null): Seen
 /** What a row or a rail says of it, in a few words. */
 export function agentWords(n: AgentNews): string {
   return { working: 'agent at work', blocked: 'agent needs you', finished: 'agent finished', idle: 'agent idle' }[n.kind];
-}
-
-/** How many tasks Latest has news of: something arrived in their artifacts, or their agent finished or waits on `user`. */
-export function tasksWithNews(index: Index, seen: Seen, news: ReadonlyMap<string, AgentNews>): number {
-  const pushed = index.tasks.filter((t) => unseenOf(index, seen, t.id).size > 0).map((t) => t.id);
-  const agents = [...news].filter(([task, n]) => n.news && index.tasks.some((t) => t.id === task)).map(([task]) => task);
-  return new Set([...pushed, ...agents]).size;
 }

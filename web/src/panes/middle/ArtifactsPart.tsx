@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { Index, TaskDetail, TaskSummary } from '../../lib/api';
 import { buildTree, foldersAbove } from '../../lib/files';
 import { link, type TaskRoute } from '../../lib/route';
-import { logFresh, markTaskRead, unseenOf, type Seen } from '../../lib/seen';
+import { NOTHING_UNSEEN, logFresh, markTaskRead, unseenOf, type Seen } from '../../lib/seen';
 import { GROW, SUBLABEL, Tool } from '../../components/page';
 import { Button } from '../../components/ui/button';
 import { setSeen, useUI } from '../../state/ui';
@@ -17,9 +17,11 @@ import { SECTION, SECTION_TITLE } from './look';
  */
 export function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: TaskRoute, index: Index, seen: Seen): { top: ReactNode; body: ReactNode } {
   const open = useOpenFolders(t.id);
+  // Turned off in the settings, nothing is marked, and there is nothing to mark read.
+  const marks = useUI((s) => s.prefs.badges);
   if (!d) return { top: <div className={SECTION}><b className={SECTION_TITLE}>Artifacts</b><span className="text-[12px] text-ink-3">loading…</span></div>, body: null };
-  const unseen = unseenOf(index, seen, t.id);
-  const dotted = unseen.size > 0 || logFresh(seen, t.id, d.log?.entries.length);
+  const unseen = marks ? unseenOf(index, seen, t.id) : NOTHING_UNSEEN;
+  const dotted = marks && (unseen.size > 0 || logFresh(seen, t.id, d.log?.entries.length));
   return {
     top: (
       <div className={SECTION}>

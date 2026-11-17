@@ -77,7 +77,7 @@ async function sendToAgent(task: string): Promise<boolean> {
 export function ReviewPanel() {
   const r = useRoute();
   const full = fullPageOf(useHash());
-  const task = full ? full.id : r.view === 'task' || (r.view === 'latest' && r.id) ? r.id : undefined;
+  const task = full ? full.id : r.view === 'task' ? r.id : undefined;
   const comments = useComments(task);
   const open = useReview((s) => s.open);
   const summary = useReview((s) => (task ? s.summary[task] ?? '' : ''));

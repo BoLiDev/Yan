@@ -1,22 +1,17 @@
 import { useMemo } from 'react';
 import { stateOf, type Index, type TaskSummary } from '../lib/api';
-import { MOD, clock, fromIso, monthLabel, plural } from '../lib/format';
+import { MOD, clock, fromIso, monthLabel } from '../lib/format';
 import { link, useRoute } from '../lib/route';
-import { agentNews, agentWords, allNews, tasksWithNews } from '../lib/agents';
+import { agentNews, agentWords } from '../lib/agents';
 import { unseenOf, type Seen } from '../lib/seen';
 import { Icon, StateIcon } from '../components/Icon';
 import { Dot, GROW, LABEL, Pane, PushTags, SUBLABEL, Tool, WORKING, row } from '../components/page';
 import { Kbd } from '../components/ui/kbd';
-import { UpdateCard } from '../components/Update';
 import { Rail } from './Rail';
 import { TaskMenu } from '../components/TaskMenu';
-import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { pullNow, useIndex, useTerminals } from '../state/server';
 import { setPref, toggled, useUI } from '../state/ui';
 import { isPaused } from '../lib/stops';
-import { Badge } from '../components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
-import { useTheme } from '../state/theme';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
 
@@ -71,43 +66,13 @@ function Sync() {
   );
 }
 
-/** Which theme the page is drawn in: the browser's, or light or dark whatever it says. */
-function ThemeMenu() {
-  const theme = useUI((s) => s.prefs.theme);
-  const now = useTheme();
-  const choices = [['system', 'As the browser', 'system'], ['light', 'Light', 'light'], ['dark', 'Dark', 'night']] as const;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-ink-3 hover:text-foreground" aria-label="Theme" title="Theme" />}>
-        <Icon name={now === 'dark' ? 'night' : 'light'} size={15} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setPref('theme', v as typeof theme)}>
-          {choices.map(([value, label, icon]) => (
-            <DropdownMenuRadioItem key={value} value={value} closeOnClick><Icon name={icon} size={15} />{label}</DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function Bell() {
-  useUI((s) => s.prefs.notify);
-  if (!canNotify()) return null;
-  if (Notification.permission === 'denied') {
-    return <Tool name="bellOff" label="Chrome blocks notifications from this page. Allow them from the icon left of the address bar." onClick={() => void toggleNotify()} small blocked />;
-  }
-  const on = notifying();
-  return <Tool name="bell" label={on ? 'Chrome says when a push arrives. Click to stop.' : 'Have Chrome say when a push arrives'} onClick={() => void toggleNotify()} small pressed={on} />;
-}
-
 function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: Seen; on: boolean }) {
   const last = useUI((s) => s.last[t.id]);
   const { data: terminals } = useTerminals();
   const state = terminals?.[t.id];
   const agent = state === undefined ? undefined : agentNews(t.id, state, seen);
-  const fresh = on ? [] : [...unseenOf(index, seen, t.id).values()];
+  const marks = useUI((s) => s.prefs.badges);
+  const fresh = on || !marks ? [] : [...unseenOf(index, seen, t.id).values()];
   return (
     <TaskMenu t={t} render={<a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${agent ? ` · ${agentWords(agent)}` : ''}`} />}>
       <StateIcon t={t} />
@@ -127,7 +92,8 @@ function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: S
 function MonthRows({ month, tasks, index, seen, openId }: { month: string; tasks: readonly TaskSummary[]; index: Index; seen: Seen; openId: string | null }) {
   const open = useUI((s) => s.months.includes(month));
   const shown = open ? tasks : tasks.filter((t) => t.id === openId);
-  const fresh = !open && tasks.some((t) => t.id !== openId && unseenOf(index, seen, t.id).size > 0);
+  const marks = useUI((s) => s.prefs.badges);
+  const fresh = marks && !open && tasks.some((t) => t.id !== openId && unseenOf(index, seen, t.id).size > 0);
   return (
     <>
       {/* A sublabel that folds the tasks under it; its chevron sits where a task's icon does. */}
@@ -176,18 +142,16 @@ export function Left() {
     return out;
   }, [index]);
 
-  const onLatest = r.view === 'latest';
   const shown = useUI((s) => s.prefs.left);
   const creating = useUI((s) => s.newTask);
   const drafting = useUI((s) => s.drafts);
-  const { data: terminals } = useTerminals();
-  const unseen = index && seen ? tasksWithNews(index, seen, allNews(terminals, seen)) : 0;
   const top = (
     <>
       <div className="flex items-center gap-2 py-0.5 pr-0.5 pl-2.5">
         <b className="text-[22px] tracking-tight" title={index ? `${index.vault.name} · ${index.vault.dir}` : undefined}>yan</b>
         <span className="flex-1" />
-        <ThemeMenu />
+        {/* What this browser is set to, the theme, what the page says of what arrived, and yan's updates, is one box away. */}
+        <Tool name="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} small />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
       <Sync />
@@ -202,23 +166,11 @@ export function Left() {
         </button>
         <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', creating && 'bg-foreground/10 text-foreground')} aria-label="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></Button>
       </div>
-      {/* Latest and Drafts are of a kind, what is yours to read and what is yours to write, neither a task: one after the other, as a group's tasks are. */}
-      <div className="flex flex-col gap-px">
-        {/* The Latest line is the card, so the bell sits inside it: a button cannot sit inside the row's link. */}
-        <div className={cn('flex items-center gap-0.5 rounded-[10px] pr-1', onLatest ? 'bg-card ring-1 ring-border' : 'has-[>a:hover]:bg-hover')}>
-          <a className={cn(row(), 'min-w-0 flex-1 font-bold hover:bg-transparent')} aria-current={onLatest ? 'page' : undefined} href="#/latest">
-            <Icon name="latest" size={17} />
-            <span className={GROW}>Latest</span>
-            {unseen > 0 ? <Badge className="min-w-5 bg-success px-1.5 font-bold text-white tabular-nums dark:text-sunken" title={`${plural(unseen, 'task')} with something new`}>{unseen}</Badge> : null}
-          </a>
-          <Bell />
-        </div>
-        {/* The drafts are no task's: their box opens over whatever is shown. */}
-        <button type="button" className={cn(row(), 'font-bold', drafting && 'bg-card ring-1 ring-border hover:bg-card')} onClick={() => useUI.setState({ drafts: true })}>
-          <Icon name="note" size={17} />
-          <span className={GROW}>Drafts</span>
-        </button>
-      </div>
+      {/* The drafts are no task's: their box opens over whatever is shown. */}
+      <button type="button" className={cn(row(), 'font-bold', drafting && 'bg-card ring-1 ring-border hover:bg-card')} onClick={() => useUI.setState({ drafts: true })}>
+        <Icon name="note" size={17} />
+        <span className={GROW}>Drafts</span>
+      </button>
     </>
   );
   const body = !index || !seen ? null : (
@@ -239,7 +191,7 @@ export function Left() {
     <>
       {shown ? null : <Rail />}
       <nav className={cn('flex h-screen w-60 flex-none flex-col overflow-hidden bg-sunken max-[1100px]:w-[220px]', !shown && 'hidden')} aria-label="Tasks" aria-hidden={!shown || undefined}>
-        <Pane tight top={top} body={body} foot={<UpdateCard />} />
+        <Pane tight top={top} body={body} />
       </nav>
     </>
   );
