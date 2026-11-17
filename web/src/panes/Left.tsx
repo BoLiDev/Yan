@@ -160,19 +160,17 @@ export function Left() {
       {/* Beside finding a task, starting one: a box asking what bare yan would, run in a new herdr tab. */}
       <div className="flex gap-1.5">
         {/* The task list's way into ⌘K, drawn as the box it opens. */}
-        <button type="button" className="flex h-[34px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[10px] bg-hover pr-2 pl-2.5 text-[13.5px] text-ink-3 hover:text-ink-2"
+        <button type="button" aria-label="Find a task" className="flex h-[34px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[10px] bg-hover pr-2 pl-2.5 text-[13.5px] text-ink-3 hover:text-ink-2"
           onClick={() => useUI.setState({ palette: true })}>
           <Icon name="search" size={15} />
-          <span className={cn(GROW, 'text-left')}>Find a task</span>
+          {/* One word: with two buttons beside it, the box has no room for three. */}
+          <span className={cn(GROW, 'text-left')}>Find</span>
           <Kbd>{`${MOD}K`}</Kbd>
         </button>
-        <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', creating && 'bg-foreground/10 text-foreground')} aria-label="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></Button>
+        <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', creating && 'bg-foreground/10 text-foreground')} aria-label="New task" title="New task" onClick={() => useUI.setState({ newTask: true })}><Icon name="plus" size={16} /></Button>
+        {/* The drafts are no task's: their box opens over whatever is shown. Beside starting a task, as its like, one more thing begun from here. */}
+        <Button variant="secondary" size="icon-lg" className={cn('size-[34px] rounded-[10px] bg-hover text-ink-2 hover:bg-foreground/10 hover:text-foreground', drafting && 'bg-foreground/10 text-foreground')} aria-label="Drafts" title="Drafts" onClick={() => useUI.setState({ drafts: true })}><Icon name="note" size={16} /></Button>
       </div>
-      {/* The drafts are no task's: their box opens over whatever is shown. */}
-      <button type="button" className={cn(row(), 'font-bold', drafting && 'bg-card ring-1 ring-border hover:bg-card')} onClick={() => useUI.setState({ drafts: true })}>
-        <Icon name="note" size={17} />
-        <span className={GROW}>Drafts</span>
-      </button>
     </>
   );
   const body = !index || !seen ? null : (

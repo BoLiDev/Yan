@@ -255,7 +255,7 @@ pointer is over it or the page is out of sight, or by its ×. A task on no squar
 or closed, is told in a toast. A finish is news, a green dot on the
 task's row, until you type in its terminal;
 waiting on you is news, an
-amber dot, until it is answered. Drafts, over the tasks, opens your drafts
+amber dot, until it is answered. Drafts, the button beside the one that starts a task, opens your drafts
 in a large box over the page: the list down its side, newest first by when each was begun, as `yan draft ls` lists them, those
 kept with a task before saying which, with New above it, and the one
 picked beside it, its Markdown drawn. There is no edit mode and nothing to
