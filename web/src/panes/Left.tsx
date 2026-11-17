@@ -84,12 +84,12 @@ function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: S
 }
 
 /**
- * A month of tasks done or given up, folded until it is clicked open, since
- * they pile up month on month and are rarely read again. Folded, it keeps in
+ * A month of tasks done or given up, or the tasks put aside, as one, folded
+ * until it is clicked open, since they pile up and are rarely read again. Folded, it keeps in
  * view the task being read, and a dot says when one of its tasks has
  * something new, where nobody would otherwise see it.
  */
-function MonthRows({ month, tasks, index, seen, openId }: { month: string; tasks: readonly TaskSummary[]; index: Index; seen: Seen; openId: string | null }) {
+function MonthRows({ month, tasks, index, seen, openId, heading }: { month: string; tasks: readonly TaskSummary[]; index: Index; seen: Seen; openId: string | null; heading?: boolean }) {
   const open = useUI((s) => s.months.includes(month));
   const shown = open ? tasks : tasks.filter((t) => t.id === openId);
   const marks = useUI((s) => s.prefs.badges);
@@ -98,7 +98,9 @@ function MonthRows({ month, tasks, index, seen, openId }: { month: string; tasks
     <>
       {/* A sublabel that folds the tasks under it; its chevron sits where a task's icon does. */}
       <button type="button" aria-expanded={open}
-        className="flex min-h-7 w-full cursor-pointer items-center text-left gap-2 rounded-lg pt-1 pr-2.5 pb-0.5 pl-3 text-[12px] text-ink-3 hover:bg-hover hover:text-ink-2 focus-visible:-outline-offset-2"
+        className={cn('flex min-h-7 w-full cursor-pointer items-center gap-2 rounded-lg pt-1 pr-2.5 pb-0.5 text-left text-ink-3 hover:bg-hover hover:text-ink-2 focus-visible:-outline-offset-2',
+          // Folding a whole group, it is the group's heading, in a heading's face and place; folding a month, a line under one.
+          heading ? 'pl-2.5 text-[12.5px] font-bold' : 'pl-3 text-[12px]')}
         onClick={() => useUI.setState((s) => ({ months: toggled(s.months, month, !open) }))}>
         <span className={cn('flex flex-none transition-transform duration-100', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
         <span className={GROW}>{month}</span>
@@ -120,7 +122,7 @@ export function Left() {
     if (!index) return [];
     const tasks = index.tasks;
     const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
-    const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string }[] = [];
+    const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string; folds?: boolean }[] = [];
     // Waiting on `user`, so above the rest; the group is not there when none is.
     const uat = tasks.filter((t) => t.state === 'uat' && !isPaused(t)).sort(byTouched);
     if (uat.length) out.push({ label: 'In review', rows: uat.map((t) => ({ t })) });
@@ -129,7 +131,8 @@ export function Left() {
     out.push({ label: 'In progress', rows: open.map((t) => ({ t })), none: 'Nothing open' });
     // Put aside, in review or in progress, below both: wanted again, but not now. The group is not there when none is.
     const paused = tasks.filter(isPaused).sort((a, b) => (fromIso(b.pausedAt) || b.touched) - (fromIso(a.pausedAt) || a.touched));
-    if (paused.length) out.push({ label: 'Paused', rows: paused.map((t) => ({ t })) });
+    // Folded as a month of done tasks is, the group's own name the line that folds it.
+    if (paused.length) out.push({ label: 'Paused', rows: [{ month: 'Paused', tasks: paused }], folds: true });
     const closed = tasks.filter((t) => t.state === 'done' || t.state === 'abandoned')
       .sort((a, b) => (fromIso(b.closedAt) || b.touched) - (fromIso(a.closedAt) || a.touched));
     const months: { month: string; tasks: TaskSummary[] }[] = [];
@@ -154,7 +157,6 @@ export function Left() {
         <Tool name="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} small />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
-      <Sync />
       {/* Beside finding a task, starting one: a box asking what bare yan would, run in a new herdr tab. */}
       <div className="flex gap-1.5">
         {/* The task list's way into ⌘K, drawn as the box it opens. */}
@@ -177,10 +179,10 @@ export function Left() {
     <div className="flex flex-col gap-3">
       {groups.map((g) => (
         <div className="flex flex-col gap-px" key={g.label}>
-          <div className={LABEL}>{g.label}</div>
+          {g.folds ? null : <div className={LABEL}>{g.label}</div>}
           {g.rows.length === 0 && g.none ? <div className={SUBLABEL}>{g.none}</div> : null}
           {g.rows.map((x) => ('month' in x
-            ? <MonthRows key={`m:${x.month}`} month={x.month} tasks={x.tasks} index={index} seen={seen} openId={openId} />
+            ? <MonthRows key={`m:${x.month}`} month={x.month} tasks={x.tasks} index={index} seen={seen} openId={openId} heading={g.folds} />
             : <TaskRow key={x.t.id} t={x.t} index={index} seen={seen} on={x.t.id === openId} />))}
         </div>
       ))}
@@ -191,7 +193,7 @@ export function Left() {
     <>
       {shown ? null : <Rail />}
       <nav className={cn('flex h-screen w-60 flex-none flex-col overflow-hidden bg-sunken max-[1100px]:w-[220px]', !shown && 'hidden')} aria-label="Tasks" aria-hidden={!shown || undefined}>
-        <Pane tight top={top} body={body} />
+        <Pane tight top={top} body={body} foot={<Sync />} />
       </nav>
     </>
   );

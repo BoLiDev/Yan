@@ -581,7 +581,9 @@ GitLab the same way.
 A task its agent marked with `yan uat ready` is listed under In review, above
 the ones in progress, and its overview's tag says so. Those paused, in
 review or in progress, are listed under Paused, below them, the one paused
-last first, with two bars for their mark, and their overview's tag says
+last first, with two bars for their mark, folded away as a month of done
+tasks is until Paused is clicked open, with how many there are, the one
+being read kept in view and a dot when one has something new, and their overview's tag says
 Paused and the day; ⌘K ranks them after those in progress. A paused task
 has no Terminal row, so no agent is started on one until it is resumed. Those done or given up
 are listed under Done by the month they closed in, each month folded, with
@@ -589,7 +591,7 @@ how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
-closing them all once any is open. A card in the settings
+closing them all once any is open. Updates, a line of the settings,
 updates yan's own clone: its Check for updates fetches what the clone tracks, the card
 saying it is checking and then that there is nothing new, or that there is
 a new version with a button to take it, which pulls, runs `npm install` and
@@ -637,7 +639,7 @@ vault here first brought up to what serve last fetched from origin, so an
 edit is checked against the file another machine pushed, and a deliverable
 is changed only while it still reads as the page showed it at its number,
 a change refused otherwise with what was typed said back. A push that
-fails leaves the change committed here, and the card at the top of the
+fails leaves the change committed here, and the card at the foot of the
 task list says Not pushed yet until a later pull pushes it, or, when it conflicts with origin, which no pull gets past, that it needs sorting out in the vault. Its API is the page's alone: a page anywhere else,
 an agent's page on the files port among them, is refused it.
 report.html carries its pictures inside it, so it can be dragged into a

@@ -119,8 +119,9 @@ describe('pausing a task from its menu', () => {
 
   it('pauses an open task, at once when serve can, and lists a paused one apart, resumed from its menu', async () => {
     const { asked, screen } = await withPaused({ 'POST /api/task/pause': Response.json(saved), 'POST /api/task/resume': Response.json(saved) });
-    // A paused task is under Paused, and has no Pause, Done or Abandon, only Resume.
-    await expect.element(screen.getByText('Paused', { exact: true })).toBeVisible();
+    // A paused task is under Paused, folded away until that is opened, and has no Pause, Done or Abandon, only Resume.
+    expect(screen.getByRole('link', { name: /export orders/ }).query()).toBeNull();
+    await screen.getByRole('button', { name: /Paused/ }).click();
     await screen.getByRole('link', { name: /export orders/ }).click({ button: 'right' });
     expect(screen.getByRole('menuitem', { name: 'Pause' }).query()).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Done' }).query()).toBeNull();

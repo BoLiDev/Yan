@@ -31,9 +31,12 @@ const ARRIVE = 'animate-in fade-in-0 slide-in-from-bottom-1 duration-300';
  * again, an arrow to take a new version, a red turn to try again. Taking
  * one, the title is the step under way and a bar below says how far along,
  * until serve restarts on the new build and the page reloads with it. Its
- * height follows what it holds, with a spring.
+ * height follows what it holds, with a spring. `small`, it is one thing
+ * among others to set, at the end of its row in the settings: a button no
+ * wider than its words, then what it is doing beside the same tile, the bar
+ * under them.
  */
-export function UpdateCard() {
+export function UpdateCard({ small }: { small?: boolean } = {}) {
   const [card, setCard] = useState<Card>({ is: 'idle' });
   const inner = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | undefined>(undefined);
@@ -108,6 +111,20 @@ export function UpdateCard() {
     below = (
       <div className={cn('mr-[7px] flex gap-1', ARRIVE)}>
         {steps.map((s) => <i key={s.step} className={cn('h-1 flex-1 rounded-sm bg-sunken transition-colors duration-300', s.state === 'done' && 'bg-success', s.state === 'now' && 'animate-pulse bg-brand', s.state === 'failed' && 'bg-destructive')} />)}
+      </div>
+    );
+  }
+
+  if (small) {
+    return (
+      <div className="flex flex-none flex-col items-end gap-1.5">
+        {card.is === 'idle' ? <Button variant="outline" size="sm" onClick={check}><Icon name="refresh" size={13} />Check for updates</Button> : (
+          <div className="flex items-center gap-2.5">
+            <b key={title} className={cn('text-[13px]', ARRIVE)}>{title}</b>
+            <span key={card.is} className={cn('flex flex-none', ARRIVE)}>{action}</span>
+          </div>
+        )}
+        {below ? <div className="w-40">{below}</div> : null}
       </div>
     );
   }

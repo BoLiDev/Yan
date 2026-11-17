@@ -3,7 +3,7 @@ import { canNotify, notifying, toggleNotify } from '../state/notify';
 import { setPref, useUI } from '../state/ui';
 import { Seg } from './page';
 import { UpdateCard } from './Update';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Switch } from './ui/switch';
 
 /** One thing to set: what it is, a line on what it does, and what sets it, at the row's end or under it. */
@@ -43,7 +43,6 @@ export function SettingsModal() {
       <DialogContent className="gap-0 sm:max-w-[460px]">
         <DialogHeader className="pb-1">
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Kept in this browser.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col divide-y divide-sunken">
           <Row title="Theme" under={
@@ -55,7 +54,7 @@ export function SettingsModal() {
           <Row title="Marks on what is new" sub="The counts beside a task and the dots on its files, its report and its log, for what changed since you last looked.">
             <Switch aria-label="Marks on what is new" checked={prefs.badges} onCheckedChange={(on) => setPref('badges', on)} />
           </Row>
-          <Row title="Updates" sub="yan on this machine, pulled, built and started again." under={<div className="rounded-xl ring-1 ring-border"><UpdateCard /></div>} />
+          <Row title="Updates" sub="yan on this machine, pulled, built and started again."><UpdateCard small /></Row>
         </div>
       </DialogContent>
     </Dialog>
