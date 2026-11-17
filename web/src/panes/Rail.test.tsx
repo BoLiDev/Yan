@@ -152,16 +152,22 @@ describe('bubbles on the rail at once', () => {
 describe('what an agent said, with the task list shown', () => {
   afterEach(reset);
 
-  it('takes the place of the toast\'s words once they come', async () => {
+  it('says only that it finished, the same each time, with its button under those words at the right', async () => {
     const { herdr, says } = await open({ here: agent('working', 100, 'idle'), shown: true });
     await herdr(agent('done', 200));
-    await expect.element(page.getByText('Its agent has finished.')).toBeVisible();
+    const told = page.getByText('Its agent has finished.');
+    await expect.element(told).toBeVisible();
 
     says('Retries are in.', 201);
-    await expect.element(page.getByText('Retries are in.')).toBeVisible();
-    expect(page.getByText('Its agent has finished.').query()).toBeNull();
+    await new Promise((r) => setTimeout(r, 300));
+    await expect.element(told).toBeVisible();
+    expect(page.getByText('Retries are in.').query(), 'what it said is read where it is, not in the toast').toBeNull();
     expect(page.getByRole('status', { name: 'pay retries' }).query(), 'no bubble with the list shown').toBeNull();
-    await page.getByRole('button', { name: 'Open terminal' }).click();
+    const button = page.getByRole('button', { name: 'Open terminal' });
+    const [w, bt] = [told.element().getBoundingClientRect(), button.element().getBoundingClientRect()];
+    expect(bt.top, 'under the words').toBeGreaterThanOrEqual(w.bottom);
+    expect(bt.left, 'at the right').toBeGreaterThan(w.left + w.width / 2);
+    await button.click();
     expect(location.hash).toBe('#/t/t1/terminal');
   });
 
@@ -176,16 +182,8 @@ describe('what an agent said, with the task list shown', () => {
 
     ix = { ...ix, tasks: [{ ...ix.tasks[0]!, said: { text: 'PR #42 is open.', at: 300 } }] };
     queryClient.setQueryData(['index'], ix);
-    await expect.element(page.getByText('PR #42 is open.')).toBeVisible();
+    await expect.element(page.getByText('Its agent has finished.')).toBeVisible();
     await page.getByRole('button', { name: 'Open agent' }).click();
     expect(location.hash).toBe('#/t/t1/agent');
-  });
-
-  it('tells words said again, though the clock of the machine they came from is behind', async () => {
-    const { says } = await open({ shown: true });
-    says('PR #42 is open.', 300);
-    await expect.element(page.getByText('PR #42 is open.')).toBeVisible();
-    says('CI is green too.', 250);
-    await expect.element(page.getByText('CI is green too.')).toBeVisible();
   });
 });

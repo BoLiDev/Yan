@@ -83,7 +83,7 @@ describe('a task\'s agent, at a glance', () => {
     await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
 
     h.agentIs(AGENT_PANE, 'blocked');
-    await page.getByText('Its agent needs you: a question or a permission.').waitFor({ timeout: 20_000 });
+    await page.getByText('Its agent needs you.').waitFor({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Open terminal' }).click();
     await page.getByRole('group', { name: 'Agent', exact: true }).click();
     await page.waitForTimeout(2500);

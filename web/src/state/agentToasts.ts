@@ -34,7 +34,7 @@ export function sawAgent(task: string): void {
  * and in its square's bubble: in the page's own voice, never as the agent,
  * so words the agent did not say are not taken for its.
  */
-const TOLD = { finished: 'Its agent has finished.', blocked: 'Its agent needs you: a question or a permission.' } as const;
+const TOLD = { finished: 'Its agent has finished.', blocked: 'Its agent needs you.' } as const;
 const SAID = { finished: 'Finished, without saying where things stand.', blocked: 'Needs you: a question or a permission.' } as const;
 
 /** Finishes told on the rail whose words are not in yet: each waited for, without a sign, until they come or time is up. */
@@ -49,12 +49,14 @@ export function forgetAwaited(): void {
 /**
  * Tell `user` of `task`'s agent: in a toast at the top right while the task
  * list is shown, and with it folded, in a bubble from the task's square on
- * the rail, unless the task has none there. What the agent said is told in
- * its own words. A finish whose words are not in yet waits for them on the
+ * the rail, unless the task has none there. The toast says only that it
+ * finished or needs `user`, in the page's words and the same each time:
+ * it is a nudge to go and look, and what the agent said is read where it
+ * is. The bubble tells what the agent said in its own words. A finish whose words are not in yet waits for them on the
  * rail, with nothing on it, for about as long as serve takes to fetch them,
  * and its bubble pops with them as they come, or with the page's own when
  * they do not, since three dots moving there while nothing is said only take
- * the eye; the toast says it finished until the words replace that. Its
+ * the eye. Its
  * button, or a click on the bubble, opens the task's terminal when its agent
  * runs here; else its agents elsewhere, in the cloud, when it keeps any,
  * which is where words from no terminal here come from; else the task.
@@ -84,7 +86,9 @@ function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string
   toast(title, {
     id: `agent:${task}`,
     toasterId: AGENT_TOASTER,
-    description: words ?? TOLD[plain],
+    description: TOLD[plain],
+    // Its button under its words, at the right, not beside them where it squeezes them into a column.
+    classNames: { toast: 'flex-wrap!', content: 'basis-full!', actionButton: 'ml-auto!' },
     action: { label: terminal ? 'Open terminal' : away ? 'Open agent' : 'Open task', onClick: () => { location.hash = to; } },
     duration: 10_000,
   });

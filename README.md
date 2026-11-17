@@ -227,9 +227,9 @@ finishes, or comes to wait on you, is also told at the page's top right,
 with a button to its terminal, unless the page is showing that task; it
 is white with its button black in either theme, so it stands off a dark
 page, with no line drawn round it and no button to close it: it is swiped
-off, to either side or off the edge it came from, or left to go. What an agent said with `yan say`, which
-is pushed as it is said, is told the same way in its own words, taking
-the place of the toast's once they come, and an agent running elsewhere,
+off, to either side or off the edge it came from, or left to go. It says only that the agent
+finished or needs you, the same words each time, with its button under them at the right: what the agent said with `yan say` is read where it is,
+not in the toast. An agent running elsewhere,
 on another machine or in the cloud, is told of as its words come, the
 button opening the task's agents elsewhere when it keeps any, or else the
 task. Words are told as they change, not by which is later, since a
