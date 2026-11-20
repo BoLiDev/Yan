@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:net';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir } from '../../../tests/helpers/fixtures.js';
-import { atLeast, closePane, closeTab, controlCommand, createTab, herdrPane, layoutOf, paneOf, panesIn, readPane, sendInput, sendKeys, serverOf, splitPane, tabOf, versionOf } from './client.js';
+import { atLeast, closePane, closeTab, controlCommand, createTab, herdrPane, herdrWorkspace, layoutOf, paneOf, panesIn, readPane, sendInput, sendKeys, serverOf, splitPane, tabOf, versionOf } from './client.js';
 
 afterAll(cleanupTempDirs);
 
@@ -108,6 +108,20 @@ describe('herdr', () => {
     servers.push(h.server);
     expect(await createTab(h.socket, { cwd: '/home/u', label: 'pay retries', env: { YAN_VAULT: '/v' } })).toBe('w1:p9');
     expect(h.asked).toEqual([{ method: 'tab.create', params: { cwd: '/home/u', label: 'pay retries', env: { YAN_VAULT: '/v' }, focus: false } }]);
+  });
+
+  it('opens a tab in the workspace it is given, and in the focused one when herdr no longer has that workspace', async () => {
+    expect(herdrWorkspace({ HERDR_ENV: '1', HERDR_WORKSPACE_ID: 'w7' })).toBe('w7');
+    expect(herdrWorkspace({ HERDR_WORKSPACE_ID: 'w7' }), 'not in herdr').toBeUndefined();
+    expect(herdrWorkspace({ HERDR_ENV: '1' }), 'a herdr that names none').toBeUndefined();
+
+    const made = { result: { type: 'tab_created', tab: { tab_id: 'w7:t4' }, root_pane: { pane_id: 'w7:p9', agent_status: 'unknown' } } };
+    const h = await fakeHerdr((_method, params) => (params.workspace_id === 'gone' ? { error: { code: 'workspace_not_found', message: 'workspace gone not found' } } : made));
+    servers.push(h.server);
+    const tab = { cwd: '/home/u', label: 'pay retries', env: {} };
+    expect(await createTab(h.socket, { ...tab, workspace: 'w7' })).toBe('w7:p9');
+    expect(await createTab(h.socket, { ...tab, workspace: 'gone' })).toBe('w7:p9');
+    expect(h.asked.map((a) => a.params.workspace_id)).toEqual(['w7', 'gone', undefined]);
   });
 
   it('reads what a pane shows, and closes the tab it is in', async () => {

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, createTab, readPane, sendText, serverOf } from '../../externals/herdr/index.js';
+import { CONTROL_SINCE, atLeast, createTab, herdrWorkspace, readPane, sendText, serverOf } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
@@ -140,7 +140,7 @@ export class Launches {
       if (!herdr.running) return void res.writeHead(409).end('herdr is not running: open it in a terminal first');
       if (!atLeast(herdr.version, CONTROL_SINCE)) return void res.writeHead(409).end(`herdr ${herdr.version} is too old: ${CONTROL_SINCE} or newer is needed`);
       // The shell starts where bare `yan` typed by hand would, and in the vault serve shows, whichever is this machine's own.
-      const pane = await createTab(herdr.socket, { cwd: homedir(), label: title, env: { YAN_VAULT: this.vault } });
+      const pane = await createTab(herdr.socket, { cwd: homedir(), label: title, env: { YAN_VAULT: this.vault }, workspace: herdrWorkspace(process.env) });
       const words = [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), ...args];
       await shellReady(herdr.socket, pane);
       await sendText(herdr.socket, pane, `${words.map(quoted).join(' ')}\r`);

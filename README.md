@@ -547,7 +547,10 @@ tasks, ↑ and ↓ move in it and Enter picks, a click picks and keeps it open.
 Enter goes on, ⌘ or Ctrl with it creates at once, and Escape closes the
 list, then the box. Created, serve opens a herdr tab named for it and
 types bare `yan` into it with those answers (`yan --new`), in the vault the
-page shows; one serve cannot start says why in the box. The middle column
+page shows. A tab serve opens, this one, a continued task's or a worktree's, goes in the herdr
+workspace `yan serve` was started in, wherever you are working in herdr
+at that moment, and in the focused workspace when serve was not started
+in herdr or that workspace has closed; one serve cannot start says why in the box. The middle column
 is the task as it is made, its title and repositories, and the right one
 that tab as bare `yan` makes the task and its trees, pushes it and starts
 the agent; once the task is in the vault the page is its own Terminal. herdr has to be running on this machine; serve finds it as

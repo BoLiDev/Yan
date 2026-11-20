@@ -1,5 +1,5 @@
 import type { ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, closeTab, createTab, layoutOfTab, serverOf, tabOf, versionOf } from '../../externals/herdr/index.js';
+import { CONTROL_SINCE, atLeast, closeTab, createTab, herdrWorkspace, layoutOfTab, serverOf, tabOf, versionOf } from '../../externals/herdr/index.js';
 import { leasesHeldBy } from '../../externals/worktree/index.js';
 import { Task } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
@@ -80,7 +80,7 @@ export class Worktrees {
       const herdr = await serverOf(bin);
       if (!herdr.running) return void res.writeHead(409).end('herdr is not running: open it in a terminal first');
       if (!atLeast(herdr.version, CONTROL_SINCE)) return void res.writeHead(409).end(`herdr ${herdr.version} is too old: ${CONTROL_SINCE} or newer is needed`);
-      const pane = await createTab(herdr.socket, { cwd: tree, label: `${title || task} · ${name}`, env: { YAN_VAULT: this.vault, YAN_TASK: task } });
+      const pane = await createTab(herdr.socket, { cwd: tree, label: `${title || task} · ${name}`, env: { YAN_VAULT: this.vault, YAN_TASK: task }, workspace: herdrWorkspace(process.env) });
       const tab = await tabOf(herdr.socket, pane);
       holdWorktreeTab({ vault: this.vault, task, tree, name, tab, socket: herdr.socket, bin });
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ tab }));

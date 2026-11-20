@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createConnection } from 'node:net';
-import { YanError } from '../../util/error.js';
+import { YanError, isYanError } from '../../util/error.js';
 
 /**
  * herdr, the terminal multiplexer an agent may run in: its socket API, as
@@ -196,12 +196,33 @@ export function serverOf(bin: string): Promise<Server> {
 }
 
 /**
- * A new tab in herdr's focused workspace, named `label`, its shell started
- * in `cwd` with `env` beside herdr's own, herdr's focus left where it is.
+ * The herdr workspace this process was started in, as herdr names it to
+ * each of its panes; none outside herdr, or under a herdr from before it
+ * said.
+ */
+export function herdrWorkspace(env: NodeJS.ProcessEnv): string | undefined {
+  return env.HERDR_ENV === '1' ? env.HERDR_WORKSPACE_ID?.trim() || undefined : undefined;
+}
+
+/**
+ * A new tab named `label`, its shell started in `cwd` with `env` beside
+ * herdr's own, herdr's focus left where it is. It goes in `workspace` when
+ * one is given and herdr still has it, and in herdr's focused workspace
+ * otherwise: the focused one is wherever `user` happens to be working in
+ * herdr at that moment, so tabs opened from one place landed in several.
  * Its first pane.
  */
-export async function createTab(socket: string, tab: { readonly cwd: string; readonly label: string; readonly env: Readonly<Record<string, string>> }): Promise<string> {
-  return (await call<{ root_pane: { pane_id: string } }>(socket, 'tab.create', { cwd: tab.cwd, label: tab.label, env: tab.env, focus: false })).root_pane.pane_id;
+export async function createTab(socket: string, tab: { readonly cwd: string; readonly label: string; readonly env: Readonly<Record<string, string>>; readonly workspace?: string }): Promise<string> {
+  const params = { cwd: tab.cwd, label: tab.label, env: tab.env, focus: false };
+  const make = async (where: Record<string, string>): Promise<string> => (await call<{ root_pane: { pane_id: string } }>(socket, 'tab.create', { ...where, ...params })).root_pane.pane_id;
+  if (tab.workspace === undefined) return make({});
+  try {
+    return await make({ workspace_id: tab.workspace });
+  } catch (err) {
+    // The workspace closed since, or this is another herdr's socket: the tab is still wanted.
+    if (isYanError(err) && err.code === 'workspace_not_found') return make({});
+    throw err;
+  }
 }
 
 /** One frame of a pane's stream: ANSI bytes, base64, for a terminal `width` by `height`; a `full` one draws it all. */
