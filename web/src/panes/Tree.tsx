@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, cloneElement, type ReactElement, type ReactNode } from 'react';
 import { badge, baseName, compactDir, kindOf, sortedDirs, sortedFiles, type TreeFile, type TreeNode } from '../lib/files';
 import { Icon } from '../components/Icon';
 import { ASIDE, Dot, GROW, KIND, THUMB, row } from '../components/page';
@@ -26,6 +26,14 @@ export interface TreeOptions<F extends TreeFile> {
   tip?: (f: F) => string;
   lead?: (f: F) => ReactNode;
   extra?: (f: F) => ReactNode;
+  /** A row's own menu on a right click: `row` drawn with `inside` it, in whatever opens the menu. Without it, a row is only itself. */
+  menu?: (item: { readonly path: string; readonly dir: boolean }, row: ReactElement, inside: ReactNode) => ReactNode;
+}
+
+/** A row with what it holds, in its menu when the tree gives its rows one. */
+function drawn<F extends TreeFile>(o: TreeOptions<F>, key: string, path: string, dir: boolean, row: ReactElement, inside: ReactNode): ReactNode {
+  if (o.menu) return <Fragment key={key}>{o.menu({ path, dir }, row, inside)}</Fragment>;
+  return cloneElement(row, { key }, inside);
 }
 
 export function FileThumb({ path, sha }: { path: string; sha?: string }) {
@@ -47,15 +55,16 @@ function rows<F extends TreeFile & { readonly sha?: string }>(node: TreeNode<F>,
     const { name, dir } = o.compact ? compactDir(top) : { name: top.name, dir: top };
     const open = o.isOpen(dir.path);
     const current = o.folder === dir.path;
-    out.push(
-      <a key={`d:${dir.path}`} className={cn(row({ on: current, at: 'tree' }), 'py-[5px]')}
+    out.push(drawn(o, `d:${dir.path}`, dir.path, true,
+      <a className={cn(row({ on: current, at: 'tree' }), 'py-[5px]')}
         href={o.folderHref ? o.folderHref(dir.path) : undefined} style={{ paddingLeft: `${10 + depth * step}px` }}
         role="treeitem" aria-expanded={open} aria-current={current ? 'true' : undefined} title={dir.path}
         onClick={() => {
           if (!o.folderHref) o.setOpen(dir.path, !open);
           else if (open && current) o.setOpen(dir.path, false);
           else o.setOpen(dir.path, true);
-        }}>
+        }} />,
+      <>
         <span className={cn('flex-none text-ink-3 transition-transform duration-100', open && 'rotate-90')} role="button" aria-label={open ? 'Close the folder' : 'Open the folder'} onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -65,21 +74,22 @@ function rows<F extends TreeFile & { readonly sha?: string }>(node: TreeNode<F>,
         <span className={GROW}>{name}</span>
         {o.newIn?.(dir.path) ? <Dot title="something new inside" /> : null}
         <span className={ASIDE}>{dir.count}</span>
-      </a>,
-    );
+      </>,
+    ));
     if (open) rows(dir, depth + 1, o, out);
   }
   for (const f of sortedFiles(node)) {
     const name = baseName(f.path);
     const on = o.file === f.path;
-    out.push(
-      <a key={`f:${f.path}`} className={row({ on, at: 'tree' })} href={o.fileHref(f.path)} style={{ paddingLeft: `${32 + depth * step}px` }}
-        role="treeitem" aria-selected={on} aria-current={on ? 'true' : undefined} title={o.tip ? o.tip(f) : f.path}>
+    out.push(drawn(o, `f:${f.path}`, f.path, false,
+      <a className={row({ on, at: 'tree' })} href={o.fileHref(f.path)} style={{ paddingLeft: `${32 + depth * step}px` }}
+        role="treeitem" aria-selected={on} aria-current={on ? 'true' : undefined} title={o.tip ? o.tip(f) : f.path} />,
+      <>
         {o.lead ? o.lead(f) : o.thumbs === false ? <span className={KIND}>{badge(name)}</span> : <FileThumb path={f.path} sha={f.sha} />}
         <span className={GROW}>{name}</span>
         {o.isNew?.(f) ? <Dot title="new since your last look" /> : null}
         {o.extra ? o.extra(f) : null}
-      </a>,
-    );
+      </>,
+    ));
   }
 }

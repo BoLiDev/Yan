@@ -4,6 +4,7 @@ import { buildTree, foldersAbove } from '../../lib/files';
 import { link, type TaskRoute } from '../../lib/route';
 import { NOTHING_UNSEEN, logFresh, markTaskRead, unseenOf, type Seen } from '../../lib/seen';
 import { GROW, SUBLABEL, Tool } from '../../components/page';
+import { ArtifactMenu } from '../../components/ArtifactMenu';
 import { Button } from '../../components/ui/button';
 import { setSeen, useUI } from '../../state/ui';
 import { TreeRows } from '../Tree';
@@ -44,6 +45,7 @@ export function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: T
               folderHref: (p) => link.folder(t.id, p),
               isNew: (f) => unseen.has(f.path),
               newIn: (dir) => [...unseen.keys()].some((p) => p.startsWith(`${dir}/`)),
+              menu: (item, row, inside) => <ArtifactMenu task={t.id} path={item.path} dir={item.dir} render={row}>{inside}</ArtifactMenu>,
             }} />
           </div>
         ) : <div className={SUBLABEL}>No artifacts yet.</div>}

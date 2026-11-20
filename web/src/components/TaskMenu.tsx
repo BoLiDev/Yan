@@ -3,8 +3,8 @@ import { composing } from '../lib/keys';
 import { postJSON, type TaskSummary, type WriteResult } from '../lib/api';
 import { go, link } from '../lib/route';
 import { goesOn, isPaused } from '../lib/stops';
-import { onStatus, queryClient, useIndex, useTerminals, writeTask } from '../state/server';
-import { message, toast, useUI, type TaskAct } from '../state/ui';
+import { queryClient, useIndex, useTerminals, writeTask, wrote } from '../state/server';
+import { useUI, type TaskAct } from '../state/ui';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu';
@@ -62,13 +62,6 @@ function wordsOf(act: TaskAct, title: string, running: boolean): { title: string
   return { title: `Give up ${act.id}?`, sub: `${who} closes “${title}” as given up, with your reason, ${how}`, action: 'Give up', field: 'Why it is given up' };
 }
 
-/** A change serve made itself, said in a word at the top, or in a toast when its push failed, and shown once the vault has it. */
-function said(out: WriteResult, what: string): void {
-  if (out.warning) toast(`${what}, but the push failed: ${out.warning}`, true);
-  else message.success(what);
-  void onStatus(out.status);
-}
-
 /**
  * What `act` asks of serve, with the line typed. A new title is written
  * and pushed as any change from the page is, and so is a pause serve could
@@ -78,10 +71,10 @@ function said(out: WriteResult, what: string): void {
  * watch it.
  */
 async function perform(act: TaskAct, line: string): Promise<void> {
-  if (act.kind === 'rename') return said(await postJSON<WriteResult>('/api/task/title', { task: act.id, title: line }), `Renamed ${act.id}`);
+  if (act.kind === 'rename') return wrote(await postJSON<WriteResult>('/api/task/title', { task: act.id, title: line }), `Renamed ${act.id}`);
   if (act.kind === 'pause') {
     const out = await postJSON<WriteResult | { typed: true } | { launch: string }>('/api/task/pause', { task: act.id });
-    if ('ok' in out) return said(out, `Paused ${act.id}`);
+    if ('ok' in out) return wrote(out, `Paused ${act.id}`);
   } else {
     await postJSON('/api/task/close', act.kind === 'abandon' ? { task: act.id, abandon: line } : { task: act.id });
   }

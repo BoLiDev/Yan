@@ -436,6 +436,39 @@ describe('a Markdown artifact edited on yan serve', () => {
   });
 });
 
+describe('an artifact renamed or deleted on yan serve', () => {
+  const paths = async (): Promise<string[]> => ((await (await fetch(page('/api/task/t031'))).json()) as { files: { path: string }[] }).files.map((f) => f.path).sort();
+  const pushed = async (): Promise<string> => (await fxGit(['log', '-1', '--format=%s'], bare)).stdout.trim();
+
+  it('takes its new name where it is, a folder with all it holds, never over another; and is gone when deleted, pushed either way', async () => {
+    await commit('t031', { 'task.json': task('t031', 'kept'), 'artifacts/docs/notes.md': '# Notes\n', 'artifacts/docs/plan.md': '# Plan\n', 'artifacts/shot.png': 'png' }, 'things to rename');
+    await until(async () => ((await paths()).length === 3 ? true : undefined), 20_000);
+    const rename = (path: string, name: string, origin?: string): Promise<Response> => post('/api/artifact/rename', { task: 't031', path, name }, origin);
+    const remove = (path: string): Promise<Response> => post('/api/artifact/remove', { task: 't031', path });
+
+    expect((await rename('docs/notes.md', 'x.md', 'http://evil.example')).status).toBe(403);
+    expect((await rename('../task.json', 'x.json')).status).toBe(400);
+    expect((await rename('docs/notes.md', '../../task.json')).status).toBe(400);
+    expect((await rename('docs/notes.md', '.hidden')).status).toBe(400);
+    expect((await rename('docs/none.md', 'x.md')).status).toBe(404);
+    expect((await rename('docs/notes.md', 'plan.md')).status, 'not over another').toBe(409);
+    expect((await remove('../task.json')).status).toBe(400);
+
+    expect((await rename('docs/notes.md', 'findings.md')).status).toBe(200);
+    expect(await paths()).toEqual(['docs/findings.md', 'docs/plan.md', 'shot.png']);
+    expect(await pushed()).toBe('t031: docs/notes.md renamed findings.md in yan serve');
+
+    expect((await rename('docs', 'papers')).status).toBe(200);
+    expect(await paths()).toEqual(['papers/findings.md', 'papers/plan.md', 'shot.png']);
+
+    expect((await remove('shot.png')).status).toBe(200);
+    expect((await remove('papers')).status).toBe(200);
+    expect(await paths()).toEqual([]);
+    expect(existsSync(join(home, 'tasks/t031/artifacts/papers'))).toBe(false);
+    expect(await pushed()).toBe('t031: papers deleted in yan serve');
+  });
+});
+
 describe('a review written on yan serve', () => {
   it('is a file in the task\'s reviews, committed and pushed at once, which yan review prints to an agent', async () => {
     await commit('t008', { 'task.json': task('t008', 'reviewed') }, 'a task to review');

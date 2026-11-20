@@ -29,6 +29,7 @@ import { PICTURE_LIMIT, addPicture, deleteDraft, listDrafts, writeDraft, type An
 import { LaterPush } from './later-push.js';
 import { buildLoads, buildPrint } from './build.js';
 import { fileHistory } from './history.js';
+import { removeArtifact, renameArtifact } from './artifact-files.js';
 import { REVIEW_SCRIPT, REVIEW_SCRIPT_PATH, withReview } from './review-frame.js';
 
 /**
@@ -757,6 +758,8 @@ export class YanServer {
     '/api/resource': this.change((res, given) => this.setResource(res, given)),
     '/api/agents': this.change((res, given) => this.orderAgents(res, given)),
     '/api/report/edit': this.change((res, given) => this.editReport(res, given)),
+    '/api/artifact/rename': this.change((res, given) => this.changeArtifact(res, given, true)),
+    '/api/artifact/remove': this.change((res, given) => this.changeArtifact(res, given, false)),
     // A draft's writing is done on disk at once, nothing waiting on git: LaterPush commits and pushes later.
     '/api/draft': { does: 'write a draft', json: true, run: async (res, given) => answer(res, writeDraft(given, () => this.later.touched())) },
     '/api/draft/delete': { does: 'delete a draft', json: true, run: async (res, given) => answer(res, deleteDraft(given, () => this.later.touched())) },
@@ -1030,6 +1033,21 @@ export class YanServer {
       if (stuck !== null) return send(res, 409, `nothing was changed: ${stuck}`);
       return this.writeArtifact(res, id, path, sha, text);
     });
+  }
+
+  /**
+   * `{ task, path, name }` or `{ task, path }`: an artifact, a file or a
+   * folder of them, renamed where it is or deleted from the page, and
+   * that committed and pushed as any change from the page is.
+   */
+  private async changeArtifact(res: ServerResponse, given: Record<string, unknown>, rename: boolean): Promise<void> {
+    const [id, path, name] = [given.task, given.path, given.name];
+    if (typeof id !== 'string' || !Task.isId(id) || typeof path !== 'string' || (rename && typeof name !== 'string')) {
+      return send(res, 400, rename ? 'task, path and name are needed' : 'task and path are needed');
+    }
+    const out = rename ? renameArtifact(this.options.vaultDir, id, path, name as string) : removeArtifact(this.options.vaultDir, id, path);
+    if ('refused' in out) return send(res, out.status, out.refused);
+    return this.save(res, `${id}: ${out.did} in yan serve`);
   }
 
   /** The Markdown artifact written over, once the vault is level with what the page shows. */

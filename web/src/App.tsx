@@ -11,6 +11,7 @@ import { DraftsModal } from './components/drafts/DraftsModal';
 import { NewTaskModal } from './components/NewTask';
 import { SettingsModal } from './components/Settings';
 import { TaskActModal } from './components/TaskMenu';
+import { ArtifactActModal } from './components/ArtifactMenu';
 import { Review } from './components/review/ReviewLazy';
 import { AskModal, Messages } from './components/page';
 import { Toaster } from './components/ui/sonner';
@@ -202,6 +203,7 @@ export function App() {
       <NewTaskModal />
       <DraftsModal />
       <TaskActModal />
+      <ArtifactActModal />
       <SettingsModal />
       <Review />
     </TooltipProvider>
