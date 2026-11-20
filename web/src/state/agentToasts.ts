@@ -42,10 +42,13 @@ const SAID = { finished: 'Finished.', blocked: 'Needs you.' } as const;
  * Tell `user` of `task`'s agent: in a toast at the top right while the task
  * list is shown, and with it folded, in a bubble from the task's square on
  * the rail, unless the task has none there. The toast's button, or a click
- * on the bubble, opens the task's terminal.
+ * on the bubble, opens the task's terminal. Neither comes with
+ * notifications turned off in the settings.
  */
 function tell(task: string, kind: 'finished' | 'blocked'): void {
   const { prefs } = useUI.getState();
+  // Notifications turned off in the settings: nothing pops up, and the dot on the task's row is all that says it.
+  if (!prefs.notify) return;
   const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === task);
   const title = t?.title || task;
   const to = link.terminal(task);

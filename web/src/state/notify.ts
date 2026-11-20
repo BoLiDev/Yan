@@ -14,7 +14,16 @@ import { message, setPref, toast, useUI } from './ui';
  * opens the task to see what came. One per task, a later push replacing the
  * earlier, silent. Chrome asks its permission only on a click, so the switch in
  * the settings asks; whether to notify is this browser's choice, kept in its prefs.
+ *
+ * That one switch is all the page's telling: off, the page tells nothing of
+ * an agent that finished either, in a toast or a bubble (`agentToasts.ts`),
+ * since someone who wants no interruptions wants none of them. On without
+ * Chrome's leave, the page still tells in itself, and only Chrome is silent.
  */
+
+/** Whether `user` wants to be told at all, by the page or by Chrome. */
+export const telling = (): boolean => useUI.getState().prefs.notify;
+
 
 export const canNotify = (): boolean => typeof Notification !== 'undefined';
 export const notifying = (): boolean => canNotify() && useUI.getState().prefs.notify && Notification.permission === 'granted';
@@ -81,17 +90,15 @@ async function notify(index: Index, task: string): Promise<void> {
   };
 }
 
-/** The settings' switch: asks Chrome the first time, and after that turns notifying on and off for this browser. */
+/** The settings' switch: turns telling on and off for this browser, asking Chrome's leave the first time it is turned on. */
 export async function toggleNotify(): Promise<void> {
-  if (notifying()) {
+  if (telling()) {
     setPref('notify', false);
     return;
   }
-  if (Notification.permission === 'denied') {
-    toast('Chrome blocks notifications from this page: allow them from the icon left of the address bar');
-    return;
-  }
-  const got = await Notification.requestPermission();
-  setPref('notify', got === 'granted');
-  if (got === 'granted') message.success('Chrome will say when a push arrives');
+  setPref('notify', true);
+  if (!canNotify()) return;
+  if (Notification.permission === 'default') await Notification.requestPermission();
+  if (Notification.permission === 'granted') message.success('Chrome will say when a push arrives');
+  else toast('The page will tell you here. Chrome blocks its own notifications from this page: allow them from the icon left of the address bar');
 }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { page } from 'vitest/browser';
 import type { Index, TerminalState } from '../lib/api';
+import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
 import { AGENT_TOASTER, useAgentToasts } from '../state/agentToasts';
 import { queryClient } from '../state/server';
@@ -19,11 +20,12 @@ function Page() {
 
 /**
  * The page over a vault of `pay retries`, its agent in a herdr pane here
- * when `here` says how it is, the task list folded unless `shown`. What the
+ * when `here` says how it is, the task list folded unless `shown`, and
+ * notifications on unless `notify` says not. What the
  * herdr says next of a task's agent is moved with what it returns.
  */
-async function open({ here, shown = false, everyS = 10 }: { here?: TerminalState; shown?: boolean; everyS?: number }) {
-  useUI.setState((s) => ({ prefs: { ...s.prefs, left: shown } }));
+async function open({ here, shown = false, everyS = 10, notify = true }: { here?: TerminalState; shown?: boolean; everyS?: number; notify?: boolean }) {
+  useUI.setState((s) => ({ prefs: { ...s.prefs, left: shown, notify } }));
   const ix: Index = index([task('t1', 'pay retries'), task('t2', 'export orders')], { status: { ...status(), everyS } });
   let agents: Record<string, TerminalState> = here === undefined ? {} : { t1: here };
   serve({ '/api/index': () => Response.json(ix), '/api/terminals': () => Response.json(agents) });
@@ -134,5 +136,21 @@ describe('an agent that finishes, with the task list shown', () => {
     expect(bt.left, 'at the right').toBeGreaterThan(w.left + w.width / 2);
     await button.click();
     expect(location.hash).toBe('#/t/t1/terminal');
+  });
+
+  it('is told in nothing that pops up with notifications turned off, list shown or folded, its row still marked', async () => {
+    const { screen, herdr } = await open({ here: agent('working', 100, 'idle'), shown: true, notify: false });
+    // One a test before left up is not this one's.
+    toast.dismiss();
+    await expect.poll(() => page.getByText('Its agent has finished.').query()).toBeNull();
+    await herdr(agent('done', 200));
+    await expect.element(screen.getByTitle(/pay retries.*agent finished/)).toBeVisible();
+    expect(page.getByText('Its agent has finished.').query()).toBeNull();
+
+    useUI.setState((s) => ({ prefs: { ...s.prefs, left: false } }));
+    await herdr(agent('blocked', 300, 'done'));
+    await expect.element(screen.getByRole('link', { name: /pay retries · agent needs you/ })).toBeVisible();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(page.getByRole('status', { name: 'pay retries' }).query(), 'no bubble either').toBeNull();
   });
 });

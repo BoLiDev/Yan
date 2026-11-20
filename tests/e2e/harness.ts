@@ -99,7 +99,7 @@ export async function serve(home: string, env: Readonly<Record<string, string>> 
 let browser: Browser | undefined;
 
 /** A fresh browser page, the one browser shared by the file; whatever the page throws fails the test that reads `errors`. */
-export async function open(url: string): Promise<{ page: Page; errors: string[] }> {
+export async function open(url: string, prefs?: Readonly<Record<string, unknown>>): Promise<{ page: Page; errors: string[] }> {
   browser ??= await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
@@ -108,6 +108,8 @@ export async function open(url: string): Promise<{ page: Page; errors: string[] 
   page.on('console', (m) => {
     if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
   });
+  // What this browser was set to before, as its settings keep it.
+  if (prefs) await context.addInitScript((kept) => { if (localStorage.getItem('yan.serve.prefs') === null) localStorage.setItem('yan.serve.prefs', kept); }, JSON.stringify(prefs));
   await page.goto(url);
   return { page, errors };
 }

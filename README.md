@@ -201,12 +201,15 @@ build by itself once that build is complete and starts, in the same process
 and on the same port, and an open page reloads onto it. The cog beside the task list's name opens the settings,
 one box for what this browser is set to: the theme, light or dark as the
 browser asks or as picked there, a terminal being dark either way;
-notifications; the marks on what is new; and yan's own updates. With
+notifications; the marks on what is new; and yan's own updates. Notifications
+are one switch for all that pops up: off, as it starts, neither Chrome nor
+the page tells of anything, an agent that finished included, and the marks
+are all that say it. With
 notifications on, Chrome shows a silent macOS
 notification when a push arrives, the task's name as its title and nothing
 else, and clicking it opens the task; the page has to be open for
 it, in the background or minimised, and Chrome's permission is asked on the
-first click. Opened at no task, the page goes to one, the last read in this
+first click; refused, the page still tells in itself. Opened at no task, the page goes to one, the last read in this
 browser, or else the one worked on last: there is no page of what arrived,
 each task saying what it has that is new. A task's row in the list says
 what a push brought it, as counts added, changed and deleted. A file a push added or
@@ -219,7 +222,7 @@ dots alike, are turned off in the settings by themselves, apart from
 notifications, since being told and being shown are different wants; what
 was looked at is still kept meanwhile, so turned on again they mark only
 what is new then. serve asks herdr every few seconds what each task's agent
-is up to, whether or not a page is open. An agent that
+is up to, whether or not a page is open. With notifications on, an agent that
 finishes, or comes to wait on you, is also told at the page's top right,
 with a button to its terminal, unless the page is showing that task; it
 is white with its button black in either theme, so it stands off a dark

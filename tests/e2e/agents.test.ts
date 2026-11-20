@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright';
 import { AGENT_PANE, startFakeHerdr, type FakeHerdr } from '../helpers/fake-herdr.js';
 import { cleanupTempDirs } from '../helpers/fixtures.js';
-import { closeBrowser, open, serve, taskJson, vault, write, type Served } from './harness.js';
+import { closeBrowser, open as openPage, serve, taskJson, vault, write, type Served } from './harness.js';
 
 /**
  * What a task's agent is up to, at a glance: told at the page's top right
@@ -13,6 +13,9 @@ import { closeBrowser, open, serve, taskJson, vault, write, type Served } from '
  * the task list and on the rail it folds to, where it is told in a bubble, and no longer news once its terminal is typed in. herdr is the stand-in (tests/helpers/fake-herdr.ts),
  * whose agent a test moves from one status to the next.
  */
+
+/** The page in a browser with notifications turned on in its settings, which is when an agent is told of. */
+const open = (url: string): ReturnType<typeof openPage> => openPage(url, { notify: true });
 
 let served: Served;
 let h: FakeHerdr;
