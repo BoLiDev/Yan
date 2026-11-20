@@ -5,7 +5,7 @@ import type { Index, TerminalState } from '../lib/api';
 import { link, parseRoute } from '../lib/route';
 import { goesOn } from '../lib/stops';
 import { popBubble } from './bubbles';
-import { queryClient, useIndex, useTerminals } from './server';
+import { queryClient, useTerminals } from './server';
 import { setSeen, useUI } from './ui';
 
 /** The toaster at the page's top right, apart from the foot's, where what an agent did is told. */
@@ -30,146 +30,76 @@ export function sawAgent(task: string): void {
 }
 
 /**
- * What the page says of an agent when it says nothing itself, in a toast,
- * and in its square's bubble: in the page's own voice, never as the agent,
- * so words the agent did not say are not taken for its.
+ * What the page says of a task's agent, in a toast and in its square's
+ * bubble: that it finished or needs `user`, the same words each time. It
+ * is a nudge to go and look; what the agent has to say is read in its
+ * terminal.
  */
 const TOLD = { finished: 'Its agent has finished.', blocked: 'Its agent needs you.' } as const;
-const SAID = { finished: 'Finished, without saying where things stand.', blocked: 'Needs you: a question or a permission.' } as const;
-
-/** Finishes told on the rail whose words are not in yet: each waited for, without a sign, until they come or time is up. */
-const awaited = new Map<string, ReturnType<typeof setTimeout>>();
-
-/** Nothing waited for any more: a test's page starts with none. */
-export function forgetAwaited(): void {
-  for (const id of awaited.values()) clearTimeout(id);
-  awaited.clear();
-}
+const SAID = { finished: 'Finished.', blocked: 'Needs you.' } as const;
 
 /**
  * Tell `user` of `task`'s agent: in a toast at the top right while the task
  * list is shown, and with it folded, in a bubble from the task's square on
- * the rail, unless the task has none there. The toast says only that it
- * finished or needs `user`, in the page's words and the same each time:
- * it is a nudge to go and look, and what the agent said is read where it
- * is. The bubble tells what the agent said in its own words. A finish whose words are not in yet waits for them on the
- * rail, with nothing on it, for about as long as serve takes to fetch them,
- * and its bubble pops with them as they come, or with the page's own when
- * they do not, since three dots moving there while nothing is said only take
- * the eye. Its
- * button, or a click on the bubble, opens the task's terminal when its agent
- * runs here; else its agents elsewhere, in the cloud, when it keeps any,
- * which is where words from no terminal here come from; else the task.
+ * the rail, unless the task has none there. The toast's button, or a click
+ * on the bubble, opens the task's terminal.
  */
-function tell(task: string, kind: 'finished' | 'blocked' | 'said', words: string | undefined, terminal: boolean, waited = false): void {
-  clearTimeout(awaited.get(task));
-  awaited.delete(task);
-  const { prefs, last, status } = useUI.getState();
+function tell(task: string, kind: 'finished' | 'blocked'): void {
+  const { prefs } = useUI.getState();
   const t = queryClient.getQueryData<Index>(['index'])?.tasks.find((x) => x.id === task);
   const title = t?.title || task;
-  const away = !terminal && (t?.agents.length ?? 0) > 0;
-  const to = terminal ? link.terminal(task) : away ? link.agent(task) : (last[task] ?? link.task(task));
-  const plain = kind === 'said' ? 'finished' : kind;
-  if (!prefs.left && t !== undefined && goesOn(t)) {
-    if (kind === 'finished' && words === undefined && !waited) {
-      // serve fetches every `everyS`, and the hook commits the words as the turn ends: by then they are in, or are not coming.
-      const wait = Math.min(20, (status?.everyS ?? 10) + 4) * 1000;
-      awaited.set(task, setTimeout(() => {
-        awaited.delete(task);
-        if (lookingAt(task) === null) tell(task, 'finished', undefined, terminal, true);
-      }, wait));
-      return;
-    }
-    popBubble(task, { title, text: words ?? SAID[plain], own: words === undefined, to });
-    return;
-  }
+  const to = link.terminal(task);
+  if (!prefs.left && t !== undefined && goesOn(t)) return popBubble(task, { title, text: SAID[kind], to });
   toast(title, {
     id: `agent:${task}`,
     toasterId: AGENT_TOASTER,
-    description: TOLD[plain],
+    description: TOLD[kind],
     // Its button under its words, at the right, not beside them where it squeezes them into a column.
     classNames: { toast: 'flex-wrap!', content: 'basis-full!', actionButton: 'ml-auto!' },
-    action: { label: terminal ? 'Open terminal' : away ? 'Open agent' : 'Open task', onClick: () => { location.hash = to; } },
+    action: { label: 'Open terminal', onClick: () => { location.hash = to; } },
     duration: 10_000,
   });
 }
 
-/**
- * Words said, as told apart: by what they are and when, not by which is
- * later, since they may come from an agent on another machine, in the
- * cloud, whose clock is not this one's, and only the last is kept.
- */
-const saying = (said: { readonly text: string; readonly at: number }): string => `${said.at}\n${said.text}`;
-
-/** What has been told of each task's agent: its last change, in seconds as serve saw it, and the last words it said. */
-interface Told {
-  readonly changes: Map<string, number>;
-  readonly said: Map<string, string>;
-  /** When the page opened, in seconds: the turn of an agent first seen to change after it began no earlier. */
-  readonly opened: number;
-}
+/** What has been told of each task's agent: its last change, in seconds as serve saw it. */
+type Told = Map<string, number>;
 
 /**
  * Tells `user` when a task's agent finishes, or comes to wait on them for a
- * question or a permission, and when it says something with `yan say`:
- * `user` works elsewhere while agents run, and the page is where they look
- * up. What the page found when it opened is marked in it, not told in a burst,
- * and nothing is told of the task the page shows. One telling a task, a
- * later one taking its place.
+ * question or a permission: `user` works elsewhere while agents run, and the
+ * page is where they look up. What the page found when it opened is marked
+ * in it, not told in a burst, and nothing is told of the task the page
+ * shows. One telling a task, a later one taking its place.
  */
 export function useAgentToasts(): void {
   const { data: terminals } = useTerminals();
-  const { data: index } = useIndex();
-  // What the page found is read as soon as it can be, the marks and the index in: a state that stays the same is
+  // What the page found is read as soon as it can be, the marks in: a state that stays the same is
   // not asked again, so waiting for the next one would take the first change after for what was there.
-  const ready = useUI((s) => s.seen !== null) && index !== undefined;
+  const ready = useUI((s) => s.seen !== null);
   const told = useRef<Told | null>(null);
 
-  const look = useEffectEvent((states: Readonly<Record<string, TerminalState>>, ix: Index) => {
+  const look = useEffectEvent((states: Readonly<Record<string, TerminalState>>) => {
     const seen = useUI.getState().seen;
     if (!seen) return;
     const changes = Object.entries(states).filter(([, s]) => s.title === undefined && s.change !== undefined);
     if (told.current === null) {
-      told.current = {
-        changes: new Map(changes.map(([task, s]) => [task, s.change?.at ?? 0])),
-        said: new Map(ix.tasks.flatMap((t) => (t.said ? [[t.id, saying(t.said)] as const] : []))),
-        opened: Math.floor(Date.now() / 1000),
-      };
+      told.current = new Map(changes.map(([task, s]) => [task, s.change?.at ?? 0]));
       return;
     }
-    const { changes: toldChange, said: toldSaid, opened } = told.current;
     for (const [task, s] of changes) {
       const at = s.change?.at ?? 0;
-      if (at <= (toldChange.get(task) ?? -1)) continue;
-      // A serve started again knows no change until the next, so a turn it first sees end began after the page opened.
-      const before = toldChange.get(task) ?? opened;
-      toldChange.set(task, at);
+      if (at <= (told.current.get(task) ?? -1)) continue;
+      told.current.set(task, at);
       const news = agentNews(task, s, seen);
       if (news.kind !== 'finished' && news.kind !== 'blocked') continue;
       // Nothing is told of the task being read: at its terminal it is seen as it happens; on another of its pages,
       // its Terminal row's dot says it.
       const where = lookingAt(task);
       if (where === 'terminal') setSeen((m) => markAgentSeen(m, task, at));
-      if (where !== null) continue;
-      // Words said since its last change, as the turn began, are this turn's, in already when the push beat herdr.
-      const said = ix.tasks.find((t) => t.id === task)?.said;
-      const words = said && said.at >= before ? said.text : undefined;
-      if (said && words !== undefined) {
-        // Told as they came, which said all this would.
-        if (toldSaid.get(task) === saying(said)) continue;
-        toldSaid.set(task, saying(said));
-      }
-      tell(task, news.kind, words, true);
-    }
-    for (const t of ix.tasks) {
-      if (!t.said || toldSaid.get(t.id) === saying(t.said)) continue;
-      toldSaid.set(t.id, saying(t.said));
-      if (lookingAt(t.id) !== null) continue;
-      const here = states[t.id];
-      tell(t.id, here?.status === 'blocked' ? 'blocked' : 'said', t.said.text, here !== undefined && here.title === undefined);
+      if (where === null) tell(task, news.kind);
     }
   });
   useEffect(() => {
-    if (terminals && index && ready) look(terminals, index);
-  }, [terminals, index, ready]);
+    if (terminals && ready) look(terminals);
+  }, [terminals, ready]);
 }

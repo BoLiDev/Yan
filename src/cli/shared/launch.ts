@@ -34,11 +34,8 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../..
  * started with yan's plugin, whose skills say how to work in a task: what to
  * read, how to keep the notes, when to gather the evidence. Its prompt says
  * only that the task is yan's, where its files are and which folder takes
- * what, which skills there are, and the two moments the agent would not
- * think to look for a skill: when yan:uat is due, and the end of every turn,
- * when it says where things stand with `yan say`. A rule for every turn read
- * once in yan:recap as the session began is soon lost among the turns, and
- * the page then had nothing to tell `user` but its own words. Where the files go is said
+ * what, which skills there are, and the moment the agent would not
+ * think to look for a skill: when yan:uat is due. Where the files go is said
  * there as well as in yan:recap, since an agent writes files whether or not
  * it ran recap first. The skills travel where yan cannot start the agent and
  * so cannot give it a prompt, as a cloud platform that runs agents on its own.
@@ -64,8 +61,6 @@ export function skillsPrompt(taskDir: string): string {
       'yan:define works out the problem and the solution with the user; yan:review takes up a review the user left on yan\'s page; ' +
       'yan:done and yan:pause are the user\'s, to close the task or put it aside.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
-    'As you end every turn, say where things stand in a sentence or two, in the user\'s language, with `yan say "<words>"`, the last thing you run: done, stuck, or what you need from them. ' +
-      'The user is often elsewhere while you work, and yan\'s page shows it to them there.',
   ].join('\n');
 }
 
@@ -103,8 +98,6 @@ export const OPENING_PROMPT = [
     'and take it as the user\'s thinking, not a decision made. Never write, change or remove one: they are the user\'s alone.',
   'When the user says they reviewed the work or left comments, `yan review` prints their last review: a word on it all, then each comment, numbered, under where it is. ' +
     'Act on every one, a question answered, a change made where it says, and say what came of each by its number; the review itself is theirs, never edited.',
-  'As you end a turn, say where things stand in a sentence or two, in the user\'s language, with `yan say "<words>"`: done, stuck, or what you need from them. ' +
-    'They are often elsewhere while you work, and yan shows it to them there, so make it the last thing you run.',
 ].join('\n');
 
 /**

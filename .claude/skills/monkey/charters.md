@@ -88,8 +88,7 @@ and that run different builds.
   delete), a task's overview (editing the problem and deliverables in
   place), Report, Log, MR (branches and diffs), Resources, Agent, the task
   menu (Rename, Pause, Done, Abandon, Resume), the new task box, ⌘K, Tab
-  through the nav, dark and light, toasts and bubbles from `yan say` pushed
-  from machine B; with the fake herdr (`herdr.mjs`) a task's Terminal and
+  through the nav, dark and light; with the fake herdr (`herdr.mjs`) a task's Terminal, the toasts and bubbles of an agent that finishes, and
   Latest's Agents. Check for updates acts on the sandbox's copy of yan,
   which is not a clone; it should say so, not touch the checkout.
 - First moves: open the page, push from B (a say, a new artifact, a renamed

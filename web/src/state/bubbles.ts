@@ -3,21 +3,16 @@ import { create } from 'zustand';
 /**
  * What a task's square says, with the task list folded to the rail, when
  * its agent has something to tell `user`: a bubble from the square, as a
- * toast says it with the list shown. A bubble pops with its words, never
- * before: what the agent said with `yan say` reaches the page with its push,
- * a few seconds after herdr says the turn ended, and the page waits for it
- * without a sign (`agentToasts.ts`). A task that speaks again while its
+ * toast says it with the list shown. A task that speaks again while its
  * bubble is up says it in the same bubble, the new words pushing the old
  * ones out.
  */
 export interface Bubble {
   /** The task's title, over the words. */
   readonly title: string;
-  /** The words: the agent's, or the page's own when the agent's did not come. */
+  /** The words: that its agent finished, or needs `user`. */
   readonly text: string;
-  /** The words are the page's, not the agent's: drawn apart from words an agent said. */
-  readonly own?: boolean;
-  /** Where a click on it goes: the task's terminal, its agents elsewhere, or the task. */
+  /** Where a click on it goes: the task's terminal. */
   readonly to: string;
   /** Which bubble this is: a bubble popped anew, after the task's last one went, is another. */
   readonly n: number;

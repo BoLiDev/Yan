@@ -332,7 +332,7 @@ describe('pull and push', () => {
     expect((await fxGit(['-C', b, 'rebase', 'origin/main'])).code, 'it conflicts').not.toBe(0);
     const before = readFileSync(join(b, 'tasks', 't001', 'task.json'), 'utf8');
 
-    for (const args of [['say', '--task', 't001', 'Stuck on the rebase.'], ['deliverable', 'add', '--task', 't001', 'it works'], ['pause', 't001']]) {
+    for (const args of [['log', 'agreed', '--task', 't001', 'Stuck on the rebase.'], ['deliverable', 'add', '--task', 't001', 'it works'], ['pause', 't001']]) {
       const r = await runYan(home, args, onB);
       expect(r.code, args.join(' ')).toBe(1);
       expect(r.stderr, args.join(' ')).toContain('in the middle of a rebase');
@@ -340,7 +340,7 @@ describe('pull and push', () => {
     expect(readFileSync(join(b, 'tasks', 't001', 'task.json'), 'utf8'), 'nothing written').toBe(before);
 
     expect((await fxGit(['-C', b, 'rebase', '--abort'])).code).toBe(0);
-    expect((await runYan(home, ['say', '--task', 't001', 'Past the rebase.'], onB)).code).toBe(0);
+    expect((await runYan(home, ['log', 'agreed', '--task', 't001', 'Past the rebase.'], onB)).code).toBe(0);
   });
 
   it('a pull stopped with Ctrl-C half-way through its rebase leaves the vault as it was, not half rebased', async () => {

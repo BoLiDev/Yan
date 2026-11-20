@@ -161,7 +161,6 @@ interface TaskJson {
   readonly resources: readonly (readonly [string, string])[];
   /** Each resource's kind by its name, as task.json keeps them; one with none is general. */
   readonly resourceKinds: Readonly<Record<string, string>>;
-  readonly said: { readonly text: string; readonly at: number } | null;
 }
 
 /** What can be read of a task.json, whatever shape it is in; nothing in it is required. */
@@ -193,17 +192,9 @@ export function readTaskJson(raw: unknown): TaskJson {
     })),
     resources: Object.entries(asRecord(r.resources)).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)] as const),
     resourceKinds: Object.fromEntries(Object.entries(asRecord(r.resourceKinds)).filter((e): e is [string, string] => typeof e[1] === 'string')),
-    said: saidOf(r.said),
   };
 }
 
-/** What the agent last said and when, in seconds; null for nothing, or for a time nobody can read. */
-function saidOf(raw: unknown): TaskJson['said'] {
-  const said = asRecord(raw);
-  const words = text(said.text);
-  const at = Date.parse(text(said.at) ?? '');
-  return words === null || Number.isNaN(at) ? null : { text: words, at: Math.floor(at / 1000) };
-}
 
 /** Commits in a row on one task, this close together, are one push. */
 const PUSH_GAP_S = 15 * 60;
@@ -320,7 +311,6 @@ export class VaultView {
         artifacts: shown.length,
         added: shown.map((e) => this.times.get(e.path)?.added ?? 0).sort((a, b) => b - a),
         touched,
-        said: json.said,
         rev: rev.digest('hex').slice(0, 16),
       });
     }

@@ -214,7 +214,6 @@ export async function pullNow(): Promise<void> {
   }
 }
 
-/** One change to a task's files from the page, said in a toast; the page shows it once the vault has it. */
 /** A change serve made itself, said in a word at the top, or in a toast when its push failed, and shown once the vault has it. */
 export function wrote(out: WriteResult, what: string): void {
   if (out.warning) toast(`${what}, but the push failed: ${out.warning}`, true);
@@ -222,6 +221,7 @@ export function wrote(out: WriteResult, what: string): void {
   void onStatus(out.status);
 }
 
+/** One change to a task's files from the page, said in a toast; the page shows it once the vault has it. */
 export function writeTask(url: string, value: { readonly task: string } & Record<string, unknown>, said: string): Promise<boolean> {
   return postJSON<WriteResult>(url, value).then((out) => {
     wrote(out, said);

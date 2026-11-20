@@ -275,7 +275,6 @@ if (!empty) {
         "printf '# 背景\\n\\n首页在慢网下要等 5 秒。\\n' > \"$YAN_VAULT/tasks/$YAN_TASK/problem.md\"",
         "git switch -q -c perf/first-paint && yan branch",
         "echo 'export const lazy = true;' >> src/app.js && git commit -qam 'lazy first paint'",
-        "yan say '首屏的改动做完了一半，等你看一下方向'",
       ].join(' && '),
     },
   });
@@ -326,7 +325,7 @@ The agent CLIs are fakes. Each start appends one JSON line to
 ${p.calls}: its argv, cwd, the YAN_* variables it was given, and
 what its hooks and $MONKEY_AGENT_DO did. To have the "agent" do something
 during its turn, set MONKEY_AGENT_DO to a shell snippet (it runs in the
-worktree, with the agent's environment, so \`yan say hi\` there acts on the task);
+worktree, with the agent's environment, so \`yan log agreed hi\` there acts on the task);
 MONKEY_AGENT_EXIT sets its exit status. Bare \`yan\` needs a terminal. Give it
 tmux whenever it may ask anything (after a resume it may ask whether to open
 a worktree):

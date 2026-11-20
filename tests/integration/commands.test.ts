@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDirs, giveOrigin, mkTempDir, mkYanHome, onOrigin, repoRoot, runYan } from '../helpers/fixtures.js';
+import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
 import { Task } from '../../src/records/task/index.js';
 
@@ -72,8 +72,6 @@ describe('the surface', () => {
       expect(r.stderr, args.join(' ')).toBe('');
       expect(r.code, args.join(' ')).toBe(0);
     }
-    expect((await cutShort(['say', '--task', 't001', 'Retries are in.'])).code).toBe(0);
-    expect(new Task('t001').read().said?.text, 'said all the same').toBe('Retries are in.');
   });
 });
 
@@ -95,39 +93,6 @@ describe('yan log', () => {
     expect(readFileSync(join(home, 'tasks', 't001', 'log.md'), 'utf8')).toContain('by flag');
     expectUsage(await yan(['log']), '--task <id>');
     expectUsage(await yan(['log', '--task', 't404']), 'no such task: t404');
-  });
-});
-
-describe('yan say', () => {
-  it('keeps the last thing said to the user, its lines run into one, and reads it back', async () => {
-    const env = { YAN_TASK: 't001' };
-    expect(JSON.parse((await yan(['say', '--json'], env)).stdout), 'nothing said yet').toBeNull();
-    expect((await yan(['say', 'Retries are in.\n  The PR waits on your review.'], env)).code).toBe(0);
-    expect(JSON.parse((await yan(['say', '--json'], env)).stdout)).toEqual({ text: 'Retries are in. The PR waits on your review.', at: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/) });
-
-    expect((await yan(['say', '卡住了：staging', '拒绝了我们的 key。'], env)).code).toBe(0);
-    const said = JSON.parse((await yan(['say', '--json'], env)).stdout) as unknown;
-    expect(said, 'in place of the one before').toMatchObject({ text: '卡住了：staging 拒绝了我们的 key。' });
-    expect(JSON.parse(readFileSync(join(home, 'tasks', 't001', 'task.json'), 'utf8')).said).toEqual(said);
-    expect((await yan(['say'], env)).stdout).toContain('卡住了：staging 拒绝了我们的 key。');
-  });
-
-  it('commits and pushes the vault at once, so it reaches a yan serve anywhere with no hook to push it', async () => {
-    const origin = await giveOrigin(home);
-    const said = await yan(['say', 'Retries are in.'], { YAN_TASK: 't001' });
-    expect(said.stdout).toContain('pushed');
-    const there = JSON.parse((await onOrigin(origin, 'tasks/t001/task.json')) ?? '{}') as { said?: unknown };
-    expect(there.said).toMatchObject({ text: 'Retries are in.' });
-  });
-
-  it('refuses nothing to say, and more than a sentence or two, a Chinese character taking two columns', async () => {
-    const env = { YAN_TASK: 't001' };
-    expectUsage(await yan(['say', '   '], env), 'say something');
-    expect((await yan(['say', 'a'.repeat(200)], env)).code).toBe(0);
-    expectUsage(await yan(['say', 'a'.repeat(201)], env), 'a sentence or two');
-    expect((await yan(['say', '好'.repeat(100)], env)).code).toBe(0);
-    expectUsage(await yan(['say', '好'.repeat(101)], env), 'a sentence or two');
-    expect(JSON.parse((await yan(['say', '--json'], env)).stdout)).toMatchObject({ text: '好'.repeat(100) });
   });
 });
 

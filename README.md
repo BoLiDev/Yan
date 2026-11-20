@@ -77,7 +77,7 @@ stands, then `yan pause`; and `yan:review`, to take up a review you wrote on
 `yan serve`'s page: it reads the newest with `yan review`, acts on every
 comment, and answers each by its number. Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
-which skills there are, that an implementation ends with `yan:uat`, and that every turn ends with `yan say`. A skill can be carried where yan does not start the
+which skills there are, and that an implementation ends with `yan:uat`. A skill can be carried where yan does not start the
 agent and so cannot give it a prompt. A machine can give claude skills of
 its own besides, such as the ones a workplace keeps: `skillDir` in
 `~/.yan/config.json`, a folder or a list of them, `~` for the home
@@ -87,8 +87,8 @@ named by its `.claude-plugin/plugin.json` or else by its folder, or a folder
 of plugins. A `skillDir` that is not a folder stops bare `yan` before it
 asks anything. Codex and Agy take no plugin, so their
 prompt says it all: which tree is which and what in them the task is about,
-where the task's own files are, how the branches are kept, how the
-evidence is gathered, and that a turn ends with `yan say`.
+where the task's own files are, how the branches are kept, and how the
+evidence is gathered.
 
 `yan:uat` gathers what you check the result by in artifacts/uat/,
 deliverable by deliverable, in one pass after the implementation: the before
@@ -175,7 +175,6 @@ For the agent:
 - `yan branch abandon <name>` — mark a branch given up, as soon as its work moves to another or stops; nothing is deleted, and keeping it again opens it again
 - `yan learn add|ls` — a learning, written only when you ask for one
 - `yan review [name]` — your last review of the task, as you wrote it on `yan serve`'s page: a word on it all, then each comment, numbered, under where it is, with what you had selected; `--list` names them all. Reviews are yours: an agent reads them and never writes one
-- `yan say "<words>"` — where things stand as the agent ends a turn, a sentence or two in your language: done, stuck, or what it needs from you. Only the last is kept, in task.json, committed and pushed at once, so `yan serve` on any machine shows it to you wherever you are on the page, from an agent in the cloud as from one here; at most 200 columns, a Chinese character taking two. Bare, what was said last
 
 `yan <command> --help` says the rest. Every command that takes a task reads
 `$YAN_TASK` when none is given, which is what `yan` sets for the agent it
@@ -185,9 +184,7 @@ An agent yan did not start, as one in a cloud container is, works with
 these the same way once yan is installed where it runs and the vault is
 cloned there (`yan vault clone <url>`, by a URL that machine can push to),
 its task given it by `$YAN_TASK` or `--task`. No hook pulls or pushes for
-it, so it pushes the vault itself with `yan vault push` before it stops;
-`yan say` pushes as it says, so what it says reaches your page by serve's
-next fetch, in a toast or a bubble as from an agent here.
+it, so it pushes the vault itself with `yan vault push` before it stops.
 
 `yan serve` runs until stopped, at `http://localhost:4747` (`--port`). At a
 terminal it takes a screen of its own, as `less` does, with no history to
@@ -228,24 +225,16 @@ with a button to its terminal, unless the page is showing that task; it
 is white with its button black in either theme, so it stands off a dark
 page, with no line drawn round it and no button to close it: it is swiped
 off, to either side or off the edge it came from, or left to go. It says only that the agent
-finished or needs you, the same words each time, with its button under them at the right: what the agent said with `yan say` is read where it is,
-not in the toast. An agent running elsewhere,
-on another machine or in the cloud, is told of as its words come, the
-button opening the task's agents elsewhere when it keeps any, or else the
-task. Words are told as they change, not by which is later, since a
-cloud machine's clock is not this one's. With the task list folded to the rail, what would be a
+finished or needs you, the same words each time, with its button under them at the right:
+what the agent has to say is read in its terminal. With the task list folded to the rail, what would be a
 toast is a bubble instead, popping out of the task's square with a hop
-and a wobble, its tail pointing back at it, and only with something to
-say: after a finish the page waits for the agent's words, with nothing on
-the rail meanwhile, and pops the bubble with them as they come, or, when
-none have come by the time serve has fetched again, says the agent is
-done; the task's title over the words. A task that speaks again while its bubble
+and a wobble, its tail pointing back at it, saying the same in a word
+or two, the task's title over the words. A task that speaks again while its bubble
 is up says it in the same bubble, its new words rolling in from below as
 they push the old ones out at the top, the bubble easing to their height
 and width. It is white in either theme as a
 toast is. A square that speaks goes first on the rail as its bubble
-pops, so it does not move when the push its words came
-with reorders the rail; one that begins while others speak goes under
+pops; one that begins while others speak goes under
 them, and the rail opens room between the squares that speak, so every
 bubble stands level with its own square, none covering another; and no
 square or bubble moves until every bubble has gone, when the rail goes

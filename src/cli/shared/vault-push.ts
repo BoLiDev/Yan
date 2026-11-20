@@ -142,7 +142,7 @@ export function commitVault(dir: string, message: string): string[] {
 
 /**
  * Commit and push what a command just changed, so the other machines and
- * every `yan serve` have it now: `yan say`, and what `user` does at a
+ * every `yan serve` have it now: what `user` does at a
  * terminal (`pause`, `done`, `resume`, `repo add` and `rm`). The hook that
  * pushes at the end of an agent's turn runs only around an agent bare `yan`
  * started, so without this a task paused at a terminal stays uncommitted
