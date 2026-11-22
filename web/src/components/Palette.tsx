@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { composing } from '../lib/keys';
 import { findTasks, type Found } from '../lib/find';
 import { MOD } from '../lib/format';
+import { works } from '../lib/api';
 import { link, useRoute } from '../lib/route';
 import { openAgent } from '../state/agentTab';
 import { useIndex } from '../state/server';
@@ -58,7 +59,7 @@ function PaletteBox({ onGone }: { onGone: () => void }) {
   const current = r.view === 'task' ? r.id : null;
   const [query, setQuery] = useState('');
   const [at, setAt] = useState(0);
-  const found = useMemo(() => (index ? findTasks(index.tasks, query, recent, current) : []), [index, query, recent, current]);
+  const found = useMemo(() => (index ? findTasks(works(index.tasks), query, recent, current) : []), [index, query, recent, current]);
   const list = useRef<HTMLDivElement>(null);
 
   // In a block: scrollIntoView returns a promise in newer browsers, which React would take for a cleanup.

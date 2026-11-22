@@ -63,6 +63,16 @@ describe('a task folded to its square on the rail', () => {
     expect(useUI.getState().settings).toBe(true);
   });
 
+  it('is not one Janus has: Janus is its own button on the rail, to its terminal', async () => {
+    useUI.setState((s) => ({ prefs: { ...s.prefs, left: false } }));
+    have(index([task('t1', 'pay retries'), task('janus', 'Janus')]));
+    serve({ '/api/terminals': () => Response.json({}) });
+    const screen = await draw(<Left />);
+    const rail = screen.getByRole('navigation', { name: 'Tasks' });
+    await expect.element(rail.getByRole('link', { name: 'pay retries' })).toBeVisible();
+    expect(rail.getByRole('link').elements().map((e) => e.getAttribute('href'))).toEqual(['#/t/janus/terminal', '#/t/t1']);
+  });
+
   it('speaks in a bubble as its agent finishes, in place of a toast, and opens its terminal when clicked', async () => {
     const { herdr } = await open({ here: agent('working', 100, 'idle') });
     await herdr(agent('done', 200));

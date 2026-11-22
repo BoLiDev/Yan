@@ -57,6 +57,11 @@ export class ManyVaults {
     return this.options.port;
   }
 
+  /** Janus kept up, in the first vault, where its like is kept. */
+  public async keepJanus(): Promise<void> {
+    await inVault(this.first.dir, () => this.first.keepJanus());
+  }
+
   public async stop(): Promise<void> {
     for (const c of this.clients) c.end();
     await Promise.all(this.sites.map((site) => site.stop()));

@@ -103,7 +103,7 @@ beforeAll(async () => {
   await fxGit(['push', '-q', '-u', 'origin', 'main'], home);
 
   port = await freePorts();
-  server = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'serve', '--no-open', '--port', String(port), '--every', '2'], {
+  server = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'serve', '--no-open', '--port', String(port), '--every', '2', '--no-janus'], {
     env: { ...process.env, YAN_HOME: home, YAN_VAULT: home, YAN_MACHINE_DIR: join(home, '.machine') },
     windowsHide: true,
   });

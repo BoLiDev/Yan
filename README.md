@@ -165,6 +165,15 @@ alone, and so does a herdr that cannot be reached, which is said with how
 to start it. An agent that takes no skills is told what the skill says in
 its opening prompt.
 
+`yan serve` keeps Janus up: as it starts it makes Janus's task if there is
+none, saves it, and starts Janus in a herdr tab of its own, called Janus,
+unless one is running already (`--no-janus` starts none). With no herdr to
+start it in, it is started the first time it is asked for on the page. On
+the page Janus is a button beside the settings', over the task list and on
+the rail the list folds to, which opens its terminal; its page is a task's,
+with its overview, log, terminal and artifacts, and it is no row of the
+task list, the rail or ⌘K.
+
 `yan:uat` gathers what you check the result by in artifacts/uat/,
 deliverable by deliverable, in one pass after the implementation: the before
 of each change from the code where the task's branch left the default

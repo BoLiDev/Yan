@@ -89,7 +89,7 @@ beforeAll(async () => {
   port = await freePorts();
   const env = { ...process.env, YAN_HOME: home, YAN_MACHINE_DIR: machine };
   delete (env as Record<string, string | undefined>).YAN_VAULT;
-  server = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'serve', '--no-open', '--port', String(port), '--every', '2'], { env, windowsHide: true });
+  server = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'serve', '--no-open', '--port', String(port), '--every', '2', '--no-janus'], { env, windowsHide: true });
   await new Promise<void>((resolve, reject) => {
     let out = '';
     server?.stdout?.on('data', (chunk: Buffer) => {

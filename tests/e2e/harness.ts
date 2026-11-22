@@ -61,10 +61,14 @@ export interface Served {
   readonly stop: () => Promise<void>;
 }
 
-/** `yan serve` on the vault in `home`, ticking every two seconds, as often as it will. */
-export async function serve(home: string, env: Readonly<Record<string, string>> = {}): Promise<Served> {
+/**
+ * `yan serve` on the vault in `home`, ticking every two seconds, as often as
+ * it will. It starts no Janus, whose task and tab are no part of what most
+ * tests look at, unless `janus` asks for it.
+ */
+export async function serve(home: string, env: Readonly<Record<string, string>> = {}, janus = false): Promise<Served> {
   const port = await freePorts();
-  const child = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'serve', '--no-open', '--port', String(port), '--every', '2'], {
+  const child = spawn(process.execPath, [join(home, 'bin', 'yan.mjs'), 'serve', '--no-open', '--port', String(port), '--every', '2', ...(janus ? [] : ['--no-janus'])], {
     env: { ...process.env, YAN_HOME: home, YAN_VAULT: home, YAN_MACHINE_DIR: join(home, '.machine'), ...env },
     windowsHide: true,
   });

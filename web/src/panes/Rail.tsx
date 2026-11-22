@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import type { TaskSummary } from '../lib/api';
+import { JANUS, works, type TaskSummary } from '../lib/api';
 import { agentWords, allNews, type AgentNews } from '../lib/agents';
 import { MOD } from '../lib/format';
 import { initialsOf } from '../lib/letters';
@@ -95,8 +95,8 @@ export function Rail() {
   // speak stand first, in the order they began, while any does: one goes there as its bubble pops, and stays.
   const pinned = useBubbles((s) => s.pinned);
   const usual = index ? [
-    ...index.tasks.filter((t) => t.state === 'uat' && goesOn(t)).sort(byTouched),
-    ...index.tasks.filter((t) => t.state !== 'uat' && goesOn(t)).sort(byTouched),
+    ...works(index.tasks).filter((t) => t.state === 'uat' && goesOn(t)).sort(byTouched),
+    ...works(index.tasks).filter((t) => t.state !== 'uat' && goesOn(t)).sort(byTouched),
   ] : [];
   const tasks = [...pinned.flatMap((id) => usual.filter((t) => t.id === id)), ...usual.filter((t) => !pinned.includes(t.id))];
   const letters = initialsOf(tasks);
@@ -109,6 +109,7 @@ export function Rail() {
       <RailButton icon="search" label={`Find a task (${MOD}K)`} onClick={() => useUI.setState({ palette: true })} />
       <RailButton icon="plus" label="New task" onClick={() => useUI.setState({ newTask: true })} />
       {/* What the list's head opens is opened from here too: neither box is a task's, and folding the list is no reason to lose them. */}
+      <RailButton icon="janus" label="Janus" href={link.terminal(JANUS)} on={r.view === 'task' && r.id === JANUS} />
       <RailButton icon="note" label="Drafts" onClick={() => useUI.setState({ drafts: true })} />
       <RailButton icon="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} />
       <span className="my-2 h-px w-7 flex-none bg-border" />

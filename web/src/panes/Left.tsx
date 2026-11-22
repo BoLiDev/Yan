@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { stateOf, type Index, type TaskSummary } from '../lib/api';
+import { JANUS, stateOf, works, type Index, type TaskSummary } from '../lib/api';
 import { MOD, clock, fromIso, monthLabel } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { agentNews, agentWords } from '../lib/agents';
@@ -119,7 +119,7 @@ export function Left() {
 
   const groups = useMemo(() => {
     if (!index) return [];
-    const tasks = index.tasks;
+    const tasks = works(index.tasks);
     const byTouched = (a: TaskSummary, b: TaskSummary): number => b.touched - a.touched;
     const out: { label: string; rows: ({ t: TaskSummary } | { month: string; tasks: TaskSummary[] })[]; none?: string; folds?: boolean }[] = [];
     // Waiting on `user`, so above the rest; the group is not there when none is.
@@ -153,6 +153,8 @@ export function Left() {
         <b className="text-[22px] tracking-tight" title={index ? `${index.vault.name} · ${index.vault.dir}` : undefined}>yan</b>
         <span className="flex-1" />
         {/* What this browser is set to, the theme, what the page says of what arrived, and yan's updates, is one box away. */}
+        {/* Janus, for what is not a task yet: its terminal, a click from anywhere. */}
+        <Tool name="janus" label="Janus" href={link.terminal(JANUS)} newTab={false} small />
         <Tool name="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} small />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>

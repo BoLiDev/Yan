@@ -22,6 +22,17 @@ const TASK_STATES: readonly string[] = ['open', 'uat', 'done', 'abandoned'] sati
  */
 export const stateOf = (state: string): TaskState => (TASK_STATES.includes(state) ? (state as TaskState) : 'open');
 
+/**
+ * The id of Janus, the agent kept beside the tasks for what is not a task
+ * yet: a task in what serve sends, so every view of a task shows it, and
+ * left out of every list of the tasks, since it is no piece of work. It is
+ * reached by its own button, over the task list.
+ */
+export const JANUS = 'janus';
+
+/** The pieces of work among `tasks`: every one but Janus. */
+export const works = <T extends { readonly id: string }>(tasks: readonly T[]): T[] => tasks.filter((t) => t.id !== JANUS);
+
 /** A deliverable's status as the page treats it; one this page does not know is still to do. */
 export const statusOf = (status: string): DeliverableStatus => (status === 'done' || status === 'abandoned' ? status : 'todo');
 

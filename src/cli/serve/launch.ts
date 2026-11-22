@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import type { ServerResponse } from 'node:http';
 import { isYanError } from '../../util/error.js';
+import { JANUS } from '../../records/task/index.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
 import { newTaskRepos } from '../shared/launch.js';
 import { openTasks } from '../shared/task-id.js';
@@ -99,17 +100,35 @@ export class Launches {
    * started for, say. Answers the launch's name, the task's own id.
    */
   public async goOn(res: ServerResponse, task: unknown, more: readonly string[] = []): Promise<void> {
+    // Janus is no task on the list, and is started as itself.
+    if (task === JANUS) return this.open(res, JANUS, 'Janus', ['--janus']);
     const open = openTasks().find((t) => t.id === task);
     if (open === undefined) return void res.writeHead(404).end(`${String(task)} is not an open task in this vault`);
     return this.open(res, open.id, open.title, ['--task', open.id, ...more]);
   }
 
+  /**
+   * Janus started in a herdr tab of its own, unless it is running already:
+   * what serve does as it starts, with nobody to tell why it could not.
+   *
+   * @throws YanError when herdr is not there to open a tab in.
+   */
+  public async janus(): Promise<void> {
+    if (terminalsOf(this.vault).some((t) => t.task === JANUS) || this.launched.has(JANUS)) return;
+    await this.tab(JANUS, 'Janus', ['--janus']);
+  }
+
   /** A herdr tab named `title`, bare `yan` typed into it with `args`, kept as the launch `key`. */
-  private async open(res: ServerResponse, key: string, title: string, args: readonly string[]): Promise<void> {
+  private async tab(key: string, title: string, args: readonly string[]): Promise<void> {
     const bin = this.bin();
+    const { socket, pane } = await openYanTab(bin, this.vault, title, args);
+    this.launched.set(key, { socket, bin, pane, title, since: new Date().toISOString() });
+  }
+
+  /** `tab`, answered to the page: the launch's name, or why there is none. */
+  private async open(res: ServerResponse, key: string, title: string, args: readonly string[]): Promise<void> {
     try {
-      const { socket, pane } = await openYanTab(bin, this.vault, title, args);
-      this.launched.set(key, { socket, bin, pane, title, since: new Date().toISOString() });
+      await this.tab(key, title, args);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ launch: key }));
     } catch (err) {
       if (!isYanError(err)) throw err;

@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
-import type { Index, TaskDetail } from './lib/api';
+import { works, type Index, type TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
 import { usePageKeys } from './lib/modal';
@@ -51,8 +51,8 @@ function useRouteEffects(): void {
     // At no task, the page goes to one: the last read here, else the one worked on last. There is nothing else to land on.
     if (r.view === 'none' && index && fullPageOf(hash) === null) {
       const { recent } = useUI.getState();
-      const open = [...index.tasks].filter(goesOn).sort((a, b) => b.touched - a.touched);
-      const to = recent.find((id) => index.tasks.some((t) => t.id === id)) ?? open[0]?.id ?? index.tasks[0]?.id;
+      const open = works(index.tasks).filter(goesOn).sort((a, b) => b.touched - a.touched);
+      const to = recent.find((id) => index.tasks.some((t) => t.id === id)) ?? open[0]?.id ?? works(index.tasks)[0]?.id;
       if (to !== undefined) {
         location.replace(useUI.getState().last[to] ?? link.task(to));
         return;
