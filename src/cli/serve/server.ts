@@ -7,7 +7,7 @@ import { artifactLinker, vaultFileLink, type FileLink } from '../shared/artifact
 import { Task, parseUat } from '../../records/task/index.js';
 import { isYanError } from '../../util/error.js';
 import { staysInside } from '../../util/paths.js';
-import { cloneOf } from '../../util/machine.js';
+import { cloneOf, keepLocal, keptLocal } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
 import { gitAsync } from './blobs.js';
@@ -284,7 +284,7 @@ export class YanServer {
   private readonly lightReports = new Map<string, { html: string; images: { type: string; bytes: Buffer }[] }>();
   private readonly status: Status;
   /** Where a file of the vault opens on its forge, read once: the vault's remote does not move while serve runs. */
-  private readonly fileLink: FileLink | undefined;
+  private fileLink: FileLink | undefined;
   private readonly clients = new Set<ServerResponse>();
   private readonly servers: Server[] = [];
   private timer: NodeJS.Timeout | undefined;
@@ -309,7 +309,7 @@ export class YanServer {
     this.updater = new Updater(options.home, () => this.restartOnBuild());
     this.branches = new Branches(options.everyS);
     this.fileLink = vaultFileLink(options.vaultDir);
-    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, build: buildPrint(options.home), push: { pending: false, error: null } };
+    this.status = { version: 0, commit: null, checkedAt: null, pulledAt: null, ok: true, error: null, everyS: options.everyS, local: false, origin: false, build: buildPrint(options.home), push: { pending: false, error: null } };
   }
 
   public get filesOrigin(): string {
@@ -324,7 +324,6 @@ export class YanServer {
   public async start(): Promise<number> {
     this.branch = (await gitAsync(this.options.vaultDir, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim() || 'main';
     if (this.branch === 'HEAD') this.branch = 'main';
-    this.status.local = (await gitAsync(this.options.vaultDir, ['remote', 'get-url', 'origin'])).code !== 0;
     await this.tick();
     // Drafts written here before serve last stopped, and not committed since, go out as if just written.
     if ((await gitAsync(this.options.vaultDir, ['status', '--porcelain', '--', 'drafts'])).stdout.trim() !== '') this.later.touched();
@@ -426,9 +425,14 @@ export class YanServer {
     this.ticking = (async (): Promise<void> => {
       const dir = this.options.vaultDir;
       const now = (): number => Math.floor(Date.now() / 1000);
+      // Asked on every tick: 'yan vault local' and the page's settings turn it on and off while serve runs.
+      this.status.origin = (await gitAsync(dir, ['remote', 'get-url', 'origin'])).code === 0;
+      this.status.local = !this.status.origin || keptLocal(dir);
       if (this.status.local) {
-        // No origin: the vault is only here, and HEAD is all there is to read.
+        // A local vault is only here, and HEAD is all there is to read: origin is not asked, whatever the vault's git names.
         this.status.checkedAt = now();
+        this.status.ok = true;
+        this.status.error = null;
       } else {
         const fetched = await gitAsync(
           dir,
@@ -485,13 +489,15 @@ export class YanServer {
 
   /**
    * The page shown the newest of what origin and this vault have, with no
-   * fetch first: a tick's, or a change just committed here. One at a time,
+   * fetch first: a tick's, or a change just committed here. A local vault
+   * is shown at its own HEAD and nothing else, what was once fetched from
+   * an origin it no longer keeps in step with left unread. One at a time,
    * so two never load the view at once.
    */
   private showing: Promise<void> = Promise.resolve();
   private show(): Promise<void> {
     const next = this.showing.then(async () => {
-      const commit = await this.newest([`${OWN_REF}${this.branch}`, `refs/remotes/origin/${this.branch}`, 'HEAD']);
+      const commit = await this.newest(this.status.local ? ['HEAD'] : [`${OWN_REF}${this.branch}`, `refs/remotes/origin/${this.branch}`, 'HEAD']);
       if (commit === undefined || commit === this.view.commit) return;
       await this.view.load(commit);
       this.status.commit = commit;
@@ -729,6 +735,21 @@ export class YanServer {
   private readonly posts: Readonly<Record<string, Post>> = {
     '/api/pull': { does: 'pull the vault', json: false, run: async (res) => {
       await this.tick();
+      json(res, this.status);
+    } },
+    // This machine's, written to ~/.yan/config.json as 'yan vault local' writes it, and in force from the tick that answers.
+    '/api/vault/local': { does: 'keep the vault local', json: true, run: async (res, given) => {
+      if (typeof given.local !== 'boolean') return send(res, 400, 'local is true or false');
+      await this.inTurn(async () => {
+        keepLocal(this.options.vaultDir, given.local === true);
+        this.fileLink = vaultFileLink(this.options.vaultDir);
+        await this.tick();
+      });
+      // Back in step with origin: what was committed here meanwhile goes out now, not at the next change.
+      if (given.local === false) {
+        this.later.touched();
+        void this.later.now();
+      }
       json(res, this.status);
     } },
     '/api/yan/update': { does: 'update yan', json: false, run: async (res) => {

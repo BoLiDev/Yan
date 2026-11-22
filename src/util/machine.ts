@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { editJson, initJson, readJsonIfPresent } from './json.js';
 import { asRecord, asString, recordOrNone } from './narrow.js';
-import { normalizePath } from './paths.js';
+import { normalizePath, pathKey } from './paths.js';
 
 /**
  * `~/.yan/config.json` — which vault is active, where each one is, and where
@@ -13,7 +13,8 @@ import { normalizePath } from './paths.js';
  *     "active": "personal",
  *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" },
  *     "clones": { "github.com/org/web": "C:/workspace/project/web" },
- *     "skillDir": "~/work/skills" }
+ *     "skillDir": "~/work/skills",
+ *     "localVaults": ["C:/workspace/project/yan-vault-personal"] }
  *
  * A clone is keyed by `repoKey` of its URL, so every vault that registers the
  * repository finds the same one.
@@ -22,6 +23,13 @@ import { normalizePath } from './paths.js';
  * them, that claude is started with on this machine beside yan's own, for
  * skills such as the ones a workplace keeps. It is this machine's and not the
  * vault's, since the folder is only here.
+ *
+ * `localVaults` is the vaults this machine keeps to itself, each by its
+ * path: nothing is fetched from such a vault's origin or pushed to it,
+ * whatever origin its git has (`util/vault.ts`, `vaultOrigin`). By path
+ * rather than by name, so a vault `$YAN_VAULT` points at is kept as well.
+ * It is this machine's and not the vault's: a setting inside the vault
+ * would have to travel to mean anything, which is what it forbids.
  *
  * `terminals` is written by bare `yan` alone: each agent it started in a
  * herdr pane here, while the agent runs, so `yan serve` on this machine can
@@ -43,6 +51,7 @@ interface MachineConfig {
   readonly clones: Readonly<Record<string, string>>;
   /** As written, a path or a list of them, so a rewrite of the file keeps it as it was. */
   readonly skillDir?: string | readonly string[];
+  readonly localVaults?: readonly string[];
   readonly terminals?: readonly HeldTerminal[];
   readonly worktreeTabs?: readonly WorktreeTab[];
 }
@@ -134,12 +143,15 @@ export function readMachine(): MachineConfig {
     : Array.isArray(record.skillDir) ? record.skillDir.filter((d): d is string => typeof d === 'string') : undefined;
   const terminals = readTerminals(record.terminals);
   const worktreeTabs = readWorktreeTabs(record.worktreeTabs);
+  const localVaults = Array.isArray(record.localVaults)
+    ? [...new Set(record.localVaults.flatMap((d) => { const p = set(d); return p === undefined ? [] : [normalizePath(p)]; }))] : [];
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
     vaults,
     clones,
     ...(skillDir === undefined ? {} : { skillDir }),
+    ...(localVaults.length === 0 ? {} : { localVaults }),
     ...(terminals.length === 0 ? {} : { terminals }),
     ...(worktreeTabs.length === 0 ? {} : { worktreeTabs }),
   };
@@ -186,6 +198,23 @@ export function registerVault(name: string, path: string, activate = true): void
 
 export function setActiveVault(name: string): void {
   editMachine((current) => ({ ...current, active: name }));
+}
+
+/** Whether this machine keeps the vault at `dir` to itself. */
+export function keptLocal(dir: string): boolean {
+  const at = pathKey(dir);
+  return (readMachine().localVaults ?? []).some((v) => pathKey(v) === at);
+}
+
+/** Keep the vault at `dir` to this machine, or stop keeping it so. */
+export function keepLocal(dir: string, on: boolean): void {
+  const at = pathKey(dir);
+  editMachine((current) => {
+    const others = (current.localVaults ?? []).filter((v) => pathKey(v) !== at);
+    const { localVaults: _was, ...rest } = current;
+    const localVaults = on ? [...others, normalizePath(dir)] : others;
+    return localVaults.length === 0 ? rest : { ...rest, localVaults };
+  });
 }
 
 /** Where this machine keeps the clone of the repository `key` names, or `undefined`. */

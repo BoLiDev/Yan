@@ -187,6 +187,21 @@ export function connect(): () => void {
 }
 
 /**
+ * The vault kept on this machine alone, or in step with its origin again:
+ * this machine's setting, which serve writes and answers with where it
+ * stands from then on. Everything is read again, since what the page shows
+ * moves from origin's copy to the vault's own, or back.
+ */
+export async function keepVaultLocal(local: boolean): Promise<void> {
+  try {
+    await onStatus(await postJSON<Status>('/api/vault/local', { local }));
+    void queryClient.invalidateQueries();
+  } catch (err) {
+    toast(`Not changed: ${(err as Error).message}`, true);
+  }
+}
+
+/**
  * A pull now, by hand: it fetches the branch being looked at too, or every
  * branch MR's page lists, and waits for them. Only serve not answering says
  * it stopped; a branch it cannot read is the branch view's to say, as it

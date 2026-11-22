@@ -22,8 +22,10 @@ export interface Status {
   readonly ok: boolean;
   readonly error: string | null;
   readonly everyS: number;
-  /** The vault has no origin, so nothing is fetched. */
+  /** The vault is local, read from its own HEAD: it has no origin, or this machine keeps it to itself, so nothing is fetched or pushed. */
   readonly local: boolean;
+  /** The vault's git names an origin, which a vault kept local leaves alone and can go back to. */
+  readonly origin: boolean;
   /** Which yan is serving: a page loaded from another reloads itself. */
   readonly build: string;
   /** How what the page wrote, drafts and edits, stands with origin. */

@@ -28,6 +28,18 @@ yan vault init personal --remote git@github.com:you/yan-vault-personal.git
 `yan vault init` needs an empty repository on your forge first. On a second
 machine, `yan vault clone <url>` instead.
 
+A vault can also be local, kept on one machine alone, where your notes
+should not sit on a forge: `yan vault init <name> --local` makes one with no
+remote, and `yan vault local on` keeps the active vault so whatever origin
+its git names, `off` going back to it. It is this machine's setting
+(`localVaults` in `~/.yan/config.json`), and also a switch in the settings
+of `yan serve`'s page. Nothing is fetched from a local vault's origin or
+pushed to it: a pull has nothing to do, a push only commits, so the vault
+keeps its history, a new task is numbered from what is here, and `yan
+serve` reads the vault's own HEAD and never what was once fetched. Only
+agents on this machine read and write it; a task goes to one elsewhere by
+hand, as a zip `yan pack` writes.
+
 Then register the repositories you work in, with `yan repo add` in a clone
 or in the directory that holds them, and type `yan` anywhere.
 
@@ -73,7 +85,10 @@ verified interactively; `yan:done`, which only you start, to close a
 task, done, or given up with the reason you give it (`/yan:done --abandon
 <why>`); `yan:pause`, which only you start too, to put it aside: its
 work committed and pushed on its branch, a line in the log on where it
-stands, then `yan pause`; and `yan:review`, to take up a review you wrote on
+stands, then `yan pause`; `yan:pack`, which only you start as well, to hand the task to an agent
+working where the vault is not, one in the cloud say: its code pushed on its
+branch, its notes brought up to date, then `yan pack`, whose zip you give
+that agent yourself; and `yan:review`, to take up a review you wrote on
 `yan serve`'s page: it reads the newest with `yan review`, acts on every
 comment, and answers each by its number. Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
@@ -116,7 +131,8 @@ the agent being told: it is pulled each time you send a message and pushed
 each time the agent finishes a turn, by hooks given to that session alone
 (claude's `--settings`, codex's `-c`, with codex's hook trust bypassed for
 the session). agy takes hooks only from files, so under agy the vault is
-pulled and pushed by hand. A push commits everything in the vault and
+pulled and pushed by hand. A local vault has no pull, and its push, the hook's
+included, commits and goes no further. A push commits everything in the vault and
 rebases it onto the remote first; a conflict
 stops it, the commit kept here, and the hook says so. While the vault is in
 the middle of a rebase or a merge, the one you are sorting out a conflict in
@@ -154,7 +170,8 @@ For you:
 - `yan resume [id]` — take a paused task up again, as it was; its worktrees come back the next time `yan` starts its agent, on the branch it kept last
 - `yan draft` — your own notes, in your editor: the vault's rather than one task's, so every task's agent can read them, and committed and pushed as soon as one is written; `ls`, `cat <id>`, `search <words>` and `dir` read them, newest first by when each was begun, as its name says, so every machine lists them in one order, `cat` naming a draft's pictures by where they are here, for an agent to open. A draft, or the folder of its pictures, that is a link is never followed out of the vault
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
-- `yan vault …` — init, clone, use, pull, push, where, ls
+- `yan vault …` — init, clone, use, local, pull, push, where, ls
+- `yan pack [id]` — one task as a zip, `yan-<id>.zip` in `~/Downloads` unless `--out` says where (never inside the vault or a worktree of the task's), to give by hand to an agent that works where the vault is not: one folder holding a README.md for that agent, which has no yan, on what the task is, its deliverables, its repositories and the branches in progress, its resources, and what to say back when it stops; the task's folder as it is, under `task/`; and the vault's learnings. Your drafts stay out unless `--drafts`, and `--no-artifacts` leaves the artifacts out. It holds what the vault would commit, with no symbolic link and no dot file, and changes nothing in the vault
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 - `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now; `--cli` for another CLI's
 
@@ -184,7 +201,10 @@ An agent yan did not start, as one in a cloud container is, works with
 these the same way once yan is installed where it runs and the vault is
 cloned there (`yan vault clone <url>`, by a URL that machine can push to),
 its task given it by `$YAN_TASK` or `--task`. No hook pulls or pushes for
-it, so it pushes the vault itself with `yan vault push` before it stops.
+it, so it pushes the vault itself with `yan vault push` before it stops. A
+local vault is cloned nowhere, so such an agent is given one task as the zip
+`yan pack` writes, and works from the README.md in it, without yan; what it
+did comes back as you carry it, for an agent here to put in the task's notes.
 
 `yan serve` runs until stopped, at `http://localhost:4747` (`--port`). At a
 terminal it takes a screen of its own, as `less` does, with no history to
@@ -193,7 +213,8 @@ it fetches, a line each under an arrow, the address in colour. Stopping it
 puts the terminal back as it was, with a line saying it stopped. Every
 10 seconds (`--every`) it fetches the vault into refs of its own,
 `refs/yan/serve/`, and reads git objects rather than the work tree, so
-nothing an agent or a hook works with moves; an open page follows without
+nothing an agent or a hook works with moves; a local vault is fetched from
+nowhere and read at its own HEAD; an open page follows without
 being reloaded, and changes only what moved: a push fetches again only the
 tasks it touched, and a page left half read stays where it was, with what
 is selected, typed or playing in it. Left running while yan is updated, it restarts on the newer
@@ -201,7 +222,9 @@ build by itself once that build is complete and starts, in the same process
 and on the same port, and an open page reloads onto it. The cog beside the task list's name opens the settings,
 one box for what this browser is set to: the theme, light or dark as the
 browser asks or as picked there, a terminal being dark either way;
-notifications; the marks on what is new; and yan's own updates. Notifications
+notifications; the marks on what is new; Local vault, this machine's switch
+for keeping the vault local, off and unmoving for a vault with no origin,
+which is local already; and yan's own updates. Notifications
 are one switch for all that pops up: off, as it starts, neither Chrome nor
 the page tells of anything, an agent that finished included, and the marks
 are all that say it. With

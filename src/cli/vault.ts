@@ -5,13 +5,13 @@ import { git, remoteUrl } from '../util/git.js';
 import { YanError, isYanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { writeJson } from '../util/json.js';
-import { machineConfigPath, readMachine, registerVault, registeredVaults, setActiveVault } from '../util/machine.js';
+import { keepLocal, keptLocal, machineConfigPath, readMachine, registerVault, registeredVaults, setActiveVault } from '../util/machine.js';
 import { isDirectory, normalizePath } from '../util/paths.js';
 import { localDay } from '../util/time.js';
-import { VAULT_VERSION, isVault, readVaultJson, vaultDir } from '../util/vault.js';
+import { VAULT_VERSION, isVault, readVaultJson, vaultDir, vaultOrigin } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { pullVault, type PullResult } from './shared/vault-pull.js';
-import { gitOrThrow, pushVault, withVaultLock } from './shared/vault-push.js';
+import { gitOrThrow, pushVault, saveVault, withVaultLock } from './shared/vault-push.js';
 import { isTty } from './shared/tty.js';
 import { isRecordId } from '../util/names.js';
 
@@ -20,7 +20,9 @@ import { isRecordId } from '../util/names.js';
  *
  * The only command that runs without a vault, and the only writer of
  * `~/.yan/config.json`. `init` needs a remote that already exists and is
- * empty; it never creates one.
+ * empty; it never creates one. `init --local` needs none: the vault is
+ * kept on this machine alone, as `yan vault local` keeps one that has an
+ * origin.
  */
 
 function checkName(name: string): void {
@@ -49,7 +51,7 @@ function defaultVaultPath(name: string): string {
  *
  * @throws YanError `vault_template_missing` when the template is not there.
  */
-function layDownSkeleton(dir: string, name: string): void {
+function layDownSkeleton(dir: string, name: string, local: boolean): void {
   const template = join(yanHome(), 'templates', 'vault');
   if (!existsSync(template)) {
     throw new YanError('vault_template_missing', `${template} is missing - run 'npm run build' in ${yanHome()}`);
@@ -70,12 +72,9 @@ function layDownSkeleton(dir: string, name: string): void {
       'and artifacts — your drafts, which every task reads, and the learnings',
       'worth keeping beyond one task.',
       '',
-      'The code lives somewhere else entirely. To use this vault on another',
-      'machine:',
-      '',
-      '```',
-      'yan vault clone <this repository>',
-      '```',
+      ...(local
+        ? ['The code lives somewhere else entirely. This vault is local: it is kept', 'on this machine alone, and yan pushes it nowhere.']
+        : ['The code lives somewhere else entirely. To use this vault on another', 'machine:', '', '```', 'yan vault clone <this repository>', '```']),
       '',
     ].join('\n'),
   );
@@ -91,12 +90,12 @@ function refuseMissing(missing: readonly (readonly [string, string])[]): never {
   throw YanError.usage('missing_options', `missing required option${missing.length > 1 ? 's' : ''}; pass:\n${flags}`);
 }
 
-async function initAnswers(name: string, remote: string): Promise<{ name: string; remote: string }> {
-  if (name !== '' && remote !== '') return { name, remote };
-  if (!isTty()) {
+async function initAnswers(name: string, remote: string, local: boolean): Promise<{ name: string; remote: string }> {
+  if (name !== '' && (remote !== '' || local)) return { name, remote };
+  if (!isTty() || local) {
     refuseMissing([
       ...(name === '' ? [['<name>', 'a short name for this context, e.g. personal'] as const] : []),
-      ...(remote === '' ? [['--remote', 'the empty repository to push this vault to'] as const] : []),
+      ...(remote === '' && !local ? [['--remote', 'the empty repository to push this vault to, or --local for a vault with none'] as const] : []),
     ]);
   }
   const { askVaultInit } = await import('../ui/prompts.js');
@@ -112,17 +111,21 @@ async function cloneUrl(url: string): Promise<string> {
 
 interface InitOptions {
   readonly remote?: string;
+  readonly local?: boolean;
   readonly path?: string;
 }
 
 const initVault = new Command('init')
-  .description('create a vault, push it to an empty remote, and make it active')
+  .description('create a vault, push it to an empty remote or keep it on this machine alone (--local), and make it active')
   .argument('[name]')
   .option('--remote <url>', 'the empty repository this vault is pushed to')
+  .option('--local', 'no remote: the vault is kept on this machine alone, and never pushed')
   .option('--path <dir>', 'where the vault lives on this machine')
   .action(
     action('yan vault init', async (name: string | undefined, options: InitOptions) => {
-      const answers = await initAnswers(name ?? '', options.remote ?? '');
+      const local = options.local === true;
+      if (local && options.remote !== undefined) throw YanError.usage('vault_usage', '--local and --remote do not go together: a local vault is pushed nowhere');
+      const answers = await initAnswers(name ?? '', options.remote ?? '', local);
       checkName(answers.name);
 
       if (readMachine().vaults[answers.name] !== undefined) {
@@ -134,6 +137,19 @@ const initVault = new Command('init')
         throw new YanError('vault_conflict', `${dir} already exists and is not empty - pass --path, or move it aside`);
       }
 
+      if (local) {
+        layDownSkeleton(dir, answers.name, true);
+        gitOrThrow(dir, ['init', '--initial-branch=main'], 'git init');
+        gitOrThrow(dir, ['add', '-A'], 'staging the skeleton');
+        gitOrThrow(dir, ['commit', '-m', `vault: ${answers.name}`], 'the first commit');
+        // Kept local by name as well as by having no origin, so one added to its git later by hand changes nothing until 'yan vault local off'.
+        keepLocal(dir, true);
+        registerVault(answers.name, dir);
+        out(`vault init: ${answers.name}  ${dir}`);
+        out('vault init: local, kept on this machine alone, and it is now the active vault');
+        return;
+      }
+
       // Both refusals land before a single file is written.
       const heads = git(yanHome(), ['ls-remote', '--heads', answers.remote]);
       if (heads.code !== 0) {
@@ -143,7 +159,7 @@ const initVault = new Command('init')
         throw new YanError('vault_remote_not_empty', `${answers.remote} already has branches, so it is not an empty repository - 'yan vault clone ${answers.remote}' takes an existing vault; init needs an empty one`);
       }
 
-      layDownSkeleton(dir, answers.name);
+      layDownSkeleton(dir, answers.name, false);
       gitOrThrow(dir, ['init', '--initial-branch=main'], 'git init');
       gitOrThrow(dir, ['add', '-A'], 'staging the skeleton');
       gitOrThrow(dir, ['commit', '-m', `vault: ${answers.name}`], 'the first commit');
@@ -204,7 +220,7 @@ const lsVaults = new Command('ls')
       const active = readMachine().active;
       for (const { name, path } of vaults) {
         const mark = name === active ? '*' : ' ';
-        const state = isVault(path) ? '' : '   MISSING';
+        const state = !isVault(path) ? '   MISSING' : vaultOrigin(path) === undefined ? '   local' : '';
         out(`${mark} ${name.padEnd(16)}${path}${state}`);
       }
     }),
@@ -239,11 +255,44 @@ const useCommand = new Command('use')
   .action(action('yan vault use', (name: string | undefined) => { useVault(name); }));
 
 /**
+ * `yan vault local [on|off]` — whether this machine keeps the active vault
+ * to itself. On, nothing is fetched from its origin or pushed to it, bare
+ * `yan` numbers a new task from what is here, and `yan serve` reads the
+ * vault's own HEAD; its git keeps whatever origin it names, which only
+ * `off` goes back to. Kept in `~/.yan/config.json`, so it is this machine's.
+ */
+const localCommand = new Command('local')
+  .description('keep the active vault on this machine alone (on), nothing fetched from its origin or pushed to it, or in step with its origin again (off)')
+  .argument('[on|off]', 'without it, says which it is')
+  .action(
+    action('yan vault local', (given: string | undefined) => {
+      const dir = vaultDir();
+      const origin = remoteUrl(dir);
+      if (given === undefined) {
+        out(keptLocal(dir) ? `vault local: on - ${dir} is kept on this machine alone${origin === undefined ? '' : `, ${origin} left alone`}`
+          : origin === undefined ? `vault local: off, but ${dir} has no origin, so it is local all the same`
+            : `vault local: off - ${dir} is kept in step with ${origin}`);
+        return;
+      }
+      if (given !== 'on' && given !== 'off') throw YanError.usage('vault_usage', `'${given}' is neither on nor off`);
+      keepLocal(dir, given === 'on');
+      if (given === 'on') {
+        out(`vault local: on - ${dir} is kept on this machine alone`);
+        if (origin !== undefined) out(`vault local: nothing is fetched from ${origin} or pushed to it from now on; its git still names it ('git -C ${dir} remote remove origin' forgets it)`);
+      } else {
+        out(origin === undefined ? `vault local: off, but ${dir} has no origin, so it stays local until its git is given one`
+          : `vault local: off - ${dir} is kept in step with ${origin} again; 'yan vault push' sends what was committed meanwhile`);
+      }
+    }),
+  );
+
+/**
  * `yan vault pull` and `yan vault push`, by hand or, with `--hook`, from the
  * hooks bare `yan` gives the agent it starts: a pull each time `user` sends
  * a message, a push each time the agent finishes a turn. The agent itself is
  * told nothing about either. Both hold the vault's lock
- * (`shared/vault-push.ts`).
+ * (`shared/vault-push.ts`). A local vault has nothing to pull, and its push
+ * only commits, so its history is kept and `yan serve` has a HEAD to show.
  */
 
 /**
@@ -265,19 +314,19 @@ function asHook(name: string, body: () => void): void {
 
 function pull(): PullResult {
   const dir = vaultDir();
-  return remoteUrl(dir) === undefined ? pullVault() : withVaultLock(dir, pullVault);
+  return vaultOrigin(dir) === undefined ? pullVault() : withVaultLock(dir, pullVault);
 }
 
 const pullCommand = new Command('pull')
-  .description('fetch and rebase the vault onto its remote')
+  .description('fetch and rebase the vault onto its remote; a local vault has nothing to pull')
   .addOption(new Option('--hook', 'run as a hook: silent unless it fails, and only under bare yan').hideHelp())
   .action(
     action('yan vault pull', (options: { hook?: boolean }) => {
       if (options.hook === true) {
         asHook('yan vault pull', () => {
           const result = pull();
-          // A vault with no origin, or none on it yet, has nothing to pull: no failure of the hook's.
-          if (!result.ok && result.unpublished !== true && remoteUrl(vaultDir()) !== undefined) throw new YanError('vault_pull_failed', result.message);
+          // A local vault, or one whose origin has nothing yet, has nothing to pull: no failure of the hook's.
+          if (!result.ok && result.unpublished !== true && vaultOrigin(vaultDir()) !== undefined) throw new YanError('vault_pull_failed', result.message);
         });
         return;
       }
@@ -288,17 +337,17 @@ const pullCommand = new Command('pull')
   );
 
 const pushCommand = new Command('push')
-  .description('commit everything in the vault, rebase it onto its remote and push it')
+  .description('commit everything in the vault, rebase it onto its remote and push it; a local vault is only committed')
   .option('-m, --message <text>', 'the commit message, instead of one derived from what changed')
   .addOption(new Option('--hook', 'run as a hook: silent unless it fails, and only under bare yan').hideHelp())
   .action(
     action('yan vault push', (options: { message?: string; hook?: boolean }) => {
       const run = (): string[] => {
         const dir = vaultDir();
-        if (remoteUrl(dir) === undefined) {
-          // Nothing to keep in step with: a hook has no complaint to make about it.
-          if (options.hook === true) return [];
-          throw new YanError('vault_no_remote', `${dir} has no origin - add one with: git -C ${dir} remote add origin <url>`);
+        if (vaultOrigin(dir) === undefined) {
+          // Committed and no more: the turn's work is in the vault's history, and nothing leaves the machine.
+          const said = saveVault(dir, options.message);
+          return said.length === 0 ? ['vault push: nothing to commit - this vault is local, so nothing is pushed'] : said;
         }
         return withVaultLock(dir, () => pushVault(dir, options.message));
       };
@@ -324,6 +373,7 @@ export const command = new Command('vault')
   .addCommand(cloneVault)
   .addCommand(lsVaults)
   .addCommand(useCommand)
+  .addCommand(localCommand)
   .addCommand(pullCommand)
   .addCommand(pushCommand)
   .addCommand(whereCommand);

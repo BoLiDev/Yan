@@ -56,6 +56,21 @@ describe('what this browser is set to', () => {
     await expect.element(screen.getByRole('dialog').getByRole('button', { name: 'Check for updates' })).toBeVisible();
   });
 
+  it('keeps the vault on this machine alone from a switch, which a vault with no origin has no use for', async () => {
+    const asked = serve({ '/api/yan/update': Response.json({ running: false, steps: [], error: null }), '/api/vault/local': Response.json({ ...status(2), local: true }) });
+    have(index([task('t1', 'pay retries')]));
+    const screen = await draw(<><Left /><SettingsModal /></>);
+    await expect.element(screen.getByText('Synced')).toBeVisible();
+    await screen.getByRole('button', { name: 'Settings' }).click();
+    await screen.getByRole('switch', { name: 'Local vault' }).click();
+    await expect.element(screen.getByRole('switch', { name: 'Local vault' })).toBeChecked();
+    expect(asked.find((a) => a.path === '/api/vault/local')?.body).toEqual({ local: true });
+    await expect.element(screen.getByText('kept on this machine alone')).toBeInTheDocument();
+
+    useUI.setState({ status: { ...status(3), local: true, origin: false } });
+    await expect.element(screen.getByRole('switch', { name: 'Local vault' })).toBeDisabled();
+  });
+
   it('marks what is new beside its task, or does not, as the marks are turned on or off', async () => {
     const screen = await withNews();
     // By its title: the task list is out of reach of a role while the settings' box is over it.

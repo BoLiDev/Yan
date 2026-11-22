@@ -1,6 +1,6 @@
-import { currentBranch, fetch, git, gitOk, rebase, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
+import { currentBranch, fetch, git, gitOk, rebase, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError, isYanError } from '../../util/error.js';
-import { vaultDir, vaultUnfinished } from '../../util/vault.js';
+import { vaultDir, vaultOrigin, vaultUnfinished } from '../../util/vault.js';
 
 /**
  * Catching the vault up with its origin: all of `yan vault pull`, and what
@@ -45,8 +45,8 @@ export function pullVault(): PullResult {
     return { ok: false, message: isYanError(err) ? err.message : String(err) };
   }
 
-  if (remoteUrl(dir) === undefined) {
-    return { ok: false, message: 'this vault has no origin, so there is nothing to pull from' };
+  if (vaultOrigin(dir) === undefined) {
+    return { ok: false, message: 'this vault is local, kept on this machine alone, so there is nothing to pull from' };
   }
   const stuck = unfinished(dir);
   if (stuck !== undefined) return { ok: false, message: stuck };
@@ -65,13 +65,14 @@ export function pullVault(): PullResult {
 
 /**
  * Fetch origin and rebase the vault's branch onto it. The vault must be
- * clean, and in the middle of nothing (`unfinished`). A rebase that
+ * clean, in the middle of nothing (`unfinished`), and not local: whoever
+ * calls has asked `vaultOrigin`. A rebase that
  * conflicts is aborted, leaving the vault as it was.
  */
 export function catchUp(dir: string): PullResult {
   const fetched = fetch(dir);
   if (fetched.code !== 0) {
-    return { ok: false, message: `could not reach ${remoteUrl(dir) ?? 'origin'}: ${fetched.stderr.trim()}` };
+    return { ok: false, message: `could not reach ${vaultOrigin(dir) ?? 'origin'}: ${fetched.stderr.trim()}` };
   }
   const branch = currentBranch(dir);
   if (!gitOk(dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) {

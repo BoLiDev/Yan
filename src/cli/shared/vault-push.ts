@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 import { noteBranchBases } from './branches.js';
 import { catchUp, rebaseOnto, refuseUnfinished } from './vault-pull.js';
-import { currentBranch, git, gitOk, remoteUrl, revParse, statusPorcelain } from '../../util/git.js';
+import { currentBranch, git, gitOk, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError } from '../../util/error.js';
 import { withLock } from '../../util/lock.js';
-import { vaultDir } from '../../util/vault.js';
+import { vaultDir, vaultOrigin } from '../../util/vault.js';
 
 /**
  * Committing the vault and pushing it: `yan vault push`, the hook that runs
@@ -96,7 +96,7 @@ export function pushVault(dir: string, message: string | undefined): string[] {
   if (caught.ok && !caught.message.startsWith('already')) said.push(`vault push: ${caught.message}`);
 
   gitOrThrow(dir, ['push', '-u', 'origin', branch], 'pushing the vault');
-  said.push(`vault push: ${branch} → ${remoteUrl(dir) ?? 'origin'}`);
+  said.push(`vault push: ${branch} → ${vaultOrigin(dir) ?? 'origin'}`);
   return said;
 }
 
@@ -161,16 +161,20 @@ export function shareChange(what: string, message: string): 'pushed' | 'committe
 }
 
 /**
- * Commit what `user` just changed, and push it when the vault has an origin,
- * so the page shows it and the other machines get it; with no message, one
- * made of the task ids that changed. Under the lock.
+ * Commit what changed, and push it when the vault has an origin it is kept
+ * in step with, so the page shows it and the other machines get it; with no
+ * message, one made of the task ids that changed. A local vault is only
+ * committed: its history is all here, and `yan serve` reads its HEAD.
+ * Under the lock.
  */
 export function saveVault(dir: string, message: string | undefined): string[] {
   return withVaultLock(dir, () => {
-    if (remoteUrl(dir) !== undefined) return pushVault(dir, message);
+    if (vaultOrigin(dir) !== undefined) return pushVault(dir, message);
+    refuseUnfinished(dir);
+    noteBranchBases();
     const changed = changedPaths(dir);
     if (changed.length === 0) return [];
     commitAll(dir, message ?? pushMessage(changed));
-    return ['vault push: committed, no origin to push to'];
+    return [`vault push: committed ${changed.length} change(s) here - this vault is local, so nothing is pushed`];
   });
 }

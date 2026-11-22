@@ -386,6 +386,79 @@ describe('pull and push', () => {
   });
 });
 
+describe('a local vault', () => {
+  const taskJson = (id: string): string => `{"version":2,"id":"${id}","title":"x","state":"open","nextDeliverable":1,"deliverables":[]}\n`;
+
+  it('is made with no remote by init --local, and its push commits and goes nowhere', async () => {
+    const env = { ...isolated('local-init'), ...identity };
+    const dir = join(tmp, 'vaults', 'local-init');
+    const made = await runYan(home, ['vault', 'init', 'mine', '--local', '--path', dir], env);
+    expect(made.code, made.out).toBe(0);
+    expect(existsSync(join(dir, 'vault.json'))).toBe(true);
+    expect((await fxGit(['-C', dir, 'remote'])).stdout.trim(), 'its git names no remote').toBe('');
+    expect(machineConfig('local-init')).toMatchObject({ active: 'mine', localVaults: [dir] });
+    expect((await runYan(home, ['vault', 'ls'], env)).stdout).toMatch(/mine.*local/);
+
+    mkdirSync(join(dir, 'tasks', 't001'), { recursive: true });
+    writeFileSync(join(dir, 'tasks', 't001', 'task.json'), taskJson('t001'));
+    const pushed = await runYan(home, ['vault', 'push'], env);
+    expect(pushed.code, pushed.out).toBe(0);
+    expect((await fxGit(['-C', dir, 'status', '--porcelain'])).stdout, 'committed').toBe('');
+    expect((await fxGit(['-C', dir, 'log', '-1', '--pretty=%s'])).stdout.trim()).toBe('t001');
+
+    const usage = await runYan(home, ['vault', 'init', 'other', '--local', '--remote', 'x', '--path', join(tmp, 'vaults', 'never')], env);
+    expect(usage.code).toBe(2);
+  });
+
+  it('kept local, leaves the origin its git names alone, by hand and as a hook, until it is kept in step again', async () => {
+    const bare = await mkEmptyRemote(join(tmp, 'kept-local.git'));
+    const env = { ...isolated('kept-local'), ...identity };
+    const dir = join(tmp, 'vaults', 'kept-local');
+    await runYan(home, ['vault', 'init', 'kept', '--remote', bare, '--path', dir], env);
+    const onOrigin = async (): Promise<string> => (await fxGit(['-C', bare, 'rev-parse', 'main'])).stdout.trim();
+    const here = async (): Promise<string> => (await fxGit(['-C', dir, 'rev-parse', 'HEAD'])).stdout.trim();
+    const seeded = await onOrigin();
+
+    // Another machine pushes meanwhile: a vault kept local never hears of it.
+    const second = { ...isolated('kept-local-b'), ...identity };
+    const other = join(tmp, 'vaults', 'kept-local-b');
+    await runYan(home, ['vault', 'clone', bare, '--path', other], second);
+    mkdirSync(join(other, 'tasks', 't007'), { recursive: true });
+    writeFileSync(join(other, 'tasks', 't007', 'task.json'), taskJson('t007'));
+    await runYan(home, ['vault', 'push'], second);
+    const theirs = await onOrigin();
+    expect(theirs).not.toBe(seeded);
+
+    expect((await runYan(home, ['vault', 'local', 'on'], env)).code).toBe(0);
+    expect((await runYan(home, ['vault', 'local'], env)).stdout).toContain('on');
+    expect(machineConfig('kept-local').localVaults).toEqual([dir]);
+
+    mkdirSync(join(dir, 'tasks', 't001'), { recursive: true });
+    writeFileSync(join(dir, 'tasks', 't001', 'task.json'), taskJson('t001'));
+    const byHand = await runYan(home, ['vault', 'push'], env);
+    expect(byHand.code, byHand.out).toBe(0);
+    writeFileSync(join(dir, 'tasks', 't001', 'log.md'), '- 10-01  agreed   x\n');
+    const hook = await runYan(home, ['vault', 'push', '--hook'], { ...env, YAN_TASK: 't001' });
+    expect(hook.code, hook.out).toBe(0);
+    expect(hook.out).toBe('');
+    expect((await fxGit(['-C', dir, 'status', '--porcelain'])).stdout, 'both committed here').toBe('');
+    expect(await onOrigin(), 'and origin has neither').toBe(theirs);
+
+    const pulledHook = await runYan(home, ['vault', 'pull', '--hook'], { ...env, YAN_TASK: 't001' });
+    expect(pulledHook.code, pulledHook.out).toBe(0);
+    await runYan(home, ['vault', 'pull'], env);
+    expect(existsSync(join(dir, 'tasks', 't007')), 'nothing was fetched').toBe(false);
+    expect((await fxGit(['-C', dir, 'rev-parse', '--verify', '--quiet', 'refs/remotes/origin/main'])).stdout.trim(), 'origin as it was last seen').toBe(seeded);
+
+    expect((await runYan(home, ['vault', 'local', 'off'], env)).code).toBe(0);
+    expect(machineConfig('kept-local').localVaults).toBeUndefined();
+    const back = await runYan(home, ['vault', 'push'], env);
+    expect(back.code, back.out).toBe(0);
+    expect(await onOrigin(), 'what was committed meanwhile is pushed').toBe(await here());
+    expect(existsSync(join(dir, 'tasks', 't007')), 'on top of what the other machine pushed').toBe(true);
+  });
+});
+
 describe('clone, ls and use', () => {
   it('clones a vault, takes its own name, and makes it active', async () => {
     const bare = await mkEmptyRemote(join(tmp, 'shared.git'));

@@ -2,10 +2,9 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { YanError } from '../util/error.js';
-import { remoteUrl } from '../util/git.js';
 import { yanHome } from '../util/home.js';
 import { readMachine } from '../util/machine.js';
-import { readVaultJson, vaultDir } from '../util/vault.js';
+import { readVaultJson, vaultDir, vaultOrigin } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { openPath } from './shared/opener.js';
 import { bold, cyan, dim, green, tildePath } from './shared/style.js';
@@ -66,7 +65,7 @@ function item(label: string, value: string, strong = false): string {
 }
 
 function started(name: string, address: string, dir: string, everyS: number): string[] {
-  const fetches = remoteUrl(dir) === undefined ? 'none, a local vault with no origin' : `origin, every ${everyS} s`;
+  const fetches = vaultOrigin(dir) === undefined ? 'none, a local vault, kept on this machine alone' : `origin, every ${everyS} s`;
   return [
     ...head(name),
     item('Page', cyan(address), true),

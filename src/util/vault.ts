@@ -3,7 +3,8 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { YanError } from './error.js';
 import { readJsonIfPresent } from './json.js';
 import { asRecord, asString, recordOrNone } from './narrow.js';
-import { machineConfigPath, machineRevision, readMachine } from './machine.js';
+import { remoteUrl } from './git.js';
+import { keptLocal, machineConfigPath, machineRevision, readMachine } from './machine.js';
 import { isDirectory, normalizePath } from './paths.js';
 
 /**
@@ -187,7 +188,7 @@ export function vaultDir(): string {
   const { active, vaults } = readMachine();
   if (active === undefined) {
     throw new YanError('vault_missing',
-      `no vault is registered on this machine - create one with 'yan vault init <name> --remote <url>', or take an existing one with 'yan vault clone <url>'`,
+      `no vault is registered on this machine - create one with 'yan vault init <name> --remote <url>' ('--local' for one kept on this machine alone), or take an existing one with 'yan vault clone <url>'`,
     );
   }
   const path = vaults[active];
@@ -199,6 +200,18 @@ export function vaultDir(): string {
   throw new YanError('vault_invalid',
     `the active vault '${active}' is not at ${path} any more - clone it again with 'yan vault clone <url>', or switch with 'yan vault use <name>'`,
   );
+}
+
+/**
+ * The origin the vault at `dir` is kept in step with, or undefined for a
+ * local vault: one whose git has no origin, or one this machine keeps to
+ * itself (`localVaults` in `~/.yan/config.json`) whatever origin its git
+ * still names. Everything that would fetch the vault, push it, or read
+ * origin's copy of it asks this rather than git, so a vault kept local is
+ * read from its own HEAD and nothing of it leaves the machine.
+ */
+export function vaultOrigin(dir: string): string | undefined {
+  return keptLocal(dir) ? undefined : remoteUrl(dir);
 }
 
 /* The paths inside a vault. Each throws exactly as `vaultDir()` does. */

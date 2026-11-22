@@ -1,9 +1,9 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { asString } from '../../util/narrow.js';
-import { branchOf, remoteUrl } from '../../util/git.js';
+import { branchOf } from '../../util/git.js';
 import { forgeOf, forgePage } from './forge.js';
-import { readVaultConfig, vaultDir } from '../../util/vault.js';
+import { readVaultConfig, vaultDir, vaultOrigin } from '../../util/vault.js';
 
 /**
  * What a task's artifacts/ holds, for `yan context`. The opening prompt
@@ -92,7 +92,8 @@ export function artifactLines(artifacts: readonly Artifact[], limit = 20): strin
 function linkTemplate(vault: string): FileLink | undefined {
   const configured = asString(readVaultConfig()?.artifactLinks).trim();
   if (/^https?:\/\//i.test(configured)) return { forge: null, template: configured };
-  const url = remoteUrl(vault);
+  // A local vault's files are on no forge, whatever origin its git still names.
+  const url = vaultOrigin(vault);
   const forge = url === undefined ? undefined : forgeOf(url);
   return forge === undefined ? undefined : { forge: forge.name, template: forgePage(forge, 'blob/{branch}/{path}') };
 }

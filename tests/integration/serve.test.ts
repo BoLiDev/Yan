@@ -1128,6 +1128,35 @@ describe.skipIf(process.platform === 'win32')('an agent in a herdr pane on yan s
   });
 });
 
+describe('a vault kept local from the page', () => {
+  it('is read at its own HEAD, a change made on the page committed and origin left alone, until it is kept in step again', async () => {
+    const onOrigin = async (): Promise<string> => (await fxGit(['-C', bare, 'rev-parse', 'main'])).stdout.trim();
+    const titleShown = async (): Promise<string | undefined> =>
+      ((await (await fetch(page('/api/index'))).json()) as { tasks: { id: string; title: string }[] }).tasks.find((t) => t.id === 't001')?.title;
+    try {
+      expect((await post('/api/vault/local', { local: true }, 'http://evil.example')).status).toBe(403);
+      expect((await post('/api/vault/local', { local: 'yes' })).status).toBe(400);
+      const on = (await (await post('/api/vault/local', { local: true })).json()) as { local: boolean; origin: boolean };
+      expect(on).toMatchObject({ local: true, origin: true });
+
+      const before = await onOrigin();
+      expect((await post('/api/task/title', { task: 't001', title: 'kept on this machine' })).status).toBe(200);
+      expect(await until(async () => ((await titleShown()) === 'kept on this machine' ? true : undefined), 20_000), 'shown from the vault itself').toBe(true);
+      expect((await fxGit(['status', '--porcelain', '--', 'tasks/t001'], home)).stdout, 'committed here').toBe('');
+      // Two ticks on, origin still has nothing of it.
+      await new Promise((resolve) => setTimeout(resolve, 4500));
+      expect(await onOrigin()).toBe(before);
+    } finally {
+      const off = (await (await post('/api/vault/local', { local: false })).json()) as { local: boolean };
+      expect(off.local).toBe(false);
+    }
+    // Back in step, what was committed meanwhile goes out without waiting for another change.
+    const renamed = (await fxGit(['log', '-1', '--pretty=%H', '--grep', 't001: renamed in yan serve'], home)).stdout.trim();
+    expect(renamed).not.toBe('');
+    await until(async () => ((await fxGit(['-C', bare, 'merge-base', '--is-ancestor', renamed, 'main'])).code === 0 ? true : undefined), 20_000);
+  });
+});
+
 describe('yan updated from yan serve', () => {
   // yan's folder here is the vault's clone too, and a test above pushes to its origin from elsewhere.
   beforeAll(async () => {

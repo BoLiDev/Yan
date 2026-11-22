@@ -39,7 +39,7 @@ function Sync() {
     head = 'Pulling…';
   } else if (st?.local) {
     head = 'Local vault';
-    sub = 'no origin to pull from';
+    sub = 'kept on this machine alone';
   } else if (st && !st.ok) {
     tone = 'warn';
     head = "Can't reach origin";
@@ -51,10 +51,10 @@ function Sync() {
     // One that conflicts never goes through on its own, however often it is tried.
     sub = /conflict/.test(st.push.error) ? 'it conflicts with origin - sort it out in the vault' : 'changes made here are tried again on each pull';
   }
-  const every = st ? `Pulls every ${st.everyS} s by itself${st.checkedAt ? `, last at ${clock(st.checkedAt, true)}` : ''}. ` : '';
+  const every = st ? `${st.local ? 'Reads the vault here' : 'Pulls'} every ${st.everyS} s by itself${st.checkedAt ? `, last at ${clock(st.checkedAt, true)}` : ''}. ` : '';
   return (
     <button type="button" className="flex min-h-[50px] w-full cursor-pointer items-center gap-2.5 rounded-xl bg-card px-3 py-2 text-left" aria-label="Pull now"
-      title={(st?.error ? `${st.error}\n` : '') + every + 'Click to pull now.'} onClick={() => void pullNow()}>
+      title={(st?.error ? `${st.error}\n` : '') + every + (st?.local ? 'Click to read it now.' : 'Click to pull now.')} onClick={() => void pullNow()}>
       <span className={cn('size-2 flex-none rounded-full', LIGHT[tone])} />
       <span className="flex min-w-0 flex-1 flex-col leading-[17px]">
         <b className="text-[13px]">{head}</b>

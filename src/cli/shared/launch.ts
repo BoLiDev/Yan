@@ -23,7 +23,7 @@ import { holdTerminal, letTerminalGo, machineConfigPath, skillDirs } from '../..
 import { branchOf, currentBranch, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
-import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir } from '../../util/vault.js';
+import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir, vaultOrigin } from '../../util/vault.js';
 
 /**
  * Bare `yan`: pick a task or start one, then start the agent on it in this
@@ -59,7 +59,7 @@ export function skillsPrompt(taskDir: string): string {
     filesLine(taskDir),
     'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
       'yan:define works out the problem and the solution with the user; yan:review takes up a review the user left on yan\'s page; ' +
-      'yan:done and yan:pause are the user\'s, to close the task or put it aside.',
+      'yan:done, yan:pause and yan:pack are the user\'s, to close the task, put it aside, or pack it for an agent working elsewhere.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
   ].join('\n');
 }
@@ -508,12 +508,12 @@ export function newTaskRepos(cwd: string): { name: string; packages: string[] }[
  * made on another machine since this one last pulled is numbered there
  * already, and a new task here that took its number would conflict with it
  * on every push from then on. Fetched rather than pulled, so a vault with
- * work of its own not yet committed is numbered right as well. A vault with
- * no origin has nothing to fetch; one out of reach numbers from what is here,
+ * work of its own not yet committed is numbered right as well. A local
+ * vault has nothing to fetch; one out of reach numbers from what is here,
  * and says so.
  */
 async function takenOnOrigin(vault: string, chain: EntryChain): Promise<string[]> {
-  if (!gitOk(vault, ['rev-parse', '--is-inside-work-tree']) || remoteUrl(vault) === undefined) return [];
+  if (!gitOk(vault, ['rev-parse', '--is-inside-work-tree']) || vaultOrigin(vault) === undefined) return [];
   const step = chain.working('vault: fetching origin, to number the task after its tasks');
   const fetched = await fetchAsync(vault);
   const listed = git(vault, ['ls-tree', '--name-only', `refs/remotes/origin/${currentBranch(vault)}`, 'tasks/']);
