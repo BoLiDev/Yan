@@ -41,13 +41,12 @@ export function SettingsModal() {
   const status = useUI((s) => s.status);
   // Chrome's own leave, which the switch cannot give: said, with where to give it.
   const blocked = canNotify() && Notification.permission === 'denied';
-  const told = `An agent that finishes or needs you is told at the top right, ${
-    !canNotify() ? 'on this page only: this browser has no notifications of its own.'
-      : blocked ? 'on this page only: Chrome blocks notifications from it, allowed from the icon left of the address bar.'
-        : 'and Chrome says when an agent pushes something, while this page is open in the background.'} Off, nothing pops up.`;
+  const told = !canNotify() ? 'When an agent finishes or needs you. This browser has none of its own, so on this page only.'
+    : blocked ? 'When an agent finishes or needs you. Chrome blocks them here: allow them from the icon left of the address bar.'
+      : 'When an agent finishes or needs you, from Chrome too while the page is in the background.';
   return (
     <Dialog open={open} onOpenChange={(o) => useUI.setState({ settings: o })}>
-      <DialogContent className="gap-0 sm:max-w-[460px]">
+      <DialogContent className="gap-0 sm:max-w-[600px]">
         <DialogHeader className="pb-1">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
@@ -55,21 +54,21 @@ export function SettingsModal() {
           <Row title="Theme" under={
             <Seg wide options={[['system', 'As the browser'], ['light', 'Light'], ['dark', 'Dark']] as const} current={prefs.theme} onPick={(v) => setPref('theme', v)} />
           } />
-          <Row title="Font" sub="What the page is written in: fonts installed on this computer, by name. Of several with commas between, each draws what those before it cannot. Empty, yan's own.">
+          <Row title="Font" sub="Fonts on this computer, with commas between, tried in order. Empty, yan's own.">
             <FontPick label="Font" value={prefs.font} onPick={(f) => setPref('font', f)} />
           </Row>
-          <Row title="Terminal font" sub="What a terminal is drawn in, likewise; best one whose letters are all one width.">
+          <Row title="Terminal font" sub="Likewise, for terminals.">
             <FontPick label="Terminal font" value={prefs.termFont} onPick={(f) => setPref('termFont', f)} />
           </Row>
           <Row title="Notifications" sub={told}>
             <Switch aria-label="Notifications" checked={prefs.notify} onCheckedChange={() => void toggleNotify()} />
           </Row>
-          <Row title="Marks on what is new" sub="The counts beside a task and the dots on its files, its report and its log, for what changed since you last looked.">
+          <Row title="Marks on what is new" sub="Counts and dots on what changed since you last looked.">
             <Switch aria-label="Marks on what is new" checked={prefs.badges} onCheckedChange={(on) => setPref('badges', on)} />
           </Row>
           {status?.vaults === undefined ? null : (
             // This machine's vaults as its config.json lists them, in the order a task id two of them have is settled: each local or remote by itself.
-            <Row title="Vaults" sub="This machine's vaults, in the order their tasks are looked through. The first is the default, where a new task is kept unless another is picked. Each switch says whether the vault is kept in step with its remote; off, it is local, read from this machine alone, nothing fetched or pushed. A vault that has no remote cannot be turned on." under={
+            <Row title="Vaults" sub="The first is the default for a new task. A switch on keeps a vault in step with its remote; off, it stays on this machine." under={
               <div className="flex min-w-0 flex-col gap-1.5" role="list" aria-label="Vaults">
                 {status.vaults.map((v, i) => (
                   <div key={v.name} role="listitem" className="flex min-w-0 items-center gap-3 rounded-lg bg-muted px-3 py-2 text-[13px]">
@@ -85,7 +84,7 @@ export function SettingsModal() {
               </div>
             } />
           )}
-          <Row title="Updates" sub="yan on this machine, pulled, built and started again."><UpdateCard small /></Row>
+          <Row title="Updates" sub="yan on this machine."><UpdateCard small /></Row>
         </div>
       </DialogContent>
     </Dialog>
