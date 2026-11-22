@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { followFonts } from '../state/fonts';
 import { useUI } from '../state/ui';
 import { draw, reset, serve } from '../testing/serve';
@@ -30,6 +31,18 @@ describe('the fonts in the settings', () => {
     expect(kept().font).toBe(`Georgia, ${own}`);
     expect(getComputedStyle(document.body).fontFamily).toMatch(/^"?Georgia"?, "?Yan Round"?, /);
     expect(kept().termFont).toBe('');
+  });
+
+  it('find a font by letters typed in front of the list, and add it there', async () => {
+    vi.stubGlobal('queryLocalFonts', async () => [{ family: 'Georgia' }, { family: 'Courier New' }, { family: 'Arial' }]);
+    const { screen, box } = await settings();
+    const field = box.getByRole('combobox', { name: 'Terminal font' });
+    const own = (field.element() as HTMLInputElement).value;
+    await field.click();
+    await userEvent.keyboard('{Home}cour');
+    await expect.poll(() => screen.getByRole('option').elements().length).toBe(1);
+    await screen.getByRole('option', { name: 'Courier New' }).click();
+    expect(kept().termFont).toBe(`Courier New, ${own}`);
   });
 
   it('take a list typed, in order, a family picked from those installed taking the place of the name being typed', async () => {

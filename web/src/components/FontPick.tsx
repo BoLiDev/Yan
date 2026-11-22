@@ -17,8 +17,10 @@ const MOST = 100;
  * A name is typed, or taken from the list of fonts installed on this
  * computer, each drawn in itself, which Chrome gives once allowed. Opened
  * and not typed in, a family picked goes to the front. Typed in, the list
- * is narrowed by the name the caret is in, and a family picked takes that
- * name's place. What is typed is taken once the field is left or Enter is
+ * is narrowed by the letters before the caret, back to the last comma, and
+ * a family picked takes their place, a comma put after it where a name
+ * follows: so letters typed at the very front, or anywhere between two
+ * names, find a font and add it there. What is typed is taken once the field is left or Enter is
  * pressed, not at each letter, so nothing is redrawn in half a name.
  */
 export function FontPick({ label, value, own, onPick }: { label: string; value: string; own: string; onPick: (list: string) => void }) {
@@ -30,11 +32,13 @@ export function FontPick({ label, value, own, onPick }: { label: string; value: 
   const lit = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const all = fonts ?? [];
-  // The name the caret is in, between the commas either side of it.
+  // The name being typed: what is between the comma before the caret and the caret. What follows the caret up to the
+  // next comma is a name already there when letters are typed in front of it, with no comma yet between the two.
   const from = text.lastIndexOf(',', Math.max(0, caret - 1)) + 1;
   const comma = text.indexOf(',', caret);
   const to = comma === -1 ? text.length : comma;
-  const query = text.slice(from, to).trim();
+  const query = text.slice(from, caret).trim();
+  const after = text.slice(caret, to).trim() === '' ? text.slice(to) : `, ${text.slice(caret)}`;
   const typing = text !== used;
   const found = query === '' || !typing
     ? all
@@ -59,7 +63,7 @@ export function FontPick({ label, value, own, onPick }: { label: string; value: 
         if (details.reason === 'input-change') {
           setText(next);
           setCaret(input.current?.selectionStart ?? next.length);
-        } else if (details.reason === 'item-press') take(typing ? `${text.slice(0, from)}${next}${text.slice(to)}` : `${next}, ${text}`);
+        } else if (details.reason === 'item-press') take(typing ? `${text.slice(0, from)}${next}${after}` : `${next}, ${text}`);
         else take(next);
       }}>
       <ComboboxInput ref={input} aria-label={label} title={used} spellCheck={false} showTrigger={false} showClear={used !== own} className="w-full"
