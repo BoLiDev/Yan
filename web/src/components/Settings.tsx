@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { canNotify, toggleNotify } from '../state/notify';
 import { keepVaultLocal } from '../state/server';
+import { PAGE_FONTS, TERM_FONTS } from '../state/fonts';
 import { setPref, useUI } from '../state/ui';
 import { FontPick } from './FontPick';
 import { Seg } from './page';
@@ -54,12 +55,12 @@ export function SettingsModal() {
           <Row title="Theme" under={
             <Seg wide options={[['system', 'As the browser'], ['light', 'Light'], ['dark', 'Dark']] as const} current={prefs.theme} onPick={(v) => setPref('theme', v)} />
           } />
-          <Row title="Font" sub="Fonts on this computer, with commas between, tried in order. Empty, yan's own.">
-            <FontPick label="Font" value={prefs.font} onPick={(f) => setPref('font', f)} />
-          </Row>
-          <Row title="Terminal font" sub="Likewise, for terminals.">
-            <FontPick label="Terminal font" value={prefs.termFont} onPick={(f) => setPref('termFont', f)} />
-          </Row>
+          <Row title="Font" sub="Fonts on this computer, with commas between, tried in order." under={
+            <FontPick label="Font" value={prefs.font} own={PAGE_FONTS} onPick={(f) => setPref('font', f)} />
+          } />
+          <Row title="Terminal font" sub="Likewise, for terminals." under={
+            <FontPick label="Terminal font" value={prefs.termFont} own={TERM_FONTS} onPick={(f) => setPref('termFont', f)} />
+          } />
           <Row title="Notifications" sub={told}>
             <Switch aria-label="Notifications" checked={prefs.notify} onCheckedChange={() => void toggleNotify()} />
           </Row>

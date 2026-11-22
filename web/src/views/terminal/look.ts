@@ -1,9 +1,9 @@
 /**
  * The terminal's face, as a terminal set up for yan's page has it: 0xProto (its Nerd Font build when installed) for
  * Latin, ChillRound (寒蝉圆体) for Chinese, which 0xProto has none of; the page's own faces, so installed copies
- * come first and yan's copies after.
+ * come first and yan's copies after. Written as the settings show it, a list a reader adds to or changes.
  */
-export const MONO = '"Yan Code", "Yan Round", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+export const MONO = 'Yan Code, Yan Round, ui-monospace, SF Mono, Menlo, Consolas, monospace';
 
 /** A terminal's colours, the theme's: dark whatever the page is, a shade darker when the page is. */
 export function termTheme(): { background: string; foreground: string; cursor: string; selectionBackground: string } {
