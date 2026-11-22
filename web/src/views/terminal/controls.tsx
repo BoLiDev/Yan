@@ -1,4 +1,4 @@
-import { postJSON } from '../../lib/api';
+import { JANUS, postJSON } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { queryClient } from '../../state/server';
 import { toast } from '../../state/ui';
@@ -19,5 +19,6 @@ export function ContinueButton({ id, starting }: { id: string; starting: (on: bo
     }
     void queryClient.invalidateQueries({ queryKey: ['terminals'] });
   };
-  return <Button className="self-center" onClick={() => void goOn()}>Continue</Button>;
+  // Janus is not gone on with, having no work to be in the middle of: it is started.
+  return <Button className="self-center" onClick={() => void goOn()}>{id === JANUS ? 'Start Janus' : 'Continue'}</Button>;
 }

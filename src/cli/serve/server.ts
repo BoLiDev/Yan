@@ -361,11 +361,10 @@ export class YanServer {
   }
 
   /**
-   * Janus kept up beside the tasks, as `yan serve` starts: its task made in
-   * this vault if it never was, and saved, so the page has it to show; then
-   * its agent started in a herdr tab of its own unless one is running. With
-   * no herdr to start it in, it is started from the page when asked for,
-   * which says why it cannot be. Never part of `start`, which a test calls.
+   * Janus's task made in this vault if it never was, and saved, as `yan
+   * serve` starts, so the page has it to show and to start: its agent is
+   * started from the page, as a task's is, never by serve. Never part of
+   * `start`, which a test calls.
    */
   public async keepJanus(): Promise<void> {
     const dir = this.options.vaultDir;
@@ -376,11 +375,6 @@ export class YanServer {
       }
     } catch {
       // A vault that cannot be written or pushed now: Janus's own start makes and saves it.
-    }
-    try {
-      await this.launches.janus();
-    } catch (err) {
-      if (!isYanError(err)) throw err;
     }
   }
 

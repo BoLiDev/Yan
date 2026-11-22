@@ -138,8 +138,11 @@ question, something to look into, a small thing to do, without the making
 of a task. `yan --janus` starts it, where it is typed and in no worktree.
 It is kept as a task, `janus`, in the first vault, made the first time it
 is started, so it has what a task has, a folder, a log, artifacts and a
-terminal; but it is not listed among the tasks, has no number, and is never
-paused or closed. It is told that it may read everything: every task's
+terminal; but it is not listed among the tasks, has no number and no
+problem.md, and is never paused or closed. Its opening prompt is its own,
+nothing of a task's: each session starts fresh, reading nothing of earlier
+ones unless you point back at something, and yan's other skills are used
+only when you call one. It is told that it may read everything: every task's
 notes in every vault, your drafts, and every registered repository, in the
 clone this machine has of it, each named to it with its path; and never to
 change a clone, another task's folder or a draft. It has no worktree of its
@@ -165,14 +168,14 @@ alone, and so does a herdr that cannot be reached, which is said with how
 to start it. An agent that takes no skills is told what the skill says in
 its opening prompt.
 
-`yan serve` keeps Janus up: as it starts it makes Janus's task if there is
-none, saves it, and starts Janus in a herdr tab of its own, called Janus,
-unless one is running already (`--no-janus` starts none). With no herdr to
-start it in, it is started the first time it is asked for on the page. On
-the page Janus is a button beside the settings', over the task list and on
-the rail the list folds to, which opens its terminal; its page is a task's,
-with its overview, log, terminal and artifacts, and it is no row of the
-task list, the rail or ⌘K.
+As `yan serve` starts it makes Janus's task if the vault has none, and
+saves it (`--no-janus` makes none); it does not start Janus, which you
+start yourself, on the page, as a task's agent is started. On the page
+Janus is a mark beside the settings', over the task list and on the rail
+the list folds to, grey while Janus is not running, which opens its page:
+its terminal, where it is started in a herdr tab of its own, and its
+artifacts, under its own mark. It has no overview or log there, and is no
+row of the task list, the rail or ⌘K.
 
 `yan:uat` gathers what you check the result by in artifacts/uat/,
 deliverable by deliverable, in one pass after the implementation: the before

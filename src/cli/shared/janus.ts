@@ -35,10 +35,11 @@ export interface JanusTree {
 
 /**
  * Janus's opening prompt, for `cli`: the trees it still holds from before
- * are `trees`, and `files` is the line on where its files go, the same one
- * every task's agent is given of its own folder.
+ * are `trees`, and `dir` its own folder. Nothing of a task's prompt is in
+ * it: Janus has no problem to define, nothing to recap, and starts each
+ * session as a fresh one.
  */
-export function janusPrompt(cli: string, trees: readonly JanusTree[], files: string, pluginDir: string): string {
+export function janusPrompt(cli: string, trees: readonly JanusTree[], dir: string, pluginDir: string): string {
   const clones = registry().filter((r) => r.clone !== undefined && isDirectory(r.clone));
   const elsewhere = registry().filter((r) => !clones.includes(r));
   const skills = takesPlugins(cli);
@@ -57,7 +58,12 @@ export function janusPrompt(cli: string, trees: readonly JanusTree[], files: str
       'When something has to be changed, built or run where it writes, take a worktree of that repository with `yan tree get <repo>`, which prints where it is, on a detached HEAD at origin\'s default branch: ' +
       'cut a branch there before you commit, as each machine names its own. Give it back with `yan tree return <repo>` once what it held is pushed or no longer wanted, since that resets and cleans it; `yan tree ls` lists the ones you hold.',
     ...(trees.length === 0 ? [] : [['You still hold these worktrees from before:', ...trees.map((t) => `- ${t.name}: ${t.path}`)].join('\n')]),
-    'Which task you are travels in $YAN_TASK, as for any task\'s agent. ' + files,
+    'Start every session fresh. Read nothing of earlier sessions as you start, no log, no notes, no recap: the user has come with something new unless they say otherwise. ' +
+      'When they do point back at something (yesterday\'s question, a thing you made), look for it then: in your folder, in `yan log`, in the tasks.',
+    `Your folder is ${dir}, and what you make that is worth keeping goes in its artifacts/: written documents in artifacts/docs/, anything else, a script, a query, data pulled for a check, in artifacts/misc/. ` +
+      'The user sees it on yan\'s page. Most of what is asked here needs no file at all. `yan log` keeps a line when something was settled that a later session should find; ' +
+      'yan finds your folder by $YAN_TASK, which is set for you.',
+    ...(skills ? ['yan\'s other skills (recap, define, uat, review, done, pause, pack) are for an agent on a task, not for you: use one only when the user calls it.'] : []),
     'When a matter turns out to be work of its own, more than a sitting, something to be built and checked, or a pattern across several things the user brought here, say so; and when the user agrees, or asks for a task themselves, hand it over: ' +
       (skills ? 'yan:handoff says how.' : 'as follows.'),
     ...(skills ? [] : [handoffSkill(pluginDir)]),

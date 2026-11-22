@@ -461,7 +461,7 @@ export class Task {
 
   /**
    * Janus's task in this vault, made the first time it is asked for: open,
-   * with no repository, deliverable or number.
+   * with no repository, deliverable or number, and no problem.md, having no problem to state.
    *
    * @returns the task, and whether this call made it.
    */
@@ -471,7 +471,6 @@ export class Task {
     refuseWhileUnfinished();
     mkdirSync(task.dir, { recursive: true });
     initJson(task.file, { version: 2, id: JANUS, title: 'Janus', state: 'open', createdAt: isoSecond(), nextDeliverable: 1, deliverables: [] });
-    if (!existsSync(task.problem)) writeFileSync(task.problem, '');
     return { task, made: true };
   }
 

@@ -60,6 +60,9 @@ describe('Janus', () => {
     expect(prompt).toContain('yan tree get');
     expect(prompt).toContain('yan:handoff');
     expect(prompt).toContain(new Task(JANUS).dir);
+    expect(prompt, 'nothing of a task\'s: no problem to keep, no recap to start with').not.toContain('problem.md');
+    expect(prompt).toContain('Start every session fresh');
+    expect(existsSync(join(new Task(JANUS).dir, 'problem.md'))).toBe(false);
     expect(flag(0, '--add-dir')).toEqual([]);
 
     const made = new Task(JANUS).read().createdAt;

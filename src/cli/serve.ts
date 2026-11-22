@@ -147,7 +147,7 @@ export const command = new Command('serve')
   .option('--port <n>', `the page's port; the vault's files are served on the next one up`, String(DEFAULT_PORT))
   .option('--every <seconds>', 'how often to fetch the vault', '10')
   .option('--no-open', 'print the address, but do not open a browser')
-  .option('--no-janus', 'do not start Janus, the agent kept beside the tasks, as serve starts')
+  .option('--no-janus', 'do not make the task of Janus, the agent kept beside the tasks, when the vault has none')
   .action(
     action('yan serve', async (options: { port: string; every: string; open: boolean; janus: boolean }) => {
       const port = whole('--port', options.port, 1024, 65534);
@@ -177,7 +177,7 @@ export const command = new Command('serve')
         throw err;
       }
 
-      // Janus is up for as long as serve is: started now, in a herdr tab of its own, when herdr is there to start it in.
+      // Janus has its task from here on, for the page to show; its agent is started from the page.
       if (options.janus) void server.keepJanus().catch(() => undefined);
 
       const address = `http://localhost:${port}`;

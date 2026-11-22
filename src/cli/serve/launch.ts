@@ -107,17 +107,6 @@ export class Launches {
     return this.open(res, open.id, open.title, ['--task', open.id, ...more]);
   }
 
-  /**
-   * Janus started in a herdr tab of its own, unless it is running already:
-   * what serve does as it starts, with nobody to tell why it could not.
-   *
-   * @throws YanError when herdr is not there to open a tab in.
-   */
-  public async janus(): Promise<void> {
-    if (terminalsOf(this.vault).some((t) => t.task === JANUS) || this.launched.has(JANUS)) return;
-    await this.tab(JANUS, 'Janus', ['--janus']);
-  }
-
   /** A herdr tab named `title`, bare `yan` typed into it with `args`, kept as the launch `key`. */
   private async tab(key: string, title: string, args: readonly string[]): Promise<void> {
     const bin = this.bin();

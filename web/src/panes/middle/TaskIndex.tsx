@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Index, TaskSummary } from '../../lib/api';
+import { JANUS, type Index, type TaskSummary } from '../../lib/api';
 import { agentNews, agentWords } from '../../lib/agents';
 import { listResources } from '../../lib/resources';
 import { link, type TaskRoute } from '../../lib/route';
@@ -35,6 +35,7 @@ function NavLink({ href, on, icon, word, title, shine, children }: { href: strin
 /** A task's column: its title, its nav, and its artifacts or the branch being looked at. */
 export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute; index: Index; seen: Seen }) {
   const { data: d } = useTask(t.id);
+  const janus = t.id === JANUS;
   const terminal = useTerminals().data?.[t.id];
   const agent = terminal === undefined ? undefined : agentNews(t.id, terminal, seen);
   const marks = useUI((s) => s.prefs.badges);
@@ -50,17 +51,20 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
   const part = r.sub === 'branch' ? branch : artifacts;
   const top = (
     <>
-      <TaskHead icon={<StateIcon t={t} size={18} />} title={t.title || t.id} more={<TaskInfo t={t} index={index} />} />
+      {/* Janus is no piece of work: its own mark where a task has its state, and no problem or log to open, only where it is talked to and what it made. */}
+      <TaskHead icon={janus ? <Icon name="janus" size={18} className="text-ink-2" /> : <StateIcon t={t} size={18} />} title={t.title || t.id} more={<TaskInfo t={t} index={index} />} />
       <div className={NAV}>
-        <NavLink href={link.task(t.id)} on={r.sub === 'overview'} icon="overview" word="Overview" />
+        {janus ? null : <NavLink href={link.task(t.id)} on={r.sub === 'overview'} icon="overview" word="Overview" />}
         {d?.files.some((f) => f.path === 'report.html') ? (
           <NavLink href={link.report(t.id)} on={r.sub === 'report'} icon="check" word="Report">
             {unseen.has('report.html') ? <Dot title="changed since your last look" /> : null}
           </NavLink>
         ) : null}
-        <NavLink href={link.log(t.id)} on={r.sub === 'log'} icon="log" word="Log">
-          {fresh ? <Dot title="new entries" /> : null}
-        </NavLink>
+        {janus ? null : (
+          <NavLink href={link.log(t.id)} on={r.sub === 'log'} icon="log" word="Log">
+            {fresh ? <Dot title="new entries" /> : null}
+          </NavLink>
+        )}
         {/* An open task keeps its Terminal row with no agent running, where it is started again. Its agent has the
             dot it has everywhere else while it waits or has finished unseen; that it is at work, the task's title says. */}
         {terminal || goesOn(t) ? (

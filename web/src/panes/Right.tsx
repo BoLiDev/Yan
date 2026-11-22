@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import type { Index, TaskDetail } from '../lib/api';
+import { JANUS, type Index, type TaskDetail } from '../lib/api';
 import { buildTree, dirName, treeOrder } from '../lib/files';
 import { goesOn } from '../lib/stops';
 import { link, useRoute, viewKey, type Route } from '../lib/route';
@@ -52,7 +52,8 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   const t = index.tasks.find((x) => x.id === r.id);
   if (!t) return <Nothing title="No such task">{`There is no ${r.id} in this vault.`}</Nothing>;
   // The terminal is herdr's, not the vault's: it is shown without waiting for the task's files.
-  if (r.sub === 'terminal') return <TerminalView id={t.id} state={terminals?.[t.id]} goesOn={goesOn(t)} over={terminals !== undefined && !goesOn(t)} />;
+  // Janus has no overview or log to show: at either, it is its terminal.
+  if (r.sub === 'terminal' || (t.id === JANUS && (r.sub === 'overview' || r.sub === 'log'))) return <TerminalView id={t.id} state={terminals?.[t.id]} goesOn={goesOn(t)} over={terminals !== undefined && !goesOn(t)} />;
   if (!d) return <Nothing title="Loading…" />;
   if (r.sub === 'overview') return <Overview t={t} d={d} />;
   if (r.sub === 'log') return <LogView t={t} d={d} />;

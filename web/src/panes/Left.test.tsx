@@ -48,7 +48,7 @@ describe('what this browser is set to', () => {
     const screen = await draw(<Left />);
     await expect.element(screen.getByRole('link', { name: /pay retries/ })).toBeVisible();
     // Nowhere among the rows, and its button the one way to it.
-    expect([...document.querySelectorAll('a[href*="janus"]')].map((e) => [e.getAttribute('aria-label'), e.getAttribute('href')])).toEqual([['Janus', '#/t/janus/terminal']]);
+    expect([...document.querySelectorAll('a[href*="janus"]')].map((e) => [e.getAttribute('aria-label'), e.getAttribute('href')])).toEqual([['Janus, not started', '#/t/janus/terminal']]);
   });
 
   it('is one box away from the task list: the theme, dark or light whatever the browser asks, kept in this browser', async () => {

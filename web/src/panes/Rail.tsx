@@ -32,8 +32,8 @@ function Tip({ label, children }: { label: string; children: React.ReactElement 
   );
 }
 
-function RailButton({ icon, label, onClick, href, on, mark }: { icon: IconName; label: string; onClick?: () => void; href?: string; on?: boolean; mark?: ReactNode }) {
-  const look = cn(SQUARE, on && 'bg-card text-foreground ring-1 ring-border hover:bg-card');
+function RailButton({ icon, label, onClick, href, on, mark, faint }: { icon: IconName; label: string; onClick?: () => void; href?: string; on?: boolean; mark?: ReactNode; faint?: boolean }) {
+  const look = cn(SQUARE, on && 'bg-card text-foreground ring-1 ring-border hover:bg-card', faint && '[&>svg]:opacity-40');
   const inner = <><Icon name={icon} size={17} />{mark}</>;
   return (
     <Tip label={label}>
@@ -109,7 +109,7 @@ export function Rail() {
       <RailButton icon="search" label={`Find a task (${MOD}K)`} onClick={() => useUI.setState({ palette: true })} />
       <RailButton icon="plus" label="New task" onClick={() => useUI.setState({ newTask: true })} />
       {/* What the list's head opens is opened from here too: neither box is a task's, and folding the list is no reason to lose them. */}
-      <RailButton icon="janus" label="Janus" href={link.terminal(JANUS)} on={r.view === 'task' && r.id === JANUS} />
+      <RailButton icon="janus" label={terminals?.[JANUS] === undefined ? 'Janus, not started' : 'Janus'} href={link.terminal(JANUS)} on={r.view === 'task' && r.id === JANUS} faint={terminals?.[JANUS] === undefined} />
       <RailButton icon="note" label="Drafts" onClick={() => useUI.setState({ drafts: true })} />
       <RailButton icon="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} />
       <span className="my-2 h-px w-7 flex-none bg-border" />

@@ -232,7 +232,7 @@ const NO_BRANCH = 'yan never makes a branch, and never takes one for the task\'s
  * again and only takes room stays out of the vault, which every machine
  * pulls.
  */
-export function filesLine(dir: string): string {
+function filesLine(dir: string): string {
   return `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping. ` +
     'Designs of what the user sees (pages, canvases, mockups, palettes, icons, and the scripts that build them) go in artifacts/design/; ' +
     'written documents (a technical design, research notes, a review, a handoff, a diagram of a system) in artifacts/docs/; ' +
@@ -775,7 +775,7 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   // Janus has no tree to start in: it starts where it was called, with whatever trees it holds beside it.
   const workdir = asJanus ? cwd : trees[0]?.path ?? cwd;
   const addDirs = (asJanus ? trees : trees.slice(1)).map((t) => t.path);
-  const prompt = asJanus ? janusPrompt(harness.cli, trees, filesLine(task.dir), pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees));
+  const prompt = asJanus ? janusPrompt(harness.cli, trees, task.dir, pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees));
   const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : options.review === true ? reviewRequest(harness.cli) : undefined;
   const first = said === undefined ? {} : { first: said };
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
