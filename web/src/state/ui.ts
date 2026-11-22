@@ -41,6 +41,10 @@ export interface Prefs {
   readonly badges: boolean;
   /** A change of a Markdown file's history is drawn as one document, or the old beside the new. */
   readonly history: 'inline' | 'split';
+  /** The family the page is drawn in, one installed on this computer, by name; empty, yan's own. */
+  readonly font: string;
+  /** The family a terminal is drawn in, likewise. */
+  readonly termFont: string;
 }
 
 export interface Ask {
@@ -166,7 +170,7 @@ function save(key: string, value: unknown): void {
   }
 }
 
-const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, badges: true, history: 'inline' };
+const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, badges: true, history: 'inline', font: '', termFont: '' };
 
 /** What this browser kept of the marks, read once: the first index decides what a first visit starts from. */
 export const storedSeen: unknown = load(SEEN_KEY, null);

@@ -254,7 +254,10 @@ is selected, typed or playing in it. Left running while yan is updated, it resta
 build by itself once that build is complete and starts, in the same process
 and on the same port, and an open page reloads onto it. The cog beside the task list's name opens the settings,
 one box for what this browser is set to: the theme, light or dark as the
-browser asks or as picked there, a terminal being dark either way;
+browser asks or as picked there, a terminal being dark either way; the
+font the page is written in and the font of a terminal, each any font
+installed on the computer the browser is on, picked from Chrome's list of
+them or typed by name, yan's own when left empty;
 notifications; the marks on what is new; this machine's vaults, in a section listing this machine's vaults as
 `~/.yan/config.json` has them, in order, the default marked, each with its
 path, whether it is local or remote, and its own switch, on for a vault

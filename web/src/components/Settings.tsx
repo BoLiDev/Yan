@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { canNotify, toggleNotify } from '../state/notify';
 import { keepVaultLocal } from '../state/server';
 import { setPref, useUI } from '../state/ui';
+import { FontPick } from './FontPick';
 import { Seg } from './page';
 import { UpdateCard } from './Update';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -26,7 +27,8 @@ function Row({ title, sub, children, under }: { title: string; sub?: string; chi
 
 /**
  * What this browser is set to, in one box, opened from the cog over the
- * task list: the theme the page is drawn in; how much the page says of
+ * task list: the theme the page is drawn in, and the fonts of the page and
+ * of a terminal; how much the page says of
  * what arrived, what it tells of as it happens and the marks on what is
  * new since the last look, each on or off by itself, since being told and
  * being shown are different wants; this machine's vaults, each kept in
@@ -53,6 +55,12 @@ export function SettingsModal() {
           <Row title="Theme" under={
             <Seg wide options={[['system', 'As the browser'], ['light', 'Light'], ['dark', 'Dark']] as const} current={prefs.theme} onPick={(v) => setPref('theme', v)} />
           } />
+          <Row title="Font" sub="What the page is written in: any font installed on this computer, picked or typed by name. Empty, yan's own.">
+            <FontPick label="Font" value={prefs.font} onPick={(f) => setPref('font', f)} />
+          </Row>
+          <Row title="Terminal font" sub="What a terminal is drawn in, likewise; best one whose letters are all one width.">
+            <FontPick label="Terminal font" value={prefs.termFont} onPick={(f) => setPref('termFont', f)} />
+          </Row>
           <Row title="Notifications" sub={told}>
             <Switch aria-label="Notifications" checked={prefs.notify} onCheckedChange={() => void toggleNotify()} />
           </Row>

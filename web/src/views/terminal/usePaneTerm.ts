@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { sawAgent } from '../../state/agentToasts';
+import { termFace } from '../../state/fonts';
 import { useTheme } from '../../state/theme';
+import { useUI } from '../../state/ui';
 import { takeComposing, takePaste, takeTyping, takeWheel } from './input';
-import { MONO, termTheme } from './look';
+import { termTheme } from './look';
 import { follow } from './stream';
 
 /** What the tab's panes share: each one's terminal, the one typed in last, and one split off to be typed in next. */
@@ -30,6 +32,8 @@ export function usePaneTerm({ task, pane, agent, shared }: {
   const host = useRef<HTMLDivElement>(null);
   const [ended, setEnded] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // The font picked for terminals: another one is another size of cell, so the pane is drawn and followed afresh in it.
+  const font = useUI((s) => s.prefs.termFont);
 
   useEffect(() => {
     const el = host.current;
@@ -38,7 +42,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
     setEnded(null);
     let disposed = false;
     const term = new Terminal({
-      fontFamily: MONO, fontSize: 13, lineHeight: 1.15, cursorBlink: false, scrollback: 0, rightClickSelectsWord: false,
+      fontFamily: termFace(font), fontSize: 13, lineHeight: 1.15, cursorBlink: false, scrollback: 0, rightClickSelectsWord: false,
       theme: termTheme(),
     });
     const stage = el.parentElement as HTMLElement;
@@ -97,7 +101,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
       typing.dispose();
       term.dispose();
     };
-  }, [task, pane, agent, shared, attempt]);
+  }, [task, pane, agent, shared, attempt, font]);
 
   // The theme changing recolours the pane where it stands.
   const theme = useTheme();

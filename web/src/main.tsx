@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { queryClient } from './state/server';
+import { followFonts } from './state/fonts';
 import { followTheme } from './state/theme';
 import './index.css';
 
@@ -20,8 +21,9 @@ import './index.css';
  * fetches again only what moved (state/server.ts), and React keeps every
  * element that did not change, so a push leaves the reader where they were.
  */
-// Before the first draw, so a page told dark is never drawn light first.
+// Before the first draw, so a page told dark is never drawn light first, nor one given a font in yan's own.
 followTheme();
+followFonts();
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
