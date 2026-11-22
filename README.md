@@ -255,12 +255,11 @@ build by itself once that build is complete and starts, in the same process
 and on the same port, and an open page reloads onto it. The cog beside the task list's name opens the settings,
 one box for what this browser is set to: the theme, light or dark as the
 browser asks or as picked there, a terminal being dark either way;
-notifications; the marks on what is new; Local vault, this machine's switch
-for keeping the vault local, off and unmoving for a vault with no origin,
-which is local already, in a section listing this machine's vaults as
+notifications; the marks on what is new; this machine's vaults, in a section listing this machine's vaults as
 `~/.yan/config.json` has them, in order, the default marked, each with its
-path, whether it is local or remote, and its own switch; and yan's own
-updates. The mark after a task's title, at the head of its column, opens
+path, whether it is local or remote, and its own switch, on for a vault
+kept in step with its remote and off for a local one, and off and unmoving
+for a vault that has no remote; and yan's own updates. The mark after a task's title, at the head of its column, opens
 what yan keeps of the task itself: its id and state, the vault it is in,
 whether that vault is local or remote, and its folder on this machine. Notifications
 are one switch for all that pops up: off, as it starts, neither Chrome nor

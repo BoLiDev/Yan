@@ -56,30 +56,34 @@ describe('what this browser is set to', () => {
     await expect.element(screen.getByRole('dialog').getByRole('button', { name: 'Check for updates' })).toBeVisible();
   });
 
-  it('keeps the vault on this machine alone from a switch, which a vault with no origin has no use for', async () => {
-    const asked = serve({ '/api/yan/update': Response.json({ running: false, steps: [], error: null }), '/api/vault/local': Response.json({ ...status(2), local: true }) });
-    have(index([task('t1', 'pay retries')]));
+  it('keeps a vault in step with its remote, or local with the switch off, and a vault with no remote cannot be turned on', async () => {
+    const one = { name: 'fixture', dir: '/vault', local: false, origin: true, ok: true, fileLink: null };
+    const asked = serve({ '/api/yan/update': Response.json({ running: false, steps: [], error: null }), '/api/vault/local': Response.json({ ...status(2), local: true, vaults: [{ ...one, local: true }] }) });
+    have({ ...index([task('t1', 'pay retries')]), status: { ...status(), vaults: [one] } });
     const screen = await draw(<><Left /><SettingsModal /></>);
     await expect.element(screen.getByText('Synced')).toBeVisible();
     await screen.getByRole('button', { name: 'Settings' }).click();
-    await screen.getByRole('switch', { name: 'Local vault' }).click();
-    await expect.element(screen.getByRole('switch', { name: 'Local vault' })).toBeChecked();
+    const sync = screen.getByRole('switch', { name: 'Sync fixture with its remote' });
+    await expect.element(sync).toBeChecked();
+    await sync.click();
+    await expect.element(sync).not.toBeChecked();
     expect(asked.find((a) => a.path === '/api/vault/local')?.body).toEqual({ local: true });
     await expect.element(screen.getByText('kept on this machine alone')).toBeInTheDocument();
 
-    useUI.setState({ status: { ...status(3), local: true, origin: false } });
-    await expect.element(screen.getByRole('switch', { name: 'Local vault' })).toBeDisabled();
+    useUI.setState({ status: { ...status(3), local: true, origin: false, vaults: [{ ...one, local: true, origin: false }] } });
+    await expect.element(sync).not.toBeChecked();
+    await expect.element(sync).toBeDisabled();
   });
 
-  it('keeps each of several vaults local by a switch of its own', async () => {
+  it('switches each of several vaults by itself', async () => {
     const vaults = [{ name: 'team', dir: '/team', local: false, origin: true, ok: true, fileLink: null }, { name: 'work', dir: '/work', local: true, origin: false, ok: true, fileLink: null }];
     const asked = serve({ '/api/yan/update': Response.json({ running: false, steps: [], error: null }), '/api/vault/local': Response.json({ ...status(2), vaults: [{ ...vaults[0], local: true }, vaults[1]] }) });
     have({ ...index([task('t1', 'pay retries', { vault: 'team' })]), status: { ...status(), vaults } });
     const screen = await draw(<><Left /><SettingsModal /></>);
     await screen.getByRole('button', { name: 'Settings' }).click();
-    await expect.element(screen.getByRole('switch', { name: 'Local vault work' })).toBeDisabled();
-    await screen.getByRole('switch', { name: 'Local vault team' }).click();
-    await expect.element(screen.getByRole('switch', { name: 'Local vault team' })).toBeChecked();
+    await expect.element(screen.getByRole('switch', { name: 'Sync work with its remote' })).toBeDisabled();
+    await screen.getByRole('switch', { name: 'Sync team with its remote' }).click();
+    await expect.element(screen.getByRole('switch', { name: 'Sync team with its remote' })).not.toBeChecked();
     expect(asked.find((a) => a.path === '/api/vault/local')?.body).toEqual({ local: true, vault: 'team' });
   });
 

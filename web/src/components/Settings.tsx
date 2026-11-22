@@ -29,19 +29,14 @@ function Row({ title, sub, children, under }: { title: string; sub?: string; chi
  * task list: the theme the page is drawn in; how much the page says of
  * what arrived, what it tells of as it happens and the marks on what is
  * new since the last look, each on or off by itself, since being told and
- * being shown are different wants; whether the vault is kept on this
- * machine alone; and yan's own updates. All of it is this browser's, kept
+ * being shown are different wants; this machine's vaults, each kept in
+ * step with its remote or not; and yan's own updates. All of it is this browser's, kept
  * in it, but the vault's keeping and the update, which are this machine's.
  */
 export function SettingsModal() {
   const open = useUI((s) => s.settings);
   const prefs = useUI((s) => s.prefs);
   const status = useUI((s) => s.status);
-  // A vault whose git names no origin is local whatever is set, so there is nothing to switch.
-  const kept = status === null ? 'Whether the vault is kept on this machine alone.'
-    : !status.origin ? 'The vault has no origin, so it is kept on this machine alone.'
-      : status.local ? 'The vault is read from this machine alone: nothing is fetched from its origin or pushed to it.'
-        : 'On, the vault is read from this machine alone: nothing is fetched from its origin or pushed to it.';
   // Chrome's own leave, which the switch cannot give: said, with where to give it.
   const blocked = canNotify() && Notification.permission === 'denied';
   const told = `An agent that finishes or needs you is told at the top right, ${
@@ -64,13 +59,9 @@ export function SettingsModal() {
           <Row title="Marks on what is new" sub="The counts beside a task and the dots on its files, its report and its log, for what changed since you last looked.">
             <Switch aria-label="Marks on what is new" checked={prefs.badges} onCheckedChange={(on) => setPref('badges', on)} />
           </Row>
-          {status?.vaults === undefined ? (
-            <Row title="Local vault" sub={kept}>
-              <Switch aria-label="Local vault" checked={status?.local ?? false} disabled={!status?.origin} onCheckedChange={(on) => void keepVaultLocal(on)} />
-            </Row>
-          ) : (
+          {status?.vaults === undefined ? null : (
             // This machine's vaults as its config.json lists them, in the order a task id two of them have is settled: each local or remote by itself.
-            <Row title="Vaults" sub="This machine's vaults, in the order their tasks are looked through. The first is the default, where a new task is kept unless another is picked. A local vault is read from this machine alone: nothing is fetched from its origin or pushed to it." under={
+            <Row title="Vaults" sub="This machine's vaults, in the order their tasks are looked through. The first is the default, where a new task is kept unless another is picked. Each switch says whether the vault is kept in step with its remote; off, it is local, read from this machine alone, nothing fetched or pushed. A vault that has no remote cannot be turned on." under={
               <div className="flex min-w-0 flex-col gap-1.5" role="list" aria-label="Vaults">
                 {status.vaults.map((v, i) => (
                   <div key={v.name} role="listitem" className="flex min-w-0 items-center gap-3 rounded-lg bg-muted px-3 py-2 text-[13px]">
@@ -78,8 +69,9 @@ export function SettingsModal() {
                       <span className="flex items-center gap-2"><b>{v.name}</b>{i === 0 && status.vaults !== undefined && status.vaults.length > 1 ? <Badge variant="secondary">default</Badge> : null}</span>
                       <span className="truncate font-mono text-xs text-ink-3" title={v.dir}>{v.dir}</span>
                     </span>
-                    <span className="flex-none text-xs text-ink-3" title={v.origin ? undefined : 'It has no origin, so it is local whatever is set'}>{v.local ? 'Local' : 'Remote'}</span>
-                    <Switch aria-label={`Local vault ${v.name}`} checked={v.local} disabled={!v.origin} onCheckedChange={(on) => void keepVaultLocal(on, status.vaults !== undefined && status.vaults.length > 1 ? v.name : undefined)} />
+                    <span className="flex-none text-xs text-ink-3" title={v.origin ? undefined : 'It has no remote to sync with, so it is local'}>{v.local ? 'Local' : 'Remote'}</span>
+                    {/* On is in step with its remote, as a switch reads; what serve keeps is the other way round, whether it is local. */}
+                    <Switch aria-label={`Sync ${v.name} with its remote`} checked={!v.local} disabled={!v.origin} onCheckedChange={(on) => void keepVaultLocal(!on, status.vaults !== undefined && status.vaults.length > 1 ? v.name : undefined)} />
                   </div>
                 ))}
               </div>
