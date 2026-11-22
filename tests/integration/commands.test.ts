@@ -266,6 +266,8 @@ describe('yan debug', () => {
     for (const command of ['yan context', 'yan log', 'yan resource', 'yan uat add', 'yan uat ready']) expect(codex).toContain(command);
     for (const skill of skills) expect(codex).not.toContain(skill);
     expect(codex, 'no tree here, so nothing on branches').not.toContain('yan branch abandon');
+    // This vault has no origin, so it is local, and each is told never to pull or push it.
+    for (const told of [claude, codex]) expect(told).toMatch(/Never pull or push/);
   });
 });
 

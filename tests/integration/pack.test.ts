@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
@@ -89,6 +89,33 @@ describe('yan pack', () => {
     const light = (await packed(['--no-artifacts'])).zip;
     expect([...light.keys()].filter((name) => name.includes('artifacts/'))).toEqual([]);
     expect(light.get(`yan-${task.id}/README.md`)?.toString()).not.toContain('task/artifacts/');
+  });
+
+  it('carries the brief agreed with user for the other agent to read first, and only the artifacts named', async () => {
+    const brief = join(mkTempDir(), 'brief.md');
+    writeFileSync(brief, '# What to do\n\nOnly the retry itself; leave the order page.\n');
+    put(`tasks/${task.id}/artifacts/misc/query.sql`, 'select 1\n');
+
+    const { zip } = await packed(['--brief', brief, '--artifact', 'docs']);
+    const root = `yan-${task.id}`;
+    expect(zip.get(`${root}/BRIEF.md`)?.toString()).toContain('leave the order page');
+    expect(zip.get(`${root}/README.md`)?.toString()).toContain('BRIEF.md');
+    expect([...zip.keys()].filter((name) => name.includes('artifacts/'))).toEqual([`${root}/task/artifacts/docs/设计.md`]);
+
+    expectUsage(await yan(['pack', '--out', out, '--artifact', 'nope']), 'no artifact nope');
+    expectUsage(await yan(['pack', '--out', out, '--brief', join(mkTempDir(), 'not-written.md')]), 'write the brief first');
+  });
+
+  it('as one document, says the brief, the task, its problem and its log in a single file, with nothing beside it', async () => {
+    const brief = join(mkTempDir(), 'brief.md');
+    writeFileSync(brief, 'Only the retry itself.\n');
+    const file = join(mkTempDir(), 'handover.md');
+    const r = await yan(['pack', '--doc', '--brief', brief, '--out', file, '--json']);
+    expect(r.code, r.out).toBe(0);
+    expect((JSON.parse(r.stdout) as { file: string }).file).toBe(file);
+    const text = readFileSync(file, 'utf8');
+    for (const told of ['retry the payment', 'Only the retry itself.', 'a failed payment is retried once', 'never tried again', 'retry once, after a minute', 'fix/pay-retry']) expect(text, told).toContain(told);
+    expect(text, 'no file to point at').not.toContain('task/problem.md');
   });
 
   it('never writes the zip into the vault, and changes nothing there', async () => {

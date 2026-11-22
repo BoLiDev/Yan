@@ -51,6 +51,26 @@ import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir, vaultOrigin 
  * which every command reads, so the agent never needs the id.
  */
 
+/**
+ * What an agent on a local vault is told besides, and none other: the vault
+ * is kept on this machine alone, so there is nothing of it to pull or push,
+ * and an agent that tried, with yan or with git, would be reaching for the
+ * remote the vault was taken off. Said in the prompt, not in a skill, since
+ * it is a thing never to do rather than a way to work, and holds whether or
+ * not a skill was read. Nothing when the vault is shared, or cannot be read.
+ * An agent with no plugin is named the command, since it hears of no skill.
+ */
+function localLines(skills: boolean): string[] {
+  try {
+    if (vaultOrigin(vaultDir()) !== undefined) return [];
+  } catch {
+    return [];
+  }
+  return ['This task\'s notes are local: kept on this machine alone, and committed here by yan as you work. ' +
+    'Never pull or push them, with yan or with git, never give their folder a remote, and never copy them off this machine: ' +
+    `what leaves it is only what the user carries themselves, which ${skills ? 'yan:pack' : '\`yan pack\`'} prepares when they ask.`];
+}
+
 /** What claude, started with yan's plugin, is told before `user` says anything, for the task in `taskDir`. */
 export function skillsPrompt(taskDir: string): string {
   return [
@@ -61,6 +81,7 @@ export function skillsPrompt(taskDir: string): string {
       'yan:define works out the problem and the solution with the user; yan:review takes up a review the user left on yan\'s page; ' +
       'yan:done, yan:pause and yan:pack are the user\'s, to close the task, put it aside, or pack it for an agent working elsewhere.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
+    ...localLines(true),
   ].join('\n');
 }
 
@@ -259,7 +280,7 @@ export function promptFor(cli: string, taskDir: string, trees: readonly Tree[] =
  * tree, since only the first is where the agent starts.
  */
 export function openingPrompt(taskDir: string, trees: readonly Tree[] = []): string {
-  const head = [OPENING_PROMPT, taskDirLine(taskDir)];
+  const head = [OPENING_PROMPT, taskDirLine(taskDir), ...localLines(false)];
   if (trees.length === 0) return head.join('\n');
   if (trees.length > 1) {
     const lines = trees.map((t) => `- ${t.name}: ${t.path}${t.branch === undefined ? '' : `, on \`${t.branch}\``}${(t.open ?? []).length === 0 ? '' : `, also in progress ${quoted(t.open ?? [])}`}${t.scope.length === 0 ? '' : `, about ${quoted(t.scope)}`}`);

@@ -5,7 +5,7 @@ description: Use at the start of every session on a task kept by yan ($YAN_TASK 
 
 # recap
 
-A task kept by yan has its notes in the vault, a git repository yan commits and pushes as the session goes. We think about a task in three parts, each with its note:
+A task kept by yan has its notes in the vault, a git repository yan keeps by itself as the session goes: committed, and where the vault is shared with other machines, pulled and pushed. That is never yours to do, with yan or with git; a vault that is local, which the opening prompt says, is on this machine alone and goes nowhere. We think about a task in three parts, each with its note:
 
 - the **problem**, problem.md: the background, and what is wrong or wanted
 - the **solution**, the deliverables: how things must be once it is solved

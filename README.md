@@ -36,9 +36,16 @@ its git names, `off` going back to it. It is this machine's setting
 of `yan serve`'s page. Nothing is fetched from a local vault's origin or
 pushed to it: a pull has nothing to do, a push only commits, so the vault
 keeps its history, a new task is numbered from what is here, and `yan
-serve` reads the vault's own HEAD and never what was once fetched. Only
-agents on this machine read and write it; a task goes to one elsewhere by
-hand, as a zip `yan pack` writes.
+serve` reads the vault's own HEAD and never what was once fetched. With no
+origin to wait on, `yan serve` also watches a local vault's files and
+commits what is written a moment after the writing pauses, so the page
+shows what an agent writes as it writes it, not at the end of its turn.
+An agent started on a local vault is told so in its opening prompt: never
+to pull or push the notes, with yan or with git, and without the commands being named to it, never to give
+their folder a remote, and that nothing of them leaves the machine but
+what you carry yourself. Only agents on this machine read and write it; a
+task goes to one elsewhere by hand, as the pack `yan pack` writes, which
+tells that agent in turn that there is no vault for it to reach.
 
 Then register the repositories you work in, with `yan repo add` in a clone
 or in the directory that holds them, and type `yan` anywhere.
@@ -85,10 +92,11 @@ verified interactively; `yan:done`, which only you start, to close a
 task, done, or given up with the reason you give it (`/yan:done --abandon
 <why>`); `yan:pause`, which only you start too, to put it aside: its
 work committed and pushed on its branch, a line in the log on where it
-stands, then `yan pause`; `yan:pack`, which only you start as well, to hand the task to an agent
-working where the vault is not, one in the cloud say: its code pushed on its
-branch, its notes brought up to date, then `yan pack`, whose zip you give
-that agent yourself; and `yan:review`, to take up a review you wrote on
+stands, then `yan pause`; `yan:pack`, which only you start as well, to hand the task, or part of
+it, to an agent working where the vault is not, one in the cloud say: it
+agrees with you first what that agent takes up, what it has to know for
+it, and the form, a zip or one document, then pushes the code, writes the
+brief agreed and runs `yan pack`, whose file you give that agent yourself; and `yan:review`, to take up a review you wrote on
 `yan serve`'s page: it reads the newest with `yan review`, acts on every
 comment, and answers each by its number. Claude is started with them (`--plugin-dir`), and its prompt says only
 that the task is yan's, where its files are and which folder takes what,
@@ -171,7 +179,7 @@ For you:
 - `yan draft` — your own notes, in your editor: the vault's rather than one task's, so every task's agent can read them, and committed and pushed as soon as one is written; `ls`, `cat <id>`, `search <words>` and `dir` read them, newest first by when each was begun, as its name says, so every machine lists them in one order, `cat` naming a draft's pictures by where they are here, for an agent to open. A draft, or the folder of its pictures, that is a link is never followed out of the vault
 - `yan serve` — the vault in the browser on this machine, kept up to date as agents push: every task, those waiting for you to accept them apart, its notes and branch, every artifact shown as what it is, and its report to check each deliverable on
 - `yan vault …` — init, clone, use, local, pull, push, where, ls
-- `yan pack [id]` — one task as a zip, `yan-<id>.zip` in `~/Downloads` unless `--out` says where (never inside the vault or a worktree of the task's), to give by hand to an agent that works where the vault is not: one folder holding a README.md for that agent, which has no yan, on what the task is, its deliverables, its repositories and the branches in progress, its resources, and what to say back when it stops; the task's folder as it is, under `task/`; and the vault's learnings. Your drafts stay out unless `--drafts`, and `--no-artifacts` leaves the artifacts out. It holds what the vault would commit, with no symbolic link and no dot file, and changes nothing in the vault
+- `yan pack [id]` — one task as a zip, `yan-<id>.zip` in `~/Downloads` unless `--out` says where (never inside the vault or a worktree of the task's), to give by hand to an agent that works where the vault is not: one folder holding a README.md for that agent, which has no yan, on what the task is, its deliverables, its repositories and the branches in progress, its resources, that the notes are shared with nobody so there is nothing to pull or push, and what to say back when it stops; `--brief <file>`, what that agent is asked to do and has to know, as an agent here wrote it once agreed with you, as BRIEF.md, read first; the task's folder as it is, under `task/`; and the vault's learnings. Your drafts stay out unless `--drafts`; `--artifact <path>`, repeated, takes only those artifacts, and `--no-artifacts` none. `--doc` writes one Markdown document instead, `yan-<id>.md`: the brief, the task, its problem and its log whole, and no file beside it, for an agent given text rather than files. Either holds what the vault would commit, with no symbolic link and no dot file, and changes nothing in the vault
 - `yan repo add|link|ls|rm` — the repositories a new task picks from, and where each is cloned here
 - `yan debug [id]` — what yan tells an agent: the opening prompt a start of the task would give now; `--cli` for another CLI's
 

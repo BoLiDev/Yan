@@ -1143,6 +1143,13 @@ describe('a vault kept local from the page', () => {
       expect((await post('/api/task/title', { task: 't001', title: 'kept on this machine' })).status).toBe(200);
       expect(await until(async () => ((await titleShown()) === 'kept on this machine' ? true : undefined), 20_000), 'shown from the vault itself').toBe(true);
       expect((await fxGit(['status', '--porcelain', '--', 'tasks/t001'], home)).stdout, 'committed here').toBe('');
+      // What an agent writes is on the page as it is written, with no turn's end or tick to wait for.
+      write(home, 'tasks/t001/artifacts/docs/written-just-now.md', 'by an agent, mid-turn\n');
+      const shown = await until(async () => {
+        const detail = JSON.stringify(await (await fetch(page('/api/task/t001'))).json());
+        return detail.includes('written-just-now.md') ? true : undefined;
+      }, 8_000);
+      expect(shown).toBe(true);
       // Two ticks on, origin still has nothing of it.
       await new Promise((resolve) => setTimeout(resolve, 4500));
       expect(await onOrigin()).toBe(before);

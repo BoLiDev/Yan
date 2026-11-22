@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream';
@@ -337,12 +337,15 @@ export class YanServer {
       throw err;
     }
     this.schedule();
+    this.watch();
     return this.port;
   }
 
   /** Stop ticking and listening; resolves once both ports are free. */
   public stop(): Promise<void> {
     if (this.timer !== undefined) clearTimeout(this.timer);
+    if (this.wrote !== undefined) clearTimeout(this.wrote);
+    this.watcher?.close();
     this.later.stop();
     for (const c of this.clients) c.end();
     this.terminals.close();
@@ -433,6 +436,8 @@ export class YanServer {
         this.status.checkedAt = now();
         this.status.ok = true;
         this.status.error = null;
+        // What the watcher missed, where the platform gives it none: anything written and not committed is committed now.
+        if ((await gitAsync(dir, ['status', '--porcelain'])).stdout.trim() !== '') this.wroteHere();
       } else {
         const fetched = await gitAsync(
           dir,
@@ -700,6 +705,44 @@ export class YanServer {
     if (warning !== null) this.later.failed(warning);
     await this.tick();
     json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
+  }
+
+  /**
+   * A local vault's files watched, so what an agent writes is on the page
+   * as it is written and not at the end of its turn: with no origin to wait
+   * on, the only thing between a file and the page is a commit, which serve
+   * makes itself a moment after the writing pauses. serve still reads git
+   * objects, so the page shows a file whole, as it was committed, never
+   * half written. Where the platform watches no folder tree, each tick
+   * commits what it finds instead.
+   */
+  private watcher: FSWatcher | undefined;
+  private wrote: NodeJS.Timeout | undefined;
+  private committing = false;
+  private watch(): void {
+    try {
+      this.watcher = watch(this.options.vaultDir, { recursive: true }, (_event, name) => {
+        // git's own files move with every commit, serve's included.
+        if (name === null || /^\.git([\\/]|$)/.test(name)) return;
+        if (this.status.local) this.wroteHere();
+      });
+      this.watcher.on('error', () => undefined);
+      this.watcher.unref();
+    } catch {
+      // No recursive watch here: the ticks commit.
+    }
+  }
+
+  /** Something was written in a local vault: committed and shown once the writing has paused, one commit at a time. */
+  private wroteHere(): void {
+    if (this.wrote !== undefined) clearTimeout(this.wrote);
+    this.wrote = setTimeout(() => {
+      this.wrote = undefined;
+      if (this.committing) return this.wroteHere();
+      this.committing = true;
+      void this.pushLater().catch(() => undefined).finally(() => { this.committing = false; });
+    }, 700);
+    this.wrote.unref();
   }
 
   /** What the page wrote committed, what is not yet, and pushed, in turn with the page's other changes: what went wrong, or null. */
