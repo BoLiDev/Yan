@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { asOriginNames, branchStates } from './branches.js';
+import { janusPrompt } from './janus.js';
 import { workspacePackages } from './packages.js';
 import { repoName } from './repo-name.js';
 import { openTasks, tasksEverywhere, workIn } from './task-id.js';
@@ -16,7 +17,7 @@ import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs, takesPlugins } from '..
 import { herdrPane } from '../../externals/herdr/index.js';
 import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
-import { Task, type TaskRepo } from '../../records/task/index.js';
+import { JANUS, Task, type TaskRepo } from '../../records/task/index.js';
 import { YanError } from '../../util/error.js';
 import { yanHome } from '../../util/home.js';
 import { holdTerminal, letTerminalGo, machineConfigPath, skillDirs } from '../../util/machine.js';
@@ -231,7 +232,7 @@ const NO_BRANCH = 'yan never makes a branch, and never takes one for the task\'s
  * again and only takes room stays out of the vault, which every machine
  * pulls.
  */
-function filesLine(dir: string): string {
+export function filesLine(dir: string): string {
   return `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping. ` +
     'Designs of what the user sees (pages, canvases, mockups, palettes, icons, and the scripts that build them) go in artifacts/design/; ' +
     'written documents (a technical design, research notes, a review, a handoff, a diagram of a system) in artifacts/docs/; ' +
@@ -369,7 +370,7 @@ function firstLine(stderr: string): string {
  * commits. A fetch that fails, or a kept branch the tree cannot be put on,
  * is a warning, not a stop.
  */
-async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[]; branch?: string }, chain: EntryChain): Promise<string> {
+export async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[]; branch?: string }, chain: EntryChain): Promise<string> {
   const { name, clone, branch } = repo;
   const step = chain.working(`${name}: opening a worktree · fetching origin`);
   try {
@@ -573,7 +574,7 @@ async function vaultForNew(named: string | undefined, prompts: EntryPrompts): Pr
  * `elsewhere`, those of every vault here, since yan shows them as one list and an
  * id two vaults had would hide the later vault's task.
  */
-async function takenAnywhere(chain: EntryChain, elsewhere: readonly string[]): Promise<string[]> {
+export async function takenAnywhere(chain: EntryChain, elsewhere: readonly string[]): Promise<string[]> {
   return [...await takenOnOrigin(vaultDir(), chain), ...elsewhere];
 }
 
@@ -725,20 +726,29 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  *   message asks it to.
  * @param review the agent started to take up `user`'s last review, as
  *   their first message asks it to.
+ * @param janus the agent started as Janus, on the task that is no piece of
+ *   work, made in the active vault the first time: where `yan` was typed,
+ *   with every tree it holds beside it and none opened for it.
+ * @param trees a task gone on with is given the worktrees it has none of
+ *   here without being asked, as when something other than `user` starts it.
  */
-export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean; review?: boolean }, deps: EntryDeps = {}): Promise<number> {
+export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean; review?: boolean; janus?: boolean; trees?: boolean }, deps: EntryDeps = {}): Promise<number> {
   const active = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
   const plugins = takesPlugins(harness.cli) ? [pluginDir(), ...skillPlugins()] : [];
   const cwd = normalizePath(deps.cwd ?? process.cwd());
   const asking = deps.prompts ?? (await import('../../ui/prompts.js'));
-  const prompts = options.new === undefined ? asking : answering(asking, options.new);
+  const answered = options.new === undefined ? asking : answering(asking, options.new);
+  const prompts: EntryPrompts = options.trees === true ? { ...answered, confirmTree: async () => true } : answered;
   const chain = deps.chain ?? (await import('../../ui/chain.js'));
 
   // A task given on the command line, new or open, is not chosen: the chain still opens as the chooser opens it, and says which.
   const vaultName = readVaultJson(active).name;
-  const given = options.task === undefined ? undefined : openTasks().find((t) => t.id === options.task);
+  // Janus is asked for by its flag or by its id, and is there from the first asking: in the active vault, where its like is kept.
+  const asJanus = options.janus === true || options.task === JANUS;
+  const janus = asJanus ? Task.janus() : undefined;
+  const given = janus !== undefined ? { id: JANUS, title: janus.task.read().title } : options.task === undefined ? undefined : openTasks().find((t) => t.id === options.task);
   if (options.task !== undefined && given === undefined) {
     const kept = tasksEverywhere().find((t) => t.id === options.task);
     const paused = kept !== undefined && inVault(kept.dir, () => new Task(kept.id).read().pausedAt !== undefined);
@@ -752,19 +762,20 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   // A task gone on with is worked on in the vault that has it, whichever of this machine's that is; a new one is made in the active vault.
   // Read before the process is pointed at one vault, after which it sees only that one's.
   const everywhere = tasksEverywhere().map((t) => t.id);
-  const home = chosen === CREATE_NEW ? await vaultForNew(options.new?.vault, prompts) : tasksEverywhere().find((t) => t.id === chosen)?.dir;
+  const home = chosen === CREATE_NEW ? await vaultForNew(options.new?.vault, prompts) : asJanus ? active : tasksEverywhere().find((t) => t.id === chosen)?.dir;
   if (home !== undefined) workIn(home);
   const vault = vaultDir();
   const { task, trees } = chosen === CREATE_NEW
     ? await newTask(cwd, prompts, chain, everywhere)
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };
-  if (chosen === CREATE_NEW) saveNewTask(vault, task, chain);
+  if (chosen === CREATE_NEW || janus?.made === true) saveNewTask(vault, task, chain);
 
   chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
 
-  const workdir = trees[0]?.path ?? cwd;
-  const addDirs = trees.slice(1).map((t) => t.path);
-  const prompt = promptFor(harness.cli, task.dir, told(task, trees));
+  // Janus has no tree to start in: it starts where it was called, with whatever trees it holds beside it.
+  const workdir = asJanus ? cwd : trees[0]?.path ?? cwd;
+  const addDirs = (asJanus ? trees : trees.slice(1)).map((t) => t.path);
+  const prompt = asJanus ? janusPrompt(harness.cli, trees, filesLine(task.dir), pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees));
   const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : options.review === true ? reviewRequest(harness.cli) : undefined;
   const first = said === undefined ? {} : { first: said };
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];

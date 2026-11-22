@@ -1,13 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
 import type { ServerResponse } from 'node:http';
-import { CONTROL_SINCE, atLeast, createTab, herdrWorkspace, readPane, sendText, serverOf } from '../../externals/herdr/index.js';
 import { isYanError } from '../../util/error.js';
-import { yanHome } from '../../util/home.js';
 import { terminalsOf, type HeldTerminal } from '../../util/machine.js';
 import { newTaskRepos } from '../shared/launch.js';
 import { openTasks } from '../shared/task-id.js';
+import { herdrBin, openYanTab } from '../shared/yan-tab.js';
 
 /**
  * A task started from the page, new or gone on with: serve opens a herdr
@@ -32,29 +30,6 @@ interface Launch {
   readonly since: string;
 }
 
-/** A word for the shell as sh, bash, zsh and fish all read it back as it was: as it is when nothing in it is the shell's, else in single quotes. */
-const quoted = (word: string): string => (/^[\w./:@%+=,-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`);
-
-/**
- * Until the new tab's shell has drawn something and gone still: the shell
- * draws its prompt as it starts reading the terminal, and what is typed
- * before it does, the terminal echoes, then the shell draws again, so the
- * command would show twice. Typed anyway after a few seconds.
- */
-async function shellReady(socket: string, pane: string, still = 300, most = 5000): Promise<void> {
-  const end = Date.now() + most;
-  let seen = -1;
-  let since = Date.now();
-  while (Date.now() < end) {
-    const now = await readPane(socket, pane).catch(() => undefined);
-    if (now !== undefined && now.text.trim() !== '') {
-      if (now.revision !== seen) [seen, since] = [now.revision, Date.now()];
-      else if (Date.now() - since >= still) return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
-
 export class Launches {
   private readonly launched = new Map<string, Launch>();
 
@@ -65,12 +40,9 @@ export class Launches {
     return newTaskRepos(homedir());
   }
 
-  /**
-   * The herdr a launch goes to: the one serve runs in, else the one an agent
-   * here was started in, else whichever `herdr` on the PATH finds.
-   */
+  /** The herdr a launch goes to. */
   public bin(): string {
-    return process.env.HERDR_BIN_PATH?.trim() || terminalsOf(this.vault)[0]?.bin || 'herdr';
+    return herdrBin(this.vault);
   }
 
   /** The launch `key` names, a new task's or a task's own id, as a terminal held for it. */
@@ -136,20 +108,12 @@ export class Launches {
   private async open(res: ServerResponse, key: string, title: string, args: readonly string[]): Promise<void> {
     const bin = this.bin();
     try {
-      const herdr = await serverOf(bin);
-      if (!herdr.running) return void res.writeHead(409).end('herdr is not running: open it in a terminal first');
-      if (!atLeast(herdr.version, CONTROL_SINCE)) return void res.writeHead(409).end(`herdr ${herdr.version} is too old: ${CONTROL_SINCE} or newer is needed`);
-      // The shell starts where bare `yan` typed by hand would, and in the vault serve shows, whichever is this machine's own.
-      const pane = await createTab(herdr.socket, { cwd: homedir(), label: title, env: { YAN_VAULT: this.vault }, workspace: herdrWorkspace(process.env) });
-      const words = [process.execPath, join(yanHome(), 'bin', 'yan.mjs'), ...args];
-      await shellReady(herdr.socket, pane);
-      await sendText(herdr.socket, pane, `${words.map(quoted).join(' ')}\r`);
-      this.launched.set(key, { socket: herdr.socket, bin, pane, title, since: new Date().toISOString() });
+      const { socket, pane } = await openYanTab(bin, this.vault, title, args);
+      this.launched.set(key, { socket, bin, pane, title, since: new Date().toISOString() });
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ launch: key }));
     } catch (err) {
-      const why = err instanceof Error ? err.message : String(err);
-      const unreachable = !isYanError(err) || err.code === 'herdr_unreachable';
-      res.writeHead(unreachable ? 502 : 400).end(unreachable ? `herdr cannot be found (${bin}): ${why}` : why);
+      if (!isYanError(err)) throw err;
+      res.writeHead(err.code === 'tab_no_herdr' ? 409 : err.code === 'tab_unreachable' ? 502 : 400).end(err.message);
     }
   }
 }

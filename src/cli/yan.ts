@@ -61,6 +61,7 @@ repositories a new task picks from):
 
   yan [--cli claude|codex|agy] [--task <id> | --new <title> [--vault <name>] [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
   yan [--cli claude|codex|agy] [--task <id>] --done | --abandon <why> | --pause | --review
+  yan [--cli claude|codex|agy] --janus
 
 --task goes on with an open task without asking which. --new starts a task
 called <title>; --vault names the vault it is kept in, on a machine with
@@ -71,7 +72,13 @@ it to close the task, as yan:done does: it stops to ask when a worktree holds
 work that looks unsaved. --pause starts it asking it to put the task aside,
 as yan:pause does: its work saved, its worktrees given back. --review starts
 it on the review you last wrote on yan serve's page, as yan:review does. What
-is not given is asked.`,
+is not given is asked. --task with --trees opens the worktrees the task has
+none of here without asking.
+
+--janus starts Janus, the agent kept beside the tasks for what is not a task
+yet: here, in no worktree, with every repository and every task to read. It
+takes a worktree when it needs one ('yan tree') and hands a matter over to a
+task of its own once it has grown into one ('yan handoff').`,
     );
 
   for (const name of found) {
@@ -119,6 +126,8 @@ interface EntryArgs {
   readonly close?: { readonly abandon?: string };
   readonly pause?: boolean;
   readonly review?: boolean;
+  readonly janus?: boolean;
+  readonly trees?: boolean;
 }
 
 /** `name` or `name:package,package`, as `--repo` takes a repository and the packages a new task is about. */
@@ -148,6 +157,8 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   let close: { abandon?: string } | undefined;
   let pause = false;
   let review = false;
+  let janus = false;
+  let trees = false;
   let extra: string[] = [];
   // `--flag value` or `--flag=value`; the value, and how many words it took.
   const valueOf = (flag: string, i: number): [string, number] | undefined => {
@@ -172,7 +183,9 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
     else if (word === '--done') close = {};
     else if (word === '--pause') pause = true;
     else if (word === '--review') review = true;
-    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --task <id> or --new <title> with --repo <name> or --no-repo, --done, --abandon <why>, --pause or --review, and, after --, arguments for the agent - not '${word}'`);
+    else if (word === '--janus') janus = true;
+    else if (word === '--trees') trees = true;
+    else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --task <id> (with --trees), --new <title> with --repo <name> or --no-repo, or --janus, then --done, --abandon <why>, --pause or --review, and, after --, arguments for the agent - not '${word}'`);
     i += given?.[1] ?? 1;
   }
   if (title === undefined && vault !== undefined) throw YanError.usage('yan_usage', '--vault says where a new task is kept, given with --new <title>');
@@ -182,9 +195,11 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   if ((close !== undefined || pause || review) && title !== undefined) throw YanError.usage('yan_usage', '--done, --abandon, --pause and --review are for a task there is, not one --new starts');
   if (close !== undefined && pause) throw YanError.usage('yan_usage', '--pause puts a task aside and --done or --abandon closes it; give one');
   if (review && (close !== undefined || pause)) throw YanError.usage('yan_usage', '--review takes up a review, and --done, --abandon or --pause stops the task; give one');
+  if (janus && (task !== undefined || title !== undefined || close !== undefined || pause || review)) throw YanError.usage('yan_usage', '--janus starts Janus, which is no task to go on with, start, close, pause or review; give it alone');
+  if (trees && task === undefined) throw YanError.usage('yan_usage', '--trees opens the worktrees a task gone on with has none of here, given with --task <id>');
   if (close?.abandon !== undefined && close.abandon.trim() === '') throw YanError.usage('yan_usage', '--abandon takes the reason the task is being given up');
   const made = title === undefined ? {} : { new: { title, ...(vault === undefined ? {} : { vault }), ...(noRepo ? { repos: [] } : repos === undefined ? {} : { repos }) } };
-  return { ...(cli === undefined ? {} : { cli }), extra, ...made, ...(task === undefined ? {} : { task }), ...(close === undefined ? {} : { close }), ...(pause ? { pause } : {}), ...(review ? { review } : {}) };
+  return { ...(cli === undefined ? {} : { cli }), extra, ...made, ...(task === undefined ? {} : { task }), ...(close === undefined ? {} : { close }), ...(pause ? { pause } : {}), ...(review ? { review } : {}), ...(janus ? { janus } : {}), ...(trees ? { trees } : {}) };
 }
 
 async function main(argv: readonly string[]): Promise<number> {

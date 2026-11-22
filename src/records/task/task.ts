@@ -9,7 +9,7 @@ import { YanError } from '../../util/error.js';
 import { isDate, isoSecond, localDay } from '../../util/time.js';
 import { bySeries, isRecordId, nextNumbered } from '../../util/names.js';
 import { Uat, type Renumbered } from './uat.js';
-import { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
+import { BRANCH_MARKS, JANUS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed, type BranchMark, type Deliverable, type ResourceKind, type TaskData, type TaskRepo, type TaskState } from './types.js';
 
 /** A title as a task keeps it: trimmed, and refused when blank or on more than one line. */
 function titleOf(title: string): string {
@@ -90,6 +90,7 @@ export class Task {
    */
   public pause(): void {
     this.edit((doc, data) => {
+      if (this.id === JANUS) throw YanError.usage('task_janus', 'Janus is no piece of work to put aside: it stays, for whatever comes next');
       if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} - only an open task is paused`);
       if (data.pausedAt !== undefined) throw YanError.usage('task_paused', `${this.id} is paused already - 'yan resume ${this.id}' takes it up again`);
       doc.pausedAt = isoSecond();
@@ -119,6 +120,7 @@ export class Task {
    */
   public close(state: Exclude<TaskState, 'open' | 'uat'>, reason = ''): void {
     this.edit((doc, data) => {
+      if (this.id === JANUS) throw YanError.usage('task_janus', 'Janus is no piece of work to close: it stays, for whatever comes next');
       if (isClosed(data.state)) throw YanError.usage('task_closed', `${this.id} is ${data.state} already`);
       doc.state = state;
       doc.closedAt = isoSecond();
@@ -457,7 +459,23 @@ export class Task {
     return task;
   }
 
-  /** Every id under `tasks/` that has a task.json, sorted. */
+  /**
+   * Janus's task in this vault, made the first time it is asked for: open,
+   * with no repository, deliverable or number.
+   *
+   * @returns the task, and whether this call made it.
+   */
+  public static janus(): { task: Task; made: boolean } {
+    const task = new Task(JANUS);
+    if (task.exists()) return { task, made: false };
+    refuseWhileUnfinished();
+    mkdirSync(task.dir, { recursive: true });
+    initJson(task.file, { version: 2, id: JANUS, title: 'Janus', state: 'open', createdAt: isoSecond(), nextDeliverable: 1, deliverables: [] });
+    if (!existsSync(task.problem)) writeFileSync(task.problem, '');
+    return { task, made: true };
+  }
+
+  /** Every id under `tasks/` that has a task.json, sorted: the pieces of work, so not Janus. */
   public static list(): string[] {
     const dir = tasksDir();
     let entries: string[];
@@ -467,7 +485,7 @@ export class Task {
       return [];
     }
     return entries
-      .filter((id) => Task.isId(id) && existsSync(join(dir, id, 'task.json')))
+      .filter((id) => Task.isId(id) && id !== JANUS && existsSync(join(dir, id, 'task.json')))
       .sort(bySeries('t'));
   }
 }

@@ -151,7 +151,8 @@ function claudeOf(i: number): { skips: boolean; chrome: boolean; plugins: string
 function expectYanSkills(plugin: string | undefined, prompt: string): void {
   expect((readJson(join(plugin ?? '', '.claude-plugin', 'plugin.json')) as { name?: string }).name, "yan's plugin").toBe('yan');
   expect(prompt, "where the task's files are").toContain(new Task('t001').dir);
-  for (const skill of readdirSync(join(plugin ?? '', 'skills'))) expect(prompt, 'each skill it has').toContain(`yan:${skill}`);
+  // yan:handoff is Janus's, which a task's agent is not told of.
+  for (const skill of readdirSync(join(plugin ?? '', 'skills')).filter((s) => s !== 'handoff')) expect(prompt, 'each skill it has').toContain(`yan:${skill}`);
 }
 
 /** The one tree t001 holds; anything else fails the test here, before git is run in a path that is not there. */

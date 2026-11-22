@@ -251,7 +251,8 @@ describe('yan ls and yan peek', () => {
 describe('yan debug', () => {
   it('prints what each agent would be told on starting the task', async () => {
     const task = new Task('t001');
-    const skills = readdirSync(join(repoRoot, 'plugin', 'skills')).map((s) => `yan:${s}`);
+    // yan:handoff is Janus's, which a task's agent is not told of.
+    const skills = readdirSync(join(repoRoot, 'plugin', 'skills')).filter((s) => s !== 'handoff').map((s) => `yan:${s}`);
     const folders = ['artifacts/design/', 'artifacts/docs/', 'artifacts/uat/', 'artifacts/misc/'];
 
     const claude = (await yan(['debug', 't001'])).stdout;

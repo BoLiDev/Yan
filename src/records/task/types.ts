@@ -10,6 +10,18 @@
 export const TASK_STATES = ['open', 'uat', 'done', 'abandoned'] as const;
 export type TaskState = (typeof TASK_STATES)[number];
 
+/**
+ * The id of the one task that is no piece of work: Janus, the agent `user`
+ * keeps beside their tasks, for what is not a task yet: a question, a look
+ * at something, a small thing done. It is a task so that it has what a task
+ * has, a folder, a log, artifacts, a terminal, and a yan from before it
+ * reads it as the open task its task.json says it is; but it is never
+ * listed among the tasks, numbered, paused or closed, and it works in no
+ * repository of its own: it takes a worktree when it needs one and gives it
+ * back (`yan tree`). Kept in the first vault, the default.
+ */
+export const JANUS = 'janus';
+
 /** Done or abandoned: what `yan done` leaves. */
 export function isClosed(state: TaskState): boolean {
   return state === 'done' || state === 'abandoned';

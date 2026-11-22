@@ -133,6 +133,38 @@ prompt says it all: which tree is which and what in them the task is about,
 where the task's own files are, how the branches are kept, and how the
 evidence is gathered.
 
+Beside the tasks there is Janus, an agent for what is not a task yet: a
+question, something to look into, a small thing to do, without the making
+of a task. `yan --janus` starts it, where it is typed and in no worktree.
+It is kept as a task, `janus`, in the first vault, made the first time it
+is started, so it has what a task has, a folder, a log, artifacts and a
+terminal; but it is not listed among the tasks, has no number, and is never
+paused or closed. It is told that it may read everything: every task's
+notes in every vault, your drafts, and every registered repository, in the
+clone this machine has of it, each named to it with its path; and never to
+change a clone, another task's folder or a draft. It has no worktree of its
+own. When it has something to change, build or run, it takes a worktree of
+that repository with `yan tree get <repo>`, from the pool every task's
+come from, on a detached HEAD at origin's default branch, and gives it back
+with `yan tree return <repo>` (`--all` for every one, `--force` to throw
+away work that is nowhere else); `yan tree ls` lists those it holds, which
+it is started with again the next time. These are Janus's alone: a task's
+trees are opened as its agent starts.
+
+When a matter there has grown into work of its own, Janus hands it over as
+a task, with the skill `yan:handoff`: it agrees the scope with you, writes
+a handoff for an agent that starts from nothing, in its own
+artifacts/docs/, and runs `yan handoff "<title>" --problem <file> [--repo
+<name>[:<package>,...]]... [--artifact <path>]... [--vault <name>]`. That
+makes the task, numbered as any new one, in the repositories named, with
+the handoff as its problem.md and the files named in its artifacts/, saves
+the vault, and starts the task's agent in a herdr tab of its own (bare `yan
+--task <id> --trees`, which opens the worktrees without asking), where it
+waits for you: it is given nothing to begin on. `--no-start` makes the task
+alone, and so does a herdr that cannot be reached, which is said with how
+to start it. An agent that takes no skills is told what the skill says in
+its opening prompt.
+
 `yan:uat` gathers what you check the result by in artifacts/uat/,
 deliverable by deliverable, in one pass after the implementation: the before
 of each change from the code where the task's branch left the default
@@ -735,6 +767,7 @@ what it was written from), its bar says legacy and what changed.
   learnings/<topic>.md         front matter (name, description) and the text
   drafts/<draft-id>.md         yours, every task's, in the format of the `draft` CLI: <stamp>[-<slug of its title>]
   drafts/<draft-id>/<n>.png    the pictures pasted into it on yan serve's page, which go when it does
+  tasks/janus/                 Janus's own, a task's folder as below: never listed, numbered, paused or closed
   tasks/<id>/
     task.json                  title, state (open, uat, done, abandoned), pausedAt while an open task is paused, repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)

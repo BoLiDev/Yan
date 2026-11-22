@@ -9,5 +9,5 @@ export { Task, isResourceKind } from './task.js';
 export type { Reordered } from './task.js';
 export { Uat, UAT_SIDES, parseUat } from './uat.js';
 export type { Renumbered, UatData, UatFile, UatSide } from './uat.js';
-export { BRANCH_MARKS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed } from './types.js';
+export { BRANCH_MARKS, JANUS, RESOURCE_KINDS, TASK_STATES, branchMark, isClosed } from './types.js';
 export type { BranchMark, Deliverable, ResourceKind, TaskData, TaskRepo, TaskState } from './types.js';
