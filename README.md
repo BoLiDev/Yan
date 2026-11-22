@@ -257,7 +257,9 @@ one box for what this browser is set to: the theme, light or dark as the
 browser asks or as picked there, a terminal being dark either way; the
 font the page is written in and the font of a terminal, each any font
 installed on the computer the browser is on, picked from Chrome's list of
-them or typed by name, yan's own when left empty;
+them or typed by name, or several with commas between, as an editor's
+setting has them, each drawing what those before it have no glyph for (a
+Latin face, then a Chinese one), yan's own after them and when left empty;
 notifications; the marks on what is new; this machine's vaults, in a section listing this machine's vaults as
 `~/.yan/config.json` has them, in order, the default marked, each with its
 path, whether it is local or remote, and its own switch, on for a vault

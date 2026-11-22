@@ -3,28 +3,35 @@ import { useUI } from './ui';
 
 /**
  * The faces this browser was told to draw in (prefs.font, prefs.termFont):
- * any family installed on the computer the browser runs on, by its name,
- * put before yan's own, which still draw what the picked one has no glyph
- * for, Chinese in a Latin face say, and all of it when no such family is
- * installed. Unset, yan's own alone.
+ * families installed on the computer the browser runs on, by name, several
+ * with commas between as an editor's setting has them, each drawing what
+ * those before it have no glyph for, a Latin face and then a Chinese one
+ * say. They are put before yan's own, which draw what none of them has,
+ * and all of it when no such family is installed. Unset, yan's own alone.
  */
 
 /** The page's own face, as index.css has it, which a picked one goes before. */
 const OWN = '"Yan Round", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
 
-/** A family's name as CSS takes it, whatever was typed. */
-const quoted = (family: string): string => `"${family.replace(/["\\\n\r]/g, '')}"`;
+/** The names CSS has for a kind of face, not a family, which are written as they are. */
+const KINDS = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded']);
 
-/** `family` before `rest`, or `rest` alone when none was picked. */
-export const before = (family: string, rest: string): string => (family.trim() === '' ? rest : `${quoted(family.trim())}, ${rest}`);
+/** The families of a list as it was typed, in order: commas between them, quotes around one or not. */
+export const families = (list: string): string[] => list.split(',').map((f) => f.replace(/["'\\\n\r]/g, '').trim()).filter((f) => f !== '');
+
+/** A family's name as CSS takes it. */
+const quoted = (family: string): string => (KINDS.has(family.toLowerCase()) ? family.toLowerCase() : `"${family}"`);
+
+/** The families of `list` before `rest`, or `rest` alone when none was picked. */
+export const before = (list: string, rest: string): string => [...families(list).map(quoted), rest].join(', ');
 
 /** What a terminal is drawn in now. */
-export const termFace = (family: string): string => before(family, MONO);
+export const termFace = (list: string): string => before(list, MONO);
 
 function apply(): void {
   const { font } = useUI.getState().prefs;
   const root = document.documentElement;
-  if (font.trim() === '') root.style.removeProperty('--font');
+  if (families(font).length === 0) root.style.removeProperty('--font');
   else root.style.setProperty('--font', before(font, OWN));
 }
 
@@ -48,8 +55,8 @@ export async function installedFonts(): Promise<readonly string[] | null> {
   if (typeof query !== 'function') return null;
   try {
     const fonts = await query.call(window);
-    const families = [...new Set(fonts.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
-    return families.length === 0 ? null : families;
+    const names = [...new Set(fonts.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
+    return names.length === 0 ? null : names;
   } catch {
     return null;
   }

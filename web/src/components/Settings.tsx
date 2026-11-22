@@ -55,7 +55,7 @@ export function SettingsModal() {
           <Row title="Theme" under={
             <Seg wide options={[['system', 'As the browser'], ['light', 'Light'], ['dark', 'Dark']] as const} current={prefs.theme} onPick={(v) => setPref('theme', v)} />
           } />
-          <Row title="Font" sub="What the page is written in: any font installed on this computer, picked or typed by name. Empty, yan's own.">
+          <Row title="Font" sub="What the page is written in: fonts installed on this computer, by name. Of several with commas between, each draws what those before it cannot. Empty, yan's own.">
             <FontPick label="Font" value={prefs.font} onPick={(f) => setPref('font', f)} />
           </Row>
           <Row title="Terminal font" sub="What a terminal is drawn in, likewise; best one whose letters are all one width.">

@@ -41,9 +41,9 @@ export interface Prefs {
   readonly badges: boolean;
   /** A change of a Markdown file's history is drawn as one document, or the old beside the new. */
   readonly history: 'inline' | 'split';
-  /** The family the page is drawn in, one installed on this computer, by name; empty, yan's own. */
+  /** The families the page is drawn in, installed on this computer, by name, with commas between, each for what those before it lack; empty, yan's own. */
   readonly font: string;
-  /** The family a terminal is drawn in, likewise. */
+  /** The families a terminal is drawn in, likewise. */
   readonly termFont: string;
 }
 
