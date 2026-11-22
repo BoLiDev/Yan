@@ -335,7 +335,7 @@ that is cancelled. A picture pasted into a draft, or dropped on it, is
 kept in a folder beside it named as it is, and named in it where the caret
 is; pasted into none, a new draft is made for it. With no drafts, the box
 opens on a new one, ready to write. Hidden, the task list folds to a rail:
-finding a task, starting one, and a square for each task in review
+finding a task, starting one, the drafts, the settings, and a square for each task in review
 or in progress, not paused, the one being read framed and each one's agent marked as
 on the list. A square is one character of its task's title: its first
 word's first letter, capitalised, or its first Chinese character, never

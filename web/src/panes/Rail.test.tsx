@@ -53,6 +53,16 @@ describe('a task folded to its square on the rail', () => {
     expect(rail.getByRole('link', { name: 'export orders' }).element().textContent).toBe('E');
   });
 
+  it('stands under the list\'s own tools, the drafts and the settings among them, each opening its box', async () => {
+    const { screen } = await open({});
+    const rail = screen.getByRole('navigation', { name: 'Tasks' });
+    await rail.getByRole('button', { name: 'Drafts' }).click();
+    expect(useUI.getState().drafts).toBe(true);
+    useUI.setState({ drafts: false });
+    await rail.getByRole('button', { name: 'Settings' }).click();
+    expect(useUI.getState().settings).toBe(true);
+  });
+
   it('speaks in a bubble as its agent finishes, in place of a toast, and opens its terminal when clicked', async () => {
     const { herdr } = await open({ here: agent('working', 100, 'idle') });
     await herdr(agent('done', 200));

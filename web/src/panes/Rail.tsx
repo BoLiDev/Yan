@@ -108,6 +108,9 @@ export function Rail() {
       <RailButton icon="panel" label="Show the task list" onClick={() => setPref('left', true)} />
       <RailButton icon="search" label={`Find a task (${MOD}K)`} onClick={() => useUI.setState({ palette: true })} />
       <RailButton icon="plus" label="New task" onClick={() => useUI.setState({ newTask: true })} />
+      {/* What the list's head opens is opened from here too: neither box is a task's, and folding the list is no reason to lose them. */}
+      <RailButton icon="note" label="Drafts" onClick={() => useUI.setState({ drafts: true })} />
+      <RailButton icon="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} />
       <span className="my-2 h-px w-7 flex-none bg-border" />
       {tasks.map((t) => <TaskSquare key={t.id} t={t} letter={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} squares={squares} />)}
       <RailBubbles squares={squares} />
