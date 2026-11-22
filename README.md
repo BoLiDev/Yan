@@ -32,8 +32,8 @@ A vault can also be local, kept on one machine alone, where your notes
 should not sit on a forge: `yan vault init <name> --local` makes one with no
 remote, and `yan vault local on` keeps the active vault so whatever origin
 its git names, `off` going back to it. It is this machine's setting
-(`localVaults` in `~/.yan/config.json`), and also a switch in the settings
-of `yan serve`'s page. Nothing is fetched from a local vault's origin or
+(the vault's `type` in `~/.yan/config.json`, `local` or `remote`), and also
+a switch in the settings of `yan serve`'s page. Nothing is fetched from a local vault's origin or
 pushed to it: a pull has nothing to do, a push only commits, so the vault
 keeps its history, a new task is numbered from what is here, and `yan
 serve` reads the vault's own HEAD and never what was once fetched. With no
@@ -46,6 +46,21 @@ their folder a remote, and that nothing of them leaves the machine but
 what you carry yourself. Only agents on this machine read and write it; a
 task goes to one elsewhere by hand, as the pack `yan pack` writes, which
 tells that agent in turn that there is no vault for it to reach.
+
+A machine can have several vaults at once, a local one beside one shared
+through a remote, say. `~/.yan/config.json` lists them, `vaults`, each with
+its name, its path and its `type`, and their order means something: yan
+shows the tasks of them all as one list, in `yan ls`, in bare `yan` and on
+`yan serve`'s page, each named with its vault; a task id two vaults have
+is the earlier vault's, the later one's hidden; and the first is the
+active vault, where a new task is made, numbered after the tasks of every
+vault so that none is hidden, and whose drafts, learnings and
+`config.json` are read. `yan vault init` and `clone` put a vault first,
+`yan vault use <name>` moves one there, and `yan vault ls` lists them in
+order. A command given a task, by `--task` or `$YAN_TASK`, works in the
+vault that task is in, and an agent started on a task is kept to that
+vault, its hooks included. By hand, `yan vault pull` and `push` go through
+every vault, each as its type has it.
 
 Then register the repositories you work in, with `yan repo add` in a clone
 or in the directory that holds them, and type `yan` anywhere.
@@ -171,7 +186,7 @@ agent starts anyway, its first turn pushing it.
 
 For you:
 
-- `yan ls` — every open task, one line each, those handed to you to accept as in review and those put aside as paused; `--status all` for the rest
+- `yan ls` — every open task of every vault here, one line each, named with its vault when there are several, those handed to you to accept as in review and those put aside as paused; `--status all` for the rest
 - `yan peek [id]` — one task at a glance: its trees, the start of its problem, its resources, and your newest drafts
 - `yan done [id]` — close a task and give its worktrees back; `--abandon "<why>"`. One closed already, on another machine say, only has its worktrees here given back, and stays as it was closed
 - `yan pause [id]` — put an open task aside, so nothing of it takes room here: its worktrees go back to the pool, refused while one holds work nowhere else (`--force` throws it away), and it keeps its state, open or in review, for later; no agent is started on it until it is resumed
@@ -214,7 +229,12 @@ local vault is cloned nowhere, so such an agent is given one task as the zip
 `yan pack` writes, and works from the README.md in it, without yan; what it
 did comes back as you carry it, for an agent here to put in the task's notes.
 
-`yan serve` runs until stopped, at `http://localhost:4747` (`--port`). At a
+`yan serve` runs until stopped, at `http://localhost:4747` (`--port`). On a
+machine with several vaults it serves them all as one: the tasks of each in
+one list, a row's tooltip naming its vault, and whatever is asked or
+changed of a task done in the vault it is in, each vault fetched, or for a
+local one watched, by itself; drafts, a new task and the settings of
+`config.json` are the active vault's. At a
 terminal it takes a screen of its own, as `less` does, with no history to
 scroll back through: the page's address, the vault it serves and how often
 it fetches, a line each under an arrow, the address in colour. Stopping it
@@ -232,7 +252,8 @@ one box for what this browser is set to: the theme, light or dark as the
 browser asks or as picked there, a terminal being dark either way;
 notifications; the marks on what is new; Local vault, this machine's switch
 for keeping the vault local, off and unmoving for a vault with no origin,
-which is local already; and yan's own updates. Notifications
+which is local already, and one switch for each vault when several are
+served; and yan's own updates. Notifications
 are one switch for all that pops up: off, as it starts, neither Chrome nor
 the page tells of anything, an agent that finished included, and the marks
 are all that say it. With

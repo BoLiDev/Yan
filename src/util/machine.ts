@@ -10,11 +10,21 @@ import { normalizePath, pathKey } from './paths.js';
  * this machine keeps its clone of each repository. Never committed anywhere.
  *
  *   { "version": 1,
- *     "active": "personal",
- *     "vaults": { "personal": "C:/workspace/project/yan-vault-personal" },
+ *     "vaults": [
+ *       { "name": "team", "path": "C:/workspace/project/yan-vault-team", "type": "remote" },
+ *       { "name": "work", "path": "C:/workspace/project/yan-vault-work", "type": "local" } ],
  *     "clones": { "github.com/org/web": "C:/workspace/project/web" },
- *     "skillDir": "~/work/skills",
- *     "localVaults": ["C:/workspace/project/yan-vault-personal"] }
+ *     "skillDir": "~/work/skills" }
+ *
+ * `vaults` is every vault this machine has, in order, and the order means
+ * something: yan shows the tasks of all of them as one list, a task id two
+ * vaults both have is the earlier vault's, and the first is the active one,
+ * where a new task is made and whose drafts, learnings and config.json are
+ * read. `type` is `local` for a vault kept on this machine alone and
+ * `remote` for one kept in step with its origin. A file from before the
+ * list, a map of name to path with `active` and `localVaults` beside it, is
+ * read as the same thing, the active vault first, and written back as the
+ * list.
  *
  * A clone is keyed by `repoKey` of its URL, so every vault that registers the
  * repository finds the same one.
@@ -24,12 +34,12 @@ import { normalizePath, pathKey } from './paths.js';
  * skills such as the ones a workplace keeps. It is this machine's and not the
  * vault's, since the folder is only here.
  *
- * `localVaults` is the vaults this machine keeps to itself, each by its
- * path: nothing is fetched from such a vault's origin or pushed to it,
- * whatever origin its git has (`util/vault.ts`, `vaultOrigin`). By path
- * rather than by name, so a vault `$YAN_VAULT` points at is kept as well.
- * It is this machine's and not the vault's: a setting inside the vault
- * would have to travel to mean anything, which is what it forbids.
+ * Nothing is fetched from a `local` vault's origin or pushed to it,
+ * whatever origin its git has (`util/vault.ts`, `vaultOrigin`). It is this
+ * machine's and not the vault's: a setting inside the vault would have to
+ * travel to mean anything, which is what it forbids. `localVaults`, paths,
+ * says the same of a vault that is not in the list, one `$YAN_VAULT` points
+ * at.
  *
  * `terminals` is written by bare `yan` alone: each agent it started in a
  * herdr pane here, while the agent runs, so `yan serve` on this machine can
@@ -46,7 +56,9 @@ import { normalizePath, pathKey } from './paths.js';
 
 interface MachineConfig {
   readonly version: number;
+  /** The first of `vaults`. */
   readonly active?: string;
+  /** Name to path, in the order of the file's list: the order they are shown and looked through in. */
   readonly vaults: Readonly<Record<string, string>>;
   readonly clones: Readonly<Record<string, string>>;
   /** As written, a path or a list of them, so a rewrite of the file keeps it as it was. */
@@ -135,25 +147,51 @@ export function readMachine(): MachineConfig {
     }
     return out;
   };
-  const vaults = paths(record.vaults);
   const clones = paths(record.clones);
+  const localVaults = new Set(Array.isArray(record.localVaults) ? record.localVaults.flatMap((d) => { const p = set(d); return p === undefined ? [] : [normalizePath(p)]; }) : []);
 
-  const active = set(record.active);
+  // The list, or the map from before it with the active vault put first.
+  let vaults: Record<string, string> = {};
+  if (Array.isArray(record.vaults)) {
+    for (const entry of record.vaults) {
+      const r = asRecord(entry);
+      const [name, path] = [set(r.name), set(r.path)];
+      if (name === undefined || path === undefined || vaults[name] !== undefined) continue;
+      vaults[name] = normalizePath(path);
+      if (r.type === 'local') localVaults.add(normalizePath(path));
+    }
+  } else {
+    const named = paths(record.vaults);
+    const first = set(record.active);
+    vaults = { ...(first !== undefined && named[first] !== undefined ? { [first]: named[first] } : {}), ...named };
+  }
+  const active = Object.keys(vaults)[0];
   const skillDir = typeof record.skillDir === 'string' ? record.skillDir
     : Array.isArray(record.skillDir) ? record.skillDir.filter((d): d is string => typeof d === 'string') : undefined;
   const terminals = readTerminals(record.terminals);
   const worktreeTabs = readWorktreeTabs(record.worktreeTabs);
-  const localVaults = Array.isArray(record.localVaults)
-    ? [...new Set(record.localVaults.flatMap((d) => { const p = set(d); return p === undefined ? [] : [normalizePath(p)]; }))] : [];
   return {
     version: typeof record.version === 'number' ? record.version : 1,
     ...(active === undefined ? {} : { active }),
     vaults,
     clones,
     ...(skillDir === undefined ? {} : { skillDir }),
-    ...(localVaults.length === 0 ? {} : { localVaults }),
+    ...(localVaults.size === 0 ? {} : { localVaults: [...localVaults] }),
     ...(terminals.length === 0 ? {} : { terminals }),
     ...(worktreeTabs.length === 0 ? {} : { worktreeTabs }),
+  };
+}
+
+/** The registry as the file keeps it: the vaults a list, each with its type, and no `active` beside it, which is the first. */
+function asFile(config: MachineConfig): Record<string, unknown> {
+  const { active: _first, vaults, localVaults = [], ...rest } = config;
+  const local = new Set(localVaults.map(pathKey));
+  const listed = new Set(Object.values(vaults).map(pathKey));
+  const others = localVaults.filter((p) => !listed.has(pathKey(p)));
+  return {
+    ...rest,
+    vaults: Object.entries(vaults).map(([name, path]) => ({ name, path, type: local.has(pathKey(path)) ? 'local' : 'remote' })),
+    ...(others.length === 0 ? {} : { localVaults: others }),
   };
 }
 
@@ -176,28 +214,32 @@ export function machineRevision(): number {
 function editMachine(edit: (current: MachineConfig) => MachineConfig): void {
   mkdirSync(machineDir(), { recursive: true });
   initJson(machineConfigPath(), EMPTY);
-  editJson(machineConfigPath(), () => edit(readMachine()));
+  editJson(machineConfigPath(), () => asFile(edit(readMachine())));
   revision += 1;
 }
 
+/** Every vault registered here, in the list's order: the active one first. */
 export function registeredVaults(): { name: string; path: string }[] {
-  const { vaults } = readMachine();
-  return Object.keys(vaults)
-    .sort()
-    .map((name) => ({ name, path: vaults[name] as string }));
+  return Object.entries(readMachine().vaults).map(([name, path]) => ({ name, path }));
 }
 
-/** Record a vault under `name`, overwriting any path already there. */
+/** Record a vault under `name`, overwriting any path already there: first of the list, so active, or with `activate` false, last. */
 export function registerVault(name: string, path: string, activate = true): void {
-  editMachine((current) => ({
-    ...current,
-    ...(activate ? { active: name } : {}),
-    vaults: { ...current.vaults, [name]: normalizePath(path) },
-  }));
+  editMachine((current) => {
+    const { [name]: _was, ...others } = current.vaults;
+    const entry = { [name]: normalizePath(path) };
+    return { ...current, vaults: activate ? { ...entry, ...others } : { ...others, ...entry } };
+  });
 }
 
+/** Make `name` the active vault: the first of the list, the rest keeping their order. */
 export function setActiveVault(name: string): void {
-  editMachine((current) => ({ ...current, active: name }));
+  editMachine((current) => {
+    const path = current.vaults[name];
+    if (path === undefined) return current;
+    const { [name]: _was, ...others } = current.vaults;
+    return { ...current, vaults: { [name]: path, ...others } };
+  });
 }
 
 /** Whether this machine keeps the vault at `dir` to itself. */

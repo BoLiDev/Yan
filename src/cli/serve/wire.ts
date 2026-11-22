@@ -30,6 +30,22 @@ export interface Status {
   readonly build: string;
   /** How what the page wrote, drafts and edits, stands with origin. */
   readonly push: PushState;
+  /**
+   * Each vault by itself, in the order they are looked through, when serve
+   * shows several as one list: the rest of this status is then all of them
+   * taken together, local only when every one is.
+   */
+  readonly vaults?: readonly VaultStanding[];
+}
+
+/** How one of several vaults stands: its name, where it is, and whether it is kept on this machine alone. */
+export interface VaultStanding {
+  readonly name: string;
+  readonly dir: string;
+  readonly local: boolean;
+  readonly origin: boolean;
+  readonly ok: boolean;
+  readonly fileLink: FileLink | null;
 }
 
 /** What the page wrote and has not pushed yet, waiting or tried and failed, and what went wrong the last time. */
@@ -47,6 +63,8 @@ export interface RepoSummary {
 
 export interface TaskSummary {
   readonly id: string;
+  /** The vault it is in, by name, when serve shows several as one list. */
+  readonly vault?: string;
   /** "" when task.json cannot be read. */
   readonly title: string;
   readonly state: string;

@@ -4,10 +4,11 @@ import { Command } from 'commander';
 import { YanError } from '../util/error.js';
 import { yanHome } from '../util/home.js';
 import { readMachine } from '../util/machine.js';
-import { readVaultJson, vaultDir, vaultOrigin } from '../util/vault.js';
+import { everyVault, readVaultJson, vaultDir, vaultOrigin } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { openPath } from './shared/opener.js';
 import { bold, cyan, dim, green, tildePath } from './shared/style.js';
+import { ManyVaults } from './serve/front.js';
 import { YanServer } from './serve/server.js';
 
 /**
@@ -64,13 +65,15 @@ function item(label: string, value: string, strong = false): string {
   return `  ${green('➜')}  ${(strong ? bold : dim)(label)}${' '.repeat(8 - label.length)}${value}`;
 }
 
-function started(name: string, address: string, dir: string, everyS: number): string[] {
-  const fetches = vaultOrigin(dir) === undefined ? 'none, a local vault, kept on this machine alone' : `origin, every ${everyS} s`;
+function started(name: string, address: string, dirs: readonly string[], everyS: number): string[] {
+  const fetches = (dir: string): string => (vaultOrigin(dir) === undefined ? 'none, a local vault, kept on this machine alone' : `origin, every ${everyS} s`);
   return [
     ...head(name),
     item('Page', cyan(address), true),
-    item('Vault', dim(tildePath(dir))),
-    item('Fetch', dim(fetches)),
+    // Several vaults are one list on the page: each says where it is and how it is fetched.
+    ...(dirs.length === 1
+      ? [item('Vault', dim(tildePath(dirs[0] as string))), item('Fetch', dim(fetches(dirs[0] as string)))]
+      : dirs.map((dir) => item('Vault', dim(`${tildePath(dir)}  ·  ${fetches(dir)}`)))),
     '',
     `  ${dim('Ctrl+C to stop')}`,
   ];
@@ -152,7 +155,12 @@ export const command = new Command('serve')
       const name = Object.entries(readMachine().vaults).find(([, path]) => path === dir)?.[0] || readVaultJson(dir).name || 'vault';
 
       let restart = (): void => {};
-      const server = new YanServer({ port, everyS, vaultDir: dir, vaultName: name, home: yanHome(), onNewBuild: () => restart() });
+      // Every vault this machine has, as one list; a single vault, or the one $YAN_VAULT points at, is served by itself as it always was.
+      const all = everyVault();
+      const server = all.length > 1
+        ? new ManyVaults({ port, everyS, home: yanHome(), onNewBuild: () => restart() }, all)
+        : new YanServer({ port, everyS, vaultDir: dir, vaultName: name, home: yanHome(), onNewBuild: () => restart() });
+      const shown = all.length > 1 ? all.map((v) => v.name).join(' + ') : name;
       try {
         await server.start();
       } catch (err) {
@@ -170,7 +178,7 @@ export const command = new Command('serve')
 
       const address = `http://localhost:${port}`;
       enterScreen();
-      for (const line of started(name, address, dir, everyS)) out(line);
+      for (const line of started(shown, address, all.length > 1 ? all.map((v) => v.dir) : [dir], everyS)) out(line);
       if (options.open) openPath(address);
       await new Promise<void>((resolve) => {
         const stop = (): void => {

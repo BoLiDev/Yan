@@ -192,9 +192,10 @@ export function connect(): () => void {
  * stands from then on. Everything is read again, since what the page shows
  * moves from origin's copy to the vault's own, or back.
  */
-export async function keepVaultLocal(local: boolean): Promise<void> {
+export async function keepVaultLocal(local: boolean, vault?: string): Promise<void> {
   try {
-    await onStatus(await postJSON<Status>('/api/vault/local', { local }));
+    // Named when serve shows several vaults as one: each is kept local or not by itself.
+    await onStatus(await postJSON<Status>('/api/vault/local', vault === undefined ? { local } : { local, vault }));
     void queryClient.invalidateQueries();
   } catch (err) {
     toast(`Not changed: ${(err as Error).message}`, true);

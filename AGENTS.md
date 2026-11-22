@@ -73,8 +73,15 @@ module's `index.ts`, and one external never imports another.
   readable by the yan before it: add optional fields rather than renaming,
   read an old file name as a fallback rather than moving files, and write
   task.json through `Task.edit`, which keeps fields it does not know. What
-  belongs to one machine, such as where a repository is cloned, goes in
-  `~/.yan/config.json`, never in the vault.
+  belongs to one machine, such as where a repository is cloned, or whether
+  a vault is local, goes in `~/.yan/config.json`, never in the vault.
+- A machine may have several vaults, shown as one list of tasks. Below a
+  command everything still works on one vault, the one `vaultDir()` names:
+  a command given a task finds its vault and points the process there
+  (`cli/shared/task-id.ts`), and `yan serve`, which serves them all from
+  one process, runs each vault's work inside `inVault` (`serve/front.ts`).
+  Whether a vault has an origin to fetch and push is asked of
+  `vaultOrigin`, never of git, so a local vault stays on its machine.
 - No design documents. The reasons for how something is shaped go in the
   comment beside it and in the commit message; `README.md` says what yan
   does, as it does it now.

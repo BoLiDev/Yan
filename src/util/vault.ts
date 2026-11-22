@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { YanError } from './error.js';
@@ -11,9 +12,16 @@ import { isDirectory, normalizePath } from './paths.js';
  * Where the active vault is — one context's task assets, in a git repository
  * `user` owns.
  *
+ *   inside `inVault`       the vault it names, whatever else says
  *   $YAN_VAULT             when it is set and holds a vault.json
- *   ~/.yan/config.json     the `active` entry, otherwise
+ *   ~/.yan/config.json     the first of its `vaults`, the active one, otherwise
  *   neither                `vaultDir()` throws, `vaultDirIfAny()` says undefined
+ *
+ * A machine may have several vaults, and yan shows their tasks as one list
+ * (`everyVault`). Everything below a command still works on one vault at a
+ * time, the one a task is in: a command that is given a task finds its
+ * vault and stays in it (`cli/shared/task-id.ts`), and `yan serve`, which
+ * serves them all at once, runs each vault's work inside `inVault`.
  *
  * A fresh install has no vault, so anything that must run without one —
  * `vault init`, `vault clone`, `vault ls`, `--help` — asks `vaultDirIfAny()`.
@@ -133,11 +141,46 @@ export function refuseWhileUnfinished(): void {
   if (said !== undefined) throw new YanError('vault_unfinished', said);
 }
 
+const scoped = new AsyncLocalStorage<string>();
+
+/**
+ * `body` run with the vault at `dir` as the one every record reads and
+ * writes, through whatever it awaits and whatever timers it sets: how one
+ * process works on several vaults at once without one's work landing in
+ * another, which a variable of the process could not keep apart.
+ */
+export function inVault<T>(dir: string, body: () => T): T {
+  return scoped.run(normalizePath(resolve(dir)), body);
+}
+
+/**
+ * Every vault yan works on here, in the order they are looked through: the
+ * one a command was pointed at, by `inVault` or `$YAN_VAULT`, alone, since
+ * that is an agent's session or a test, kept to its vault; otherwise every
+ * registered vault that is there and that this build reads, the active one
+ * first. One that is gone, or too new, is passed over here and said by the
+ * command that needs it.
+ */
+export function everyVault(): { name: string; dir: string }[] {
+  const pointed = scoped.getStore() ?? (process.env.YAN_VAULT !== undefined && process.env.YAN_VAULT !== '' && isVault(process.env.YAN_VAULT) ? normalizePath(resolve(process.env.YAN_VAULT)) : undefined);
+  const registered = Object.entries(readMachine().vaults).map(([name, path]) => ({ name, dir: normalizePath(resolve(path)) }));
+  if (pointed !== undefined) return [{ name: registered.find((v) => v.dir === pointed)?.name ?? readVaultJson(pointed).name, dir: pointed }];
+  return registered.filter(({ dir }) => {
+    try {
+      return isVault(dir) && readVaultJson(dir).version === VAULT_VERSION;
+    } catch {
+      return false;
+    }
+  });
+}
+
 /**
  * The active vault, or `undefined`. Never throws, and never checks the
  * version.
  */
 function vaultDirIfAny(): string | undefined {
+  const within = scoped.getStore();
+  if (within !== undefined) return within;
   const fromEnv = process.env.YAN_VAULT;
   if (fromEnv !== undefined && fromEnv !== '' && isVault(fromEnv)) {
     return normalizePath(resolve(fromEnv));
@@ -158,6 +201,7 @@ function vaultDirIfAny(): string | undefined {
  */
 function vaultKey(): string {
   return [
+    scoped.getStore() ?? '',
     process.env.YAN_VAULT ?? '',
     process.env.YAN_MACHINE_DIR ?? '',
     machineRevision(),

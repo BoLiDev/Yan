@@ -63,9 +63,23 @@ export function SettingsModal() {
           <Row title="Marks on what is new" sub="The counts beside a task and the dots on its files, its report and its log, for what changed since you last looked.">
             <Switch aria-label="Marks on what is new" checked={prefs.badges} onCheckedChange={(on) => setPref('badges', on)} />
           </Row>
-          <Row title="Local vault" sub={kept}>
-            <Switch aria-label="Local vault" checked={status?.local ?? false} disabled={!status?.origin} onCheckedChange={(on) => void keepVaultLocal(on)} />
-          </Row>
+          {status?.vaults === undefined ? (
+            <Row title="Local vault" sub={kept}>
+              <Switch aria-label="Local vault" checked={status?.local ?? false} disabled={!status?.origin} onCheckedChange={(on) => void keepVaultLocal(on)} />
+            </Row>
+          ) : (
+            // Several vaults shown as one list, in the order a task id two of them have is settled: each kept local or not by itself.
+            <Row title="Local vaults" sub="A local vault is read from this machine alone: nothing is fetched from its origin or pushed to it. One with no origin is local already." under={
+              <div className="flex flex-col gap-2">
+                {status.vaults.map((v) => (
+                  <label key={v.name} className="flex items-center gap-3 text-[13px]">
+                    <span className="min-w-0 flex-1 truncate" title={v.dir}>{v.name}</span>
+                    <Switch aria-label={`Local vault ${v.name}`} checked={v.local} disabled={!v.origin} onCheckedChange={(on) => void keepVaultLocal(on, v.name)} />
+                  </label>
+                ))}
+              </div>
+            } />
+          )}
           <Row title="Updates" sub="yan on this machine, pulled, built and started again."><UpdateCard small /></Row>
         </div>
       </DialogContent>

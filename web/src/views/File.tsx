@@ -115,7 +115,9 @@ export function FileView(ctx: FileContext) {
 
   // This machine's copy in a tab of its own, the whole window given to it; then the file on the vault's
   // forge, where its link can be passed on, when yan can tell the forge.
-  const web = index?.vault.fileLink;
+  // Of several vaults shown as one, the file is where its task's vault is, on this machine and on its forge.
+  const home = index?.status.vaults?.find((v) => v.name === index.tasks.find((t) => t.id === task)?.vault);
+  const web = home === undefined ? index?.vault.fileLink : home.fileLink;
   // A page is given the window where it is, in this tab, by yan's own page, so it is still commented on, and closed
   // to come back here; any other file opens as itself, in a tab of its own.
   if (viewer === 'page') tools.push(<Tool key="tab" name="expand" label="Full size" href={link.page(task, file.path)} newTab={false} onClick={() => useUI.setState({ fullFrom: location.hash })} />);
@@ -136,7 +138,7 @@ export function FileView(ctx: FileContext) {
           </>
         } />
       {body}
-      <Foot file={file} path={path} local={`${index?.vault.dir ?? ''}/${path}`}>{foot}</Foot>
+      <Foot file={file} path={path} local={`${home?.dir ?? index?.vault.dir ?? ''}/${path}`}>{foot}</Foot>
     </>
   );
 }

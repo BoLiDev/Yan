@@ -8,7 +8,7 @@ import { writeJson } from '../util/json.js';
 import { keepLocal, keptLocal, machineConfigPath, readMachine, registerVault, registeredVaults, setActiveVault } from '../util/machine.js';
 import { isDirectory, normalizePath } from '../util/paths.js';
 import { localDay } from '../util/time.js';
-import { VAULT_VERSION, isVault, readVaultJson, vaultDir, vaultOrigin } from '../util/vault.js';
+import { VAULT_VERSION, everyVault, inVault, isVault, readVaultJson, vaultDir, vaultOrigin } from '../util/vault.js';
 import { action, out } from './shared/action.js';
 import { pullVault, type PullResult } from './shared/vault-pull.js';
 import { gitOrThrow, pushVault, saveVault, withVaultLock } from './shared/vault-push.js';
@@ -208,7 +208,7 @@ const cloneVault = new Command('clone')
   );
 
 const lsVaults = new Command('ls')
-  .description('the vaults registered on this machine')
+  .description('the vaults registered on this machine, in the order their tasks are looked through: the first is the active one, and has a task id two of them share')
   .action(
     action('yan vault ls', () => {
       const vaults = registeredVaults();
@@ -220,8 +220,8 @@ const lsVaults = new Command('ls')
       const active = readMachine().active;
       for (const { name, path } of vaults) {
         const mark = name === active ? '*' : ' ';
-        const state = !isVault(path) ? '   MISSING' : vaultOrigin(path) === undefined ? '   local' : '';
-        out(`${mark} ${name.padEnd(16)}${path}${state}`);
+        const state = !isVault(path) ? 'MISSING' : vaultOrigin(path) === undefined ? 'local ' : 'remote';
+        out(`${mark} ${name.padEnd(16)}${state}  ${path}`);
       }
     }),
   );
@@ -250,7 +250,7 @@ export function useVault(name: string | undefined): void {
 }
 
 const useCommand = new Command('use')
-  .description('switch the active vault')
+  .description('switch the active vault: it goes first, where a new task is made and a shared task id is settled')
   .argument('[name]')
   .action(action('yan vault use', (name: string | undefined) => { useVault(name); }));
 
@@ -330,9 +330,13 @@ const pullCommand = new Command('pull')
         });
         return;
       }
-      const result = pull();
-      out(`vault pull: ${result.message}`);
-      if (!result.ok) process.exitCode = 1;
+      // By hand, every vault this machine has is pulled, each said by name when there are several.
+      const all = everyVault();
+      for (const { name, dir } of all) {
+        const result = inVault(dir, pull);
+        out(`vault pull: ${all.length > 1 ? `${name}: ` : ''}${result.message}`);
+        if (!result.ok && (all.length === 1 || vaultOrigin(dir) !== undefined)) process.exitCode = 1;
+      }
     }),
   );
 
@@ -355,7 +359,9 @@ const pushCommand = new Command('push')
         asHook('yan vault push', () => { run(); });
         return;
       }
-      for (const line of run()) out(line);
+      // By hand, every vault this machine has is committed and pushed, each said by name when there are several.
+      const all = everyVault();
+      for (const { name, dir } of all) for (const line of inVault(dir, run)) out(all.length > 1 ? line.replace(/^vault push: /, `vault push: ${name}: `) : line);
     }),
   );
 

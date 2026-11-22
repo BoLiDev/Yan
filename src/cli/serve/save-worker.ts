@@ -1,5 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { isYanError } from '../../util/error.js';
+import { inVault } from '../../util/vault.js';
 import { commitVault, levelWith, saveVault } from '../shared/vault-push.js';
 
 /**
@@ -14,9 +15,12 @@ import { commitVault, levelWith, saveVault } from '../shared/vault-push.js';
 const { dir, message, push, level } = workerData as { readonly dir: string; readonly message: string; readonly push: boolean; readonly level?: string };
 let warning: string | null = null;
 try {
-  if (level !== undefined) levelWith(dir, level);
-  else if (push) saveVault(dir, message === '' ? undefined : message);
-  else commitVault(dir, message);
+  // In the vault it was asked for: a serve of several vaults saves each from one process, whose own vault is only the first.
+  inVault(dir, () => {
+    if (level !== undefined) levelWith(dir, level);
+    else if (push) saveVault(dir, message === '' ? undefined : message);
+    else commitVault(dir, message);
+  });
 } catch (err) {
   warning = isYanError(err) ? err.message : String(err);
 }

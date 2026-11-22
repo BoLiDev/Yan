@@ -73,7 +73,7 @@ function TaskRow({ t, index, seen, on }: { t: TaskSummary; index: Index; seen: S
   const marks = useUI((s) => s.prefs.badges);
   const fresh = on || !marks ? [] : [...unseenOf(index, seen, t.id).values()];
   return (
-    <TaskMenu t={t} render={<a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${agent ? ` · ${agentWords(agent)}` : ''}`} />}>
+    <TaskMenu t={t} render={<a className={row({ on })} aria-current={on ? 'page' : undefined} href={last ?? link.task(t.id)} title={`${t.title || t.id} · ${t.id}${t.vault ? ` · in ${t.vault}` : ''}${agent ? ` · ${agentWords(agent)}` : ''}`} />}>
       <StateIcon t={t} />
       <span className={cn(GROW, agent?.kind === 'working' && WORKING)}>{t.title || t.id}</span>
       {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}

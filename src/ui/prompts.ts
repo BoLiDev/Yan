@@ -51,10 +51,12 @@ export async function askVaultClone(): Promise<string> {
 export interface TaskChoice {
   readonly id: string;
   readonly title: string;
+  /** The vault it is in, named when the machine has several. */
+  readonly vault?: string;
 }
 
-function taskOption(task: TaskChoice): { value: string; label: string } {
-  return { value: task.id, label: `${task.id}  ${task.title === '' ? '(no title)' : task.title}` };
+function taskOption(task: TaskChoice): { value: string; label: string; hint?: string } {
+  return { value: task.id, label: `${task.id}  ${task.title === '' ? '(no title)' : task.title}`, ...(task.vault === undefined ? {} : { hint: task.vault }) };
 }
 
 /** What `chooseEntry` returns for "a new task"; the rest are task ids. */

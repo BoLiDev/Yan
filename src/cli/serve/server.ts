@@ -66,7 +66,16 @@ export interface ServeOptions {
    * starts that one. Without it the server runs on as it is.
    */
   readonly onNewBuild?: () => void;
+  /**
+   * One of several vaults served together (`front.ts`): it listens on
+   * nothing, answering what the front hands it, and says each move of its
+   * status to the front, which tells the pages.
+   */
+  readonly behind?: { readonly said: () => void; readonly whole: () => WireStatus };
 }
+
+/** A request whose JSON body the front has already read, to tell which vault it is for. */
+export type Carried = IncomingMessage & { yanBody?: Buffer };
 
 /** The status the page is sent, kept here and moved on each tick. */
 type Status = { -readonly [K in keyof WireStatus]: WireStatus[K] };
@@ -197,9 +206,15 @@ async function body(req: IncomingMessage, limit = BODY_LIMIT): Promise<Record<st
   if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return undefined;
   const chunks: Buffer[] = [];
   let size = 0;
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size <= limit) chunks.push(chunk as Buffer);
+  const carried = (req as Carried).yanBody;
+  if (carried !== undefined) {
+    size = carried.length;
+    chunks.push(carried);
+  } else {
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size <= limit) chunks.push(chunk as Buffer);
+    }
   }
   if (size > limit) return 'too large';
   try {
@@ -329,12 +344,14 @@ export class YanServer {
     if ((await gitAsync(this.options.vaultDir, ['status', '--porcelain', '--', 'drafts'])).stdout.trim() !== '') this.later.touched();
 
     this.port = this.options.port;
-    try {
-      await this.listen(this.port, (req, res) => this.app(req, res));
-      await this.listen(this.port + 1, (req, res) => this.files(req, res));
-    } catch (err) {
-      this.stop();
-      throw err;
+    if (this.options.behind === undefined) {
+      try {
+        await this.listen(this.port, (req, res) => this.app(req, res));
+        await this.listen(this.port + 1, (req, res) => this.files(req, res));
+      } catch (err) {
+        this.stop();
+        throw err;
+      }
     }
     this.schedule();
     this.watch();
@@ -524,7 +541,70 @@ export class YanServer {
     return best;
   }
 
+  /* What the front asks of one vault among several: each answers for its own tasks and blobs. */
+
+  /** A request for the page's port, handed on by the front. */
+  public handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    return this.app(req, res);
+  }
+
+  /** A request for the files' port, handed on by the front. */
+  public handleFiles(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    return this.files(req, res);
+  }
+
+  public get name(): string {
+    return this.options.vaultName;
+  }
+
+  public get dir(): string {
+    return this.options.vaultDir;
+  }
+
+  public get standing(): WireStatus {
+    return this.status;
+  }
+
+  /** The status a page is answered with: this vault's, or behind a front, that of all the vaults it shows. */
+  private get told(): WireStatus {
+    return this.options.behind?.whole() ?? this.status;
+  }
+
+  /** `/api/index` as this vault alone answers it. */
+  public async indexNow(): Promise<Index> {
+    return {
+      ...this.view.index(),
+      status: this.status,
+      vault: { name: this.options.vaultName, dir: this.options.vaultDir, fileLink: this.fileLink ?? null, source: sourceRules(await this.vaultConfig()) },
+      filesOrigin: this.filesOrigin,
+    };
+  }
+
+  /** Whether the commit being shown has a task `id`. */
+  public owns(id: string): boolean {
+    return this.view.index().tasks.some((t) => t.id === id);
+  }
+
+  /** Whether this vault's repository has the blob `sha`. */
+  public async hasBlob(sha: string): Promise<boolean> {
+    return (await gitAsync(this.options.vaultDir, ['cat-file', '-e', sha])).code === 0;
+  }
+
+  public terminalStates(): ReturnType<Terminals['states']> {
+    return this.terminals.states();
+  }
+
+  public worktreeStates(): ReturnType<Worktrees['states']> {
+    return this.worktrees.states();
+  }
+
+  /** A pull now, as the page's card asks for one. */
+  public pull(): Promise<void> {
+    return this.tick();
+  }
+
   private broadcast(): void {
+    if (this.options.behind !== undefined) return this.options.behind.said();
     const data = `event: status\ndata: ${JSON.stringify(this.status)}\n\n`;
     for (const c of this.clients) c.write(data);
   }
@@ -574,14 +654,7 @@ export class YanServer {
     if (p === '/api/yan/updates') return json(res, await this.updater.behind());
     if (p === '/api/yan/update') return json(res, this.updater.now);
     if (p === '/api/terminal/stream') return this.terminals.stream(q.get('task') ?? '', q, req, res);
-    if (p === '/api/index') {
-      return json(res, {
-        ...this.view.index(),
-        status: this.status,
-        vault: { name: this.options.vaultName, dir: this.options.vaultDir, fileLink: this.fileLink ?? null, source: sourceRules(await this.vaultConfig()) },
-        filesOrigin: this.filesOrigin,
-      } satisfies Index);
-    }
+    if (p === '/api/index') return json(res, await this.indexNow());
     const task = /^\/api\/task\/([\w.-]+)$/.exec(p);
     if (task !== null) {
       const detail = await this.view.task(task[1] as string);
@@ -704,7 +777,7 @@ export class YanServer {
     // The commit is here whatever became of the push, which is tried again on each tick, and said meanwhile.
     if (warning !== null) this.later.failed(warning);
     await this.tick();
-    json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
+    json(res, { ok: true, warning, status: this.told } satisfies WriteResult);
   }
 
   /**
@@ -778,7 +851,7 @@ export class YanServer {
   private readonly posts: Readonly<Record<string, Post>> = {
     '/api/pull': { does: 'pull the vault', json: false, run: async (res) => {
       await this.tick();
-      json(res, this.status);
+      json(res, this.told);
     } },
     // This machine's, written to ~/.yan/config.json as 'yan vault local' writes it, and in force from the tick that answers.
     '/api/vault/local': { does: 'keep the vault local', json: true, run: async (res, given) => {
@@ -793,7 +866,7 @@ export class YanServer {
         this.later.touched();
         void this.later.now();
       }
-      json(res, this.status);
+      json(res, this.told);
     } },
     '/api/yan/update': { does: 'update yan', json: false, run: async (res) => {
       if (this.updater.start()) json(res, this.updater.now);
@@ -835,7 +908,7 @@ export class YanServer {
     } },
     '/api/push': { does: 'push what the page wrote', json: false, run: async (res) => {
       await this.later.now();
-      json(res, this.status);
+      json(res, this.told);
     } },
     // Committed here at once, so the page shows it the moment it is saved, and pushed later.
     '/api/artifact/edit': { does: 'edit an artifact', json: true, limit: ARTIFACT_LIMIT, run: async (res, given) => this.editArtifact(res, given) },
@@ -926,7 +999,7 @@ export class YanServer {
     const warning = await saveOffThread(this.options.vaultDir, `${id}: reviewed in yan serve`);
     if (warning !== null) this.later.failed(warning);
     await this.tick();
-    json(res, { ok: true, warning, status: this.status, name: kept.name, path: kept.path } satisfies ReviewSaved);
+    json(res, { ok: true, warning, status: this.told, name: kept.name, path: kept.path } satisfies ReviewSaved);
   }
 
   /** `{ task, title }`: the task called something else, from its row in the task list. */
@@ -1125,7 +1198,7 @@ export class YanServer {
     await this.show();
     this.later.touched();
     this.broadcast();
-    json(res, { ok: true, warning, status: this.status } satisfies WriteResult);
+    json(res, { ok: true, warning, status: this.told } satisfies WriteResult);
   }
 
   private events(req: IncomingMessage, res: ServerResponse): void {

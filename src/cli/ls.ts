@@ -3,11 +3,16 @@ import { action, out } from './shared/action.js';
 import { bold, dim, fit, padEnd, terminalWidth } from './shared/style.js';
 import { Log } from '../records/log/index.js';
 import { Task, isClosed, type TaskData, type TaskState } from '../records/task/index.js';
+import { bySeries } from '../util/names.js';
 import { localDay } from '../util/time.js';
+import { everyVault, inVault } from '../util/vault.js';
+import { tasksEverywhere } from './shared/task-id.js';
 
 /**
  * `yan ls [--status open|done|all] [--json]` — one line per task, scanned
- * from `tasks/*​/task.json` on every call. Stores nothing.
+ * from `tasks/*​/task.json` on every call. Stores nothing. On a machine with
+ * several vaults it is the tasks of them all, each named with its vault; an
+ * id two vaults have is listed once, as the earlier vault's.
  */
 
 const STATUS_FILTERS = ['open', 'done', 'all'] as const;
@@ -25,6 +30,8 @@ interface Row {
   readonly total: number;
   /** The local day anything in the task last changed, `YYYY-MM-DD`. */
   readonly updated: string;
+  /** The vault it is in, said when the machine has several. */
+  readonly vault?: string;
 }
 
 /**
@@ -98,7 +105,12 @@ export const command = new Command('ls')
   .option('--json', 'the same rows as JSON')
   .action(
     action('yan ls', (options: { status: StatusFilter; json?: boolean }) => {
-      const rows = Task.list().map(rowOf).filter((r) => wanted(r, options.status));
+      // Every vault's tasks as one list, a task named with its vault when the machine has several.
+      const several = everyVault().length > 1;
+      const rows = tasksEverywhere()
+        .map(({ id, vault, dir }) => ({ ...inVault(dir, () => rowOf(id)), ...(several ? { vault } : {}) }))
+        .sort((a, b) => bySeries('t')(a.id, b.id))
+        .filter((r) => wanted(r, options.status));
       if (options.json === true) {
         out(JSON.stringify(rows));
         return;
@@ -113,7 +125,8 @@ export const command = new Command('ls')
       for (const r of rows) {
         const progress = r.total === 0 ? '-' : `${r.done}/${r.total}`;
         const head = `${padEnd(r.id, idWidth)}  ${padEnd(stateWord(r), 10)} ${progress.padStart(5)}  ${padEnd(shortDay(r.updated), dayWidth)}  `;
-        const title = cols === undefined ? r.title : fit(r.title, Math.max(10, cols - head.length - 1));
+        const named = r.vault === undefined ? r.title : `${r.title}  ${dim(`· ${r.vault}`)}`;
+        const title = cols === undefined ? named : r.vault === undefined ? fit(r.title, Math.max(10, cols - head.length - 1)) : `${fit(r.title, Math.max(10, cols - head.length - r.vault.length - 5))}  ${dim(`· ${r.vault}`)}`;
         out(r.state === null || !isClosed(r.state) ? `${bold(padEnd(r.id, idWidth))}${head.slice(idWidth)}${title}` : dim(`${head}${title}`));
       }
     }),

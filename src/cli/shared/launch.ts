@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { asOriginNames, branchStates } from './branches.js';
 import { workspacePackages } from './packages.js';
 import { repoName } from './repo-name.js';
-import { openTasks } from './task-id.js';
+import { openTasks, tasksEverywhere, workIn } from './task-id.js';
 import { repoKey } from '../../util/repo-key.js';
 import { CREATE_NEW, type RepoChoice, type TaskChoice } from '../../ui/prompts.js';
 import type { Said, Working } from '../../ui/chain.js';
@@ -23,7 +23,7 @@ import { holdTerminal, letTerminalGo, machineConfigPath, skillDirs } from '../..
 import { branchOf, currentBranch, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
-import { readVaultConfig, readVaultJson, vaultConfigPath, vaultDir, vaultOrigin } from '../../util/vault.js';
+import { inVault, readVaultConfig, readVaultJson, vaultConfigPath, vaultDir, vaultOrigin } from '../../util/vault.js';
 
 /**
  * Bare `yan`: pick a task or start one, then start the agent on it in this
@@ -545,6 +545,15 @@ async function takenOnOrigin(vault: string, chain: EntryChain): Promise<string[]
 }
 
 /**
+ * Every task id a new one must not take: the active vault's origin's, and
+ * those of every other vault here, since yan shows them as one list and an
+ * id two vaults had would hide the later vault's task.
+ */
+async function takenAnywhere(chain: EntryChain): Promise<string[]> {
+  return [...await takenOnOrigin(vaultDir(), chain), ...tasksEverywhere().map((t) => t.id)];
+}
+
+/**
  * Start a task: its title, the repositories it works in, picked from the
  * registry wherever `yan` was typed, and for each one that has several
  * packages, the ones it is about. Asked once; every later start reads them
@@ -555,7 +564,7 @@ async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): P
   const offered = candidates(cwd);
   if (offered.length === 0) {
     chain.say({ kind: 'info', line: "no repository is registered and cloned here, so the task has no tree - 'yan repo add' registers one" });
-    return { task: Task.create(title, [], await takenOnOrigin(vaultDir(), chain)), trees: [] };
+    return { task: Task.create(title, [], await takenAnywhere(chain)), trees: [] };
   }
 
   // The clone `yan` was typed in comes first, so it is where the agent starts when picked.
@@ -576,7 +585,7 @@ async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): P
     const scope = packages.length === 0 ? [] : await prompts.chooseScope(c.name, packages);
     repos.push({ url: c.url, scope, candidate: c });
   }
-  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })), await takenOnOrigin(vaultDir(), chain));
+  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })), await takenAnywhere(chain));
   const trees: Tree[] = [];
   for (const r of repos) {
     const scope = r.scope ?? [];
@@ -694,7 +703,7 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  *   their first message asks it to.
  */
 export async function enter(options: { cli?: string; extra: readonly string[]; new?: NewTask; task?: string; close?: { abandon?: string }; pause?: boolean; review?: boolean }, deps: EntryDeps = {}): Promise<number> {
-  const vault = vaultDir();
+  const active = vaultDir();
   const harness = harnessConfig(options.cli);
   // Read before anything is asked, so a skillDir to fix is said before a task is made.
   const plugins = takesPlugins(harness.cli) ? [pluginDir(), ...skillPlugins()] : [];
@@ -704,10 +713,11 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   const chain = deps.chain ?? (await import('../../ui/chain.js'));
 
   // A task given on the command line, new or open, is not chosen: the chain still opens as the chooser opens it, and says which.
-  const vaultName = readVaultJson(vault).name;
+  const vaultName = readVaultJson(active).name;
   const given = options.task === undefined ? undefined : openTasks().find((t) => t.id === options.task);
   if (options.task !== undefined && given === undefined) {
-    const paused = Task.exists(options.task) && new Task(options.task).read().pausedAt !== undefined;
+    const kept = tasksEverywhere().find((t) => t.id === options.task);
+    const paused = kept !== undefined && inVault(kept.dir, () => new Task(kept.id).read().pausedAt !== undefined);
     if (paused) throw YanError.usage('yan_usage', `${options.task} is paused - 'yan resume ${options.task}' takes it up again`);
     throw YanError.usage('yan_usage', `${options.task} is not an open task in this vault - 'yan ls' lists those that are`);
   }
@@ -715,6 +725,10 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   if (options.new !== undefined) chain.say({ kind: 'done', line: `new task: ${options.new.title.trim()}` });
   if (given !== undefined) chain.say({ kind: 'done', line: `${given.id}  ${given.title}` });
   const chosen = given?.id ?? await prompts.chooseEntry(openTasks(), vaultName);
+  // A task gone on with is worked on in the vault that has it, whichever of this machine's that is; a new one is made in the active vault.
+  const home = chosen === CREATE_NEW ? undefined : tasksEverywhere().find((t) => t.id === chosen)?.dir;
+  if (home !== undefined) workIn(home);
+  const vault = vaultDir();
   const { task, trees } = chosen === CREATE_NEW
     ? await newTask(cwd, prompts, chain)
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };

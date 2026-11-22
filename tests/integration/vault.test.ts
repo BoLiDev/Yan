@@ -36,6 +36,11 @@ function machineConfig(name: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
 }
 
+/** The vaults a machine has, as its config.json lists them: in order, the first the active one, each with its type. */
+function vaultsOf(name: string): { name: string; path: string; type: string }[] {
+  return (machineConfig(name).vaults ?? []) as { name: string; path: string; type: string }[];
+}
+
 /** git commits in these tests run with no repository identity configured. */
 const identity = {
   GIT_AUTHOR_NAME: 'yan tests',
@@ -77,8 +82,8 @@ describe('vault init', () => {
 
     // Registered and active.
     const config = machineConfig('init');
-    expect(config.active).toBe('personal');
-    expect((config.vaults as Record<string, string>).personal.replace(/\\/g, '/')).toBe(dir.replace(/\\/g, '/'));
+    expect(vaultsOf('init').map((v) => [v.name, v.type])).toEqual([['personal', 'remote']]);
+    expect(vaultsOf('init')[0]?.path.replace(/\\/g, '/')).toBe(dir.replace(/\\/g, '/'));
     expect(config.clone_root).toBeUndefined();
   });
 
@@ -396,7 +401,7 @@ describe('a local vault', () => {
     expect(made.code, made.out).toBe(0);
     expect(existsSync(join(dir, 'vault.json'))).toBe(true);
     expect((await fxGit(['-C', dir, 'remote'])).stdout.trim(), 'its git names no remote').toBe('');
-    expect(machineConfig('local-init')).toMatchObject({ active: 'mine', localVaults: [dir] });
+    expect(vaultsOf('local-init')).toEqual([{ name: 'mine', path: dir, type: 'local' }]);
     expect((await runYan(home, ['vault', 'ls'], env)).stdout).toMatch(/mine.*local/);
 
     mkdirSync(join(dir, 'tasks', 't001'), { recursive: true });
@@ -431,7 +436,7 @@ describe('a local vault', () => {
 
     expect((await runYan(home, ['vault', 'local', 'on'], env)).code).toBe(0);
     expect((await runYan(home, ['vault', 'local'], env)).stdout).toContain('on');
-    expect(machineConfig('kept-local').localVaults).toEqual([dir]);
+    expect(vaultsOf('kept-local')).toEqual([{ name: 'kept', path: dir, type: 'local' }]);
 
     mkdirSync(join(dir, 'tasks', 't001'), { recursive: true });
     writeFileSync(join(dir, 'tasks', 't001', 'task.json'), taskJson('t001'));
@@ -451,11 +456,66 @@ describe('a local vault', () => {
     expect((await fxGit(['-C', dir, 'rev-parse', '--verify', '--quiet', 'refs/remotes/origin/main'])).stdout.trim(), 'origin as it was last seen').toBe(seeded);
 
     expect((await runYan(home, ['vault', 'local', 'off'], env)).code).toBe(0);
-    expect(machineConfig('kept-local').localVaults).toBeUndefined();
+    expect(vaultsOf('kept-local')).toEqual([{ name: 'kept', path: dir, type: 'remote' }]);
     const back = await runYan(home, ['vault', 'push'], env);
     expect(back.code, back.out).toBe(0);
     expect(await onOrigin(), 'what was committed meanwhile is pushed').toBe(await here());
     expect(existsSync(join(dir, 'tasks', 't007')), 'on top of what the other machine pushed').toBe(true);
+  });
+});
+
+describe('several vaults on one machine', () => {
+  const taskJson = (id: string, title: string): string => `{"version":2,"id":"${id}","title":"${title}","state":"open","repos":[],"nextDeliverable":1,"deliverables":[]}\n`;
+  const put = (dir: string, id: string, title: string): void => {
+    mkdirSync(join(dir, 'tasks', id), { recursive: true });
+    writeFileSync(join(dir, 'tasks', id, 'task.json'), taskJson(id, title));
+  };
+
+  it('are one list of tasks, an id two of them have being the earlier vault\'s, and a command works in the vault its task is in', async () => {
+    const env = { ...isolated('several'), ...identity };
+    const bare = await mkEmptyRemote(join(tmp, 'several-team.git'));
+    const work = join(tmp, 'vaults', 'several-work');
+    const team = join(tmp, 'vaults', 'several-team');
+    await runYan(home, ['vault', 'init', 'work', '--local', '--path', work], env);
+    await runYan(home, ['vault', 'init', 'team', '--remote', bare, '--path', team], env);
+    expect(vaultsOf('several').map((v) => [v.name, v.type])).toEqual([['team', 'remote'], ['work', 'local']]);
+
+    put(team, 't001', 'the team\'s first');
+    put(work, 't001', 'the old first, hidden');
+    put(work, 't005', 'kept at work');
+
+    const rows = JSON.parse((await runYan(home, ['ls', '--json'], env)).stdout) as { id: string; title: string; vault: string }[];
+    expect(rows.map((r) => [r.id, r.title, r.vault])).toEqual([['t001', 'the team\'s first', 'team'], ['t005', 'kept at work', 'work']]);
+
+    // Named by its id alone, a task is read and written where it is, not in the active vault.
+    const logged = await runYan(home, ['log', '--task', 't005', 'agreed', 'decided at work'], env);
+    expect(logged.code, logged.out).toBe(0);
+    expect(readFileSync(join(work, 'tasks', 't005', 'log.md'), 'utf8')).toContain('decided at work');
+    expect(existsSync(join(team, 'tasks', 't005'))).toBe(false);
+
+    // By hand, each is committed, and only the one kept in step with an origin is pushed.
+    const pushed = await runYan(home, ['vault', 'push'], env);
+    expect(pushed.code, pushed.out).toBe(0);
+    expect((await fxGit(['-C', work, 'status', '--porcelain'])).stdout).toBe('');
+    expect((await fxGit(['-C', bare, 'ls-tree', '-r', '--name-only', 'main'])).stdout).toContain('tasks/t001/task.json');
+    expect((await fxGit(['-C', bare, 'ls-tree', '-r', '--name-only', 'main'])).stdout).not.toContain('t005');
+
+    // The order is the priority: with work first, its t001 is the one shown.
+    await runYan(home, ['vault', 'use', 'work'], env);
+    const turned = JSON.parse((await runYan(home, ['ls', '--json'], env)).stdout) as { id: string; title: string }[];
+    expect(turned.find((r) => r.id === 't001')?.title).toBe('the old first, hidden');
+  });
+
+  it('reads a config.json from before the list, a map of names with the active one beside it, as the same vaults', async () => {
+    const env = { ...isolated('from-map'), ...identity };
+    const a = join(tmp, 'vaults', 'from-map-a');
+    const b = join(tmp, 'vaults', 'from-map-b');
+    await runYan(home, ['vault', 'init', 'a', '--local', '--path', a], env);
+    await runYan(home, ['vault', 'init', 'b', '--local', '--path', b], env);
+    writeFileSync(join(tmp, 'machines', 'from-map', 'config.json'), JSON.stringify({ version: 1, active: 'a', vaults: { b, a }, clones: {}, localVaults: [a] }));
+    expect((await runYan(home, ['vault', 'where'], env)).stdout.trim()).toBe(a);
+    await runYan(home, ['vault', 'use', 'b'], env);
+    expect(vaultsOf('from-map').map((v) => [v.name, v.type])).toEqual([['b', 'remote'], ['a', 'local']]);
   });
 });
 
@@ -470,7 +530,7 @@ describe('clone, ls and use', () => {
     const r = await runYan(home, ['vault', 'clone', bare, '--path', dir], second);
     expect(r.code).toBe(0);
     expect(r.out).toContain('(active)');
-    expect(machineConfig('machine-b').active).toBe('shared');
+    expect(vaultsOf('machine-b')[0]?.name).toBe('shared');
     expect(existsSync(join(dir, 'vault.json'))).toBe(true);
   });
 
@@ -478,11 +538,11 @@ describe('clone, ls and use', () => {
     const env = { ...isolated('switch'), ...identity };
     await runYan(home, ['vault', 'init', 'one', '--remote', await mkEmptyRemote(join(tmp, 'one.git')), '--path', join(tmp, 'vaults', 'one')], env);
     await runYan(home, ['vault', 'init', 'two', '--remote', await mkEmptyRemote(join(tmp, 'two.git')), '--path', join(tmp, 'vaults', 'two')], env);
-    expect(machineConfig('switch').active).toBe('two');
+    expect(vaultsOf('switch').map((v) => v.name), 'the vault made last is first, the active one').toEqual(['two', 'one']);
 
     const back = await runYan(home, ['vault', 'use', 'one'], env);
     expect(back.code).toBe(0);
-    expect(machineConfig('switch').active).toBe('one');
+    expect(vaultsOf('switch').map((v) => v.name)).toEqual(['one', 'two']);
 
     const listed = await runYan(home, ['vault', 'ls'], env);
     expect(listed.stdout).toContain('* one');

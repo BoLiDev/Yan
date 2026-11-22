@@ -71,6 +71,18 @@ describe('what this browser is set to', () => {
     await expect.element(screen.getByRole('switch', { name: 'Local vault' })).toBeDisabled();
   });
 
+  it('keeps each of several vaults local by a switch of its own', async () => {
+    const vaults = [{ name: 'team', dir: '/team', local: false, origin: true, ok: true, fileLink: null }, { name: 'work', dir: '/work', local: true, origin: false, ok: true, fileLink: null }];
+    const asked = serve({ '/api/yan/update': Response.json({ running: false, steps: [], error: null }), '/api/vault/local': Response.json({ ...status(2), vaults: [{ ...vaults[0], local: true }, vaults[1]] }) });
+    have({ ...index([task('t1', 'pay retries', { vault: 'team' })]), status: { ...status(), vaults } });
+    const screen = await draw(<><Left /><SettingsModal /></>);
+    await screen.getByRole('button', { name: 'Settings' }).click();
+    await expect.element(screen.getByRole('switch', { name: 'Local vault work' })).toBeDisabled();
+    await screen.getByRole('switch', { name: 'Local vault team' }).click();
+    await expect.element(screen.getByRole('switch', { name: 'Local vault team' })).toBeChecked();
+    expect(asked.find((a) => a.path === '/api/vault/local')?.body).toEqual({ local: true, vault: 'team' });
+  });
+
   it('marks what is new beside its task, or does not, as the marks are turned on or off', async () => {
     const screen = await withNews();
     // By its title: the task list is out of reach of a role while the settings' box is over it.
