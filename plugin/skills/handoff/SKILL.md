@@ -13,7 +13,7 @@ What was looked into here has become work of its own: it gets a task, and the ag
    - What is settled and what is still open, said apart. A guess is marked as one.
    - No solution laid out as steps to follow: how things must be once it is solved is the deliverables', which that agent works out with the user (yan:define). Say what you would try, if anything, as a suggestion.
 3. **Hand it over**: `yan handoff "<title>" --problem <the file> [--repo <name>[:<package>,...]]...`, with `--artifact <path>` for each file or folder of yours the task should carry (a recording, a data sample, a draft). It makes the task, puts the handoff in it as its problem.md, the artifacts in its artifacts/, and starts the task's agent in a terminal tab of its own, in the task's worktrees. That agent is not told to begin: it waits there for the user. `yan handoff --help` for the rest.
-4. **Say what was made**: the task's id and title, and that its agent is waiting in its own tab. Then let go of it: the matter is the task's from here, and what you kept of it here is done with. Give back any worktree you took for it (`yan tree return`).
+4. **Say what was made**: the task's id and title, and that its agent is waiting in its own tab. Then let go of it: the matter is the task's from here, and what you kept of it here is done with.
 
-- A matter that is a question answered, or a small thing already done, needs no task. Say so when the user asks for one, and make it if they still want it.
+- A matter that is a question answered needs no task. Say so when the user asks for one, and make it if they still want it.
 - Never write in the new task's folder yourself, before or after: `yan handoff` puts there what it starts with, and from then on it is its agent's.

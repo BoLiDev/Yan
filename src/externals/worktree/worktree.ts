@@ -186,16 +186,15 @@ export function leasesHeldBy(holder: string): LeaseRow[] {
  * clean each and release its lease. The slots stay, warm, for the next
  * lease. A tree already gone only has its lease released.
  *
- * `only` gives back the one tree at that path and leaves the rest.
  *
  * @returns the trees' paths; none when `holder` held none.
  * @throws YanError `worktree_failed` when the guard refuses.
  */
-export function returnTrees(holder: string, options: { force?: boolean; only?: string } = {}): string[] {
+export function returnTrees(holder: string, options: { force?: boolean } = {}): string[] {
   const held: Array<{ dir: string; slot: number; path: string }> = [];
   for (const dir of poolDirs()) {
     for (const lease of allLeases(dir)) {
-      if (lease.holder === holder && (options.only === undefined || lease.path === options.only)) held.push({ dir, slot: lease.slot, path: lease.path });
+      if (lease.holder === holder) held.push({ dir, slot: lease.slot, path: lease.path });
     }
   }
   if (options.force !== true) {

@@ -370,7 +370,7 @@ function firstLine(stderr: string): string {
  * commits. A fetch that fails, or a kept branch the tree cannot be put on,
  * is a warning, not a stop.
  */
-export async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[]; branch?: string }, chain: EntryChain): Promise<string> {
+async function leaseTree(task: Task, repo: { name: string; clone: string; scope: readonly string[]; branch?: string }, chain: EntryChain): Promise<string> {
   const { name, clone, branch } = repo;
   const step = chain.working(`${name}: opening a worktree · fetching origin`);
   try {
@@ -728,7 +728,7 @@ const VAULT_HOOKS = { prompt: ['vault', 'pull', '--hook'], stop: ['vault', 'push
  *   their first message asks it to.
  * @param janus the agent started as Janus, on the task that is no piece of
  *   work, made in the active vault the first time: where `yan` was typed,
- *   with every tree it holds beside it and none opened for it.
+ *   in no worktree.
  * @param trees a task gone on with is given the worktrees it has none of
  *   here without being asked, as when something other than `user` starts it.
  */
@@ -772,10 +772,10 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
 
   chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
 
-  // Janus has no tree to start in: it starts where it was called, with whatever trees it holds beside it.
-  const workdir = asJanus ? cwd : trees[0]?.path ?? cwd;
-  const addDirs = (asJanus ? trees : trees.slice(1)).map((t) => t.path);
-  const prompt = asJanus ? janusPrompt(harness.cli, trees, task.dir, pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees));
+  // Janus has no tree: it starts where it was called, and reads the repositories where they are cloned.
+  const workdir = trees[0]?.path ?? cwd;
+  const addDirs = trees.slice(1).map((t) => t.path);
+  const prompt = asJanus ? janusPrompt(harness.cli, task.dir, pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees));
   const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : options.review === true ? reviewRequest(harness.cli) : undefined;
   const first = said === undefined ? {} : { first: said };
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];

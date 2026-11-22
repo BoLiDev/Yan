@@ -134,7 +134,7 @@ where the task's own files are, how the branches are kept, and how the
 evidence is gathered.
 
 Beside the tasks there is Janus, an agent for what is not a task yet: a
-question, something to look into, a small thing to do, without the making
+question, something to look into or work out, without the making
 of a task. `yan --janus` starts it, where it is typed and in no worktree.
 It is kept as a task, `janus`, in the first vault, made the first time it
 is started, so it has what a task has, a folder, a log, artifacts and a
@@ -144,15 +144,12 @@ nothing of a task's: each session starts fresh, reading nothing of earlier
 ones unless you point back at something, and yan's other skills are used
 only when you call one. It is told that it may read everything: every task's
 notes in every vault, your drafts, and every registered repository, in the
-clone this machine has of it, each named to it with its path; and never to
-change a clone, another task's folder or a draft. It has no worktree of its
-own. When it has something to change, build or run, it takes a worktree of
-that repository with `yan tree get <repo>`, from the pool every task's
-come from, on a detached HEAD at origin's default branch, and gives it back
-with `yan tree return <repo>` (`--all` for every one, `--force` to throw
-away work that is nowhere else); `yan tree ls` lists those it holds, which
-it is started with again the next time. These are Janus's alone: a task's
-trees are opened as its agent starts.
+clone this machine has of it, each named to it with its path; never to
+write in another task's folder or a draft; and never to change code: it has no worktree and takes none, reads each clone as you
+left it, and never edits, commits, switches a branch or runs what writes
+there. What it produces is what it says and the files in its own folder,
+in the vault: research, a document, a script or a patch for someone to
+apply. Code that is to be changed is a task's work, which it hands over.
 
 When a matter there has grown into work of its own, Janus hands it over as
 a task, with the skill `yan:handoff`: it agrees the scope with you, writes

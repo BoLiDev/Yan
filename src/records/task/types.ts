@@ -17,8 +17,8 @@ export type TaskState = (typeof TASK_STATES)[number];
  * has, a folder, a log, artifacts, a terminal, and a yan from before it
  * reads it as the open task its task.json says it is; but it is never
  * listed among the tasks, numbered, paused or closed, and it works in no
- * repository of its own: it takes a worktree when it needs one and gives it
- * back (`yan tree`). Kept in the first vault, the default.
+ * repository and has no worktree: it reads the repositories where they are
+ * cloned and changes no code. Kept in the first vault, the default.
  */
 export const JANUS = 'janus';
 

@@ -77,8 +77,8 @@ none of here without asking.
 
 --janus starts Janus, the agent kept beside the tasks for what is not a task
 yet: here, in no worktree, with every repository and every task to read. It
-takes a worktree when it needs one ('yan tree') and hands a matter over to a
-task of its own once it has grown into one ('yan handoff').`,
+changes no code, and hands a matter over to a task of its own once it has
+grown into one ('yan handoff').`,
     );
 
   for (const name of found) {

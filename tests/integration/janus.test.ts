@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('Janus', () => {
-  it('is there from the first time it is started, where yan was typed, told of every repository\'s clone and how a matter is handed over, and is no task on the list', async () => {
+  it('is there from the first time it is started, where yan was typed, told of every repository\'s clone to read, that it changes no code, and how a matter is handed over, and is no task on the list', async () => {
     const demo = await aClone('demo');
     register('demo', demo.bare, demo.clone);
     const here = normalizePath(realpathSync(mkTempDir()));
@@ -57,7 +57,7 @@ describe('Janus', () => {
     expect(started[0]?.env.YAN_TASK).toBe('janus');
     const prompt = flag(0, '--append-system-prompt')[0] ?? '';
     expect(prompt).toContain(`- demo: ${demo.clone}`);
-    expect(prompt).toContain('yan tree get');
+    expect(prompt).toContain('You do not change code');
     expect(prompt).toContain('yan:handoff');
     expect(prompt).toContain(new Task(JANUS).dir);
     expect(prompt, 'nothing of a task\'s: no problem to keep, no recap to start with').not.toContain('problem.md');
@@ -84,29 +84,6 @@ describe('Janus', () => {
     expect((await yan(['done', '--force'])).code).toBe(2);
     expect(new Task(JANUS).read()).toMatchObject({ state: 'open' });
     expect(new Task(JANUS).read().pausedAt).toBeUndefined();
-  });
-
-  it('takes a worktree of a repository when it needs one, is started with those it holds, and gives it back; a task cannot', async () => {
-    const demo = await aClone('demo');
-    register('demo', demo.bare, demo.clone);
-    const here = normalizePath(realpathSync(mkTempDir()));
-    await janus(here);
-
-    const got = await yan(['tree', 'get', 'demo']);
-    expect(got.code, got.stderr).toBe(0);
-    const tree = got.stdout.trim();
-    expect(existsSync(join(tree, '.git'))).toBe(true);
-    expect((await yan(['tree', 'get', 'demo'])).stdout.trim(), 'the one it holds, asked again').toBe(tree);
-    expect(JSON.parse((await yan(['tree', 'ls', '--json'])).stdout)).toEqual([{ repo: 'demo', path: tree, branch: null }]);
-
-    writeFileSync(join(tree, 'scratch.txt'), 'x');
-    expect((await yan(['tree', 'return', 'demo'])).code, 'not while it holds what is nowhere else').not.toBe(0);
-    expect((await yan(['tree', 'return', 'demo', '--force'])).code).toBe(0);
-    expect(JSON.parse((await yan(['tree', 'ls', '--json'])).stdout)).toEqual([]);
-
-    expect((await yan(['tree', 'get', 'nope'])).code).toBe(2);
-    Task.create('a piece of work');
-    expect((await yan(['tree', 'get', 'demo'], 't001')).code).toBe(2);
   });
 
   it('hands a matter over as a task: numbered, in the repositories named, the handoff its problem.md and the files it carries in its artifacts', async () => {
