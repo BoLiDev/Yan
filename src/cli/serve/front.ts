@@ -87,9 +87,15 @@ export class ManyVaults {
     return this.sites[0] as YanServer;
   }
 
-  /** The vault that answers for task `id`: the first to have it. */
+  /** The vault that answers for task `id`: the first to have it, or for a task being started that has no id yet, the vault that started it. */
   private siteOf(id: string | null | undefined): YanServer | undefined {
-    return typeof id !== 'string' || id === '' ? undefined : this.sites.find((site) => site.owns(id));
+    if (typeof id !== 'string' || id === '') return undefined;
+    return this.sites.find((site) => site.owns(id)) ?? this.sites.find((site) => site.launched(id));
+  }
+
+  /** The vault a request names outright, as a new task's form names the one it is made in. */
+  private named(name: unknown): YanServer | undefined {
+    return typeof name !== 'string' ? undefined : this.sites.find((site) => site.name === name);
   }
 
   /** Every vault's status as one: what all of them are, or the first that is not. */
@@ -168,7 +174,7 @@ export class ManyVaults {
       const blob = /^\/blob\/([0-9a-f]{7,64})$/.exec(p);
       if (blob !== null) return to(await this.holding(blob[1] as string));
       const task = /^\/api\/task\/([\w.-]+)$/.exec(p);
-      return to(this.siteOf(task?.[1] ?? url.searchParams.get('task')) ?? this.first);
+      return to(this.siteOf(task?.[1] ?? url.searchParams.get('task')) ?? this.named(url.searchParams.get('vault')) ?? this.first);
     }
 
     if (req.method === 'POST' && (req.headers['content-type'] ?? '').startsWith('application/json')) {
@@ -199,7 +205,7 @@ export class ManyVaults {
         if (named === undefined) return void res.writeHead(404).end(`no vault called ${given.vault} is served here`);
         return to(named);
       }
-      return to(this.siteOf(typeof given.task === 'string' ? given.task : url.searchParams.get('task')) ?? this.first);
+      return to(this.siteOf(typeof given.task === 'string' ? given.task : url.searchParams.get('task')) ?? this.named(given.vault) ?? this.first);
     }
     return to(this.siteOf(url.searchParams.get('task')) ?? this.first);
   }

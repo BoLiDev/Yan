@@ -448,6 +448,10 @@ export class YanServer {
       // Asked on every tick: 'yan vault local' and the page's settings turn it on and off while serve runs.
       this.status.origin = (await gitAsync(dir, ['remote', 'get-url', 'origin'])).code === 0;
       this.status.local = !this.status.origin || keptLocal(dir);
+      // Served alone, it is the one vault there is; behind a front, the front lists them all.
+      if (this.options.behind === undefined) {
+        this.status.vaults = [{ name: this.options.vaultName, dir, local: this.status.local, origin: this.status.origin, ok: this.status.ok, fileLink: this.fileLink ?? null }];
+      }
       if (this.status.local) {
         // A local vault is only here, and HEAD is all there is to read: origin is not asked, whatever the vault's git names.
         this.status.checkedAt = now();
@@ -583,6 +587,11 @@ export class YanServer {
   /** Whether the commit being shown has a task `id`. */
   public owns(id: string): boolean {
     return this.view.index().tasks.some((t) => t.id === id);
+  }
+
+  /** Whether `name` is a task being started here that has no id yet: a launch of this vault's. */
+  public launched(name: string): boolean {
+    return this.launches.all().some((l) => l.key === name);
   }
 
   /** Whether this vault's repository has the blob `sha`. */

@@ -5,12 +5,13 @@ import { setPref, useUI } from '../state/ui';
 import { Seg } from './page';
 import { UpdateCard } from './Update';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
 
 /** One thing to set: what it is, a line on what it does, and what sets it, at the row's end or under it. */
 function Row({ title, sub, children, under }: { title: string; sub?: string; children?: ReactNode; under?: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2.5 py-3.5">
+    <div className="flex min-w-0 flex-col gap-2.5 py-3.5">
       <div className="flex items-center gap-4">
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <b className="text-[13.5px]">{title}</b>
@@ -53,7 +54,7 @@ export function SettingsModal() {
         <DialogHeader className="pb-1">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col divide-y divide-sunken">
+        <div className="flex min-w-0 flex-col divide-y divide-sunken">
           <Row title="Theme" under={
             <Seg wide options={[['system', 'As the browser'], ['light', 'Light'], ['dark', 'Dark']] as const} current={prefs.theme} onPick={(v) => setPref('theme', v)} />
           } />
@@ -68,14 +69,18 @@ export function SettingsModal() {
               <Switch aria-label="Local vault" checked={status?.local ?? false} disabled={!status?.origin} onCheckedChange={(on) => void keepVaultLocal(on)} />
             </Row>
           ) : (
-            // Several vaults shown as one list, in the order a task id two of them have is settled: each kept local or not by itself.
-            <Row title="Local vaults" sub="A local vault is read from this machine alone: nothing is fetched from its origin or pushed to it. One with no origin is local already." under={
-              <div className="flex flex-col gap-2">
-                {status.vaults.map((v) => (
-                  <label key={v.name} className="flex items-center gap-3 text-[13px]">
-                    <span className="min-w-0 flex-1 truncate" title={v.dir}>{v.name}</span>
-                    <Switch aria-label={`Local vault ${v.name}`} checked={v.local} disabled={!v.origin} onCheckedChange={(on) => void keepVaultLocal(on, v.name)} />
-                  </label>
+            // This machine's vaults as its config.json lists them, in the order a task id two of them have is settled: each local or remote by itself.
+            <Row title="Vaults" sub="This machine's vaults, in the order their tasks are looked through. The first is the default, where a new task is kept unless another is picked. A local vault is read from this machine alone: nothing is fetched from its origin or pushed to it." under={
+              <div className="flex min-w-0 flex-col gap-1.5" role="list" aria-label="Vaults">
+                {status.vaults.map((v, i) => (
+                  <div key={v.name} role="listitem" className="flex min-w-0 items-center gap-3 rounded-lg bg-muted px-3 py-2 text-[13px]">
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center gap-2"><b>{v.name}</b>{i === 0 && status.vaults !== undefined && status.vaults.length > 1 ? <Badge variant="secondary">default</Badge> : null}</span>
+                      <span className="truncate font-mono text-xs text-ink-3" title={v.dir}>{v.dir}</span>
+                    </span>
+                    <span className="flex-none text-xs text-ink-3" title={v.origin ? undefined : 'It has no origin, so it is local whatever is set'}>{v.local ? 'Local' : 'Remote'}</span>
+                    <Switch aria-label={`Local vault ${v.name}`} checked={v.local} disabled={!v.origin} onCheckedChange={(on) => void keepVaultLocal(on, status.vaults !== undefined && status.vaults.length > 1 ? v.name : undefined)} />
+                  </div>
                 ))}
               </div>
             } />

@@ -140,6 +140,8 @@ export interface KeptDraft {
 /** A new task as the page asked for it: its title, and each repository with the packages it is about, `[]` for all. */
 export interface Launched {
   readonly title: string;
+  /** The vault it is made in, when serve shows several. */
+  readonly vault?: string;
   readonly repos: readonly { readonly name: string; readonly scope: readonly string[] }[];
 }
 

@@ -13,6 +13,7 @@ import { useAgentTab } from '../../state/agentTab';
 import { useTask, useTerminals } from '../../state/server';
 import { useArtifactsPart } from './ArtifactsPart';
 import { useBranchPart } from './BranchPart';
+import { TaskInfo } from '../../components/TaskInfo';
 import { TaskHead } from './TaskHead';
 import { NAV, navRow } from './look';
 
@@ -49,7 +50,7 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
   const part = r.sub === 'branch' ? branch : artifacts;
   const top = (
     <>
-      <TaskHead icon={<StateIcon t={t} size={18} />} title={t.title || t.id} />
+      <TaskHead icon={<StateIcon t={t} size={18} />} title={t.title || t.id} more={<TaskInfo t={t} index={index} />} />
       <div className={NAV}>
         <NavLink href={link.task(t.id)} on={r.sub === 'overview'} icon="overview" word="Overview" />
         {d?.files.some((f) => f.path === 'report.html') ? (

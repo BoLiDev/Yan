@@ -23,7 +23,7 @@ import { holdTerminal, letTerminalGo, machineConfigPath, skillDirs } from '../..
 import { branchOf, currentBranch, defaultBranch, fetchAsync, git, gitOk, remoteUrl } from '../../util/git.js';
 import { asString } from '../../util/narrow.js';
 import { isDirectory, normalizePath, samePath } from '../../util/paths.js';
-import { inVault, readVaultConfig, readVaultJson, vaultConfigPath, vaultDir, vaultOrigin } from '../../util/vault.js';
+import { everyVault, inVault, readVaultConfig, readVaultJson, vaultConfigPath, vaultDir, vaultOrigin } from '../../util/vault.js';
 
 /**
  * Bare `yan`: pick a task or start one, then start the agent on it in this
@@ -422,6 +422,8 @@ async function leaseTree(task: Task, repo: { name: string; clone: string; scope:
  */
 export interface NewTask {
   readonly title: string;
+  /** The vault it is made in, by name; without it, on a machine with several, it is asked, the first being the default. */
+  readonly vault?: string;
   readonly repos?: readonly { readonly name: string; readonly scope: readonly string[] }[];
 }
 
@@ -438,6 +440,7 @@ function answering(asking: EntryPrompts, given: NewTask): EntryPrompts {
   return {
     chooseEntry: async () => CREATE_NEW,
     askTitle: async () => title,
+    ...(asking.chooseVault === undefined ? {} : { chooseVault: (vaults) => (asking.chooseVault as NonNullable<EntryPrompts['chooseVault']>)(vaults) }),
     chooseRepos: repos === undefined ? (offered) => asking.chooseRepos(offered) : async (offered) => {
       const missing = repos.filter((r) => !offered.some((o) => o.name === r.name)).map((r) => r.name);
       if (missing.length > 0) throw YanError.usage('yan_usage', `no repository called ${missing.join(', ')} is registered and cloned here - 'yan repo ls' lists those that are`);
@@ -457,6 +460,8 @@ function answering(asking: EntryPrompts, given: NewTask): EntryPrompts {
 /** The questions bare `yan` asks. The real ones are Clack's; a test answers them itself. */
 export interface EntryPrompts {
   chooseEntry(tasks: readonly TaskChoice[], vault: string): Promise<string>;
+  /** Which of several vaults a new task is made in; where it is not asked, the first, the default. */
+  chooseVault?(vaults: readonly { readonly name: string; readonly local: boolean }[]): Promise<string>;
   askTitle(): Promise<string>;
   chooseRepos(repos: readonly RepoChoice[]): Promise<string[]>;
   confirmTree(repo: string, why?: string): Promise<boolean>;
@@ -545,12 +550,31 @@ async function takenOnOrigin(vault: string, chain: EntryChain): Promise<string[]
 }
 
 /**
- * Every task id a new one must not take: the active vault's origin's, and
- * those of every other vault here, since yan shows them as one list and an
+ * The vault a new task is made in, on a machine with several: the one
+ * named, or the one picked, the first being the default and what is taken
+ * where nothing asks. Undefined with one vault, which is the one there is.
+ * Asked before the title, since the repositories offered next are the
+ * vault's own, and the agent is told what kind of vault its notes are in.
+ */
+async function vaultForNew(named: string | undefined, prompts: EntryPrompts): Promise<string | undefined> {
+  const all = everyVault();
+  if (named !== undefined) {
+    const found = all.find((v) => v.name === named);
+    if (found === undefined) throw YanError.usage('yan_usage', `no vault called ${named} is registered here - 'yan vault ls' lists them`);
+    return found.dir;
+  }
+  if (all.length < 2) return undefined;
+  const picked = prompts.chooseVault === undefined ? all[0]?.name : await prompts.chooseVault(all.map((v) => ({ name: v.name, local: vaultOrigin(v.dir) === undefined })));
+  return all.find((v) => v.name === picked)?.dir;
+}
+
+/**
+ * Every task id a new one must not take: its vault's origin's, and
+ * `elsewhere`, those of every vault here, since yan shows them as one list and an
  * id two vaults had would hide the later vault's task.
  */
-async function takenAnywhere(chain: EntryChain): Promise<string[]> {
-  return [...await takenOnOrigin(vaultDir(), chain), ...tasksEverywhere().map((t) => t.id)];
+async function takenAnywhere(chain: EntryChain, elsewhere: readonly string[]): Promise<string[]> {
+  return [...await takenOnOrigin(vaultDir(), chain), ...elsewhere];
 }
 
 /**
@@ -559,12 +583,12 @@ async function takenAnywhere(chain: EntryChain): Promise<string[]> {
  * packages, the ones it is about. Asked once; every later start reads them
  * from task.json. Each repository gets a tree.
  */
-async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): Promise<{ task: Task; trees: Tree[] }> {
+async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain, elsewhere: readonly string[]): Promise<{ task: Task; trees: Tree[] }> {
   const title = await prompts.askTitle();
   const offered = candidates(cwd);
   if (offered.length === 0) {
     chain.say({ kind: 'info', line: "no repository is registered and cloned here, so the task has no tree - 'yan repo add' registers one" });
-    return { task: Task.create(title, [], await takenAnywhere(chain)), trees: [] };
+    return { task: Task.create(title, [], await takenAnywhere(chain, elsewhere)), trees: [] };
   }
 
   // The clone `yan` was typed in comes first, so it is where the agent starts when picked.
@@ -585,7 +609,7 @@ async function newTask(cwd: string, prompts: EntryPrompts, chain: EntryChain): P
     const scope = packages.length === 0 ? [] : await prompts.chooseScope(c.name, packages);
     repos.push({ url: c.url, scope, candidate: c });
   }
-  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })), await takenAnywhere(chain));
+  const task = Task.create(title, repos.map(({ url, scope }) => ({ url, ...(scope === undefined ? {} : { scope }) })), await takenAnywhere(chain, elsewhere));
   const trees: Tree[] = [];
   for (const r of repos) {
     const scope = r.scope ?? [];
@@ -726,11 +750,13 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   if (given !== undefined) chain.say({ kind: 'done', line: `${given.id}  ${given.title}` });
   const chosen = given?.id ?? await prompts.chooseEntry(openTasks(), vaultName);
   // A task gone on with is worked on in the vault that has it, whichever of this machine's that is; a new one is made in the active vault.
-  const home = chosen === CREATE_NEW ? undefined : tasksEverywhere().find((t) => t.id === chosen)?.dir;
+  // Read before the process is pointed at one vault, after which it sees only that one's.
+  const everywhere = tasksEverywhere().map((t) => t.id);
+  const home = chosen === CREATE_NEW ? await vaultForNew(options.new?.vault, prompts) : tasksEverywhere().find((t) => t.id === chosen)?.dir;
   if (home !== undefined) workIn(home);
   const vault = vaultDir();
   const { task, trees } = chosen === CREATE_NEW
-    ? await newTask(cwd, prompts, chain)
+    ? await newTask(cwd, prompts, chain, everywhere)
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };
   if (chosen === CREATE_NEW) saveNewTask(vault, task, chain);
 

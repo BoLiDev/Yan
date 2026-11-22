@@ -1,4 +1,4 @@
-import { autocomplete, autocompleteMultiselect, confirm, intro, isCancel, note, text } from '@clack/prompts';
+import { autocomplete, autocompleteMultiselect, confirm, intro, isCancel, note, select, text } from '@clack/prompts';
 import { YanError } from '../util/error.js';
 
 /**
@@ -167,6 +167,16 @@ export async function chooseScope(repo: string, packages: readonly string[]): Pr
   if (isCancel(chosen)) throw cancelled('no task was created');
   const picked = [...chosen].map((v) => String(v));
   return picked.includes(WHOLE_REPO) ? [] : picked;
+}
+
+/** Which vault a new task is made in, on a machine with several: the first, the default, is the one offered. */
+export async function chooseVault(vaults: readonly { readonly name: string; readonly local: boolean }[]): Promise<string> {
+  const chosen = await select({
+    message: 'Which vault is it kept in?',
+    options: vaults.map((v, i) => ({ value: v.name, label: v.name, hint: `${v.local ? 'local, on this machine alone' : 'remote, shared through its origin'}${i === 0 ? ' · default' : ''}` })),
+    initialValue: vaults[0]?.name,
+  });
+  return answered(chosen, 'nothing was started');
 }
 
 /** Select one open task. `command` heads the prompt; `message` is the question. */

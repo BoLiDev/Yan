@@ -59,11 +59,12 @@ Bare 'yan', at a terminal, picks a task or starts one and runs an agent on it
 here, in the task's first worktree when it has any ('yan repo' keeps the
 repositories a new task picks from):
 
-  yan [--cli claude|codex|agy] [--task <id> | --new <title> [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
+  yan [--cli claude|codex|agy] [--task <id> | --new <title> [--vault <name>] [--repo <name>[:<package>,...]]... | --no-repo] [-- <args for the agent>]
   yan [--cli claude|codex|agy] [--task <id>] --done | --abandon <why> | --pause | --review
 
 --task goes on with an open task without asking which. --new starts a task
-called <title>; --repo names a repository it works in, with the packages it
+called <title>; --vault names the vault it is kept in, on a machine with
+several (asked otherwise, the first being the default); --repo names a repository it works in, with the packages it
 is about after a colon (the whole repository without), and --no-repo none.
 --done, or --abandon with the reason it is given up, starts the agent asking
 it to close the task, as yan:done does: it stops to ask when a worktree holds
@@ -141,6 +142,7 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   let cli: string | undefined;
   let task: string | undefined;
   let title: string | undefined;
+  let vault: string | undefined;
   let repos: { name: string; scope: string[] }[] | undefined;
   let noRepo = false;
   let close: { abandon?: string } | undefined;
@@ -159,10 +161,11 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
       extra = argv.slice(i + 1);
       break;
     }
-    const given = valueOf('--cli', i) ?? valueOf('--task', i) ?? valueOf('--new', i) ?? valueOf('--repo', i) ?? valueOf('--abandon', i);
+    const given = valueOf('--cli', i) ?? valueOf('--task', i) ?? valueOf('--new', i) ?? valueOf('--vault', i) ?? valueOf('--repo', i) ?? valueOf('--abandon', i);
     if (given !== undefined && word.startsWith('--cli')) cli = given[0];
     else if (given !== undefined && word.startsWith('--task')) task = given[0];
     else if (given !== undefined && word.startsWith('--new')) title = given[0];
+    else if (given !== undefined && word.startsWith('--vault')) vault = given[0];
     else if (given !== undefined && word.startsWith('--abandon')) close = { abandon: given[0] };
     else if (given !== undefined) (repos ??= []).push(repoArg(given[0]));
     else if (word === '--no-repo') noRepo = true;
@@ -172,6 +175,7 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
     else throw YanError.usage('yan_usage', `bare yan takes --cli <name>, --task <id> or --new <title> with --repo <name> or --no-repo, --done, --abandon <why>, --pause or --review, and, after --, arguments for the agent - not '${word}'`);
     i += given?.[1] ?? 1;
   }
+  if (title === undefined && vault !== undefined) throw YanError.usage('yan_usage', '--vault says where a new task is kept, given with --new <title>');
   if (title === undefined && (repos !== undefined || noRepo)) throw YanError.usage('yan_usage', '--repo and --no-repo are a new task\'s, given with --new <title>');
   if (repos !== undefined && noRepo) throw YanError.usage('yan_usage', '--repo and --no-repo say opposite things; give one');
   if (task !== undefined && title !== undefined) throw YanError.usage('yan_usage', '--task goes on with a task and --new starts one; give one');
@@ -179,7 +183,7 @@ function entryArgs(argv: readonly string[]): EntryArgs | undefined {
   if (close !== undefined && pause) throw YanError.usage('yan_usage', '--pause puts a task aside and --done or --abandon closes it; give one');
   if (review && (close !== undefined || pause)) throw YanError.usage('yan_usage', '--review takes up a review, and --done, --abandon or --pause stops the task; give one');
   if (close?.abandon !== undefined && close.abandon.trim() === '') throw YanError.usage('yan_usage', '--abandon takes the reason the task is being given up');
-  const made = title === undefined ? {} : { new: { title, ...(noRepo ? { repos: [] } : repos === undefined ? {} : { repos }) } };
+  const made = title === undefined ? {} : { new: { title, ...(vault === undefined ? {} : { vault }), ...(noRepo ? { repos: [] } : repos === undefined ? {} : { repos }) } };
   return { ...(cli === undefined ? {} : { cli }), extra, ...made, ...(task === undefined ? {} : { task }), ...(close === undefined ? {} : { close }), ...(pause ? { pause } : {}), ...(review ? { review } : {}) };
 }
 

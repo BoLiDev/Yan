@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { queryClient } from '../state/server';
 import { useUI, type Launched } from '../state/ui';
 import { MultiSelect } from './MultiSelect';
+import { Seg } from './page';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
@@ -41,7 +42,11 @@ export function NewTaskModal() {
 }
 
 function NewTaskBox() {
-  const { data: repos } = useQuery({ queryKey: ['launch-repos'], queryFn: () => getJSON<RepoOption[]>('/api/launch/repos'), staleTime: 30_000 });
+  // Of several vaults, the one the task is made in: the first, the default, until another is picked. Its repositories are its own.
+  const vaults = useUI((s) => s.status?.vaults) ?? [];
+  const [vault, setVault] = useState<string | undefined>(undefined);
+  const into = vaults.length > 1 ? vault ?? vaults[0]?.name : undefined;
+  const { data: repos } = useQuery({ queryKey: ['launch-repos', into ?? ''], queryFn: () => getJSON<RepoOption[]>(into === undefined ? '/api/launch/repos' : `/api/launch/repos?vault=${encodeURIComponent(into)}`), staleTime: 30_000 });
   const [step, setStep] = useState<Step>('title');
   // Which way the step came, so it slides in from that side.
   const [way, setWay] = useState<'on' | 'back'>('on');
@@ -83,6 +88,7 @@ function NewTaskBox() {
     // Every package of a repository picked is the whole of it.
     const made: Launched = {
       title: title.trim(),
+      ...(into === undefined ? {} : { vault: into }),
       repos: picked.map((r) => {
         const own = scopes[r.name] ?? [];
         return { name: r.name, scope: own.length === r.packages.length ? [] : r.packages.filter((p) => own.includes(p)) };
@@ -141,7 +147,18 @@ function NewTaskBox() {
       <div className="-mx-6 overflow-hidden">
         <div key={step} className={cn('px-6 pt-[18px] pb-0.5 duration-300 animate-in fade-in-0', way === 'on' ? 'slide-in-from-right-7' : 'slide-in-from-left-7')}>
           {step === 'title' ? (
-            <Input ref={field} aria-label="Title" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} className="h-10 text-[15px]" />
+            <div className="flex flex-col gap-3">
+              <Input ref={field} aria-label="Title" value={title} spellCheck={false} onChange={(e) => setTitle(e.target.value)} className="h-10 text-[15px]" />
+              {into === undefined ? null : (
+                <div className="flex items-center gap-3 text-[13px]" role="group" aria-label="Vault">
+                  <span className="text-ink-3">Kept in</span>
+                  <Seg options={vaults.map((v) => [v.name, `${v.name} · ${v.local ? 'local' : 'remote'}`] as const)} current={into} onPick={(v) => {
+                    setVault(v);
+                    setChosen([]);
+                  }} />
+                </div>
+              )}
+            </div>
           ) : step === 'repos' ? (
             <MultiSelect label="Repositories" options={list.map((r) => r.name)} value={chosen} autoFocus
               onChange={(next) => setChosen(list.filter((r) => next.includes(r.name)).map((r) => r.name))} />

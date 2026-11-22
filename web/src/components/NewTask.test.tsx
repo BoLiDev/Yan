@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { draw, have, index, reset, serve } from '../testing/serve';
+import { draw, have, index, reset, serve, status } from '../testing/serve';
 import { useUI } from '../state/ui';
 import { NewTaskModal } from './NewTask';
 
@@ -32,6 +32,20 @@ describe('a new task from the page', () => {
     expect(launch?.body).toEqual({ title: 'pay retries', repos: [{ name: 'api', scope: [] }, { name: 'web', scope: ['admin'] }] });
     expect(useUI.getState().newTask).toBe(false);
     expect(useUI.getState().launched.L1?.title).toBe('pay retries');
+  });
+
+  it('is kept in the vault picked of several, the first being the one offered, with that vault\'s repositories', async () => {
+    const vaults = [{ name: 'team', dir: '/team', local: false, origin: true, ok: true, fileLink: null }, { name: 'work', dir: '/work', local: true, origin: false, ok: true, fileLink: null }];
+    have({ ...index([]), status: { ...status(), vaults } });
+    const asked = serve({ '/api/launch/repos': Response.json([]), 'POST /api/launch': Response.json({ launch: 'L9' }) });
+    const screen = await draw(<NewTaskModal />);
+    await expect.element(screen.getByRole('group', { name: 'Vault' }).getByRole('button', { name: /team/ })).toHaveAttribute('aria-pressed', 'true');
+    await screen.getByRole('group', { name: 'Vault' }).getByRole('button', { name: /work/ }).click();
+    await screen.getByRole('textbox', { name: 'Title' }).fill('kept at work');
+    await userEvent.keyboard('{Enter}');
+    await expect.poll(() => location.hash).toBe('#/new/L9');
+    expect(asked.find((a) => a.method === 'POST' && a.path === '/api/launch')?.body).toEqual({ title: 'kept at work', vault: 'work', repos: [] });
+    expect(asked.some((a) => a.path === '/api/launch/repos' && a.query.get('vault') === 'work'), 'the repositories offered are that vault\'s').toBe(true);
   });
 
   it('takes a monorepo with every package picked, or none, as the whole of it', async () => {

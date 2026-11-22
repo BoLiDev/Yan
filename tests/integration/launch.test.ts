@@ -528,6 +528,36 @@ describe('the harness', () => {
     expect(claude.prompt, 'told only of the skills, not all a CLI with none is told').not.toContain('yan uat add');
   });
 
+  it('makes a new task in the vault picked of several, the first being the default, and keeps the agent to that vault', async () => {
+    const here = normalizePath(realpathSync(mkTempDir()));
+    const second = normalizePath(mkYanHome(mkTempDir(), { activate: false }));
+    mkdirSync(join(home, '.machine'), { recursive: true });
+    writeFileSync(join(home, '.machine', 'config.json'), JSON.stringify({ version: 1, vaults: [{ name: 'first', path: home, type: 'remote' }, { name: 'second', path: second, type: 'local' }], clones: {} }));
+    const offered: string[] = [];
+    const picking = (pick: string): EntryPrompts => ({ ...answers({ entry: CREATE_NEW, title: 'kept apart' }), chooseVault: async (vaults) => {
+      offered.push(vaults.map((v) => `${v.name}:${v.local ? 'local' : 'remote'}`).join(' '));
+      return pick;
+    } });
+
+    // No vault pointed at, as at a terminal: every vault of the machine is there to pick from.
+    delete process.env.YAN_VAULT;
+    await run(picking('second'), here);
+    expect(offered[0]?.split(' ')[0], 'the first of the list is offered first').toMatch(/^first:/);
+    expect(existsSync(join(second, 'tasks', 't001', 'task.json'))).toBe(true);
+    expect(existsSync(join(home, 'tasks', 't001'))).toBe(false);
+    expect(started[0]?.env.YAN_VAULT).toBe(second);
+
+    // Named, it is not asked; and the task is numbered after those of every vault, so neither hides the other's.
+    delete process.env.YAN_VAULT;
+    await run(picking('second'), here, { new: { title: 'in the first', vault: 'first' } });
+    expect(offered).toHaveLength(1);
+    expect(existsSync(join(home, 'tasks', 't002', 'task.json'))).toBe(true);
+    expect(started[1]?.env.YAN_VAULT).toBe(normalizePath(home));
+
+    delete process.env.YAN_VAULT;
+    await expect(run(picking('second'), here, { new: { title: 'x', vault: 'nowhere' } })).rejects.toThrow(/no vault called nowhere/);
+  });
+
   it('pulls the vault each time user sends a message and pushes it after each turn, through hooks for this session alone', async () => {
     const here = normalizePath(realpathSync(mkTempDir()));
     await run(answers({ entry: CREATE_NEW, title: 'a' }), here);

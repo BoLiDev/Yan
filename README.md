@@ -53,9 +53,14 @@ its name, its path and its `type`, and their order means something: yan
 shows the tasks of them all as one list, in `yan ls`, in bare `yan` and on
 `yan serve`'s page, each named with its vault; a task id two vaults have
 is the earlier vault's, the later one's hidden; and the first is the
-active vault, where a new task is made, numbered after the tasks of every
-vault so that none is hidden, and whose drafts, learnings and
-`config.json` are read. `yan vault init` and `clone` put a vault first,
+active vault, the default: a new task asks which vault it is kept in, the
+first being the one offered (`--vault <name>` with `--new` names it; on
+the page the new task's box picks it, beside its title), is numbered after
+the tasks of every vault so that none is hidden, and picks its
+repositories from that vault's; and the first vault's drafts, learnings
+and `config.json` are the ones read. An agent is told what its own task's
+vault is, so one on a local vault never pulls or pushes while one on a
+remote vault is kept in step by its hooks. `yan vault init` and `clone` put a vault first,
 `yan vault use <name>` moves one there, and `yan vault ls` lists them in
 order. A command given a task, by `--task` or `$YAN_TASK`, works in the
 vault that task is in, and an agent started on a task is kept to that
@@ -252,8 +257,12 @@ one box for what this browser is set to: the theme, light or dark as the
 browser asks or as picked there, a terminal being dark either way;
 notifications; the marks on what is new; Local vault, this machine's switch
 for keeping the vault local, off and unmoving for a vault with no origin,
-which is local already, and one switch for each vault when several are
-served; and yan's own updates. Notifications
+which is local already, in a section listing this machine's vaults as
+`~/.yan/config.json` has them, in order, the default marked, each with its
+path, whether it is local or remote, and its own switch; and yan's own
+updates. The mark after a task's title, at the head of its column, opens
+what yan keeps of the task itself: its id and state, the vault it is in,
+whether that vault is local or remote, and its folder on this machine. Notifications
 are one switch for all that pops up: off, as it starts, neither Chrome nor
 the page tells of anything, an agent that finished included, and the marks
 are all that say it. With
