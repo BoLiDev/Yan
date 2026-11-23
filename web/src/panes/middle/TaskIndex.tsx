@@ -52,7 +52,7 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
   const top = (
     <>
       {/* Janus is no piece of work: its own mark where a task has its state, and no problem or log to open, only where it is talked to and what it made. */}
-      <TaskHead icon={janus ? <Icon name="janus" size={18} className="text-ink-2" /> : <StateIcon t={t} size={18} />} title={t.title || t.id} more={<TaskInfo t={t} index={index} />} />
+      <TaskHead icon={janus ? <Icon name="janus" size={18} className={agent?.kind === 'working' ? 'animate-pulse text-brand motion-reduce:animate-none' : 'text-ink-2'} /> : <StateIcon t={t} size={18} />} title={t.title || t.id} more={<TaskInfo t={t} index={index} />} />
       <div className={NAV}>
         {janus ? null : <NavLink href={link.task(t.id)} on={r.sub === 'overview'} icon="overview" word="Overview" />}
         {d?.files.some((f) => f.path === 'report.html') ? (

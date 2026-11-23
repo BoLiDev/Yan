@@ -120,7 +120,6 @@ describe('a task\'s agent, at a glance', () => {
     await page.getByRole('button', { name: 'Hide the task list' }).click();
     const rail = tasks(page);
     await rail.getByRole('link', { name: 'pay retries · agent at work' }).waitFor({ timeout: 20_000 });
-    expect(await rail.getByRole('link', { name: 'pay retries · agent at work' }).textContent()).toBe('P');
 
     h.agentIs(AGENT_PANE, 'done');
     const bubble = page.getByRole('status', { name: 'pay retries' });

@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { draw, have, index, reset, serve, status, task } from '../testing/serve';
 import { followTheme } from '../state/theme';
+import { queryClient } from '../state/server';
 import { useUI } from '../state/ui';
 import { SettingsModal } from '../components/Settings';
 import { Left } from './Left';
@@ -49,6 +50,20 @@ describe('what this browser is set to', () => {
     await expect.element(screen.getByRole('link', { name: /pay retries/ })).toBeVisible();
     // Nowhere among the rows, and its button the one way to it.
     expect([...document.querySelectorAll('a[href*="janus"]')].map((e) => [e.getAttribute('aria-label'), e.getAttribute('href')])).toEqual([['Janus, not started', '#/t/janus/terminal']]);
+  });
+
+  it('shows Janus at work by its mark breathing, and still otherwise', async () => {
+    have(index([task('t1', 'pay retries'), task('janus', 'Janus')]));
+    const at = (status: string) => ({ janus: { status, agent: 'claude', cli: 'claude', pane: 'w1:p2', since: '2026-11-01T09:00:00Z', herdr: '0.9.5', streams: true, layout: { pane: 'w1:p2' } } });
+    let now = at('working');
+    queryClient.setQueryData(['terminals'], now);
+    serve({ '/api/terminals': () => Response.json(now) });
+    await draw(<Left />);
+    const mark = (): SVGElement => document.querySelector('a[aria-label="Janus"] svg') as SVGElement;
+    await expect.poll(() => getComputedStyle(mark()).animationName).not.toBe('none');
+    now = at('idle');
+    // As the page next asks, every two seconds.
+    await expect.poll(() => getComputedStyle(mark()).animationName, { timeout: 6000 }).toBe('none');
   });
 
   it('is one box away from the task list: the theme, dark or light whatever the browser asks, kept in this browser', async () => {

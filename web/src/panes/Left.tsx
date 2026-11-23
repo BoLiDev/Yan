@@ -145,7 +145,9 @@ export function Left() {
   }, [index]);
 
   const shown = useUI((s) => s.prefs.left);
-  const awake = useTerminals().data?.[JANUS] !== undefined;
+  const janus = useTerminals().data?.[JANUS];
+  const awake = janus !== undefined;
+  const janusAtWork = janus?.status === 'working';
   const creating = useUI((s) => s.newTask);
   const drafting = useUI((s) => s.drafts);
   const top = (
@@ -154,8 +156,8 @@ export function Left() {
         <b className="text-[22px] tracking-tight" title={index ? `${index.vault.name} · ${index.vault.dir}` : undefined}>yan</b>
         <span className="flex-1" />
         {/* What this browser is set to, the theme, what the page says of what arrived, and yan's updates, is one box away. */}
-        {/* Janus, for what is not a task yet: its terminal, a click from anywhere, where it is started when it is not running, which its mark gone grey says. */}
-        <Tool name="janus" label={awake ? 'Janus' : 'Janus, not started'} href={link.terminal(JANUS)} newTab={false} blocked={!awake} small />
+        {/* Janus, for what is not a task yet: its terminal, a click from anywhere, where it is started when it is not running, which its mark gone grey says; at work, its mark breathes, as a task's does. */}
+        <Tool name="janus" label={awake ? 'Janus' : 'Janus, not started'} href={link.terminal(JANUS)} newTab={false} blocked={!awake} busy={janusAtWork} small />
         <Tool name="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} small />
         <Tool name="panel" label="Hide the task list" onClick={() => setPref('left', false)} small />
       </div>
