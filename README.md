@@ -375,7 +375,8 @@ and the box's header says when one is waiting or failed. A draft changed
 elsewhere since it was read, with `yan draft` or on another machine, is
 not written over: the writing stops, what was written stays, and a line
 over it asks whether to keep yours, take theirs, or keep both, yours as a
-new draft. A right click on a draft in the list opens its own menu, whose
+new draft. A click on a draft in the list shows it, and Enter on one,
+reached with Tab, writes in it, at its end. A right click on a draft in the list opens its own menu, whose
 Delete, once asked, takes it from the list at once, putting it back if
 serve refuses; a draft left blank asks the same, and stays as it was when
 that is cancelled. A picture pasted into a draft, or dropped on it, is

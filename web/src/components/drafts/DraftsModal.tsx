@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { Draft } from '../../lib/api';
 import { when } from '../../lib/format';
 import { cn } from '../../lib/utils';
@@ -20,11 +20,17 @@ const NONE: readonly Draft[] = [];
  * right click on one saved opens its own menu in place of the browser's,
  * which deletes it, once asked.
  */
-function Row({ title, meta, on, onPick, onDelete }: { title: string; meta: string; on: boolean; onPick: () => void; onDelete?: () => void }) {
+function Row({ title, meta, on, onPick, onWrite, onDelete }: { title: string; meta: string; on: boolean; onPick: () => void; onWrite?: () => void; onDelete?: () => void }) {
   const row = {
     type: 'button' as const,
     'aria-current': on || undefined,
     onClick: onPick,
+    // Reached with Tab, Enter is for writing it: the keyboard goes into the draft, at its end, where a click only shows it.
+    onKeyDown: (e: KeyboardEvent<HTMLButtonElement>): void => {
+      if (e.key !== 'Enter' || onWrite === undefined) return;
+      e.preventDefault();
+      onWrite();
+    },
     className: cn('flex w-full cursor-pointer flex-col items-start rounded-[10px] px-3 py-2 text-left', on ? 'bg-card ring-1 ring-border' : 'hover:bg-hover'),
   };
   const lines: ReactNode = (
@@ -65,7 +71,8 @@ function DeleteAsk({ draft, open, onOpenChange, onDelete }: { draft: Draft | nul
 /**
  * The drafts, in their box: the list down the side, newest first, with New
  * above it, each deleted from its own menu, once asked, and the one picked
- * beside it, read and written in one place. The newest is shown first; with
+ * beside it, read and written in one place: a click on one in the list
+ * shows it, and Enter on one, reached with Tab, writes in it. The newest is shown first; with
  * none at all, a new one, ready to write. One whose writing failed as its
  * page went is shown again, being written. Nothing here waits on serve:
  * the list is the page's own, changed as each write is done.
@@ -89,6 +96,12 @@ function DraftsBox() {
     setBorn((b) => ({ ...b, [id]: NEW }));
     setPicked(id);
   };
+  // The draft Enter was pressed on in the list, and which time: its page takes the keyboard, each time.
+  const [write, setWrite] = useState<{ id: string; n: number } | null>(null);
+  const writeIn = (id: string): void => {
+    setPicked(id);
+    setWrite((w) => ({ id, n: (w?.n ?? 0) + 1 }));
+  };
   // The draft asked to be deleted, kept while the question closes.
   const [doomed, setDoomed] = useState<Draft | null>(null);
   const [asking, setAsking] = useState(false);
@@ -106,7 +119,7 @@ function DraftsBox() {
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
           {shown === NEW ? <Row title="New draft" meta="not saved yet" on onPick={() => undefined} /> : null}
           {list.map((d) => (
-            <Row key={d.id} title={d.title} meta={`${when(d.begun)}${d.task ? ` · ${d.task}` : ''}`} on={d.id === shown} onPick={() => setPicked(d.id)} onDelete={() => askDelete(d)} />
+            <Row key={d.id} title={d.title} meta={`${when(d.begun)}${d.task ? ` · ${d.task}` : ''}`} on={d.id === shown} onPick={() => setPicked(d.id)} onWrite={() => writeIn(d.id)} onDelete={() => askDelete(d)} />
           ))}
           {drafts.isSuccess && list.length === 0 && shown !== NEW ? <span className="px-2 text-[13px] text-ink-3">No drafts yet.</span> : null}
           {drafts.isError ? <span className="px-2 text-[13px] text-destructive">Could not read the drafts: {drafts.error.message}</span> : null}
@@ -115,7 +128,7 @@ function DraftsBox() {
       {shown === null ? (
         <div className="flex items-center justify-center"><Spinner /></div>
       ) : (
-        <DraftPage key={born[shown] ?? shown} draft={shown === NEW ? null : draft} kept={keptAt === shown ? kept : null}
+        <DraftPage key={born[shown] ?? shown} draft={shown === NEW ? null : draft} kept={keptAt === shown ? kept : null} write={write !== null && write.id === shown ? write.n : 0}
           onCreated={onCreated} onAskDelete={askDelete} onGone={() => setPicked(null)} />
       )}
       {/* Deleted, it is gone from the list at once; serve refusing it puts it back and says why. */}

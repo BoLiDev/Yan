@@ -47,9 +47,11 @@ function Clash({ theirs, onMine, onTheirs, onBoth }: { theirs: Draft | null; onM
  * it is kept beside it, and named in it where the caret is. `draft` null is
  * one begun here; `kept`, one whose writing failed as its page went.
  */
-export function DraftPage({ draft, kept, onCreated, onAskDelete, onGone }: {
+export function DraftPage({ draft, kept, write = 0, onCreated, onAskDelete, onGone }: {
   draft: Draft | null;
   kept: KeptDraft | null;
+  /** Counted up each time the draft is asked to be written in from outside it, by Enter on it in the list: 0 when it was not. */
+  write?: number;
   onCreated: (id: string) => void;
   onAskDelete: (d: Draft) => void;
   onGone: () => void;
@@ -118,6 +120,16 @@ export function DraftPage({ draft, kept, onCreated, onAskDelete, onGone }: {
     void pictures(pics, at ?? writer.text.length);
     return true;
   };
+  // Asked from the list to be written in, it is, at its end, as often as it is asked: once as it is first shown, when it was asked then.
+  const asked = useRef(0);
+  const written = useEffectEvent(() => {
+    if (!editing) begin(null);
+    else area.current?.focus();
+  });
+  useEffect(() => {
+    if (write > asked.current) written();
+    asked.current = write;
+  }, [write]);
   // Read, a picture pasted anywhere in the box goes at the draft's end.
   const pasted = useEffectEvent((e: ClipboardEvent) => {
     if (take([...(e.clipboardData?.files ?? [])], null)) e.preventDefault();

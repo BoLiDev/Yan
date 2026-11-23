@@ -34,6 +34,27 @@ describe("the drafts' box", () => {
     expect(writes(asked)[1], 'the second names the draft as the first left it').toEqual({ id: ideas.id, sha: 'w41', text: '# Retry ideas\n\nback off twice\n and say so!' });
   });
 
+  it('writes in a draft reached with Tab once Enter is pressed on it, at its end, where a click on it in the list only shows it', async () => {
+    const asked = serve({ '/api/drafts': Response.json([ideas, old]), 'POST /api/draft': written() });
+    useUI.setState({ drafts: true });
+    const screen = await draw(<DraftsModal />);
+    await screen.getByRole('button', { name: /Old note/ }).click();
+    await expect.element(screen.getByRole('document').getByText('kept with its task')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Draft' }).elements(), 'shown, not written in').toEqual([]);
+
+    (screen.getByRole('button', { name: /Retry ideas/ }).element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+    await expect.element(screen.getByRole('textbox', { name: 'Draft' })).toHaveFocus();
+    await userEvent.keyboard(' then stop');
+    await expect.poll(() => writes(asked)).toEqual([{ id: ideas.id, sha: 's1', text: '# Retry ideas\n\nback off twice\n then stop' }]);
+
+    // On the one already shown, Enter goes into it too.
+    await userEvent.keyboard('{Escape}');
+    (screen.getByRole('button', { name: /Retry ideas/ }).element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+    await expect.element(screen.getByRole('textbox', { name: 'Draft' })).toHaveFocus();
+  });
+
   it('asks which to keep when the draft changed elsewhere meanwhile, and keeps both as two drafts when asked to', async () => {
     const theirs: Draft = { ...ideas, text: '# Retry ideas\n\nback off three times\n', sha: 's9' };
     const asked = serve({
