@@ -12,7 +12,14 @@ class Stream {
   constructor(readonly url: string) {
     Stream.last = this;
   }
-  addEventListener(): void {}
+  private closed: ((m: MessageEvent) => void) | undefined;
+  addEventListener(kind: string, heard: (m: MessageEvent) => void): void {
+    if (kind === 'closed') this.closed = heard;
+  }
+  /** serve ending the stream, with why. */
+  cut(why: string): void {
+    this.closed?.(new MessageEvent('closed', { data: JSON.stringify({ why }) }));
+  }
   close(): void {
     this.readyState = 2;
   }
@@ -61,5 +68,27 @@ describe('a pane followed as herdr streams it', () => {
     expect(shown).toEqual(screen(50, 10));
     followed.dispose();
     term.dispose();
+  });
+
+  it('asks again by itself for a stream cut off, saying so meanwhile, and says nothing was cut off once the pane is drawn again', async () => {
+    serve({ 'POST /api/terminal/input': Response.json({ ok: true }) });
+    vi.stubGlobal('EventSource', Stream);
+    const stage = document.body.appendChild(document.createElement('div'));
+    const term = new Terminal({ cols: 60, rows: 8, scrollback: 0 });
+    term.open(stage.appendChild(document.createElement('div')));
+    const said: string[] = [];
+    const followed = follow(term, { task: 't1', pane: 'p1', agent: true, stage, fits: () => ({ cols: 60, rows: 8 }), ended: (why) => said.push(`ended ${why}`), trying: (on) => said.push(on ? 'trying' : 'there') });
+    followed.connect();
+    const first = Stream.last;
+
+    // As when the agent's tab was opened a moment ago and herdr has no screen of it to stream yet.
+    first?.cut('the pane closed');
+    expect(said).toEqual(['trying']);
+    await expect.poll(() => Stream.last !== first, { timeout: 3000 }).toBe(true);
+    Stream.last?.send(full(60, 8));
+    await new Promise<void>((done) => term.write('', done));
+    expect(said).toEqual(['trying', 'there']);
+    expect(term.buffer.active.getLine(0)?.translateToString(true).trimEnd()).toBe('line 1');
+    followed.dispose();
   });
 });

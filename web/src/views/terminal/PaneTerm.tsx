@@ -4,6 +4,7 @@ import { MOD } from '../../lib/format';
 import type { Tile } from '../../lib/tiles';
 import { cn } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { message } from '../../state/ui';
 import { XTERM } from './look';
@@ -31,7 +32,7 @@ export function PaneTerm({ task, tile, agent, panes: shared, split, paste, close
   close: () => void;
 }) {
   const { pane } = tile;
-  const { host, ended, reconnect } = usePaneTerm({ task, pane, agent, shared });
+  const { host, ended, trying, reconnect } = usePaneTerm({ task, pane, agent, shared });
   // What is selected in the pane as its menu opens: Copy copies it, and is not offered without it.
   const [selected, setSelected] = useState('');
   const term = (): Terminal | undefined => shared.current.terms.get(pane);
@@ -51,6 +52,12 @@ export function PaneTerm({ task, tile, agent, panes: shared, split, paste, close
         <div className={cn('inline-block align-top', XTERM)} ref={host} data-term="" />
         {/* The note is near white over the dark pane whatever the page is, so its ink is the terminal's dark: the
             page's own ink turns light with a dark page, and would not show on it. */}
+        {/* Cut off, the pane is asked for again by itself, which this says while it lasts; only one that stays away is left to be asked for by hand. */}
+        {trying && ended === null ? (
+          <div role="status" className="absolute inset-x-3 bottom-3 flex items-center gap-2.5 rounded-[10px] bg-[var(--term-note)] px-3.5 py-2.5 text-[13px] text-[color:var(--term-bg)]">
+            <Spinner className="size-3.5 flex-none" /><span className="min-w-0 flex-auto">Connecting to the terminal</span>
+          </div>
+        ) : null}
         {ended !== null ? (
           <div className="absolute inset-x-3 bottom-3 flex items-center gap-3 rounded-[10px] bg-[var(--term-note)] px-3.5 py-2.5 text-[13px] text-[color:var(--term-bg)]">
             <span className="min-w-0 flex-auto wrap-anywhere">{`The screen was cut off: ${ended}`}</span>

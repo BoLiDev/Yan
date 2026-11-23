@@ -20,17 +20,20 @@ export interface Panes {
  * The terminal of `pane`, drawn by xterm.js in the element `host` is put
  * on, whose parent is the pane's room on the page, and kept in `shared`
  * while it is drawn: what is typed, wheeled and pasted in it goes to the
- * pane, and what herdr streams of the pane is drawn in it. `ended` says why
- * the stream was cut off, and `reconnect` follows the pane afresh.
+ * pane, and what herdr streams of the pane is drawn in it. `trying` says the
+ * stream was cut off and is being asked for again, `ended` why it was, once
+ * asking has been given up, and `reconnect` follows the pane afresh.
  */
 export function usePaneTerm({ task, pane, agent, shared }: {
   task: string;
   pane: string;
   agent: boolean;
   shared: RefObject<Panes>;
-}): { host: RefObject<HTMLDivElement | null>; ended: string | null; reconnect: () => void } {
+}): { host: RefObject<HTMLDivElement | null>; ended: string | null; trying: boolean; reconnect: () => void } {
   const host = useRef<HTMLDivElement>(null);
   const [ended, setEnded] = useState<string | null>(null);
+  // The stream was cut off and is being asked for again.
+  const [trying, setTrying] = useState(false);
   const [attempt, setAttempt] = useState(0);
   // The font picked for terminals: another one is another size of cell, so the pane is drawn and followed afresh in it.
   const font = useUI((s) => s.prefs.termFont);
@@ -40,6 +43,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
     if (!el) return;
     const panes = shared.current;
     setEnded(null);
+    setTrying(false);
     let disposed = false;
     const term = new Terminal({
       fontFamily: termFace(font), fontSize: 13, lineHeight: 1.15, cursorBlink: false, scrollback: 0, rightClickSelectsWord: false,
@@ -66,7 +70,7 @@ export function usePaneTerm({ task, pane, agent, shared }: {
       panes.last = pane;
       if (agent) sawAgent(task);
     };
-    const followed = follow(term, { task, pane, agent, stage, fits, ended: setEnded });
+    const followed = follow(term, { task, pane, agent, stage, fits, ended: setEnded, trying: setTrying });
 
     // Both faces loaded before xterm.js measures its cells, the Chinese one by a character it is needed for, and
     // each in bold too: bold has files of its own, and a bold cell drawn before its file arrives is drawn in a
@@ -110,5 +114,5 @@ export function usePaneTerm({ task, pane, agent, shared }: {
     if (t) t.options.theme = termTheme();
   }, [theme, shared, pane]);
 
-  return { host, ended, reconnect: () => setAttempt((n) => n + 1) };
+  return { host, ended, trying, reconnect: () => setAttempt((n) => n + 1) };
 }

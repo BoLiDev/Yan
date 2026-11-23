@@ -10,19 +10,29 @@ const bytesOf = (frame: Frame): Uint8Array => Uint8Array.from(atob(frame.bytes),
 /**
  * A pane followed as herdr streams it, drawn into `term` at the size its
  * room on the `stage` holds (`fits`, undefined until a cell is measured),
- * and sized anew as that room changes; `ended` is told why, once the stream
- * is cut off. `connect` starts it, and starts it again when the page is
- * seen again; `dispose` lets the pane go.
+ * and sized anew as that room changes. A stream cut off is asked for again,
+ * every second for a minute, `trying` told while it is: a pane just opened
+ * for an agent being started is not always there to stream at once, and
+ * herdr restarted takes a moment to answer. `ended` is told why only once
+ * that minute has passed with nothing drawn. `connect` starts it, and
+ * starts it again when the page is seen again; `dispose` lets the pane go.
  */
-export function follow(term: Terminal, { task, pane, agent, stage, fits, ended }: {
+/** How often a stream cut off is asked for again, and how many times before it is said to be cut off. */
+const AGAIN_MS = 1000;
+const TRIES = 60;
+
+export function follow(term: Terminal, { task, pane, agent, stage, fits, ended, trying = () => undefined }: {
   task: string;
   pane: string;
   agent: boolean;
   stage: HTMLElement;
   fits: () => Size | undefined;
   ended: (why: string) => void;
+  trying?: (on: boolean) => void;
 }): { connect: () => void; dispose: () => void } {
   let disposed = false;
+  let tries = 0;
+  let again: number | undefined;
   let source: EventSource | undefined;
   // A frame is herdr's picture at the size it was made for: a full one draws it all, any other only what changed
   // since the last. One made for a size the pane no longer has, on its way while the pane was sized anew (as
@@ -37,6 +47,11 @@ export function follow(term: Terminal, { task, pane, agent, stage, fits, ended }
     send(task, pane, size);
   };
   const draw = (frame: Frame): void => {
+    // Something drawn is the pane there again: the next cut gets its own minute.
+    if (tries > 0) {
+      tries = 0;
+      trying(false);
+    }
     if (!frame.full) {
       const stale = frame.width !== term.cols || frame.height !== term.rows;
       if (waitingSince === undefined && !stale) return term.write(bytesOf(frame));
@@ -56,13 +71,18 @@ export function follow(term: Terminal, { task, pane, agent, stage, fits, ended }
     term.write('\x1b[H\x1b[2J');
     term.write(bytesOf(frame));
   };
-  // A shell's stream ending is most often its pane closed, which the tab, asked again, no longer has; only one still
-  // there after that says it is cut off. The agent's says so at once.
-  let ending: number | undefined;
+  // A stream ending is asked for again before anything is said of it. A shell's is most often its pane closed, and an
+  // agent's its tab gone, which the tab, asked again, no longer has: the pane is then no longer drawn, and this let go.
   const end = (why: string): void => {
-    if (agent) return ended(why);
-    void queryClient.invalidateQueries({ queryKey: ['terminals'] });
-    ending = window.setTimeout(() => ended(why), 2500);
+    if (disposed) return;
+    if (!agent || tries > 0) void queryClient.invalidateQueries({ queryKey: ['terminals'] });
+    if (tries >= TRIES) {
+      trying(false);
+      return ended(why);
+    }
+    tries += 1;
+    trying(true);
+    again = window.setTimeout(connect, AGAIN_MS);
   };
   const connect = (): void => {
     const size = fits();
@@ -121,7 +141,7 @@ export function follow(term: Terminal, { task, pane, agent, stage, fits, ended }
       document.removeEventListener('visibilitychange', onShown);
       window.clearTimeout(settling);
       window.clearTimeout(settled);
-      window.clearTimeout(ending);
+      window.clearTimeout(again);
     },
   };
 }
