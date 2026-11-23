@@ -19,12 +19,18 @@ function Mark({ news }: { news: AgentNews | undefined }) {
   return <span className={cn('absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-sunken', news.kind === 'blocked' ? 'bg-warning' : 'bg-success')} />;
 }
 
+/**
+ * A square's tooltip is out as the pointer reaches it, with none of the wait the page's other tooltips have: on the
+ * rail a tooltip is the only name a square has, so it is read at every look, not come upon by resting on a button.
+ */
+const NOW = 0;
+
 const SQUARE = 'relative flex size-9 flex-none cursor-pointer items-center justify-center rounded-[10px] text-ink-3 hover:bg-hover hover:text-foreground';
 
 function Tip({ label, children }: { label: string; children: React.ReactElement }) {
   return (
     <Tooltip>
-      <TooltipTrigger render={children} />
+      <TooltipTrigger delay={NOW} render={children} />
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   );
@@ -60,7 +66,7 @@ function TaskSquare({ t, news, on, squares }: { t: TaskSummary; news: AgentNews 
   return (
     <>
       <Tooltip disabled={speaking !== undefined}>
-        <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
+        <TaskMenu t={t} render={<TooltipTrigger delay={NOW} render={square} />}>
           {/* Hops each time it says something. */}
           <span key={speaking ?? ''} className={cn('inline-block', speaking !== undefined && 'animate-hop')}>
             {/* The mark of where the task stands, as on the list: which task it is, the tooltip says. It breathes while the agent is at work. */}

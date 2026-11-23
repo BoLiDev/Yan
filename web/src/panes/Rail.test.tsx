@@ -3,6 +3,7 @@ import { page } from 'vitest/browser';
 import type { Index, TerminalState } from '../lib/api';
 import { toast } from 'sonner';
 import { Toaster } from '../components/ui/sonner';
+import { TooltipProvider } from '../components/ui/tooltip';
 import { AGENT_TOASTER, useAgentToasts } from '../state/agentToasts';
 import { queryClient } from '../state/server';
 import { useUI } from '../state/ui';
@@ -56,6 +57,17 @@ describe('a task folded to its square on the rail', () => {
     expect([open.textContent, review.textContent]).toEqual(['', '']);
     const colour = (square: Element): string => getComputedStyle(square.querySelector('svg') as SVGElement).color;
     expect(colour(open)).not.toBe(colour(review));
+  });
+
+  it('says which task it is as the pointer reaches it, with no wait', async () => {
+    useUI.setState((s) => ({ prefs: { ...s.prefs, left: false } }));
+    have(index([task('t1', 'pay retries')]));
+    serve({ '/api/terminals': () => Response.json({}) });
+    // Under the page's own wait for a tooltip, as the page draws the rail.
+    const screen = await draw(<TooltipProvider delay={5000}><Left /></TooltipProvider>);
+    await screen.getByRole('navigation', { name: 'Tasks' }).getByRole('link', { name: 'pay retries' }).hover();
+    // Well inside the wait the page's other tooltips would have had.
+    await expect.poll(() => [...document.querySelectorAll('[data-slot="tooltip-content"]')].map((e) => e.textContent), { timeout: 1500 }).toEqual(['pay retries']);
   });
 
   it('stands under the list\'s own tools, the drafts and the settings among them, each opening its box', async () => {
