@@ -1,8 +1,9 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
-import { works, type Index, type TaskDetail } from './lib/api';
+import { JANUS, works, type Index, type TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
 import { MOD } from './lib/format';
 import { usePageKeys } from './lib/modal';
+import { composing, pageChord } from './lib/keys';
 import { fullPageOf, link, parseRoute, useHash, useRoute, type Route } from './lib/route';
 import { listResources } from './lib/resources';
 import { goesOn, nextStop, taskStops } from './lib/stops';
@@ -139,6 +140,14 @@ function useKeys(): void {
   // ⌘K is the page's one key that works anywhere, in a field and over a box, which it closes when it is ⌘K's.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // Ctrl+D opens the drafts, and closes them, and Ctrl+J goes to Janus, from anywhere too, a terminal included.
+      const chord = composing(e) ? undefined : pageChord(e);
+      if (chord !== undefined) {
+        e.preventDefault();
+        if (chord === 'drafts') useUI.setState((s) => ({ drafts: !s.drafts }));
+        else location.hash = link.terminal(JANUS);
+        return;
+      }
       if (!paletteKey(e)) return;
       e.preventDefault();
       useUI.setState((s) => ({ palette: !s.palette }));

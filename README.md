@@ -171,7 +171,10 @@ As `yan serve` starts it makes Janus's task if the vault has none, and
 saves it (`--no-janus` makes none); it does not start Janus, which you
 start yourself, on the page, as a task's agent is started. On the page
 Janus is a mark beside the settings', over the task list and on the rail
-the list folds to, grey while Janus is not running, which opens its page:
+the list folds to, grey while Janus is not running, which opens its page,
+as Ctrl+J does from anywhere on the page (Ctrl+D opens the drafts, and
+closes them; in a terminal both are the page's, and the terminal's own
+with Shift held):
 its terminal, where it is started in a herdr tab of its own, and its
 artifacts, under its own mark. It has no overview or log there, and is no
 row of the task list, the rail or ⌘K.

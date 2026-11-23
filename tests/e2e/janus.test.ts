@@ -55,4 +55,23 @@ describe.skipIf(process.platform === 'win32')('Janus on the page', () => {
     await expect.poll(() => mark.getAttribute('aria-label'), { timeout: 15_000 }).toBe('Janus');
     expect(errors).toEqual([]);
   });
+
+  it('is a key away, Ctrl+J, from anywhere on the page, its terminal included, as the drafts are with Ctrl+D', async () => {
+    const { page } = await open(served.url('/#/t/t001'));
+    await page.getByRole('link', { name: /pay retries/ }).first().waitFor({ timeout: 15_000 });
+    await page.keyboard.press('Control+j');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/t/janus/terminal');
+
+    // Typed in the terminal, the chord is the page's and never reaches the pane.
+    const agent = page.getByRole('group', { name: 'Agent', exact: true });
+    await agent.waitFor({ timeout: 15_000 });
+    await agent.click();
+    const tab = h.tabs().find((t) => t.label === 'Janus');
+    const before = h.received(tab?.panes[0] ?? '').length;
+    await page.keyboard.press('Control+d');
+    await page.getByRole('dialog').waitFor({ timeout: 10_000 });
+    await page.keyboard.press('Control+d');
+    await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 10_000 });
+    expect(h.received(tab?.panes[0] ?? '').length, 'nothing sent to the pane').toBe(before);
+  });
 });
