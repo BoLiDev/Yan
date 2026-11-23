@@ -68,7 +68,7 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
         {/* An open task keeps its Terminal row with no agent running, where it is started again. Its agent has the
             dot it has everywhere else while it waits or has finished unseen; that it is at work, the task's title says. */}
         {terminal || goesOn(t) ? (
-          <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal" title={agent ? agentWords(agent) : undefined}>
+          <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal">
             {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
           </NavLink>
         ) : null}

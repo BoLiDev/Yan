@@ -99,7 +99,8 @@ function TaskSquare({ t, news, on, squares }: { t: TaskSummary; news: AgentNews 
           </span>
           <Mark news={news} />
         </TaskMenu>
-        <TooltipContent side="right">{label}</TooltipContent>
+        {/* The task's name alone: what its agent is up to is the square's to show, its ring and the mark at its corner, and is said in words only to a screen reader. */}
+        <TooltipContent side="right">{name}</TooltipContent>
       </Tooltip>
     </>
   );

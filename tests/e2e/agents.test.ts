@@ -46,7 +46,7 @@ describe('a task\'s agent, at a glance', () => {
     h.agentIs(AGENT_PANE, 'working');
     // Another task is being read: nothing is told of the one that is.
     const { page } = await open(served.url('/#/t/t002'));
-    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
+    await tasks(page).locator('a[aria-description="agent at work"]', { hasText: 'pay retries' }).waitFor({ timeout: 20_000 });
 
     h.agentIs(AGENT_PANE, 'done');
     await page.getByText('Its agent has finished.').waitFor({ timeout: 20_000 });
@@ -61,7 +61,7 @@ describe('a task\'s agent, at a glance', () => {
   it('tells it in a toast with no button to close it, which a swipe to the side sends off', async () => {
     h.agentIs(AGENT_PANE, 'working');
     const { page } = await open(served.url('/#/t/t002'));
-    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
+    await tasks(page).locator('a[aria-description="agent at work"]', { hasText: 'pay retries' }).waitFor({ timeout: 20_000 });
     h.agentIs(AGENT_PANE, 'done');
     const told = page.getByText('Its agent has finished.');
     await told.waitFor({ timeout: 20_000 });
@@ -78,7 +78,7 @@ describe('a task\'s agent, at a glance', () => {
   it('is told when it comes to wait on the user, and stays marked until it is answered', async () => {
     h.agentIs(AGENT_PANE, 'working');
     const { page } = await open(served.url('/#/t/t002'));
-    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
+    await tasks(page).locator('a[aria-description="agent at work"]', { hasText: 'pay retries' }).waitFor({ timeout: 20_000 });
 
     h.agentIs(AGENT_PANE, 'blocked');
     await page.getByText('Its agent needs you.').waitFor({ timeout: 20_000 });
@@ -92,7 +92,7 @@ describe('a task\'s agent, at a glance', () => {
     h.agentIs(AGENT_PANE, 'working');
     const { page } = await open(served.url('/#/t/t001'));
     const column = page.getByRole('complementary', { name: 'Task' });
-    await tasks(page).getByTitle(/pay retries.*agent at work/).waitFor({ timeout: 20_000 });
+    await tasks(page).locator('a[aria-description="agent at work"]', { hasText: 'pay retries' }).waitFor({ timeout: 20_000 });
 
     h.agentIs(AGENT_PANE, 'done');
     await column.getByRole('link', { name: /Terminal/ }).getByTitle('agent finished', { exact: true }).waitFor({ timeout: 20_000 });

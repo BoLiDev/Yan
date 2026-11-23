@@ -194,7 +194,7 @@ describe('an agent that finishes, with the task list shown', () => {
     toast.dismiss();
     await expect.poll(() => page.getByText('Its agent has finished.').query()).toBeNull();
     await herdr(agent('done', 200));
-    await expect.element(screen.getByTitle(/pay retries.*agent finished/)).toBeVisible();
+    await expect.poll(() => document.querySelector('a[aria-description="agent finished"]')?.textContent ?? '').toContain('pay retries');
     expect(page.getByText('Its agent has finished.').query()).toBeNull();
 
     useUI.setState((s) => ({ prefs: { ...s.prefs, left: false } }));
