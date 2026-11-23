@@ -1,7 +1,6 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { JANUS, works, type TaskSummary } from '../lib/api';
 import { agentWords, allNews, type AgentNews } from '../lib/agents';
-import { MOD } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { cn } from '../lib/utils';
 import { Icon, StateIcon, stateColour, type IconName } from '../components/Icon';
@@ -137,7 +136,7 @@ export function Rail() {
   return (
     <nav className="flex h-screen w-14 flex-none flex-col items-center gap-1 overflow-y-auto bg-sunken py-3.5" aria-label="Tasks">
       <RailButton icon="panel" label="Show the task list" onClick={() => setPref('left', true)} />
-      <RailButton icon="search" label={`Find a task (${MOD}K)`} onClick={() => useUI.setState({ palette: true })} />
+      <RailButton icon="search" label="Find a task (Ctrl+K)" onClick={() => useUI.setState({ palette: true })} />
       <RailButton icon="plus" label="New task" onClick={() => useUI.setState({ newTask: true })} />
       {/* What the list's head opens is opened from here too: neither box is a task's, and folding the list is no reason to lose them. */}
       <RailButton icon="janus" label={terminals?.[JANUS] === undefined ? 'Janus, not started' : 'Janus'} href={link.terminal(JANUS)} on={r.view === 'task' && r.id === JANUS} faint={terminals?.[JANUS] === undefined} busy={terminals?.[JANUS]?.status === 'working'} />

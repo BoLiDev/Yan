@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { JANUS, stateOf, works, type Index, type TaskSummary } from '../lib/api';
-import { MOD, clock, fromIso, monthLabel } from '../lib/format';
+import { clock, fromIso, monthLabel } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { agentNews, agentWords } from '../lib/agents';
 import { unseenOf, type Seen } from '../lib/seen';
@@ -166,7 +166,7 @@ export function Left() {
       {/* Beside finding a task, starting one: a box asking what bare yan would, run in a new herdr tab. */}
       <div className="flex gap-1.5">
         {/* The task list's way into ⌘K, drawn as the box it opens. */}
-        <button type="button" title={`Find a task (${MOD}K)`} className="flex h-[34px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[10px] bg-hover pr-2 pl-2.5 text-[13.5px] text-ink-3 hover:text-ink-2"
+        <button type="button" title="Find a task (Ctrl+K)" className="flex h-[34px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[10px] bg-hover pr-2 pl-2.5 text-[13.5px] text-ink-3 hover:text-ink-2"
           onClick={() => useUI.setState({ palette: true })}>
           <Icon name="search" size={15} />
           <span className={cn(GROW, 'text-left')}>Find a task</span>

@@ -21,7 +21,9 @@ describe('a key typed into a terminal', () => {
     expect(keyFor({ key: 'Backspace', shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, isComposing: true })).toBe('typed');
   });
 
-  it('gives the page its own chords, Ctrl+D for the drafts and Ctrl+J for Janus, and takes them back with Shift held', () => {
+  it('gives the page its own chords, Ctrl+K to go to a task, Ctrl+D for the drafts and Ctrl+J for Janus, and takes them back with Shift held', () => {
+    expect(press('k', { ctrlKey: true })).toBe('browser');
+    expect(press('K', { ctrlKey: true, shiftKey: true })).toBe('ctrl+k');
     expect(press('d', { ctrlKey: true })).toBe('browser');
     expect(press('J', { ctrlKey: true })).toBe('browser');
     expect(press('d', { ctrlKey: true, shiftKey: true })).toBe('ctrl+d');
@@ -30,7 +32,7 @@ describe('a key typed into a terminal', () => {
   });
 
   it('leaves ⌘ chords to the page and the rest to the terminal\'s own bytes', () => {
-    expect(press('k', { metaKey: true })).toBe('browser');
+    expect(press('c', { metaKey: true })).toBe('browser');
     expect(press('v', { metaKey: true })).toBe('browser');
     expect(press('a')).toBe('typed');
     expect(press('A', { shiftKey: true })).toBe('typed');

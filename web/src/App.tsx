@@ -1,7 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { JANUS, works, type Index, type TaskDetail } from './lib/api';
 import { foldersAbove } from './lib/files';
-import { MOD } from './lib/format';
 import { usePageKeys } from './lib/modal';
 import { composing, pageChord } from './lib/keys';
 import { fullPageOf, link, parseRoute, useHash, useRoute, type Route } from './lib/route';
@@ -122,35 +121,17 @@ function openTo(d: TaskDetail, folders: readonly string[]): void {
  * taking ↑, ↓ and Enter of their own; ← and → walk what the right pane
  * walks; F fills the screen with a picture.
  */
-/**
- * ⌘K on a Mac and Ctrl+K elsewhere, as the page says it (`MOD`), Shift or
- * not. An agent's terminal takes Ctrl chords as a terminal does (Ctrl+K
- * cuts the rest of a line), so in it Ctrl+K off a Mac is the agent's and
- * Ctrl+Shift+K the palette's; ⌘ chords never reach an agent, so ⌘K is the
- * palette's there too.
- */
-function paletteKey(e: KeyboardEvent): boolean {
-  if (e.key.toLowerCase() !== 'k' || e.altKey) return false;
-  if (MOD === '⌘') return e.metaKey && !e.ctrlKey;
-  const inTerminal = e.target instanceof Element && e.target.closest('[data-term]') !== null;
-  return e.ctrlKey && !e.metaKey && (e.shiftKey || !inTerminal);
-}
-
 function useKeys(): void {
-  // ⌘K is the page's one key that works anywhere, in a field and over a box, which it closes when it is ⌘K's.
+  // The page's own chords work anywhere, in a field, over a box and in a terminal: Ctrl+K opens the box to go to a task,
+  // and closes it, Ctrl+D the drafts likewise, and Ctrl+J goes to Janus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      // Ctrl+D opens the drafts, and closes them, and Ctrl+J goes to Janus, from anywhere too, a terminal included.
       const chord = composing(e) ? undefined : pageChord(e);
-      if (chord !== undefined) {
-        e.preventDefault();
-        if (chord === 'drafts') useUI.setState((s) => ({ drafts: !s.drafts }));
-        else location.hash = link.terminal(JANUS);
-        return;
-      }
-      if (!paletteKey(e)) return;
+      if (chord === undefined) return;
       e.preventDefault();
-      useUI.setState((s) => ({ palette: !s.palette }));
+      if (chord === 'palette') useUI.setState((s) => ({ palette: !s.palette }));
+      else if (chord === 'drafts') useUI.setState((s) => ({ drafts: !s.drafts }));
+      else location.hash = link.terminal(JANUS);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

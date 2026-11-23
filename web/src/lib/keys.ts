@@ -29,22 +29,23 @@ const NAMED: Readonly<Record<string, string>> = {
 
 /**
  * The page's own Ctrl chords, which work anywhere on it, a terminal
- * included: Ctrl+D opens the drafts, Ctrl+J goes to Janus. A terminal gives
- * them up, though Ctrl+D ends a program's input and Ctrl+J is a new line
- * there, since a terminal is where the page is mostly typed in; with Shift
+ * included, and are Ctrl on a Mac too: Ctrl+K opens the box to go to a
+ * task, Ctrl+D the drafts, Ctrl+J goes to Janus. A terminal gives them up,
+ * though there Ctrl+K cuts the rest of a line, Ctrl+D ends a program's
+ * input and Ctrl+J is a new line, since a terminal is where the page is mostly typed in; with Shift
  * held the chord is the terminal's again, sent as it would be without.
  */
-export function pageChord(e: Pressed): 'drafts' | 'janus' | undefined {
+export function pageChord(e: Pressed): 'palette' | 'drafts' | 'janus' | undefined {
   if (!e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return undefined;
   const key = e.key.toLowerCase();
-  return key === 'd' ? 'drafts' : key === 'j' ? 'janus' : undefined;
+  return key === 'k' ? 'palette' : key === 'd' ? 'drafts' : key === 'j' ? 'janus' : undefined;
 }
 
 /**
  * What a key pressed in the terminal is: one herdr names, sent as a name so
  * herdr encodes it as the program in the pane asked (Shift+Tab, Shift+Enter
  * and Ctrl+C among them); `browser`, a ⌘ chord or one of the page's own,
- * left to the page (⌘K, ⌘C, ⌘V, Ctrl+D, Ctrl+J); or `typed`, for xterm.js to turn into the bytes a terminal sends,
+ * left to the page (⌘C, ⌘V, Ctrl+K, Ctrl+D, Ctrl+J); or `typed`, for xterm.js to turn into the bytes a terminal sends,
  * letters, IME text, Home, Delete and the like. Every key an IME is
  * composing with is `typed`, so the Enter that commits English letters
  * typed in a Chinese IME commits them rather than sending the message.

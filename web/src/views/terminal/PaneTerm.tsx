@@ -48,7 +48,7 @@ export function PaneTerm({ task, tile, agent, panes: shared, split, paste, close
           className={cn('absolute overflow-hidden bg-[var(--term-bg)] px-2.5 py-2', (tile.left || tile.top) && 'border-[var(--term-line)]', tile.left && 'border-l', tile.top && 'border-t')}
           style={{ left: at(tile.x), top: at(tile.y), width: at(tile.w), height: at(tile.h) }} />
       }>
-        {/* data-term: where a key is typed into a terminal, which takes Ctrl chords as its own (App's paletteKey). */}
+        {/* data-term: where a key is typed into a terminal, which takes Ctrl chords as its own, but the page's (pageChord). */}
         <div className={cn('inline-block align-top', XTERM)} ref={host} data-term="" />
         {/* The note is near white over the dark pane whatever the page is, so its ink is the terminal's dark: the
             page's own ink turns light with a dark page, and would not show on it. */}
