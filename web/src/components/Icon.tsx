@@ -79,6 +79,9 @@ const STATES = {
   paused: { colour: 'text-ink-3', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M6.5 5.5v5M9.5 5.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></> },
 } as const;
 
+/** The colour of the mark of where task `t` stands, for what is drawn in its place. */
+export const stateColour = (t: Pick<TaskSummary, 'state' | 'pausedAt'>): string => STATES[isPaused(t) ? 'paused' : stateOf(t.state)].colour;
+
 /** The mark of where task `t` stands: paused over the state it keeps while paused. */
 export function StateIcon({ t, size = 16 }: { t: Pick<TaskSummary, 'state' | 'pausedAt'>; size?: number }) {
   const { colour, marks } = STATES[isPaused(t) ? 'paused' : stateOf(t.state)];

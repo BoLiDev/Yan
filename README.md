@@ -386,8 +386,9 @@ opens on a new one, ready to write. Hidden, the task list folds to a rail:
 finding a task, starting one, the drafts, the settings, and a square for each task in review
 or in progress, not paused, the one being read framed and each one's agent marked as
 on the list. A square is the mark of where its task stands, as on the
-list, a blue half circle in progress and an amber dot in a ring in review,
-breathing while its agent is at work; which task it is, its tooltip says.
+list, a blue half circle in progress and an amber dot in a ring in review;
+while its agent is at work the mark gives way to a ring of its colour
+going round, and comes back, as the task then stands, when it stops; which task it is, its tooltip says.
 A right click on a task's row in the list, or its square on
 the rail, opens the page's own menu in place of the browser's: Rename;
 while the task is open, Pause, Done and Abandon; and while it is paused,

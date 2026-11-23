@@ -4,7 +4,7 @@ import { agentWords, allNews, type AgentNews } from '../lib/agents';
 import { MOD } from '../lib/format';
 import { link, useRoute } from '../lib/route';
 import { cn } from '../lib/utils';
-import { Icon, StateIcon, type IconName } from '../components/Icon';
+import { Icon, StateIcon, stateColour, type IconName } from '../components/Icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { TaskMenu } from '../components/TaskMenu';
 import { goesOn } from '../lib/stops';
@@ -24,6 +24,31 @@ function Mark({ news }: { news: AgentNews | undefined }) {
  * rail a tooltip is the only name a square has, so it is read at every look, not come upon by resting on a button.
  */
 const NOW = 0;
+
+/** One of the two a square shows, the task's mark or its agent at work: drawn full, or shrunk away to nothing, going between the two in a fifth of a second. */
+const FACE = 'absolute inset-0 transition-[opacity,scale] duration-200 ease-out motion-reduce:transition-none';
+const AWAY = 'scale-50 opacity-0';
+
+/**
+ * Where a task stands, on its square: its mark, as on the list; and while its agent is at work, in the mark's
+ * place, a ring of the mark's own size and colour with a quarter of it going round, so the ones at work are told
+ * from the rest at a glance and each is still seen to be in progress or in review. The mark shrinks away as the ring
+ * comes, and comes back, as the task then stands, when the agent stops. A browser asked for less motion changes one
+ * for the other at once, and draws the ring standing still.
+ */
+function Standing({ t, working }: { t: TaskSummary; working: boolean }) {
+  return (
+    <span className="relative block size-[18px]">
+      <span className={cn(FACE, working && AWAY)} data-face="mark"><StateIcon t={t} size={18} /></span>
+      <span className={cn(FACE, stateColour(t), !working && AWAY)} data-face="at work">
+        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" className={cn('block', working && 'animate-spin motion-reduce:animate-none')}>
+          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
+          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="10.5 28.77" />
+        </svg>
+      </span>
+    </span>
+  );
+}
 
 const SQUARE = 'relative flex size-9 flex-none cursor-pointer items-center justify-center rounded-[10px] text-ink-3 hover:bg-hover hover:text-foreground';
 
@@ -69,8 +94,8 @@ function TaskSquare({ t, news, on, squares }: { t: TaskSummary; news: AgentNews 
         <TaskMenu t={t} render={<TooltipTrigger delay={NOW} render={square} />}>
           {/* Hops each time it says something. */}
           <span key={speaking ?? ''} className={cn('inline-block', speaking !== undefined && 'animate-hop')}>
-            {/* The mark of where the task stands, as on the list: which task it is, the tooltip says. It breathes while the agent is at work. */}
-            <span className={cn('block', working && 'animate-pulse motion-reduce:animate-none')}><StateIcon t={t} size={18} /></span>
+            {/* The mark of where the task stands, as on the list: which task it is, the tooltip says. */}
+            <Standing t={t} working={working} />
           </span>
           <Mark news={news} />
         </TaskMenu>
@@ -85,8 +110,8 @@ function TaskSquare({ t, news, on, squares }: { t: TaskSummary; news: AgentNews 
  * task in review or in progress, drawn as the mark of where it stands, a
  * blue half circle in progress and an amber dot in a ring in review, named
  * by its tooltip, the one being read framed, so any of them is a click away, and what each
- * one's agent is up to shows at a glance: the mark of one at work
- * breathing, a mark at the corner of one waiting or finished, and a bubble
+ * one's agent is up to shows at a glance: a ring going round in place of
+ * the mark of one at work, a mark at the corner of one waiting or finished, and a bubble
  * from one whose agent has something to say, which stands first on the rail
  * while it speaks.
  */

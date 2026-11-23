@@ -59,6 +59,19 @@ describe('a task folded to its square on the rail', () => {
     expect(colour(open)).not.toBe(colour(review));
   });
 
+  it('shows a ring going round in place of its mark while its agent is at work, in the mark\'s colour, and its mark again once the agent stops', async () => {
+    const { screen, herdr } = await open({ here: agent('working', 100, 'idle') });
+    const square = (): Element => screen.getByRole('navigation', { name: 'Tasks' }).getByRole('link', { name: /pay retries/ }).element();
+    // What a square shows, of its two: the one not shrunk away to nothing.
+    const shown = (): string[] => [...square().querySelectorAll('[data-face]')].filter((face) => getComputedStyle(face).opacity === '1').map((face) => face.getAttribute('data-face') ?? '');
+    await expect.poll(shown).toEqual(['at work']);
+    const ring = square().querySelector('[data-face="at work"]') as Element;
+    expect(getComputedStyle(ring.querySelector('svg') as Element).animationName).not.toBe('none');
+    expect(getComputedStyle(ring).color).toBe(getComputedStyle(square().querySelector('svg') as Element).color);
+    await herdr(agent('idle', 200));
+    await expect.poll(shown, { timeout: 6000 }).toEqual(['mark']);
+  });
+
   it('says which task it is as the pointer reaches it, with no wait', async () => {
     useUI.setState((s) => ({ prefs: { ...s.prefs, left: false } }));
     have(index([task('t1', 'pay retries')]));
