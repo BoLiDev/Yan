@@ -31,7 +31,7 @@ describe('⌘K', () => {
     await screen.getByRole('combobox', { name: 'Go to a task' }).fill('o');
     await userEvent.keyboard('{ArrowDown}');
     const options = screen.getByRole('option').elements();
-    expect(options.length).toBe(3);
+    expect(options.length).toBe(2);
     const picked = options.findIndex((el) => el.getAttribute('aria-selected') === 'true');
     expect(picked).toBe(1);
     const id = /t\d/.exec(options[picked]?.textContent ?? '')?.[0];
@@ -49,16 +49,36 @@ describe('⌘K', () => {
   });
 
   it('offers, with nothing typed, the tasks visited last, then the open ones', async () => {
-    useUI.setState({ recent: ['t3'] });
+    useUI.setState({ recent: ['t2'] });
     const screen = await draw(<Palette />);
     const names = screen.getByRole('option').elements().map((el) => el.textContent ?? '');
-    expect(names).toEqual([expect.stringMatching(/^dark mode/), expect.stringMatching(/^login page/), expect.stringMatching(/^export csv/)]);
+    expect(names).toEqual([expect.stringMatching(/^export csv/), expect.stringMatching(/^login page/)]);
+  });
+
+  it('leaves out the tasks done or given up, one visited last among them, until Tab or its button brings them in, and again takes them out', async () => {
+    useUI.setState({ recent: ['t3'] });
+    const screen = await draw(<Palette />);
+    const names = (): string[] => screen.getByRole('option').elements().map((el) => (el.textContent ?? '').replace(/t\d.*$/, ''));
+    expect(names()).toEqual(['login page', 'export csv']);
+    await screen.getByRole('combobox', { name: 'Go to a task' }).fill('dark');
+    await expect.element(screen.getByText(/Tab looks among the closed ones/)).toBeVisible();
+
+    await userEvent.keyboard('{Tab}');
+    await expect.poll(names).toEqual(['dark mode']);
+    await expect.element(screen.getByRole('combobox', { name: 'Go to a task' })).toHaveFocus();
+    await screen.getByRole('button', { name: /Closed too/ }).click();
+    await expect.poll(names).toEqual([]);
+    await screen.getByRole('button', { name: /Closed too/ }).click();
+    await userEvent.keyboard('{Enter}');
+    expect(location.hash).toBe('#/t/t3');
   });
 
   it('says so when nothing matches, and Escape closes it', async () => {
     const screen = await draw(<Palette />);
     await screen.getByRole('combobox', { name: 'Go to a task' }).fill('zzzz');
-    await expect.element(screen.getByText('No task matches')).toBeVisible();
+    await expect.element(screen.getByText(/^No open task matches/)).toBeVisible();
+    await userEvent.keyboard('{Tab}');
+    await expect.element(screen.getByText('No task matches', { exact: true })).toBeVisible();
     await userEvent.keyboard('{Escape}');
     expect(useUI.getState().palette).toBe(false);
   });

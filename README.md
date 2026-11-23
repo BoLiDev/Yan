@@ -716,8 +716,9 @@ reloading with it; a check or an update that fails is tried again from
 the same place. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
 off a Mac, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there, and of
-tasks that match as well one in UAT first, then in progress, then done,
-then given up; with
+tasks that match as well one in UAT first, then in progress. Tasks done
+or given up are left out until Tab, or the button beside the field,
+brings them in, after those, for as long as the box is open; with
 nothing typed it offers the tasks visited last, the one being read left
 out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab

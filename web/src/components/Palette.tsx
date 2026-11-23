@@ -27,8 +27,10 @@ export function Marked({ text, marks }: { text: string; marks: Found['marks'] })
 
 /**
  * ⌘K: a box over the page to go to a task by typing, as Notion's search is.
- * The best match is picked from the start, so Enter goes to it; ↑ and ↓ (or
- * Tab, or Ctrl with N and P) pick another, and Mod+Enter opens the picked
+ * Only tasks in progress or in review are looked among, those done or given
+ * up left out until Tab, or the button beside the field, brings them in,
+ * for as long as the box is open. The best match is picked from the start,
+ * so Enter goes to it; ↑ and ↓ (or Ctrl with N and P) pick another, and Mod+Enter opens the picked
  * task's Agent instead, in the tab every agent opens in. With nothing typed
  * it offers the tasks visited last, the one being read left out, so ⌘K then
  * Enter goes back to the one before. The box is Base UI's dialog: Escape or
@@ -59,7 +61,17 @@ function PaletteBox({ onGone }: { onGone: () => void }) {
   const current = r.view === 'task' ? r.id : null;
   const [query, setQuery] = useState('');
   const [at, setAt] = useState(0);
-  const found = useMemo(() => (index ? findTasks(works(index.tasks), query, recent, current) : []), [index, query, recent, current]);
+  // Tasks done or given up are left out until asked for, for as long as the box is open: what is gone to is mostly what is being worked on.
+  const [closed, setClosed] = useState(false);
+  const found = useMemo(() => {
+    if (!index) return [];
+    const tasks = works(index.tasks);
+    return findTasks(closed ? tasks : tasks.filter((t) => t.state !== 'done' && t.state !== 'abandoned'), query, recent, current);
+  }, [index, query, recent, current, closed]);
+  const toggleClosed = (): void => {
+    setClosed((on) => !on);
+    setAt(0);
+  };
   const list = useRef<HTMLDivElement>(null);
 
   // In a block: scrollIntoView returns a promise in newer browsers, which React would take for a cleanup.
@@ -94,16 +106,23 @@ function PaletteBox({ onGone }: { onGone: () => void }) {
           }}
           onKeyDown={(e) => {
             const ctrl = e.ctrlKey && !e.metaKey;
-            // Tab picks as it does in a task's nav, and keeps the keyboard in the box.
-            if (e.key === 'ArrowDown' || (ctrl && e.key === 'n') || (e.key === 'Tab' && !e.shiftKey)) move(1);
-            else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p') || (e.key === 'Tab' && e.shiftKey)) move(-1);
+            // Tab shows the closed tasks too, or hides them again, and keeps the keyboard in the box.
+            if (e.key === 'Tab') toggleClosed();
+            else if (e.key === 'ArrowDown' || (ctrl && e.key === 'n')) move(1);
+            else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p')) move(-1);
             else if (e.key === 'Enter' && !composing(e.nativeEvent)) go(found[at], e.metaKey || e.ctrlKey);
             else return;
             e.preventDefault();
           }} />
+        {/* A button, not a field: a click on it leaves the keyboard where it is typed. */}
+        <button type="button" aria-pressed={closed} tabIndex={-1} title="Show tasks done or given up too (Tab)"
+          className="flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-hover aria-pressed:bg-hover aria-pressed:text-foreground"
+          onMouseDown={(e) => e.preventDefault()} onClick={toggleClosed}>
+          Closed too<Kbd aria-hidden="true">tab</Kbd>
+        </button>
       </label>
       <div className="overflow-y-auto p-1.5" id="palette-list" role="listbox" ref={list}>
-        {found.length === 0 ? <div className="px-3 py-4.5 text-[13.5px] text-muted-foreground">{query.trim() ? 'No task matches' : 'No open task'}</div> : null}
+        {found.length === 0 ? <div className="px-3 py-4.5 text-[13.5px] text-muted-foreground">{query.trim() ? (closed ? 'No task matches' : 'No open task matches: Tab looks among the closed ones too') : 'No open task'}</div> : null}
         {found.map((f, i) => (
           <div key={f.task.id}>
             {f.group && f.group !== found[i - 1]?.group ? <div className="px-2.5 pt-2 pb-1 text-xs font-bold text-muted-foreground">{f.group}</div> : null}

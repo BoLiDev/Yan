@@ -77,7 +77,7 @@ describe('a box over the page', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/t/t001');
   });
 
-  it('moves ⌘K\'s pick with Tab, and the page only when a task is picked', async () => {
+  it('keeps the keyboard in ⌘K\'s box at Tab, which brings in the closed tasks, and moves the page only when a task is picked', async () => {
     const page = await onTask();
     await page.keyboard.press('Control+K');
     await page.getByRole('dialog', { name: 'Go to a task' }).waitFor();
