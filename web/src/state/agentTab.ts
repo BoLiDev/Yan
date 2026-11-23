@@ -4,8 +4,39 @@ import type { MouseEvent } from 'react';
 import { create } from 'zustand';
 import { AGENT_TAB } from '../lib/route';
 
-/** Where the held tab was last sent, null while none is held: the agent the page marks as showing there. */
-export const useAgentTab = create<{ showing: string | null }>(() => ({ showing: null }));
+/**
+ * Where the agent tab was last sent, kept for this browser tab's session so
+ * that it outlasts a reload of the page. The reload loses the hold on the
+ * tab, which the page cannot take again without bringing the tab forward,
+ * but not the tab: it still shows that agent, and is still what a click on
+ * an agent opens in. So the page goes on marking the agent as showing
+ * there, on what it last knew; it cannot see that tab closed until an agent
+ * is opened again, which holds it once more.
+ */
+const KEPT = 'yan.serve.agentTab';
+
+function kept(): string | null {
+  try {
+    return sessionStorage.getItem(KEPT);
+  } catch {
+    return null;
+  }
+}
+
+function keep(where: string | null): void {
+  try {
+    if (where === null) sessionStorage.removeItem(KEPT);
+    else sessionStorage.setItem(KEPT, where);
+  } catch {
+    // a browser that keeps nothing marks the agent until the page is reloaded, as before
+  }
+}
+
+/** Where the agent tab was last sent, null while there is none: the agent the page marks as showing there. */
+export const useAgentTab = create<{ showing: string | null }>(() => ({ showing: kept() }));
+useAgentTab.subscribe((s, was) => {
+  if (s.showing !== was.showing) keep(s.showing);
+});
 
 let tab: Window | null = null;
 let watching: number | undefined;
@@ -29,8 +60,9 @@ export function openAgent(where: string): void {
  * location rather than window.open: a tab found by its name is brought
  * forward (Chromium's FindOrCreateFrameForNavigation focuses it), which in
  * a split view would take the keys from this page on every task gone to.
- * A reload of this page lets the tab go, as the page cannot find a tab by
- * name without that; the next agent opened holds it again.
+ * A reload of this page loses its hold on the tab, as the page cannot find
+ * a tab by name without that: the tab is not sent anywhere until the next
+ * agent opened holds it again.
  */
 export function followAgent(where: string): void {
   if (tab === null || tab.closed || useAgentTab.getState().showing === where) return;
