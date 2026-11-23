@@ -467,6 +467,26 @@ describe('an existing task', () => {
     expect(said).toContain('  there is no branch feat/gone here or on origin');
   });
 
+  it('in a clone that has no origin, kept on this machine alone, cuts the tree from the branch the clone is on, fetching nothing, and finds it again the next time', async () => {
+    const { bare, clone } = await aClone();
+    register('demo', bare, clone);
+    await fxGit(['remote', 'remove', 'origin'], clone);
+    const here = normalizePath(realpathSync(mkTempDir()));
+    expect(await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), here)).toBe(0);
+
+    const tree = treeOf();
+    expect(started[0]?.cwd).toBe(tree);
+    expect((await fxGit(['rev-parse', 'HEAD'], tree)).stdout).toBe((await fxGit(['rev-parse', 'HEAD'], clone)).stdout);
+    expect(said.some((l) => l.includes('fetching origin'))).toBe(false);
+    expect(said.some((l) => /has no origin, so the worktree is cut from the clone's own/.test(l))).toBe(true);
+    expect(said.filter((l) => l.startsWith('warn'))).toEqual([]);
+
+    // Asked nothing the second time: the tree it holds is the repository's, though no origin says so.
+    expect(await run(answers({ entry: 't001' }), here)).toBe(0);
+    expect(started[1]?.cwd).toBe(tree);
+    expect(leasesHeldBy('t001')).toHaveLength(1);
+  });
+
   it('with a repository not cloned on this machine, starts here and says why', async () => {
     const { bare } = await aClone();
     Task.create('x', [{ url: bare }]);

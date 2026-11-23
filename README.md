@@ -77,7 +77,9 @@ agent on it in this terminal, with its approvals skipped (`"skipPermissions":
 false` in the vault's `config.json` hands them back). A new task picks
 the repositories it works in from the registry, and gets a worktree of each
 on a detached HEAD at origin's default branch; in a monorepo it also asks
-which packages the task is about, once. yan never makes a branch, since each
+which packages the task is about, once. A clone with no origin, a repository
+kept on this machine alone, is not fetched, and its tree is cut from the
+branch the clone is on; so is one whose origin names no default branch. yan never makes a branch, since each
 machine names its branches its own way, and never takes one for the task's
 because a tree is on it, since a tree passes through branches that are
 nobody's work: which are the task's is the agent's to say. It is told to cut
