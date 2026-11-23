@@ -46,11 +46,16 @@ async function open({ here, shown = false, everyS = 10, notify = true }: { here?
 describe('a task folded to its square on the rail', () => {
   afterEach(reset);
 
-  it('is one character of its title', async () => {
-    const { screen } = await open({});
-    const rail = screen.getByRole('navigation', { name: 'Tasks' });
-    expect(rail.getByRole('link', { name: 'pay retries' }).element().textContent).toBe('P');
-    expect(rail.getByRole('link', { name: 'export orders' }).element().textContent).toBe('E');
+  it('is the mark of where it stands, in that state\'s colour, with no letter: its name is its tooltip\'s', async () => {
+    useUI.setState((s) => ({ prefs: { ...s.prefs, left: false } }));
+    have(index([task('t1', 'pay retries'), task('t2', 'export orders', { state: 'uat' })]));
+    serve({ '/api/terminals': () => Response.json({}) });
+    const rail = (await draw(<Left />)).getByRole('navigation', { name: 'Tasks' });
+    const open = rail.getByRole('link', { name: 'pay retries' }).element();
+    const review = rail.getByRole('link', { name: 'export orders' }).element();
+    expect([open.textContent, review.textContent]).toEqual(['', '']);
+    const colour = (square: Element): string => getComputedStyle(square.querySelector('svg') as SVGElement).color;
+    expect(colour(open)).not.toBe(colour(review));
   });
 
   it('stands under the list\'s own tools, the drafts and the settings among them, each opening its box', async () => {

@@ -2,11 +2,9 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { JANUS, works, type TaskSummary } from '../lib/api';
 import { agentWords, allNews, type AgentNews } from '../lib/agents';
 import { MOD } from '../lib/format';
-import { initialsOf } from '../lib/letters';
 import { link, useRoute } from '../lib/route';
 import { cn } from '../lib/utils';
-import { Icon, type IconName } from '../components/Icon';
-import { WORKING } from '../components/page';
+import { Icon, StateIcon, type IconName } from '../components/Icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { TaskMenu } from '../components/TaskMenu';
 import { goesOn } from '../lib/stops';
@@ -43,7 +41,7 @@ function RailButton({ icon, label, onClick, href, on, mark, faint }: { icon: Ico
   );
 }
 
-function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: string; news: AgentNews | undefined; on: boolean; squares: RefObject<Map<string, HTMLElement>> }) {
+function TaskSquare({ t, news, on, squares }: { t: TaskSummary; news: AgentNews | undefined; on: boolean; squares: RefObject<Map<string, HTMLElement>> }) {
   const last = useUI((s) => s.last[t.id]);
   // Opened above the square while it and the one above it speak, so the two bubbles stand level with their squares.
   const room = useBubbles((s) => s.room[t.id] ?? 0);
@@ -57,7 +55,7 @@ function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: 
   }, [on, t.id]);
   useEffect(() => () => dropBubble(t.id), [t.id]);
   // The square is the tooltip's trigger and the task's menu's at once; while it speaks, its bubble says more than the tooltip would.
-  const square = <a ref={(el) => { if (el === null) squares.current.delete(t.id); else squares.current.set(t.id, el); }} style={room > 0 ? { marginTop: room } : undefined} className={cn(SQUARE, 'text-[15px] leading-none font-semibold text-ink-2', on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
+  const square = <a ref={(el) => { if (el === null) squares.current.delete(t.id); else squares.current.set(t.id, el); }} style={room > 0 ? { marginTop: room } : undefined} className={cn(SQUARE, on && 'bg-card text-foreground ring-1 ring-border hover:bg-card')}
     href={last ?? link.task(t.id)} aria-label={label} aria-current={on ? 'page' : undefined} />;
   return (
     <>
@@ -65,7 +63,8 @@ function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: 
         <TaskMenu t={t} render={<TooltipTrigger render={square} />}>
           {/* Hops each time it says something. */}
           <span key={speaking ?? ''} className={cn('inline-block', speaking !== undefined && 'animate-hop')}>
-            <span className={cn(working && WORKING)}>{letter}</span>
+            {/* The mark of where the task stands, as on the list: which task it is, the tooltip says. It breathes while the agent is at work. */}
+            <span className={cn('block', working && 'animate-pulse motion-reduce:animate-none')}><StateIcon t={t} size={18} /></span>
           </span>
           <Mark news={news} />
         </TaskMenu>
@@ -77,10 +76,11 @@ function TaskSquare({ t, letter, news, on, squares }: { t: TaskSummary; letter: 
 
 /**
  * The task list folded to a rail: its tools as icons, and a square for each
- * task in review or in progress, told apart by a character of its title,
- * the one being read framed, so any of them is a click away, and what each
- * one's agent is up to shows at a glance: a light over the character of one
- * at work, a mark at the corner of one waiting or finished, and a bubble
+ * task in review or in progress, drawn as the mark of where it stands, a
+ * blue half circle in progress and an amber dot in a ring in review, named
+ * by its tooltip, the one being read framed, so any of them is a click away, and what each
+ * one's agent is up to shows at a glance: the mark of one at work
+ * breathing, a mark at the corner of one waiting or finished, and a bubble
  * from one whose agent has something to say, which stands first on the rail
  * while it speaks.
  */
@@ -99,7 +99,6 @@ export function Rail() {
     ...works(index.tasks).filter((t) => t.state !== 'uat' && goesOn(t)).sort(byTouched),
   ] : [];
   const tasks = [...pinned.flatMap((id) => usual.filter((t) => t.id === id)), ...usual.filter((t) => !pinned.includes(t.id))];
-  const letters = initialsOf(tasks);
   // What the squares were saying goes with them, and is told in toasts while the list is shown.
   useEffect(() => dropAllBubbles, []);
   const squares = useRef(new Map<string, HTMLElement>());
@@ -113,7 +112,7 @@ export function Rail() {
       <RailButton icon="note" label="Drafts" onClick={() => useUI.setState({ drafts: true })} />
       <RailButton icon="settings" label="Settings" onClick={() => useUI.setState({ settings: true })} />
       <span className="my-2 h-px w-7 flex-none bg-border" />
-      {tasks.map((t) => <TaskSquare key={t.id} t={t} letter={letters.get(t.id) ?? ''} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} squares={squares} />)}
+      {tasks.map((t) => <TaskSquare key={t.id} t={t} news={news.get(t.id)} on={r.view === 'task' && r.id === t.id} squares={squares} />)}
       <RailBubbles squares={squares} />
     </nav>
   );
