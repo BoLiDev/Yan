@@ -101,15 +101,20 @@ describe.skipIf(process.platform === 'win32')("a task's terminal on the page", (
     expect(drawn.wide, 'each line running to the pane\'s edge, not a word wide').toBe(true);
   });
 
-  it('leaves Ctrl+K to the agent while it is typed in a pane, and opens the task box with Shift', async () => {
+  it('opens the task box at Ctrl+F while it is typed in a pane, the agent sent nothing, and leaves Ctrl+K and Ctrl+Shift+F to the agent', async () => {
     const page = await onTerminal();
     await pane(page, 'Agent').click();
-    await page.keyboard.press('Control+K');
-    const killed = (): boolean => h.received(AGENT_PANE).some((r) => 'keys' in r && r.keys.includes('ctrl+k'));
-    await expect.poll(killed, { timeout: 10_000 }).toBe(true);
-    expect(await page.getByRole('dialog', { name: 'Go to a task' }).count()).toBe(0);
-    await page.keyboard.press('ControlOrMeta+Shift+K');
+    const got = (key: string): boolean => h.received(AGENT_PANE).some((r) => 'keys' in r && r.keys.includes(key));
+    await page.keyboard.press('Control+f');
     await page.getByRole('dialog', { name: 'Go to a task' }).waitFor({ timeout: 10_000 });
+    expect(got('ctrl+f')).toBe(false);
+    await page.keyboard.press('Control+f');
+    await page.getByRole('dialog', { name: 'Go to a task' }).waitFor({ state: 'hidden', timeout: 10_000 });
+    await pane(page, 'Agent').click();
+    await page.keyboard.press('Control+k');
+    await page.keyboard.press('Control+Shift+F');
+    await expect.poll(() => got('ctrl+k') && got('ctrl+f'), { timeout: 10_000 }).toBe(true);
+    expect(await page.getByRole('dialog', { name: 'Go to a task' }).count()).toBe(0);
   });
 
   it("splits a pane from its own menu, and closes a shell but never the agent's pane", async () => {

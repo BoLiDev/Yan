@@ -717,8 +717,9 @@ a new version with a button to take it, which pulls, runs `npm install` and
 `npm run build` there, the card naming each step as it goes with a bar
 below of how far along, and serve restarts on the new build, the page
 reloading with it; a check or an update that fails is tried again from
-the same place. ⌘K, Ctrl+K (Ctrl+Shift+K in a terminal)
-off a Mac, opens a box to go to a task by typing its title or id, any
+the same place. Ctrl+F, on a Mac too and in a terminal as anywhere (where
+Ctrl+Shift+F is the terminal's own Ctrl+F), in place of the browser's
+find, opens a box to go to a task by typing its title or id, any
 words in any order, the best match picked so Enter goes there, and of
 tasks that match as well one in UAT first, then in progress. Tasks done
 or given up are left out until Tab, or the button beside the field,

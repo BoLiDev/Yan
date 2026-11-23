@@ -67,7 +67,7 @@ describe('a box over the page', () => {
 
   it("gives the keys back to the page once it closes: Tab walks the task's nav again", async () => {
     const page = await onTask();
-    await page.keyboard.press('Control+K');
+    await page.keyboard.press('Control+f');
     await page.getByRole('dialog', { name: 'Go to a task' }).waitFor();
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'detached' });
@@ -79,7 +79,7 @@ describe('a box over the page', () => {
 
   it('keeps the keyboard in ⌘K\'s box at Tab, which brings in the closed tasks, and moves the page only when a task is picked', async () => {
     const page = await onTask();
-    await page.keyboard.press('Control+K');
+    await page.keyboard.press('Control+f');
     await page.getByRole('dialog', { name: 'Go to a task' }).waitFor();
     await page.keyboard.type('export');
     await page.keyboard.press('Tab');
