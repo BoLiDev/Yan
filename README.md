@@ -178,7 +178,7 @@ closes them; in a terminal both are the page's, and the terminal's own
 with Shift held):
 its terminal, where it is started in a herdr tab of its own, and its
 artifacts, under its own mark. It has no overview or log there, and is no
-row of the task list, the rail or ⌘K.
+row of the task list, the rail or Ctrl+F's box.
 
 `yan:uat` gathers what you check the result by in artifacts/uat/,
 deliverable by deliverable, in one pass after the implementation: the before
@@ -655,7 +655,7 @@ repositories it works in (those registered and cloned here) and, when one
 picked has several packages, ③ which of each one's it is about, none
 picked being the whole of it, every one picked the whole of it too. Each
 step picks from one list, in a select of several with a dropdown: what is
-picked shows as tags, what is typed searches the list as ⌘K searches the
+picked shows as tags, what is typed searches the list as Ctrl+F's box searches the
 tasks, ↑ and ↓ move in it and Enter picks, a click picks and keeps it open.
 Enter goes on, ⌘ or Ctrl with it creates at once, and Escape closes the
 list, then the box. Created, serve opens a herdr tab named for it and
@@ -695,7 +695,7 @@ review or in progress, are listed under Paused, below them, the one paused
 last first, with two bars for their mark, folded away as a month of done
 tasks is until Paused is clicked open, with how many there are, the one
 being read kept in view and a dot when one has something new, and their overview's tag says
-Paused and the day; ⌘K ranks them after those in progress. A paused task
+Paused and the day; Ctrl+F's box ranks them after those in progress. A paused task
 has no Terminal row, so no agent is started on one until it is resumed. Those done or given up
 are listed under Done by the month they closed in, each month folded, with
 how many it holds, until it is clicked open; a folded month still shows the
@@ -725,13 +725,13 @@ tasks that match as well one in UAT first, then in progress. Tasks done
 or given up are left out until Tab, or the button beside the field,
 brings them in, after those, for as long as the box is open; with
 nothing typed it offers the tasks visited last, the one being read left
-out, so ⌘K and Enter go back to the one before, and ⌘Enter opens the
+out, so Ctrl+F and Enter go back to the one before, and ⌘Enter opens the
 picked task's agent instead of the task. In a task, Tab and Shift+Tab
 move through its nav, Overview, Report, Log, Terminal, Agent, MR and Resources,
 showing each row's page as they reach it and round again, and nowhere
 else on the page; a branch opened from MR's page is at MR. A click on a
 row leaves the keys to the page it opens, as Tab does. While a box is open over the
-page, ⌘K's, a new task's or a question, the keys are the box's alone. It stays there while
+page, Ctrl+F's, a new task's or a question, the keys are the box's alone. It stays there while
 changes are made on your feedback; nothing turns it back to in progress,
 and accepting it is `yan done`, as for any task.
 
