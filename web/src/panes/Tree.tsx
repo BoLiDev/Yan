@@ -12,8 +12,6 @@ export interface TreeOptions<F extends TreeFile> {
   file: string | null;
   folder: string | null;
   fileHref: (path: string) => string;
-  /** A folder row opens its folder's page when there is this, and only opens and closes otherwise. */
-  folderHref?: (path: string) => string;
   isNew?: (f: F) => boolean;
   /** A dot on a closed folder with something new inside, where it would otherwise be found by nobody. */
   newIn?: (path: string) => boolean;
@@ -56,20 +54,12 @@ function rows<F extends TreeFile & { readonly sha?: string }>(node: TreeNode<F>,
     const open = o.isOpen(dir.path);
     const current = o.folder === dir.path;
     out.push(drawn(o, `d:${dir.path}`, dir.path, true,
-      <a className={cn(row({ on: current, at: 'tree' }), 'py-[5px]')}
-        href={o.folderHref ? o.folderHref(dir.path) : undefined} style={{ paddingLeft: `${10 + depth * step}px` }}
+      // A folder's row only opens and closes it: a click on it is to see what is in it, here, not to go anywhere.
+      <a className={cn(row({ on: current, at: 'tree' }), 'py-[5px]')} style={{ paddingLeft: `${10 + depth * step}px` }}
         role="treeitem" aria-expanded={open} aria-current={current ? 'true' : undefined} title={dir.path}
-        onClick={() => {
-          if (!o.folderHref) o.setOpen(dir.path, !open);
-          else if (open && current) o.setOpen(dir.path, false);
-          else o.setOpen(dir.path, true);
-        }} />,
+        onClick={() => o.setOpen(dir.path, !open)} />,
       <>
-        <span className={cn('flex-none text-ink-3 transition-transform duration-100', open && 'rotate-90')} role="button" aria-label={open ? 'Close the folder' : 'Open the folder'} onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          o.setOpen(dir.path, !open);
-        }}><Icon name="chev" size={12} width={2.25} /></span>
+        <span className={cn('flex-none text-ink-3 transition-transform duration-100', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
         <Icon name="folder" size={15} className="text-ink-3" />
         <span className={GROW}>{name}</span>
         {o.newIn?.(dir.path) ? <Dot title="something new inside" /> : null}

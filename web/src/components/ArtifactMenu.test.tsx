@@ -22,12 +22,24 @@ async function aTask(routes: Parameters<typeof serve>[0] = {}, hash = '#/t/t1') 
 describe("an artifact's menu in a task's artifacts", () => {
   afterEach(reset);
 
+  it('opens a folder where it is, and closes it, at a click on it, the page staying where it was', async () => {
+    const { screen } = await aTask({}, '#/t/t1/log');
+    const folder = screen.getByRole('treeitem', { name: /docs/ });
+    expect(screen.getByRole('treeitem', { name: /notes\.md/ }).elements()).toEqual([]);
+    await folder.click();
+    await expect.element(screen.getByRole('treeitem', { name: /notes\.md/ })).toBeVisible();
+    expect(location.hash).toBe('#/t/t1/log');
+    await folder.click();
+    await expect.poll(() => screen.getByRole('treeitem', { name: /notes\.md/ }).elements().length).toBe(0);
+    expect(location.hash).toBe('#/t/t1/log');
+  });
+
   it('renames a file from a box that starts with its name, says in the box why serve refused, and follows the file it was showing', async () => {
     let refuse = true;
     const { asked, screen } = await aTask({
       'POST /api/artifact/rename': () => (refuse ? new Response('there is already a plan.md there', { status: 409 }) : Response.json(saved)),
     }, '#/t/t1/a/docs/notes.md');
-    await screen.getByRole('button', { name: 'Open the folder' }).click();
+    await screen.getByRole('treeitem', { name: /docs/ }).click();
     await screen.getByRole('treeitem', { name: /notes\.md/ }).click({ button: 'right' });
     await screen.getByRole('menuitem', { name: 'Rename' }).click();
     const box = screen.getByRole('alertdialog');

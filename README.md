@@ -702,7 +702,9 @@ how many it holds, until it is clicked open; a folded month still shows the
 task being read, and a dot when one of its tasks has something new. A
 task's artifacts are its folders' tree, and nothing more: every folder
 closed until it is opened, and a button beside them opening them all, or
-closing them all once any is open. A right click on one, a file or a folder, opens its own
+closing them all once any is open. A click on a folder opens it, or closes
+it, where it is, and goes nowhere; the folders as a grid are the button
+beside the tree's. A right click on one, a file or a folder, opens its own
 menu in place of the browser's: Rename asks for its new name in a box,
 the old one in it with the part before its ending selected, and renames it
 where it is, a folder with all it holds, never over another of that name;

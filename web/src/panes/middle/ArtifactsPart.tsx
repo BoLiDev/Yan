@@ -42,7 +42,6 @@ export function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: T
               file: r.sub === 'file' ? r.path : null,
               folder: r.sub === 'folder' ? r.path : null,
               fileHref: (p) => link.file(t.id, p),
-              folderHref: (p) => link.folder(t.id, p),
               isNew: (f) => unseen.has(f.path),
               newIn: (dir) => [...unseen.keys()].some((p) => p.startsWith(`${dir}/`)),
               menu: (item, row, inside) => <ArtifactMenu task={t.id} path={item.path} dir={item.dir} render={row}>{inside}</ArtifactMenu>,
