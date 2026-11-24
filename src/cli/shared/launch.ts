@@ -92,7 +92,7 @@ function principlesLines(principles: string, skills: boolean): string[] {
 /** What claude, started with yan's plugin, is told before `user` says anything, for the task in `taskDir`. */
 export function skillsPrompt(taskDir: string, principles = ''): string {
   return [
-    'This task is kept by the yan CLI, which holds its notes from one session to the next: the problem, the solution as deliverables, and the decisions that steered them. ' +
+    'This task is kept by the yan CLI, which holds its notes from one session to the next: the problem, the solution as deliverables, and a log of how the task moved. ' +
       'Which task it is travels in $YAN_TASK.',
     filesLine(taskDir),
     'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
@@ -126,14 +126,17 @@ function skillPlugins(): string[] {
 export const OPENING_PROMPT = [
   'Notes from earlier sessions on this work are kept by the yan CLI.',
   'We think about a task in three parts, each with its note: the problem (problem.md: the background, and what the problem is), ' +
-    'the solution (the deliverables: how things must be once it is solved), and the decisions that steered it (the log). ' +
+    'the solution (the deliverables: how things must be once it is solved), and how the task moved (the log). ' +
     'Problem and solution are worked out with the user, not assumed, and either may change as the work goes. ' +
-    'When one does, rewrite its note to say how things stand now, as if writing it for the first time: what it used to say belongs in the log.',
+    'When one does, rewrite its note to say how things stand now, as if writing it for the first time, and say in the log what moved and why.',
+  'The log, `yan log`, keeps two things nothing else does: why the task\'s scope is what it is (`yan log scope`: what was added, dropped or put off, and why), ' +
+    'and the steps toward its deliverables (`yan log progress`: what was done, or tried and did not work, in a line). ' +
+    'It is not a record of what was discussed: a point settled while a design or a document is worked out is written in that document and gets no line, and most turns add none.',
   'Resources the work refers to are kept under a name with `yan resource`, for later sessions to find, each as its kind: ' +
     'spec (the ticket, PRD or design the task comes from), mr (as soon as one is opened), ' +
     'preview (a link that opens the version with this work for the user to check the result on), run (a sub-task started elsewhere), or general.',
   '`yan context` sums up the task from its folder and its worktrees: the problem, the deliverables, the resources, the artifacts and where each branch stands. ' +
-    'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
+    'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows how the task moved. `yan --help` for the rest.',
   'It also lists the user\'s newest drafts, their own notes, shared by every task, so most are about other work: read one with `yan draft cat <id>` when its title touches this task, opening the pictures it names by their path, ' +
     'and take it as the user\'s thinking, not a decision made. Never write, change or remove one: they are the user\'s alone.',
   'A task may have the user\'s principles, principles.md in its folder: their standing requirements for all of it, which `yan context` prints first when there are any. ' +

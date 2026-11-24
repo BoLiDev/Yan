@@ -29,7 +29,7 @@ describe('a later session picks the task up', () => {
     const first = { YAN_TASK: 't001' };
     writeFileSync(new Task('t001').problem, 'Nobody can tell what a plan costs without writing to us.\n');
     await yan(['deliverable', 'add', 'the page compares the three plans', 'the yearly price says what it saves'], first);
-    await yan(['log', 'agreed', 'prices in euros only - every customer pays in euros'], first);
+    await yan(['log', 'scope', 'prices in euros only - every customer pays in euros'], first);
     for (let i = 1; i <= 12; i += 1) await yan(['log', 'paused', `stopped at step ${i}`], first);
     await yan(['deliverable', 'done', 'd1'], first);
 
@@ -51,7 +51,7 @@ describe('a later session picks the task up', () => {
     const listed = await yan(['ls'], { YAN_TASK: undefined });
     expect(listed.stdout).toMatch(/^t001 {2}open .* pricing page$/m);
 
-    expect((await yan(['log', 'agreed', 'monthly billing only', '--task', 't001'])).code).toBe(0);
+    expect((await yan(['log', 'scope', 'monthly billing only', '--task', 't001'])).code).toBe(0);
     expect((await yan(['log', '--task', 't001'])).stdout).toContain('monthly billing only');
     expect((await yan(['peek', 't001'])).stdout).toContain('t001  pricing page');
     expect((await yan(['context', '--task', 't001'])).stdout).toContain('t001  pricing page');
@@ -60,7 +60,7 @@ describe('a later session picks the task up', () => {
 
 describe('yan ls says when a task last moved', () => {
   it('from its records, not from when the files were written', async () => {
-    await yan(['log', 'agreed', 'a decision today'], { YAN_TASK: 't001' });
+    await yan(['log', 'scope', 'a decision today'], { YAN_TASK: 't001' });
 
     // A task as a clone of the vault brings it: files new, records old.
     const old = Task.create('from last year');

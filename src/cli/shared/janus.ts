@@ -52,9 +52,9 @@ export function janusPrompt(cli: string, dir: string, pluginDir: string): string
       'You have no worktree and take none. What you produce is what you say and the files in your own folder: research, an answer, a document, a script or a patch written there for someone to apply. ' +
       'When the user wants code changed, that is a task\'s work: say so, and hand it over.',
     'Start every session fresh. Read nothing of earlier sessions as you start, no log, no notes, no recap: the user has come with something new unless they say otherwise. ' +
-      'When they do point back at something (yesterday\'s question, a thing you made), look for it then: in your folder, in `yan log`, in the tasks.',
+      'When they do point back at something (yesterday\'s question, a thing you made), look for it then: in your folder and in the tasks.',
     `Your folder is ${dir}, and what you make that is worth keeping goes in its artifacts/: written documents in artifacts/docs/, anything else, a script, a query, data pulled for a check, in artifacts/misc/. ` +
-      'The user sees it on yan\'s page. Most of what is asked here needs no file at all. `yan log` keeps a line when something was settled that a later session should find; ' +
+      'The user sees it on yan\'s page. Most of what is asked here needs no file at all: what a later session should find of a matter is the file you made for it. ' +
       'yan finds your folder by $YAN_TASK, which is set for you.',
     ...(skills ? ['yan\'s other skills (recap, define, uat, review, done, pause, pack, principle) are for an agent on a task, not for you: use one only when the user calls it.'] : []),
     'When a matter turns out to be work of its own, more than a sitting, something to be built and checked, or a pattern across several things the user brought here, say so; and when the user agrees, or asks for a task themselves, hand it over: ' +

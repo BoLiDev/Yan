@@ -20,8 +20,8 @@ Then:
 2. **Write the brief**, a Markdown file outside the vault and the worktrees (the system's temporary folder will do), saying what was agreed in 1 and 2 as instructions to the other agent: what it is asked to do, what it must know, what it must leave alone. Write it for a reader with no context.
 3. **Pack** with `yan pack --brief <file>`, adding `--doc` for one document, `--artifact <path>` for each artifact agreed (without it every artifact goes; `--no-artifacts` for none), and `--drafts` only if the user asked for their drafts to go.
 4. **Say where the pack is**, its full path in one line, and that the user gives it to the other agent themselves.
-5. **Note the handover** in the log: `yan log changed "handed to another agent: <what it takes up>"`.
+5. **Note the handover** in the log: `yan log progress "handed to another agent: <what it takes up>"`.
 
 - **The pack leaves this machine in the user's hands only.** Never upload it, send it or attach it anywhere yourself.
 - **Leave the deliverables alone**, and the task open.
-- **When the user brings back what the other agent did**, put it where it belongs: each decision in the log with `yan log`, a merge request or a link with `yan resource`, a branch it cut with `yan branch`. What it says is met is for the user to mark.
+- **When the user brings back what the other agent did**, put it where it belongs: what it did toward a deliverable, and any change of scope, in the log with `yan log`, a merge request or a link with `yan resource`, a branch it cut with `yan branch`. What it says is met is for the user to mark.

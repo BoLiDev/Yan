@@ -8,10 +8,13 @@ import { setSeen, useUI } from '../state/ui';
 import { useKeyNav } from './nav';
 import { Linkified } from './Overview';
 
-/** An entry's type as a tag: what was agreed in the brand's colour, what changed in amber, the rest grey. */
+/**
+ * An entry's type as a tag: the scope moving in amber, as the changes of an older log were; a step toward a
+ * deliverable in the brand's colour, as what an older log agreed was; the rest grey.
+ */
 function typeLook(type: string): string {
-  if (type === 'agreed') return 'bg-brand-soft text-brand';
-  if (type === 'changed') return 'bg-warning-soft text-warning';
+  if (type === 'progress' || type === 'agreed') return 'bg-brand-soft text-brand';
+  if (type === 'scope' || type === 'changed') return 'bg-warning-soft text-warning';
   return 'bg-sunken text-ink-3';
 }
 
@@ -50,7 +53,7 @@ export function LogView({ t, d }: { t: TaskSummary; d: TaskDetail }) {
       rows.push(<div className="mt-[22px] mb-2 text-[12.5px] font-bold text-ink-3 first:mt-0" key={`day:${e.day}:${i}`}>{today ? `Today · ${label}` : label}</div>);
     }
     rows.push(
-      <div className={cn('-mx-3 grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-[10px] px-3 py-2 text-[14.5px] leading-6', i >= before && 'bg-brand-wash')} key={i} data-entry={`the ${e.type} entry of ${e.day}`}>
+      <div className={cn('-mx-3 grid grid-cols-[82px_minmax(0,1fr)] gap-3 rounded-[10px] px-3 py-2 text-[14.5px] leading-6', i >= before && 'bg-brand-wash')} key={i} data-entry={`the ${e.type} entry of ${e.day}`}>
         <span className={cn('mt-0.5 h-5 self-start rounded-full px-2 text-center text-[12px] leading-5', typeLook(e.type))}>{e.type}</span>
         <span className="whitespace-pre-wrap wrap-anywhere"><Linkified text={e.text} /></span>
       </div>,

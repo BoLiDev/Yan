@@ -78,18 +78,18 @@ describe('the surface', () => {
 describe('yan log', () => {
   it('records the three types and reads back what was settled', async () => {
     const env = { YAN_TASK: 't001' };
-    expect((await yan(['log', 'agreed', 'only three types'], env)).code).toBe(0);
+    expect((await yan(['log', 'scope', 'only three types'], env)).code).toBe(0);
     expect((await yan(['log', 'paused', 'waiting on review'], env)).code).toBe(0);
     const read = (await yan(['log'], env)).stdout;
-    expect(read, 'each with its type').toMatch(/agreed\s+only three types/);
+    expect(read, 'each with its type').toMatch(/scope\s+only three types/);
     expect(read).toMatch(/paused\s+waiting on review/);
 
-    expectUsage(await yan(['log', 'delivered', 'x'], env), 'one of: agreed changed paused');
-    expectUsage(await yan(['log', 'agreed'], env), 'the entry is required');
+    expectUsage(await yan(['log', 'delivered', 'x'], env), 'one of: scope progress paused');
+    expectUsage(await yan(['log', 'scope'], env), 'the entry is required');
   });
 
   it('takes the task from --task, and says so when it has none', async () => {
-    expect((await yan(['log', 'changed', 'by flag', '--task', 't001'])).code).toBe(0);
+    expect((await yan(['log', 'scope', 'by flag', '--task', 't001'])).code).toBe(0);
     expect(readFileSync(join(home, 'tasks', 't001', 'log.md'), 'utf8')).toContain('by flag');
     expectUsage(await yan(['log']), '--task <id>');
     expectUsage(await yan(['log', '--task', 't404']), 'no such task: t404');
@@ -203,7 +203,7 @@ describe('yan ls and yan peek', () => {
 
     writeFileSync(task.problem, 'Why this task exists.\n\nAnd the rest of it.\n');
     task.addDeliverables(['it is done']);
-    await yan(['log', 'agreed', 'a decision'], env);
+    await yan(['log', 'scope', 'a decision'], env);
     await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
     mkdirSync(join(task.dir, 'artifacts', 'uat'), { recursive: true });
     writeFileSync(join(task.dir, 'artifacts', 'uat', 'd1-after.png'), 'png');
@@ -231,7 +231,7 @@ describe('yan ls and yan peek', () => {
 
     writeFileSync(task.problem, '# Background\n\nWhy this task\nexists, hard-wrapped.\n\nA second paragraph.\n\nA third.\n');
     task.addDeliverables(['it is done']);
-    await yan(['log', 'agreed', 'a decision'], env);
+    await yan(['log', 'scope', 'a decision'], env);
     await yan(['resource', 'add', 'general', 'design doc', '~/notes/design.md'], env);
     await yan(['resource', 'add', 'spec', 'PROJ-412', 'https://jira.example.com/browse/PROJ-412'], env);
     await yan(['resource', 'add', 'spec', 'PRD', 'https://docs.example.com/prd'], env);

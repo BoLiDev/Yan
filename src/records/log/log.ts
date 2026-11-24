@@ -8,14 +8,22 @@ import { localMonthDay } from '../../util/time.js';
 /**
  * What a line records. Every line yan writes carries exactly one.
  *
- *   agreed   a conclusion, plan or decision reached with `user`
- *   changed  the problem, the solution or an earlier line no longer holds: what changed, and why
- *   paused   work stopped: where it stands, what is left, what it waits on
+ *   scope     the task's scope moved: what was added, dropped or put off, and why
+ *   progress  a step toward a deliverable: what was done, or tried and did not work
+ *   paused    work stopped: where it stands, what is left, what it waits on
  *
- * A log from before v4 also holds `started`, `delivered` and `incident`
- * lines. They are read like any other line and never written.
+ * The log is how the task moved, not what was thought on the way: a point
+ * settled while a design is worked out is in the design, a requirement in
+ * the problem or a deliverable, and a line for each made the log a second,
+ * worse copy of both. So its types are the two things nothing else keeps,
+ * why the scope is what it is and what was done to get there, and stopping.
+ *
+ * A log from before these holds `agreed` and `changed` lines, a decision
+ * reached and one overturned, and one from before v4 `started`,
+ * `delivered` and `incident`. They are read like any other line and never
+ * written.
  */
-export const LOG_TYPES = ['agreed', 'changed', 'paused'] as const;
+export const LOG_TYPES = ['scope', 'progress', 'paused'] as const;
 export type LogType = (typeof LOG_TYPES)[number];
 
 const TYPE_WIDTH = Math.max(...LOG_TYPES.map((t) => t.length));
@@ -29,7 +37,7 @@ export function isLogType(value: string): value is LogType {
 
 /**
  * `tasks/<id>/log.md`: one line per event, appended and never edited. A line
- * that turns out wrong is answered by a later `changed` line.
+ * that turns out wrong is answered by a later line.
  */
 export class Log {
   /** Absolute path of the log file, whether or not it exists yet. */
@@ -63,8 +71,9 @@ export class Log {
   }
 
   /**
-   * The lines worth carrying into a new session: every `agreed` and `changed`
-   * line, plus the last `tail` lines of any kind, in file order and without
+   * The lines worth carrying into a new session: every `scope` line, and
+   * the `agreed` and `changed` lines of a log from before it, which said
+   * what scope says now, plus the last `tail` lines of any kind, in file order and without
    * repeats. `total` counts every line. Empty when there is no log.
    */
   public recall(tail: number): { lines: string[]; total: number } {
@@ -79,7 +88,7 @@ export class Log {
     const lines = entries.filter((line, i) => {
       if (i >= from) return true;
       const type = TYPED_LINE.exec(line)?.[1];
-      return type === 'agreed' || type === 'changed';
+      return type === 'scope' || type === 'agreed' || type === 'changed';
     });
     return { lines, total: entries.length };
   }

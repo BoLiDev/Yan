@@ -3,7 +3,8 @@
 Notes that outlive an agent session. We think about a task in three parts,
 and it keeps a note for each: the problem (`problem.md`: the background, and
 what the problem is), the solution (its deliverables: how things must be
-once it is solved), and the log of the decisions that steered it. Beside
+once it is solved), and the log of how it moved: why its scope changed,
+and the steps taken toward its deliverables. Beside
 them it keeps the resources the work refers to and, when it touches a
 repository, a worktree of its own; and beside every task, your own drafts,
 which every task's agent can read. `yan` keeps those and
@@ -276,7 +277,7 @@ that fails is said, and the commit waits here for the next one.
 For the agent:
 
 - `yan context` — a summary to start from: your principles for the task first, in full, when it has any, the task's problem in full, its deliverables and resources, its artifacts by folder, where each branch stands (ahead of the default branch, unpushed, uncommitted, whether the task keeps the one the worktree is on, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about, and your ten newest drafts by id and title, for the agent to read one with `yan draft cat <id>` when it touches the work and never to write one; `--json` lists every artifact with its web address in the vault's repository, and every draft, for a report or a recap to build on
-- `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
+- `yan log` — how the task moved; `yan log scope|progress|paused "<line>"` records one: `scope` when what the task covers moved, with what was added, dropped or put off and why; `progress` for a step toward a deliverable, done, or tried and failed; never a point settled while a design is worked out, which is in its document. A log from before these types has `agreed` and `changed` lines, read and no longer written
 - `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
 - `yan uat ready` — the task is handed to you to accept: its state becomes `uat`, shown as in review, and stays so through the changes your feedback asks for until `yan done`
@@ -821,7 +822,7 @@ what it was written from), its bar says legacy and what changed.
     task.json                  title, state (open, uat, done, abandoned), pausedAt while an open task is paused, repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
     principles.md              yours, when there are any: the requirements all of the task is held to, written through yan:principle and given to every agent on it as it starts
-    log.md                     - MM-DD  type  line, appended only
+    log.md                     - MM-DD  type  line, appended only: scope, progress or paused (agreed and changed in a log from before)
     drafts/<draft-id>.md       yours, from when drafts were kept per task: still read, and written, where they are
     reviews/<when>.md          yours: a review written on yan serve's page, one file each, named for the moment in UTC (20261111-140312.md), never edited after
     artifacts/                 whatever the work produced worth keeping, as it stands now

@@ -353,7 +353,7 @@ describe('pull and push', () => {
     expect((await fxGit(['-C', b, 'rebase', 'origin/main'])).code, 'it conflicts').not.toBe(0);
     const before = readFileSync(join(b, 'tasks', 't001', 'task.json'), 'utf8');
 
-    for (const args of [['log', 'agreed', '--task', 't001', 'Stuck on the rebase.'], ['deliverable', 'add', '--task', 't001', 'it works'], ['pause', 't001']]) {
+    for (const args of [['log', 'scope', '--task', 't001', 'Stuck on the rebase.'], ['deliverable', 'add', '--task', 't001', 'it works'], ['pause', 't001']]) {
       const r = await runYan(home, args, onB);
       expect(r.code, args.join(' ')).toBe(1);
       expect(r.stderr, args.join(' ')).toContain('in the middle of a rebase');
@@ -361,7 +361,7 @@ describe('pull and push', () => {
     expect(readFileSync(join(b, 'tasks', 't001', 'task.json'), 'utf8'), 'nothing written').toBe(before);
 
     expect((await fxGit(['-C', b, 'rebase', '--abort'])).code).toBe(0);
-    expect((await runYan(home, ['log', 'agreed', '--task', 't001', 'Past the rebase.'], onB)).code).toBe(0);
+    expect((await runYan(home, ['log', 'scope', '--task', 't001', 'Past the rebase.'], onB)).code).toBe(0);
   });
 
   it('a pull stopped with Ctrl-C half-way through its rebase leaves the vault as it was, not half rebased', async () => {
@@ -504,7 +504,7 @@ describe('several vaults on one machine', () => {
     expect(rows.map((r) => [r.id, r.title, r.vault])).toEqual([['t001', 'the team\'s first', 'team'], ['t005', 'kept at work', 'work']]);
 
     // Named by its id alone, a task is read and written where it is, not in the active vault.
-    const logged = await runYan(home, ['log', '--task', 't005', 'agreed', 'decided at work'], env);
+    const logged = await runYan(home, ['log', '--task', 't005', 'scope', 'decided at work'], env);
     expect(logged.code, logged.out).toBe(0);
     expect(readFileSync(join(work, 'tasks', 't005', 'log.md'), 'utf8')).toContain('decided at work');
     expect(existsSync(join(team, 'tasks', 't005'))).toBe(false);

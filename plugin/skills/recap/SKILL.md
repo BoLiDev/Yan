@@ -9,7 +9,7 @@ A task kept by yan has its notes in the vault, a git repository yan keeps by its
 
 - the **problem**, problem.md: the background, and what is wrong or wanted
 - the **solution**, the deliverables: how things must be once it is solved
-- the **decisions** that steered it, the log
+- **how it moved**, the log: why its scope changed, and the steps taken toward its deliverables
 
 A task may also have the user's **principles**, principles.md: their standing requirements for all of it, whatever is being worked on. Most tasks have none. When there are any, they hold over everything else here, and they are the user's alone: `yan:principle`, which only the user starts, records one, and nothing else writes that file.
 
@@ -18,7 +18,7 @@ The problem and the solution are worked out with the user, not assumed, and eith
 ## Read
 
 - `yan context`: the user's principles first, in full, when the task has any; the problem in full, the deliverables, the resources, the task's folder and its artifacts, how many deliverables have something to check them by, for each repository the worktree, the branch it is on and where it stands, and the user's newest drafts.
-- `yan log`: the decisions, oldest first. The latest `paused` and `changed` lines usually say where the work stopped.
+- `yan log`: how the task moved, oldest first: why its scope is what it is, and what was done or tried toward its deliverables. The latest `paused` and `progress` lines usually say where the work stopped. An older log has `agreed` and `changed` lines, decisions reached and overturned, from when it kept those.
 - `yan uat`: which deliverables have something to check them by.
 
 The principles were also in your opening prompt, as they stood when the session began. They may have been changed since, so the ones `yan context` prints now are the ones that hold: read them each time you recap, a session long under way included.
@@ -43,7 +43,12 @@ Name deliverables by id with a few words (d5 launch test) so the user can find t
 
 These hold for the whole session.
 
-- **Notes.** When the problem or the solution changes, rewrite its note to say how things stand now, as if writing it for the first time; what it used to say goes in the log with `yan log`. Working them out with the user is `yan:define`.
+- **Notes.** When the problem or the solution changes, rewrite its note to say how things stand now, as if writing it for the first time. Working them out with the user is `yan:define`.
+- **Log.** The log keeps two things nothing else does, each as a line with `yan log`, in plain words:
+  - `scope`: the task's scope moved. What was added, dropped or put off, and why: why this is done and that is not.
+  - `progress`: a step toward a deliverable. What was done, or what was tried and did not work, named by its deliverable (d3) when it has one. This is for a deliverable that takes more than a sitting, so a later session knows what is behind it; one finished in a go needs no line, its checkbox says it.
+
+  It is **not a record of what was discussed or decided along the way**. While a tech design, a plan or any document is worked out with the user, each point settled goes into that document, which is the record, and gets no line: a log of them is a worse copy of the document. Nor is it where the design is described: a line may name a technical thing, to say what was done to it, never to explain how it works. Most turns add no line, and a session that settled ten questions of a design may add one, saying the design is written, or none.
 - **Files.** The task's own files are in its folder, which `yan context` names: problem.md, principles.md when the user has recorded any, and artifacts/ for whatever the work produces worth keeping. What the task itself delivers, where that is not code in a repository or goes beyond it, goes in artifacts/output/: the finished thing as it is to be used, the document the task was to write, the site it was to build, the video it was to make, kept current as it changes, with nothing there that is only on the way to it. Designs of what the user sees (pages, canvases, mockups, palettes, icons, and the scripts that build them) go in artifacts/design/. Written documents about the work (a technical design, research notes, a review, a handoff, a diagram of a system) go in artifacts/docs/. artifacts/uat/ is `yan:uat`'s. Anything else worth keeping, such as a script, a query or data pulled for a check, goes in artifacts/misc/; nothing sits loose in artifacts/ but the report `yan:uat` writes. What can be made again and only takes room, such as installed dependencies, a checkout of old code or frames decoded from a video, stays out of the task's folder. An artifact redone replaces its file rather than sitting beside it; the vault's history keeps the old one.
 - **Resources.** What the work refers to is kept under a name with `yan resource`, for later sessions to find, each as its kind: spec (the ticket, PRD or design the task comes from), mr (as soon as one is opened), preview (a link that opens the version with this work for the user to check the result on, which `yan:uat` gives), run (a sub-task started elsewhere), or general.
 - **Branches.** yan never makes a branch, and never takes one for the task's by itself: which branches are the task's is yours to say. Put a worktree on a detached HEAD on a branch, named the way this repository and this machine expect, before committing in it, and keep it at once with `yan branch`; later sessions, on any machine, start the worktree on the branch kept last. **One branch is in progress for each app the task changes**: one in a repository of one app, and in a monorepo one for each app or package the task changes, whichever the monorepo is divided into, the worktree switching between them. The work on an app stays on its branch, a fix, a second try or a next step included; cut another only for another app, or once the app's branch is merged and new work on it begins. When the work on an app moves to another branch, or stops, mark the old one with `yan branch abandon <name>` at once, so one stays in progress for it. A branch only to try something out, or to look at old code, stays out of the worktree, in a directory of its own, and is not kept. `yan context` lists the task's branches and where each stands, and says when the worktree is on one the task does not keep.

@@ -45,7 +45,7 @@ When the task is run through `yan` (`$YAN_TASK` is set), once each part is agree
 
 - the problem goes in `problem.md` (`yan context` shows where it is), written as prose
 - the solution goes in `yan deliverable add`, one statement per change the user asks for, saying what changes and what it achieves together; the parts of one change go inside its statement, not into deliverables of their own
-- the choice made, and why, goes in `yan log agreed "<line>"`
+- when a task already under way gains or loses scope here, one line says what moved and why: `yan log scope "<line>"`. A task defined for the first time needs none, and the points settled on the way to the problem and the solution are in them, not in the log
 - the PRD, tickets, dashboards and other links go in `yan resource add`
 
 Without `yan`, end with the agreed problem and solution written out in the conversation.
