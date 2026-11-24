@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDirs,
@@ -228,6 +228,22 @@ describe('pull and push', () => {
     // Twice is a no-op, and says so rather than inventing a commit.
     const again = await runYan(home, ['vault', 'pull'], { ...env, YAN_VAULT: b });
     expect(again.stdout).toContain('already up to date');
+  });
+
+  it('push waits for a git that has the vault\'s index locked, as an editor\'s or a hand\'s has for a moment, and commits once it lets go', async () => {
+    const { a } = await twoMachines('locked-work');
+    const onA = { ...isolated('locked-work'), ...identity };
+    mkdirSync(join(a, 'tasks', 't050'), { recursive: true });
+    writeFileSync(join(a, 'tasks', 't050', 'log.md'), '- 10-01  agreed   x\n');
+
+    // Another git, in the middle of writing the index.
+    writeFileSync(join(a, '.git', 'index.lock'), '');
+    const letGo = setTimeout(() => rmSync(join(a, '.git', 'index.lock'), { force: true }), 1200);
+    const pushed = await runYan(home, ['vault', 'push'], { ...onA, YAN_VAULT: a });
+    clearTimeout(letGo);
+    expect(pushed.code, pushed.out).toBe(0);
+    expect(pushed.stdout).toContain('committed 1 change(s)');
+    expect((await fxGit(['-C', a, 'status', '--porcelain'])).stdout.trim()).toBe('');
   });
 
   it('push catches up with what another machine pushed first, and stops on a conflict with its commit kept', async () => {

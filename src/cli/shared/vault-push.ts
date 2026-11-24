@@ -4,6 +4,7 @@ import { catchUp, rebaseOnto, refuseUnfinished } from './vault-pull.js';
 import { currentBranch, git, gitOk, revParse, statusPorcelain } from '../../util/git.js';
 import { YanError } from '../../util/error.js';
 import { withLock } from '../../util/lock.js';
+import { sleepMs } from '../../util/process.js';
 import { vaultDir, vaultOrigin } from '../../util/vault.js';
 
 /**
@@ -12,8 +13,27 @@ import { vaultDir, vaultOrigin } from '../../util/vault.js';
  * page.
  */
 
+/** How long a git that found the repository locked by another is tried again for, and how often. */
+const LOCKED_FOR_MS = 15_000;
+const LOCKED_EVERY_MS = 250;
+
+/** git saying another git has the index or a ref locked: a moment's wait away, not a failure. */
+const locked = (said: string): boolean => /\.lock': File exists|Another git process seems to be running|Unable to create '.*\.lock'/i.test(said);
+
+/**
+ * git, which has to work. yan's own lock keeps yan's writes apart, but not
+ * the git anything else runs in the vault, an editor's status, a hand's
+ * `git log`, an agent's own look: git does not wait for another's lock on
+ * the index, it fails. So a git that found the repository locked is tried
+ * again, for a quarter of a minute, before it is said to have failed.
+ */
 export function gitOrThrow(dir: string, args: readonly string[], what: string): void {
-  const result = git(dir, args);
+  const until = Date.now() + LOCKED_FOR_MS;
+  let result = git(dir, args);
+  while (result.code !== 0 && locked(result.stderr) && Date.now() < until) {
+    sleepMs(LOCKED_EVERY_MS);
+    result = git(dir, args);
+  }
   if (result.code !== 0) {
     const detail = (result.stderr === '' ? result.stdout : result.stderr).trim();
     throw new YanError('vault_git_failed', `${what} failed: git ${args.join(' ')}\n${detail}`);
@@ -44,6 +64,8 @@ function commitAll(dir: string, message: string): void {
   if (!gitOk(dir, ['symbolic-ref', '-q', 'HEAD'])) {
     throw new YanError('vault_unfinished', `the vault is on no branch, as a rebase leaves it - put it back on its branch ('git -C ${dir} status' says how), then try again; nothing was committed`);
   }
+  // Nothing staged after all, what changed having been put back meanwhile or only looked changed: there is nothing to commit, which is no failure.
+  if (gitOk(dir, ['diff', '--cached', '--quiet'])) return;
   gitOrThrow(dir, ['commit', '-m', message], 'committing the vault');
 }
 

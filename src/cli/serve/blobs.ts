@@ -12,9 +12,15 @@ import { runProcessAsync, type ProcessResult } from '../../util/process.js';
 /**
  * `git` in `dir`, async, with paths printed as they are rather than
  * octal-quoted; with `maxStdout`, stopped once it has said that much.
+ *
+ * With `--no-optional-locks`: serve reads, on every tick and for every
+ * page, and a `git status` that took the index's lock to write back what it
+ * refreshed would make an agent's commit of the vault, begun at that
+ * moment, fail on the lock. What serve writes, a fetch into its own refs,
+ * takes the locks it needs all the same.
  */
 export function gitAsync(dir: string, args: readonly string[], timeoutMs = 60_000, maxStdout?: number): Promise<ProcessResult> {
-  return runProcessAsync('git', ['-C', dir, '-c', 'core.quotePath=false', ...args], { timeoutMs, ...(maxStdout === undefined ? {} : { maxStdout }) });
+  return runProcessAsync('git', ['--no-optional-locks', '-C', dir, '-c', 'core.quotePath=false', ...args], { timeoutMs, ...(maxStdout === undefined ? {} : { maxStdout }) });
 }
 
 interface Pending {

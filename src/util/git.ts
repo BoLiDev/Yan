@@ -92,8 +92,15 @@ export function branchExists(dir: string, branch: string): boolean {
   return gitOk(dir, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]);
 }
 
+/**
+ * `git status --porcelain`, as a reader: with `--no-optional-locks`, so it
+ * does not take the index's lock to write back what it refreshed. A status
+ * that did would, for that moment, make a `git add` or `git commit` begun
+ * elsewhere fail on the lock, and yan asks for a status far more often than
+ * it commits.
+ */
 export function statusPorcelain(dir: string, args: readonly string[] = []): string {
-  return git(dir, ['status', '--porcelain', ...args]).stdout;
+  return git(dir, ['--no-optional-locks', 'status', '--porcelain', ...args]).stdout;
 }
 
 /**
@@ -104,7 +111,7 @@ export function statusPorcelain(dir: string, args: readonly string[] = []): stri
  */
 export function treeStatus(dir: string, options: { submoduleEdits?: boolean } = {}): string {
   const skip = options.submoduleEdits === false ? ['--ignore-submodules=dirty'] : [];
-  return git(dir, ['-c', 'core.untrackedCache=true', 'status', '--porcelain', ...skip]).stdout;
+  return git(dir, ['--no-optional-locks', '-c', 'core.untrackedCache=true', 'status', '--porcelain', ...skip]).stdout;
 }
 
 export function isClean(dir: string): boolean {
