@@ -3,6 +3,7 @@ import type { TaskSummary } from '../lib/api';
 import type { BranchRoute } from '../lib/route';
 import { Empty } from '../components/page';
 import { useBranch, useFreshBranches } from '../state/server';
+import { useUI } from '../state/ui';
 import { BranchFile } from './branch/BranchFile';
 import { ChangesView } from './branch/ChangesView';
 import { CommitView } from './branch/CommitView';
@@ -12,7 +13,7 @@ import { useKeyNav } from './nav';
 export function BranchView({ t, r }: { t: TaskSummary; r: BranchRoute }) {
   const { data: b } = useBranch(t.id, r.repo, r.name);
   // Gone to, the branch is fetched from origin again, whatever the page had of it.
-  useFreshBranches(t.id, [{ repo: r.repo, name: r.name }]);
+  useFreshBranches(t.id, [{ repo: r.repo, name: r.name }], useUI((s) => s.branchLocal));
   if (!b) return <NoNav><Empty title="Reading the branch…" /></NoNav>;
   if (b.missing) return <NoNav><Empty title="Nothing to show">{b.missing}</Empty></NoNav>;
   if (r.tab === 'commits') return <CommitView t={t} r={r} b={b} />;

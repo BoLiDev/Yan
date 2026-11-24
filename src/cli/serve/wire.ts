@@ -205,6 +205,8 @@ export interface BranchView {
   readonly clone: string | null;
   /** Why there is nothing more to show; null when there is. */
   readonly missing: string | null;
+  /** The branch as this machine has it, its worktree's uncommitted work as its last commit, rather than as origin has it. */
+  readonly local?: boolean;
   readonly fetchedAt: number | null;
   readonly fetchError: string | null;
   readonly target: string;

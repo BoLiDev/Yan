@@ -8,7 +8,7 @@ import { JANUS, Task, parseUat } from '../../records/task/index.js';
 import { saveVault } from '../shared/vault-push.js';
 import { inVault } from '../../util/vault.js';
 import { isYanError } from '../../util/error.js';
-import { staysInside } from '../../util/paths.js';
+import { normalizePath, samePath, staysInside } from '../../util/paths.js';
 import { cloneOf, keepLocal, keptLocal } from '../../util/machine.js';
 import { repoKey } from '../../util/repo-key.js';
 import { Branches, PATCH_LIMIT } from './branch-view.js';
@@ -21,7 +21,9 @@ import { Worktrees } from './worktrees.js';
 import { askToClose, askToPause, askToReview } from './closing.js';
 import { writeReview, type ReviewComment } from '../../records/reviews/index.js';
 import { taskProgress } from '../shared/progress.js';
-import { returnTrees } from '../../externals/worktree/index.js';
+import { leasesHeldBy, returnTrees } from '../../externals/worktree/index.js';
+import { git, remoteUrl } from '../../util/git.js';
+import { dirname } from 'node:path';
 import { Updater } from './update.js';
 import { sourceRules } from './source.js';
 import { Thumbs, type ThumbSize } from './thumbs.js';
@@ -285,6 +287,12 @@ function moved(task: Task, d: string, was: unknown, typed?: string): string | nu
 function hostOk(req: IncomingMessage, port: number): boolean {
   const host = (req.headers.host ?? '').toLowerCase();
   return host === `localhost:${port}` || host === `127.0.0.1:${port}`;
+}
+
+/** The main clone a worktree at `dir` is a tree of. */
+function mainCloneOf(dir: string): string | undefined {
+  const common = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  return common.code === 0 ? normalizePath(dirname(common.stdout.trim())) : undefined;
 }
 
 export class YanServer {
@@ -1248,7 +1256,9 @@ export class YanServer {
       // The branch the task is on, or one it was on before; never any other name.
       const asked = q.get('branch') || repo.branch;
       if (asked !== repo.branch && !repo.earlier.includes(asked)) return send(res, 404, `${asked} is not a branch this task kept`);
-      return json(res, await this.branches.view(repo.url, asked, usable, q.get('fresh') === '1', repo.bases[asked]));
+      // As this machine has it, when asked: from the worktree the task holds of this repository, its own by origin's URL or by the clone it is a worktree of.
+      const local = q.get('local') !== '1' ? undefined : { tree: leasesHeldBy(detail.id).map((l) => l.path).find((path) => existsSync(path) && (repoKey(remoteUrl(path) ?? '') === repoKey(repo.url) || (usable !== undefined && samePath(mainCloneOf(path) ?? '', usable)))) };
+      return json(res, await this.branches.view(repo.url, asked, usable, q.get('fresh') === '1', repo.bases[asked], local));
     }
     if (usable === undefined) return send(res, 404, 'no clone of that repository on this machine');
 

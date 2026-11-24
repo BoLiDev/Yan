@@ -102,6 +102,11 @@ interface UI {
   problemBase: Readonly<Record<string, string | null>>;
   /** How many log entries had been read as the visit to a task began. */
   logBase: Readonly<Record<string, number>>;
+  /**
+   * A task's branch is shown as this machine has it, its worktree's work not yet committed or pushed included,
+   * rather than as origin has it: for this visit, since what is reviewed is by default what was pushed.
+   */
+  branchLocal: boolean;
   /** A page or a Markdown file shown as its source. */
   pageSource: boolean;
   mdSource: boolean;
@@ -194,6 +199,7 @@ export const useUI = create<UI>(() => ({
   last: {},
   problemBase: {},
   logBase: {},
+  branchLocal: false,
   pageSource: false,
   mdSource: false,
   mdVersions: {},

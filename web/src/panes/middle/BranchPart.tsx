@@ -23,6 +23,7 @@ export function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode;
   const filesOpen = useUI((s) => s.open[filesKey]);
   const closed = useUI((s) => s.closed[changesKey]);
   const sourceOnly = useUI((s) => !s.prefs.allFiles);
+  const local = useUI((s) => s.branchLocal);
   const rules = useIndex().data?.vault.source;
   // With source code alone, the branch is the one its tree and prev and next show.
   const shown = b && !b.missing && sourceOnly && rules ? sourceView(b, rules) : b;
@@ -48,8 +49,11 @@ export function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode;
       <Icon name="branch" size={14} className="flex-none text-ink-3" /><span className="truncate font-mono text-[12.5px]">{name}</span>
     </button>
   );
-  if (!b) return { top: <div className="flex flex-col gap-2">{named}<div className={SUBLABEL}>Reading the branch…</div></div>, body: null };
-  if (b.missing) return { top: <div className="flex flex-col gap-2">{named}<div className={cn(SUBLABEL, 'text-destructive')}>{b.missing}</div></div>, body: null };
+  // Whose copy of the branch is read: origin's, what was pushed, which is what a review is of; or this machine's, with what the
+  // worktree has not committed or pushed yet. Over everything else, since it changes all of it, and there when origin has nothing to show.
+  const whose = <Seg wide options={[['origin', 'On origin'], ['local', 'On this machine']] as const} current={local ? 'local' : 'origin'} onPick={(which) => useUI.setState({ branchLocal: which === 'local' })} />;
+  if (!b) return { top: <div className="flex flex-col gap-2">{named}{whose}<div className={SUBLABEL}>Reading the branch…</div></div>, body: null };
+  if (b.missing) return { top: <div className="flex flex-col gap-2">{named}{whose}<div className={cn(SUBLABEL, 'text-destructive')}>{b.missing}</div></div>, body: null };
 
   const files = (shown ?? b).files;
   const tabs = <Seg wide options={[['changes', `Changes ${files.length}`], ['commits', `Commits ${b.commits.length}`], ['files', 'All files']] as const} current={r.tab} onPick={(tab) => { location.hash = inBranch(r, tab); }} />;
@@ -101,5 +105,5 @@ export function useBranchPart(t: TaskSummary, r: BranchRoute): { top: ReactNode;
       </>
     );
   }
-  return { top: <div className="flex flex-col gap-2">{named}{tabs}{switcher}</div>, body: <div className="flex flex-col gap-px" role="tree">{list}</div> };
+  return { top: <div className="flex flex-col gap-2">{named}{whose}{tabs}{switcher}</div>, body: <div className="flex flex-col gap-px" role="tree">{list}</div> };
 }

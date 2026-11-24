@@ -5,6 +5,9 @@ import type { ProcessResult } from '../../util/process.js';
 import { BlobReader, gitAsync } from './blobs.js';
 import { mergeTaking, namedMergeHead, namingArgs, takingArgs } from '../shared/merged.js';
 import type { BranchFile, BranchView } from './wire.js';
+import { asOriginNames } from '../shared/branches.js';
+import { branchOf } from '../../util/git.js';
+import { treeSnapshot } from './tree-snapshot.js';
 
 /**
  * A task's branch, as `yan serve` shows it: what it changes against the
@@ -139,8 +142,14 @@ export class Branches {
    * when they are stale. With `wait`, what the fetch brought, rather than
    * what the clone had before it. `noted` is where the task last saw the
    * branch meet the default branch.
+   *
+   * With `local`, the branch as this machine has it rather than as origin
+   * does, still against origin's default branch: the task's worktree as it
+   * stands, what it has not committed included, when `local.tree` is on the
+   * branch; else the clone's own branch of that name, with the commits not
+   * pushed; and origin's only when the machine has neither.
    */
-  public async view(url: string, branch: string, clone: string | undefined, wait = false, noted?: string): Promise<BranchView> {
+  public async view(url: string, branch: string, clone: string | undefined, wait = false, noted?: string, local?: { readonly tree: string | undefined }): Promise<BranchView> {
     const forge = forgeOf(url);
     const empty = {
       repo: repoKey(url).split('/').pop() ?? url,
@@ -170,7 +179,9 @@ export class Branches {
     }
 
     const target = this.targetOf(clone);
-    const headRefs = [`${OWN}${branch}`, `refs/remotes/origin/${branch}`, `refs/heads/${branch}`];
+    const headRefs = local === undefined
+      ? [`${OWN}${branch}`, `refs/remotes/origin/${branch}`, `refs/heads/${branch}`]
+      : [`refs/heads/${branch}`, `${OWN}${branch}`, `refs/remotes/origin/${branch}`];
     const tipRefs = [`${OWN}${target}`, `refs/remotes/origin/${target}`, `refs/heads/${target}`];
     // What the clone already has is shown at once and the fetch goes on
     // behind it; the page asks again on its next tick and gets the fetched
@@ -184,6 +195,11 @@ export class Branches {
       head = await firstRef(clone, headRefs);
       tip = await firstRef(clone, tipRefs);
     }
+    // The worktree, when it is on this branch, as origin names it: read each time, since it changes with every keystroke of an agent.
+    const tree = local?.tree;
+    const treeOn = tree === undefined ? undefined : branchOf(tree);
+    const standing = tree !== undefined && treeOn !== undefined && asOriginNames(tree, treeOn) === branch ? await treeSnapshot(tree) : undefined;
+    if (standing !== undefined) head = standing.sha;
     const state = this.fetched.get(fetchKey(clone, [target, branch]));
     const fetchedAt = state?.at || null;
     const fetchError = state?.error ?? null;
@@ -197,7 +213,7 @@ export class Branches {
       return { ...empty, fetchedAt, fetchError, target, head, missing: `${empty.repo}'s clone has no ${target} to compare with` };
     }
 
-    const key = [url, clone, branch, head, tip, noted ?? ''].join('\n');
+    const key = [url, clone, branch, head, tip, noted ?? '', local === undefined ? '' : 'local'].join('\n');
     const known = this.views.get(key);
     if (known !== undefined) return { ...known, fetchedAt, fetchError };
 
@@ -244,6 +260,7 @@ export class Branches {
 
     const view = {
       ...empty,
+      ...(local === undefined ? {} : { local: true }),
       missing: null,
       target,
       base,

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, mkBareRemote, mkClone, mkCommit, mkTempDir } from '../../../tests/helpers/fixtures.js';
 import { Branches, changedFiles, isBranchName, prOf } from './branch-view.js';
@@ -204,6 +205,49 @@ describe('a branch looked at again', () => {
       await mkCommit(work, 'm.txt', 'm', 'main moves on');
       await fxGit(['push', '-q', 'origin', 'main'], work);
       expect((await branches.view(bare, 'feat/b', mine, true)).behind).toBe(1);
+    } finally {
+      await branches.close();
+    }
+  });
+});
+
+describe('a branch as this machine has it', () => {
+  it('shows what the worktree has not pushed and not committed, a new file among it, where origin\'s view shows what was pushed, and moves nothing in the worktree', async () => {
+    const root = mkTempDir('yan-serve-local-');
+    const bare = await mkBareRemote(join(root, 'remote.git'));
+    const clone = await mkClone(bare, join(root, 'clone'));
+    const tree = join(root, 'tree');
+    await fxGit(['worktree', 'add', '-q', '-b', 'feat/x', tree, 'origin/main'], clone);
+    await mkCommit(tree, 'pushed.txt', 'pushed', 'a pushed change');
+    await fxGit(['push', '-q', '-u', 'origin', 'feat/x'], tree);
+    await mkCommit(tree, 'kept.txt', 'kept here', 'a change not pushed');
+    writeFileSync(join(tree, 'pushed.txt'), 'edited, not committed');
+    writeFileSync(join(tree, 'fresh.txt'), 'new, not added');
+    const status = (await fxGit(['status', '--porcelain'], tree)).stdout;
+    const head = (await fxGit(['rev-parse', 'HEAD'], tree)).stdout;
+
+    const branches = new Branches(0);
+    try {
+      const origin = await branches.view(bare, 'feat/x', clone, true);
+      expect(origin.commits.map((c) => c.subject)).toEqual(['a pushed change']);
+      expect(origin.files.map((f) => f.path)).toEqual(['pushed.txt']);
+      expect(origin.local).toBeUndefined();
+
+      const local = await branches.view(bare, 'feat/x', clone, true, undefined, { tree });
+      expect(local.local).toBe(true);
+      expect(local.commits.map((c) => c.subject)).toEqual(['Not committed yet', 'a change not pushed', 'a pushed change']);
+      expect(local.files.map((f) => f.path).sort()).toEqual(['fresh.txt', 'kept.txt', 'pushed.txt']);
+      expect((await fxGit(['show', `${local.head}:pushed.txt`], clone)).stdout).toBe('edited, not committed');
+      // The worktree is as it was: its index, its HEAD and its branch.
+      expect((await fxGit(['status', '--porcelain'], tree)).stdout).toBe(status);
+      expect((await fxGit(['rev-parse', 'HEAD'], tree)).stdout).toBe(head);
+
+      // With nothing uncommitted, and with no worktree here, it is the branch's own commits, the one not pushed among them.
+      await fxGit(['stash', '-q', '-u'], tree);
+      for (const where of [{ tree }, { tree: undefined }]) {
+        const committed = await branches.view(bare, 'feat/x', clone, true, undefined, where);
+        expect(committed.commits.map((c) => c.subject)).toEqual(['a change not pushed', 'a pushed change']);
+      }
     } finally {
       await branches.close();
     }

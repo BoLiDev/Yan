@@ -558,10 +558,15 @@ screenful of thumbnails. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, a merge among them shown as
 what it brought onto the branch, and every file at its head. The branch is
-as origin has it, so it shows what was pushed: commits not pushed are
-shown only for a branch origin never had, and what a worktree has not
-committed never. It is fetched from origin as it is gone to, and on
-every tick while it is looked at.
+as origin has it, so it shows what was pushed, fetched from origin as it
+is gone to and on every tick while it is looked at. A switch over it, On
+origin or On this machine, shows it instead as this machine has it, still
+against origin's default branch, for as long as the page is open: the
+task's worktree as it stands when it is on that branch, what it has not
+committed, new files included, as a last commit called Not committed yet;
+else the clone's own branch, with the commits not pushed. Nothing in the
+worktree moves for it: its files are read into a commit on no branch,
+through a copy of its index.
 A switch over the files, Source code only, on until it is switched off and
 kept so in this browser, shows its source code alone, and prev and next
 walk only that: by default a web

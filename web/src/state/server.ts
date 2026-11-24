@@ -55,22 +55,31 @@ export function useReport(id: string): UseQueryResult<Report> {
   return useQuery({ queryKey: ['report', id], queryFn: () => getJSON<Report>(`/api/report?task=${encodeURIComponent(id)}`) });
 }
 
-const branchUrl = (id: string, repo: number, name: string | null, fresh = false): string =>
-  `/api/branch?task=${encodeURIComponent(id)}&repo=${repo}${name ? `&branch=${encodeURIComponent(name)}` : ''}${fresh ? '&fresh=1' : ''}`;
+const branchUrl = (id: string, repo: number, name: string | null, fresh = false, local = false): string =>
+  `/api/branch?task=${encodeURIComponent(id)}&repo=${repo}${name ? `&branch=${encodeURIComponent(name)}` : ''}${fresh ? '&fresh=1' : ''}${local ? '&local=1' : ''}`;
 
-/** A task's branch: the one its tree was last on under no name, another of its own by name. */
+/** Where a branch's view is kept: as origin has it and as this machine has it are two views of one branch, each kept by itself. */
+const branchKey = (id: string, repo: number, name: string | null, local: boolean): readonly unknown[] => ['branch', id, repo, name ?? '', local ? 'local' : 'origin'];
+
+/**
+ * A task's branch: the one its tree was last on under no name, another of
+ * its own by name; as origin has it, or as this machine does while the
+ * reader asked for that (`branchLocal`).
+ */
 export function useBranch(id: string, repo: number, name: string | null, enabled = true): UseQueryResult<BranchView> {
-  return useQuery({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled });
+  const local = useUI((s) => s.branchLocal);
+  return useQuery({ queryKey: branchKey(id, repo, name, local), queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name, false, local)), enabled });
 }
 
 /**
- * A branch as origin has it now: asked of serve with the fetch waited for,
- * and put where the views of it read. A fetch that could not be made is
+ * A branch as origin has it now, or as this machine does while that is what
+ * is shown: asked of serve with the fetch waited for, and put where the
+ * views of it read. A fetch that could not be made is
  * left to the next tick: what the page had of the branch stays.
  */
-export async function freshBranch(id: string, repo: number, name: string | null): Promise<void> {
+export async function freshBranch(id: string, repo: number, name: string | null, local: boolean): Promise<void> {
   try {
-    queryClient.setQueryData(['branch', id, repo, name ?? ''], await getJSON<BranchView>(branchUrl(id, repo, name, true)));
+    queryClient.setQueryData(branchKey(id, repo, name, local), await getJSON<BranchView>(branchUrl(id, repo, name, true, local)));
   } catch {
     // serve not answering is said by the page's own mark of it
   }
@@ -80,18 +89,18 @@ export async function freshBranch(id: string, repo: number, name: string | null)
  * Fetch each of these branches afresh as they come to be looked at: going
  * to a branch, or to the page that lists a task's, is asking how it stands
  * now, and what the page kept of it may be minutes old, or what the clone
- * had before serve's last fetch. Once for each time one is gone to, not on
- * each redraw; the ticks keep it fresh from then on.
+ * had before serve's last fetch. Once for each time one is gone to, or
+ * turned between origin's and this machine's (`local`), not on each redraw; the ticks keep it fresh from then on.
  */
-export function useFreshBranches(id: string, wanted: readonly { readonly repo: number; readonly name: string | null }[]): void {
+export function useFreshBranches(id: string, wanted: readonly { readonly repo: number; readonly name: string | null }[], local = false): void {
   const key = wanted.map((w) => `${w.repo}\n${w.name ?? ''}`).join('\n\n');
   useEffect(() => {
     if (key === '') return;
     for (const one of key.split('\n\n')) {
       const [repo = '0', name = ''] = one.split('\n');
-      void freshBranch(id, Number(repo), name === '' ? null : name);
+      void freshBranch(id, Number(repo), name === '' ? null : name, local);
     }
-  }, [id, key]);
+  }, [id, key, local]);
 }
 
 /**
@@ -101,7 +110,8 @@ export function useFreshBranches(id: string, wanted: readonly { readonly repo: n
  */
 export function useBranches(id: string, wanted: readonly { readonly repo: number; readonly name: string | null }[], enabled = true): (BranchView | undefined)[] {
   return useQueries({
-    queries: wanted.map(({ repo, name }) => ({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled })),
+    // Where each stands, merged or not, is origin's to say, however the branch being read is shown.
+    queries: wanted.map(({ repo, name }) => ({ queryKey: branchKey(id, repo, name, false), queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled })),
   }).map((q) => q.data);
 }
 
@@ -247,13 +257,12 @@ export async function pullNow(): Promise<void> {
     await onStatus(await postJSON<Status>('/api/pull', {}));
     const at = parseRoute(location.hash);
     if (at.view === 'task' && at.sub === 'branch') {
-      await freshBranch(at.id, at.repo, at.name);
+      await freshBranch(at.id, at.repo, at.name, useUI.getState().branchLocal);
     }
     if (at.view === 'task' && at.sub === 'mr') {
-      const listed = queryClient.getQueriesData<BranchView>({ queryKey: ['branch', at.id] }).map(([key]) => key as readonly [string, string, number, string]);
-      await Promise.all(listed.map(async ([, id, repo, name]) => {
-        queryClient.setQueryData(['branch', id, repo, name], await getJSON<BranchView>(branchUrl(id, repo, name || null, true)));
-      }));
+      // MR's page lists each as origin has it.
+      const listed = queryClient.getQueriesData<BranchView>({ queryKey: ['branch', at.id] }).map(([key]) => key as readonly [string, string, number, string, string]).filter(([, , , , which]) => which === 'origin');
+      await Promise.all(listed.map(([, id, repo, name]) => freshBranch(id, repo, name || null, false)));
     }
   } catch (err) {
     if (!(err instanceof ApiError)) useUI.setState({ connected: false });

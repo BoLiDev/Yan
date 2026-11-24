@@ -43,6 +43,6 @@ describe('a pull by hand', () => {
     const branch = { repo: 'web', head: 'abc' };
     serve({ '/api/pull': () => Response.json(status(3)), '/api/branch': () => Response.json(branch) });
     await pullNow();
-    expect(queryClient.getQueryData(['branch', 't1', 0, ''])).toEqual(branch);
+    expect(queryClient.getQueryData(['branch', 't1', 0, '', 'origin'])).toEqual(branch);
   });
 });
