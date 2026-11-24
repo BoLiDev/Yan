@@ -8,13 +8,14 @@ import { readVaultConfig, vaultDir, vaultOrigin } from '../../util/vault.js';
 /**
  * What a task's artifacts/ holds, for `yan context`. The opening prompt
  * gives each thing in it a folder, so the files are told apart by them:
- * design/ is what `user` will see, drawn before the work, docs/ is written
- * to be read, uat/ is what `user` checks the result by, misc/ is anything
- * else worth keeping. The rest is what sits loose beside them: the report,
+ * output/ is what the task itself delivers, where that is no code in a
+ * repository, design/ is what `user` will see, drawn before the work,
+ * docs/ is written to be read, uat/ is what `user` checks the result by,
+ * misc/ is anything else worth keeping. The rest is what sits loose beside them: the report,
  * and what a task from before these folders left there.
  */
 
-export const ARTIFACT_GROUPS = ['design', 'docs', 'uat', 'misc', 'other'] as const;
+export const ARTIFACT_GROUPS = ['output', 'design', 'docs', 'uat', 'misc', 'other'] as const;
 export type ArtifactGroup = (typeof ARTIFACT_GROUPS)[number];
 
 export interface Artifact {
@@ -40,13 +41,13 @@ function filesUnder(dir: string): string[] {
     .flatMap((e) => (e.isDirectory() ? filesUnder(join(dir, e.name)) : e.isFile() ? [join(dir, e.name)] : []));
 }
 
-/** The files of a task's artifacts/, design/ first, then docs/, uat/ and misc/, then the rest, each in path order. */
+/** The files of a task's artifacts/, output/ first, what the task delivers, then design/, docs/, uat/ and misc/, then the rest, each in path order. */
 export function listArtifacts(taskDir: string): Artifact[] {
   const root = join(taskDir, 'artifacts');
   const all = filesUnder(root).map((file): Artifact => {
     const path = relative(root, file).split(sep).join('/');
     const top = path.split('/')[0];
-    const group: ArtifactGroup = path.includes('/') && (top === 'design' || top === 'docs' || top === 'uat' || top === 'misc') ? top : 'other';
+    const group: ArtifactGroup = path.includes('/') && (top === 'output' || top === 'design' || top === 'docs' || top === 'uat' || top === 'misc') ? top : 'other';
     const stat = statSync(file);
     return { group, path, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
   });

@@ -245,7 +245,9 @@ const NO_BRANCH = 'yan never makes a branch, and never takes one for the task\'s
  * else would name. Told to every agent, claude included.
  *
  * Each thing in artifacts/ has its folder, so the top of it does not fill
- * with whatever a session left: design/ is what `user` will see, drawn
+ * with whatever a session left: output/ is what the task itself delivers,
+ * its product, where that is not code in a repository, a document, a site,
+ * a video, as it is to be used; design/ is what `user` will see, drawn
  * before the work it shapes; docs/ is what is written to be read; uat/ is
  * what `user` checks the result by; misc/ is anything else worth keeping;
  * and only the report sits beside them. What can be made
@@ -254,8 +256,10 @@ const NO_BRANCH = 'yan never makes a branch, and never takes one for the task\'s
  */
 function filesLine(dir: string): string {
   return `This task's files are in ${dir}: problem.md, and artifacts/ for whatever the work produces worth keeping. ` +
+    'What the task itself delivers, where that is not code in a repository or goes beyond it, goes in artifacts/output/: the finished thing as it is to be used, ' +
+    'the document the task was to write, the site it was to build, the video it was to make, kept current as it changes and with nothing in that folder that is only on the way to it. ' +
     'Designs of what the user sees (pages, canvases, mockups, palettes, icons, and the scripts that build them) go in artifacts/design/; ' +
-    'written documents (a technical design, research notes, a review, a handoff, a diagram of a system) in artifacts/docs/; ' +
+    'written documents about the work (a technical design, research notes, a review, a handoff, a diagram of a system) in artifacts/docs/; ' +
     'what the user checks the result by in artifacts/uat/; and anything else worth keeping, such as a script, a query or data pulled for a check, in artifacts/misc/. ' +
     'Nothing sits loose in artifacts/ but report.html and report.json. ' +
     'What can be made again and only takes room, such as installed dependencies, a checkout of old code or frames decoded from a video, stays out of this folder.';

@@ -131,7 +131,7 @@ function readme(data: TaskData, has: Held, doc: boolean): string {
     has.problem === undefined ? '- No problem is written yet.' : `- ${at(`task/${has.problem}`, 'Problem')}: the problem, its background and what is wrong or wanted.`,
     `- ${doc ? '**Deliverables**' : 'The deliverables'}, below: the solution, how things must be once the problem is solved.`,
     ...(has.log ? [`- ${at('task/log.md', 'Log')}: the decisions that steered the work, oldest first. The latest \`paused\` and \`changed\` lines say where it stopped.`] : []),
-    ...(has.artifacts ? ['- `task/artifacts/`: what the work produced so far: designs in `design/`, documents in `docs/`, what the result is checked by in `uat/`, the rest in `misc/`.'] : []),
+    ...(has.artifacts ? ['- `task/artifacts/`: what the work produced so far: what the task itself delivers in `output/`, designs in `design/`, documents in `docs/`, what the result is checked by in `uat/`, the rest in `misc/`.'] : []),
     ...(doc ? [] : ['- `task/task.json`: the task as yan keeps it. Read it, never edit it.']),
     ...(has.learnings ? ['- `learnings/`: what the user asked to keep beyond one task. Read what touches this work.'] : []),
     ...(has.drafts ? ['- `drafts/`: the user\'s own notes, most about other work. Take one as their thinking, not a decision made.'] : []),

@@ -22,10 +22,12 @@ beforeEach(() => {
 });
 
 describe('listArtifacts', () => {
-  it('groups the files as design/, docs/, uat/, misc/ and the rest, and leaves dotfiles out', () => {
+  it('groups the files as output/, design/, docs/, uat/, misc/ and the rest, and leaves dotfiles out', () => {
     expect(listArtifacts(task.dir)).toEqual([]);
-    for (const p of ['report.html', 'uat/d1-after.png', 'design/flow/a.html', 'misc/seed.sql', 'docs/rendering.md', 'uat/d1-before.png', 'tools/x.mjs', 'design/flow/b.html', '.DS_Store', 'uat/d2.webm', 'misc/probe/run.mjs']) put(p);
+    for (const p of ['report.html', 'uat/d1-after.png', 'design/flow/a.html', 'misc/seed.sql', 'docs/rendering.md', 'uat/d1-before.png', 'tools/x.mjs', 'design/flow/b.html', '.DS_Store', 'uat/d2.webm', 'misc/probe/run.mjs', 'output/guide.pdf', 'output/site/index.html']) put(p);
     expect(listArtifacts(task.dir).map((a) => `${a.group} ${a.path}`)).toEqual([
+      'output output/guide.pdf',
+      'output output/site/index.html',
       'design design/flow/a.html',
       'design design/flow/b.html',
       'docs docs/rendering.md',
@@ -38,6 +40,8 @@ describe('listArtifacts', () => {
       'other tools/x.mjs',
     ]);
     expect(artifactLines(listArtifacts(task.dir))).toEqual([
+      '  output/  guide.pdf',
+      '           site/  1 file',
       '  design/  flow/  2 files',
       '  docs/    rendering.md',
       '  uat/     d1-after.png',

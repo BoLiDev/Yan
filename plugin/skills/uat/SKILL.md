@@ -76,7 +76,7 @@ A large project on Vite's dev server serves thousands of modules one after anoth
 
 ## 5. Record each file as it is made
 
-Save into the task's artifacts/uat/ (`yan context` names the folder), named for what it shows: `d3-before.png`, `d3-after.png`, `d3.webm`, and `d2-d3-after.png` for one showing two. Record it at once:
+Save into the task's artifacts/uat/ (`yan context` names the folder), named for what it shows: `d3-before.png`, `d3-after.png`, `d3.webm`, and `d2-d3-after.png` for one showing two. What the task itself delivers, kept in artifacts/output/, stays there: uat/ takes the screenshot or recording that shows it, or a note saying which file it is and how it was checked. Record it at once:
 
 ```sh
 yan uat add d3-before.png --for d3 --before "<what it shows>"

@@ -268,7 +268,7 @@ describe('yan debug', () => {
     const task = new Task('t001');
     // yan:handoff is Janus's, which a task's agent is not told of.
     const skills = readdirSync(join(repoRoot, 'plugin', 'skills')).filter((s) => s !== 'handoff').map((s) => `yan:${s}`);
-    const folders = ['artifacts/design/', 'artifacts/docs/', 'artifacts/uat/', 'artifacts/misc/'];
+    const folders = ['artifacts/output/', 'artifacts/design/', 'artifacts/docs/', 'artifacts/uat/', 'artifacts/misc/'];
 
     const claude = (await yan(['debug', 't001'])).stdout;
     expect(claude, "claude: where the task's files are").toContain(task.dir);

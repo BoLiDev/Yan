@@ -209,8 +209,11 @@ wholly different app or page needs its own, leaving how to get it to
 whatever knows the platform; each is kept as a preview named for what it
 opens, so a newer one replaces it, and the report lists them as the last
 row of its header. It builds the report, then marks the task in review with
-`yan uat ready`. Designs of what you will see go in artifacts/design/,
-written documents in artifacts/docs/, and anything else worth keeping, a
+`yan uat ready`. What a task itself delivers, where that is not code in a
+repository or goes beyond it, the document it was to write, the site, the
+video, goes in artifacts/output/, as it is to be used. Designs of what you
+will see go in artifacts/design/, written documents about the work in
+artifacts/docs/, and anything else worth keeping, a
 script, a query or data pulled for a check, in artifacts/misc/, so nothing
 sits loose in artifacts/ but the report; what can be made again and
 only takes room, installed dependencies or a checkout of old code, stays out
@@ -823,8 +826,9 @@ what it was written from), its bar says legacy and what changed.
     reviews/<when>.md          yours: a review written on yan serve's page, one file each, named for the moment in UTC (20261111-140312.md), never edited after
     artifacts/                 whatever the work produced worth keeping, as it stands now
       report.html              the report yan:uat writes, report.json beside it: the only files loose here
+      output/                  what the task itself delivers, where that is not code in a repository: the document, the site, the video, as it is to be used
       design/                  what you will see: pages, canvases, mockups, palettes, icons, and the scripts that build them
-      docs/                    written documents: a technical design, research notes, a review, a handoff, a diagram of a system
+      docs/                    written documents about the work: a technical design, research notes, a review, a handoff, a diagram of a system
       uat/                     screenshots and recordings to check the result by: d3-before.png, d3-after.png, d3.webm
         uat.json               { version: 1, files: { <path>: { for, shows, side?: before|after|new } }, notes: { <d>: how } }: what yan uat recorded
       misc/                    anything else worth keeping: a script, a query, data pulled for a check
