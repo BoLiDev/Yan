@@ -40,6 +40,12 @@ function problemText(task: Task): string {
   }
 }
 
+/** The user's principles for the task, in full and first, when it has any: they hold over everything under them. */
+function principleLines(task: Task): string[] {
+  const text = task.principlesText();
+  return text === '' ? [] : [`principles  ${task.principles}`, "the user's standing requirements for this task: hold to them, and write them only through yan:principle, when the user asks", ...text.split(/\r?\n/), ''];
+}
+
 function problemLines(task: Task): string[] {
   const text = problemText(task);
   return [`problem  ${task.problem}`, ...(text === '' ? ['nothing written yet'] : text.split(/\r?\n/))];
@@ -66,7 +72,7 @@ function draftLines(): string[] {
 
 function contextLines(task: Task): string[] {
   const data = task.read();
-  const lines = [`${task.id}  ${data.title}`, '', ...problemLines(task), ''];
+  const lines = [`${task.id}  ${data.title}`, '', ...principleLines(task), ...problemLines(task), ''];
   if (data.state === 'uat') lines.splice(1, 0, "in review - 'yan uat ready' handed it to the user, who checks it; changes follow their feedback until they close it with yan done");
 
   if (data.deliverables.length === 0) {
@@ -102,6 +108,7 @@ function contextJson(task: Task): unknown {
     state: data.state,
     createdAt: data.createdAt ?? null,
     closedAt: data.closedAt ?? null,
+    principles: { file: task.principles, text: task.principlesText() },
     problem: { file: task.problem, text: problemText(task) },
     deliverables: data.deliverables,
     resources: byKind(data),

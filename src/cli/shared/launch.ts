@@ -72,17 +72,35 @@ function localLines(skills: boolean): string[] {
     `what leaves it is only what the user carries themselves, which ${skills ? 'yan:pack' : '\`yan pack\`'} prepares when they ask.`];
 }
 
+/**
+ * `user`'s principles for the task, as every agent is given them as it
+ * starts, in full: what they are, that they are `user`'s alone to change,
+ * and the text. Nothing for a task with none, which most are. They are in
+ * the prompt itself, not behind a command, so a session holds to them
+ * whether or not it read anything first; one changed while a session runs
+ * is read again from `yan context`, which the recap says.
+ */
+function principlesLines(principles: string, skills: boolean): string[] {
+  if (principles === '') return [];
+  return [[
+    'The user\'s principles for this task, their standing requirements for all of it, as principles.md in the task\'s folder had them when this session began. ' +
+      `Hold to them over anything else here, and never change them yourself: ${skills ? 'yan:principle records one, which only the user starts' : 'write principles.md only when the user asks you to record or change one, in their own terms, and nothing else of it'}.`,
+    principles,
+  ].join('\n')];
+}
+
 /** What claude, started with yan's plugin, is told before `user` says anything, for the task in `taskDir`. */
-export function skillsPrompt(taskDir: string): string {
+export function skillsPrompt(taskDir: string, principles = ''): string {
   return [
     'This task is kept by the yan CLI, which holds its notes from one session to the next: the problem, the solution as deliverables, and the decisions that steered them. ' +
       'Which task it is travels in $YAN_TASK.',
     filesLine(taskDir),
     'yan\'s skills say how to work in it: yan:recap brings you up to speed and holds the rules for keeping the notes, so start with it; ' +
       'yan:define works out the problem and the solution with the user; yan:review takes up a review the user left on yan\'s page; ' +
-      'yan:done, yan:pause and yan:pack are the user\'s, to close the task, put it aside, or pack it for an agent working elsewhere.',
+      'yan:done, yan:pause, yan:pack and yan:principle are the user\'s, to close the task, put it aside, pack it for an agent working elsewhere, or record a principle the whole task is held to.',
     'When your task is an implementation, use yan:uat once it is done and the result can be verified interactively.',
     ...localLines(true),
+    ...principlesLines(principles, true),
   ].join('\n');
 }
 
@@ -118,6 +136,8 @@ export const OPENING_PROMPT = [
     'It is where to start, not all there is: for more, go to the task\'s files and the code itself. `yan log` shows the decisions. `yan --help` for the rest.',
   'It also lists the user\'s newest drafts, their own notes, shared by every task, so most are about other work: read one with `yan draft cat <id>` when its title touches this task, opening the pictures it names by their path, ' +
     'and take it as the user\'s thinking, not a decision made. Never write, change or remove one: they are the user\'s alone.',
+  'A task may have the user\'s principles, principles.md in its folder: their standing requirements for all of it, which `yan context` prints first when there are any. ' +
+    'Hold to them over anything else, read them again when the user says they changed, and never write them unless the user asks you to record or change one.',
   'When the user says they reviewed the work or left comments, `yan review` prints their last review: a word on it all, then each comment, numbered, under where it is. ' +
     'Act on every one, a question answered, a change made where it says, and say what came of each by its number; the review itself is theirs, never edited.',
 ].join('\n');
@@ -270,8 +290,8 @@ function taskDirLine(dir: string): string {
  * What `cli` is told: the skills' prompt for one that loads yan's plugin,
  * the whole opening prompt for one that does not.
  */
-export function promptFor(cli: string, taskDir: string, trees: readonly Tree[] = []): string {
-  return takesPlugins(cli) ? skillsPrompt(taskDir) : openingPrompt(taskDir, trees);
+export function promptFor(cli: string, taskDir: string, trees: readonly Tree[] = [], principles = ''): string {
+  return takesPlugins(cli) ? skillsPrompt(taskDir, principles) : [openingPrompt(taskDir, trees), ...principlesLines(principles, false)].join('\n');
 }
 
 /**
@@ -709,7 +729,7 @@ export function openingPromptNow(task: Task, cli?: string): string {
     const tree = held.find((h) => h.key === repoKey(repo.url));
     return tree === undefined ? [] : [{ name: repoName(repo.url), path: tree.path, scope: repo.scope ?? [] }];
   });
-  return promptFor(harnessConfig(cli).cli, task.dir, told(task, withUnlisted(trees, held)));
+  return promptFor(harnessConfig(cli).cli, task.dir, told(task, withUnlisted(trees, held)), task.principlesText());
 }
 
 /**
@@ -786,7 +806,7 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
   // Janus has no tree: it starts where it was called, and reads the repositories where they are cloned.
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
-  const prompt = asJanus ? janusPrompt(harness.cli, task.dir, pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees));
+  const prompt = asJanus ? janusPrompt(harness.cli, task.dir, pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees), task.principlesText());
   const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : options.review === true ? reviewRequest(harness.cli) : undefined;
   const first = said === undefined ? {} : { first: said };
   const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];

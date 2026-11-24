@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseWhileUnfinished, taskDir, tasksDir } from '../../util/vault.js';
 import { editJson, initJson, readJson } from '../../util/json.js';
@@ -55,6 +55,24 @@ export class Task {
     const problem = normalizePath(join(this.dir, 'problem.md'));
     const brief = normalizePath(join(this.dir, 'brief.md'));
     return !existsSync(problem) && existsSync(brief) ? brief : problem;
+  }
+
+  /**
+   * `principles.md`, whether or not it exists: `user`'s standing
+   * requirements for the task, there only once one was recorded. Prose the
+   * agent writes, and only when `user` asks it to (yan:principle).
+   */
+  public get principles(): string {
+    return normalizePath(join(this.dir, 'principles.md'));
+  }
+
+  /** What principles.md says, trimmed; empty when there is none. */
+  public principlesText(): string {
+    try {
+      return readFileSync(this.principles, 'utf8').trim();
+    } catch {
+      return '';
+    }
   }
 
   /**

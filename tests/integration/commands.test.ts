@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, mkTempDir, mkYanHome, repoRoot, runYan } from '../helpers/fixtures.js';
 import { expectUsage } from '../helpers/usage.js';
@@ -245,6 +245,21 @@ describe('yan ls and yan peek', () => {
     expect(shown.indexOf('PRD'), 'by kind, the specs ahead of what was added before them').toBeLessThan(shown.indexOf('design doc'));
 
     expectUsage(await yan(['peek']), "yan peek <task-id>");
+  });
+});
+
+describe('yan context', () => {
+  it('prints the user\'s principles for the task first, in full, when it has any, and names none otherwise', async () => {
+    const task = new Task('t001');
+    expect((await yan(['context', '--task', 't001'])).stdout).not.toContain('principles');
+    expect((JSON.parse((await yan(['context', '--task', 't001', '--json'])).stdout) as { principles: { text: string } }).principles.text).toBe('');
+
+    writeFileSync(task.principles, '- Never touch the public API.\n');
+    const out = (await yan(['context', '--task', 't001'])).stdout;
+    expect(out).toContain('Never touch the public API.');
+    expect(out.indexOf('principles'), 'before the problem').toBeLessThan(out.indexOf('problem  '));
+    expect((JSON.parse((await yan(['context', '--task', 't001', '--json'])).stdout) as { principles: { file: string; text: string } }).principles).toEqual({ file: task.principles, text: '- Never touch the public API.' });
+    rmSync(task.principles);
   });
 });
 

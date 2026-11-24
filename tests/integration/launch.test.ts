@@ -497,6 +497,25 @@ describe('an existing task', () => {
   });
 });
 
+describe('a task\'s principles', () => {
+  it('are in what every agent is told as it starts, in full, with that they are the user\'s to change, and are no part of it for a task with none', async () => {
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: CREATE_NEW, title: 'x' }), here);
+    expect(told(0), 'none recorded, nothing said of them').not.toContain('principles for this task');
+
+    writeFileSync(new Task('t001').principles, '- Never touch the public API.\n- Every change ships behind a flag.\n');
+    await run(answers({ entry: 't001' }), here);
+    await run(answers({ entry: 't001' }), here, { cli: 'codex' });
+    for (const i of [1, 2]) {
+      const prompt = (started[i]?.argv ?? []).join('\n');
+      expect(prompt).toContain('principles for this task');
+      expect(prompt).toContain('Never touch the public API.');
+      expect(prompt).toContain('Every change ships behind a flag.');
+    }
+    expect(told(1)).toContain('yan:principle records one, which only the user starts');
+  });
+});
+
 describe('an agent started in herdr', () => {
   const HERDR = { HERDR_ENV: '1', HERDR_PANE_ID: 'w1:p2', HERDR_SOCKET_PATH: '/run/herdr.sock', HERDR_BIN_PATH: '/opt/herdr' } as const;
   afterEach(() => {

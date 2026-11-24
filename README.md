@@ -135,6 +135,19 @@ prompt says it all: which tree is which and what in them the task is about,
 where the task's own files are, how the branches are kept, and how the
 evidence is gathered.
 
+A task can have your principles: the requirements you hold all of it to,
+whatever is being worked on, as a CLAUDE.md holds for a repository. They
+are kept in `principles.md` in the task's folder, which is not there until
+the first is recorded, and most tasks have none. They are yours alone: the
+skill `yan:principle`, which only you start, records what you say after it,
+replacing one it restates and removing one you take back, and nothing else
+writes the file; working out the problem and the solution leaves them as
+they are. An agent started on the task is given them in full in its
+opening prompt, with that they hold over everything else and are not its
+to change, so it holds to them whether or not it read anything first. One
+recorded while a session runs holds from then on in that session, and a
+recap reads them again: `yan context` prints them first, in full.
+
 Beside the tasks there is Janus, an agent for what is not a task yet: a
 question, something to look into or work out, without the making
 of a task. `yan --janus` starts it, where it is typed and in no worktree.
@@ -257,7 +270,7 @@ that fails is said, and the commit waits here for the next one.
 
 For the agent:
 
-- `yan context` — a summary to start from: the task's problem in full, its deliverables and resources, its artifacts by folder, where each branch stands (ahead of the default branch, unpushed, uncommitted, whether the task keeps the one the worktree is on, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about, and your ten newest drafts by id and title, for the agent to read one with `yan draft cat <id>` when it touches the work and never to write one; `--json` lists every artifact with its web address in the vault's repository, and every draft, for a report or a recap to build on
+- `yan context` — a summary to start from: your principles for the task first, in full, when it has any, the task's problem in full, its deliverables and resources, its artifacts by folder, where each branch stands (ahead of the default branch, unpushed, uncommitted, whether the task keeps the one the worktree is on, and every branch the task kept, in progress, merged or abandoned), with the packages a task in a monorepo is about, and your ten newest drafts by id and title, for the agent to read one with `yan draft cat <id>` when it touches the work and never to write one; `--json` lists every artifact with its web address in the vault's repository, and every draft, for a report or a recap to build on
 - `yan log` — what earlier sessions settled; `yan log agreed|changed|paused "<line>"` records one
 - `yan deliverable add|edit|done|abandon|rm|move` — the solution, in Chinese unless you ask for another language, changed only when you agree to a different one. A deliverable's number is its place in the list, from d1 with no gap: `rm` takes out one that should never have been on it, as if never added, and `move` puts one at another place; the ones after renumber, and uat.json and the names of the files in artifacts/uat/ follow
 - `yan uat [add|note|rm]` — what you check each deliverable by: each file in artifacts/uat/ with the deliverables it shows and what it shows of them, a note for one nothing on screen can show; bare, every deliverable with its evidence and which have none
@@ -799,6 +812,7 @@ what it was written from), its bar says legacy and what changed.
   tasks/<id>/
     task.json                  title, state (open, uat, done, abandoned), pausedAt while an open task is paused, repos (URL, scope, the branch kept last, the task's other branches, each one marked open or abandoned, and where each last met the default branch), deliverables, resources and their kinds
     problem.md                 prose: the background, and what the problem is (brief.md before)
+    principles.md              yours, when there are any: the requirements all of the task is held to, written through yan:principle and given to every agent on it as it starts
     log.md                     - MM-DD  type  line, appended only
     drafts/<draft-id>.md       yours, from when drafts were kept per task: still read, and written, where they are
     reviews/<when>.md          yours: a review written on yan serve's page, one file each, named for the moment in UTC (20261111-140312.md), never edited after
