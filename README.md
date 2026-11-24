@@ -557,7 +557,11 @@ it is opened, so a folder of screenshots costs the page no more than a
 screenful of thumbnails. A task that keeps a branch
 shows it against origin's default branch, from this machine's clone: its
 changed files and their diffs, its commits, a merge among them shown as
-what it brought onto the branch, and every file at its head.
+what it brought onto the branch, and every file at its head. The branch is
+as origin has it, so it shows what was pushed: commits not pushed are
+shown only for a branch origin never had, and what a worktree has not
+committed never. It is fetched from origin as it is gone to, and on
+every tick while it is looked at.
 A switch over the files, Source code only, on until it is switched off and
 kept so in this browser, shows its source code alone, and prev and next
 walk only that: by default a web

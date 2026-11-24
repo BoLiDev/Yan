@@ -7,7 +7,7 @@ import { Icon } from '../components/Icon';
 import { Bar, Empty } from '../components/page';
 import { Button } from '../components/ui/button';
 import { Spinner } from '../components/ui/spinner';
-import { queryClient, useBranches } from '../state/server';
+import { queryClient, useBranches, useFreshBranches } from '../state/server';
 import { toast } from '../state/ui';
 import { showTab } from './terminal/TabBar';
 import { useKeyNav, usePick } from './nav';
@@ -36,6 +36,8 @@ function useListed(t: TaskSummary): Listed[] {
   // The branch a tree was last on is read under no name, the others under theirs.
   const wanted = useMemo(() => repos.flatMap(({ repo, i, names }) => names.map((n) => ({ repo: i, name: n === repo.branch ? null : n }))), [repos]);
   const views = useBranches(t.id, wanted);
+  // Gone to, every branch listed is fetched from origin again.
+  useFreshBranches(t.id, wanted);
   let k = 0;
   return repos.flatMap(({ repo, i, names }) => {
     const mine = names.map((name) => ({ name, view: views[k++] }));

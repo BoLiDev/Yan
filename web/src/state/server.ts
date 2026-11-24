@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { keepPreviousData, QueryClient, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { ApiError, getJSON, getText, postJSON, type BranchBlob, type BranchView, type CommitPatch, type Draft, type Index, type Report, type Status, type TaskDetail, type TerminalState, type WorktreeState, type WriteResult } from '../lib/api';
 import { enc } from '../lib/files';
@@ -60,6 +61,37 @@ const branchUrl = (id: string, repo: number, name: string | null, fresh = false)
 /** A task's branch: the one its tree was last on under no name, another of its own by name. */
 export function useBranch(id: string, repo: number, name: string | null, enabled = true): UseQueryResult<BranchView> {
   return useQuery({ queryKey: ['branch', id, repo, name ?? ''], queryFn: () => getJSON<BranchView>(branchUrl(id, repo, name)), enabled });
+}
+
+/**
+ * A branch as origin has it now: asked of serve with the fetch waited for,
+ * and put where the views of it read. A fetch that could not be made is
+ * left to the next tick: what the page had of the branch stays.
+ */
+export async function freshBranch(id: string, repo: number, name: string | null): Promise<void> {
+  try {
+    queryClient.setQueryData(['branch', id, repo, name ?? ''], await getJSON<BranchView>(branchUrl(id, repo, name, true)));
+  } catch {
+    // serve not answering is said by the page's own mark of it
+  }
+}
+
+/**
+ * Fetch each of these branches afresh as they come to be looked at: going
+ * to a branch, or to the page that lists a task's, is asking how it stands
+ * now, and what the page kept of it may be minutes old, or what the clone
+ * had before serve's last fetch. Once for each time one is gone to, not on
+ * each redraw; the ticks keep it fresh from then on.
+ */
+export function useFreshBranches(id: string, wanted: readonly { readonly repo: number; readonly name: string | null }[]): void {
+  const key = wanted.map((w) => `${w.repo}\n${w.name ?? ''}`).join('\n\n');
+  useEffect(() => {
+    if (key === '') return;
+    for (const one of key.split('\n\n')) {
+      const [repo = '0', name = ''] = one.split('\n');
+      void freshBranch(id, Number(repo), name === '' ? null : name);
+    }
+  }, [id, key]);
 }
 
 /**
@@ -215,7 +247,7 @@ export async function pullNow(): Promise<void> {
     await onStatus(await postJSON<Status>('/api/pull', {}));
     const at = parseRoute(location.hash);
     if (at.view === 'task' && at.sub === 'branch') {
-      queryClient.setQueryData(['branch', at.id, at.repo, at.name ?? ''], await getJSON<BranchView>(branchUrl(at.id, at.repo, at.name, true)));
+      await freshBranch(at.id, at.repo, at.name);
     }
     if (at.view === 'task' && at.sub === 'mr') {
       const listed = queryClient.getQueriesData<BranchView>({ queryKey: ['branch', at.id] }).map(([key]) => key as readonly [string, string, number, string]);
