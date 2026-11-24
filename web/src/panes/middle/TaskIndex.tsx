@@ -5,7 +5,7 @@ import { listResources } from '../../lib/resources';
 import { link, type TaskRoute } from '../../lib/route';
 import { useUI } from '../../state/ui';
 import { NOTHING_UNSEEN, logFresh, unseenOf, type Seen } from '../../lib/seen';
-import { goesOn, hasMr } from '../../lib/stops';
+import { goesOn, hasMr, type Page } from '../../lib/stops';
 import { cn } from '../../lib/utils';
 import { Icon, StateIcon, type IconName } from '../../components/Icon';
 import { Dot, GROW, Pane, SHIMMER, row } from '../../components/page';
@@ -39,6 +39,9 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
   const terminal = useTerminals().data?.[t.id];
   const agent = terminal === undefined ? undefined : agentNews(t.id, terminal, seen);
   const marks = useUI((s) => s.prefs.badges);
+  // The rows the reader left out, in the settings; the one being shown is drawn all the same, so where the page is is never off the nav.
+  const left = useUI((s) => s.prefs.hiddenPages);
+  const out = (page: Page): boolean => left.includes(page) && r.sub !== page && !(page === 'mr' && r.sub === 'branch');
   const unseen = marks ? unseenOf(index, seen, t.id) : NOTHING_UNSEEN;
   const logCount = d?.log?.entries.length ?? 0;
   // Against what was last read, not what this visit started from: reading the log clears it.
@@ -55,28 +58,30 @@ export function TaskIndex({ t, r, index, seen }: { t: TaskSummary; r: TaskRoute;
       <TaskHead icon={janus ? <Icon name="janus" size={18} className={agent?.kind === 'working' ? 'animate-pulse text-brand motion-reduce:animate-none' : 'text-ink-2'} /> : <StateIcon t={t} size={18} />} title={t.title || t.id} more={<TaskInfo t={t} index={index} />} />
       <div className={NAV}>
         {janus ? null : <NavLink href={link.task(t.id)} on={r.sub === 'overview'} icon="overview" word="Overview" />}
-        {d?.files.some((f) => f.path === 'report.html') ? (
+        {/* What the user holds the whole task to, there only once one is recorded. */}
+        {d?.principles && !out('principles') ? <NavLink href={link.principles(t.id)} on={r.sub === 'principles'} icon="principles" word="Principles" /> : null}
+        {d?.files.some((f) => f.path === 'report.html') && !out('report') ? (
           <NavLink href={link.report(t.id)} on={r.sub === 'report'} icon="check" word="Report">
             {unseen.has('report.html') ? <Dot title="changed since your last look" /> : null}
           </NavLink>
         ) : null}
-        {janus ? null : (
+        {janus || out('log') ? null : (
           <NavLink href={link.log(t.id)} on={r.sub === 'log'} icon="log" word="Log">
             {fresh ? <Dot title="new entries" /> : null}
           </NavLink>
         )}
         {/* An open task keeps its Terminal row with no agent running, where it is started again. Its agent has the
             dot it has everywhere else while it waits or has finished unseen; that it is at work, the task's title says. */}
-        {terminal || goesOn(t) ? (
+        {(terminal || goesOn(t)) && !out('terminal') ? (
           <NavLink href={link.terminal(t.id)} on={r.sub === 'terminal'} icon="terminal" word="Terminal">
             {agent?.news ? <Dot title={agentWords(agent)} tone={agent.kind === 'blocked' ? 'blocked' : 'finished'} /> : null}
           </NavLink>
         ) : null}
         {/* While the agent tab shows one of the task's agents, the word shimmers. */}
-        {t.agents.length ? <NavLink href={link.agent(t.id)} on={r.sub === 'agent'} icon="cloud" word="Agent" shine={t.agents.some(([, where]) => where === showing)} /> : null}
+        {t.agents.length && !out('agent') ? <NavLink href={link.agent(t.id)} on={r.sub === 'agent'} icon="cloud" word="Agent" shine={t.agents.some(([, where]) => where === showing)} /> : null}
         {/* A branch opened from MR's page is still MR's. */}
-        {hasMr(t) ? <NavLink href={link.mr(t.id)} on={r.sub === 'mr' || r.sub === 'branch'} icon="branch" word="MR" /> : null}
-        {d && listResources(t, d).length ? <NavLink href={link.resources(t.id)} on={r.sub === 'resources'} icon="link" word="Resources" /> : null}
+        {hasMr(t) && !out('mr') ? <NavLink href={link.mr(t.id)} on={r.sub === 'mr' || r.sub === 'branch'} icon="branch" word="MR" /> : null}
+        {d && listResources(t, d).length && !out('resources') ? <NavLink href={link.resources(t.id)} on={r.sub === 'resources'} icon="link" word="Resources" /> : null}
       </div>
       {part.top}
     </>

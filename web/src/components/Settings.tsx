@@ -9,6 +9,8 @@ import { UpdateCard } from './Update';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
+import { Toggle } from './ui/toggle';
+import { PAGES, PAGE_WORD } from '../lib/stops';
 
 /** One thing to set: what it is, a line on what it does, and what sets it, at the row's end or under it. */
 function Row({ title, sub, children, under }: { title: string; sub?: string; children?: ReactNode; under?: ReactNode }) {
@@ -47,7 +49,8 @@ export function SettingsModal() {
       : 'When an agent finishes or needs you, from Chrome too while the page is in the background.';
   return (
     <Dialog open={open} onOpenChange={(o) => useUI.setState({ settings: o })}>
-      <DialogContent className="gap-0 sm:max-w-[600px]">
+      {/* Taller than a small window as its rows have grown: it scrolls in itself, rather than off the top of the page. */}
+      <DialogContent className="max-h-[calc(100vh-3rem)] gap-0 overflow-y-auto sm:max-w-[600px]">
         <DialogHeader className="pb-1">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
@@ -60,6 +63,16 @@ export function SettingsModal() {
           } />
           <Row title="Terminal font" sub="Likewise, for terminals." under={
             <FontPick label="Terminal font" value={prefs.termFont} own={TERM_FONTS} onPick={(f) => setPref('termFont', f)} />
+          } />
+          <Row title="A task's pages" sub="Which rows a task's column has, where the task has them. Overview is always there." under={
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="A task's pages">
+              {PAGES.map((page) => (
+                <Toggle key={page} variant="outline" size="sm" pressed={!prefs.hiddenPages.includes(page)}
+                  onPressedChange={(on) => setPref('hiddenPages', on ? prefs.hiddenPages.filter((p) => p !== page) : [...prefs.hiddenPages, page])}>
+                  {PAGE_WORD[page]}
+                </Toggle>
+              ))}
+            </div>
           } />
           <Row title="Notifications" sub={told}>
             <Switch aria-label="Notifications" checked={prefs.notify} onCheckedChange={() => void toggleNotify()} />

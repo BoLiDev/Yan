@@ -146,7 +146,9 @@ they are. An agent started on the task is given them in full in its
 opening prompt, with that they hold over everything else and are not its
 to change, so it holds to them whether or not it read anything first. One
 recorded while a session runs holds from then on in that session, and a
-recap reads them again: `yan context` prints them first, in full.
+recap reads them again: `yan context` prints them first, in full. On `yan
+serve`'s page a task that has any has a Principles row in its column,
+after Overview, which shows them; they are read there, not written.
 
 Beside the tasks there is Janus, an agent for what is not a task yet: a
 question, something to look into or work out, without the making
@@ -321,6 +323,9 @@ them or typed by name, as a list with commas between, as an editor's
 setting has it, each drawing what those before it have no glyph for (a
 Latin face, then a Chinese one); the list starts as yan's own, to be added
 to or changed, and is yan's own again when emptied;
+which of a task's pages its column lists, Principles, Report, Log, Terminal,
+Agent, MR and Resources each left out or not, Overview always there, and one
+left out still shown while it is the page being read;
 notifications; the marks on what is new; this machine's vaults, in a section listing this machine's vaults as
 `~/.yan/config.json` has them, in order, the default marked, each with its
 path, whether it is local or remote, and its own switch, on for a vault

@@ -204,6 +204,7 @@ interface TaskFiles {
   json?: TreeEntry;
   problem?: TreeEntry;
   brief?: TreeEntry;
+  principles?: TreeEntry;
   log?: TreeEntry;
   artifacts: TreeEntry[];
 }
@@ -262,6 +263,7 @@ export class VaultView {
       } else if (name === 'task.json') t.json = e;
       else if (name === 'problem.md') t.problem = e;
       else if (name === 'brief.md') t.brief = e;
+      else if (name === 'principles.md') t.principles = e;
       else if (name === 'log.md') t.log = e;
     }
     await Promise.all([...this.tasks.values()].map((t) => (t.json === undefined ? undefined : this.taskJson(t.json))));
@@ -291,7 +293,7 @@ export class VaultView {
       const shown = files.artifacts.filter((e) => hiddenBy(this.rel(id, e.path)) === undefined);
       let touched = 0;
       const rev = createHash('sha1');
-      for (const e of [files.json, files.problem, files.brief, files.log, ...files.artifacts]) {
+      for (const e of [files.json, files.problem, files.brief, files.principles, files.log, ...files.artifacts]) {
         if (e === undefined) continue;
         touched = Math.max(touched, this.times.get(e.path)?.changed ?? 0);
         rev.update(`${e.path}\0${e.sha}\n`);
@@ -322,10 +324,13 @@ export class VaultView {
     if (files === undefined) return undefined;
     const json = files.json === undefined ? readTaskJson({}) : await this.taskJson(files.json);
     const problemEntry = files.problem ?? files.brief;
-    const [problemText, logText] = await Promise.all([
+    const [problemText, logText, principlesText] = await Promise.all([
       problemEntry === undefined ? undefined : this.blobs.read(problemEntry.sha),
       files.log === undefined ? undefined : this.blobs.read(files.log.sha),
+      files.principles === undefined ? undefined : this.blobs.read(files.principles.sha),
     ]);
+    // A principles.md left empty is none, as it is to the agent.
+    const principles = principlesText?.toString('utf8') ?? '';
 
     const shown: ArtifactFile[] = [];
     const hidden = new Map<string, number>();
@@ -346,6 +351,9 @@ export class VaultView {
         problemEntry === undefined || problemText === undefined
           ? null
           : { path: problemEntry.path, sha: problemEntry.sha, text: problemText.toString('utf8'), changed: this.times.get(problemEntry.path)?.changed ?? 0 },
+      principles: files.principles === undefined || principles.trim() === ''
+        ? null
+        : { path: files.principles.path, sha: files.principles.sha, text: principles, changed: this.times.get(files.principles.path)?.changed ?? 0 },
       log:
         files.log === undefined || logText === undefined
           ? null

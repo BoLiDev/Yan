@@ -15,6 +15,11 @@ describe('Tab in a task', () => {
     expect(taskStops(task(1, false), { terminal: true }), 'a terminal after Log').toEqual(['#/t/t1', '#/t/t1/log', '#/t/t1/terminal', '#/t/t1/agent']);
   });
 
+  it('stops at Principles after Overview when the user recorded any, and at no row the reader left out', () => {
+    expect(taskStops(task(0, false), { principles: true })).toEqual(['#/t/t1', '#/t/t1/principles', '#/t/t1/log']);
+    expect(taskStops(task(1, true), { principles: true, report: true, hidden: ['log', 'principles', 'mr'] })).toEqual(['#/t/t1', '#/t/t1/report', '#/t/t1/agent']);
+  });
+
   it('starts the agent again only for a task still open or handed over to be accepted', () => {
     const as = (state: string): TaskSummary => ({ ...task(0, false), state }) as unknown as TaskSummary;
     expect(['open', 'uat', 'done', 'abandoned'].map((s) => goesOn(as(s)))).toEqual([true, true, false, false]);

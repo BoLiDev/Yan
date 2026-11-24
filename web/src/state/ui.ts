@@ -43,6 +43,8 @@ export interface Prefs {
   readonly history: 'inline' | 'split';
   /** The families the page is drawn in, installed on this computer, by name, with commas between, each for what those before it lack, and nothing after them; empty, yan's own list. */
   readonly font: string;
+  /** The pages of a task left out of its nav, by name (`PAGES` in lib/stops): the Log, say, for a reader who never opens it. */
+  readonly hiddenPages: readonly string[];
   /** The families a terminal is drawn in, likewise. */
   readonly termFont: string;
 }
@@ -175,7 +177,7 @@ function save(key: string, value: unknown): void {
   }
 }
 
-const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, badges: true, history: 'inline', font: '', termFont: '' };
+const DEFAULT_PREFS: Prefs = { left: true, dark: false, theme: 'system', layout: 'unified', width: 'fit', whole: false, wrap: {}, notify: false, allFiles: false, badges: true, history: 'inline', hiddenPages: [], font: '', termFont: '' };
 
 /** What this browser kept of the marks, read once: the first index decides what a first visit starts from. */
 export const storedSeen: unknown = load(SEEN_KEY, null);

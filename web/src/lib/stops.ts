@@ -9,8 +9,19 @@ export const isPaused = (t: Pick<TaskSummary, 'state' | 'pausedAt'>): boolean =>
 /** Whether a task's agent may be started again from the page: it is open, or handed over to be accepted, and not paused. */
 export const goesOn = (t: TaskSummary): boolean => (stateOf(t.state) === 'open' || t.state === 'uat') && !isPaused(t);
 
-/** What a task has beyond what its summary says: a report, resources, a terminal. */
+/**
+ * The pages of a task a reader can leave out of its nav, in the settings,
+ * by the row's name there: every one but the Overview, which is where a
+ * task is landed on. One left out is still there by its address.
+ */
+export const PAGES = ['principles', 'report', 'log', 'terminal', 'agent', 'mr', 'resources'] as const;
+export type Page = (typeof PAGES)[number];
+export const PAGE_WORD: Readonly<Record<Page, string>> = { principles: 'Principles', report: 'Report', log: 'Log', terminal: 'Terminal', agent: 'Agent', mr: 'MR', resources: 'Resources' };
+
+/** What a task has beyond what its summary says: principles, a report, resources, a terminal; and the pages the reader left out. */
 export interface Has {
+  readonly principles?: boolean;
+  readonly hidden?: readonly string[];
   readonly report?: boolean;
   readonly resources?: boolean;
   readonly terminal?: boolean;
@@ -20,20 +31,23 @@ export interface Has {
 export const hasMr = (t: TaskSummary): boolean => t.repos.some((r) => r.branch);
 
 /**
- * A task's stops, top to bottom as its nav has them, each a row's own page:
- * Overview, Report when there is one, Log, Terminal while its agent runs in
+ * A task's stops, top to bottom as its nav has them, each a row's own page,
+ * less the ones the reader left out: Overview, Principles when the user
+ * recorded any, Report when there is one, Log, Terminal while its agent runs in
  * a herdr pane here or it can be started again, Agent when there is one, MR
  * when it keeps a branch, and Resources when there are any.
  */
 export function taskStops(t: TaskSummary, has: Has = {}): string[] {
+  const shown = (page: Page, there: boolean): string[] => (there && !(has.hidden ?? []).includes(page) ? [link[page](t.id)] : []);
   return [
     link.task(t.id),
-    ...(has.report ? [link.report(t.id)] : []),
-    link.log(t.id),
-    ...(has.terminal ? [link.terminal(t.id)] : []),
-    ...(t.agents.length ? [link.agent(t.id)] : []),
-    ...(hasMr(t) ? [link.mr(t.id)] : []),
-    ...(has.resources ? [link.resources(t.id)] : []),
+    ...shown('principles', has.principles === true),
+    ...shown('report', has.report === true),
+    ...shown('log', true),
+    ...shown('terminal', has.terminal === true),
+    ...shown('agent', t.agents.length > 0),
+    ...shown('mr', hasMr(t)),
+    ...shown('resources', has.resources === true),
   ];
 }
 

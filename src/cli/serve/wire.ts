@@ -173,6 +173,8 @@ export interface TaskDetail {
   /** Each resource's kind by its name, as task.json keeps them; one with none is general. */
   readonly resourceKinds: Readonly<Record<string, string>>;
   readonly problem: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
+  /** `user`'s principles for the task, principles.md, when it has any: what all of it is held to. */
+  readonly principles: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
   readonly log: { readonly sha: string; readonly entries: readonly LogEntry[]; readonly changed: number } | null;
   readonly files: readonly ArtifactFile[];
   /** What is kept out of the tree, by the folder or file that hides it. */

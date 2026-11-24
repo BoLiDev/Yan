@@ -23,7 +23,7 @@ export type Route =
   /** At no task: where the page is for a moment as it opens, before it goes to one, and where it stays in a vault with none. */
   | { readonly view: 'none'; readonly id?: undefined }
   | { readonly view: 'new'; readonly id?: undefined; readonly launch?: string }
-  | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'log' | 'report' | 'terminal' | 'agent' | 'mr' | 'resources' }
+  | { readonly view: 'task'; readonly id: string; readonly sub: 'overview' | 'principles' | 'log' | 'report' | 'terminal' | 'agent' | 'mr' | 'resources' }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'file' | 'folder'; readonly path: string }
   | { readonly view: 'task'; readonly id: string; readonly sub: 'branch'; readonly repo: number; readonly name: string | null; readonly tab: BranchTab; readonly item: string };
 
@@ -41,6 +41,7 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === 't' && parts[1]) {
     const id = parts[1];
     const rest = parts.slice(2);
+    if (rest[0] === 'principles') return { view: 'task', id, sub: 'principles' };
     if (rest[0] === 'log') return { view: 'task', id, sub: 'log' };
     if (rest[0] === 'report') return { view: 'task', id, sub: 'report' };
     if (rest[0] === 'terminal') return { view: 'task', id, sub: 'terminal' };
@@ -87,6 +88,7 @@ export const AGENT_TAB = 'yan-agent';
 
 export const link = {
   task: (id: string): string => `#/t/${id}`,
+  principles: (id: string): string => `#/t/${id}/principles`,
   log: (id: string): string => `#/t/${id}/log`,
   report: (id: string): string => `#/t/${id}/report`,
   terminal: (id: string): string => `#/t/${id}/terminal`,

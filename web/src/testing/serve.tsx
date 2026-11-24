@@ -52,7 +52,7 @@ export function task(id: string, title: string, more: Partial<TaskSummary> = {})
 }
 
 export function detail(id: string, more: Partial<TaskDetail> = {}): TaskDetail {
-  return { id, title: id, state: 'open', createdAt: null, closedAt: null, pausedAt: null, reason: null, repos: [], deliverables: [], resources: [], resourceKinds: {}, problem: null, log: null, files: [], hidden: [], ...more };
+  return { id, title: id, state: 'open', createdAt: null, closedAt: null, pausedAt: null, reason: null, repos: [], deliverables: [], resources: [], resourceKinds: {}, problem: null, principles: null, log: null, files: [], hidden: [], ...more };
 }
 
 export function index(tasks: readonly TaskSummary[], more: Partial<Index> = {}): Index {

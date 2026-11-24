@@ -148,6 +148,12 @@ describe('yan serve', () => {
     expect(t.deliverables.map((d) => d.id)).toEqual(['d1']);
     expect(t.files.map((f) => f.path)).toEqual(['c4/shot-1280.png', 'clip.webm', 'page/index.html', 'page/pic.png']);
     expect((await fetch(page('/api/task/t404'))).status).toBe(404);
+    // The user's principles for it, once one is recorded; none before, and none for a file left empty.
+    const principles = async (): Promise<{ text: string } | null> => ((await (await fetch(page('/api/task/t001'))).json()) as { principles: { text: string } | null }).principles;
+    expect(await principles()).toBeNull();
+    await commit('t001', { 'principles.md': '- Never touch the public API.\n' }, 't001: a principle');
+    await until(async () => ((await principles()) !== null ? true : undefined), 20_000);
+    expect((await principles())?.text).toBe('- Never touch the public API.\n');
   });
 
   it('hands out a video in pieces, so it can be played and sought', async () => {

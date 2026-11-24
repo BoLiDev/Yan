@@ -16,6 +16,7 @@ import { BranchView } from '../views/Branch';
 import { FileView } from '../views/File';
 import { FolderView } from '../views/Folder';
 import { LogView } from '../views/Log';
+import { PrinciplesView } from '../views/Principles';
 import { Overview } from '../views/Overview';
 import { ReportView } from '../views/Report';
 import { useKeyNav } from '../views/nav';
@@ -56,6 +57,7 @@ function Shown({ r, index }: { r: Route; index: Index }) {
   if (r.sub === 'terminal' || (t.id === JANUS && (r.sub === 'overview' || r.sub === 'log'))) return <TerminalView id={t.id} state={terminals?.[t.id]} goesOn={goesOn(t)} over={terminals !== undefined && !goesOn(t)} />;
   if (!d) return <Nothing title="Loading…" />;
   if (r.sub === 'overview') return <Overview t={t} d={d} />;
+  if (r.sub === 'principles') return <PrinciplesView t={t} d={d} />;
   if (r.sub === 'log') return <LogView t={t} d={d} />;
   if (r.sub === 'report') return <ReportView t={t} d={d} />;
   if (r.sub === 'folder') return <FolderView t={t} d={d} path={r.path} />;

@@ -146,7 +146,7 @@ function useKeys(): void {
       const d = queryClient.getQueryData<TaskDetail>(['task', r.id]);
       const report = !!d?.files.some((f) => f.path === 'report.html');
       const terminal = !!queryClient.getQueryData<Record<string, unknown>>(['terminals'])?.[r.id];
-      const has = { report, resources: !!d && listResources(t, d).length > 0, terminal: terminal || goesOn(t) };
+      const has = { principles: !!d?.principles, hidden: useUI.getState().prefs.hiddenPages, report, resources: !!d && listResources(t, d).length > 0, terminal: terminal || goesOn(t) };
       const to = nextStop(taskStops(t, has), r, e.shiftKey);
       (document.activeElement as HTMLElement | null)?.blur();
       if (to) location.hash = to;

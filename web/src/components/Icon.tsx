@@ -1,6 +1,6 @@
 import {
   ArrowRight, ArrowUp, Ban, Bell, BellOff, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsDownUp,
-  ChevronsUpDown, Cloud, Contrast, Copy, Download, ExternalLink, FileText, Folder, GitBranch, History, GripVertical, Info, LayoutGrid,
+  ChevronsUpDown, Cloud, Compass, Contrast, Copy, Download, ExternalLink, FileText, Folder, GitBranch, History, GripVertical, Info, LayoutGrid,
   Link, List, Maximize, Maximize2, Minimize2, Monitor, Moon, PanelLeft, Sun, Pencil, Plus, RefreshCw, RotateCw, Search, Settings, Sparkles, SquareCheck, SquareTerminal,
   StickyNote, Trash2, WrapText, X, type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +29,7 @@ const ICONS = {
   folder: Folder,
   overview: FileText,
   log: List,
+  principles: Compass,
   branch: GitBranch,
   dark: Contrast,
   external: ExternalLink,
