@@ -333,14 +333,10 @@ export class VaultView {
     const principles = principlesText?.toString('utf8') ?? '';
 
     const shown: ArtifactFile[] = [];
-    const hidden = new Map<string, number>();
     for (const e of files.artifacts) {
       const rel = this.rel(id, e.path);
-      const by = hiddenBy(rel);
-      if (by !== undefined) {
-        hidden.set(by, (hidden.get(by) ?? 0) + 1);
-        continue;
-      }
+      // What is kept out of the tree, a cache or installed dependencies, is left out and not spoken of.
+      if (hiddenBy(rel) !== undefined) continue;
       const t = this.times.get(e.path);
       shown.push({ path: rel, sha: e.sha, size: e.size, added: t?.added ?? 0, changed: t?.changed ?? 0, commit: t?.commit ?? '' });
     }
@@ -359,7 +355,6 @@ export class VaultView {
           ? null
           : { sha: files.log.sha, entries: parseLog(logText.toString('utf8')), changed: this.times.get(files.log.path)?.changed ?? 0 },
       files: shown,
-      hidden: [...hidden].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
     };
   }
 

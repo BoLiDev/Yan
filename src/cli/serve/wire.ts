@@ -177,8 +177,6 @@ export interface TaskDetail {
   readonly principles: { readonly path: string; readonly sha: string; readonly text: string; readonly changed: number } | null;
   readonly log: { readonly sha: string; readonly entries: readonly LogEntry[]; readonly changed: number } | null;
   readonly files: readonly ArtifactFile[];
-  /** What is kept out of the tree, by the folder or file that hides it. */
-  readonly hidden: readonly { readonly name: string; readonly count: number }[];
 }
 
 export interface BranchCommit {

@@ -48,8 +48,6 @@ export function useArtifactsPart(t: TaskSummary, d: TaskDetail | undefined, r: T
             }} />
           </div>
         ) : <div className={SUBLABEL}>No artifacts yet.</div>}
-        {/* What the vault keeps out of the tree, said faintly under it. */}
-        {d.hidden.length ? <div className="px-2.5 pt-1.5 text-[12px] text-ink-4">{`Not shown: ${d.hidden.map((x) => `${x.name} (${x.count})`).join(', ')}`}</div> : null}
       </>
     ),
   };

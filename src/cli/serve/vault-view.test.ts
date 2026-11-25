@@ -196,7 +196,6 @@ describe('a vault at a commit', () => {
         ['b.md', T + 5 * 60, T + 5 * 60, commits[1]],
         ['c4/a.png', T, T + 61 * 60, commits[3]],
       ]);
-      expect(t?.hidden).toEqual([{ name: '.cache', count: 1 }, { name: 'node_modules', count: 1 }]);
       const png = t?.files.find((f) => f.path === 'c4/a.png');
       expect((await view.blobs.read(png?.sha ?? ''))?.toString()).toBe('png two');
       expect(await view.task('t404')).toBeUndefined();
