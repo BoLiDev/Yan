@@ -21,6 +21,19 @@ describe('finding a task', () => {
     expect(found?.marks).toEqual([[0, 1], [3, 4], [5, 6]]);
   });
 
+  it('finds Chinese by its pinyin, typed whole, a word at a time, or by initials, and marks the characters it read', () => {
+    const tasks = [task('t1', '中文基建'), task('t2', '导出 CSV'), task('t3', '支付中文化')];
+    expect(ids(tasks, 'zhongwenjijian')).toEqual(['t1']);
+    expect(ids(tasks, 'zhongwen jijian')).toEqual(['t1']);
+    expect(ids(tasks, 'zwjj')).toEqual(['t1']);
+    expect(ids(tasks, 'zhongw'), 'the last character half typed, the title that starts with it first').toEqual(['t1', 't3']);
+    expect(ids(tasks, 'daochu csv')).toEqual(['t2']);
+    expect(ids(tasks, 'jijian zhifu')).toEqual([]);
+    expect(findTasks(tasks, 'jijian', [], null)[0]?.marks).toEqual([[2, 4]]);
+    // What is typed as it is written is found as before, ahead of a reading of it.
+    expect(ids([task('t1', '中文 wen'), task('t2', 'wen 稿')], 'wen')).toEqual(['t2', 't1']);
+  });
+
   it('needs every word typed to match, in any order', () => {
     const tasks = [task('t1', '导出 CSV'), task('t2', '导出 PDF')];
     expect(ids(tasks, 'csv 导出')).toEqual(['t1']);

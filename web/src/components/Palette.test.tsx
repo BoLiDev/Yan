@@ -73,6 +73,15 @@ describe('⌘K', () => {
     expect(location.hash).toBe('#/t/t3');
   });
 
+  it('finds a task with a Chinese title by its pinyin, typed with no input method', async () => {
+    have(index([...tasks, task('t4', '中文基建', { touched: 4 })]));
+    const screen = await draw(<Palette />);
+    await screen.getByRole('combobox', { name: 'Go to a task' }).fill('zhongwen jj');
+    await expect.poll(() => screen.getByRole('option').elements().map((el) => el.textContent ?? '')).toEqual([expect.stringMatching(/^中文基建/)]);
+    await userEvent.keyboard('{Enter}');
+    expect(location.hash).toBe('#/t/t4');
+  });
+
   it('says so when nothing matches, and Escape closes it', async () => {
     const screen = await draw(<Palette />);
     await screen.getByRole('combobox', { name: 'Go to a task' }).fill('zzzz');

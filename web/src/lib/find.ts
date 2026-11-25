@@ -1,6 +1,7 @@
 // Finding a task by what is typed, for ⌘K: its title or its id, best match first.
 
 import { stateOf, type TaskState, type TaskSummary } from './api';
+import { pinyinAt } from './pinyin';
 import { isPaused } from './stops';
 
 export interface Found {
@@ -18,8 +19,10 @@ export interface Match {
 
 /**
  * How well one typed word matches a title: at its start best, then at the
- * start of a word in it, then anywhere, earlier better; last, its letters in
- * order with others between, as `dkm` in `dark mode`, fewer gaps better.
+ * start of a word in it, then anywhere, earlier better; then as the pinyin
+ * of Chinese characters in it, `zhongwen` or the initials `zw` for 中文,
+ * typed in full better than by initials; last, its letters in order with
+ * others between, as `dkm` in `dark mode`, fewer gaps better.
  */
 function inTitle(title: string, term: string): Match | undefined {
   const t = title.toLowerCase();
@@ -29,6 +32,8 @@ function inTitle(title: string, term: string): Match | undefined {
     const wordStart = !/[\p{L}\p{N}]/u.test(t[at - 1] as string) || /\p{Script=Han}/u.test(term[0] as string);
     return { score: (wordStart ? 80 : 60) - Math.min(at, 20) / 2, marks: [[at, at + term.length]] };
   }
+  const read = pinyinAt(title, term);
+  if (read !== undefined) return { score: (read.first ? 70 : 55) - (read.whole ? 0 : 10) - Math.min(read.range[0], 20) / 2, marks: [read.range] };
   const marks: [number, number][] = [];
   let from = 0;
   for (const ch of term) {

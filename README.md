@@ -757,7 +757,9 @@ reloading with it; a check or an update that fails is tried again from
 the same place. Ctrl+F, on a Mac too and in a terminal as anywhere (where
 Ctrl+Shift+F is the terminal's own Ctrl+F), in place of the browser's
 find, opens a box to go to a task by typing its title or id, any
-words in any order, the best match picked so Enter goes there, and of
+words in any order, a Chinese title also by its pinyin typed with no input
+method, whole (`zhongwen jijian`), by initials (`zwjj`) or the two mixed,
+each character by its commonest reading, the best match picked so Enter goes there, and of
 tasks that match as well one in UAT first, then in progress. Tasks done
 or given up are left out until Tab, or the button beside the field,
 brings them in, after those, for as long as the box is open; with
