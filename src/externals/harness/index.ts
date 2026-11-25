@@ -5,3 +5,4 @@
 
 export { HARNESS_KINDS, WAIT_LINE, cliKind, isKnownCli, launchArgs, takesPlugins } from './launch.js';
 export type { Launch } from './launch.js';
+export { lastSession } from './sessions.js';

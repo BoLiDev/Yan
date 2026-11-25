@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanupTempDirs, fxGit, giveOrigin, mkBareRemote, mkClone, mkTempDir, mkYanHome, onOrigin } from '../helpers/fixtures.js';
 import { CREATE_NEW, enter, openingPromptNow, type EntryChain, type EntryPrompts, type NewTask, type Said } from '../../src/cli/shared/launch.js';
@@ -494,6 +494,52 @@ describe('an existing task', () => {
     await run(answers({ entry: 't001' }), here);
     expect(started[0]?.cwd).toBe(here);
     expect(said[0]).toMatch(/^warn demo has no clone on this machine, so no tree/);
+  });
+});
+
+describe('a task gone on with', () => {
+  afterEach(() => {
+    delete process.env.CLAUDE_CONFIG_DIR;
+  });
+
+  /** A conversation claude kept of the directory `workdir`, last written `at`. */
+  function session(workdir: string, id: string, at: Date): void {
+    const dir = join(process.env.CLAUDE_CONFIG_DIR as string, 'projects', workdir.replace(/[^a-zA-Z0-9]/g, '-'));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${id}.jsonl`), '{}\n');
+    utimesSync(join(dir, `${id}.jsonl`), at, at);
+  }
+  const resumed = (i: number): string | undefined => {
+    const argv = started[i]?.argv ?? [];
+    return argv.includes('--resume') ? argv[argv.indexOf('--resume') + 1] : undefined;
+  };
+
+  it('goes on with the conversation claude last had in its tree, and never with one from before the tree was the task\'s', async () => {
+    process.env.CLAUDE_CONFIG_DIR = mkTempDir('yan-claude-');
+    const { bare, clone } = await aClone();
+    register('demo', bare, clone);
+    const here = normalizePath(realpathSync(mkTempDir()));
+    await run(answers({ entry: CREATE_NEW, title: 'x', repos: ['demo'] }), here);
+    const tree = treeOf();
+    expect(resumed(0), 'a new task starts a new conversation').toBeUndefined();
+
+    // Another task's, left in this directory before it was this task's: not this one's to go on with.
+    session(tree, '11111111-1111-4111-8111-111111111111', new Date(Date.now() - 3_600_000));
+    await run(answers({ entry: 't001' }), here);
+    expect(resumed(1)).toBeUndefined();
+
+    // Its own, the later of two.
+    session(tree, '22222222-2222-4222-8222-222222222222', new Date(Date.now() + 1000));
+    session(tree, '33333333-3333-4333-8333-333333333333', new Date(Date.now() + 5000));
+    await run(answers({ entry: 't001' }), here);
+    expect(resumed(2)).toBe('33333333-3333-4333-8333-333333333333');
+    expect(said.some((l) => l.includes('going on with its last conversation here'))).toBe(true);
+    expect(started[2]?.cwd).toBe(tree);
+    expect(told(2), 'told as any start is').toContain(new Task('t001').dir);
+
+    // Another CLI starts afresh.
+    await run(answers({ entry: 't001' }), here, { cli: 'codex' });
+    expect(resumed(3)).toBeUndefined();
   });
 });
 

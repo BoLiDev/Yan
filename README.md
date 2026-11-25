@@ -102,7 +102,13 @@ one just cut, so each push also notes, while the tree is on a branch the
 task keeps and that has commits of its own, where it last met the default
 branch: the point moves on each time the default branch is merged in, and a
 branch the default branch has, with commits after its point, was merged.
-Every step, the worktrees included, is a line on the one chain
+A task gone on with goes on with the conversation claude last had in
+its first tree, by claude's own `--resume`, so a terminal closed or a
+machine restarted loses nothing of it: the newest session claude kept of
+that directory since the tree became the task's, and never one another task
+left there before. It is told what any start is told. A new task, a task
+with no tree, Janus and the other CLIs start a new conversation; `/clear`
+in claude starts one by hand. Every step, the worktrees included, is a line on the one chain
 the questions are on. The agent starts in the first tree, with the others
 added beside it.
 

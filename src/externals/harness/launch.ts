@@ -43,6 +43,8 @@ export interface Launch {
   readonly plugins?: readonly string[];
   /** What `user` says first, as though typed once it is up; without, it waits for `user`. */
   readonly first?: string;
+  /** The session to go on with, by its id (`lastSession`), for a CLI that resumes one; a new one without. */
+  readonly resume?: string;
 }
 
 /** The line a first message ends with, so a prompt that is not a request starts no work. */
@@ -88,7 +90,9 @@ const claude: Harness = {
     const skip = launch.skipPermissions ? ['--dangerously-skip-permissions'] : [];
     const plugins = (launch.plugins ?? []).flatMap((p) => ['--plugin-dir', p]);
     const first = launch.first === undefined ? [] : [launch.first];
-    return [...dashDashModel(launch.model, launch.effort), '--chrome', ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt, ...first];
+    // The conversation gone on with keeps what it said; what it is told is this start's, as for a new one.
+    const resume = launch.resume === undefined ? [] : ['--resume', launch.resume];
+    return [...dashDashModel(launch.model, launch.effort), ...resume, '--chrome', ...skip, ...addDirFlags(launch.addDirs), ...claudeHooks(launch.hooks), ...plugins, '--append-system-prompt', launch.prompt, ...first];
   },
 };
 

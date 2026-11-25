@@ -13,7 +13,7 @@ export { CREATE_NEW };
 export type { Said, Working };
 import { tildePath } from './style.js';
 import { saveVault } from './vault-push.js';
-import { cliKind, HARNESS_KINDS, isKnownCli, launchArgs, takesPlugins } from '../../externals/harness/index.js';
+import { cliKind, HARNESS_KINDS, isKnownCli, lastSession, launchArgs, takesPlugins } from '../../externals/harness/index.js';
 import { herdrPane } from '../../externals/herdr/index.js';
 import { WorktreePool, leasesHeldBy } from '../../externals/worktree/index.js';
 import { cloneFor, register, registry, repoWithUrl } from '../../records/repos/index.js';
@@ -808,15 +808,20 @@ export async function enter(options: { cli?: string; extra: readonly string[]; n
     : { task: new Task(chosen), trees: await existingTrees(new Task(chosen), cwd, prompts, chain) };
   if (chosen === CREATE_NEW || janus?.made === true) saveNewTask(vault, task, chain);
 
-  chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
-
   // Janus has no tree: it starts where it was called, and reads the repositories where they are cloned.
   const workdir = trees[0]?.path ?? cwd;
   const addDirs = trees.slice(1).map((t) => t.path);
   const prompt = asJanus ? janusPrompt(harness.cli, task.dir, pluginDir()) : promptFor(harness.cli, task.dir, told(task, trees), task.principlesText());
+  // A task gone on with goes on with the conversation its agent last had in its first tree, since the tree became the task's: nothing is lost to a
+  // terminal closed or a machine restarted. A new task, Janus, which starts fresh each time, and a task with no tree, whose directory is no one task's, start anew.
+  const lease = asJanus || chosen === CREATE_NEW ? undefined : leasesHeldBy(task.id).find((l) => samePath(l.path, workdir));
+  const resume = lease === undefined ? undefined : lastSession(harness.cli, workdir, lease.at);
+  if (resume !== undefined) chain.say({ kind: 'done', line: `${cliKind(harness.cli)}: going on with its last conversation here` });
+  chain.end(`${task.id}  ${task.read().title} · ${cliKind(harness.cli)} starting`);
+
   const said = options.close !== undefined ? closingRequest(harness.cli, options.close.abandon) : options.pause === true ? pausingRequest(harness.cli) : options.review === true ? reviewRequest(harness.cli) : undefined;
   const first = said === undefined ? {} : { first: said };
-  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
+  const argv = [...launchArgs(harness.cli, { ...harness, workdir, addDirs, prompt, plugins, ...first, ...(resume === undefined ? {} : { resume }), hooks: { prompt: yanCommand(VAULT_HOOKS.prompt), stop: yanCommand(VAULT_HOOKS.stop) } }), ...options.extra];
   // Started in a herdr pane, it is kept on this machine while it runs, so `yan serve` can show the pane and type into it.
   // Only a convenience: a config.json that cannot be written never keeps the agent from starting.
   const pane = herdrPane(process.env);
