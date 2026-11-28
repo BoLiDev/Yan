@@ -9,7 +9,7 @@ import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resiza
 import { ListFilter, PanelsTopLeft, SquareTerminal } from 'lucide-react';
 import { Icon, type IconName } from '@/components/Icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ASIDE, Bar, BarSep, BarTools, Crumb, Dot, GROW, KIND, LABEL, SHIMMER, Seg, Tool, WORKING as WORKING_TITLE, row } from '@/components/page';
+import { ASIDE, BarSep, BarTools, Dot, GROW, KIND, LABEL, SHIMMER, Seg, Tool, WORKING as WORKING_TITLE, row } from '@/components/page';
 import { Button } from '@/components/ui/button';
 import { colourLines, langOf, langReady } from '@/lib/highlight';
 import { renderMarkdown } from '@/lib/markdown';
@@ -240,9 +240,9 @@ export function Links() {
 
 /* ---- the files: what the steps left, and the code ---- */
 
-function TreeRow({ depth, icon, name, aside, on, onClick, mark, shut }: { depth: number; icon?: IconName; name: string; aside?: ReactNode; on?: boolean; onClick?: () => void; mark?: string; shut?: boolean }) {
+function TreeRow({ depth, icon, name, aside, on, onClick, onKeep, mark, shut }: { depth: number; icon?: IconName; name: string; aside?: ReactNode; on?: boolean; onClick?: () => void; onKeep?: () => void; mark?: string; shut?: boolean }) {
   return (
-    <a className={cn(row({ on: !!on, at: 'tree' }), icon && 'py-[5px]')} style={{ paddingLeft: `${(icon ? 10 : 32) + depth * 16}px` }} href="#" onClick={(e) => { e.preventDefault(); onClick?.(); }}>
+    <a className={cn(row({ on: !!on, at: 'tree' }), icon && 'py-[5px]')} style={{ paddingLeft: `${(icon ? 10 : 32) + depth * 16}px` }} href="#" onClick={(e) => { e.preventDefault(); onClick?.(); }} onDoubleClick={onKeep}>
       {icon ? <><span className={cn('flex-none text-ink-3', !shut && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span><Icon name={icon} size={15} className="text-ink-3" /></> : <span className={KIND}>{name.split('.').pop()}</span>}
       <span className={GROW}>{name}</span>
       {mark ? <span className={cn('flex-none font-mono text-[11px] font-bold', mark === 'A' ? 'text-success' : 'text-warning')}>{mark}</span> : null}
@@ -284,7 +284,7 @@ const UNCHANGED: readonly string[] = ['index-page.ts', 'unpack.ts'];
  * A task's files, one kind at a time: its materials under the step that made each, or its repositories as trees.
  * `changed` keeps only what changed, and the folders that hold it.
  */
-export function Tree({ view, changed, file, onFile }: { view: FilesView; changed: boolean; file: string | null; onFile: (path: string) => void }) {
+export function Tree({ view, changed, file, onFile, onKeep }: { view: FilesView; changed: boolean; file: string | null; onFile: (path: string) => void; onKeep?: (path: string) => void }) {
   if (view === 'materials') {
     const materials = FILES.filter((f) => f.root === 'materials' && (!changed || f.mark));
     if (!materials.length) return <div className="px-2.5 pt-1 text-[12px] text-ink-3">No artifact has changed.</div>;
@@ -293,7 +293,7 @@ export function Tree({ view, changed, file, onFile }: { view: FilesView; changed
         {materials.map((f) => (
           <div key={f.path} className="flex flex-col gap-px">
             <TreeRow depth={0} icon="folder" name={stepOf(f.step)?.title ?? f.step} />
-            <TreeRow depth={1} name={f.path} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />
+            <TreeRow depth={1} name={f.path} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} onKeep={() => onKeep?.(f.path)} />
           </div>
         ))}
       </div>
@@ -314,7 +314,7 @@ export function Tree({ view, changed, file, onFile }: { view: FilesView; changed
         <TreeRow depth={0} icon="folder" name="src / pack" />
         {changed ? null : <TreeRow depth={1} name={UNCHANGED[0] as string} />}
         {changed ? null : <TreeRow depth={1} name={UNCHANGED[1] as string} />}
-        {code.map((f) => <TreeRow key={f.path} depth={1} name={f.path.split('/').pop() as string} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />)}
+        {code.map((f) => <TreeRow key={f.path} depth={1} name={f.path.split('/').pop() as string} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} onKeep={() => onKeep?.(f.path)} />)}
         {changed ? null : <TreeRow depth={0} icon="folder" name="src / path" shut aside={<span className={ASIDE}>6</span>} />}
         {changed ? null : <TreeRow depth={0} icon="folder" name="tests" shut aside={<span className={ASIDE}>31</span>} />}
       </div>
@@ -396,26 +396,57 @@ function Doc({ f }: { f: MockFile }) {
   return <div className="mx-auto max-w-[820px] px-10 pt-8 pb-24"><div className={DOC} dangerouslySetInnerHTML={{ __html: html }} /></div>;
 }
 
-/** A file under its bar: a document rendered, code in lines, with the tools v1 gives each. `tools` come first, the pane's own. */
-export function FileView({ f, onClose, lead }: { f: MockFile; onClose?: () => void; lead?: ReactNode }) {
+/** The tools of the file a tab shows: how it is read, and what is done with it. They sit at the end of the tab strip. */
+export function FileTools({ f }: { f: MockFile }) {
   const md = f.path.endsWith('.md');
   const [mode, setMode] = useState<'rendered' | 'source' | 'history'>('rendered');
   const [diff, setDiff] = useState(false);
   return (
-    <div className="flex h-full min-w-0 flex-col bg-card">
-      <Bar title={<Crumb path={f.path} />}
-        tools={<>
-          {lead}
-          {md ? <Seg options={[['rendered', 'Rendered'], ['source', 'Source'], ['history', 'History']] as const} current={mode} onPick={setMode} />
-            : <Seg options={[['file', 'File'], ['diff', 'Diff']] as const} current={diff ? 'diff' : 'file'} onPick={(v) => setDiff(v === 'diff')} />}
-          <BarSep />
-          <BarTools>
-            <Tool name="note" label="Comment on a selection" />
-            <Tool name="copy" label="Copy the path" />
-            {onClose ? <Tool name="close" label="Close the file" onClick={onClose} /> : null}
-          </BarTools>
-        </>} />
-      <div className="min-h-0 flex-1 overflow-auto">{md ? <Doc f={f} /> : <Code f={f} />}</div>
+    <>
+      {md ? <Seg options={[['rendered', 'Rendered'], ['source', 'Source'], ['history', 'History']] as const} current={mode} onPick={setMode} />
+        : <Seg options={[['file', 'File'], ['diff', 'Diff']] as const} current={diff ? 'diff' : 'file'} onPick={(v) => setDiff(v === 'diff')} />}
+      <BarSep />
+      <BarTools>
+        <Tool name="note" label="Comment on a selection" />
+        <Tool name="copy" label="Copy the path" />
+      </BarTools>
+    </>
+  );
+}
+
+/** A file as what it is: a document rendered, code in lines. */
+export function FileBody({ f }: { f: MockFile }) {
+  return <div className="h-full min-w-0 overflow-auto bg-card">{f.path.endsWith('.md') ? <Doc f={f} /> : <Code f={f} />}</div>;
+}
+
+/** One tab: the agent's, which is always first and never closed, or a file's. A file shown but not kept has its name in italics, and gives its tab to the next file shown. */
+export interface Tab { readonly id: string; readonly name: string; readonly agent?: boolean; readonly kept?: boolean; readonly title?: string }
+
+/**
+ * A pane's tabs, as an editor has them: the one shown is on the pane's own surface, the others on the strip. A click
+ * shows a tab, a double click keeps a file's, its × closes it. The shown tab's tools are at the strip's end.
+ */
+export function Tabs({ tabs, shown, onShow, onKeep, onClose, tools }: { tabs: readonly Tab[]; shown: string; onShow: (id: string) => void; onKeep?: (id: string) => void; onClose?: (id: string) => void; tools?: ReactNode }) {
+  return (
+    <div className="flex h-11 flex-none items-stretch bg-background" role="tablist">
+      <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
+        {tabs.map((t) => {
+          const on = t.id === shown;
+          return (
+            <div key={t.id} role="tab" aria-selected={on} title={t.title ?? t.name} onClick={() => onShow(t.id)} onDoubleClick={() => onKeep?.(t.id)}
+              className={cn('group flex max-w-[220px] flex-none cursor-pointer items-center gap-2 border-r pr-2 pl-3.5 text-[13px]', on ? 'bg-card text-foreground' : 'border-b text-ink-3 hover:text-foreground')}>
+              {t.agent ? <span className="size-[7px] flex-none animate-pulse rounded-full bg-brand" /> : <span className={cn(KIND, 'h-[18px] w-[26px] leading-[18px]')}>{t.name.split('.').pop()}</span>}
+              <span className={cn('truncate', on && 'font-bold', !t.agent && !t.kept && 'italic')}>{t.name}</span>
+              {t.agent ? <span className="w-1" /> : (
+                <button type="button" aria-label={`Close ${t.name}`} onClick={(e) => { e.stopPropagation(); onClose?.(t.id); }}
+                  className={cn('flex size-5 flex-none cursor-pointer items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-foreground', !on && 'opacity-0 group-hover:opacity-100')}><Icon name="close" size={13} /></button>
+              )}
+            </div>
+          );
+        })}
+        <div className="min-w-4 flex-1 border-b" />
+      </div>
+      {tools ? <div className="flex flex-none items-center gap-2 border-b pr-3 pl-2">{tools}</div> : null}
     </div>
   );
 }
@@ -432,15 +463,14 @@ const T = {
  * page: on the page's surface, in its ink and its code face, light when the
  * page is light. What the CLI draws is its own; its ground, its ink, its
  * sixteen colours, its face and the room round it are the page's. `head` is what the variant puts over it; without one it is the bare
- * terminal. `column` keeps its lines to a readable width in the middle of a
- * wide pane.
+ * terminal.
  */
-export function Agent({ head, column }: { head?: ReactNode; column?: boolean }) {
+export function Agent({ head }: { head?: ReactNode }) {
   return (
     <section className="flex h-full min-w-0 flex-col bg-card text-ink-2" aria-label="Agent">
       {head}
       <div className="min-h-0 flex-1 overflow-hidden">
-        <div className={cn('flex h-full flex-col justify-end px-5 pb-4 font-mono text-[12.5px]/[20px] whitespace-pre-wrap', column && 'mx-auto max-w-[920px]')}>
+        <div className="flex h-full flex-col justify-end px-5 pb-4 font-mono text-[12.5px]/[20px] whitespace-pre-wrap">
           <p className={T.dim}>{'> the materials of each step should sit beside its result, not in one flat folder'}</p>
           <p>&nbsp;</p>
           <p><span className={T.white}>●</span> Each done step gets a folder named for it, holding its result and what it left. Dropped steps are listed and their materials left out, as the spec says.</p>
@@ -479,6 +509,21 @@ export function AgentHead({ lead, tools }: { lead?: ReactNode; tools?: ReactNode
         <span className="truncate text-[15px] font-bold text-foreground">{WORKING.title}</span>
       </span>
       <span className="flex flex-none items-center gap-0.5">{tools}</span>
+    </div>
+  );
+}
+
+/** A task's artifacts as a short list, where the Agent layout has no tree: a click shows one in a tab beside the agent, a double click keeps it. */
+export function Artifacts({ shown, onFile, onKeep }: { shown: string | null; onFile: (path: string) => void; onKeep: (path: string) => void }) {
+  return (
+    <div className="flex flex-col gap-px">
+      <div className={LABEL}>Artifacts</div>
+      {FILES.filter((f) => f.root === 'materials').map((f) => (
+        <a key={f.path} className={cn(row({ on: shown === f.path, at: 'tree' }))} href="#" onClick={(e) => { e.preventDefault(); onFile(f.path); }} onDoubleClick={() => onKeep(f.path)}>
+          <span className={KIND}>{f.path.split('.').pop()}</span><span className={GROW}>{f.path}</span>
+          {f.mark ? <span className={cn('flex-none font-mono text-[11px] font-bold', f.mark === 'A' ? 'text-success' : 'text-warning')}>{f.mark}</span> : null}
+        </a>
+      ))}
     </div>
   );
 }
