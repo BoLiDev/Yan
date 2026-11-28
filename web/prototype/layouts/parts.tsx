@@ -30,8 +30,7 @@ export function Handle({ label }: { label: string; dark?: boolean }) {
 /* ---- marks ---- */
 
 const TASK_MARKS: Record<TaskState, { colour: string; marks: ReactNode }> = {
-  // Not done yet: a ring still to be closed, in eight dashes.
-  open: { colour: 'text-brand', marks: <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="2.6 2.31" /> },
+  open: { colour: 'text-brand', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" /></> },
   uat: { colour: 'text-warning', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><circle cx="8" cy="8" r="2.75" fill="currentColor" /></> },
   done: { colour: 'text-success', marks: <><circle cx="8" cy="8" r="7" fill="currentColor" /><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="var(--card)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></> },
   paused: { colour: 'text-ink-3', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M6.5 5.5v5M9.5 5.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></> },
@@ -79,7 +78,10 @@ const SHELVED: readonly MockTask[] = [
 ];
 
 type Shown = 'active' | 'paused' | 'done';
-const FILTERS: readonly (readonly [Shown, TaskState, string])[] = [['active', 'open', 'Active tasks'], ['paused', 'paused', 'Paused tasks'], ['done', 'done', 'Done tasks']];
+const FILTERS: readonly (readonly [Shown, TaskState | null, string])[] = [['active', null, 'Tasks not done yet'], ['paused', 'paused', 'Paused tasks'], ['done', 'done', 'Done tasks']];
+
+/** Not done yet, whether in work or waiting on the user: a ring still to be closed. The filter's own mark, no task's. */
+const NOT_DONE = <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true" className="shrink-0 text-ink-2"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="2.6 2.31" /></svg>;
 
 /**
  * Which tasks the list holds: three marks at its top, each a state's own mark, any of them on at once. Active alone
@@ -87,13 +89,13 @@ const FILTERS: readonly (readonly [Shown, TaskState, string])[] = [['active', 'o
  */
 function TaskFilter({ on, toggle }: { on: ReadonlySet<Shown>; toggle: (which: Shown) => void }) {
   return (
-    <div className="flex items-center justify-end gap-0.5 px-0.5" role="group" aria-label="Which tasks are listed">
+    <div className="flex items-center gap-0.5 px-0.5" role="group" aria-label="Which tasks are listed">
       {FILTERS.map(([which, state, label]) => (
         <Tooltip key={which}>
           <TooltipTrigger render={
             <button type="button" aria-pressed={on.has(which)} aria-label={label} onClick={() => toggle(which)}
               className={cn('flex size-[30px] cursor-pointer items-center justify-center rounded-lg hover:bg-hover', on.has(which) ? 'bg-hover' : 'opacity-40 grayscale hover:opacity-80')}>
-              <TaskMark state={state} />
+              {state === null ? NOT_DONE : <TaskMark state={state} />}
             </button>} />
           <TooltipContent>{label}</TooltipContent>
         </Tooltip>
