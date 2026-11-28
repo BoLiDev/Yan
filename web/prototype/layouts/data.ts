@@ -28,9 +28,30 @@ export const STEPS: readonly MockStep[] = [
   { id: 'j9lk', kind: 'build', title: 'yan pack --json says what it wrote', state: 'ready', files: [], on: ['r6ye'], col: 4, row: 2 },
   { id: 'n5ju', kind: 'build', title: 'A pack opens on another machine', state: 'waiting', files: [], on: ['v1sz'], col: 5, row: 0 },
 ];
-/** The steps the destination is reached from, and the change that re-routed the path, by the step it dropped. */
+/** The steps the destination is reached from. */
 export const LAST: readonly string[] = ['n5ju', 'j9lk'];
-export const CHANGE = { dropped: 'x2mb', when: '12 Nov', why: 'A pack goes only to people already trusted with the task, so it is not encrypted.' };
+
+/**
+ * How the path came to be what it is: each moment something happened to it, in order. A moment adds steps, finishes
+ * steps, or is a change, which drops steps and may move the destination (here, one outcome fewer).
+ */
+export interface Moment { when: string; adds?: readonly string[]; done?: readonly string[]; change?: { drops: readonly string[]; why: string; outcomes: number } }
+export const HISTORY: readonly Moment[] = [
+  { when: '3 Nov', adds: ['k3f9', 'p7qa', 'h8wd', 'x2mb', 'c4tn'] },
+  { when: '4 Nov', done: ['k3f9'] },
+  { when: '6 Nov', done: ['p7qa'] },
+  { when: '8 Nov', done: ['h8wd'] },
+  { when: '12 Nov', change: { drops: ['x2mb'], outcomes: 4, why: 'A pack is only ever handed to people already trusted with the task, so encrypting it protects nothing and costs every reader a password. The outcome "The archive cannot be read without its password" is taken off the destination, and the decision on how to encrypt is dropped. The spec no longer waits on it.' } },
+  { when: '13 Nov', done: ['c4tn'], adds: ['r6ye', 'v1sz', 'n5ju'] },
+  { when: '17 Nov', done: ['r6ye'] },
+  { when: '19 Nov', adds: ['j9lk'] },
+  { when: 'Now' },
+];
+/** What a step relied on only until a change: the spec waited on the encryption decision until that was dropped. */
+export const ONCE: Readonly<Record<string, readonly string[]>> = { c4tn: ['x2mb'] };
+/** How many outcomes the destination had before any change, and from which moment how many were met. */
+export const OUTCOMES_AT_FIRST = 5;
+export const MET_FROM: readonly (readonly [number, number])[] = [[6, 2]];
 
 export const DESTINATION = 'yan pack writes one archive that someone without Yan can open and read: where the task was going, what each step concluded, and what it left.';
 export const OUTCOMES: readonly (readonly [string, boolean])[] = [

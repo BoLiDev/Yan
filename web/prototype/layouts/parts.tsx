@@ -171,14 +171,12 @@ export function Destination() {
  */
 export function DestinationRow() {
   const [open, setOpen] = useState(false);
-  const met = OUTCOMES.filter(([, ok]) => ok).length;
   return (
     <div className="flex flex-col gap-px">
       <button type="button" aria-expanded={open} className={cn(row({ at: 'nav' }), 'text-[13.5px]')} onClick={() => setOpen(!open)}>
         <Icon name="principles" size={15} className="text-ink-3" />
         <span className={GROW}>Destination</span>
         <span className="flex flex-none items-center gap-1">{OUTCOMES.map(([text, ok]) => <span key={text} title={text} className={cn('size-[9px] rounded-[3px]', ok ? 'bg-success' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>
-        <span className={ASIDE}>{met} / {OUTCOMES.length} met</span>
         <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
       </button>
       {open ? (
@@ -352,7 +350,6 @@ export function PathRow({ open, onToggle }: { open: boolean; onToggle: () => voi
       <Icon name="branch" size={15} className="text-ink-3" />
       <span className={GROW}>Path</span>
       <span className="flex flex-none items-center gap-1">{live.map((s) => <span key={s.id} title={s.title} className={cn('size-[9px] rounded-full', s.state === 'done' ? 'bg-success' : s.state === 'working' ? 'bg-brand' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>
-      <span className={ASIDE}>{live.filter((s) => s.state === 'done').length} / {live.length} done</span>
       <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open && 'rotate-180')}><Icon name="chev" size={12} width={2.25} /></span>
     </button>
   );
