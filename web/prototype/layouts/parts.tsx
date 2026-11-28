@@ -69,16 +69,6 @@ function TaskRow({ t }: { t: MockTask }) {
   );
 }
 
-function Sync() {
-  return (
-    <div className="flex min-h-[50px] w-full items-center gap-2.5 rounded-xl bg-card px-3 py-2">
-      <span className="size-2 flex-none rounded-full bg-success ring-3 ring-success-soft" />
-      <b className="flex-1 text-[13px]">Synced</b>
-      <Icon name="refresh" size={16} className="text-ink-3" />
-    </div>
-  );
-}
-
 /** The task list as v1 has it: yan, Janus and settings, finding and starting, the groups, and the vault's light. */
 export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => void; mode?: ReactNode; modeRow?: ReactNode; modeFoot?: ReactNode }) {
   const open = TASKS.filter((t) => t.state === 'open');
@@ -118,7 +108,7 @@ export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => v
           <div className="flex min-h-7 items-center gap-2 pt-1 pr-2.5 pb-0.5 pl-3 text-[12px] text-ink-3"><Icon name="chev" size={12} width={2.25} /><span className={GROW}>October</span><span className="tabular-nums">14</span></div>
         </div>
       </div>
-      <div className="flex flex-none flex-col gap-2 px-3 pt-2 pb-3">{modeFoot}<Sync /></div>
+      <div className="flex-none px-2.5 pt-2 pb-3">{modeFoot}</div>
     </nav>
   );
 }
@@ -271,18 +261,19 @@ function TreeRow({ depth, icon, name, aside, on, onClick, mark }: { depth: numbe
  * its rail when it is folded. Not the row of toggles (Seg), which is kept for what a column lists.
  */
 export function ModeSwitch({ bench, onPick, stacked, words }: { bench: boolean; onPick: (bench: boolean) => void; stacked?: boolean; words?: boolean }) {
+  const tall = words ? 'h-[34px] rounded-[9px]' : 'h-[26px] rounded-[7px]';
   const item = (on: boolean, to: boolean, word: string, keys: string, Mark: typeof SquareTerminal): ReactNode => (
     <Tooltip>
       <TooltipTrigger render={
         <button type="button" aria-pressed={on} aria-label={word} onClick={() => onPick(to)}
-          className={cn('flex h-[26px] cursor-pointer items-center justify-center gap-1.5 rounded-[7px] text-[13px] text-ink-3 hover:text-foreground', words ? 'flex-1 px-2' : 'w-[26px]', on && 'bg-card font-bold text-foreground shadow-xs ring-1 ring-border')}>
+          className={cn('flex cursor-pointer items-center justify-center gap-1.5 text-[13px] text-ink-3 hover:text-foreground', tall, words ? 'flex-1 px-2' : 'w-[26px]', on && 'bg-card font-bold text-foreground shadow-xs ring-1 ring-border')}>
           <Mark size={15} strokeWidth={1.75} aria-hidden="true" />{words ? word : null}
         </button>} />
       <TooltipContent>{`${word} (${keys})`}</TooltipContent>
     </Tooltip>
   );
   return (
-    <span className={cn('flex gap-0.5 rounded-[9px] bg-hover p-[2px]', stacked && 'flex-col', words ? 'w-full' : 'flex-none')} role="group" aria-label="Layout">
+    <span className={cn('flex gap-0.5 bg-hover', stacked && 'flex-col', words ? 'w-full rounded-[12px] p-[3px]' : 'flex-none rounded-[9px] p-[2px]')} role="group" aria-label="Layout">
       {item(!bench, false, 'Agent', 'Ctrl+1', SquareTerminal)}
       {item(bench, true, 'Workbench', 'Ctrl+2', PanelsTopLeft)}
     </span>
@@ -362,7 +353,7 @@ export function PathRow({ open, onToggle }: { open: boolean; onToggle: () => voi
       <span className={GROW}>Path</span>
       <span className="flex flex-none items-center gap-1">{live.map((s) => <span key={s.id} title={s.title} className={cn('size-[9px] rounded-full', s.state === 'done' ? 'bg-success' : s.state === 'working' ? 'bg-brand' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>
       <span className={ASIDE}>{live.filter((s) => s.state === 'done').length} / {live.length} done</span>
-      <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open ? '-rotate-90' : 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
+      <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open && 'rotate-180')}><Icon name="chev" size={12} width={2.25} /></span>
     </button>
   );
 }

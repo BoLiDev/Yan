@@ -6,15 +6,15 @@
  *
  * The task's column is headed by the title, on one line, then two rows that
  * are the same in both layouts: the destination (how far it is met; its
- * words open under it) and the path (how far along; it opens a drawer where
- * the path is drawn as a graph). Under them, Agent lists what is worked now,
+ * words open under it) and the path (how far along; it opens a drawer over the page
+ * where the path is drawn as a graph). Under them, Agent lists what is worked now,
  * what is ready next and the links; Workbench lists artifacts or
  * repositories, picked by a row of toggles, with a mark that keeps only what
  * changed.
  *
- * Still being compared, from the bar at the top: where the layout switch
- * sits (?switch=head|row|foot|title) and which side of the agent the task's
- * column is on in Agent (?details=left|right).
+ * The layout switch is at the foot of the task list, where the vault's light
+ * was. Still being compared, from the button at the bottom right: which side
+ * of the agent the task's column is on in Agent (?details=left|right).
  */
 import { useEffect, useState } from 'react';
 import { Seg, Tool } from '@/components/page';
@@ -27,7 +27,6 @@ export function Layouts() {
   const [layout] = useParam('layout', 'agent');
   const [path] = useParam('file', 'spec.md');
   const [side] = useParam('details', 'left');
-  const [place] = useParam('switch', 'row');
   const [drawn, setDrawn] = useParam('path', 'shut');
   const bench = layout === 'workbench';
   const graph = drawn === 'open';
@@ -43,6 +42,7 @@ export function Layouts() {
   const toggleGraph = (): void => setDrawn(graph ? 'shut' : 'open');
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && graph) return void setDrawn('shut');
       if (!e.ctrlKey) return;
       if (e.key === '1' || e.key === '2') pick(e.key === '2');
       else if (e.key === 'p') toggleGraph();
@@ -57,7 +57,7 @@ export function Layouts() {
   const column = (
     <aside className="flex h-full flex-col overflow-hidden border-r bg-background" aria-label="Task">
       <div className="flex flex-none flex-col gap-3 px-3 pt-[18px] pb-3">
-        <TaskHead more={place === 'title' ? <ModeSwitch bench={bench} onPick={pick} /> : null} />
+        <TaskHead />
         <div className="flex flex-col gap-px"><DestinationRow /><PathRow open={graph} onToggle={toggleGraph} /></div>
         {bench ? (
           <div className="flex items-center gap-1.5">
@@ -78,9 +78,9 @@ export function Layouts() {
     <div className="flex h-screen">
       {list ? (
         <div className="w-60 flex-none">
-          <TaskList onFold={() => setList(false)} mode={place === 'head' ? <ModeSwitch bench={bench} onPick={pick} /> : null} modeRow={place === 'row' ? words : null} modeFoot={place === 'foot' ? words : null} />
+          <TaskList onFold={() => setList(false)} modeFoot={words} />
         </div>
-      ) : <Rail onUnfold={() => setList(true)} extra={place === 'title' ? null : <ModeSwitch bench={bench} onPick={pick} stacked />} />}
+      ) : <Rail onUnfold={() => setList(true)} extra={<ModeSwitch bench={bench} onPick={pick} stacked />} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <Resizable key={`${layout}|${side}`} className="min-h-0 flex-1">
           {left ? <>{columnPanel}<Handle label="Resize the task's column" /></> : null}
@@ -88,8 +88,8 @@ export function Layouts() {
           <ResizablePanel defaultSize={bench ? 30 : undefined} minSize="320px">{agent}</ResizablePanel>
           {left ? null : <><Handle label="Resize the task's column" dark />{columnPanel}</>}
         </Resizable>
-        {graph ? <PathDrawer onClose={() => setDrawn('shut')} onFile={open} /> : null}
       </div>
+      <PathDrawer open={graph} onClose={() => setDrawn('shut')} onFile={(p) => { setDrawn('shut'); open(p); }} />
     </div>
   );
 }

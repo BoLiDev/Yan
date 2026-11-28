@@ -1,8 +1,8 @@
 /*
- * PROTOTYPE. The path drawn as a graph, in a drawer under the page's main
- * area: a node for each step, shaped by its kind, a line from each step to
- * the steps that rely on it, and the destination at the end. Time and
- * dependency both run left to right. A first take only: how a path is drawn
+ * PROTOTYPE. The path drawn as a graph, in a drawer that slides over the
+ * page from its left edge: a node for each step, shaped by its kind, a line
+ * from each step to the steps that rely on it, and the destination at the
+ * foot. Time and dependency both run top down. A first take only: how a path is drawn
  * is its own ticket.
  */
 import { FileText, FlaskConical, Hammer, Search, Signpost, type LucideIcon } from 'lucide-react';
@@ -11,10 +11,13 @@ import { SHIMMER, Tool } from '@/components/page';
 import { cn } from '@/lib/utils';
 import { CHANGE, LAST, OUTCOMES, STEPS, type MockStep, type StepKind, type StepState } from './data';
 
-const W = 158, H = 58, GX = 30, GY = 22, PAD = 20;
-const x = (col: number): number => PAD + col * (W + GX);
-const y = (row: number): number => PAD + row * (H + GY);
-const END_COL = Math.max(...STEPS.map((s) => s.col)) + 1;
+const W = 172, H = 58, GX = 18, GY = 36, PAD = 20;
+/** Top down: a step's level (how far along the path it is) is its row here, and its lane across is its column. */
+const x = (lane: number): number => PAD + lane * (W + GX);
+const y = (level: number): number => PAD + level * (H + GY);
+const END = Math.max(...STEPS.map((s) => s.col)) + 1;
+const WIDTH = x(2) + W + PAD;
+const HEIGHT = y(END) + H + PAD;
 
 /** A kind's mark and the shape its tile is cut to: a decision a diamond, research a circle, a prototype a dashed square, a spec a page, a build a hexagon. */
 const KINDS: Record<StepKind, { word: string; Mark: LucideIcon; shape: string }> = {
@@ -39,7 +42,7 @@ function Node({ s, onFile }: { s: MockStep; onFile: (path: string) => void }) {
   const first = s.files[0];
   return (
     <button type="button" title={`${k.word} · ${s.state}${first ? ' · opens what it left' : ''}`} onClick={() => { if (first) onFile(first); }}
-      className={cn('absolute flex cursor-pointer items-center gap-2.5 rounded-[12px] px-2.5 text-left ring-1 hover:brightness-110', t.card)} style={{ left: x(s.col), top: y(s.row), width: W, height: H }}>
+      className={cn('absolute flex cursor-pointer items-center gap-2.5 rounded-[12px] px-2.5 text-left ring-1 hover:brightness-110', t.card)} style={{ left: x(s.row), top: y(s.col), width: W, height: H }}>
       <span className={cn('flex size-[30px] flex-none items-center justify-center', k.shape, t.tile, s.kind === 'prototype' && 'outline-dashed outline-1 -outline-offset-2 outline-current')}><k.Mark size={14} strokeWidth={2} aria-hidden="true" /></span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">{k.word}{s.state === 'working' ? <span className="text-brand"> · in work</span> : s.state === 'ready' ? ' · ready' : s.state === 'waiting' ? ' · waiting' : s.state === 'dropped' ? ' · dropped' : ''}</span>
@@ -49,58 +52,63 @@ function Node({ s, onFile }: { s: MockStep; onFile: (path: string) => void }) {
   );
 }
 
-/** A line from the right edge of one box to the left edge of another, bending once between their columns. */
-function edge(fromCol: number, fromRow: number, toCol: number, toRow: number): string {
-  const x1 = x(fromCol) + W, y1 = y(fromRow) + H / 2, x2 = x(toCol), y2 = y(toRow) + H / 2;
-  const mid = x2 - GX / 2;
-  return `M${x1} ${y1} C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`;
+/** A line from the foot of one box to the head of another, bending once between their levels. */
+function edge(fromLane: number, fromLevel: number, toLane: number, toLevel: number): string {
+  const x1 = x(fromLane) + W / 2, y1 = y(fromLevel) + H, x2 = x(toLane) + W / 2, y2 = y(toLevel);
+  const mid = y2 - GY / 2;
+  return `M${x1} ${y1} C${x1} ${mid} ${x2} ${mid} ${x2} ${y2}`;
 }
 
-export function PathDrawer({ onClose, onFile }: { onClose: () => void; onFile: (path: string) => void }) {
+/**
+ * The drawer: over the page from its left edge, the page dimmed behind it and left as it was. A click on what is
+ * behind, Esc, or Ctrl+P closes it. Always drawn, so it slides both ways.
+ */
+export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: () => void; onFile: (path: string) => void }) {
   const at = (id: string): MockStep => STEPS.find((s) => s.id === id) as MockStep;
   const met = OUTCOMES.filter(([, ok]) => ok).length;
   const dropped = at(CHANGE.dropped);
-  const width = x(END_COL) + W + PAD;
-  const height = y(2) + H + PAD;
   return (
-    <section className="flex h-[348px] flex-none flex-col border-t bg-background" aria-label="Path">
-      <div className="flex h-11 flex-none items-center gap-4 pr-2 pl-5">
-        <b className="text-[15px]">Path</b>
-        <span className="text-[12px] text-ink-3 tabular-nums">{STEPS.filter((s) => s.state === 'done').length} of {STEPS.filter((s) => s.state !== 'dropped').length} steps done · 1 change</span>
-        <span className="flex-1" />
-        <span className="flex items-center gap-3.5 text-[12px] text-ink-3">
+    <>
+      <div className={cn('fixed inset-0 z-40 bg-shade transition-opacity duration-200', open ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={onClose} />
+      <section aria-label="Path" aria-hidden={!open} style={{ width: WIDTH + 12 }}
+        className={cn('fixed inset-y-0 left-0 z-50 flex flex-col bg-background shadow-[0_0_0_1px_var(--line),0_24px_60px_-10px_var(--shadow-strong)] transition-transform duration-[260ms] ease-[cubic-bezier(.2,.8,.2,1)]', open ? 'translate-x-0' : '-translate-x-[105%]')}>
+        <div className="flex flex-none items-center gap-3 pt-4 pr-3 pb-1 pl-5">
+          <b className="text-[19px] tracking-[-0.01em]">Path</b>
+          <span className="flex-1 text-[12px] text-ink-3 tabular-nums">{STEPS.filter((s) => s.state === 'done').length} of {STEPS.filter((s) => s.state !== 'dropped').length} steps done · 1 change</span>
+          <Tool name="close" label="Close the path (Esc)" onClick={onClose} small />
+        </div>
+        <div className="flex flex-none flex-wrap items-center gap-x-3.5 gap-y-1 px-5 pb-2 text-[12px] text-ink-3">
           {(Object.keys(KINDS) as StepKind[]).map((kind) => {
             const k = KINDS[kind];
             return <span key={kind} className="flex items-center gap-1.5"><span className={cn('flex size-[18px] items-center justify-center bg-hover text-ink-2', k.shape, kind === 'prototype' && 'rounded-[5px] outline-dashed outline-1 -outline-offset-2 outline-current')}><k.Mark size={10} strokeWidth={2.2} aria-hidden="true" /></span>{k.word}</span>;
           })}
-        </span>
-        <Tool name="close" label="Close the path (Ctrl+P)" onClick={onClose} small />
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="relative" style={{ width, height }}>
-          <svg className="absolute inset-0" width={width} height={height} aria-hidden="true">
-            {STEPS.flatMap((s) => s.on.map((from) => {
-              const f = at(from);
-              const faint = s.state === 'dropped';
-              return <path key={`${from}>${s.id}`} d={edge(f.col, f.row, s.col, s.row)} fill="none" stroke={faint ? 'var(--ink-4)' : TONE[s.state === 'done' || s.state === 'working' ? 'done' : 'ready'].line} strokeWidth={1.6} strokeDasharray={s.state === 'waiting' || faint ? '4 4' : undefined} opacity={faint ? 0.6 : 1} />;
-            }))}
-            {LAST.map((id) => <path key={id} d={edge(at(id).col, at(id).row, END_COL, 1)} fill="none" stroke="var(--ink-4)" strokeWidth={1.6} strokeDasharray="4 4" />)}
-          </svg>
-          {STEPS.map((s) => <Node key={s.id} s={s} onFile={onFile} />)}
-          {/* The change, where it happened: under the step it dropped, saying why in a line. */}
-          <div className="absolute flex items-start gap-1.5 text-[11.5px]/[15px] text-warning" style={{ left: x(dropped.col) + 4, top: y(dropped.row) + H + 5, width: W + GX + W - 20 }}>
-            <Icon name="branch" size={12} className="mt-px" /><span><b>Change · {CHANGE.when}</b> <span className="text-ink-3">{CHANGE.why}</span></span>
-          </div>
-          {/* Where the path ends: the destination, with how far it is met. */}
-          <div className="absolute flex items-center gap-2.5 rounded-[12px] bg-card px-3 ring-1 ring-border" style={{ left: x(END_COL), top: y(1), width: W, height: H }}>
-            <span className="flex size-[30px] flex-none items-center justify-center rounded-full bg-foreground text-background"><Icon name="principles" size={15} /></span>
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">Destination</span>
-              <span className="flex items-center gap-1.5 text-[12.5px]/[16px]"><span className="flex gap-1">{OUTCOMES.map(([text, ok]) => <span key={text} className={cn('size-[9px] rounded-[3px]', ok ? 'bg-success' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>{met} / {OUTCOMES.length} met</span>
-            </span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="relative" style={{ width: WIDTH, height: HEIGHT }}>
+            <svg className="absolute inset-0" width={WIDTH} height={HEIGHT} aria-hidden="true">
+              {STEPS.flatMap((s) => s.on.map((from) => {
+                const f = at(from);
+                const faint = s.state === 'dropped';
+                return <path key={`${from}>${s.id}`} d={edge(f.row, f.col, s.row, s.col)} fill="none" stroke={faint ? 'var(--ink-4)' : TONE[s.state === 'done' || s.state === 'working' ? 'done' : 'ready'].line} strokeWidth={1.6} strokeDasharray={s.state === 'waiting' || faint ? '4 4' : undefined} opacity={faint ? 0.6 : 1} />;
+              }))}
+              {LAST.map((id) => <path key={id} d={edge(at(id).row, at(id).col, 1, END)} fill="none" stroke="var(--ink-4)" strokeWidth={1.6} strokeDasharray="4 4" />)}
+            </svg>
+            {STEPS.map((s) => <Node key={s.id} s={s} onFile={onFile} />)}
+            {/* The change, where it happened: under the step it dropped, saying why. */}
+            <div className="absolute flex items-start gap-1.5 text-[11.5px]/[15px] text-warning" style={{ left: x(dropped.row) + 2, top: y(dropped.col) + H + 6, width: W - 4 }}>
+              <Icon name="branch" size={12} className="mt-px" /><span><b>Change · {CHANGE.when}</b><br /><span className="text-ink-3">{CHANGE.why}</span></span>
+            </div>
+            {/* Where the path ends: the destination, with how far it is met. */}
+            <div className="absolute flex items-center gap-2.5 rounded-[12px] bg-card px-3 ring-1 ring-border" style={{ left: x(1), top: y(END), width: W, height: H }}>
+              <span className="flex size-[30px] flex-none items-center justify-center rounded-full bg-foreground text-background"><Icon name="principles" size={15} /></span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">Destination</span>
+                <span className="flex items-center gap-1.5 text-[12.5px]/[16px]"><span className="flex gap-1">{OUTCOMES.map(([text, ok]) => <span key={text} className={cn('size-[9px] rounded-[3px]', ok ? 'bg-success' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>{met} / {OUTCOMES.length} met</span>
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
