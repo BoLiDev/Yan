@@ -4,7 +4,7 @@
  * and nothing of their layout. How a path is drawn is another ticket's: here
  * it is a plain list.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
 import { Icon, type IconName } from '@/components/Icon';
 import { ASIDE, Bar, BarSep, BarTools, Crumb, Dot, GROW, KIND, LABEL, SHIMMER, Seg, Tool, WORKING as WORKING_TITLE, row } from '@/components/page';
@@ -170,14 +170,55 @@ export function Destination() {
   );
 }
 
+/**
+ * The destination as one row: that there is one, and how far it is met. Its words and its outcomes open under it when
+ * asked for, and fold away again, so the column keeps its room for the path.
+ */
+export function DestinationRow() {
+  const [open, setOpen] = useState(false);
+  const met = OUTCOMES.filter(([, ok]) => ok).length;
+  return (
+    <div className="flex flex-col gap-px">
+      <button type="button" aria-expanded={open} className={cn(row({ at: 'nav' }), 'text-[13.5px]')} onClick={() => setOpen(!open)}>
+        <Icon name="principles" size={15} className="text-ink-3" />
+        <span className={GROW}>Destination</span>
+        <span className="flex flex-none items-center gap-1">{OUTCOMES.map(([text, ok]) => <span key={text} title={text} className={cn('size-[9px] rounded-[3px]', ok ? 'bg-success' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>
+        <span className={ASIDE}>{met} / {OUTCOMES.length} met</span>
+        <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
+      </button>
+      {open ? (
+        <div className="mb-1 flex flex-col gap-px rounded-[10px] bg-card py-2 ring-1 ring-border">
+          <p className="px-3 pb-1.5 text-[13.5px]/[21px] text-ink-2">{DESTINATION}</p>
+          {OUTCOMES.map(([text, ok]) => (
+            <div key={text} className="flex items-start gap-2.5 px-3 py-1 text-[13.5px]/[21px]">
+              <span className={cn('mt-[3px] flex size-[15px] flex-none items-center justify-center rounded-[4px]', ok ? 'bg-success text-[var(--card)]' : 'ring-[1.5px] ring-ink-4 ring-inset')}>{ok ? <Icon name="tick" size={11} width={3} /> : null}</span>
+              <span className={ok ? 'text-ink-3' : ''}>{text}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const KIND_WORD = { decision: 'dec', research: 'res', prototype: 'pro', spec: 'spec', build: 'bld' } as const;
 
 /** The path as a plain list of steps. Picking one with files opens its first. */
-export function Steps({ onFile, picked }: { onFile?: (path: string) => void; picked?: string | null }) {
+export function Steps({ onFile, picked, change }: { onFile?: (path: string) => void; picked?: string | null; change?: boolean }) {
   return (
     <div className="flex flex-col gap-px">
       <div className={cn(LABEL, 'flex')}><span className="flex-1">Path</span><span className="font-normal tabular-nums">{STEPS.filter((s) => s.state === 'done').length} / {STEPS.filter((s) => s.state !== 'dropped').length} done</span></div>
-      {STEPS.map((s) => <StepRow key={s.id} s={s} onFile={onFile} on={picked === s.id} />)}
+      {STEPS.map((s) => (
+        <Fragment key={s.id}>
+          <StepRow s={s} onFile={onFile} on={picked === s.id} />
+          {/* Where the path was re-routed: the change, once, between what came before it and what it left. */}
+          {change && s.state === 'dropped' ? (
+            <div className="my-1 flex items-center gap-2 px-2.5 text-[12px] text-warning" title="A pack is only handed to people already trusted with the task. Dropped 1 step.">
+              <span className="h-px w-2 bg-warning/50" /><Icon name="branch" size={12} /><span className="flex-none font-bold">Change</span><span className="min-w-0 flex-1 truncate text-ink-3">12 Nov · a pack goes only to people already trusted</span>
+            </div>
+          ) : null}
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -236,11 +277,15 @@ export function Tree({ file, onFile }: { file: string | null; onFile: (path: str
         ))}
       </div>
       <div className="flex flex-col gap-px">
-        <div className={cn(LABEL, 'flex items-center gap-1.5')}><span className="flex-1">Code</span><Icon name="branch" size={12} /><span className="font-mono text-[11px] font-normal">yan/t152</span></div>
+        <div className={cn(LABEL, 'flex items-center gap-1.5')}><span className="flex-1">Repositories</span></div>
+        <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}><span className="flex-none rotate-90 text-ink-3"><Icon name="chev" size={12} width={2.25} /></span><Icon name="branch" size={15} className="text-ink-3" /><span className={GROW}>yan</span><span className="flex-none font-mono text-[11px] text-ink-3">yan/t152</span></div>
+        <div className="flex flex-col gap-px pl-3">
         <TreeRow depth={0} icon="folder" name="src / pack" aside={<span className={ASIDE}>{code.length}</span>} />
         {code.map((f) => <TreeRow key={f.path} depth={1} name={f.path.split('/').pop() as string} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />)}
         <TreeRow depth={0} icon="folder" name="src / path" aside={<span className={ASIDE}>6</span>} />
         <TreeRow depth={0} icon="folder" name="tests" aside={<span className={ASIDE}>31</span>} />
+        </div>
+        <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}><span className="flex-none text-ink-3"><Icon name="chev" size={12} width={2.25} /></span><Icon name="branch" size={15} className="text-ink-3" /><span className={GROW}>yan-site</span><span className="flex-none font-mono text-[11px] text-ink-3">yan/t152</span></div>
       </div>
     </div>
   );

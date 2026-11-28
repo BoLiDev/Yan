@@ -13,16 +13,18 @@ import { useParam } from './params';
 import { VariantA } from './VariantA';
 import { VariantB } from './VariantB';
 import { VariantC } from './VariantC';
+import { VariantD } from './VariantD';
 
 // Dark unless ?theme=light: the theme's own tokens, by the class v1's page sets.
 const light = new URL(location.href).searchParams.get('theme') === 'light';
 document.documentElement.classList.add(light ? 'light' : 'dark');
 
 function App() {
-  const [variant] = useParam('variant', 'A');
-  const v = VARIANTS.some(([k]) => k === variant) ? variant : 'A';
+  const [variant] = useParam('variant', 'D');
+  const v = VARIANTS.some(([k]) => k === variant) ? variant : 'D';
   return (
     <TooltipProvider delay={400}>
+      {v === 'D' && <VariantD />}
       {v === 'A' && <VariantA />}
       {v === 'B' && <VariantB />}
       {v === 'C' && <VariantC />}

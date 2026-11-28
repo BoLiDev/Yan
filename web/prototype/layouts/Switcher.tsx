@@ -3,6 +3,7 @@ import { Icon } from '@/components/Icon';
 import { setParams, useParam } from './params';
 
 export const VARIANTS = [
+  ['D', 'After feedback: Agent and Workbench, the agent on the right of the files'],
   ['A', 'Two named layouts, a switch on the task'],
   ['B', 'One layout, the file pane opens and closes'],
   ['C', 'A top bar, the path across it'],
