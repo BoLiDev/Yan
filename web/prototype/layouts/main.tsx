@@ -1,36 +1,20 @@
 /*
- * PROTOTYPE, throwaway. Three answers to "what do v2's two layouts look like,
- * how does one switch, and what is each called", switchable via ?variant=
- * (A, B, C) from the bar at the bottom or with ← and →. Everything is mock
- * data; nothing reads yan serve but the fonts.
+ * PROTOTYPE, throwaway. What v2's two layouts look like, how one switches,
+ * and what each is called: one design, iterated on feedback (earlier takes
+ * A, B and C are in this branch's history). Everything is mock data; nothing
+ * reads yan serve but the fonts.
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import './proto.css';
-import { Switcher, VARIANTS } from './Switcher';
-import { useParam } from './params';
-import { VariantA } from './VariantA';
-import { VariantB } from './VariantB';
-import { VariantC } from './VariantC';
-import { VariantD } from './VariantD';
+import { Layouts } from './Layouts';
+import { Switcher } from './Switcher';
 
 // Dark unless ?theme=light: the theme's own tokens, by the class v1's page sets.
 const light = new URL(location.href).searchParams.get('theme') === 'light';
 document.documentElement.classList.add(light ? 'light' : 'dark');
 
-function App() {
-  const [variant] = useParam('variant', 'D');
-  const v = VARIANTS.some(([k]) => k === variant) ? variant : 'D';
-  return (
-    <TooltipProvider delay={400}>
-      {v === 'D' && <VariantD />}
-      {v === 'A' && <VariantA />}
-      {v === 'B' && <VariantB />}
-      {v === 'C' && <VariantC />}
-      <Switcher current={v} />
-    </TooltipProvider>
-  );
-}
-
-createRoot(document.getElementById('root') as HTMLElement).render(<StrictMode><App /></StrictMode>);
+createRoot(document.getElementById('root') as HTMLElement).render(
+  <StrictMode><TooltipProvider delay={400}><Layouts /><Switcher /></TooltipProvider></StrictMode>,
+);

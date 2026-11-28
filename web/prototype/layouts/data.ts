@@ -76,6 +76,23 @@ Encrypting a pack was decided against: whoever is handed one is trusted with it.
 `,
   },
   {
+    path: 'evidence.md', root: 'materials', step: 'v1sz', mark: 'A', text: `# Evidence: a step's materials sit beside its result
+
+Packed t152 and listed the archive:
+
+\`\`\`
+index.html
+destination.md
+c4tn/result.md
+c4tn/spec.md
+p7qa/result.md
+p7qa/findings.md
+\`\`\`
+
+Each material is in the folder of the step that made it.
+`,
+  },
+  {
     path: 'findings.md', root: 'materials', step: 'p7qa', text: `# How tar treats long paths
 
 **ustar** cuts a path at 100 bytes for the name and 155 for the prefix. A material nested under a step folder passes that easily once its name is Chinese.

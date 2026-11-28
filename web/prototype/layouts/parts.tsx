@@ -6,7 +6,9 @@
  */
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
+import { ListFilter, PanelsTopLeft, SquareTerminal } from 'lucide-react';
 import { Icon, type IconName } from '@/components/Icon';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ASIDE, Bar, BarSep, BarTools, Crumb, Dot, GROW, KIND, LABEL, SHIMMER, Seg, Tool, WORKING as WORKING_TITLE, row } from '@/components/page';
 import { Button } from '@/components/ui/button';
 import { colourLines, langOf, langReady } from '@/lib/highlight';
@@ -78,7 +80,7 @@ function Sync() {
 }
 
 /** The task list as v1 has it: yan, Janus and settings, finding and starting, the groups, and the vault's light. */
-export function TaskList({ onFold }: { onFold?: () => void }) {
+export function TaskList({ onFold, mode }: { onFold?: () => void; mode?: ReactNode }) {
   const open = TASKS.filter((t) => t.state === 'open');
   return (
     <nav className="flex h-full w-full flex-col overflow-hidden bg-sunken" aria-label="Tasks">
@@ -86,6 +88,7 @@ export function TaskList({ onFold }: { onFold?: () => void }) {
         <div className="flex items-center gap-2 py-0.5 pr-0.5 pl-2.5">
           <b className="text-[22px] tracking-tight">yan</b>
           <span className="flex-1" />
+          {mode}
           <Tool name="janus" label="Janus" small />
           <Tool name="settings" label="Settings" small />
           <Tool name="panel" label="Hide the task list" onClick={onFold} small />
@@ -124,6 +127,7 @@ export function Rail({ onUnfold, extra }: { onUnfold?: () => void; extra?: React
   return (
     <nav className="flex h-full w-[52px] flex-none flex-col items-center gap-1.5 bg-sunken py-3.5" aria-label="Tasks">
       <Tool name="panel" label="Show the task list" onClick={onUnfold} small />
+      {extra}
       <Tool name="search" label="Find a task (Ctrl+F)" small />
       <span className="my-1 h-px w-6 bg-border" />
       {TASKS.filter((t) => t.state === 'open' || t.state === 'uat').map((t) => (
@@ -133,7 +137,6 @@ export function Rail({ onUnfold, extra }: { onUnfold?: () => void; extra?: React
         </span>
       ))}
       <span className="flex-1" />
-      {extra}
       <Tool name="plus" label="New task" small />
       <Tool name="note" label="Drafts" small />
       <Tool name="janus" label="Janus" small />
@@ -146,9 +149,9 @@ export function Rail({ onUnfold, extra }: { onUnfold?: () => void; extra?: React
 
 export function TaskHead({ more }: { more?: ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 px-2.5 [&>svg]:mt-1">
+    <div className="flex items-center gap-2.5 px-2.5">
       <TaskMark state={TASK.state} size={18} />
-      <h1 className="min-w-0 flex-1 text-[19px]/[26px] font-bold tracking-[-0.01em]">{TASK.title}</h1>
+      <h1 className="min-w-0 flex-1 truncate text-[19px]/[26px] font-bold tracking-[-0.01em]" title={TASK.title}>{TASK.title}</h1>
       {more ?? <Tool name="info" label="About this task" small />}
     </div>
   );
@@ -261,35 +264,89 @@ function TreeRow({ depth, icon, name, aside, on, onClick, mark }: { depth: numbe
   );
 }
 
-/** A task's files as one tree: its materials under the step that made each, then its code, the files the branch changed. */
-export function Tree({ file, onFile }: { file: string | null; onFile: (path: string) => void }) {
-  const materials = FILES.filter((f) => f.root === 'materials');
-  const code = FILES.filter((f) => f.root === 'code');
+/**
+ * The page's layout, picked by two marks that stay where they are in both: in the task list's head, and at the top of
+ * its rail when it is folded. Not the row of toggles (Seg), which is kept for what a column lists.
+ */
+export function ModeSwitch({ bench, onPick, stacked }: { bench: boolean; onPick: (bench: boolean) => void; stacked?: boolean }) {
+  const item = (on: boolean, to: boolean, label: string, Mark: typeof SquareTerminal): ReactNode => (
+    <Tooltip>
+      <TooltipTrigger render={
+        <button type="button" aria-pressed={on} aria-label={label} onClick={() => onPick(to)}
+          className={cn('flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] text-ink-3 hover:text-foreground', on && 'bg-card text-foreground shadow-xs ring-1 ring-border')}>
+          <Mark size={15} strokeWidth={1.75} aria-hidden="true" />
+        </button>} />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
   return (
-    <div className="flex flex-col gap-3" role="tree">
-      <div className="flex flex-col gap-px">
-        <div className={LABEL}>Materials</div>
+    <span className={cn('flex flex-none gap-0.5 rounded-[9px] bg-hover p-[2px]', stacked && 'flex-col')} role="group" aria-label="Layout">
+      {item(!bench, false, 'Agent (Ctrl+1)', SquareTerminal)}
+      {item(bench, true, 'Workbench (Ctrl+2)', PanelsTopLeft)}
+    </span>
+  );
+}
+
+export type FilesView = 'materials' | 'repositories';
+
+/** Rows that stand for the rest of a repository: there to be filtered out, not to be opened. */
+const UNCHANGED: readonly string[] = ['index-page.ts', 'unpack.ts'];
+
+/**
+ * A task's files, one kind at a time: its materials under the step that made each, or its repositories as trees.
+ * `changed` keeps only what changed, and the folders that hold it.
+ */
+export function Tree({ view, changed, file, onFile }: { view: FilesView; changed: boolean; file: string | null; onFile: (path: string) => void }) {
+  if (view === 'materials') {
+    const materials = FILES.filter((f) => f.root === 'materials' && (!changed || f.mark));
+    return (
+      <div className="flex flex-col gap-px" role="tree">
         {materials.map((f) => (
           <div key={f.path} className="flex flex-col gap-px">
             <TreeRow depth={0} icon="folder" name={stepOf(f.step)?.title ?? f.step} aside={<span className={ASIDE}>1</span>} />
-            <TreeRow depth={1} name={f.path} on={file === f.path} onClick={() => onFile(f.path)} />
+            <TreeRow depth={1} name={f.path} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />
           </div>
         ))}
       </div>
-      <div className="flex flex-col gap-px">
-        <div className={cn(LABEL, 'flex items-center gap-1.5')}><span className="flex-1">Repositories</span></div>
-        <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}><span className="flex-none rotate-90 text-ink-3"><Icon name="chev" size={12} width={2.25} /></span><Icon name="branch" size={15} className="text-ink-3" /><span className={GROW}>yan</span><span className="flex-none font-mono text-[11px] text-ink-3">yan/t152</span></div>
-        <div className="flex flex-col gap-px pl-3">
-        <TreeRow depth={0} icon="folder" name="src / pack" aside={<span className={ASIDE}>{code.length}</span>} />
+    );
+  }
+  const code = FILES.filter((f) => f.root === 'code');
+  const repo = (name: string, open: boolean, count: number): ReactNode => (
+    <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}>
+      <span className={cn('flex-none text-ink-3', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
+      <Icon name="branch" size={15} className="text-ink-3" /><span className={GROW}>{name}</span>
+      <span className="flex-none font-mono text-[11px] text-ink-3">yan/t152</span>
+      {changed ? <span className={ASIDE}>{count}</span> : null}
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-px" role="tree">
+      {repo('yan', true, code.length)}
+      <div className="flex flex-col gap-px pl-3">
+        <TreeRow depth={0} icon="folder" name="src / pack" aside={<span className={ASIDE}>{changed ? code.length : code.length + UNCHANGED.length}</span>} />
+        {changed ? null : <TreeRow depth={1} name={UNCHANGED[0] as string} />}
+        {changed ? null : <TreeRow depth={1} name={UNCHANGED[1] as string} />}
         {code.map((f) => <TreeRow key={f.path} depth={1} name={f.path.split('/').pop() as string} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />)}
-        <TreeRow depth={0} icon="folder" name="src / path" aside={<span className={ASIDE}>6</span>} />
-        <TreeRow depth={0} icon="folder" name="tests" aside={<span className={ASIDE}>31</span>} />
-        </div>
-        <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}><span className="flex-none text-ink-3"><Icon name="chev" size={12} width={2.25} /></span><Icon name="branch" size={15} className="text-ink-3" /><span className={GROW}>yan-site</span><span className="flex-none font-mono text-[11px] text-ink-3">yan/t152</span></div>
+        {changed ? null : <TreeRow depth={0} icon="folder" name="src / path" aside={<span className={ASIDE}>6</span>} />}
+        {changed ? null : <TreeRow depth={0} icon="folder" name="tests" aside={<span className={ASIDE}>31</span>} />}
       </div>
+      {changed ? null : repo('yan-site', false, 0)}
+      {changed ? <div className="px-2.5 pt-2 text-[12px] text-ink-3">yan-site has no changes.</div> : null}
     </div>
   );
 }
+
+/** Only what changed, or everything: a toggle that says how many there are, pressed while it filters. */
+export function ChangedToggle({ on, count, onChange }: { on: boolean; count: number; onChange: (on: boolean) => void }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={() => onChange(!on)}
+      className={cn('flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-[8px] px-2 text-[12.5px] text-ink-3 hover:bg-hover hover:text-foreground', on && 'bg-brand-soft text-brand-ink hover:bg-brand-soft hover:text-brand-ink')}>
+      <ListFilter size={14} strokeWidth={1.9} aria-hidden="true" /><span>Changed</span><span className="tabular-nums">{count}</span>
+    </button>
+  );
+}
+
+export const changedCount = (view: FilesView): number => FILES.filter((f) => (view === 'materials' ? f.root === 'materials' : f.root === 'code') && f.mark).length;
 
 /* ---- a file, shown as what it is ---- */
 
