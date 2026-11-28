@@ -66,6 +66,24 @@ _Avoid_: Mock, spike, demo
 A URL a **Task** keeps with a label, pointing at something that lives outside Yan: a pull request, a pipeline, a deployed environment. Yan stores it and never reads what is behind it.
 _Avoid_: Resource, reference
 
+**Review**:
+The user's comments on selections of what a **Task** holds (a **Material**, a diff, a **Prototype**), gathered into one file and handed to the agent. It is never edited once written.
+_Avoid_: Feedback, annotation
+
 **Companion**:
 The private folder that goes with one repository, one to one, holding what outlives any **Task** there and is not committed to that repository: its glossary, its decision records, the user's own documents and scripts.
 _Avoid_: Shelf, sidecar, shadow, repo notes
+
+### Beside the work
+
+**Draft**:
+A note of the user's own, kept in the vault and belonging to no **Task**. Agents read drafts and never write one.
+_Avoid_: Note, memo, idea
+
+**Janus**:
+The standing general-purpose agent that belongs to no **Task**, one per machine: asked anything, and free to act on the machine at large. It reads tasks and repositories without changing them, and work that turns out to be a task leaves it by a **Handoff**.
+_Avoid_: Assistant, general agent, inbox
+
+**Handoff**:
+**Janus** making a **Task** out of a conversation: it writes the task's **Destination** and starts that task's agent.
+_Avoid_: Transfer, escalation
