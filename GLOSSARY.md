@@ -7,7 +7,7 @@ Yan is a personal harness for agent sessions. These are the words of its work mo
 ### The work
 
 **Task**:
-The one unit of work: one thing the user wants changed, from first idea to closed. It holds a **Path**, its **Materials** and its worktrees.
+The one unit of work: one thing the user wants changed, from first idea to closed. It holds a **Path**, its **Materials**, its **Links** and its worktrees.
 _Avoid_: Project, ticket, issue
 
 **Path**:
@@ -19,7 +19,7 @@ The few lines on a **Path** saying what will be true when the **Task** is done, 
 _Avoid_: Problem, goal, brief
 
 **Outcome**:
-One checkable thing on the **Destination** that the user accepts the **Task** against.
+One checkable thing on the **Destination** that the user accepts the **Task** against. Only the user marks it met.
 _Avoid_: Deliverable, acceptance criterion, requirement
 
 ### Steps
@@ -27,6 +27,10 @@ _Avoid_: Deliverable, acceptance criterion, requirement
 **Step**:
 One node of a **Path**: a piece of work of one kind (decision, research, prototype, spec or build) that is to do, done or dropped. A step relies on the earlier steps whose **Results** it was built from. A step still to do is ready when every step it relies on is done, and waiting otherwise.
 _Avoid_: Node, ticket, stage, phase, blocked
+
+**Slice**:
+The share of a **Spec** that one build **Step** makes work: a piece of behaviour that runs end to end, so the user can see it working when the step is done.
+_Avoid_: Ticket, layer, chunk
 
 **Dropped**:
 The state of a **Step** that no longer holds, whether or not it had been done. A dropped step stays on the **Path** with the reason it was dropped, and is never taken up again: work that returns to it is a new step.
@@ -57,6 +61,10 @@ _Avoid_: PRD, plan, design doc
 **Prototype**:
 A rough **Material** made to be reacted to, belonging to the **Step** that asked for it.
 _Avoid_: Mock, spike, demo
+
+**Link**:
+A URL a **Task** keeps with a label, pointing at something that lives outside Yan: a pull request, a pipeline, a deployed environment. Yan stores it and never reads what is behind it.
+_Avoid_: Resource, reference
 
 **Companion**:
 The private folder that goes with one repository, one to one, holding what outlives any **Task** there and is not committed to that repository: its glossary, its decision records, the user's own documents and scripts.
