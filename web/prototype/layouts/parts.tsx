@@ -6,8 +6,7 @@
  */
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
-import { BookMarked, CircleCheck, CirclePause, ListFilter, PanelsTopLeft, SquareTerminal } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { BookMarked, ListFilter, PanelsTopLeft, SquareTerminal } from 'lucide-react';
 import { Icon, type IconName } from '@/components/Icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ASIDE, BarSep, BarTools, Dot, GROW, KIND, LABEL, SHIMMER, Seg, Tool, WORKING as WORKING_TITLE, row } from '@/components/page';
@@ -68,45 +67,54 @@ function TaskRow({ t }: { t: MockTask }) {
   );
 }
 
-/** A task that is not being worked, in a menu: where it stood, and its title. */
-const SHELVED = {
-  paused: [['t140', 'Serve starts in under a second']],
-  November: [['t146', 'The palette finds by pinyin'], ['t144', 'A review keeps its place after a push'], ['t141', 'Peek reads git once']],
-  October: [['t133', 'A local vault only commits'], ['t128', 'Drafts are no task\'s']],
-} as const;
+/** The tasks that are not being worked: put aside, or closed. */
+const SHELVED: readonly MockTask[] = [
+  { id: 't140', title: 'Serve starts in under a second', state: 'paused' },
+  { id: 't146', title: 'The palette finds by pinyin', state: 'done' },
+  { id: 't144', title: 'A review keeps its place after a push', state: 'done' },
+  { id: 't141', title: 'Peek reads git once', state: 'done' },
+  { id: 't133', title: 'A local vault only commits', state: 'done' },
+  { id: 't128', title: "Drafts are no task's", state: 'done' },
+];
+
+type Shown = 'active' | 'paused' | 'done';
+const FILTERS: readonly (readonly [Shown, TaskState, string])[] = [['active', 'open', 'Active tasks'], ['paused', 'paused', 'Paused tasks'], ['done', 'done', 'Done tasks']];
 
 /**
- * The tasks put aside and the tasks closed, each behind a mark: looked at rarely, so they take no room in the list.
- * A mark opens a menu of them, the closed ones by month.
+ * Which tasks the list holds: three marks at its top, each a state's own mark, any of them on at once. Active alone
+ * is how it opens, since the others are looked at rarely.
  */
-function Shelved() {
-  const mark = 'flex size-[30px] cursor-pointer items-center justify-center rounded-lg text-ink-3 hover:bg-hover hover:text-foreground aria-expanded:bg-hover aria-expanded:text-foreground';
+function TaskFilter({ on, toggle }: { on: ReadonlySet<Shown>; toggle: (which: Shown) => void }) {
   return (
-    <div className="flex items-center gap-0.5 px-0.5">
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<button type="button" className={mark} aria-label="Paused tasks" title="Paused tasks"><CirclePause size={16} strokeWidth={1.75} aria-hidden="true" /></button>} />
-        <DropdownMenuContent side="top" align="start" className="w-[280px]">
-          {SHELVED.paused.map(([id, title]) => <DropdownMenuItem key={id} className="gap-2.5"><TaskMark state="paused" /><span className="truncate">{title}</span></DropdownMenuItem>)}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<button type="button" className={mark} aria-label="Done tasks" title="Done tasks"><CircleCheck size={16} strokeWidth={1.75} aria-hidden="true" /></button>} />
-        <DropdownMenuContent side="top" align="start" className="max-h-[420px] w-[300px]">
-          {(['November', 'October'] as const).map((month) => (
-            <DropdownMenuGroup key={month}>
-              <DropdownMenuLabel>{month}</DropdownMenuLabel>
-              {SHELVED[month].map(([id, title]) => <DropdownMenuItem key={id} className="gap-2.5"><TaskMark state="done" /><span className="truncate">{title}</span></DropdownMenuItem>)}
-            </DropdownMenuGroup>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <div className="flex items-center gap-0.5 px-0.5" role="group" aria-label="Which tasks are listed">
+      {FILTERS.map(([which, state, label]) => (
+        <Tooltip key={which}>
+          <TooltipTrigger render={
+            <button type="button" aria-pressed={on.has(which)} aria-label={label} onClick={() => toggle(which)}
+              className={cn('flex size-[30px] cursor-pointer items-center justify-center rounded-lg hover:bg-hover', on.has(which) ? 'bg-hover' : 'opacity-40 grayscale hover:opacity-80')}>
+              <TaskMark state={state} />
+            </button>} />
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ))}
     </div>
   );
 }
 
 /** The task list as v1 has it: yan, Janus and settings, finding and starting, the groups, and the vault's light. */
 export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => void; mode?: ReactNode; modeRow?: ReactNode; modeFoot?: ReactNode }) {
-  const open = TASKS.filter((t) => t.state === 'open');
+  const [on, setOn] = useState<ReadonlySet<Shown>>(new Set<Shown>(['active']));
+  const toggle = (which: Shown): void => setOn((was) => {
+    const next = new Set(was);
+    if (!next.delete(which)) next.add(which);
+    return next;
+  });
+  // One list, in this order whatever is on: waiting on the user, in work, put aside, closed.
+  const listed = [
+    ...(on.has('active') ? [...TASKS.filter((t) => t.state === 'uat'), ...TASKS.filter((t) => t.state === 'open')] : []),
+    ...(on.has('paused') ? SHELVED.filter((t) => t.state === 'paused') : []),
+    ...(on.has('done') ? SHELVED.filter((t) => t.state === 'done') : []),
+  ];
   return (
     <nav className="flex h-full w-full flex-col overflow-hidden bg-sunken" aria-label="Tasks">
       <div className="flex flex-none flex-col gap-3 px-2.5 pt-3.5 pb-2.5">
@@ -126,15 +134,13 @@ export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => v
           <Button variant="secondary" size="icon-lg" className="size-[34px] rounded-[10px] bg-hover text-ink-2" aria-label="Drafts"><Icon name="note" size={16} /></Button>
         </div>
         {modeRow}
+        <TaskFilter on={on} toggle={toggle} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 pt-0.5 pb-5">
         {/* One list: a task's mark says where it stands, and the ones waiting on the user come first. */}
-        <div className="flex flex-col gap-px">
-          {TASKS.filter((t) => t.state === 'uat').map((t) => <TaskRow key={t.id} t={t} />)}
-          {open.map((t) => <TaskRow key={t.id} t={t} />)}
-        </div>
+        <div className="flex flex-col gap-px">{listed.map((t) => <TaskRow key={t.id} t={t} />)}</div>
       </div>
-      <div className="flex flex-none flex-col gap-2 px-2.5 pt-2 pb-3"><Shelved />{modeFoot}</div>
+      <div className="flex-none px-2.5 pt-2 pb-3">{modeFoot}</div>
     </nav>
   );
 }
