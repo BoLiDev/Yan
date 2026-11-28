@@ -35,17 +35,17 @@ export const LAST: readonly string[] = ['n5ju', 'j9lk'];
  * How the path came to be what it is: each moment something happened to it, in order. A moment adds steps, finishes
  * steps, or is a change, which drops steps and may move the destination (here, one outcome fewer).
  */
-export interface Moment { when: string; adds?: readonly string[]; done?: readonly string[]; change?: { drops: readonly string[]; why: string; outcomes: number } }
+export interface Moment { when: string; what: string; adds?: readonly string[]; done?: readonly string[]; change?: { drops: readonly string[]; why: string; outcomes: number } }
 export const HISTORY: readonly Moment[] = [
-  { when: '3 Nov', adds: ['k3f9', 'p7qa', 'h8wd', 'x2mb', 'c4tn'] },
-  { when: '4 Nov', done: ['k3f9'] },
-  { when: '6 Nov', done: ['p7qa'] },
-  { when: '8 Nov', done: ['h8wd'] },
-  { when: '12 Nov', change: { drops: ['x2mb'], outcomes: 4, why: 'A pack is only ever handed to people already trusted with the task, so encrypting it protects nothing and costs every reader a password. The outcome "The archive cannot be read without its password" is taken off the destination, and the decision on how to encrypt is dropped. The spec no longer waits on it.' } },
-  { when: '13 Nov', done: ['c4tn'], adds: ['r6ye', 'v1sz', 'n5ju'] },
-  { when: '17 Nov', done: ['r6ye'] },
-  { when: '19 Nov', adds: ['j9lk'] },
-  { when: 'Now' },
+  { when: '3 Nov', what: 'Charted', adds: ['k3f9', 'p7qa', 'h8wd', 'x2mb', 'c4tn'] },
+  { when: '4 Nov', what: 'What a pack holds, done', done: ['k3f9'] },
+  { when: '6 Nov', what: 'Research done', done: ['p7qa'] },
+  { when: '8 Nov', what: 'Prototype done', done: ['h8wd'] },
+  { when: '12 Nov', what: 'Change', change: { drops: ['x2mb'], outcomes: 4, why: 'A pack is only ever handed to people already trusted with the task, so encrypting it protects nothing and costs every reader a password. The outcome "The archive cannot be read without its password" is taken off the destination, and the decision on how to encrypt is dropped. The spec no longer waits on it.' } },
+  { when: '13 Nov', what: 'Spec done, 3 steps added', done: ['c4tn'], adds: ['r6ye', 'v1sz', 'n5ju'] },
+  { when: '17 Nov', what: 'First build done', done: ['r6ye'] },
+  { when: '19 Nov', what: '1 step added', adds: ['j9lk'] },
+  { when: 'Now', what: 'As it is' },
 ];
 /** What a step relied on only until a change: the spec waited on the encryption decision until that was dropped. */
 export const ONCE: Readonly<Record<string, readonly string[]>> = { c4tn: ['x2mb'] };
@@ -196,3 +196,16 @@ test('a dropped step leaves nothing in the pack', async () => {
 export const fileAt = (path: string): MockFile | undefined => FILES.find((f) => f.path === path);
 export const stepOf = (id: string): MockStep | undefined => STEPS.find((s) => s.id === id);
 export const WORKING = STEPS.find((s) => s.state === 'working') as MockStep;
+
+/** What each step is about, and what it concluded once done: what a step's details show. */
+export const ABOUT: Readonly<Record<string, { about: string; result?: string; sessions: number }>> = {
+  k3f9: { sessions: 1, about: 'Which parts of a task go into a pack, and which stay behind: the destination, results, materials, code, the conversation?', result: 'The destination with its outcomes, every done step\'s result, and each step\'s materials. No code (the merge request has it) and no conversations.' },
+  p7qa: { sessions: 1, about: 'Whether a tar archive can carry the long, non-Latin paths a step\'s materials have, on every system a reader may open it with.', result: 'Write pax headers. Every tar since 2001 reads them; ustar would cut a nested Chinese file name.' },
+  h8wd: { sessions: 2, about: 'What the page at the root of a pack looks like, opened from a file with no server behind it.', result: 'One page: the destination at the top, then each step as a card with its result and the files it left. The plain list won over the drawn path.' },
+  x2mb: { sessions: 0, about: 'Whether a pack is encrypted, and if so how its reader gets the key.' },
+  c4tn: { sessions: 1, about: 'The brief for building yan pack, gathered from the results before it, for a builder with no memory of them.', result: 'Three slices: the destination and every result; each step\'s materials; opening a pack on another machine.' },
+  r6ye: { sessions: 2, about: 'The first slice: a pack that opens and reads top to bottom.', result: 'yan pack writes index.html, destination.md and a result.md per done step. Reviewed; 2 outcomes met.' },
+  v1sz: { sessions: 1, about: 'The second slice: a result links to the files its step left, each in the step\'s own folder.' },
+  j9lk: { sessions: 0, about: 'With --json, yan pack prints the archive\'s path, how many steps it holds and its size, for a script to read.' },
+  n5ju: { sessions: 0, about: 'The third slice: yan unpack restores the same files on a second machine.' },
+};
