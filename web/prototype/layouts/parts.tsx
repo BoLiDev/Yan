@@ -30,7 +30,8 @@ export function Handle({ label }: { label: string; dark?: boolean }) {
 /* ---- marks ---- */
 
 const TASK_MARKS: Record<TaskState, { colour: string; marks: ReactNode }> = {
-  open: { colour: 'text-brand', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" /></> },
+  // Not done yet: a ring still to be closed, in eight dashes.
+  open: { colour: 'text-brand', marks: <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="2.6 2.31" /> },
   uat: { colour: 'text-warning', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><circle cx="8" cy="8" r="2.75" fill="currentColor" /></> },
   done: { colour: 'text-success', marks: <><circle cx="8" cy="8" r="7" fill="currentColor" /><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="var(--card)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></> },
   paused: { colour: 'text-ink-3', marks: <><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M6.5 5.5v5M9.5 5.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></> },
@@ -86,7 +87,7 @@ const FILTERS: readonly (readonly [Shown, TaskState, string])[] = [['active', 'o
  */
 function TaskFilter({ on, toggle }: { on: ReadonlySet<Shown>; toggle: (which: Shown) => void }) {
   return (
-    <div className="flex items-center gap-0.5 px-0.5" role="group" aria-label="Which tasks are listed">
+    <div className="flex items-center justify-end gap-0.5 px-0.5" role="group" aria-label="Which tasks are listed">
       {FILTERS.map(([which, state, label]) => (
         <Tooltip key={which}>
           <TooltipTrigger render={
