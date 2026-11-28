@@ -19,10 +19,13 @@
     "lint:boundaries": "node scripts/check-module-boundaries.mjs",
     "typecheck": "tsc -p tsconfig.tests.json && tsc -p web/tsconfig.json",
     "test": "npm run build && npm run lint:page && vitest run",
-    "lint:page": "oxlint --deny-warnings web/src"
+    "lint:page": "oxlint --deny-warnings web/src",
+    "prototype:layouts": "vite --config web/vite.config.ts --port 5199 --strictPort --open /prototype/layouts/"
   },
   "dependencies": {
     "@clack/prompts": "1.7.0",
+    "@ui-sdk/core": "0.1.0-beta.17",
+    "@ui-sdk/react": "0.1.0-beta.17",
     "commander": "14.0.2",
     "sharp": "0.35.5"
   },
