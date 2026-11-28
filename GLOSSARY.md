@@ -1,0 +1,55 @@
+# Yan
+
+Yan is a personal harness for agent sessions. These are the words of its work model as settled for v2: what a piece of work holds, and how it gets from where it is to where it is going.
+
+## Language
+
+### The work
+
+**Task**:
+The one unit of work: one thing the user wants changed, from first idea to closed. It holds a **Path**, its **Materials** and its worktrees.
+_Avoid_: Project, ticket, issue
+
+**Path**:
+The graph of **Steps** that carries a **Task** from where it started to its **Destination**, always current. Every task has exactly one; it is a plain chain when the work is simple.
+_Avoid_: Map, plan, line, roadmap
+
+**Destination**:
+The few lines on a **Path** saying what will be true when the **Task** is done, with its **Outcomes** listed beneath. It is rewritten in place when the goal moves.
+_Avoid_: Problem, goal, brief
+
+**Outcome**:
+One checkable thing on the **Destination** that the user accepts the **Task** against.
+_Avoid_: Deliverable, acceptance criterion, requirement
+
+### Steps
+
+**Step**:
+One node of a **Path**: a piece of work of one kind (decision, research, prototype, spec or build) that is to do, done or dropped.
+_Avoid_: Node, ticket, stage, phase
+
+**Dropped**:
+The state of a **Step** that no longer holds after a change, whether or not it had been done. A dropped step stays on the **Path** with the reason it was dropped.
+_Avoid_: Deleted, cancelled, abandoned, invalid
+
+**Result**:
+What a finished **Step** concluded: a decision's answer and why, a finding, a prototype's verdict, a **Spec**, or what a build made work.
+_Avoid_: Outcome, resolution, answer
+
+### What work leaves behind
+
+**Material**:
+Any file a **Task** keeps outside the code: a **Spec**, a **Prototype**, research findings, a report, a script. A change to code is a commit, not a material.
+_Avoid_: Artifact, document, deliverable, resource
+
+**Spec**:
+The brief for building: a **Material** written by a spec **Step** that gathers the **Results** before it so that a builder with no memory of them can work from it. It is not edited once its step is done; a revision is a new spec step.
+_Avoid_: PRD, plan, design doc
+
+**Prototype**:
+A rough **Material** made to be reacted to, belonging to the **Step** that asked for it.
+_Avoid_: Mock, spike, demo
+
+**Companion**:
+The private folder that goes with one repository, one to one, holding what outlives any **Task** there and is not committed to that repository: its glossary, its decision records, the user's own documents and scripts.
+_Avoid_: Shelf, sidecar, shadow, repo notes
