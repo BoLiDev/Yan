@@ -80,7 +80,7 @@ function Sync() {
 }
 
 /** The task list as v1 has it: yan, Janus and settings, finding and starting, the groups, and the vault's light. */
-export function TaskList({ onFold, mode }: { onFold?: () => void; mode?: ReactNode }) {
+export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => void; mode?: ReactNode; modeRow?: ReactNode; modeFoot?: ReactNode }) {
   const open = TASKS.filter((t) => t.state === 'open');
   return (
     <nav className="flex h-full w-full flex-col overflow-hidden bg-sunken" aria-label="Tasks">
@@ -100,6 +100,7 @@ export function TaskList({ onFold, mode }: { onFold?: () => void; mode?: ReactNo
           <Button variant="secondary" size="icon-lg" className="size-[34px] rounded-[10px] bg-hover text-ink-2" aria-label="New task"><Icon name="plus" size={16} /></Button>
           <Button variant="secondary" size="icon-lg" className="size-[34px] rounded-[10px] bg-hover text-ink-2" aria-label="Drafts"><Icon name="note" size={16} /></Button>
         </div>
+        {modeRow}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 pt-0.5 pb-5">
         <div className="flex flex-col gap-px">
@@ -117,7 +118,7 @@ export function TaskList({ onFold, mode }: { onFold?: () => void; mode?: ReactNo
           <div className="flex min-h-7 items-center gap-2 pt-1 pr-2.5 pb-0.5 pl-3 text-[12px] text-ink-3"><Icon name="chev" size={12} width={2.25} /><span className={GROW}>October</span><span className="tabular-nums">14</span></div>
         </div>
       </div>
-      <div className="flex-none px-3 pt-2 pb-3"><Sync /></div>
+      <div className="flex flex-none flex-col gap-2 px-3 pt-2 pb-3">{modeFoot}<Sync /></div>
     </nav>
   );
 }
@@ -152,7 +153,8 @@ export function TaskHead({ more }: { more?: ReactNode }) {
     <div className="flex items-center gap-2.5 px-2.5">
       <TaskMark state={TASK.state} size={18} />
       <h1 className="min-w-0 flex-1 truncate text-[19px]/[26px] font-bold tracking-[-0.01em]" title={TASK.title}>{TASK.title}</h1>
-      {more ?? <Tool name="info" label="About this task" small />}
+      {more}
+      <Tool name="info" label="About this task" small />
     </div>
   );
 }
@@ -268,21 +270,21 @@ function TreeRow({ depth, icon, name, aside, on, onClick, mark }: { depth: numbe
  * The page's layout, picked by two marks that stay where they are in both: in the task list's head, and at the top of
  * its rail when it is folded. Not the row of toggles (Seg), which is kept for what a column lists.
  */
-export function ModeSwitch({ bench, onPick, stacked }: { bench: boolean; onPick: (bench: boolean) => void; stacked?: boolean }) {
-  const item = (on: boolean, to: boolean, label: string, Mark: typeof SquareTerminal): ReactNode => (
+export function ModeSwitch({ bench, onPick, stacked, words }: { bench: boolean; onPick: (bench: boolean) => void; stacked?: boolean; words?: boolean }) {
+  const item = (on: boolean, to: boolean, word: string, keys: string, Mark: typeof SquareTerminal): ReactNode => (
     <Tooltip>
       <TooltipTrigger render={
-        <button type="button" aria-pressed={on} aria-label={label} onClick={() => onPick(to)}
-          className={cn('flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] text-ink-3 hover:text-foreground', on && 'bg-card text-foreground shadow-xs ring-1 ring-border')}>
-          <Mark size={15} strokeWidth={1.75} aria-hidden="true" />
+        <button type="button" aria-pressed={on} aria-label={word} onClick={() => onPick(to)}
+          className={cn('flex h-[26px] cursor-pointer items-center justify-center gap-1.5 rounded-[7px] text-[13px] text-ink-3 hover:text-foreground', words ? 'flex-1 px-2' : 'w-[26px]', on && 'bg-card font-bold text-foreground shadow-xs ring-1 ring-border')}>
+          <Mark size={15} strokeWidth={1.75} aria-hidden="true" />{words ? word : null}
         </button>} />
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>{`${word} (${keys})`}</TooltipContent>
     </Tooltip>
   );
   return (
-    <span className={cn('flex flex-none gap-0.5 rounded-[9px] bg-hover p-[2px]', stacked && 'flex-col')} role="group" aria-label="Layout">
-      {item(!bench, false, 'Agent (Ctrl+1)', SquareTerminal)}
-      {item(bench, true, 'Workbench (Ctrl+2)', PanelsTopLeft)}
+    <span className={cn('flex gap-0.5 rounded-[9px] bg-hover p-[2px]', stacked && 'flex-col', words ? 'w-full' : 'flex-none')} role="group" aria-label="Layout">
+      {item(!bench, false, 'Agent', 'Ctrl+1', SquareTerminal)}
+      {item(bench, true, 'Workbench', 'Ctrl+2', PanelsTopLeft)}
     </span>
   );
 }
@@ -299,6 +301,7 @@ const UNCHANGED: readonly string[] = ['index-page.ts', 'unpack.ts'];
 export function Tree({ view, changed, file, onFile }: { view: FilesView; changed: boolean; file: string | null; onFile: (path: string) => void }) {
   if (view === 'materials') {
     const materials = FILES.filter((f) => f.root === 'materials' && (!changed || f.mark));
+    if (!materials.length) return <div className="px-2.5 pt-1 text-[12px] text-ink-3">No artifact has changed.</div>;
     return (
       <div className="flex flex-col gap-px" role="tree">
         {materials.map((f) => (
@@ -336,13 +339,44 @@ export function Tree({ view, changed, file, onFile }: { view: FilesView; changed
   );
 }
 
-/** Only what changed, or everything: a toggle that says how many there are, pressed while it filters. */
+/** Only what changed, or everything: a mark alone, pressed while it filters; its tooltip says what it does and how many there are. */
 export function ChangedToggle({ on, count, onChange }: { on: boolean; count: number; onChange: (on: boolean) => void }) {
   return (
-    <button type="button" aria-pressed={on} onClick={() => onChange(!on)}
-      className={cn('flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-[8px] px-2 text-[12.5px] text-ink-3 hover:bg-hover hover:text-foreground', on && 'bg-brand-soft text-brand-ink hover:bg-brand-soft hover:text-brand-ink')}>
-      <ListFilter size={14} strokeWidth={1.9} aria-hidden="true" /><span>Changed</span><span className="tabular-nums">{count}</span>
+    <Tooltip>
+      <TooltipTrigger render={
+        <button type="button" aria-pressed={on} aria-label="Only what changed" onClick={() => onChange(!on)}
+          className={cn('flex size-[34px] flex-none cursor-pointer items-center justify-center rounded-lg text-ink-3 hover:bg-hover hover:text-foreground', on && 'bg-brand-soft text-brand-ink hover:bg-brand-soft hover:text-brand-ink')}>
+          <ListFilter size={16} strokeWidth={1.9} aria-hidden="true" />
+        </button>} />
+      <TooltipContent>{on ? `Showing only what changed (${count})` : `Show only what changed (${count})`}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The path as one row, as the destination is: how far along it is, a mark for each step, and it opens the drawer the path is drawn in. */
+export function PathRow({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const live = STEPS.filter((s) => s.state !== 'dropped');
+  return (
+    <button type="button" aria-expanded={open} className={cn(row({ on: open, at: 'nav' }), 'text-[13.5px]')} onClick={onToggle} title="The path (Ctrl+P)">
+      <Icon name="branch" size={15} className="text-ink-3" />
+      <span className={GROW}>Path</span>
+      <span className="flex flex-none items-center gap-1">{live.map((s) => <span key={s.id} title={s.title} className={cn('size-[9px] rounded-full', s.state === 'done' ? 'bg-success' : s.state === 'working' ? 'bg-brand' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>
+      <span className={ASIDE}>{live.filter((s) => s.state === 'done').length} / {live.length} done</span>
+      <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open ? '-rotate-90' : 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
     </button>
+  );
+}
+
+/** What is being worked now and what could be taken next: the part of the path looked at all the time. */
+export function Now({ onFile }: { onFile?: (path: string) => void }) {
+  const next = STEPS.filter((s) => s.state === 'ready');
+  return (
+    <div className="flex flex-col gap-px">
+      <div className={LABEL}>Now</div>
+      <StepRow s={WORKING} onFile={onFile} on={false} />
+      {next.length ? <div className={cn(LABEL, 'pt-3')}>Ready next</div> : null}
+      {next.map((s) => <StepRow key={s.id} s={s} onFile={onFile} on={false} />)}
+    </div>
   );
 }
 

@@ -14,18 +14,23 @@ export const TASK = TASKS[0] as MockTask;
 
 export type StepKind = 'decision' | 'research' | 'prototype' | 'spec' | 'build';
 export type StepState = 'done' | 'working' | 'ready' | 'waiting' | 'dropped';
-export interface MockStep { id: string; kind: StepKind; title: string; state: StepState; files: readonly string[] }
+export interface MockStep { id: string; kind: StepKind; title: string; state: StepState; files: readonly string[]; on: readonly string[]; col: number; row: number }
 
+/** Each step with the steps it relies on, and where the graph puts it: columns run toward the destination. */
 export const STEPS: readonly MockStep[] = [
-  { id: 'k3f9', kind: 'decision', title: 'What a pack holds', state: 'done', files: [] },
-  { id: 'p7qa', kind: 'research', title: 'How tar treats long paths', state: 'done', files: ['findings.md'] },
-  { id: 'x2mb', kind: 'decision', title: 'Encrypting a pack', state: 'dropped', files: [] },
-  { id: 'h8wd', kind: 'prototype', title: "The pack's index page", state: 'done', files: [] },
-  { id: 'c4tn', kind: 'spec', title: 'The spec for yan pack', state: 'done', files: ['spec.md'] },
-  { id: 'r6ye', kind: 'build', title: 'A pack holds the destination and every result', state: 'done', files: [] },
-  { id: 'v1sz', kind: 'build', title: "A pack holds each step's materials", state: 'working', files: ['src/pack/write.ts', 'src/pack/write.test.ts'] },
-  { id: 'n5ju', kind: 'build', title: 'A pack opens on another machine', state: 'waiting', files: [] },
+  { id: 'k3f9', kind: 'decision', title: 'What a pack holds', state: 'done', files: [], on: [], col: 0, row: 1 },
+  { id: 'p7qa', kind: 'research', title: 'How tar treats long paths', state: 'done', files: ['findings.md'], on: ['k3f9'], col: 1, row: 0 },
+  { id: 'h8wd', kind: 'prototype', title: "The pack's index page", state: 'done', files: [], on: ['k3f9'], col: 1, row: 1 },
+  { id: 'x2mb', kind: 'decision', title: 'Encrypting a pack', state: 'dropped', files: [], on: ['k3f9'], col: 1, row: 2 },
+  { id: 'c4tn', kind: 'spec', title: 'The spec for yan pack', state: 'done', files: ['spec.md'], on: ['p7qa', 'h8wd'], col: 2, row: 1 },
+  { id: 'r6ye', kind: 'build', title: 'A pack holds the destination and every result', state: 'done', files: [], on: ['c4tn'], col: 3, row: 1 },
+  { id: 'v1sz', kind: 'build', title: "A pack holds each step's materials", state: 'working', files: ['src/pack/write.ts', 'src/pack/write.test.ts'], on: ['r6ye'], col: 4, row: 0 },
+  { id: 'j9lk', kind: 'build', title: 'yan pack --json says what it wrote', state: 'ready', files: [], on: ['r6ye'], col: 4, row: 2 },
+  { id: 'n5ju', kind: 'build', title: 'A pack opens on another machine', state: 'waiting', files: [], on: ['v1sz'], col: 5, row: 0 },
 ];
+/** The steps the destination is reached from, and the change that re-routed the path, by the step it dropped. */
+export const LAST: readonly string[] = ['n5ju', 'j9lk'];
+export const CHANGE = { dropped: 'x2mb', when: '12 Nov', why: 'A pack goes only to people already trusted with the task, so it is not encrypted.' };
 
 export const DESTINATION = 'yan pack writes one archive that someone without Yan can open and read: where the task was going, what each step concluded, and what it left.';
 export const OUTCOMES: readonly (readonly [string, boolean])[] = [
