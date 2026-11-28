@@ -10,7 +10,7 @@
  * destination opens a second drawer joined to the first, where it is told
  * at length. A first take: how a path is drawn is its own ticket.
  */
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { FileText, FlaskConical, Hammer, Search, Signpost, type LucideIcon } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { GROW, KIND, LABEL, SHIMMER, Tool, row } from '@/components/page';
@@ -18,7 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from '@/lib/utils';
 import { ABOUT, DESTINATION, HISTORY, LAST, MET_FROM, ONCE, OUTCOMES, OUTCOMES_AT_FIRST, STEPS, type MockStep, type StepKind, type StepState } from './data';
 
-const W = 172, H = 60, GX = 18, GY = 30, PAD = 20;
+const W = 188, H = 60, GX = 44, GY = 76, PAD = 28;
 /** Top down: a step's level (how far along the path it is) is its row here, and its lane across is its column. */
 const x = (lane: number): number => PAD + lane * (W + GX);
 const y = (level: number): number => PAD + level * (H + GY);
@@ -212,6 +212,27 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
   const isStep = (id: string): boolean => !!picked && typeof picked === 'object' && 'step' in picked && picked.step === id;
   const m = HISTORY[t];
   const width = WIDTH + 12;
+  // The graph is moved by holding it and dragging, as a map is, as well as by scrolling: from anywhere on it that is not a step.
+  const pane = useRef<HTMLDivElement>(null);
+  const held = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const hold = (e: PointerEvent<HTMLDivElement>): void => {
+    const el = pane.current;
+    if (!el || (e.target as HTMLElement).closest('button')) return;
+    held.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    el.setPointerCapture(e.pointerId);
+    el.style.cursor = 'grabbing';
+  };
+  const drag = (e: PointerEvent<HTMLDivElement>): void => {
+    const el = pane.current;
+    const from = held.current;
+    if (!el || !from) return;
+    el.scrollLeft = from.left - (e.clientX - from.x);
+    el.scrollTop = from.top - (e.clientY - from.y);
+  };
+  const letGo = (): void => {
+    held.current = null;
+    if (pane.current) pane.current.style.cursor = '';
+  };
   return (
     <>
       <div className={cn('fixed inset-0 z-40 bg-shade transition-opacity duration-200', open ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={onClose} />
@@ -241,7 +262,7 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
           <span className="flex-1" />
           <Tool name="close" label="Close (Esc)" onClick={onClose} small />
         </div>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div ref={pane} className="min-h-0 flex-1 cursor-grab overflow-auto select-none" onPointerDown={hold} onPointerMove={drag} onPointerUp={letGo} onPointerCancel={letGo}>
           <div className="relative" style={{ width: WIDTH, height: HEIGHT }}>
             <svg className="absolute inset-0" width={WIDTH} height={HEIGHT} aria-hidden="true">
               {steps.flatMap((s) => s.on.map((from) => {

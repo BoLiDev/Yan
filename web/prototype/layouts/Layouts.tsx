@@ -15,9 +15,9 @@
  * its tab, keeps it. What is open is the same in both layouts; in Agent the
  * agent is the first tab, and is never closed.
  *
- * The layout switch is at the foot of the task list. Still being compared,
- * from the button at the bottom right: which side of the agent the task's
- * column is on in Agent (?details=left|right).
+ * The layout switch is at the foot of the task list. Nothing says the vault
+ * is in step; when it is not, a message comes down at the top of the page
+ * (?sync=error shows it).
  */
 import { useEffect, useState } from 'react';
 import { Seg, Tool } from '@/components/page';
@@ -31,10 +31,10 @@ interface Open { readonly path: string; readonly kept: boolean }
 
 export function Layouts() {
   const [layout] = useParam('layout', 'agent');
-  const [side] = useParam('details', 'right');
   const [drawn, setDrawn] = useParam('path', 'shut');
   const bench = layout === 'workbench';
   const graph = drawn === 'open';
+  const [sync] = useParam('sync', 'ok');
   const [list, setList] = useState(true);
   const [first] = useState(() => new URL(location.href).searchParams.get('file'));
   const [files, setFiles] = useState<readonly Open[]>(first && fileAt(first) ? [{ path: first, kept: true }] : []);
@@ -99,12 +99,12 @@ export function Layouts() {
     </aside>
   );
   const columnPanel = <ResizablePanel defaultSize={bench ? '312px' : '336px'} minSize="260px" maxSize="460px">{column}</ResizablePanel>;
-  const left = bench || side === 'left';
+  const left = bench;
   return (
     <div className="flex h-screen">
       {list ? <div className="w-60 flex-none"><TaskList onFold={() => setList(false)} modeFoot={<ModeSwitch bench={bench} onPick={pick} words />} /></div>
         : <Rail onUnfold={() => setList(true)} extra={<ModeSwitch bench={bench} onPick={pick} stacked />} />}
-      <Resizable key={`${layout}|${side}`} className="min-w-0 flex-1">
+      <Resizable key={layout} className="min-w-0 flex-1">
         {left ? <>{columnPanel}<Handle label="Resize the task's column" /></> : null}
         {bench ? (
           <>
@@ -131,6 +131,13 @@ export function Layouts() {
         )}
         {left ? null : <><Handle label="Resize the task's column" />{columnPanel}</>}
       </Resizable>
+      {sync === 'error' ? (
+        <div role="alert" className="fixed top-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-card py-2 pr-2 pl-3.5 text-[13px] shadow-[0_0_0_1px_var(--line),0_10px_30px_-8px_var(--shadow-strong)]">
+          <span className="size-2 flex-none rounded-full bg-warning ring-3 ring-warning-soft" />
+          <span>Can't reach origin. What changed here is kept and tried again.</span>
+          <button type="button" className="cursor-pointer rounded-lg bg-hover px-2.5 py-1 hover:bg-foreground/10">Try now</button>
+        </div>
+      ) : null}
       <PathDrawer open={graph} onClose={() => setDrawn('shut')} onFile={(p) => { setDrawn('shut'); keep(p); }} />
     </div>
   );

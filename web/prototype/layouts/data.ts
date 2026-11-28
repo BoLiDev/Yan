@@ -63,7 +63,7 @@ export const OUTCOMES: readonly (readonly [string, boolean])[] = [
 
 export const LINKS: readonly (readonly [string, string])[] = [['Merge request', '!48'], ['Pipeline', '#2291']];
 
-export interface MockFile { path: string; root: 'materials' | 'code'; step: string; mark?: 'M' | 'A'; text: string }
+export interface MockFile { path: string; root: 'materials' | 'code' | 'companion'; step: string; mark?: 'M' | 'A'; text: string }
 
 export const FILES: readonly MockFile[] = [
   {
@@ -189,6 +189,30 @@ test('a dropped step leaves nothing in the pack', async () => {
   const packed = await writePack(vault.task, vault.out);
   expect(await listing(packed.path)).not.toContain('x2mb/notes.md');
 });
+`,
+  },
+  {
+    path: 'companion/GLOSSARY.md', root: 'companion', step: '', text: `# yan
+
+The words of this repository, kept beside it and not committed to it.
+
+## Language
+
+**Pack**:
+One archive of a task, written for a reader who has no Yan.
+_Avoid_: Export, bundle, dump
+
+**Index page**:
+The page at the root of a pack that lists everything in it and needs no server.
+_Avoid_: Home, readme
+`,
+  },
+  {
+    path: 'companion/adr/0007-packs-are-not-encrypted.md', root: 'companion', step: '', mark: 'A', text: `# Packs are not encrypted
+
+A pack is only ever handed to people already trusted with the task. Encrypting it would protect nothing and cost every reader a password.
+
+Decided on 12 Nov, in the task "Hand a task over as a pack".
 `,
   },
 ];

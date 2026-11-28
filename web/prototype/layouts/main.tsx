@@ -9,12 +9,11 @@ import { createRoot } from 'react-dom/client';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import './proto.css';
 import { Layouts } from './Layouts';
-import { Switcher } from './Switcher';
 
 // Dark unless ?theme=light: the theme's own tokens, by the class v1's page sets.
 const light = new URL(location.href).searchParams.get('theme') === 'light';
 document.documentElement.classList.add(light ? 'light' : 'dark');
 
 createRoot(document.getElementById('root') as HTMLElement).render(
-  <StrictMode><TooltipProvider delay={400}><Layouts /><Switcher /></TooltipProvider></StrictMode>,
+  <StrictMode><TooltipProvider delay={400}><Layouts /></TooltipProvider></StrictMode>,
 );

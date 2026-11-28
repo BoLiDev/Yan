@@ -6,7 +6,8 @@
  */
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
-import { ListFilter, PanelsTopLeft, SquareTerminal } from 'lucide-react';
+import { BookMarked, CircleCheck, CirclePause, ListFilter, PanelsTopLeft, SquareTerminal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Icon, type IconName } from '@/components/Icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ASIDE, BarSep, BarTools, Dot, GROW, KIND, LABEL, SHIMMER, Seg, Tool, WORKING as WORKING_TITLE, row } from '@/components/page';
@@ -67,6 +68,42 @@ function TaskRow({ t }: { t: MockTask }) {
   );
 }
 
+/** A task that is not being worked, in a menu: where it stood, and its title. */
+const SHELVED = {
+  paused: [['t140', 'Serve starts in under a second']],
+  November: [['t146', 'The palette finds by pinyin'], ['t144', 'A review keeps its place after a push'], ['t141', 'Peek reads git once']],
+  October: [['t133', 'A local vault only commits'], ['t128', 'Drafts are no task\'s']],
+} as const;
+
+/**
+ * The tasks put aside and the tasks closed, each behind a mark: looked at rarely, so they take no room in the list.
+ * A mark opens a menu of them, the closed ones by month.
+ */
+function Shelved() {
+  const mark = 'flex size-[30px] cursor-pointer items-center justify-center rounded-lg text-ink-3 hover:bg-hover hover:text-foreground aria-expanded:bg-hover aria-expanded:text-foreground';
+  return (
+    <div className="flex items-center gap-0.5 px-0.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<button type="button" className={mark} aria-label="Paused tasks" title="Paused tasks"><CirclePause size={16} strokeWidth={1.75} aria-hidden="true" /></button>} />
+        <DropdownMenuContent side="top" align="start" className="w-[280px]">
+          {SHELVED.paused.map(([id, title]) => <DropdownMenuItem key={id} className="gap-2.5"><TaskMark state="paused" /><span className="truncate">{title}</span></DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<button type="button" className={mark} aria-label="Done tasks" title="Done tasks"><CircleCheck size={16} strokeWidth={1.75} aria-hidden="true" /></button>} />
+        <DropdownMenuContent side="top" align="start" className="max-h-[420px] w-[300px]">
+          {(['November', 'October'] as const).map((month) => (
+            <DropdownMenuGroup key={month}>
+              <DropdownMenuLabel>{month}</DropdownMenuLabel>
+              {SHELVED[month].map(([id, title]) => <DropdownMenuItem key={id} className="gap-2.5"><TaskMark state="done" /><span className="truncate">{title}</span></DropdownMenuItem>)}
+            </DropdownMenuGroup>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 /** The task list as v1 has it: yan, Janus and settings, finding and starting, the groups, and the vault's light. */
 export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => void; mode?: ReactNode; modeRow?: ReactNode; modeFoot?: ReactNode }) {
   const open = TASKS.filter((t) => t.state === 'open');
@@ -91,22 +128,13 @@ export function TaskList({ onFold, mode, modeRow, modeFoot }: { onFold?: () => v
         {modeRow}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 pt-0.5 pb-5">
+        {/* One list: a task's mark says where it stands, and the ones waiting on the user come first. */}
         <div className="flex flex-col gap-px">
-          <div className={LABEL}>In review</div>
           {TASKS.filter((t) => t.state === 'uat').map((t) => <TaskRow key={t.id} t={t} />)}
-        </div>
-        <div className="flex flex-col gap-px">
-          <div className={LABEL}>In progress</div>
           {open.map((t) => <TaskRow key={t.id} t={t} />)}
         </div>
-        <div className="flex flex-col gap-px">
-          <div className="flex min-h-7 items-center gap-2 pt-1 pr-2.5 pb-0.5 pl-2.5 text-[12.5px] font-bold text-ink-3"><Icon name="chev" size={12} width={2.25} /><span className={GROW}>Paused</span><span className="font-normal tabular-nums">1</span></div>
-          <div className={LABEL}>Done</div>
-          <div className="flex min-h-7 items-center gap-2 pt-1 pr-2.5 pb-0.5 pl-3 text-[12px] text-ink-3"><Icon name="chev" size={12} width={2.25} /><span className={GROW}>November</span><span className="tabular-nums">9</span></div>
-          <div className="flex min-h-7 items-center gap-2 pt-1 pr-2.5 pb-0.5 pl-3 text-[12px] text-ink-3"><Icon name="chev" size={12} width={2.25} /><span className={GROW}>October</span><span className="tabular-nums">14</span></div>
-        </div>
       </div>
-      <div className="flex-none px-2.5 pt-2 pb-3">{modeFoot}</div>
+      <div className="flex flex-none flex-col gap-2 px-2.5 pt-2 pb-3"><Shelved />{modeFoot}</div>
     </nav>
   );
 }
@@ -300,6 +328,7 @@ export function Tree({ view, changed, file, onFile, onKeep }: { view: FilesView;
     );
   }
   const code = FILES.filter((f) => f.root === 'code');
+  const companion = FILES.filter((f) => f.root === 'companion' && (!changed || f.mark));
   const repo = (name: string, open: boolean): ReactNode => (
     <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}>
       <span className={cn('flex-none text-ink-3', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
@@ -311,6 +340,14 @@ export function Tree({ view, changed, file, onFile, onKeep }: { view: FilesView;
     <div className="flex flex-col gap-px" role="tree">
       {repo('yan', true)}
       <div className="flex flex-col gap-px pl-3">
+        {/* The repository's companion, first under it and marked as its own kind of folder: what outlives any task here and is not committed to the repository. */}
+        {companion.length ? (
+          <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}>
+            <span className="flex-none rotate-90 text-ink-3"><Icon name="chev" size={12} width={2.25} /></span>
+            <BookMarked size={15} strokeWidth={1.75} className="flex-none text-brand" aria-hidden="true" /><span className={GROW}>Companion</span>
+          </div>
+        ) : null}
+        {companion.map((f) => <TreeRow key={f.path} depth={1} name={f.path.replace('companion/', '').replace('adr/', 'adr / ')} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} onKeep={() => onKeep?.(f.path)} />)}
         <TreeRow depth={0} icon="folder" name="src / pack" />
         {changed ? null : <TreeRow depth={1} name={UNCHANGED[0] as string} />}
         {changed ? null : <TreeRow depth={1} name={UNCHANGED[1] as string} />}
@@ -363,7 +400,7 @@ export function Now({ onFile }: { onFile?: (path: string) => void }) {
   );
 }
 
-export const changedCount = (view: FilesView): number => FILES.filter((f) => (view === 'materials' ? f.root === 'materials' : f.root === 'code') && f.mark).length;
+export const changedCount = (view: FilesView): number => FILES.filter((f) => (view === 'materials' ? f.root === 'materials' : f.root !== 'materials') && f.mark).length;
 
 /* ---- a file, shown as what it is ---- */
 
