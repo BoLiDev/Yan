@@ -25,8 +25,8 @@ _Avoid_: Deliverable, acceptance criterion, requirement
 ### Steps
 
 **Step**:
-One node of a **Path**: a piece of work of one kind (decision, research, prototype, spec or build) that is to do, done or dropped. A step relies on the earlier steps whose **Results** it was built from.
-_Avoid_: Node, ticket, stage, phase
+One node of a **Path**: a piece of work of one kind (decision, research, prototype, spec or build) that is to do, done or dropped. A step relies on the earlier steps whose **Results** it was built from. A step still to do is ready when every step it relies on is done, and waiting otherwise.
+_Avoid_: Node, ticket, stage, phase, blocked
 
 **Dropped**:
 The state of a **Step** that no longer holds, whether or not it had been done. A dropped step stays on the **Path** with the reason it was dropped, and is never taken up again: work that returns to it is a new step.
