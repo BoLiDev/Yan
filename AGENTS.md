@@ -5,87 +5,6 @@ deliverables, log and resources, `user`'s drafts, learnings, and a worktree
 per repository a task works in. Read `README.md` for what it does.
 `yan <command> --help` is the reference for each command.
 
-## Layout
-
-`src/cli/` holds the commands. Each top-level `src/cli/<name>.ts` exports a
-`command` and is discovered from `dist/cli/` at run time; helpers live in
-`src/cli/shared/`. Bare `yan`, the launcher, is
-`src/cli/shared/launch.ts`.
-
-`plugin/` is yan's skills, the plugin claude is started with.
-
-`web/` is `yan serve`'s page, a React 19 and TypeScript app that Vite builds
-into dist/web/, which the server serves. Server data is held by TanStack
-Query and fetched again only when the server says that part of the vault
-moved; the page's own state, its preferences and what it has seen, is a
-zustand store. What serve sends the page is typed once, in
-`src/cli/serve/wire.ts`, which serve builds its answers to and the page
-imports as types alone. `npm run dev:web` serves the page with hot reload
-against a `yan serve` already running ($YAN_SERVE, http://localhost:4747 by
-default).
-
-The page is drawn in Tailwind on the theme in `web/src/index.css`, which
-holds the tokens, light and dark, and the little that has to be global: the
-scrollbars and highlight.js's colours. An element carries its own
-utilities; what several views draw alike is a part in
-`web/src/components/page/`, beside shadcn's components on Base UI in
-`components/ui/`. HTML the page does not write itself, rendered markdown or
-xterm's, is styled from its container with arbitrary variants, kept in a
-named constant beside the component that draws it. A file of the page's
-stays under 300 lines, blank lines and comments aside (lint holds it there):
-one that grows past that is split by what its parts are, in a folder named
-for the view.
-
-`src/records/` owns the vault's files: `task` (task.json and problem.md),
-`log`, `drafts`, `reviews`, `learnings`, `repos` (repos.json, and where each is cloned).
-`src/externals/` wraps outside things: `worktree` (the pool) and `harness`
-(how claude, codex and agy are started). `src/util/` is below all of them.
-`src/ui/prompts.ts` is the only place that prompts, and `src/ui/chain.ts`
-draws what bare `yan` says between its questions; only `src/cli/` imports
-either.
-
-Outside `src/records/<m>/` and `src/externals/<m>/`, import only the
-module's `index.ts`, and one external never imports another.
-`scripts/check-module-boundaries.mjs` checks this on every build.
-
-## Rules of the design
-
-- Every piece of information has one writer. Structured state belongs to a
-  command (task.json through `yan deliverable`, `yan resource`, `yan done`);
-  prose belongs to a file the agent edits directly (problem.md). log.md is
-  prose but appended only, so it goes through `yan log`.
-- What an agent is told has four places. How to work in a task, and when to
-  do each thing, goes in yan's skills (`plugin/skills/`), each skill's
-  description saying when it is used, since that is the line an agent reads
-  to choose one; claude is started with them, and they can be carried where
-  yan cannot start the agent. Claude's opening prompt (`skillsPrompt` in
-  `src/cli/shared/launch.ts`) only says the task is yan's, where its files
-  go, which skills there are, and the moment an agent would not think to
-  look for a skill: when `yan:uat` is due; where the
-  files go is there too because an agent writes files whether or not it ran
-  a skill first.
-  codex and agy take no plugin, so `OPENING_PROMPT` tells them it all, and
-  is kept in step with the skills. How to use a command goes in `--help`. A
-  rule that belongs to one command goes in its one-line description, which
-  is the line the agent reads when it scans `yan --help`.
-- A vault is shared across machines through git, and machines update yan at
-  different times. A change to its files keeps old ones readable and is
-  readable by the yan before it: add optional fields rather than renaming,
-  read an old file name as a fallback rather than moving files, and write
-  task.json through `Task.edit`, which keeps fields it does not know. What
-  belongs to one machine, such as where a repository is cloned, or whether
-  a vault is local, goes in `~/.yan/config.json`, never in the vault.
-- A machine may have several vaults, shown as one list of tasks. Below a
-  command everything still works on one vault, the one `vaultDir()` names:
-  a command given a task finds its vault and points the process there
-  (`cli/shared/task-id.ts`), and `yan serve`, which serves them all from
-  one process, runs each vault's work inside `inVault` (`serve/front.ts`).
-  Whether a vault has an origin to fetch and push is asked of
-  `vaultOrigin`, never of git, so a local vault stays on its machine.
-- No design documents. The reasons for how something is shaped go in the
-  comment beside it and in the commit message; `README.md` says what yan
-  does, as it does it now.
-
 ## Checking a change
 
 `npm test` builds, the page included, holds the page to React's rules of
@@ -132,4 +51,4 @@ Issues and specs live in GitHub Issues on `BoLiDev/Yan`, through the `gh` CLI. S
 
 ### Domain docs
 
-Single-context: one `GLOSSARY.md` at the repo root and ADRs in `docs/adr/`, both created only when a term or decision is settled. ADRs are the one exception to "No design documents" above. See `docs/agents/domain.md`.
+Single-context: one `GLOSSARY.md` at the repo root and ADRs in `docs/adr/`, both created only when a term or decision is settled. See `docs/agents/domain.md`.
