@@ -434,7 +434,7 @@ export function Tabs({ tabs, shown, onShow, onKeep, onClose, tools }: { tabs: re
           const on = t.id === shown;
           return (
             <div key={t.id} role="tab" aria-selected={on} title={t.title ?? t.name} onClick={() => onShow(t.id)} onDoubleClick={() => onKeep?.(t.id)}
-              className={cn('group flex max-w-[220px] flex-none cursor-pointer items-center gap-2 border-r pr-2 pl-3.5 text-[13px]', on ? 'bg-card text-foreground' : 'border-b text-ink-3 hover:text-foreground')}>
+              className={cn('group flex max-w-[220px] flex-none cursor-pointer items-center gap-2 border-r pr-2 pl-3.5 text-[13px]', on ? cn(t.agent ? 'bg-background' : 'bg-card', 'text-foreground') : 'border-b text-ink-3 hover:text-foreground')}>
               {t.agent ? <span className="size-[7px] flex-none animate-pulse rounded-full bg-brand" /> : <span className={cn(KIND, 'h-[18px] w-[26px] leading-[18px]')}>{t.name.split('.').pop()}</span>}
               <span className={cn('truncate', on && 'font-bold', !t.agent && !t.kept && 'italic')}>{t.name}</span>
               {t.agent ? <span className="w-1" /> : (
@@ -460,14 +460,15 @@ const T = {
 
 /**
  * The terminal the page hosts, with Claude Code in it, drawn as a part of the
- * page: on the page's surface, in its ink and its code face, light when the
+ * page: on the page's ground, as the task's column is, a shade apart from
+ * the surface a file is read on; in its ink and its code face, light when the
  * page is light. What the CLI draws is its own; its ground, its ink, its
  * sixteen colours, its face and the room round it are the page's. `head` is what the variant puts over it; without one it is the bare
  * terminal.
  */
 export function Agent({ head }: { head?: ReactNode }) {
   return (
-    <section className="flex h-full min-w-0 flex-col bg-card text-ink-2" aria-label="Agent">
+    <section className="flex h-full min-w-0 flex-col bg-background text-ink-2" aria-label="Agent">
       {head}
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="flex h-full flex-col justify-end px-5 pb-4 font-mono text-[12.5px]/[20px] whitespace-pre-wrap">

@@ -116,7 +116,7 @@ export function Layouts() {
             </ResizablePanel>
             <Handle label="Resize the agent" />
             <ResizablePanel defaultSize={30} minSize="320px">
-              <div className="flex h-full min-w-0 flex-col border-l bg-card"><Tabs tabs={[agentTab]} shown={AGENT} onShow={() => {}} tools={agentTools} /><div className="min-h-0 flex-1"><Agent /></div></div>
+              <div className="flex h-full min-w-0 flex-col border-l bg-background"><Tabs tabs={[agentTab]} shown={AGENT} onShow={() => {}} tools={agentTools} /><div className="min-h-0 flex-1"><Agent /></div></div>
             </ResizablePanel>
           </>
         ) : (
