@@ -15,17 +15,15 @@ import { colourLines, langOf, langReady } from '@/lib/highlight';
 import { renderMarkdown } from '@/lib/markdown';
 import { cn } from '@/lib/utils';
 import { DOC } from '@/views/doc';
-import { CodeLines } from '@/views/Code';
 import { DESTINATION, FILES, LINKS, OUTCOMES, STEPS, TASK, TASKS, WORKING, stepOf, type MockFile, type MockStep, type MockTask, type StepState, type TaskState } from './data';
 
 export { Resizable, ResizablePanel };
 
 /** The line between two panes: a hair wide, the brand's colour under the pointer and while dragged. UI SDK's handle. */
-export function Handle({ label, dark }: { label: string; dark?: boolean }) {
+export function Handle({ label }: { label: string; dark?: boolean }) {
   return (
     <ResizableHandle aria-label={label}
-      className={cn('relative z-[2] w-px flex-none outline-none after:absolute after:inset-y-0 after:-left-[3px] after:w-[7px] data-[dragging]:bg-brand data-[hovering]:bg-brand focus-visible:bg-brand',
-        dark ? 'bg-[var(--term-line)]' : 'bg-border')} />
+      className={cn('relative z-[2] w-px flex-none outline-none after:absolute after:inset-y-0 after:-left-[3px] after:w-[7px] data-[dragging]:bg-brand data-[hovering]:bg-brand focus-visible:bg-brand', 'bg-border')} />
   );
 }
 
@@ -377,8 +375,20 @@ function Code({ f }: { f: MockFile }) {
     void langReady(lang).then(() => { if (live) setReady((n) => n + 1); });
     return () => { live = false; };
   }, [lang]);
-  const lines = f.text.replace(/\n$/, '').split('\n');
-  return <div className="px-6 py-5"><CodeLines lines={lines} wrap={false} coloured={colourLines(lang, f.text.replace(/\n$/, ''))} /></div>;
+  const text = f.text.replace(/\n$/, '');
+  const lines = text.split('\n');
+  const coloured = colourLines(lang, text);
+  // The file on the pane itself, as an editor has it: its numbers, then its lines, to the pane's edges.
+  return (
+    <div className="min-w-max py-3 font-mono text-[12.5px]/[21px] text-ink">
+      {lines.map((line, i) => (
+        <div key={i} className="flex hover:bg-hover">
+          <span className="w-14 flex-none pr-4 text-right text-ink-4 select-none">{i + 1}</span>
+          {coloured ? <span className="pr-8 whitespace-pre" dangerouslySetInnerHTML={{ __html: coloured[i] || ' ' }} /> : <span className="pr-8 whitespace-pre">{line || ' '}</span>}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function Doc({ f }: { f: MockFile }) {
@@ -412,22 +422,25 @@ export function FileView({ f, onClose, lead }: { f: MockFile; onClose?: () => vo
 
 /* ---- the agent: the real CLI's terminal, stood in for ---- */
 
+/** The terminal's colours are the theme's: what the CLI writes in green, red, yellow, cyan and dim is drawn in the page's own inks. */
 const T = {
-  dim: 'text-[#8f8e85]', teal: 'text-[#5cc8db]', green: 'text-[#8fd1a6]', red: 'text-[#f07a6a]', amber: 'text-[#e3a54a]', white: 'text-white',
+  dim: 'text-ink-3', teal: 'text-brand', green: 'text-success', red: 'text-destructive', amber: 'text-warning', white: 'text-foreground',
 } as const;
 
 /**
- * The terminal the page hosts, with Claude Code in it: dark whatever the page
- * is. `head` is what the variant puts over it; without one it is the bare
+ * The terminal the page hosts, with Claude Code in it, drawn as a part of the
+ * page: on the page's surface, in its ink and its code face, light when the
+ * page is light. What the CLI draws is its own; its ground, its ink, its
+ * sixteen colours, its face and the room round it are the page's. `head` is what the variant puts over it; without one it is the bare
  * terminal. `column` keeps its lines to a readable width in the middle of a
  * wide pane.
  */
 export function Agent({ head, column }: { head?: ReactNode; column?: boolean }) {
   return (
-    <section className="flex h-full min-w-0 flex-col bg-[var(--term-bg)] text-[var(--term-fg)]" aria-label="Agent">
+    <section className="flex h-full min-w-0 flex-col bg-card text-ink-2" aria-label="Agent">
       {head}
       <div className="min-h-0 flex-1 overflow-hidden">
-        <div className={cn('flex h-full flex-col justify-end px-4 pb-3 font-mono text-[12.5px]/[20px] whitespace-pre-wrap', column && 'mx-auto max-w-[920px]')}>
+        <div className={cn('flex h-full flex-col justify-end px-5 pb-4 font-mono text-[12.5px]/[20px] whitespace-pre-wrap', column && 'mx-auto max-w-[920px]')}>
           <p className={T.dim}>{'> the materials of each step should sit beside its result, not in one flat folder'}</p>
           <p>&nbsp;</p>
           <p><span className={T.white}>●</span> Each done step gets a folder named for it, holding its result and what it left. Dropped steps are listed and their materials left out, as the spec says.</p>
@@ -448,7 +461,7 @@ export function Agent({ head, column }: { head?: ReactNode; column?: boolean }) 
           <p>&nbsp;</p>
           <p className={T.amber}>✻ Writing the step's result… <span className={T.dim}>(38s · esc to interrupt)</span></p>
           <p>&nbsp;</p>
-          <div className="rounded-[6px] border border-[#5a5a54] px-3 py-1.5"><span className={T.dim}>&gt; </span><span className="inline-block h-[15px] w-[7px] translate-y-[2px] bg-[var(--term-fg)]" /></div>
+          <div className="rounded-[8px] border border-border px-3 py-1.5"><span className={T.dim}>&gt; </span><span className="inline-block h-[15px] w-[7px] translate-y-[2px] bg-foreground" /></div>
           <p className={T.dim}>  <span className={T.teal}>⏵⏵ accept edits on</span> · yan/t152 · step v1sz</p>
         </div>
       </div>
@@ -456,16 +469,16 @@ export function Agent({ head, column }: { head?: ReactNode; column?: boolean }) 
   );
 }
 
-/** What stands over a terminal: which step the session is on, and the terminal's own tools, in the terminal's colours. */
+/** What stands over the terminal: the step the session is on, and the terminal's tools, as any pane's bar. */
 export function AgentHead({ lead, tools }: { lead?: ReactNode; tools?: ReactNode }) {
   return (
-    <div className="flex min-h-11 flex-none items-center gap-2.5 border-b border-[var(--term-line)] py-1.5 pr-2 pl-4 text-[13px]">
+    <div className="flex min-h-14 flex-none items-center gap-2.5 py-2 pr-3.5 pl-5">
       {lead}
-      <span className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="size-[7px] flex-none animate-pulse rounded-full bg-[#5cc8db]" />
-        <span className="truncate">{WORKING.title}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-2.5">
+        <span className="size-[7px] flex-none animate-pulse rounded-full bg-brand" />
+        <span className="truncate text-[15px] font-bold text-foreground">{WORKING.title}</span>
       </span>
-      <span className="flex flex-none items-center gap-0.5 text-[#a09f96] [&_button]:text-[#a09f96] [&_button:hover]:bg-white/10 [&_button:hover]:text-white">{tools}</span>
+      <span className="flex flex-none items-center gap-0.5">{tools}</span>
     </div>
   );
 }

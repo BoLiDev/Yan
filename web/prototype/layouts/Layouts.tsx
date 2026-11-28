@@ -53,7 +53,7 @@ export function Layouts() {
     return () => document.removeEventListener('keydown', onKey);
   });
 
-  const agent = <Agent column={!bench} head={<AgentHead tools={<><Tool name="plus" label="Another shell beside it" small /><Tool name="ban" label="Stop the agent" small /></>} />} />;
+  const agent = <Agent column={!bench} head={<AgentHead tools={<><Tool name="plus" label="Another shell beside it" /><Tool name="ban" label="Stop the agent" /></>} />} />;
   const column = (
     <aside className="flex h-full flex-col overflow-hidden border-r bg-background" aria-label="Task">
       <div className="flex flex-none flex-col gap-3 px-3 pt-[18px] pb-3">
