@@ -79,7 +79,7 @@ function Node({ s, lit, on, pick, toChange }: { s: MockStep; lit: boolean; on: b
         <span className={cn('flex size-[30px] flex-none items-center justify-center', k.shape, t.tile, s.kind === 'prototype' && 'outline-dashed outline-1 -outline-offset-2 outline-current')}><k.Mark size={14} strokeWidth={2} aria-hidden="true" /></span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">{k.word}</span>
-          <span className={cn('line-clamp-2 text-[12.5px]/[16px]', s.state === 'working' && SHIMMER, s.state === 'dropped' && 'line-through', (s.state === 'waiting' || s.state === 'dropped') && 'text-ink-3')} title={s.title}>{s.title}</span>
+          <span className={cn('line-clamp-2 text-[12.5px]/[16px]', s.state === 'working' && SHIMMER, (s.state === 'waiting' || s.state === 'dropped') && 'text-ink-3')} title={s.title}>{s.title}</span>
         </span>
       </button>
       {/* A dropped step carries the mark of the change that dropped it; the mark opens that change. */}
@@ -109,26 +109,27 @@ function StepLine({ s, pick }: { s: MockStep; pick: () => void }) {
   return (
     <button type="button" className={cn(row({ at: 'nav' }), '-mx-2.5 w-[calc(100%+20px)] text-[13.5px]')} onClick={pick}>
       <span className={cn('flex size-[18px] flex-none items-center justify-center bg-hover text-ink-2', k.shape, s.kind === 'prototype' && 'rounded-[5px]')}><k.Mark size={10} strokeWidth={2.2} aria-hidden="true" /></span>
-      <span className={cn(GROW, s.state === 'dropped' && 'text-ink-3 line-through')}>{s.title}</span>
+      <span className={cn(GROW, s.state === 'dropped' && 'text-ink-3')}>{s.title}</span>
     </button>
   );
 }
 
 /** The second drawer: joined to the first at its right edge, a line between them, and as tall. What is picked, at length; it scrolls on its own. */
-function Details({ picked, steps, outcomes, met, left, pick, onClose, onFile }: {
-  picked: Picked; steps: readonly MockStep[]; outcomes: number; met: number; left: number;
+function Details({ picked: now, last, shown, steps, outcomes, met, left, pick, onClose, onFile }: {
+  picked: Picked; last: Picked; shown: boolean; steps: readonly MockStep[]; outcomes: number; met: number; left: number;
   pick: (p: Picked) => void; onClose: () => void; onFile: (path: string) => void;
 }) {
+  // What it showed last stays in it while it slides away.
+  const picked = now ?? last;
   const step = picked && typeof picked === 'object' && 'step' in picked ? steps.find((s) => s.id === picked.step) : undefined;
   const change = picked && typeof picked === 'object' && 'change' in picked ? HISTORY[picked.change] : undefined;
-  const open = picked !== null && (picked === 'destination' || !!step || !!change);
+  const open = shown && now !== null && (picked === 'destination' || !!step || !!change);
   let head: ReactNode = null;
   let body: ReactNode = null;
   if (step) {
     const k = KINDS[step.kind];
     const about = ABOUT[step.id];
     const dropAt = HISTORY.findIndex((m) => m.change?.drops.includes(step.id));
-    const after = steps.filter((s) => s.on.includes(step.id));
     head = <><span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">{k.word} <span className={cn('ml-1.5', step.state === 'working' ? 'text-brand' : step.state === 'done' ? 'text-success' : '')}>{STATE_WORD[step.state]}</span></span><b className="text-[17px]/[23px] tracking-[-0.01em]">{step.title}</b></>;
     body = (
       <>
@@ -147,8 +148,6 @@ function Details({ picked, steps, outcomes, met, left, pick, onClose, onFile }: 
             ))}
           </Part>
         ) : null}
-        {step.on.length ? <Part label="Relies on">{step.on.map((id) => { const s = steps.find((o) => o.id === id); return s ? <StepLine key={id} s={s} pick={() => pick({ step: id })} /> : null; })}</Part> : null}
-        {after.length ? <Part label="Relied on by">{after.map((s) => <StepLine key={s.id} s={s} pick={() => pick({ step: s.id })} />)}</Part> : null}
         {about?.sessions ? <Part label="Sessions">{Array.from({ length: about.sessions }, (_, i) => <div key={i} className={cn(row({ at: 'nav' }), '-mx-2.5 w-[calc(100%+20px)] text-[13.5px]')}><Icon name="terminal" size={15} className="text-ink-3" /><span className={GROW}>Session {i + 1}</span><span className={ASIDE}>{step.state === 'working' && i === about.sessions - 1 ? 'live' : 'resume'}</span></div>)}</Part> : null}
       </>
     );
@@ -179,8 +178,9 @@ function Details({ picked, steps, outcomes, met, left, pick, onClose, onFile }: 
     );
   }
   return (
-    <section aria-label="Details" aria-hidden={!open} style={{ left, width: 380 }}
-      className={cn('fixed inset-y-0 z-[45] flex flex-col border-l bg-background shadow-[0_24px_60px_-10px_var(--shadow-strong)] transition-transform duration-[220ms] ease-[cubic-bezier(.2,.8,.2,1)]', open ? 'translate-x-0' : '-translate-x-full')}>
+    // Out of sight it is behind the first drawer when that is open, and off the page's left edge with it when it is not: the two slide as one.
+    <section aria-label="Details" aria-hidden={!open} style={{ left, width: 380, transform: open ? 'none' : shown ? 'translateX(-100%)' : `translateX(${-(left + 400)}px)` }}
+      className="fixed inset-y-0 z-[45] flex flex-col border-l bg-background shadow-[0_24px_60px_-10px_var(--shadow-strong)] transition-transform duration-[260ms] ease-[cubic-bezier(.2,.8,.2,1)]">
       <div className="flex flex-none items-start gap-3 pt-[18px] pr-3 pb-3 pl-5">
         <div className="flex min-w-0 flex-1 flex-col gap-1">{head}</div>
         <Tool name="close" label="Close the details" onClick={onClose} small />
@@ -197,7 +197,12 @@ function Details({ picked, steps, outcomes, met, left, pick, onClose, onFile }: 
  */
 export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: () => void; onFile: (path: string) => void }) {
   const [t, setT] = useState(NOW);
-  const [picked, setPicked] = useState<Picked>(null);
+  const [picked, pickNow] = useState<Picked>(null);
+  const [last, setLast] = useState<Picked>(null);
+  const setPicked = (p: Picked): void => {
+    if (p !== null) setLast(p);
+    pickNow(p);
+  };
   const { steps, touched, outcomes, met } = pathAt(t);
   const at = (id: string): MockStep | undefined => steps.find((s) => s.id === id);
   const changeOf = (id: string): number => HISTORY.findIndex((m) => m.change?.drops.includes(id));
@@ -208,13 +213,14 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
     if (HISTORY[next]?.change) setPicked({ change: next });
     else if (picked && typeof picked === 'object' && 'change' in picked) setPicked(null);
   };
+  const isChange = (i: number): boolean => !!picked && typeof picked === 'object' && 'change' in picked && picked.change === i;
   const isStep = (id: string): boolean => !!picked && typeof picked === 'object' && 'step' in picked && picked.step === id;
   const m = HISTORY[t];
   const width = WIDTH + 12;
   return (
     <>
       <div className={cn('fixed inset-0 z-40 bg-shade transition-opacity duration-200', open ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={onClose} />
-      {open ? <Details picked={picked} steps={steps} outcomes={outcomes} met={met} left={width} pick={setPicked} onClose={() => setPicked(null)} onFile={onFile} /> : null}
+      <Details picked={picked} last={last} shown={open} steps={steps} outcomes={outcomes} met={met} left={width} pick={setPicked} onClose={() => setPicked(null)} onFile={onFile} />
       <section aria-label="Path" aria-hidden={!open} style={{ width }}
         onKeyDown={(e) => { if (e.key === 'ArrowLeft') go(t - 1); else if (e.key === 'ArrowRight') go(t + 1); }}
         className={cn('fixed inset-y-0 left-0 z-50 flex flex-col bg-background shadow-[0_0_0_1px_var(--line)] transition-transform duration-[260ms] ease-[cubic-bezier(.2,.8,.2,1)]', open ? 'translate-x-0' : '-translate-x-[105%]')}>
@@ -253,9 +259,9 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
               {/* Whatever nothing else relies on yet leads to the destination. */}
               {steps.filter((s) => s.state !== 'dropped' && (t === NOW ? LAST.includes(s.id) : !steps.some((o) => o.on.includes(s.id)))).map((s) => <path key={s.id} d={edge(s.row, s.col, 1, END)} fill="none" stroke="var(--ink-4)" strokeWidth={1.6} strokeDasharray="4 4" opacity={0.7} />)}
             </svg>
-            {steps.map((s) => <Node key={s.id} s={s} lit={t !== NOW && touched.has(s.id)} on={isStep(s.id)} pick={() => setPicked({ step: s.id })} toChange={s.state === 'dropped' ? () => setPicked({ change: changeOf(s.id) }) : undefined} />)}
+            {steps.map((s) => <Node key={s.id} s={s} lit={t !== NOW && touched.has(s.id)} on={isStep(s.id)} pick={() => setPicked(isStep(s.id) ? null : { step: s.id })} toChange={s.state === 'dropped' ? () => setPicked(isChange(changeOf(s.id)) ? null : { change: changeOf(s.id) }) : undefined} />)}
             {/* Where the path ends: the destination, a square for each outcome, filled once it is met. */}
-            <button type="button" onClick={() => setPicked('destination')} className={cn('absolute flex cursor-pointer items-center gap-2.5 rounded-[12px] bg-card px-2.5 text-left ring-1 ring-border hover:brightness-110', m?.change && 'shadow-[0_0_0_3px_var(--amber-soft)] ring-warning', picked === 'destination' && 'ring-2 ring-foreground')} style={{ left: x(1), top: y(END), width: W, height: H }}>
+            <button type="button" onClick={() => setPicked(picked === 'destination' ? null : 'destination')} className={cn('absolute flex cursor-pointer items-center gap-2.5 rounded-[12px] bg-card px-2.5 text-left ring-1 ring-border hover:brightness-110', m?.change && 'shadow-[0_0_0_3px_var(--amber-soft)] ring-warning', picked === 'destination' && 'ring-2 ring-foreground')} style={{ left: x(1), top: y(END), width: W, height: H }}>
               <span className="flex size-[30px] flex-none items-center justify-center rounded-full bg-foreground text-background"><Icon name="principles" size={15} /></span>
               <span className="flex min-w-0 flex-col gap-[3px]">
                 <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">Destination</span>
