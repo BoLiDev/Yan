@@ -123,3 +123,13 @@ When a command, a file format or what the agent is told changes, update
 Commit on `main`. The subject is one lowercase sentence saying what yan now
 does ("a returned tree lets go of its task's branch"), and the body says
 why, in prose.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues on `BoLiDev/Yan`, through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` at the repo root and ADRs in `docs/adr/`, both created only when a term or decision is settled. ADRs are the one exception to "No design documents" above. See `docs/agents/domain.md`.
