@@ -4,10 +4,10 @@
  *   Agent:      task list | the task's column | agent session
  *   Workbench:  task list | the task's column | the file | agent session
  *
- * The task's column is headed by the title, on one line, then two rows that
- * are the same in both layouts: the destination (how far it is met; its
- * words open under it) and the path (how far along; it opens a drawer over the page
- * where the path is drawn as a graph). Under them, Agent lists what is worked now,
+ * The task's column is headed by the title, on one line, then one row that
+ * is the same in both layouts: the blueprint (a mark for each step; it opens
+ * a drawer over the page where the path is drawn as a graph down to its
+ * destination). Under them, Agent lists what is worked now,
  * what is ready next and the links; Workbench lists artifacts or
  * repositories, picked by a row of toggles, with a mark that keeps only what
  * changed.
@@ -21,7 +21,7 @@ import { Seg, Tool } from '@/components/page';
 import { fileAt } from './data';
 import { PathDrawer } from './PathGraph';
 import { setParams, useParam } from './params';
-import { Agent, AgentHead, ChangedToggle, DestinationRow, FileView, Handle, Links, ModeSwitch, Now, PathRow, Rail, Resizable, ResizablePanel, TaskHead, TaskList, Tree, changedCount, type FilesView } from './parts';
+import { Agent, AgentHead, ChangedToggle, FileView, Handle, Links, ModeSwitch, Now, PathRow, Rail, Resizable, ResizablePanel, TaskHead, TaskList, Tree, changedCount, type FilesView } from './parts';
 
 export function Layouts() {
   const [layout] = useParam('layout', 'agent');
@@ -58,7 +58,7 @@ export function Layouts() {
     <aside className="flex h-full flex-col overflow-hidden border-r bg-background" aria-label="Task">
       <div className="flex flex-none flex-col gap-3 px-3 pt-[18px] pb-3">
         <TaskHead />
-        <div className="flex flex-col gap-px"><DestinationRow /><PathRow open={graph} onToggle={toggleGraph} /></div>
+        <PathRow open={graph} onToggle={toggleGraph} />
         {bench ? (
           <div className="flex items-center gap-1.5">
             <div className="min-w-0 flex-1"><Seg wide options={[['materials', 'Artifacts'], ['repositories', 'Repositories']] as const} current={view} onPick={setView} /></div>

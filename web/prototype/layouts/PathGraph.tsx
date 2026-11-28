@@ -218,11 +218,11 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
     <>
       <div className={cn('fixed inset-0 z-40 bg-shade transition-opacity duration-200', open ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={onClose} />
       <Details picked={picked} last={last} shown={open} steps={steps} outcomes={outcomes} met={met} left={width} pick={setPicked} onClose={() => setPicked(null)} onFile={onFile} />
-      <section aria-label="Path" aria-hidden={!open} style={{ width }}
+      <section aria-label="Blueprint" aria-hidden={!open} style={{ width }}
         onKeyDown={(e) => { if (e.key === 'ArrowLeft') go(t - 1); else if (e.key === 'ArrowRight') go(t + 1); }}
         className={cn('fixed inset-y-0 left-0 z-50 flex flex-col bg-background shadow-[0_0_0_1px_var(--line)] transition-transform duration-[260ms] ease-[cubic-bezier(.2,.8,.2,1)]', open ? 'translate-x-0' : '-translate-x-[105%]')}>
         <div className="flex h-[58px] flex-none items-center gap-3 pr-3 pl-5">
-          <b className="text-[19px] tracking-[-0.01em]">Path</b>
+          <b className="text-[19px] tracking-[-0.01em]">Blueprint</b>
           <DropdownMenu>
             <DropdownMenuTrigger render={
               <button type="button" className="flex h-[30px] cursor-pointer items-center gap-2 rounded-lg bg-hover pr-2 pl-2.5 text-[13px] hover:bg-foreground/10" title="Which version of the path is drawn">

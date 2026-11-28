@@ -144,7 +144,6 @@ export function TaskHead({ more }: { more?: ReactNode }) {
       <TaskMark state={TASK.state} size={18} />
       <h1 className="min-w-0 flex-1 truncate text-[19px]/[26px] font-bold tracking-[-0.01em]" title={TASK.title}>{TASK.title}</h1>
       {more}
-      <Tool name="info" label="About this task" small />
     </div>
   );
 }
@@ -346,9 +345,9 @@ export function ChangedToggle({ on, count, onChange }: { on: boolean; count: num
 export function PathRow({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const live = STEPS.filter((s) => s.state !== 'dropped');
   return (
-    <button type="button" aria-expanded={open} className={cn(row({ on: open, at: 'nav' }), 'text-[13.5px]')} onClick={onToggle} title="The path (Ctrl+P)">
+    <button type="button" aria-expanded={open} className={cn(row({ on: open, at: 'nav' }), 'text-[13.5px]')} onClick={onToggle} title="Blueprint (Ctrl+P)">
       <Icon name="branch" size={15} className="text-ink-3" />
-      <span className={GROW}>Path</span>
+      <span className={GROW}>Blueprint</span>
       <span className="flex flex-none items-center gap-1">{live.map((s) => <span key={s.id} title={s.title} className={cn('size-[9px] rounded-full', s.state === 'done' ? 'bg-success' : s.state === 'working' ? 'bg-brand' : 'ring-[1.5px] ring-ink-4 ring-inset')} />)}</span>
       <span className={cn('flex flex-none text-ink-3 transition-transform duration-100', open && 'rotate-180')}><Icon name="chev" size={12} width={2.25} /></span>
     </button>
