@@ -6,8 +6,7 @@
  *
  * The path has versions: each time steps were added, a step was finished,
  * or a change re-routed it. The head's menu picks one and the foot steps to
- * the one before or after; the path is drawn as it was then, with what
- * happened at that moment ringed. Picking a step, a change or the
+ * the one before or after; the path is drawn as it was then. Picking a step, a change or the
  * destination opens a second drawer joined to the first, where it is told
  * at length. A first take: how a path is drawn is its own ticket.
  */
@@ -46,7 +45,7 @@ const TONE: Record<StepState, { tile: string; card: string }> = {
 };
 
 /** The path as it was at moment `t`: which steps were on it, each one's state then, and what each relied on then. */
-function pathAt(t: number): { steps: readonly (MockStep & { on: readonly string[] })[]; touched: ReadonlySet<string>; outcomes: number; met: number } {
+function pathAt(t: number): { steps: readonly (MockStep & { on: readonly string[] })[]; outcomes: number; met: number } {
   const added = new Set<string>(), done = new Set<string>(), dropped = new Set<string>();
   let outcomes = OUTCOMES_AT_FIRST;
   HISTORY.slice(0, t + 1).forEach((m) => {
@@ -55,8 +54,6 @@ function pathAt(t: number): { steps: readonly (MockStep & { on: readonly string[
     m.change?.drops.forEach((id) => dropped.add(id));
     if (m.change) outcomes = m.change.outcomes;
   });
-  const m = HISTORY[t];
-  const touched = new Set<string>([...(m?.adds ?? []), ...(m?.done ?? []), ...(m?.change?.drops ?? [])]);
   const steps = STEPS.filter((s) => added.has(s.id)).map((s) => {
     const on = [...s.on, ...(ONCE[s.id] ?? []).filter((id) => !dropped.has(id))];
     let state: StepState = on.every((id) => done.has(id)) ? 'ready' : 'waiting';
@@ -66,16 +63,16 @@ function pathAt(t: number): { steps: readonly (MockStep & { on: readonly string[
     return { ...s, on, state };
   });
   const met = MET_FROM.reduce((n, [from, count]) => (t >= from ? count : n), 0);
-  return { steps, touched, outcomes, met };
+  return { steps, outcomes, met };
 }
 
-function Node({ s, lit, on, pick, toChange }: { s: MockStep; lit: boolean; on: boolean; pick: () => void; toChange?: () => void }) {
+function Node({ s, on, pick, toChange }: { s: MockStep; on: boolean; pick: () => void; toChange?: () => void }) {
   const k = KINDS[s.kind];
   const t = TONE[s.state];
   return (
     <div className="absolute" style={{ left: x(s.row), top: y(s.col), width: W, height: H }}>
       <button type="button" aria-pressed={on} onClick={pick}
-        className={cn('flex size-full cursor-pointer items-center gap-2.5 rounded-[12px] px-2.5 text-left hover:brightness-110', t.card, lit && 'shadow-[0_0_0_3px_var(--brand-soft)] ring-1 ring-brand', on && 'opacity-100 ring-2 ring-foreground')}>
+        className={cn('flex size-full cursor-pointer items-center gap-2.5 rounded-[12px] px-2.5 text-left hover:brightness-110', t.card, on && 'opacity-100 ring-2 ring-foreground')}>
         <span className={cn('flex size-[30px] flex-none items-center justify-center', k.shape, t.tile, s.kind === 'prototype' && 'outline-dashed outline-1 -outline-offset-2 outline-current')}><k.Mark size={14} strokeWidth={2} aria-hidden="true" /></span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">{k.word}</span>
@@ -203,7 +200,7 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
     if (p !== null) setLast(p);
     pickNow(p);
   };
-  const { steps, touched, outcomes, met } = pathAt(t);
+  const { steps, outcomes, met } = pathAt(t);
   const at = (id: string): MockStep | undefined => steps.find((s) => s.id === id);
   const changeOf = (id: string): number => HISTORY.findIndex((m) => m.change?.drops.includes(id));
   const go = (to: number): void => {
@@ -259,9 +256,9 @@ export function PathDrawer({ open, onClose, onFile }: { open: boolean; onClose: 
               {/* Whatever nothing else relies on yet leads to the destination. */}
               {steps.filter((s) => s.state !== 'dropped' && (t === NOW ? LAST.includes(s.id) : !steps.some((o) => o.on.includes(s.id)))).map((s) => <path key={s.id} d={edge(s.row, s.col, 1, END)} fill="none" stroke="var(--ink-4)" strokeWidth={1.6} strokeDasharray="4 4" opacity={0.7} />)}
             </svg>
-            {steps.map((s) => <Node key={s.id} s={s} lit={t !== NOW && touched.has(s.id)} on={isStep(s.id)} pick={() => setPicked(isStep(s.id) ? null : { step: s.id })} toChange={s.state === 'dropped' ? () => setPicked(isChange(changeOf(s.id)) ? null : { change: changeOf(s.id) }) : undefined} />)}
+            {steps.map((s) => <Node key={s.id} s={s} on={isStep(s.id)} pick={() => setPicked(isStep(s.id) ? null : { step: s.id })} toChange={s.state === 'dropped' ? () => setPicked(isChange(changeOf(s.id)) ? null : { change: changeOf(s.id) }) : undefined} />)}
             {/* Where the path ends: the destination, a square for each outcome, filled once it is met. */}
-            <button type="button" onClick={() => setPicked(picked === 'destination' ? null : 'destination')} className={cn('absolute flex cursor-pointer items-center gap-2.5 rounded-[12px] bg-card px-2.5 text-left ring-1 ring-border hover:brightness-110', m?.change && 'shadow-[0_0_0_3px_var(--amber-soft)] ring-warning', picked === 'destination' && 'ring-2 ring-foreground')} style={{ left: x(1), top: y(END), width: W, height: H }}>
+            <button type="button" onClick={() => setPicked(picked === 'destination' ? null : 'destination')} className={cn('absolute flex cursor-pointer items-center gap-2.5 rounded-[12px] bg-card px-2.5 text-left ring-1 ring-border hover:brightness-110', picked === 'destination' && 'ring-2 ring-foreground')} style={{ left: x(1), top: y(END), width: W, height: H }}>
               <span className="flex size-[30px] flex-none items-center justify-center rounded-full bg-foreground text-background"><Icon name="principles" size={15} /></span>
               <span className="flex min-w-0 flex-col gap-[3px]">
                 <span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">Destination</span>
