@@ -25,12 +25,20 @@ _Avoid_: Deliverable, acceptance criterion, requirement
 ### Steps
 
 **Step**:
-One node of a **Path**: a piece of work of one kind (decision, research, prototype, spec or build) that is to do, done or dropped.
+One node of a **Path**: a piece of work of one kind (decision, research, prototype, spec or build) that is to do, done or dropped. A step relies on the earlier steps whose **Results** it was built from.
 _Avoid_: Node, ticket, stage, phase
 
 **Dropped**:
-The state of a **Step** that no longer holds after a change, whether or not it had been done. A dropped step stays on the **Path** with the reason it was dropped.
+The state of a **Step** that no longer holds, whether or not it had been done. A dropped step stays on the **Path** with the reason it was dropped, and is never taken up again: work that returns to it is a new step.
 _Avoid_: Deleted, cancelled, abandoned, invalid
+
+**Change**:
+Something that makes the **Destination**, or the **Result** of a done **Step**, stop holding. It is recorded once on the **Path**, and the steps dropped or added because of it point to it. A path that only gains, reshapes or drops steps still to do has not changed in this sense.
+_Avoid_: Pivot, revision, amendment
+
+**Re-route**:
+The edit to a **Path** that answers a **Change**: the destination rewritten if it moved, the steps the change reaches **Dropped**, new steps added. The agent proposes it whole and the user decides.
+_Avoid_: Replan, rebase, reset
 
 **Result**:
 What a finished **Step** concluded: a decision's answer and why, a finding, a prototype's verdict, a **Spec**, or what a build made work.
