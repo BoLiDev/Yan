@@ -48,11 +48,19 @@ _Avoid_: Replan, rebase, reset
 What a finished **Step** concluded: a decision's answer and why, a finding, a prototype's verdict, a **Spec**, or what a build made work.
 _Avoid_: Outcome, resolution, answer
 
+**Session**:
+One conversation of the agent. It works one **Step** at a time, and a step keeps the sessions that worked it, to show where it is being worked and to pick it up again while it is still to do. What a step made belongs to the step, not to a session.
+_Avoid_: Run, launch, chat
+
 ### What work leaves behind
 
 **Material**:
 Any file a **Task** keeps outside the code: a **Spec**, a **Prototype**, research findings, a report, a script. A change to code is a commit, not a material.
 _Avoid_: Artifact, document, deliverable, resource
+
+**Loose commit**:
+A commit on a **Task**'s branch that no **Step** holds: made while no step was in work, or under a step that was never started. It belongs to the task, and a builder is shown it with the **Results** it reads.
+_Avoid_: Orphan commit, untracked commit, stray commit
 
 **Spec**:
 The brief for building: a **Material** written by a spec **Step** that gathers the **Results** before it so that a builder with no memory of them can work from it. It is not edited once its step is done; a revision is a new spec step.
