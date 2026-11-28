@@ -61,7 +61,7 @@ export const OUTCOMES: readonly (readonly [string, boolean])[] = [
   ['Unpacking on a second machine gives the same files', false],
 ];
 
-export const LINKS: readonly (readonly [string, string])[] = [['Merge request', '!48 · yan'], ['Pipeline', '#2291 · passed']];
+export const LINKS: readonly (readonly [string, string])[] = [['Merge request', '!48'], ['Pipeline', '#2291']];
 
 export interface MockFile { path: string; root: 'materials' | 'code'; step: string; mark?: 'M' | 'A'; text: string }
 

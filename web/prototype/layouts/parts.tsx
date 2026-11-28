@@ -218,7 +218,7 @@ export function Steps({ onFile, picked, change }: { onFile?: (path: string) => v
 function StepRow({ s, onFile, on }: { s: MockStep; onFile?: (path: string) => void; on: boolean }) {
   const first = s.files[0];
   return (
-    <a className={cn(row({ on, at: 'nav' }), 'items-start py-[6px] text-[13.5px]/[20px]')} href="#" title={`${s.kind} · ${s.state}`}
+    <a className={cn(row({ on, at: 'nav' }), 'items-start py-[6px] text-[13.5px]/[20px]')} href="#"
       onClick={(e) => { e.preventDefault(); if (first) onFile?.(first); }}>
       <span className="mt-[2.5px] flex"><StepMark state={s.state} /></span>
       <span className={cn('min-w-0 flex-1', s.state === 'working' && SHIMMER, s.state === 'dropped' && 'text-ink-4 line-through', s.state === 'waiting' && 'text-ink-3')}>{s.title}</span>
@@ -242,10 +242,10 @@ export function Links() {
 
 /* ---- the files: what the steps left, and the code ---- */
 
-function TreeRow({ depth, icon, name, aside, on, onClick, mark }: { depth: number; icon?: IconName; name: string; aside?: ReactNode; on?: boolean; onClick?: () => void; mark?: string }) {
+function TreeRow({ depth, icon, name, aside, on, onClick, mark, shut }: { depth: number; icon?: IconName; name: string; aside?: ReactNode; on?: boolean; onClick?: () => void; mark?: string; shut?: boolean }) {
   return (
     <a className={cn(row({ on: !!on, at: 'tree' }), icon && 'py-[5px]')} style={{ paddingLeft: `${(icon ? 10 : 32) + depth * 16}px` }} href="#" onClick={(e) => { e.preventDefault(); onClick?.(); }}>
-      {icon ? <><span className="flex-none rotate-90 text-ink-3"><Icon name="chev" size={12} width={2.25} /></span><Icon name={icon} size={15} className="text-ink-3" /></> : <span className={KIND}>{name.split('.').pop()}</span>}
+      {icon ? <><span className={cn('flex-none text-ink-3', !shut && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span><Icon name={icon} size={15} className="text-ink-3" /></> : <span className={KIND}>{name.split('.').pop()}</span>}
       <span className={GROW}>{name}</span>
       {mark ? <span className={cn('flex-none font-mono text-[11px] font-bold', mark === 'A' ? 'text-success' : 'text-warning')}>{mark}</span> : null}
       {aside}
@@ -294,7 +294,7 @@ export function Tree({ view, changed, file, onFile }: { view: FilesView; changed
       <div className="flex flex-col gap-px" role="tree">
         {materials.map((f) => (
           <div key={f.path} className="flex flex-col gap-px">
-            <TreeRow depth={0} icon="folder" name={stepOf(f.step)?.title ?? f.step} aside={<span className={ASIDE}>1</span>} />
+            <TreeRow depth={0} icon="folder" name={stepOf(f.step)?.title ?? f.step} />
             <TreeRow depth={1} name={f.path} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />
           </div>
         ))}
@@ -302,27 +302,25 @@ export function Tree({ view, changed, file, onFile }: { view: FilesView; changed
     );
   }
   const code = FILES.filter((f) => f.root === 'code');
-  const repo = (name: string, open: boolean, count: number): ReactNode => (
+  const repo = (name: string, open: boolean): ReactNode => (
     <div className={cn(row({ at: 'tree' }), 'py-[5px] pl-2.5')}>
       <span className={cn('flex-none text-ink-3', open && 'rotate-90')}><Icon name="chev" size={12} width={2.25} /></span>
       <Icon name="branch" size={15} className="text-ink-3" /><span className={GROW}>{name}</span>
       <span className="flex-none font-mono text-[11px] text-ink-3">yan/t152</span>
-      {changed ? <span className={ASIDE}>{count}</span> : null}
     </div>
   );
   return (
     <div className="flex flex-col gap-px" role="tree">
-      {repo('yan', true, code.length)}
+      {repo('yan', true)}
       <div className="flex flex-col gap-px pl-3">
-        <TreeRow depth={0} icon="folder" name="src / pack" aside={<span className={ASIDE}>{changed ? code.length : code.length + UNCHANGED.length}</span>} />
+        <TreeRow depth={0} icon="folder" name="src / pack" />
         {changed ? null : <TreeRow depth={1} name={UNCHANGED[0] as string} />}
         {changed ? null : <TreeRow depth={1} name={UNCHANGED[1] as string} />}
         {code.map((f) => <TreeRow key={f.path} depth={1} name={f.path.split('/').pop() as string} mark={f.mark} on={file === f.path} onClick={() => onFile(f.path)} />)}
-        {changed ? null : <TreeRow depth={0} icon="folder" name="src / path" aside={<span className={ASIDE}>6</span>} />}
-        {changed ? null : <TreeRow depth={0} icon="folder" name="tests" aside={<span className={ASIDE}>31</span>} />}
+        {changed ? null : <TreeRow depth={0} icon="folder" name="src / path" shut aside={<span className={ASIDE}>6</span>} />}
+        {changed ? null : <TreeRow depth={0} icon="folder" name="tests" shut aside={<span className={ASIDE}>31</span>} />}
       </div>
-      {changed ? null : repo('yan-site', false, 0)}
-      {changed ? <div className="px-2.5 pt-2 text-[12px] text-ink-3">yan-site has no changes.</div> : null}
+      {changed ? null : repo('yan-site', false)}
     </div>
   );
 }
@@ -393,11 +391,9 @@ export function FileView({ f, onClose, lead }: { f: MockFile; onClose?: () => vo
   const md = f.path.endsWith('.md');
   const [mode, setMode] = useState<'rendered' | 'source' | 'history'>('rendered');
   const [diff, setDiff] = useState(false);
-  const step = stepOf(f.step);
   return (
     <div className="flex h-full min-w-0 flex-col bg-card">
       <Bar title={<Crumb path={f.path} />}
-        meta={md ? `${step?.kind} · ${step?.title} · frozen` : `yan/t152 · changed by “${step?.title}”`}
         tools={<>
           {lead}
           {md ? <Seg options={[['rendered', 'Rendered'], ['source', 'Source'], ['history', 'History']] as const} current={mode} onPick={setMode} />
@@ -467,7 +463,7 @@ export function AgentHead({ lead, tools }: { lead?: ReactNode; tools?: ReactNode
       {lead}
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <span className="size-[7px] flex-none animate-pulse rounded-full bg-[#5cc8db]" />
-        <span className="truncate"><span className="text-[#8f8e85]">Working </span>{WORKING.title}</span>
+        <span className="truncate">{WORKING.title}</span>
       </span>
       <span className="flex flex-none items-center gap-0.5 text-[#a09f96] [&_button]:text-[#a09f96] [&_button:hover]:bg-white/10 [&_button:hover]:text-white">{tools}</span>
     </div>

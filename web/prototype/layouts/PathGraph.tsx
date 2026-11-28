@@ -13,7 +13,7 @@
 import { useState, type ReactNode } from 'react';
 import { FileText, FlaskConical, Hammer, Search, Signpost, type LucideIcon } from 'lucide-react';
 import { Icon } from '@/components/Icon';
-import { ASIDE, GROW, KIND, LABEL, SHIMMER, Tool, row } from '@/components/page';
+import { GROW, KIND, LABEL, SHIMMER, Tool, row } from '@/components/page';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ABOUT, DESTINATION, HISTORY, LAST, MET_FROM, ONCE, OUTCOMES, OUTCOMES_AT_FIRST, STEPS, type MockStep, type StepKind, type StepState } from './data';
@@ -95,8 +95,6 @@ function edge(fromLane: number, fromLevel: number, toLane: number, toLevel: numb
 /** What is picked in the graph, shown in the second drawer: a step, a change (by its moment), or the destination. */
 type Picked = { step: string } | { change: number } | 'destination' | null;
 
-const STATE_WORD: Record<StepState, string> = { done: 'Done', working: 'In work', ready: 'Ready', waiting: 'Waiting', dropped: 'Dropped' };
-
 function Part({ label, children }: { label: string; children: ReactNode }) {
   return <div className="flex flex-col"><div className={cn(LABEL, 'px-0')}>{label}</div><div className="text-[13.5px]/[21px] text-ink-2">{children}</div></div>;
 }
@@ -127,7 +125,7 @@ function Details({ picked: now, last, shown, steps, outcomes, met, left, pick, o
     const k = KINDS[step.kind];
     const about = ABOUT[step.id];
     const dropAt = HISTORY.findIndex((m) => m.change?.drops.includes(step.id));
-    head = <><span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">{k.word} <span className={cn('ml-1.5', step.state === 'working' ? 'text-brand' : step.state === 'done' ? 'text-success' : '')}>{STATE_WORD[step.state]}</span></span><b className="text-[17px]/[23px] tracking-[-0.01em]">{step.title}</b></>;
+    head = <><span className="text-[10.5px]/[14px] font-bold tracking-wide text-ink-3 uppercase">{k.word}</span><b className="text-[17px]/[23px] tracking-[-0.01em]">{step.title}</b></>;
     body = (
       <>
         <Part label="What it is about">{about?.about}</Part>
@@ -145,7 +143,7 @@ function Details({ picked: now, last, shown, steps, outcomes, met, left, pick, o
             ))}
           </Part>
         ) : null}
-        {about?.sessions ? <Part label="Sessions">{Array.from({ length: about.sessions }, (_, i) => <div key={i} className={cn(row({ at: 'nav' }), '-mx-2.5 w-[calc(100%+20px)] text-[13.5px]')}><Icon name="terminal" size={15} className="text-ink-3" /><span className={GROW}>Session {i + 1}</span><span className={ASIDE}>{step.state === 'working' && i === about.sessions - 1 ? 'live' : 'resume'}</span></div>)}</Part> : null}
+        {about?.sessions ? <Part label="Sessions">{Array.from({ length: about.sessions }, (_, i) => <div key={i} className={cn(row({ at: 'nav' }), '-mx-2.5 w-[calc(100%+20px)] text-[13.5px]')}><Icon name="terminal" size={15} className="text-ink-3" /><span className={GROW}>Session {i + 1}</span>{step.state === 'working' && i === about.sessions - 1 ? <span className="size-[7px] flex-none animate-pulse rounded-full bg-brand" /> : null}</div>)}</Part> : null}
       </>
     );
   } else if (change?.change) {
